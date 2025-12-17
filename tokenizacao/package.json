@@ -1,0 +1,42 @@
+{
+  "name": "net-imobiliaria",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "generate-password": "node scripts/generate-password.js",
+    "migrate:amenidades": "node scripts/migrate-amenidades-proximidades.js",
+    "test:auth": "npm run dev & sleep 5 && curl -X POST image.pnghttp://localhost:3000/api/admin/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"admin123\"}'",
+    "clean": "rm -rf .next node_modules package-lock.json && npm install"
+  },
+  "dependencies": {
+    "@headlessui/react": "^1.7.17",
+    "@heroicons/react": "^2.0.18",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.0.1",
+    "bcryptjs": "^3.0.2",
+    "framer-motion": "^10.16.16",
+    "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.294.0",
+    "next": "14.0.4",
+    "pg": "^8.16.3",
+    "postcss": "^8",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-dropzone": "^14.3.8",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5"
+  },
+  "devDependencies": {
+    "eslint": "^8",
+    "eslint-config-next": "14.0.4"
+  }
+}

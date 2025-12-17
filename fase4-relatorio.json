@@ -1,0 +1,20 @@
+{
+  "database": {
+    "backups": "PASS",
+    "imoveis_data": "PASS",
+    "no_critical_fk": "PASS"
+  },
+  "api": {
+    "municipios": "PASS",
+    "imoveis": "PASS",
+    "dashboard": "FAIL"
+  },
+  "locationHelpers": {
+    "functions": "PASS"
+  },
+  "overall": {
+    "passed": 6,
+    "failed": 1,
+    "skipped": 0
+  }
+}

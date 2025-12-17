@@ -1,0 +1,40 @@
+/* Estilos personalizados para o Leaflet */
+@import 'leaflet/dist/leaflet.css';
+
+/* Ajustes para o modal de mapa */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  border-radius: 0.5rem;
+}
+
+/* Personalização do popup */
+.leaflet-popup-content {
+  margin: 8px 12px;
+  line-height: 1.4;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+}
+
+/* Personalização dos controles */
+.leaflet-control-zoom {
+  border-radius: 6px;
+}
+
+.leaflet-control-zoom a {
+  border-radius: 6px;
+}
+
+/* Ajuste para dispositivos móveis */
+@media (max-width: 768px) {
+  .leaflet-popup-content {
+    margin: 6px 8px;
+    font-size: 14px;
+  }
+}
+
+
+
+

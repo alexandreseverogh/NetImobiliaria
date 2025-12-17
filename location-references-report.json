@@ -1,0 +1,2328 @@
+{
+  "estados": [
+    {
+      "file": "src/app/(with-header)/imoveis/[id]/page.tsx",
+      "fileType": "page",
+      "occurrences": 7,
+      "contexts": [
+        {
+          "line": 5,
+          "content": "import { useEstadosCidades } from '@/hooks/useEstadosCidades'",
+          "type": "hook_usage"
+        },
+        {
+          "line": 60,
+          "content": "const { estados, getEstadoNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        },
+        {
+          "line": 269,
+          "content": "const estado = estados.find(e => e.sigla === dadosBasicos.estado_fk)",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/clientes/novo/page.tsx",
+      "fileType": "page",
+      "occurrences": 25,
+      "contexts": [
+        {
+          "line": 9,
+          "content": "interface EstadosCidades {",
+          "type": "type_definition"
+        },
+        {
+          "line": 10,
+          "content": "estados: Array<{id: string, nome: string, sigla: string}>",
+          "type": "unknown"
+        },
+        {
+          "line": 45,
+          "content": "const [estadosCidades, setEstadosCidades] = useState<EstadosCidades>({",
+          "type": "state_variable"
+        },
+        {
+          "line": 46,
+          "content": "estados: [],",
+          "type": "unknown"
+        },
+        {
+          "line": 69,
+          "content": "const loadEstados = async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 72,
+          "content": "const estadosComId = municipiosData.estados?.map((estado, index) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 77,
+          "content": "setEstadosCidades(prev => ({ ...prev, estados: estadosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 79,
+          "content": "console.error('Erro ao carregar estados:', err)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 82,
+          "content": "loadEstados()",
+          "type": "unknown"
+        },
+        {
+          "line": 89,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 96,
+          "content": "const municipiosDoEstado = municipiosData.estados[estadoIndex]?.municipios || []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 103,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 106,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 317,
+          "content": "estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 318,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 495,
+          "content": "{estadosCidades.estados.map(estado => (",
+          "type": "hook_usage"
+        },
+        {
+          "line": 514,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": true,
+        "stateVariable": true,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/clientes/page.tsx",
+      "fileType": "page",
+      "occurrences": 10,
+      "contexts": [
+        {
+          "line": 8,
+          "content": "import { useEstadosCidades } from '@/hooks/useEstadosCidades'",
+          "type": "hook_usage"
+        },
+        {
+          "line": 49,
+          "content": "const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        },
+        {
+          "line": 160,
+          "content": "console.log('🔍 handleSearch - Estados disponíveis:', estados)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 299,
+          "content": "{estados.map(estado => (",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/clientes/[id]/editar/page.tsx",
+      "fileType": "page",
+      "occurrences": 32,
+      "contexts": [
+        {
+          "line": 53,
+          "content": "const [estadosCidades, setEstadosCidades] = useState({",
+          "type": "state_variable"
+        },
+        {
+          "line": 54,
+          "content": "estados: [] as Array<{id: string, sigla: string, nome: string}>,",
+          "type": "unknown"
+        },
+        {
+          "line": 114,
+          "content": "const loadEstados = async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 117,
+          "content": "const estadosComId = municipiosData.estados?.map((estado, index) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 122,
+          "content": "setEstadosCidades(prev => ({ ...prev, estados: estadosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 124,
+          "content": "console.error('Erro ao carregar estados:', err)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 127,
+          "content": "loadEstados()",
+          "type": "unknown"
+        },
+        {
+          "line": 137,
+          "content": "const estadoSelecionado = municipiosData.estados?.[estadoIndex]",
+          "type": "hook_usage"
+        },
+        {
+          "line": 138,
+          "content": "const municipiosDoEstado = estadoSelecionado?.municipios?.map((municipio: string, index: number) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 142,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosDoEstado }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 147,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 156,
+          "content": "if (cliente && estadosCidades.estados.length > 0) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 158,
+          "content": "const estadoEncontrado = estadosCidades.estados.find(e => e.nome === cliente.estado_fk)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 163,
+          "content": "}, [cliente, estadosCidades.estados])",
+          "type": "hook_usage"
+        },
+        {
+          "line": 166,
+          "content": "if (cliente && formData.estado && estadosCidades.municipios.length > 0) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 168,
+          "content": "const cidadeEncontrada = estadosCidades.municipios.find(m => m.nome === cliente.cidade_fk)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 173,
+          "content": "}, [cliente, formData.estado, estadosCidades.municipios])",
+          "type": "hook_usage"
+        },
+        {
+          "line": 361,
+          "content": "estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 362,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 506,
+          "content": "{estadosCidades.estados.map(estado => (",
+          "type": "hook_usage"
+        },
+        {
+          "line": 527,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": true,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/imoveis/page.tsx",
+      "fileType": "page",
+      "occurrences": 8,
+      "contexts": [
+        {
+          "line": 8,
+          "content": "import { useEstadosCidades } from '@/hooks/useEstadosCidades'",
+          "type": "hook_usage"
+        },
+        {
+          "line": 39,
+          "content": "const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        },
+        {
+          "line": 213,
+          "content": "{estados.map(estado => (",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/mudancas-status/page.tsx",
+      "fileType": "page",
+      "occurrences": 7,
+      "contexts": [
+        {
+          "line": 17,
+          "content": "import { useEstadosCidades } from '@/hooks/useEstadosCidades'",
+          "type": "hook_usage"
+        },
+        {
+          "line": 56,
+          "content": "const { getEstadoNome, estados } = useEstadosCidades()",
+          "type": "hook_usage"
+        },
+        {
+          "line": 318,
+          "content": "const estado = estados.find(e => e.sigla === dadosBasicos.estado_fk)",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/proprietarios/novo/page.tsx",
+      "fileType": "page",
+      "occurrences": 25,
+      "contexts": [
+        {
+          "line": 9,
+          "content": "interface EstadosCidades {",
+          "type": "type_definition"
+        },
+        {
+          "line": 10,
+          "content": "estados: Array<{id: string, nome: string, sigla: string}>",
+          "type": "unknown"
+        },
+        {
+          "line": 45,
+          "content": "const [estadosCidades, setEstadosCidades] = useState<EstadosCidades>({",
+          "type": "state_variable"
+        },
+        {
+          "line": 46,
+          "content": "estados: [],",
+          "type": "unknown"
+        },
+        {
+          "line": 69,
+          "content": "const loadEstados = async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 72,
+          "content": "const estadosComId = municipiosData.estados?.map((estado, index) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 77,
+          "content": "setEstadosCidades(prev => ({ ...prev, estados: estadosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 79,
+          "content": "console.error('Erro ao carregar estados:', err)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 82,
+          "content": "loadEstados()",
+          "type": "unknown"
+        },
+        {
+          "line": 89,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 96,
+          "content": "const municipiosDoEstado = municipiosData.estados[estadoIndex]?.municipios || []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 103,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 106,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 317,
+          "content": "estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 318,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 495,
+          "content": "{estadosCidades.estados.map(estado => (",
+          "type": "hook_usage"
+        },
+        {
+          "line": 514,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": true,
+        "stateVariable": true,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/proprietarios/page.tsx",
+      "fileType": "page",
+      "occurrences": 8,
+      "contexts": [
+        {
+          "line": 8,
+          "content": "import { useEstadosCidades } from '@/hooks/useEstadosCidades'",
+          "type": "hook_usage"
+        },
+        {
+          "line": 49,
+          "content": "const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        },
+        {
+          "line": 303,
+          "content": "{estados.map(estado => (",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/proprietarios/[id]/editar/page.tsx",
+      "fileType": "page",
+      "occurrences": 32,
+      "contexts": [
+        {
+          "line": 53,
+          "content": "const [estadosCidades, setEstadosCidades] = useState({",
+          "type": "state_variable"
+        },
+        {
+          "line": 54,
+          "content": "estados: [] as Array<{id: string, sigla: string, nome: string}>,",
+          "type": "unknown"
+        },
+        {
+          "line": 114,
+          "content": "const loadEstados = async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 117,
+          "content": "const estadosComId = municipiosData.estados?.map((estado, index) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 122,
+          "content": "setEstadosCidades(prev => ({ ...prev, estados: estadosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 124,
+          "content": "console.error('Erro ao carregar estados:', err)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 127,
+          "content": "loadEstados()",
+          "type": "unknown"
+        },
+        {
+          "line": 137,
+          "content": "const estadoSelecionado = municipiosData.estados?.[estadoIndex]",
+          "type": "hook_usage"
+        },
+        {
+          "line": 138,
+          "content": "const municipiosDoEstado = estadoSelecionado?.municipios?.map((municipio: string, index: number) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 142,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosDoEstado }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 147,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 156,
+          "content": "if (proprietario && estadosCidades.estados.length > 0) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 158,
+          "content": "const estadoEncontrado = estadosCidades.estados.find(e => e.nome === proprietario.estado_fk)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 163,
+          "content": "}, [proprietario, estadosCidades.estados])",
+          "type": "hook_usage"
+        },
+        {
+          "line": 166,
+          "content": "if (proprietario && formData.estado && estadosCidades.municipios.length > 0) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 168,
+          "content": "const cidadeEncontrada = estadosCidades.municipios.find(m => m.nome === proprietario.cidade_fk)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 173,
+          "content": "}, [proprietario, formData.estado, estadosCidades.municipios])",
+          "type": "hook_usage"
+        },
+        {
+          "line": 361,
+          "content": "estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 362,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 506,
+          "content": "{estadosCidades.estados.map(estado => (",
+          "type": "hook_usage"
+        },
+        {
+          "line": 527,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": true,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/api/admin/dashboard/stats/route.ts",
+      "fileType": "api",
+      "occurrences": 5,
+      "contexts": [
+        {
+          "line": 65,
+          "content": "const estadosQuery = `",
+          "type": "variable_reference"
+        },
+        {
+          "line": 76,
+          "content": "const estadosResult = await pool.query(estadosQuery)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 121,
+          "content": "estados: estadosResult.rows || [],",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": false
+      }
+    },
+    {
+      "file": "src/app/api/admin/imoveis/route.ts",
+      "fileType": "api",
+      "occurrences": 3,
+      "contexts": [
+        {
+          "line": 107,
+          "content": "const siglasEstados: {[key: number]: string} = {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 113,
+          "content": "filtros.estado_sigla = siglasEstados[estadoId] || null",
+          "type": "variable_reference"
+        },
+        {
+          "line": 115,
+          "content": "console.log('🔍 Mapeamento completo:', siglasEstados)",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": false
+      }
+    },
+    {
+      "file": "src/components/admin/dashboard/DashboardFilters.tsx",
+      "fileType": "component",
+      "occurrences": 5,
+      "contexts": [
+        {
+          "line": 74,
+          "content": "const estados = municipiosData ? municipiosData.estados?.sort((a: any, b: any) => a.nome.localeCompare(b.nome)) || [] : []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 76,
+          "content": "? municipiosData.estados?.find((e: any) => e.sigla === filterEstado)?.municipios?.sort() || []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 112,
+          "content": "<option value=\"\">Todos os estados</option>",
+          "type": "unknown"
+        },
+        {
+          "line": 113,
+          "content": "{estados.map((estado: any) => (",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/components/admin/SimpleImovelWizard.tsx",
+      "fileType": "component",
+      "occurrences": 5,
+      "contexts": [
+        {
+          "line": 15,
+          "content": "estados: {",
+          "type": "unknown"
+        },
+        {
+          "line": 82,
+          "content": "const estadoSelecionado = municipiosData.estados?.find(",
+          "type": "hook_usage"
+        },
+        {
+          "line": 85,
+          "content": "const municipiosDoEstado = estadoSelecionado?.municipios || []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 144,
+          "content": "{municipiosData?.estados?.map((estado) => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": false,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/components/admin/wizard/LocationStep.tsx",
+      "fileType": "component",
+      "occurrences": 11,
+      "contexts": [
+        {
+          "line": 14,
+          "content": "estados: {",
+          "type": "unknown"
+        },
+        {
+          "line": 49,
+          "content": "const estadoInfo = municipiosData.estados.find(e => e.sigla === selectedEstado)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 83,
+          "content": "const estados = municipiosData ? municipiosData.estados.sort((a, b) => a.nome.localeCompare(b.nome)) : []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 85,
+          "content": "? municipiosData.estados.find(e => e.sigla === selectedEstado)?.municipios.sort() || []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 91,
+          "content": "estadosCount: estados.length,",
+          "type": "variable_reference"
+        },
+        {
+          "line": 94,
+          "content": "estadosDisponiveis: estados.map(e => e.sigla),",
+          "type": "variable_reference"
+        },
+        {
+          "line": 184,
+          "content": "{estados.map((estado) => (",
+          "type": "variable_reference"
+        },
+        {
+          "line": 334,
+          "content": "Localização selecionada: {selectedMunicipio}, {municipiosData?.estados.find(e => e.sigla === selectedEstado)?.nome || selectedEstado}",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/hooks/useEstadosCidades.ts",
+      "fileType": "hook",
+      "occurrences": 23,
+      "contexts": [
+        {
+          "line": 14,
+          "content": "export const useEstadosCidades = () => {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 15,
+          "content": "const [estados, setEstados] = useState<Estado[]>([])",
+          "type": "state_variable"
+        },
+        {
+          "line": 20,
+          "content": "const loadEstados = useCallback(async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 24,
+          "content": "const estadosComId = municipiosData.estados?.map((estado, index) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 29,
+          "content": "setEstados(estadosComId)",
+          "type": "unknown"
+        },
+        {
+          "line": 31,
+          "content": "console.error('Erro ao carregar estados:', error)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 48,
+          "content": "const estadoSelecionado = municipiosData.estados?.[estadoIndex]",
+          "type": "hook_usage"
+        },
+        {
+          "line": 50,
+          "content": "if (estadoSelecionado?.municipios) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 51,
+          "content": "const municipiosDoEstado = estadoSelecionado.municipios.map((municipio: string, index: number) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 69,
+          "content": "const estado = estados.find(e => e.id === estadoId)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 71,
+          "content": "}, [estados])",
+          "type": "unknown"
+        },
+        {
+          "line": 81,
+          "content": "const estado = estados.find(e => e.nome === estadoNome)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 83,
+          "content": "}, [estados])",
+          "type": "unknown"
+        },
+        {
+          "line": 98,
+          "content": "loadEstados()",
+          "type": "unknown"
+        },
+        {
+          "line": 99,
+          "content": "}, [loadEstados])",
+          "type": "unknown"
+        },
+        {
+          "line": 102,
+          "content": "estados,",
+          "type": "unknown"
+        },
+        {
+          "line": 105,
+          "content": "loadEstados,",
+          "type": "unknown"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": true,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    }
+  ],
+  "cidades": [
+    {
+      "file": "src/app/(with-header)/imoveis/[id]/page.tsx",
+      "fileType": "page",
+      "occurrences": 4,
+      "contexts": [
+        {
+          "line": 5,
+          "content": "import { useEstadosCidades } from '@/hooks/useEstadosCidades'",
+          "type": "hook_usage"
+        },
+        {
+          "line": 60,
+          "content": "const { estados, getEstadoNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": false,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/clientes/novo/page.tsx",
+      "fileType": "page",
+      "occurrences": 12,
+      "contexts": [
+        {
+          "line": 9,
+          "content": "interface EstadosCidades {",
+          "type": "type_definition"
+        },
+        {
+          "line": 45,
+          "content": "const [estadosCidades, setEstadosCidades] = useState<EstadosCidades>({",
+          "type": "state_variable"
+        },
+        {
+          "line": 77,
+          "content": "setEstadosCidades(prev => ({ ...prev, estados: estadosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 89,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 103,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 106,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 317,
+          "content": "estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 318,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 495,
+          "content": "{estadosCidades.estados.map(estado => (",
+          "type": "hook_usage"
+        },
+        {
+          "line": 514,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": true,
+        "stateVariable": true,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/clientes/page.tsx",
+      "fileType": "page",
+      "occurrences": 3,
+      "contexts": [
+        {
+          "line": 8,
+          "content": "import { useEstadosCidades } from '@/hooks/useEstadosCidades'",
+          "type": "hook_usage"
+        },
+        {
+          "line": 49,
+          "content": "const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": false,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/clientes/[id]/editar/page.tsx",
+      "fileType": "page",
+      "occurrences": 15,
+      "contexts": [
+        {
+          "line": 53,
+          "content": "const [estadosCidades, setEstadosCidades] = useState({",
+          "type": "state_variable"
+        },
+        {
+          "line": 122,
+          "content": "setEstadosCidades(prev => ({ ...prev, estados: estadosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 142,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosDoEstado }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 147,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 156,
+          "content": "if (cliente && estadosCidades.estados.length > 0) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 158,
+          "content": "const estadoEncontrado = estadosCidades.estados.find(e => e.nome === cliente.estado_fk)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 163,
+          "content": "}, [cliente, estadosCidades.estados])",
+          "type": "hook_usage"
+        },
+        {
+          "line": 166,
+          "content": "if (cliente && formData.estado && estadosCidades.municipios.length > 0) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 168,
+          "content": "const cidadeEncontrada = estadosCidades.municipios.find(m => m.nome === cliente.cidade_fk)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 173,
+          "content": "}, [cliente, formData.estado, estadosCidades.municipios])",
+          "type": "hook_usage"
+        },
+        {
+          "line": 361,
+          "content": "estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 362,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 506,
+          "content": "{estadosCidades.estados.map(estado => (",
+          "type": "hook_usage"
+        },
+        {
+          "line": 527,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": true,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/imoveis/page.tsx",
+      "fileType": "page",
+      "occurrences": 4,
+      "contexts": [
+        {
+          "line": 8,
+          "content": "import { useEstadosCidades } from '@/hooks/useEstadosCidades'",
+          "type": "hook_usage"
+        },
+        {
+          "line": 39,
+          "content": "const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": false,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/mudancas-status/page.tsx",
+      "fileType": "page",
+      "occurrences": 4,
+      "contexts": [
+        {
+          "line": 17,
+          "content": "import { useEstadosCidades } from '@/hooks/useEstadosCidades'",
+          "type": "hook_usage"
+        },
+        {
+          "line": 56,
+          "content": "const { getEstadoNome, estados } = useEstadosCidades()",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": false,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/proprietarios/novo/page.tsx",
+      "fileType": "page",
+      "occurrences": 12,
+      "contexts": [
+        {
+          "line": 9,
+          "content": "interface EstadosCidades {",
+          "type": "type_definition"
+        },
+        {
+          "line": 45,
+          "content": "const [estadosCidades, setEstadosCidades] = useState<EstadosCidades>({",
+          "type": "state_variable"
+        },
+        {
+          "line": 77,
+          "content": "setEstadosCidades(prev => ({ ...prev, estados: estadosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 89,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 103,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 106,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 317,
+          "content": "estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 318,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 495,
+          "content": "{estadosCidades.estados.map(estado => (",
+          "type": "hook_usage"
+        },
+        {
+          "line": 514,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": true,
+        "stateVariable": true,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/proprietarios/page.tsx",
+      "fileType": "page",
+      "occurrences": 3,
+      "contexts": [
+        {
+          "line": 8,
+          "content": "import { useEstadosCidades } from '@/hooks/useEstadosCidades'",
+          "type": "hook_usage"
+        },
+        {
+          "line": 49,
+          "content": "const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": false,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/proprietarios/[id]/editar/page.tsx",
+      "fileType": "page",
+      "occurrences": 15,
+      "contexts": [
+        {
+          "line": 53,
+          "content": "const [estadosCidades, setEstadosCidades] = useState({",
+          "type": "state_variable"
+        },
+        {
+          "line": 122,
+          "content": "setEstadosCidades(prev => ({ ...prev, estados: estadosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 142,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosDoEstado }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 147,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 156,
+          "content": "if (proprietario && estadosCidades.estados.length > 0) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 158,
+          "content": "const estadoEncontrado = estadosCidades.estados.find(e => e.nome === proprietario.estado_fk)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 163,
+          "content": "}, [proprietario, estadosCidades.estados])",
+          "type": "hook_usage"
+        },
+        {
+          "line": 166,
+          "content": "if (proprietario && formData.estado && estadosCidades.municipios.length > 0) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 168,
+          "content": "const cidadeEncontrada = estadosCidades.municipios.find(m => m.nome === proprietario.cidade_fk)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 173,
+          "content": "}, [proprietario, formData.estado, estadosCidades.municipios])",
+          "type": "hook_usage"
+        },
+        {
+          "line": 361,
+          "content": "estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 362,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 506,
+          "content": "{estadosCidades.estados.map(estado => (",
+          "type": "hook_usage"
+        },
+        {
+          "line": 527,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": true,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/hooks/useEstadosCidades.ts",
+      "fileType": "hook",
+      "occurrences": 1,
+      "contexts": [
+        {
+          "line": 14,
+          "content": "export const useEstadosCidades = () => {",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": false,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    }
+  ],
+  "municipios": [
+    {
+      "file": "src/app/admin/clientes/novo/page.tsx",
+      "fileType": "page",
+      "occurrences": 20,
+      "contexts": [
+        {
+          "line": 11,
+          "content": "municipios: Array<{id: string, nome: string}>",
+          "type": "unknown"
+        },
+        {
+          "line": 47,
+          "content": "municipios: []",
+          "type": "unknown"
+        },
+        {
+          "line": 71,
+          "content": "const municipiosData = await import('@/lib/admin/municipios.json')",
+          "type": "json_import"
+        },
+        {
+          "line": 72,
+          "content": "const estadosComId = municipiosData.estados?.map((estado, index) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 87,
+          "content": "const loadMunicipios = async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 89,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 94,
+          "content": "const municipiosData = await import('@/lib/admin/municipios.json')",
+          "type": "json_import"
+        },
+        {
+          "line": 96,
+          "content": "const municipiosDoEstado = municipiosData.estados[estadoIndex]?.municipios || []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 98,
+          "content": "const municipiosComId = municipiosDoEstado.map((municipio, index) => ({",
+          "type": "variable_reference"
+        },
+        {
+          "line": 103,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 106,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 110,
+          "content": "loadMunicipios()",
+          "type": "unknown"
+        },
+        {
+          "line": 318,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 514,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": true,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/clientes/page.tsx",
+      "fileType": "page",
+      "occurrences": 7,
+      "contexts": [
+        {
+          "line": 49,
+          "content": "const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        },
+        {
+          "line": 69,
+          "content": "loadMunicipios(filters.estado)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 70,
+          "content": "}, [filters.estado, loadMunicipios])",
+          "type": "variable_reference"
+        },
+        {
+          "line": 156,
+          "content": "clearMunicipios()",
+          "type": "unknown"
+        },
+        {
+          "line": 319,
+          "content": "{municipios.map(municipio => (",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/clientes/[id]/editar/page.tsx",
+      "fileType": "page",
+      "occurrences": 19,
+      "contexts": [
+        {
+          "line": 55,
+          "content": "municipios: [] as Array<{id: string, nome: string}>",
+          "type": "unknown"
+        },
+        {
+          "line": 116,
+          "content": "const municipiosData = await import('@/lib/admin/municipios.json')",
+          "type": "json_import"
+        },
+        {
+          "line": 117,
+          "content": "const estadosComId = municipiosData.estados?.map((estado, index) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 132,
+          "content": "const loadMunicipios = async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 135,
+          "content": "const municipiosData = await import('@/lib/admin/municipios.json')",
+          "type": "json_import"
+        },
+        {
+          "line": 137,
+          "content": "const estadoSelecionado = municipiosData.estados?.[estadoIndex]",
+          "type": "hook_usage"
+        },
+        {
+          "line": 138,
+          "content": "const municipiosDoEstado = estadoSelecionado?.municipios?.map((municipio: string, index: number) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 142,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosDoEstado }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 147,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 151,
+          "content": "loadMunicipios()",
+          "type": "unknown"
+        },
+        {
+          "line": 166,
+          "content": "if (cliente && formData.estado && estadosCidades.municipios.length > 0) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 168,
+          "content": "const cidadeEncontrada = estadosCidades.municipios.find(m => m.nome === cliente.cidade_fk)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 173,
+          "content": "}, [cliente, formData.estado, estadosCidades.municipios])",
+          "type": "hook_usage"
+        },
+        {
+          "line": 362,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 527,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": true,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/imoveis/page.tsx",
+      "fileType": "page",
+      "occurrences": 7,
+      "contexts": [
+        {
+          "line": 39,
+          "content": "const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        },
+        {
+          "line": 77,
+          "content": "loadMunicipios(filters.estado)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 78,
+          "content": "}, [filters.estado, loadMunicipios])",
+          "type": "variable_reference"
+        },
+        {
+          "line": 126,
+          "content": "clearMunicipios()",
+          "type": "unknown"
+        },
+        {
+          "line": 233,
+          "content": "{municipios.map(municipio => (",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/proprietarios/novo/page.tsx",
+      "fileType": "page",
+      "occurrences": 20,
+      "contexts": [
+        {
+          "line": 11,
+          "content": "municipios: Array<{id: string, nome: string}>",
+          "type": "unknown"
+        },
+        {
+          "line": 47,
+          "content": "municipios: []",
+          "type": "unknown"
+        },
+        {
+          "line": 71,
+          "content": "const municipiosData = await import('@/lib/admin/municipios.json')",
+          "type": "json_import"
+        },
+        {
+          "line": 72,
+          "content": "const estadosComId = municipiosData.estados?.map((estado, index) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 87,
+          "content": "const loadMunicipios = async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 89,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 94,
+          "content": "const municipiosData = await import('@/lib/admin/municipios.json')",
+          "type": "json_import"
+        },
+        {
+          "line": 96,
+          "content": "const municipiosDoEstado = municipiosData.estados[estadoIndex]?.municipios || []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 98,
+          "content": "const municipiosComId = municipiosDoEstado.map((municipio, index) => ({",
+          "type": "variable_reference"
+        },
+        {
+          "line": 103,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosComId }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 106,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 110,
+          "content": "loadMunicipios()",
+          "type": "unknown"
+        },
+        {
+          "line": 318,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 514,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": true,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/proprietarios/page.tsx",
+      "fileType": "page",
+      "occurrences": 7,
+      "contexts": [
+        {
+          "line": 49,
+          "content": "const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()",
+          "type": "hook_usage"
+        },
+        {
+          "line": 68,
+          "content": "loadMunicipios(filters.estado)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 69,
+          "content": "}, [filters.estado, loadMunicipios])",
+          "type": "variable_reference"
+        },
+        {
+          "line": 152,
+          "content": "clearMunicipios()",
+          "type": "unknown"
+        },
+        {
+          "line": 323,
+          "content": "{municipios.map(municipio => (",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/admin/proprietarios/[id]/editar/page.tsx",
+      "fileType": "page",
+      "occurrences": 19,
+      "contexts": [
+        {
+          "line": 55,
+          "content": "municipios: [] as Array<{id: string, nome: string}>",
+          "type": "unknown"
+        },
+        {
+          "line": 116,
+          "content": "const municipiosData = await import('@/lib/admin/municipios.json')",
+          "type": "json_import"
+        },
+        {
+          "line": 117,
+          "content": "const estadosComId = municipiosData.estados?.map((estado, index) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 132,
+          "content": "const loadMunicipios = async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 135,
+          "content": "const municipiosData = await import('@/lib/admin/municipios.json')",
+          "type": "json_import"
+        },
+        {
+          "line": 137,
+          "content": "const estadoSelecionado = municipiosData.estados?.[estadoIndex]",
+          "type": "hook_usage"
+        },
+        {
+          "line": 138,
+          "content": "const municipiosDoEstado = estadoSelecionado?.municipios?.map((municipio: string, index: number) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 142,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: municipiosDoEstado }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 147,
+          "content": "setEstadosCidades(prev => ({ ...prev, municipios: [] }))",
+          "type": "variable_reference"
+        },
+        {
+          "line": 151,
+          "content": "loadMunicipios()",
+          "type": "unknown"
+        },
+        {
+          "line": 166,
+          "content": "if (proprietario && formData.estado && estadosCidades.municipios.length > 0) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 168,
+          "content": "const cidadeEncontrada = estadosCidades.municipios.find(m => m.nome === proprietario.cidade_fk)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 173,
+          "content": "}, [proprietario, formData.estado, estadosCidades.municipios])",
+          "type": "hook_usage"
+        },
+        {
+          "line": 362,
+          "content": "cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,",
+          "type": "hook_usage"
+        },
+        {
+          "line": 527,
+          "content": "{estadosCidades.municipios.map(municipio => (",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": true,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/app/api/admin/dashboard/stats/route.ts",
+      "fileType": "api",
+      "occurrences": 5,
+      "contexts": [
+        {
+          "line": 79,
+          "content": "const municipiosQuery = `",
+          "type": "variable_reference"
+        },
+        {
+          "line": 90,
+          "content": "const municipiosResult = await pool.query(municipiosQuery)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 122,
+          "content": "municipios: municipiosResult.rows || [],",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": false
+      }
+    },
+    {
+      "file": "src/app/api/admin/municipios/route.ts",
+      "fileType": "api",
+      "occurrences": 3,
+      "contexts": [
+        {
+          "line": 2,
+          "content": "import municipiosData from '@/lib/admin/municipios.json'",
+          "type": "json_import"
+        },
+        {
+          "line": 6,
+          "content": "return NextResponse.json(municipiosData)",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": true,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": false,
+        "hookUsage": false
+      }
+    },
+    {
+      "file": "src/components/admin/dashboard/DashboardFilters.tsx",
+      "fileType": "component",
+      "occurrences": 16,
+      "contexts": [
+        {
+          "line": 25,
+          "content": "const [municipiosData, setMunicipiosData] = useState<any>(null)",
+          "type": "state_variable"
+        },
+        {
+          "line": 29,
+          "content": "const [tiposResponse, finalidadesResponse, statusResponse, municipiosResponse] = await Promise.all([",
+          "type": "variable_reference"
+        },
+        {
+          "line": 33,
+          "content": "fetch('/api/admin/municipios', { credentials: 'include' })",
+          "type": "api_call"
+        },
+        {
+          "line": 51,
+          "content": "if (municipiosResponse.ok) {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 52,
+          "content": "const municipiosData = await municipiosResponse.json()",
+          "type": "variable_reference"
+        },
+        {
+          "line": 53,
+          "content": "setMunicipiosData(municipiosData)",
+          "type": "unknown"
+        },
+        {
+          "line": 74,
+          "content": "const estados = municipiosData ? municipiosData.estados?.sort((a: any, b: any) => a.nome.localeCompare(b.nome)) || [] : []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 75,
+          "content": "const municipios = filterEstado && municipiosData",
+          "type": "variable_reference"
+        },
+        {
+          "line": 76,
+          "content": "? municipiosData.estados?.find((e: any) => e.sigla === filterEstado)?.municipios?.sort() || []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 132,
+          "content": "{municipios.map((municipio: string) => (",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": true,
+        "apiCall": true,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/components/admin/SimpleImovelWizard.tsx",
+      "fileType": "component",
+      "occurrences": 20,
+      "contexts": [
+        {
+          "line": 18,
+          "content": "municipios: string[]",
+          "type": "unknown"
+        },
+        {
+          "line": 59,
+          "content": "const [municipiosData, setMunicipiosData] = useState<MunicipioData | null>(null)",
+          "type": "state_variable"
+        },
+        {
+          "line": 60,
+          "content": "const [municipios, setMunicipios] = useState<string[]>([])",
+          "type": "state_variable"
+        },
+        {
+          "line": 64,
+          "content": "const loadMunicipios = async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 66,
+          "content": "const response = await fetch('/api/admin/municipios')",
+          "type": "api_call"
+        },
+        {
+          "line": 69,
+          "content": "setMunicipiosData(data)",
+          "type": "unknown"
+        },
+        {
+          "line": 76,
+          "content": "loadMunicipios()",
+          "type": "unknown"
+        },
+        {
+          "line": 81,
+          "content": "if (formData.endereco?.estado && municipiosData) {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 82,
+          "content": "const estadoSelecionado = municipiosData.estados?.find(",
+          "type": "hook_usage"
+        },
+        {
+          "line": 85,
+          "content": "const municipiosDoEstado = estadoSelecionado?.municipios || []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 86,
+          "content": "setMunicipios(municipiosDoEstado)",
+          "type": "unknown"
+        },
+        {
+          "line": 88,
+          "content": "setMunicipios([])",
+          "type": "unknown"
+        },
+        {
+          "line": 90,
+          "content": "}, [formData.endereco?.estado, municipiosData])",
+          "type": "variable_reference"
+        },
+        {
+          "line": 144,
+          "content": "{municipiosData?.estados?.map((estado) => (",
+          "type": "hook_usage"
+        },
+        {
+          "line": 164,
+          "content": "{municipios.map((municipio) => (",
+          "type": "variable_reference"
+        },
+        {
+          "line": 171,
+          "content": "{municipios.length} municípios disponíveis",
+          "type": "variable_reference"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": true,
+        "apiCall": true,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/components/admin/wizard/LocationStep.tsx",
+      "fileType": "component",
+      "occurrences": 29,
+      "contexts": [
+        {
+          "line": 17,
+          "content": "municipios: string[]",
+          "type": "unknown"
+        },
+        {
+          "line": 22,
+          "content": "const [municipiosData, setMunicipiosData] = useState<MunicipioData | null>(null)",
+          "type": "state_variable"
+        },
+        {
+          "line": 28,
+          "content": "loadMunicipios()",
+          "type": "unknown"
+        },
+        {
+          "line": 34,
+          "content": "console.log('🔍 LocationStep - municipiosData carregado:', !!municipiosData)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 44,
+          "content": "}, [data.endereco?.estado, data.endereco?.cidade, municipiosData])",
+          "type": "variable_reference"
+        },
+        {
+          "line": 48,
+          "content": "if (selectedEstado && selectedMunicipio && municipiosData) {",
+          "type": "unknown"
+        },
+        {
+          "line": 49,
+          "content": "const estadoInfo = municipiosData.estados.find(e => e.sigla === selectedEstado)",
+          "type": "hook_usage"
+        },
+        {
+          "line": 64,
+          "content": "}, [selectedEstado, selectedMunicipio, municipiosData])",
+          "type": "unknown"
+        },
+        {
+          "line": 66,
+          "content": "const loadMunicipios = async () => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 69,
+          "content": "const response = await fetch('/api/admin/municipios')",
+          "type": "api_call"
+        },
+        {
+          "line": 71,
+          "content": "const municipios = await response.json()",
+          "type": "variable_reference"
+        },
+        {
+          "line": 72,
+          "content": "setMunicipiosData(municipios)",
+          "type": "unknown"
+        },
+        {
+          "line": 83,
+          "content": "const estados = municipiosData ? municipiosData.estados.sort((a, b) => a.nome.localeCompare(b.nome)) : []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 84,
+          "content": "const municipios = selectedEstado && municipiosData",
+          "type": "variable_reference"
+        },
+        {
+          "line": 85,
+          "content": "? municipiosData.estados.find(e => e.sigla === selectedEstado)?.municipios.sort() || []",
+          "type": "hook_usage"
+        },
+        {
+          "line": 92,
+          "content": "municipiosCount: municipios.length,",
+          "type": "variable_reference"
+        },
+        {
+          "line": 93,
+          "content": "municipiosDataLoaded: !!municipiosData,",
+          "type": "unknown"
+        },
+        {
+          "line": 95,
+          "content": "municipiosDisponiveis: municipios.slice(0, 5) // Primeiros 5 para não poluir o log",
+          "type": "variable_reference"
+        },
+        {
+          "line": 206,
+          "content": "{municipios.map((municipio) => (",
+          "type": "variable_reference"
+        },
+        {
+          "line": 334,
+          "content": "Localização selecionada: {selectedMunicipio}, {municipiosData?.estados.find(e => e.sigla === selectedEstado)?.nome || selectedEstado}",
+          "type": "hook_usage"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": true,
+        "apiCall": true,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/hooks/useEstadosCidades.ts",
+      "fileType": "hook",
+      "occurrences": 26,
+      "contexts": [
+        {
+          "line": 16,
+          "content": "const [municipios, setMunicipios] = useState<Municipio[]>([])",
+          "type": "state_variable"
+        },
+        {
+          "line": 23,
+          "content": "const municipiosData = await import('@/lib/admin/municipios.json')",
+          "type": "json_import"
+        },
+        {
+          "line": 24,
+          "content": "const estadosComId = municipiosData.estados?.map((estado, index) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 38,
+          "content": "const loadMunicipios = useCallback(async (estadoId: string) => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 40,
+          "content": "setMunicipios([])",
+          "type": "unknown"
+        },
+        {
+          "line": 46,
+          "content": "const municipiosData = await import('@/lib/admin/municipios.json')",
+          "type": "json_import"
+        },
+        {
+          "line": 48,
+          "content": "const estadoSelecionado = municipiosData.estados?.[estadoIndex]",
+          "type": "hook_usage"
+        },
+        {
+          "line": 50,
+          "content": "if (estadoSelecionado?.municipios) {",
+          "type": "hook_usage"
+        },
+        {
+          "line": 51,
+          "content": "const municipiosDoEstado = estadoSelecionado.municipios.map((municipio: string, index: number) => ({",
+          "type": "hook_usage"
+        },
+        {
+          "line": 55,
+          "content": "setMunicipios(municipiosDoEstado)",
+          "type": "unknown"
+        },
+        {
+          "line": 57,
+          "content": "setMunicipios([])",
+          "type": "unknown"
+        },
+        {
+          "line": 61,
+          "content": "setMunicipios([])",
+          "type": "unknown"
+        },
+        {
+          "line": 75,
+          "content": "const cidade = municipios.find(m => m.id === cidadeId)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 77,
+          "content": "}, [municipios])",
+          "type": "unknown"
+        },
+        {
+          "line": 87,
+          "content": "const cidade = municipios.find(m => m.nome === cidadeNome)",
+          "type": "variable_reference"
+        },
+        {
+          "line": 89,
+          "content": "}, [municipios])",
+          "type": "unknown"
+        },
+        {
+          "line": 92,
+          "content": "const clearMunicipios = useCallback(() => {",
+          "type": "variable_reference"
+        },
+        {
+          "line": 93,
+          "content": "setMunicipios([])",
+          "type": "unknown"
+        },
+        {
+          "line": 103,
+          "content": "municipios,",
+          "type": "unknown"
+        },
+        {
+          "line": 106,
+          "content": "loadMunicipios,",
+          "type": "unknown"
+        },
+        {
+          "line": 107,
+          "content": "clearMunicipios,",
+          "type": "unknown"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": true,
+        "databaseQuery": false,
+        "variableReference": true,
+        "typeDefinition": false,
+        "stateVariable": true,
+        "apiCall": false,
+        "hookUsage": true
+      }
+    },
+    {
+      "file": "src/lib/config/constants.ts",
+      "fileType": "lib",
+      "occurrences": 1,
+      "contexts": [
+        {
+          "line": 384,
+          "content": "LIST: '/api/admin/municipios'",
+          "type": "api_call"
+        }
+      ],
+      "usageTypes": {
+        "jsonImport": false,
+        "databaseQuery": false,
+        "variableReference": false,
+        "typeDefinition": false,
+        "stateVariable": false,
+        "apiCall": true,
+        "hookUsage": false
+      }
+    }
+  ],
+  "summary": {
+    "total_files": 17,
+    "by_type": {
+      "component": 6,
+      "page": 25,
+      "api": 4,
+      "hook": 3,
+      "lib": 1
+    },
+    "by_usage": {
+      "json_import": 6,
+      "database_query": 0,
+      "variable_reference": 31,
+      "type_definition": 4
+    }
+  }
+}

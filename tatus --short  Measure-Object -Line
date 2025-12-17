@@ -1,0 +1,15 @@
+warning: in the working copy of 'database/add-finalidade-to-imoveis.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'database/schema.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'env.local.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'next.config.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/AdminLayoutContent.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/amenidades/[slug]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/amenidades/novo/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/amenidades/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/categorias-amenidades/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/finalidades/[id]/editar/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/finalidades/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/imoveis/[id]/edicao/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/imoveis/novo/page.tsx', LF will be replaced by CRLF the next time Git touches it

@@ -1,0 +1,267 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import HeroSection from '@/components/HeroSection'
+import LandingPropertyCard from '@/components/LandingPropertyCard'
+import SearchForm from '@/components/SearchForm'
+import { useEstadosCidades } from '@/hooks/useEstadosCidades'
+
+export default function LandingPage() {
+  const [imoveis, setImoveis] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 20
+  
+  // Hook para estados e cidades (MESMO da página pública)
+  const { estados } = useEstadosCidades()
+  
+  // Carregar imóveis em destaque
+  useEffect(() => {
+    const carregarImoveis = async () => {
+      try {
+        console.log('🔍 LandingPage - Buscando imóveis em destaque...')
+        const response = await fetch('/api/public/imoveis/destaque')
+        console.log('🔍 LandingPage - Response status:', response.status)
+        console.log('🔍 LandingPage - Response ok:', response.ok)
+        
+        const data = await response.json()
+        console.log('🔍 LandingPage - Dados recebidos (raw):', data)
+        console.log('🔍 LandingPage - data.success:', data.success)
+        console.log('🔍 LandingPage - data.imoveis:', data.imoveis)
+        console.log('🔍 LandingPage - data.error:', data.error)
+        console.log('🔍 LandingPage - Quantidade de imóveis:', data.imoveis?.length)
+        
+        if (response.ok && data.success && data.imoveis) {
+          console.log('✅ LandingPage - Definindo', data.imoveis.length, 'imóveis')
+          setImoveis(data.imoveis)
+        } else {
+          console.warn('⚠️ LandingPage - Nenhum imóvel encontrado ou erro:', data.error)
+          setImoveis([])
+        }
+      } catch (error) {
+        console.error('❌ LandingPage - Erro ao carregar imóveis:', error)
+        setImoveis([])
+      } finally {
+        console.log('🔍 LandingPage - Finalizando loading...')
+        setLoading(false)
+      }
+    }
+    
+    carregarImoveis()
+  }, [])
+  
+  // Transformar dados do banco para formato do PropertyCard
+  const featuredProperties = imoveis.map(imovel => {
+    console.log('🔍 LandingPage - Transformando imóvel:', imovel)
+    
+    // Formatar preço com separadores de milhares (pontos)
+    const precoFormatado = imovel.preco 
+      ? `R$ ${Number(imovel.preco).toLocaleString('pt-BR', { 
+          minimumFractionDigits: 2, 
+          maximumFractionDigits: 2 
+        })}`
+      : 'Preço sob consulta'
+    
+    console.log('🔍 LandingPage - Preço original:', imovel.preco, 'Formatado:', precoFormatado)
+    
+    // Buscar nome do estado pela sigla
+    const estado = estados.find(e => e.sigla === imovel.estado_fk)
+    const estadoNome = estado?.nome || imovel.estado_fk || ''
+    
+    // Montar localização: Bairro, Cidade, Estado
+    const localizacao = [
+      imovel.bairro,
+      imovel.cidade_fk,
+      estadoNome
+    ].filter(Boolean).join(', ')
+    
+    return {
+      id: imovel.id,
+      title: imovel.titulo,
+      price: precoFormatado,
+      location: localizacao || 'Localização não informada',
+      bedrooms: imovel.quartos || 0,
+      bathrooms: imovel.banheiros || 0,
+      area: imovel.area_total ? `${imovel.area_total}m²` : '-',
+      garages: imovel.vagas_garagem || 0,
+      image: imovel.imagem_principal || 'placeholder',
+      type: imovel.finalidade_nome || 'Venda'
+    }
+  })
+  
+  console.log('🔍 LandingPage - featuredProperties final:', featuredProperties)
+  console.log('🔍 LandingPage - Quantidade final:', featuredProperties.length)
+  
+  // Calcular paginação
+  const totalPages = Math.ceil(featuredProperties.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentProperties = featuredProperties.slice(startIndex, endIndex)
+  
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  
+  // Fallback para dados mockados caso não haja imóveis em destaque
+  const mockProperties = [
+    {
+      id: 1,
+      title: 'Apartamento de Luxo no Jardins',
+      price: 'R$ 2.500.000',
+      location: 'Jardins, São Paulo',
+      bedrooms: 3,
+      bathrooms: 2,
+      area: '120m²',
+      image: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=600&fit=crop',
+      type: 'Venda'
+    },
+    {
+      id: 2,
+      title: 'Casa Moderna em Pinheiros',
+      price: 'R$ 1.800.000',
+      location: 'Pinheiros, São Paulo',
+      bedrooms: 4,
+      bathrooms: 3,
+      area: '180m²',
+      image: 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&h=600&fit=crop',
+      type: 'Venda'
+    },
+    {
+      id: 3,
+      title: 'Cobertura Duplex na Vila Madalena',
+      price: 'R$ 3.200.000',
+      location: 'Vila Madalena, São Paulo',
+      bedrooms: 3,
+      bathrooms: 2,
+      area: '150m²',
+      image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&h=600&fit=crop',
+      type: 'Venda'
+    },
+    {
+      id: 4,
+      title: 'Loft Moderno no Itaim Bibi',
+      price: 'R$ 1.200.000',
+      location: 'Itaim Bibi, São Paulo',
+      bedrooms: 2,
+      bathrooms: 1,
+      area: '85m²',
+      image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop',
+      type: 'Venda'
+    }
+  ]
+
+  return (
+    <div className="min-h-screen">
+      <HeroSection />
+      
+      <section className="py-16 px-6">
+        <div className="w-full max-w-[1600px] mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Imóveis em Destaque
+            </h2>
+            <p className="text-lg text-gray-600">
+              Descubra as melhores oportunidades do mercado imobiliário
+            </p>
+          </div>
+          
+          {loading ? (
+            <div className="grid grid-cols-4 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-64 bg-gray-200 rounded-lg mb-4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              ))}
+            </div>
+          ) : featuredProperties.length > 0 ? (
+            <>
+              <div className="grid grid-cols-4 gap-6">
+                {currentProperties.map((property) => (
+                  <LandingPropertyCard key={property.id} property={property} />
+                ))}
+              </div>
+              
+              {/* Paginação */}
+              <div className="bg-gray-50 px-6 py-5 border-t-2 border-gray-200 rounded-lg mt-8">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="order-2 sm:order-1">
+                    <p className="text-sm font-medium text-gray-700">
+                      Mostrando <span className="font-bold text-blue-600">{startIndex + 1}</span> até <span className="font-bold text-blue-600">{Math.min(endIndex, featuredProperties.length)}</span> de{' '}
+                      <span className="font-bold text-blue-600">{featuredProperties.length}</span> imóveis em destaque
+                    </p>
+                  </div>
+                  
+                  {totalPages > 1 && (
+                    <div className="order-1 sm:order-2">
+                      <nav className="relative z-0 inline-flex rounded-md shadow-sm">
+                        <button
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className="relative inline-flex items-center px-4 py-2 rounded-l-md border-2 border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                          <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          Anterior
+                        </button>
+                        
+                        <div className="flex -space-x-px">
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                            <button
+                              key={page}
+                              onClick={() => handlePageChange(page)}
+                              className={`relative inline-flex items-center px-5 py-2 border-2 text-base font-bold transition-all ${
+                                page === currentPage
+                                  ? 'z-10 bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
+                                  : 'border-gray-300 bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:scale-105'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          ))}
+                        </div>
+                        
+                        <button
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                          className="relative inline-flex items-center px-4 py-2 rounded-r-md border-2 border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                          Próximo
+                          <svg className="h-5 w-5 ml-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </nav>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-600">Nenhum imóvel em destaque no momento</p>
+            </div>
+          )}
+        </div>
+      </section>
+      
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Encontre seu Imóvel Ideal
+            </h2>
+            <p className="text-lg text-gray-600">
+              Use nossa busca avançada para encontrar exatamente o que procura
+            </p>
+          </div>
+          <SearchForm />
+        </div>
+      </section>
+    </div>
+  )
+}
+

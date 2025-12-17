@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagramas do Sistema - Net Imobiliária</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #1a202c;
+            border-bottom: 3px solid #3b82f6;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #2d3748;
+            margin-top: 40px;
+            background: #e2e8f0;
+            padding: 10px 15px;
+            border-radius: 5px;
+        }
+        .diagram-container {
+            background: white;
+            padding: 30px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+        .description {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .toc {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 8px 0;
+        }
+        .toc a {
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>📊 Diagramas do Sistema de Segurança - Net Imobiliária</h1>
+    
+    <div class="toc">
+        <h3>📑 Índice</h3>
+        <ul>
+            <li><a href="#diagrama-er">1. Diagrama ER (Entidade-Relacionamento)</a></li>
+            <li><a href="#fluxo-login">2. Fluxo de Login com 2FA</a></li>
+            <li><a href="#fluxo-autorizacao">3. Fluxo de Autorização</a></li>
+            <li><a href="#hierarquia">4. Hierarquia de Perfis</a></li>
+            <li><a href="#estados-usuario">5. Estados do Usuário</a></li>
+            <li><a href="#arquitetura">6. Arquitetura do Sistema</a></li>
+            <li><a href="#adicionar-feature">7. Adicionar Nova Funcionalidade</a></li>
+        </ul>
+    </div>
+
+    <h2 id="diagrama-er">1. Diagrama ER (Entidade-Relacionamento)</h2>
+    <div class="description">
+        <strong>Descrição:</strong> Mostra todas as 13 tabelas do sistema e seus relacionamentos.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+erDiagram
+    USERS ||--o{ USER_ROLE_ASSIGNMENTS : has
+    USERS ||--o{ USER_PERMISSIONS : has
+    USERS ||--o{ USER_SESSIONS : has
+    
+    USER_ROLES ||--o{ USER_ROLE_ASSIGNMENTS : assigned_to
+    USER_ROLES ||--o{ ROLE_PERMISSIONS : has
+    
+    SYSTEM_FEATURES ||--o{ PERMISSIONS : defines
+    
+    PERMISSIONS ||--o{ ROLE_PERMISSIONS : granted_to
+    PERMISSIONS ||--o{ USER_PERMISSIONS : granted_to
+    
+    USERS {
+        uuid id PK
+        varchar username UK
+        varchar email UK
+        varchar password
+        boolean two_fa_enabled
+        boolean ativo
+    }
+    
+    USER_ROLES {
+        int id PK
+        varchar name UK
+        int level
+        boolean two_fa_required
+        boolean is_active
+    }
+    
+    USER_ROLE_ASSIGNMENTS {
+        int id PK
+        uuid user_id FK
+        int role_id FK
+        uuid assigned_by FK
+    }
+    
+    SYSTEM_FEATURES {
+        int id PK
+        varchar name
+        varchar category
+        varchar url
+        boolean is_active
+    }
+    
+    PERMISSIONS {
+        int id PK
+        int feature_id FK
+        varchar action
+        text description
+    }
+    
+    ROLE_PERMISSIONS {
+        int id PK
+        int role_id FK
+        int permission_id FK
+        uuid granted_by FK
+    }
+        </div>
+    </div>
+
+    <h2 id="fluxo-login">2. Fluxo de Login com 2FA</h2>
+    <div class="description">
+        <strong>Descrição:</strong> Sequência completa de autenticação com código 2FA por email.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+sequenceDiagram
+    participant U as Usuário
+    participant F as Frontend
+    participant A as API Auth
+    participant D as Database
+    participant E as Email
+    
+    U->>F: Digita username/password
+    F->>A: POST /api/auth/login
+    A->>D: SELECT user
+    D-->>A: user data
+    A->>A: bcrypt.compare()
+    
+    alt 2FA habilitado
+        A->>A: Gera código 6 dígitos
+        A->>D: Salva código + expiração
+        A->>E: Envia email com código
+        E-->>U: 📧 Código: 123456
+        A-->>F: {requires2fa: true}
+        F-->>U: Tela de código 2FA
+        
+        U->>F: Digita código
+        F->>A: POST /api/auth/2fa/verify
+        A->>D: Valida código
+        
+        alt Código válido
+            A->>A: jwt.sign()
+            A->>D: INSERT session
+            A-->>F: {token, user}
+            F-->>U: Redireciona /admin
+        else Código inválido
+            A-->>F: 401 Unauthorized
+            F-->>U: "Código incorreto"
+        end
+    else 2FA desabilitado
+        A->>A: jwt.sign()
+        A->>D: INSERT session
+        A-->>F: {token, user}
+        F-->>U: Redireciona /admin
+    end
+        </div>
+    </div>
+
+    <h2 id="fluxo-autorizacao">3. Fluxo de Autorização (RBAC)</h2>
+    <div class="description">
+        <strong>Descrição:</strong> Como o sistema verifica se um usuário tem permissão para uma ação.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+flowchart TD
+    A[Requisição com JWT] --> B{Token válido?}
+    B -->|Não| C[401 Unauthorized]
+    B -->|Sim| D[Extrair userId]
+    
+    D --> E[Buscar permissões<br/>do usuário]
+    E --> F{Tem permissão<br/>para ação?}
+    
+    F -->|Não| G[403 Forbidden]
+    F -->|Sim| H{Verifica<br/>hierarquia?}
+    
+    H -->|Não precisa| J[✅ Permitir acesso]
+    H -->|Sim| I{Level solicitante ><br/>Level alvo?}
+    
+    I -->|Menor/igual| G
+    I -->|Maior| J
+    
+    J --> K[Executar ação]
+    K --> L[Retornar resposta]
+        </div>
+    </div>
+
+    <h2 id="hierarquia">4. Hierarquia de Perfis</h2>
+    <div class="description">
+        <strong>Descrição:</strong> Estrutura hierárquica dos perfis de usuários.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+graph TD
+    A[Super Admin<br/>Level 100<br/>Acesso Total] --> B[Admin<br/>Level 50<br/>Gerenciamento]
+    A --> C[Gerente<br/>Level 40<br/>Supervisão]
+    B --> D[Supervisor<br/>Level 30<br/>Coordenação]
+    C --> D
+    D --> E[Vendedor<br/>Level 20<br/>Vendas]
+    D --> F[Corretor<br/>Level 10<br/>Operação]
+    
+    style A fill:#ff6b6b,stroke:#c92a2a,color:#fff
+    style B fill:#f9ca24,stroke:#f0932b
+    style C fill:#f9ca24,stroke:#f0932b
+    style D fill:#6ab04c,stroke:#4cd137
+    style E fill:#4834d4,stroke:#341f97,color:#fff
+    style F fill:#4834d4,stroke:#341f97,color:#fff
+        </div>
+    </div>
+
+    <h2 id="estados-usuario">5. Estados do Usuário</h2>
+    <div class="description">
+        <strong>Descrição:</strong> Ciclo de vida de um usuário no sistema.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+stateDiagram-v2
+    [*] --> Criado: Cadastro
+    Criado --> Ativo: Ativar conta
+    Ativo --> Bloqueado: 5 tentativas falhas
+    Bloqueado --> Ativo: Timeout 15min
+    Ativo --> Inativo: Desativar
+    Inativo --> Ativo: Reativar
+    Ativo --> [*]: Deletar
+    Inativo --> [*]: Deletar
+        </div>
+    </div>
+
+    <h2 id="arquitetura">6. Arquitetura do Sistema</h2>
+    <div class="description">
+        <strong>Descrição:</strong> Camadas e componentes da arquitetura.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+graph TB
+    subgraph Frontend["Frontend - Next.js"]
+        F1[Pages<br/>Login, Admin]
+        F2[Components<br/>Auth, RBAC]
+        F3[Hooks<br/>useAuth]
+    end
+    
+    subgraph Backend["Backend - API Routes"]
+        B1[Auth APIs<br/>/api/auth/*]
+        B2[Admin APIs<br/>/api/admin/*]
+    end
+    
+    subgraph Services["Services"]
+        S1[emailService]
+        S2[2faService]
+        S3[authService]
+    end
+    
+    subgraph Database["Database - PostgreSQL"]
+        D1[(users<br/>roles<br/>permissions)]
+    end
+    
+    F1 --> B1
+    F1 --> B2
+    B1 --> S2
+    S2 --> S1
+    B2 --> S3
+    S3 --> D1
+    S1 --> D1
+        </div>
+    </div>
+
+    <h2 id="adicionar-feature">7. Fluxo: Adicionar Nova Funcionalidade</h2>
+    <div class="description">
+        <strong>Descrição:</strong> Processo completo para adicionar uma nova funcionalidade ao sistema.
+    </div>
+    <div class="diagram-container">
+        <div class="mermaid">
+graph TD
+    A[Super Admin acessa<br/>Painel Administrativo] --> B[Criar Nova Funcionalidade]
+    
+    B --> C[Preenche formulário:<br/>Nome, Category, URL]
+    C --> D{Validação OK?}
+    
+    D -->|Não| E[Exibe erros]
+    E --> C
+    
+    D -->|Sim| F[Insere em<br/>system_features]
+    F --> G[Cria permissões:<br/>list, create, update, delete]
+    G --> H[✅ Funcionalidade criada!]
+    
+    H --> I[Atribuir a Perfis]
+    I --> J[Seleciona perfil alvo]
+    J --> K{Level solicitante ><br/>Level alvo?}
+    
+    K -->|Não| L[❌ Acesso negado]
+    K -->|Sim| M[Seleciona permissões]
+    
+    M --> N{Requer 2FA?}
+    N -->|Sim| O[Solicita código 2FA]
+    O --> P{Código válido?}
+    P -->|Não| O
+    P -->|Sim| Q[Atribui permissões]
+    
+    N -->|Não| Q
+    Q --> R[✅ Permissões atribuídas!]
+    
+    R --> S[Sidebar atualiza<br/>automaticamente]
+    S --> T[Usuários veem<br/>nova opção]
+    
+    style A fill:#e3f2fd
+    style H fill:#c8e6c9
+    style R fill:#c8e6c9
+    style T fill:#c8e6c9
+    style L fill:#ffcdd2
+        </div>
+    </div>
+
+    <hr style="margin: 60px 0; border: none; border-top: 2px solid #e2e8f0;">
+
+    <div style="background: #e0f2fe; padding: 20px; border-radius: 8px; margin-top: 40px;">
+        <h3>💡 Dica</h3>
+        <p>Este arquivo HTML funciona <strong>offline</strong> e renderiza todos os diagramas Mermaid automaticamente!</p>
+        <p><strong>Como usar:</strong></p>
+        <ol>
+            <li>Abra este arquivo no seu navegador (Chrome, Edge, Firefox)</li>
+            <li>Os diagramas aparecem automaticamente!</li>
+            <li>Você pode dar zoom (Ctrl + Mouse Wheel)</li>
+            <li>Pode imprimir ou salvar como PDF</li>
+        </ol>
+    </div>
+
+    <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin-top: 20px; text-align: center;">
+        <p><strong>Sistema Net Imobiliária</strong></p>
+        <p>Documentação gerada em: 2025-10-09</p>
+    </div>
+
+    <script>
+        // Inicializar Mermaid
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html>

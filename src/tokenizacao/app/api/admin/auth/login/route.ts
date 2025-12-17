@@ -1,0 +1,280 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { verifyPassword } from '@/lib/auth/password'
+import { generateTokensNode } from '@/lib/auth/jwt-node'
+import { rateLimit } from '@/lib/middleware/rateLimit'
+import { logAuditEvent } from '@/lib/database/audit'
+import { findUserByUsername, updateLastLogin } from '@/lib/database/users'
+
+// Forçar uso do Node.js runtime
+export const runtime = 'nodejs'
+
+// Função para obter permissões do sistema de perfis
+async function getUserPermissions(userId: string): Promise<{
+  imoveis: string
+  proximidades: string
+  amenidades: string
+  'categorias-amenidades': string
+  'categorias-proximidades': string
+  usuarios: string
+  relatorios: string
+  sistema: string
+}> {
+  try {
+    const pool = await import('@/lib/database/connection').then(m => m.default)
+    
+    const query = `
+      SELECT 
+        CASE 
+          WHEN sf.category ILIKE '%im%veis%' THEN 'imoveis'
+          WHEN sf.category ILIKE '%amenidades%' THEN 'amenidades'
+          WHEN sf.category ILIKE '%proximidades%' THEN 'proximidades'
+          WHEN sf.category ILIKE '%usu%rios%' THEN 'usuarios'
+          WHEN sf.category ILIKE '%relat%rios%' THEN 'relatorios'
+          WHEN sf.category ILIKE '%sistema%' THEN 'sistema'
+          ELSE sf.category
+        END as resource,
+        p.action,
+        ur.level
+      FROM user_role_assignments ura
+      JOIN user_roles ur ON ura.role_id = ur.id
+      JOIN role_permissions rp ON ur.id = rp.role_id
+      JOIN permissions p ON rp.permission_id = p.id
+      JOIN system_features sf ON p.feature_id = sf.id
+      WHERE ura.user_id = $1
+      ORDER BY ur.level DESC, sf.category, p.action
+    `
+    
+    const result = await pool.query(query, [userId])
+    
+    // Converter permissões para o formato esperado
+    const permissoes: {
+      imoveis: string
+      proximidades: string
+      amenidades: string
+      'categorias-amenidades': string
+      'categorias-proximidades': string
+      usuarios: string
+      relatorios: string
+      sistema: string
+    } = {
+      imoveis: 'NONE',
+      proximidades: 'NONE',
+      amenidades: 'NONE',
+      'categorias-amenidades': 'NONE',
+      'categorias-proximidades': 'NONE',
+      usuarios: 'NONE',
+      relatorios: 'NONE',
+      sistema: 'NONE'
+    }
+    
+    // Mapear permissões do banco
+    result.rows.forEach((perm: any) => {
+      const resource = perm.resource.toLowerCase()
+      
+      // Verificar se o recurso é válido
+      if (!(resource in permissoes)) {
+        return // Pular recursos não reconhecidos
+      }
+      
+      // Mapear ações para níveis de permissão (priorizar permissões mais altas)
+      if (perm.action === 'delete') {
+        permissoes[resource as keyof typeof permissoes] = 'DELETE'
+      } else if (perm.action === 'create' || perm.action === 'update') {
+        // Só definir WRITE se não for DELETE
+        if (permissoes[resource as keyof typeof permissoes] !== 'DELETE') {
+          permissoes[resource as keyof typeof permissoes] = 'WRITE'
+        }
+      } else if (perm.action === 'read' || perm.action === 'list') {
+        // Só definir READ se não for DELETE ou WRITE
+        if (permissoes[resource as keyof typeof permissoes] === 'NONE') {
+          permissoes[resource as keyof typeof permissoes] = 'READ'
+        }
+      }
+    })
+    
+    // Definir READ como padrão para recursos sem permissões específicas
+    Object.keys(permissoes).forEach(key => {
+      if (permissoes[key as keyof typeof permissoes] === 'NONE') {
+        permissoes[key as keyof typeof permissoes] = 'READ'
+      }
+    })
+    
+    return permissoes
+  } catch (error) {
+    console.error('Erro ao buscar permissões:', error)
+    // Retornar permissões padrão em caso de erro
+    return {
+      imoveis: 'READ',
+      proximidades: 'READ',
+      amenidades: 'READ',
+      'categorias-amenidades': 'READ',
+      'categorias-proximidades': 'READ',
+      usuarios: 'READ',
+      relatorios: 'READ',
+      sistema: 'READ'
+    }
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // Rate limiting por IP
+    const clientIP = request.ip || request.headers.get('x-forwarded-for') || 'unknown'
+    if (!rateLimit(clientIP, 5, 15 * 60 * 1000)) {
+      return NextResponse.json(
+        { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' },
+        { status: 429 }
+      )
+    }
+
+    const { username, password } = await request.json()
+    
+    // Validações básicas
+    if (!username || !password) {
+      return NextResponse.json(
+        { error: 'Usuário e senha são obrigatórios' },
+        { status: 400 }
+      )
+    }
+
+    // Validações de tipo e tamanho
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      return NextResponse.json(
+        { error: 'Dados inválidos' },
+        { status: 400 }
+      )
+    }
+
+    if (username.trim().length < 3) {
+      return NextResponse.json(
+        { error: 'Usuário deve ter pelo menos 3 caracteres' },
+        { status: 400 }
+      )
+    }
+
+    if (password.trim().length < 6) {
+      return NextResponse.json(
+        { error: 'Senha deve ter pelo menos 6 caracteres' },
+        { status: 400 }
+      )
+    }
+    
+    // Buscar usuário no banco PostgreSQL
+    const user = await findUserByUsername(username)
+    
+    if (!user) {
+      await logAuditEvent({
+        action: 'LOGIN_FAILED',
+        resourceType: 'AUTH',
+        details: { username, reason: 'Usuário não encontrado' },
+        ipAddress: clientIP
+      })
+      return NextResponse.json(
+        { error: 'Usuário não encontrado ou inativo' },
+        { status: 401 }
+      )
+    }
+    
+    // Verificar senha usando bcrypt
+    const isValidPassword = await verifyPassword(password, user.password)
+    
+    if (!isValidPassword) {
+      await logAuditEvent({
+        action: 'LOGIN_FAILED',
+        resourceType: 'AUTH',
+        details: { username, reason: 'Senha incorreta' },
+        ipAddress: clientIP
+      })
+      return NextResponse.json(
+        { error: 'Senha incorreta' },
+        { status: 401 }
+      )
+    }
+    
+    // Buscar role_name do usuário
+    const pool = await import('@/lib/database/connection').then(m => m.default)
+    const roleQuery = `
+      SELECT ur.name as role_name
+      FROM user_role_assignments ura
+      JOIN user_roles ur ON ura.role_id = ur.id
+      WHERE ura.user_id = $1
+      LIMIT 1
+    `
+    const roleResult = await pool.query(roleQuery, [user.id])
+    const role_name = roleResult.rows[0]?.role_name || ''
+
+    // Gerar tokens JWT com permissões e role_name
+    const tokens = generateTokensNode({
+      userId: user.id,
+      username: user.username,
+      role_name: role_name,
+      permissoes: await getUserPermissions(user.id)
+    })
+    
+    console.log('🔍 Tokens gerados:', {
+      accessToken: tokens.accessToken.substring(0, 50) + '...',
+      refreshToken: tokens.refreshToken.substring(0, 50) + '...'
+    })
+
+    // Atualizar último login e registrar sucesso
+            await updateLastLogin(user.id)
+    await logAuditEvent({
+      userId: user.id,
+      action: 'LOGIN_SUCCESS',
+      resourceType: 'AUTH',
+      details: { username: user.username },
+      ipAddress: clientIP
+    })
+
+    // Criar resposta com cookies seguros
+    const response = NextResponse.json({
+      success: true,
+      message: 'Login realizado com sucesso',
+      user: {
+        id: user.id,
+        username: user.username,
+        nome: user.nome,
+        email: user.email,
+        telefone: user.telefone,
+        ativo: user.ativo
+      }
+    })
+    
+    // Configurar cookies seguros
+    response.cookies.set('accessToken', tokens.accessToken, {
+      httpOnly: true,
+      secure: false, // false para desenvolvimento local
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60, // 24 horas
+      path: '/'
+    })
+    
+    response.cookies.set('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: false, // false para desenvolvimento local
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60, // 7 dias
+      path: '/'
+    })
+    
+    console.log('🔍 Cookies configurados na resposta')
+    
+    return response
+    
+  } catch (error) {
+    console.error('Erro no login:', error)
+    
+    // Não expor detalhes internos em produção
+    const isDevelopment = process.env.NODE_ENV === 'development'
+    
+    return NextResponse.json(
+      { 
+        error: isDevelopment 
+          ? `Erro interno: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+          : 'Erro interno do servidor'
+      },
+      { status: 500 }
+    )
+  }
+}
+

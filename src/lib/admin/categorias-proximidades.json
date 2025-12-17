@@ -1,0 +1,76 @@
+{
+  "Comércio & Shopping": [
+    "Shopping Center",
+    "Supermercado",
+    "Farmácia",
+    "Banco",
+    "Loja de roupas",
+    "Padaria",
+    "Mercado municipal",
+    "Feira livre"
+  ],
+  "Alimentação": [
+    "Restaurante",
+    "Lanchonete",
+    "Pizzaria",
+    "Sorveteria",
+    "Bar",
+    "Café",
+    "Food truck",
+    "Delivery"
+  ],
+  "Saúde & Bem-estar": [
+    "Hospital",
+    "Posto de saúde",
+    "Clínica médica",
+    "Academia",
+    "Fisioterapia",
+    "Psicólogo",
+    "Dentista",
+    "Laboratório"
+  ],
+  "Educação": [
+    "Escola",
+    "Universidade",
+    "Creche",
+    "Biblioteca",
+    "Cursinho",
+    "Escola de idiomas",
+    "Centro de estudos",
+    "Escola técnica"
+  ],
+  "Transporte": [
+    "Metrô",
+    "Ônibus",
+    "Táxi",
+    "Uber",
+    "Bicicletário",
+    "Estacionamento",
+    "Terminal rodoviário",
+    "Aeroporto"
+  ],
+  "Lazer & Cultura": [
+    "Praia",
+    "Parque",
+    "Cinema",
+    "Teatro",
+    "Museu",
+    "Shopping",
+    "Centro cultural",
+    "Galeria de arte"
+  ],
+  "Serviços": [
+    "Correios",
+    "Polícia",
+    "Bombeiros",
+    "Lavanderia",
+    "Oficina",
+    "Pet shop",
+    "Barbearia",
+    "Salão de beleza"
+  ]
+}
+
+
+
+

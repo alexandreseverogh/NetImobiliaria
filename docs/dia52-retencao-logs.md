@@ -1,0 +1,3 @@
+﻿# Dia 52 - Retencao de Logs
+
+Em desenvolvimento...

@@ -1,0 +1,1627 @@
+{
+  "email_logs": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('email_logs_id_seq'::regclass)"
+      },
+      {
+        "column_name": "to_email",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "subject",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "template_name",
+        "data_type": "character varying",
+        "character_maximum_length": 100,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "success",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "false"
+      },
+      {
+        "column_name": "error_message",
+        "data_type": "text",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "sent_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "environment",
+        "data_type": "character varying",
+        "character_maximum_length": 20,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "indexname": "email_logs_pkey",
+        "indexdef": "CREATE UNIQUE INDEX email_logs_pkey ON public.email_logs USING btree (id)"
+      },
+      {
+        "indexname": "idx_email_logs_template_name",
+        "indexdef": "CREATE INDEX idx_email_logs_template_name ON public.email_logs USING btree (template_name)"
+      },
+      {
+        "indexname": "idx_email_logs_sent_at",
+        "indexdef": "CREATE INDEX idx_email_logs_sent_at ON public.email_logs USING btree (sent_at)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "email_logs_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "2200_31279_1_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 0,
+    "sample": []
+  },
+  "email_settings": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('email_settings_id_seq'::regclass)"
+      },
+      {
+        "column_name": "smtp_host",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "smtp_port",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "587"
+      },
+      {
+        "column_name": "smtp_username",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "smtp_password",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "smtp_secure",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "false"
+      },
+      {
+        "column_name": "from_email",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "from_name",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "is_active",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "environment",
+        "data_type": "character varying",
+        "character_maximum_length": 20,
+        "is_nullable": "YES",
+        "column_default": "'development'::character varying"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "indexname": "email_settings_pkey",
+        "indexdef": "CREATE UNIQUE INDEX email_settings_pkey ON public.email_settings USING btree (id)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "email_settings_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "2200_31250_1_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 1,
+    "sample": [
+      {
+        "id": 1,
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "smtp_username": "alexandreseverog@gmail.com",
+        "smtp_password": "ewaz aohi aznk megn",
+        "smtp_secure": false,
+        "from_email": "seu_email@gmail.com",
+        "from_name": "Net Imobiliária",
+        "is_active": true,
+        "environment": "development",
+        "created_at": "2025-10-07T17:10:32.310Z",
+        "updated_at": "2025-10-08T21:12:03.164Z"
+      }
+    ]
+  },
+  "email_templates": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('email_templates_id_seq'::regclass)"
+      },
+      {
+        "column_name": "name",
+        "data_type": "character varying",
+        "character_maximum_length": 100,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "subject",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "html_content",
+        "data_type": "text",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "text_content",
+        "data_type": "text",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "variables",
+        "data_type": "jsonb",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "is_active",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "indexname": "email_templates_pkey",
+        "indexdef": "CREATE UNIQUE INDEX email_templates_pkey ON public.email_templates USING btree (id)"
+      },
+      {
+        "indexname": "email_templates_name_key",
+        "indexdef": "CREATE UNIQUE INDEX email_templates_name_key ON public.email_templates USING btree (name)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "email_templates_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "email_templates_name_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "2200_31265_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_31265_2_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 2,
+    "sample": [
+      {
+        "id": 2,
+        "name": "password_reset",
+        "subject": "Redefinicao de Senha - Net Imobiliaria",
+        "html_content": "<html><body><h2>Net Imobiliaria</h2><h3>Redefinição de Senha</h3><p>Olá,</p><p>Você solicitou a redefinição da senha da sua conta no sistema Net Imobiliária.</p><p>Clique no botao abaixo para redefinir sua senha:</p><div style=\"text-align: center;\"><a href=\"{{reset_link}}\" style=\"display: inline-block; background-color: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0;\">Redefinir Senha</a></div><div style=\"background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; margin: 20px 0; color: #721c24;\"><strong>Importante:</strong><ul><li>Este link expira em {{expiration_hours}} horas</li><li>Use este link apenas uma vez</li><li>Se voce nao solicitou esta redefinicao, ignore este email</li></ul></div><p>Se o botao nao funcionar, copie e cole o link abaixo no seu navegador:</p><p style=\"word-break: break-all; color: #007bff;\">{{reset_link}}</p><div style=\"margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center;\"><p>Este e um email automatico, nao responda.</p><p>Â© 2024 Net Imobiliaria. Todos os direitos reservados.</p></div></body></html>",
+        "text_content": "Net Imobiliária - Redefinição de Senha\\n\\nOlá,\\n\\nVocê solicitou a redefinição da senha da sua conta no sistema Net Imobiliária.\\n\\nPara redefinir sua senha, acesse o link abaixo:\\n{{reset_link}}\\n\\nIMPORTANTE:\\n- Este link expira em {{expiration_hours}} horas\\n- Use este link apenas uma vez\\n- Se você nao solicitou esta redefinição, ignore este email\\n\\nEste é um email automatico, não responda.\\nÂ© 2024 Net Imobiliária. Todos os direitos reservados.",
+        "variables": [
+          "reset_link",
+          "expiration_hours"
+        ],
+        "is_active": true,
+        "created_at": "2025-10-07T17:33:08.720Z",
+        "updated_at": "2025-10-08T21:10:35.883Z"
+      },
+      {
+        "id": 1,
+        "name": "2fa_verification",
+        "subject": "Codigo de Verificacao - Net Imobiliaria",
+        "html_content": "<html><body><h2>Net Imobiliária</h2><h3>Código de Verificação</h3><p>Olá,</p><p>Você solicitou um código de verificação para acessar sua conta no sistema Net Imobiliaria.</p><div style=\"background-color: #f8f9fa; border: 2px dashed #007bff; padding: 20px; text-align: center; margin: 20px 0;\"><p><strong>Seu codigo de verificacao e:</strong></p><div style=\"font-size: 32px; font-weight: bold; color: #007bff; letter-spacing: 5px; font-family: monospace;\">{{code}}</div></div><div style=\"background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 20px 0; color: #856404;\"><strong>Importante:</strong><ul><li>Este codigo expira em {{expiration_minutes}} minutos</li><li>Use este codigo apenas uma vez</li><li>Nao compartilhe este codigo com ninguém</li></ul></div><p>Se você nao solicitou este código, ignore este email ou entre em contato conosco.</p><div style=\"margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center;\"><p>Este e um email automático, nao responda.</p><p>Â© 2024 Net Imobiliária. Todos os direitos reservados.</p></div></body></html>",
+        "text_content": "Net Imobiliaria - Código de Verificação\\n\\nOla,\\n\\nVocê solicitou um código de verificação para acessar sua conta no sistema Net Imobiliária.\\n\\nSeu código de verificacao e: {{code}}\\n\\nIMPORTANTE:\\n- Este código expira em {{expiration_minutes}} minutos\\n- Use este código apenas uma vez\\n- Não compartilhe este código com ninguem\\n\\nSe voce nao solicitou este código, ignore este email ou entre em contato conosco.\\n\\nEste é um email automático, não responda.\\nÂ© 2024 Net Imobiliária. Todos os direitos reservados.",
+        "variables": [
+          "code",
+          "expiration_minutes"
+        ],
+        "is_active": true,
+        "created_at": "2025-10-07T17:33:08.720Z",
+        "updated_at": "2025-10-08T21:10:35.883Z"
+      }
+    ]
+  },
+  "login_attempts": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('login_attempts_id_seq'::regclass)"
+      },
+      {
+        "column_name": "username",
+        "data_type": "character varying",
+        "character_maximum_length": 50,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "email",
+        "data_type": "character varying",
+        "character_maximum_length": 100,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "ip_address",
+        "data_type": "inet",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "user_agent",
+        "data_type": "text",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "success",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "false"
+      },
+      {
+        "column_name": "failure_reason",
+        "data_type": "character varying",
+        "character_maximum_length": 100,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "indexname": "login_attempts_pkey",
+        "indexdef": "CREATE UNIQUE INDEX login_attempts_pkey ON public.login_attempts USING btree (id)"
+      },
+      {
+        "indexname": "idx_login_attempts_username",
+        "indexdef": "CREATE INDEX idx_login_attempts_username ON public.login_attempts USING btree (username)"
+      },
+      {
+        "indexname": "idx_login_attempts_email",
+        "indexdef": "CREATE INDEX idx_login_attempts_email ON public.login_attempts USING btree (email)"
+      },
+      {
+        "indexname": "idx_login_attempts_created_at",
+        "indexdef": "CREATE INDEX idx_login_attempts_created_at ON public.login_attempts USING btree (created_at)"
+      },
+      {
+        "indexname": "idx_login_attempts_ip_address",
+        "indexdef": "CREATE INDEX idx_login_attempts_ip_address ON public.login_attempts USING btree (ip_address)"
+      },
+      {
+        "indexname": "idx_login_attempts_ip",
+        "indexdef": "CREATE INDEX idx_login_attempts_ip ON public.login_attempts USING btree (ip_address)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "login_attempts_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "2200_31222_1_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 0,
+    "sample": []
+  },
+  "permissions": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('permissions_id_seq'::regclass)"
+      },
+      {
+        "column_name": "feature_id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "action",
+        "data_type": "character varying",
+        "character_maximum_length": 50,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "description",
+        "data_type": "text",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreignKeys": [
+      {
+        "column_name": "feature_id",
+        "foreign_table_name": "system_features",
+        "foreign_column_name": "id",
+        "constraint_name": "permissions_feature_id_fkey"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "permissions_feature_id_action_key",
+        "indexdef": "CREATE UNIQUE INDEX permissions_feature_id_action_key ON public.permissions USING btree (feature_id, action)"
+      },
+      {
+        "indexname": "permissions_pkey",
+        "indexdef": "CREATE UNIQUE INDEX permissions_pkey ON public.permissions USING btree (id)"
+      },
+      {
+        "indexname": "idx_permissions_feature",
+        "indexdef": "CREATE INDEX idx_permissions_feature ON public.permissions USING btree (feature_id)"
+      },
+      {
+        "indexname": "idx_permissions_feature_id",
+        "indexdef": "CREATE INDEX idx_permissions_feature_id ON public.permissions USING btree (feature_id)"
+      },
+      {
+        "indexname": "idx_permissions_action",
+        "indexdef": "CREATE INDEX idx_permissions_action ON public.permissions USING btree (action)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "permissions_feature_id_action_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "permissions_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "permissions_feature_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_28485_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28485_3_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 80,
+    "sample": []
+  },
+  "role_permissions": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('role_permissions_id_seq'::regclass)"
+      },
+      {
+        "column_name": "role_id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "permission_id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "granted_by",
+        "data_type": "uuid",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "granted_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreignKeys": [
+      {
+        "column_name": "granted_by",
+        "foreign_table_name": "users",
+        "foreign_column_name": "id",
+        "constraint_name": "role_permissions_granted_by_fkey"
+      },
+      {
+        "column_name": "permission_id",
+        "foreign_table_name": "permissions",
+        "foreign_column_name": "id",
+        "constraint_name": "role_permissions_permission_id_fkey"
+      },
+      {
+        "column_name": "role_id",
+        "foreign_table_name": "user_roles",
+        "foreign_column_name": "id",
+        "constraint_name": "role_permissions_role_id_fkey"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "role_permissions_pkey",
+        "indexdef": "CREATE UNIQUE INDEX role_permissions_pkey ON public.role_permissions USING btree (id)"
+      },
+      {
+        "indexname": "role_permissions_role_id_permission_id_key",
+        "indexdef": "CREATE UNIQUE INDEX role_permissions_role_id_permission_id_key ON public.role_permissions USING btree (role_id, permission_id)"
+      },
+      {
+        "indexname": "idx_role_permissions_permission",
+        "indexdef": "CREATE INDEX idx_role_permissions_permission ON public.role_permissions USING btree (permission_id)"
+      },
+      {
+        "indexname": "idx_role_permissions_role",
+        "indexdef": "CREATE INDEX idx_role_permissions_role ON public.role_permissions USING btree (role_id)"
+      },
+      {
+        "indexname": "idx_role_permissions_role_id",
+        "indexdef": "CREATE INDEX idx_role_permissions_role_id ON public.role_permissions USING btree (role_id)"
+      },
+      {
+        "indexname": "idx_role_permissions_permission_id",
+        "indexdef": "CREATE INDEX idx_role_permissions_permission_id ON public.role_permissions USING btree (permission_id)"
+      },
+      {
+        "indexname": "idx_role_permissions_composite",
+        "indexdef": "CREATE INDEX idx_role_permissions_composite ON public.role_permissions USING btree (role_id, permission_id)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "role_permissions_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "role_permissions_role_id_permission_id_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "role_permissions_granted_by_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "role_permissions_permission_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "role_permissions_role_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_28500_1_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 93,
+    "sample": []
+  },
+  "system_features": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('system_features_id_seq'::regclass)"
+      },
+      {
+        "column_name": "name",
+        "data_type": "character varying",
+        "character_maximum_length": 100,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "description",
+        "data_type": "text",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "url",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "category",
+        "data_type": "character varying",
+        "character_maximum_length": 50,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "is_active",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "indexname": "system_features_name_key",
+        "indexdef": "CREATE UNIQUE INDEX system_features_name_key ON public.system_features USING btree (name)"
+      },
+      {
+        "indexname": "system_features_pkey",
+        "indexdef": "CREATE UNIQUE INDEX system_features_pkey ON public.system_features USING btree (id)"
+      },
+      {
+        "indexname": "idx_system_features_category",
+        "indexdef": "CREATE INDEX idx_system_features_category ON public.system_features USING btree (category)"
+      },
+      {
+        "indexname": "idx_system_features_url",
+        "indexdef": "CREATE INDEX idx_system_features_url ON public.system_features USING btree (url)"
+      },
+      {
+        "indexname": "idx_system_features_is_active",
+        "indexdef": "CREATE INDEX idx_system_features_is_active ON public.system_features USING btree (is_active)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "system_features_name_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "system_features_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "2200_28515_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28515_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28515_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28515_5_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 19,
+    "sample": []
+  },
+  "system_2fa_settings": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('system_2fa_settings_id_seq'::regclass)"
+      },
+      {
+        "column_name": "enabled",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "required_for_roles",
+        "data_type": "ARRAY",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "optional_for_roles",
+        "data_type": "ARRAY",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "code_length",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "6"
+      },
+      {
+        "column_name": "code_expiry_minutes",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "10"
+      },
+      {
+        "column_name": "max_attempts",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "3"
+      },
+      {
+        "column_name": "email_template",
+        "data_type": "text",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "email_from",
+        "data_type": "character varying",
+        "character_maximum_length": 100,
+        "is_nullable": "YES",
+        "column_default": "'noreply@localhost'::character varying"
+      },
+      {
+        "column_name": "email_subject",
+        "data_type": "character varying",
+        "character_maximum_length": 200,
+        "is_nullable": "YES",
+        "column_default": "'CÃ³digo de VerificaÃ§Ã£o - Net ImobiliÃ¡ria'::character varying"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "indexname": "system_2fa_settings_pkey",
+        "indexdef": "CREATE UNIQUE INDEX system_2fa_settings_pkey ON public.system_2fa_settings USING btree (id)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "system_2fa_settings_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "2200_31204_1_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 3,
+    "sample": [
+      {
+        "id": 1,
+        "enabled": true,
+        "required_for_roles": [
+          1,
+          2
+        ],
+        "optional_for_roles": [
+          3
+        ],
+        "code_length": 6,
+        "code_expiry_minutes": 10,
+        "max_attempts": 3,
+        "email_template": "CÃ³digo de verificaÃ§Ã£o: {{verificationCode}}. Expira em {{expiryMinutes}} minutos.",
+        "email_from": "noreply@localhost",
+        "email_subject": "CÃ³digo de VerificaÃ§Ã£o - Net ImobiliÃ¡ria (Desenvolvimento)",
+        "created_at": "2025-10-07T17:10:32.120Z",
+        "updated_at": "2025-10-07T17:10:32.120Z"
+      },
+      {
+        "id": 2,
+        "enabled": true,
+        "required_for_roles": [
+          1,
+          2
+        ],
+        "optional_for_roles": [
+          3
+        ],
+        "code_length": 6,
+        "code_expiry_minutes": 10,
+        "max_attempts": 3,
+        "email_template": "CÃ³digo de verificaÃ§Ã£o: {{verificationCode}}. Expira em {{expiryMinutes}} minutos.",
+        "email_from": "noreply@localhost",
+        "email_subject": "CÃ³digo de VerificaÃ§Ã£o - Net ImobiliÃ¡ria (Desenvolvimento)",
+        "created_at": "2025-10-08T13:06:45.845Z",
+        "updated_at": "2025-10-08T13:06:45.845Z"
+      },
+      {
+        "id": 3,
+        "enabled": true,
+        "required_for_roles": [
+          1,
+          2
+        ],
+        "optional_for_roles": [
+          3
+        ],
+        "code_length": 6,
+        "code_expiry_minutes": 10,
+        "max_attempts": 3,
+        "email_template": "CÃ³digo de verificaÃ§Ã£o: {{verificationCode}}. Expira em {{expiryMinutes}} minutos.",
+        "email_from": "noreply@localhost",
+        "email_subject": "CÃ³digo de VerificaÃ§Ã£o - Net ImobiliÃ¡ria (Desenvolvimento)",
+        "created_at": "2025-10-08T13:15:57.196Z",
+        "updated_at": "2025-10-08T13:15:57.196Z"
+      }
+    ]
+  },
+  "user_permissions": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "uuid_generate_v4()"
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "permission_id",
+        "data_type": "uuid",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "granted_by",
+        "data_type": "uuid",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "granted_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "expires_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "active",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "true"
+      }
+    ],
+    "foreignKeys": [
+      {
+        "column_name": "granted_by",
+        "foreign_table_name": "users",
+        "foreign_column_name": "id",
+        "constraint_name": "user_permissions_granted_by_fkey"
+      },
+      {
+        "column_name": "user_id",
+        "foreign_table_name": "users",
+        "foreign_column_name": "id",
+        "constraint_name": "user_permissions_user_id_fkey"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "user_permissions_pkey",
+        "indexdef": "CREATE UNIQUE INDEX user_permissions_pkey ON public.user_permissions USING btree (id)"
+      },
+      {
+        "indexname": "user_permissions_user_id_permission_id_key",
+        "indexdef": "CREATE UNIQUE INDEX user_permissions_user_id_permission_id_key ON public.user_permissions USING btree (user_id, permission_id)"
+      },
+      {
+        "indexname": "idx_user_permissions_active",
+        "indexdef": "CREATE INDEX idx_user_permissions_active ON public.user_permissions USING btree (active)"
+      },
+      {
+        "indexname": "idx_user_permissions_user_id",
+        "indexdef": "CREATE INDEX idx_user_permissions_user_id ON public.user_permissions USING btree (user_id)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "user_permissions_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "user_permissions_user_id_permission_id_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "user_permissions_granted_by_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "user_permissions_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_28541_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28541_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28541_3_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 28,
+    "sample": []
+  },
+  "user_role_assignments": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('user_role_assignments_id_seq'::regclass)"
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "role_id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "assigned_by",
+        "data_type": "uuid",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "assigned_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "expires_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      }
+    ],
+    "foreignKeys": [
+      {
+        "column_name": "assigned_by",
+        "foreign_table_name": "users",
+        "foreign_column_name": "id",
+        "constraint_name": "user_role_assignments_assigned_by_fkey"
+      },
+      {
+        "column_name": "role_id",
+        "foreign_table_name": "user_roles",
+        "foreign_column_name": "id",
+        "constraint_name": "user_role_assignments_role_id_fkey"
+      },
+      {
+        "column_name": "user_id",
+        "foreign_table_name": "users",
+        "foreign_column_name": "id",
+        "constraint_name": "user_role_assignments_user_id_fkey"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "user_role_assignments_pkey",
+        "indexdef": "CREATE UNIQUE INDEX user_role_assignments_pkey ON public.user_role_assignments USING btree (id)"
+      },
+      {
+        "indexname": "user_role_assignments_user_id_role_id_key",
+        "indexdef": "CREATE UNIQUE INDEX user_role_assignments_user_id_role_id_key ON public.user_role_assignments USING btree (user_id, role_id)"
+      },
+      {
+        "indexname": "idx_user_role_assignments_role",
+        "indexdef": "CREATE INDEX idx_user_role_assignments_role ON public.user_role_assignments USING btree (role_id)"
+      },
+      {
+        "indexname": "idx_user_role_assignments_user",
+        "indexdef": "CREATE INDEX idx_user_role_assignments_user ON public.user_role_assignments USING btree (user_id)"
+      },
+      {
+        "indexname": "idx_user_role_assignments_user_id",
+        "indexdef": "CREATE INDEX idx_user_role_assignments_user_id ON public.user_role_assignments USING btree (user_id)"
+      },
+      {
+        "indexname": "idx_user_role_assignments_role_id",
+        "indexdef": "CREATE INDEX idx_user_role_assignments_role_id ON public.user_role_assignments USING btree (role_id)"
+      },
+      {
+        "indexname": "idx_user_role_assignments_composite",
+        "indexdef": "CREATE INDEX idx_user_role_assignments_composite ON public.user_role_assignments USING btree (user_id, role_id)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "user_role_assignments_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "user_role_assignments_user_id_role_id_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "user_role_assignments_assigned_by_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "user_role_assignments_role_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "user_role_assignments_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_28547_1_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 9,
+    "sample": [
+      {
+        "id": 1,
+        "user_id": "cc8220f7-a3fd-40ed-8dbd-a22539328083",
+        "role_id": 1,
+        "assigned_by": "cc8220f7-a3fd-40ed-8dbd-a22539328083",
+        "assigned_at": "2025-08-30T15:24:54.377Z",
+        "expires_at": null
+      },
+      {
+        "id": 9,
+        "user_id": "45f6ba15-8956-44b8-afa7-b8233ab31b29",
+        "role_id": 1,
+        "assigned_by": "cc8220f7-a3fd-40ed-8dbd-a22539328083",
+        "assigned_at": "2025-09-02T18:04:42.296Z",
+        "expires_at": null
+      },
+      {
+        "id": 18,
+        "user_id": "4d456e42-4031-46ba-9b5c-912bec1d28b5",
+        "role_id": 3,
+        "assigned_by": "4d456e42-4031-46ba-9b5c-912bec1d28b5",
+        "assigned_at": "2025-09-02T21:46:10.937Z",
+        "expires_at": null
+      }
+    ]
+  },
+  "user_roles": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "nextval('user_roles_id_seq'::regclass)"
+      },
+      {
+        "column_name": "name",
+        "data_type": "character varying",
+        "character_maximum_length": 50,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "description",
+        "data_type": "text",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "level",
+        "data_type": "integer",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "1"
+      },
+      {
+        "column_name": "is_active",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "two_fa_required",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "false"
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "indexname": "user_roles_name_key",
+        "indexdef": "CREATE UNIQUE INDEX user_roles_name_key ON public.user_roles USING btree (name)"
+      },
+      {
+        "indexname": "user_roles_pkey",
+        "indexdef": "CREATE UNIQUE INDEX user_roles_pkey ON public.user_roles USING btree (id)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "user_roles_name_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "user_roles_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "2200_28552_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28552_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28552_4_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 7,
+    "sample": [
+      {
+        "id": 3,
+        "name": "Corretor",
+        "description": "Acesso limitado baseado em permissões específicas",
+        "level": 2,
+        "is_active": true,
+        "created_at": "2025-08-30T15:23:48.239Z",
+        "updated_at": "2025-09-09T15:23:38.490Z",
+        "two_fa_required": false
+      },
+      {
+        "id": 2,
+        "name": "Administrador",
+        "description": "Acesso total ao sistema, exceto gestão de super admins",
+        "level": 3,
+        "is_active": true,
+        "created_at": "2025-08-30T15:23:48.239Z",
+        "updated_at": "2025-09-09T15:23:55.495Z",
+        "two_fa_required": false
+      },
+      {
+        "id": 1,
+        "name": "Super Admin",
+        "description": "Acesso total ao sistema, incluindo gestão de outros administradores",
+        "level": 4,
+        "is_active": true,
+        "created_at": "2025-08-30T15:23:48.239Z",
+        "updated_at": "2025-09-09T15:24:08.476Z",
+        "two_fa_required": false
+      }
+    ]
+  },
+  "user_sessions": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "uuid_generate_v4()"
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "refresh_token",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "expires_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "last_used_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreignKeys": [
+      {
+        "column_name": "user_id",
+        "foreign_table_name": "users",
+        "foreign_column_name": "id",
+        "constraint_name": "user_sessions_user_id_fkey"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "user_sessions_pkey",
+        "indexdef": "CREATE UNIQUE INDEX user_sessions_pkey ON public.user_sessions USING btree (id)"
+      },
+      {
+        "indexname": "user_sessions_refresh_token_key",
+        "indexdef": "CREATE UNIQUE INDEX user_sessions_refresh_token_key ON public.user_sessions USING btree (refresh_token)"
+      },
+      {
+        "indexname": "idx_user_sessions_expires_at",
+        "indexdef": "CREATE INDEX idx_user_sessions_expires_at ON public.user_sessions USING btree (expires_at)"
+      },
+      {
+        "indexname": "idx_user_sessions_user_id",
+        "indexdef": "CREATE INDEX idx_user_sessions_user_id ON public.user_sessions USING btree (user_id)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "user_sessions_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "user_sessions_refresh_token_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "user_sessions_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_28562_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28562_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28562_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28562_4_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 0,
+    "sample": []
+  },
+  "users": {
+    "exists": true,
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "character_maximum_length": null,
+        "is_nullable": "NO",
+        "column_default": "uuid_generate_v4()"
+      },
+      {
+        "column_name": "username",
+        "data_type": "character varying",
+        "character_maximum_length": 50,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "email",
+        "data_type": "character varying",
+        "character_maximum_length": 100,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "password",
+        "data_type": "character varying",
+        "character_maximum_length": 255,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "nome",
+        "data_type": "character varying",
+        "character_maximum_length": 100,
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "ativo",
+        "data_type": "boolean",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "ultimo_login",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "character_maximum_length": null,
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "telefone",
+        "data_type": "character varying",
+        "character_maximum_length": 20,
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "creci",
+        "data_type": "character varying",
+        "character_maximum_length": 10,
+        "is_nullable": "YES",
+        "column_default": null
+      }
+    ],
+    "foreignKeys": [],
+    "indexes": [
+      {
+        "indexname": "users_email_key",
+        "indexdef": "CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email)"
+      },
+      {
+        "indexname": "users_pkey",
+        "indexdef": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)"
+      },
+      {
+        "indexname": "users_username_key",
+        "indexdef": "CREATE UNIQUE INDEX users_username_key ON public.users USING btree (username)"
+      },
+      {
+        "indexname": "idx_users_ativo",
+        "indexdef": "CREATE INDEX idx_users_ativo ON public.users USING btree (ativo)"
+      },
+      {
+        "indexname": "idx_users_email",
+        "indexdef": "CREATE INDEX idx_users_email ON public.users USING btree (email)"
+      },
+      {
+        "indexname": "idx_users_username",
+        "indexdef": "CREATE INDEX idx_users_username ON public.users USING btree (username)"
+      },
+      {
+        "indexname": "idx_users_created_at",
+        "indexdef": "CREATE INDEX idx_users_created_at ON public.users USING btree (created_at)"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "users_email_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "users_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "users_username_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "2200_28568_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28568_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28568_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28568_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_28568_5_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "recordCount": 9,
+    "sample": [
+      {
+        "id": "491795c4-c017-4285-b85a-eb29c26c28b5",
+        "username": "Roberto",
+        "email": "robertosalguescamposg@gmail.com",
+        "password": "$2b$10$hPG3RY3QEMoRsVy2e9/r0.TWp2OkCXsh1s4lhU.jJpIE6OFSwSXMC",
+        "nome": "ROBERTO SEVERO SALGUES CAMPOS",
+        "ativo": true,
+        "ultimo_login": null,
+        "created_at": "2025-09-21T15:45:11.121Z",
+        "updated_at": "2025-09-21T15:45:11.121Z",
+        "telefone": "(81) 98600-0107",
+        "creci": "123323"
+      },
+      {
+        "id": "cc8220f7-a3fd-40ed-8dbd-a22539328083",
+        "username": "admin",
+        "email": "admin@netimobiliaria.com.br",
+        "password": "$2b$10$N7k5/qYUvSnqWRfbp8xbCeMGLaeLmNGKJRbbLLKQ6myXFnmsfgtCy",
+        "nome": "Administrador Principal",
+        "ativo": true,
+        "ultimo_login": "2025-10-06T21:06:48.644Z",
+        "created_at": "2025-08-21T22:02:09.444Z",
+        "updated_at": "2025-10-07T22:31:28.723Z",
+        "telefone": "(81) 99901-2600",
+        "creci": null
+      },
+      {
+        "id": "67398fc7-031a-4596-a48d-c3f51c942a5d",
+        "username": "Nilma",
+        "email": "nilma@gmail.com",
+        "password": "$2b$10$gh2ZsT/smEY8Vh0sFE5sI.gii35Wd4E15JvqO6bGsM.Ohgr0s6rrS",
+        "nome": "Nilma teste",
+        "ativo": true,
+        "ultimo_login": "2025-09-02T22:29:22.088Z",
+        "created_at": "2025-09-02T21:49:43.171Z",
+        "updated_at": "2025-09-21T13:54:27.512Z",
+        "telefone": "(81) 9999-9999",
+        "creci": null
+      }
+    ]
+  }
+}

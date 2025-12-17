@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Scrollbar customizada para dashboards */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Importar estilos do Leaflet */
+@import '../styles/leaflet.css';
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply text-gray-900 bg-white;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200;
+  }
+  
+  .btn-secondary {
+    @apply bg-white hover:bg-gray-50 text-primary-600 font-semibold py-3 px-6 rounded-lg border border-primary-600 transition-colors duration-200;
+  }
+  
+  .card {
+    @apply bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-200;
+  }
+  
+  /* Esconder TODOS os popups e tooltips permanentes do Leaflet - usar apenas modal customizado */
+  .leaflet-popup {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  
+  .leaflet-popup-pane {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  
+  .leaflet-tooltip-pane {
+    z-index: 650 !important;
+  }
+  
+  .custom-tooltip {
+    max-width: 300px !important;
+  }
+  
+  /* Garantir que cards em grid de 5 colunas tenham largura mínima adequada */
+  .grid.grid-cols-5 > .card {
+    min-width: 0;
+  }
+  
+  /* Garantir que o campo Área nos cards (primeiro campo) tenha espaço suficiente */
+  .card .bg-gray-50:first-child {
+    min-width: 95px !important;
+    width: 95px !important;
+    flex-shrink: 0 !important;
+  }
+  
+  .card .bg-gray-50:first-child > div:last-child {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+  }
+}
+
+@layer utilities {
+  .animate-fadeIn {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+}
+
+.dual-slider {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+.dual-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3), 0 0 0 1px rgba(37, 99, 235, 0.1);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.2s ease;
+}
+
+.dual-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.4), 0 0 0 2px rgba(37, 99, 235, 0.15);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%);
+}
+
+.dual-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3), 0 0 0 1px rgba(37, 99, 235, 0.1);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.2s ease;
+}
+
+.dual-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.4), 0 0 0 2px rgba(37, 99, 235, 0.15);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%);
+}
+
+.dual-slider::-webkit-slider-runnable-track,
+.dual-slider::-moz-range-track {
+  height: 0;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

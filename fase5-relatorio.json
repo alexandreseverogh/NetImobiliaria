@@ -1,0 +1,24 @@
+{
+  "data": "2025-10-09T11:45:43.171Z",
+  "foreignKeysRemoved": [
+    {
+      "table_name": "cidades",
+      "column_name": "estado_id",
+      "foreign_table_name": "estados",
+      "foreign_column_name": "id",
+      "constraint_name": "cidades_estado_id_fkey"
+    }
+  ],
+  "droppedTables": [
+    "cidades",
+    "municipios",
+    "estados"
+  ],
+  "failedTables": [],
+  "success": true,
+  "backupsAvailable": [
+    "estados_backup_20251008",
+    "cidades_backup_20251008",
+    "municipios_backup_20251008"
+  ]
+}

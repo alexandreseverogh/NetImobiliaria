@@ -1,0 +1,62 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "username": "admin",
+      "email": "admin@netimobiliaria.com.br",
+      "password": "$2b$12$B4.mi331DoV1qLFz639ERuBgG/0ngwULNxMdrwRrdlVWalOo8Ptw.",
+      "nome": "Administrador Principal",
+      "cargo": "ADMIN",
+      "permissoes": {
+        "imoveis": "DELETE",
+        "proximidades": "DELETE",
+        "usuarios": "DELETE",
+        "relatorios": "WRITE"
+      },
+      "ativo": true,
+      "createdAt": "2024-12-19T00:00:00.000Z",
+      "updatedAt": "2024-12-19T00:00:00.000Z"
+    },
+    {
+      "id": "2",
+      "username": "corretor1",
+      "email": "joao@netimobiliaria.com.br",
+      "password": "$2b$12$X6OrejNNlQJi1pCOK.w4c.XlCQMVAaYzWCheNWXo0wG1tNdxTYOxy",
+      "nome": "João Silva",
+      "cargo": "CORRETOR",
+      "permissoes": {
+        "imoveis": "WRITE",
+        "proximidades": "WRITE",
+        "usuarios": "READ",
+        "relatorios": "READ"
+      },
+      "ativo": true,
+      "createdAt": "2024-12-19T00:00:00.000Z",
+      "updatedAt": "2024-12-19T00:00:00.000Z"
+    },
+    {
+      "id": "3",
+      "username": "assistente1",
+      "email": "maria@netimobiliaria.com.br",
+      "password": "$2b$12$NICEmqspFSGx.rLfCac0beqiuzTwJ4PWBZ/fS0zURagd6VQJwsbeS",
+      "nome": "Maria Santos",
+      "cargo": "ASSISTENTE",
+      "permissoes": {
+        "imoveis": "READ",
+        "proximidades": "READ",
+        "usuarios": "READ",
+        "relatorios": "READ"
+      },
+      "ativo": true,
+      "createdAt": "2024-12-19T00:00:00.000Z",
+      "updatedAt": "2024-12-19T00:00:00.000Z"
+    }
+  ]
+}
+
+
+
+
+
+
+

@@ -1,0 +1,110 @@
+{
+  "Lazer & Entretenimento": [
+    "Salão de festas",
+    "Espaço gourmet",
+    "Churrasqueira",
+    "Playground infantil",
+    "Brinquedoteca",
+    "Sala de jogos",
+    "Cinema privativo",
+    "Lounge/bar",
+    "Pista de boliche",
+    "Discoteca/boate",
+    "Espaço pet / pet care"
+  ],
+  "Esporte & Saúde": [
+    "Piscina adulta",
+    "Piscina infantil",
+    "Piscina aquecida",
+    "Piscina olímpica",
+    "Academia/fitness center",
+    "Quadra poliesportiva",
+    "Quadra de tênis",
+    "Quadra de squash",
+    "Campo de futebol society",
+    "Pista de corrida / caminhada",
+    "Estúdio de pilates/yoga",
+    "Spa com sauna/massagem",
+    "Vestiários com duchas"
+  ],
+  "Segurança": [
+    "Portaria 24h",
+    "Controle de acesso por biometria",
+    "Portão eletrônico",
+    "Circuito interno de câmeras (CFTV)",
+    "Segurança perimetral",
+    "Clausura (dupla portaria)",
+    "Alarme monitorado",
+    "Brigada de incêndio",
+    "Elevador com senha/cartão"
+  ],
+  "Conveniência & Serviços": [
+    "Estacionamento privativo",
+    "Vagas para visitantes",
+    "Car wash / lava-jato",
+    "Market interno / mini-mercado",
+    "Coworking / business center",
+    "Sala de reuniões",
+    "Bicicletário",
+    "Oficina maker/ferramentaria",
+    "Concierge",
+    "Serviço de arrumação/limpeza",
+    "Delivery box (armários inteligentes para entregas)",
+    "Lavanderia compartilhada"
+  ],
+  "Verde & Sustentabilidade": [
+    "Jardim arborizado",
+    "Horta comunitária",
+    "Pomar",
+    "Bosque privativo",
+    "Estação de reciclagem",
+    "Captação de água da chuva",
+    "Energia solar/fotovoltaica",
+    "Iluminação LED em áreas comuns",
+    "Reuso de água",
+    "Certificação verde (LEED, AQUA, etc.)"
+  ],
+  "Tecnologia & Conectividade": [
+    "Wi-Fi nas áreas comuns",
+    "Infraestrutura para automação residencial",
+    "Carregadores para carros elétricos",
+    "Aplicativo exclusivo do condomínio",
+    "Portaria remota",
+    "Internet de alta velocidade / fibra",
+    "Som ambiente nas áreas comuns",
+    "Fechaduras eletrônicas",
+    "Sensores de presença e iluminação inteligente"
+  ],
+  "Bem-estar & Relaxamento": [
+    "Espaço zen / meditação",
+    "Deck molhado",
+    "Solarium",
+    "Sauna seca e a vapor",
+    "Hidromassagem",
+    "Ofurô",
+    "Área de descanso",
+    "Sala de massagem"
+  ],
+  "Públicos Especiais": [
+    "Espaços para terceira idade (jogos, convivência)",
+    "Acessibilidade total (elevadores, rampas, banheiros adaptados)",
+    "Berçário / fraldário",
+    "Espaço adolescente",
+    "Pet place / agility dog",
+    "Área kids supervisionada"
+  ],
+  "Estrutura & Arquitetura": [
+    "Hall social decorado",
+    "Elevador social e de serviço",
+    "Gerador de energia",
+    "Poço artesiano",
+    "Estrutura para ar-condicionado",
+    "Sistema de aquecimento central",
+    "Depósitos privativos",
+    "Áreas técnicas"
+  ]
+}
+
+
+
+

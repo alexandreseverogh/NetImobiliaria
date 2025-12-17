@@ -1,0 +1,227 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { CheckIcon } from '@heroicons/react/24/outline';
+import { useApi } from '@/hooks/useApi';
+
+interface PermissoesEditorProps {
+  permissions: Record<string, string>;
+  onChange: (permissions: Record<string, string>) => void;
+  disabled?: boolean;
+}
+
+interface SystemFeature {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+}
+
+const DEFAULT_FEATURES: SystemFeature[] = [
+  { id: 1, name: 'Imóveis', description: 'Gestão de propriedades', category: 'imoveis' },
+  { id: 2, name: 'Proximidades', description: 'Pontos de interesse próximos', category: 'proximidades' },
+  { id: 3, name: 'Amenidades', description: 'Comodidades e facilidades', category: 'amenidades' },
+  { id: 4, name: 'Categorias de Amenidades', description: 'Classificação de comodidades', category: 'categorias-amenidades' },
+  { id: 5, name: 'Categorias de Proximidades', description: 'Classificação de proximidades', category: 'categorias-proximidades' },
+  { id: 6, name: 'Usuários', description: 'Gestão de usuários do sistema', category: 'usuarios' },
+  { id: 7, name: 'Relatórios', description: 'Geração de relatórios', category: 'relatorios' },
+  { id: 8, name: 'Sistema', description: 'Configurações do sistema', category: 'sistema' },
+];
+
+// NOVO: 6 níveis granulares (eliminado WRITE)
+const PERMISSION_LEVELS = [
+  { value: 'NONE', label: 'Nenhum', color: 'bg-gray-100 text-gray-600' },
+  { value: 'READ', label: 'Leitura', color: 'bg-blue-100 text-blue-700' },
+  { value: 'EXECUTE', label: 'Executar', color: 'bg-purple-100 text-purple-700' },
+  { value: 'CREATE', label: 'Criar', color: 'bg-green-100 text-green-700' },
+  { value: 'UPDATE', label: 'Editar', color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'DELETE', label: 'Excluir', color: 'bg-red-100 text-red-700' },
+  { value: 'ADMIN', label: 'Admin', color: 'bg-indigo-100 text-indigo-700' },
+];
+
+export default function PermissoesEditor({ permissions, onChange, disabled = false }: PermissoesEditorProps) {
+  const { get } = useApi();
+  const [localPermissions, setLocalPermissions] = useState<Record<string, string>>({});
+  const [features, setFeatures] = useState<SystemFeature[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchFeatures = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await get('/api/admin/system-features');
+      
+      if (response.ok) {
+        const data = await response.json();
+        setFeatures(data.features || []);
+      } else {
+        console.error('Erro ao buscar funcionalidades:', response.status);
+        // Fallback para funcionalidades padrão
+        setFeatures(DEFAULT_FEATURES);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar funcionalidades:', error);
+      // Fallback para funcionalidades padrão
+      setFeatures(DEFAULT_FEATURES);
+    } finally {
+      setLoading(false);
+    }
+  }, [get]);
+
+  useEffect(() => {
+    fetchFeatures();
+  }, [fetchFeatures]);
+
+  useEffect(() => {
+    if (features.length > 0) {
+      // Initialize with permissions for all features from database
+      const initialPermissions: Record<string, string> = {};
+      features.forEach(feature => {
+        // Usar feature.name em vez de feature.category para mapear com as permissões
+        initialPermissions[feature.name] = permissions[feature.name] || 'NONE';
+      });
+      setLocalPermissions(initialPermissions);
+    }
+  }, [permissions, features]);
+
+  const handlePermissionChange = (featureName: string, permission: string) => {
+    const newPermissions = {
+      ...localPermissions,
+      [featureName]: permission
+    };
+    setLocalPermissions(newPermissions);
+    onChange(newPermissions);
+  };
+
+  const getPermissionColor = (permission: string) => {
+    const level = PERMISSION_LEVELS.find(p => p.value === permission);
+    return level ? level.color : 'bg-gray-100 text-gray-600';
+  };
+
+  const getPermissionLabel = (permission: string) => {
+    const level = PERMISSION_LEVELS.find(p => p.value === permission);
+    return level ? level.label : 'Nenhum';
+  };
+
+  const getPermissionDescription = (permission: string) => {
+    switch (permission) {
+      case 'NONE':
+        return 'Sem acesso a esta funcionalidade';
+      case 'READ':
+        return 'Pode apenas visualizar';
+      case 'EXECUTE':
+        return 'Pode executar (dashboards, relatórios)';
+      case 'CREATE':
+        return 'Pode criar novos registros';
+      case 'UPDATE':
+        return 'Pode editar registros existentes';
+      case 'DELETE':
+        return 'Pode excluir registros';
+      case 'ADMIN':
+        return 'Controle total sobre o recurso';
+      default:
+        return 'Permissão não definida';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Permission Levels Legend */}
+      <div className="bg-gray-50 rounded-lg p-4">
+        <h5 className="text-sm font-medium text-gray-700 mb-3">Níveis de Permissão:</h5>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {PERMISSION_LEVELS.map((level) => (
+            <div key={level.value} className="flex items-center space-x-2">
+              <div className={`px-2 py-1 rounded-full text-xs font-medium ${level.color}`}>
+                {level.label}
+              </div>
+              <span className="text-xs text-gray-500">
+                {getPermissionDescription(level.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Features Grid */}
+      {loading ? (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-sm text-gray-600">Carregando funcionalidades...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {features.map((feature) => (
+            <div key={feature.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
+              <div className="mb-4">
+                <h4 className="text-lg font-medium text-gray-900 mb-1">
+                  {feature.name}
+                </h4>
+                <p className="text-sm text-gray-600">
+                  {feature.description}
+                </p>
+              </div>
+
+              {/* Current Permission Display */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Permissão atual:</span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPermissionColor(localPermissions[feature.name])}`}>
+                    {getPermissionLabel(localPermissions[feature.name])}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {getPermissionDescription(localPermissions[feature.name])}
+                </p>
+              </div>
+
+              {/* Permission Selection */}
+              <div className="space-y-2">
+                {PERMISSION_LEVELS.map((level) => (
+                  <label key={level.value} className="flex items-center space-x-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`permission-${feature.name}`}
+                      value={level.value}
+                      checked={localPermissions[feature.name] === level.value}
+                      onChange={(e) => handlePermissionChange(feature.name, e.target.value)}
+                      disabled={disabled}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <div className="flex items-center space-x-2">
+                      <div className={`px-2 py-1 rounded-full text-xs font-medium ${level.color}`}>
+                        {level.label}
+                      </div>
+                      <span className="text-sm text-gray-700">
+                        {getPermissionDescription(level.value)}
+                      </span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Summary */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h5 className="text-sm font-medium text-blue-800 mb-2">Resumo das Permissões:</h5>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          {PERMISSION_LEVELS.map((level) => {
+            const count = Object.values(localPermissions).filter(p => p === level.value).length;
+            return (
+              <div key={level.value} className="flex items-center justify-between">
+                <span className={`px-2 py-1 rounded-full font-medium ${level.color}`}>
+                  {level.label}
+                </span>
+                <span className="text-blue-700 font-medium">
+                  {count}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}

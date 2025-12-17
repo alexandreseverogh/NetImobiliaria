@@ -1,0 +1,84 @@
+[
+  {
+    "id": "1",
+    "nome": "Salão de festas",
+    "categoria": "Lazer & Entretenimento",
+    "descricao": "Salão para eventos e comemorações",
+    "icone": "🎉",
+    "ativo": true
+  },
+  {
+    "id": "2",
+    "nome": "Piscina adulta",
+    "categoria": "Esporte & Saúde",
+    "descricao": "Piscina para adultos",
+    "icone": "🏊‍♂️",
+    "ativo": true
+  },
+  {
+    "id": "3",
+    "nome": "Academia/fitness center",
+    "categoria": "Esporte & Saúde",
+    "descricao": "Academia completa com equipamentos",
+    "icone": "💪",
+    "ativo": true
+  },
+  {
+    "id": "4",
+    "nome": "Portaria 24h",
+    "categoria": "Segurança",
+    "descricao": "Portaria com segurança 24 horas",
+    "icone": "👮‍♂️",
+    "ativo": true
+  },
+  {
+    "id": "5",
+    "nome": "Estacionamento privativo",
+    "categoria": "Conveniência & Serviços",
+    "descricao": "Vagas de estacionamento privativas",
+    "icone": "🚗",
+    "ativo": true
+  },
+  {
+    "id": "6",
+    "nome": "Jardim arborizado",
+    "categoria": "Verde & Sustentabilidade",
+    "descricao": "Jardim com árvores e vegetação",
+    "icone": "🌳",
+    "ativo": true
+  },
+  {
+    "id": "7",
+    "nome": "Wi-Fi nas áreas comuns",
+    "categoria": "Tecnologia & Conectividade",
+    "descricao": "Internet sem fio nas áreas comuns",
+    "icone": "📶",
+    "ativo": true
+  },
+  {
+    "id": "8",
+    "nome": "Espaço zen / meditação",
+    "categoria": "Bem-estar & Relaxamento",
+    "descricao": "Área para meditação e relaxamento",
+    "icone": "🧘‍♀️",
+    "ativo": true
+  },
+  {
+    "id": "9",
+    "nome": "Espaços para terceira idade",
+    "categoria": "Públicos Especiais",
+    "descricao": "Áreas específicas para idosos",
+    "icone": "👴",
+    "ativo": true
+  },
+  {
+    "id": "10",
+    "nome": "Hall social decorado",
+    "categoria": "Estrutura & Arquitetura",
+    "descricao": "Hall de entrada decorado",
+    "icone": "🏛️",
+    "ativo": true
+  }
+]
+
+

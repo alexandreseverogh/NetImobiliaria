@@ -1,0 +1,79 @@
+{
+  "data": "2025-10-08T22:53:13.208Z",
+  "foreignKeys": [
+    {
+      "table_name": "cidades",
+      "column_name": "estado_id",
+      "foreign_table_name": "estados",
+      "foreign_column_name": "id",
+      "constraint_name": "cidades_estado_id_fkey"
+    }
+  ],
+  "tableStats": {
+    "estados": {
+      "exists": true,
+      "count": 27
+    },
+    "cidades": {
+      "exists": true,
+      "count": 0
+    },
+    "municipios": {
+      "exists": true,
+      "count": 14
+    }
+  },
+  "imoveisStats": {
+    "total_imoveis": "43",
+    "com_estado": "43",
+    "com_cidade": "43",
+    "imoveis_ativos": "43"
+  },
+  "estadosUsados": [
+    {
+      "estado_fk": "PE",
+      "quantidade": "12"
+    },
+    {
+      "estado_fk": "PB",
+      "quantidade": "8"
+    },
+    {
+      "estado_fk": "PI",
+      "quantidade": "6"
+    },
+    {
+      "estado_fk": "MG",
+      "quantidade": "4"
+    },
+    {
+      "estado_fk": "PR",
+      "quantidade": "4"
+    },
+    {
+      "estado_fk": "MS",
+      "quantidade": "2"
+    },
+    {
+      "estado_fk": "PA",
+      "quantidade": "2"
+    },
+    {
+      "estado_fk": "RJ",
+      "quantidade": "2"
+    },
+    {
+      "estado_fk": "ES",
+      "quantidade": "1"
+    },
+    {
+      "estado_fk": "GO",
+      "quantidade": "1"
+    }
+  ],
+  "backupsCreated": [
+    "estados_backup_20251008",
+    "cidades_backup_20251008",
+    "municipios_backup_20251008"
+  ]
+}

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prévia UI - Feed de Conteúdos Imobiliários</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f9fafb; color: #1f2937; margin: 0; padding: 0; }
+        header { background-color: white; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); position: sticky; top: 0; z-index: 50; height: 64px; display: flex; align-items: center; padding: 0 2rem; }
+        .header-content { max-width: 1280px; margin: 0 auto; width: 100%; display: flex; justify-content: space-between; align-items: center; }
+        .brand { font-size: 1.25rem; font-weight: bold; color: #1d4ed8; }
+        main { max-width: 1280px; margin: 0 auto; padding: 2rem; }
+        h1 { font-size: 1.875rem; font-weight: bold; margin-bottom: 0.5rem; }
+        .subtitle { color: #4b5563; margin-bottom: 2rem; }
+        .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 2rem; }
+        .filter-btn { padding: 0.5rem 1rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: 1px solid #e5e7eb; background-color: white; color: #4b5563; transition: all 0.2s; }
+        .filter-btn.active { background-color: #2563eb; color: white; border-color: #2563eb; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); border: 1px solid #f3f4f6; overflow: hidden; display: flex; flex-direction: column; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .card-image { height: 12rem; width: 100%; background-color: #e5e7eb; position: relative; }
+        .card-image img { width: 100%; height: 100%; object-fit: cover; }
+        .badge { position: absolute; top: 0.75rem; left: 0.75rem; background-color: #dbeafe; color: #1e40af; font-size: 0.75rem; font-weight: 600; padding: 0.125rem 0.625rem; border-radius: 9999px; }
+        .source-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.6), transparent); padding: 0.75rem; padding-top: 3rem; color: white; font-size: 0.75rem; font-weight: 500; }
+        .card-content { padding: 1.25rem; display: flex; flex-direction: column; flex-grow: 1; }
+        .date { font-size: 0.75rem; color: #9ca3af; margin-bottom: 0.5rem; }
+        .card-title { font-size: 1.125rem; font-weight: bold; color: #111827; margin-bottom: 0.5rem; line-height: 1.4; }
+        .card-excerpt { font-size: 0.875rem; color: #4b5563; margin-bottom: 1rem; height: 2.6em; overflow: hidden; text-overflow: ellipsis; }
+        .card-footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid #f9fafb; }
+        .link-btn { color: #2563eb; text-decoration: none; font-size: 0.875rem; font-weight: 500; display: inline-flex; align-items: center; }
+        .link-btn:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <div class="brand">Net Imobiliária</div>
+            <nav style="display: flex; gap: 2rem; font-size: 0.875rem; color: #6b7280;">
+                <a href="#">Imóveis</a>
+                <a href="#" style="color: #2563eb; font-weight: 600;">Conteúdos</a>
+                <a href="#">Sobre</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        
+        <h1>Mercado em Foco</h1>
+        <p class="subtitle">As últimas notícias, tendências e análises do setor imobiliário.</p>
+
+        <div class="filters">
+            <button class="filter-btn active">Todas</button>
+            <button class="filter-btn">💰 Financeiro</button>
+            <button class="filter-btn">🤖 Tecnologia</button>
+            <button class="filter-btn">🏠 Decoração</button>
+            <button class="filter-btn">📈 Tendências</button>
+        </div>
+
+        <div class="grid">
+
+            <!-- Card 1 -->
+            <article class="card">
+                <div class="card-image">
+                    <span class="badge" style="background-color: #dbeafe; color: #1e40af;">Financeiro</span>
+                    <img src="https://images.unsplash.com/photo-1565514020176-db0235c662a6?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Capa">
+                    <div class="source-overlay">🟢 G1 Economia</div>
+                </div>
+                <div class="card-content">
+                    <div class="date">Há 2 horas</div>
+                    <h3 class="card-title">Banco Central indica possível redução na taxa de juros</h3>
+                    <p class="card-excerpt">Ata do Copom divulgada hoje mostra cenário favorável para o mercado imobiliário com controle da inflação.</p>
+                    <div class="card-footer">
+                        <a href="#" class="link-btn">Ler notícia completa &rarr;</a>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Card 2 -->
+            <article class="card">
+                <div class="card-image">
+                    <span class="badge" style="background-color: #f3e8ff; color: #6b21a8;">Tecnologia</span>
+                    <img src="https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Capa">
+                    <div class="source-overlay">🟢 TechCrunch</div>
+                </div>
+                <div class="card-content">
+                    <div class="date">Há 4 horas</div>
+                    <h3 class="card-title">Como a IA está transformando a avaliação de imóveis</h3>
+                    <p class="card-excerpt">Novos algoritmos prometem precisão de 98% na precificação de ativos residenciais em grandes metrópoles.</p>
+                    <div class="card-footer">
+                        <a href="#" class="link-btn">Ler notícia completa &rarr;</a>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Card 3 -->
+            <article class="card">
+                <div class="card-image">
+                    <span class="badge" style="background-color: #ffedd5; color: #9a3412;">Decoração</span>
+                    <img src="https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Capa">
+                    <div class="source-overlay">🟢 Casa Vogue</div>
+                </div>
+                <div class="card-content">
+                    <div class="date">Ontem</div>
+                    <h3 class="card-title">Minimalismo aconchegante: a tendência para 2025</h3>
+                    <p class="card-excerpt">Mistura de texturas naturais e tons terrosos domina os projetos de interiores neste ano.</p>
+                    <div class="card-footer">
+                        <a href="#" class="link-btn">Ler notícia completa &rarr;</a>
+                    </div>
+                </div>
+            </article>
+
+        </div>
+
+    </main>
+
+</body>
+</html>
