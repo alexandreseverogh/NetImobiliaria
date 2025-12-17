@@ -85,7 +85,7 @@ dist
 
 # Gatsby files
 .cache/
-public
+# (não ignorar "public" no Next.js; isso quebra src/components/public/**)
 
 # Storybook build outputs
 .out

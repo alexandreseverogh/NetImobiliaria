@@ -1,0 +1,30 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "regiao": "Norte" },
+      "geometry": { "type": "MultiPolygon", "coordinates": [] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "regiao": "Nordeste" },
+      "geometry": { "type": "MultiPolygon", "coordinates": [] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "regiao": "CentroOeste" },
+      "geometry": { "type": "MultiPolygon", "coordinates": [] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "regiao": "Sudeste" },
+      "geometry": { "type": "MultiPolygon", "coordinates": [] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "regiao": "Sul" },
+      "geometry": { "type": "MultiPolygon", "coordinates": [] }
+    }
+  ]
+}
