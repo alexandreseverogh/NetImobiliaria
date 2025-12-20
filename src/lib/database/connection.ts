@@ -1,11 +1,17 @@
 import { Pool, PoolConfig } from 'pg'
 
+const dbPassword = process.env.DB_PASSWORD
+if (!dbPassword) {
+  // Evita hardcoding e torna o problema explícito em ambientes sem configuração.
+  console.warn('⚠️ DB_PASSWORD não definido nas variáveis de ambiente.')
+}
+
 // Configuração do pool de conexões
 const poolConfig: PoolConfig = {
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
   database: process.env.DB_NAME || 'net_imobiliaria',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
+  password: dbPassword || '',
   port: parseInt(process.env.DB_PORT || '5432'),
   
   // Configurações de pool para produção

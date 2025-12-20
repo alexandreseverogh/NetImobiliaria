@@ -1,0 +1,73 @@
+services:
+  db:
+    # Dica: se o seu banco pré-docker é Postgres 17 (ex.: dump gerado em 17.x),
+    # use POSTGRES_IMAGE=postgres:17-alpine no seu .env / ambiente.
+    image: ${POSTGRES_IMAGE:-postgres:15-alpine}
+    container_name: netimobiliaria-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-net_imobiliaria}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Backups/dumps disponíveis para restore manual (não executa automaticamente)
+      - ./database/backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-net_imobiliaria}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: netimobiliaria-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # DB dentro do compose: host = nome do serviço
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-net_imobiliaria}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+
+      # Ajuste recomendado (evita loop de login entre máquinas/containers)
+      JWT_SECRET: "CHANGE_ME_IN_PROD"
+
+      # Next
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Healthcheck
+      HEALTHCHECK_DB: "true"
+    ports:
+      - "3000:3000"
+    # Dev-friendly: hot reload
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    command: ["npm", "run", "dev", "--", "-H", "0.0.0.0", "-p", "3000"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:
+
+
+

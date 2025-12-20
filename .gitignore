@@ -183,6 +183,8 @@ backups/
 **/Backup_BD/
 **/backups/
 **/backup*/
+database/backups/*
+!database/backups/.gitkeep
 backup_completo.sql*
 backup*.sql
 *_backup*.sql

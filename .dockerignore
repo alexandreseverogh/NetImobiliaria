@@ -1,0 +1,43 @@
+# Dependências / build
+node_modules
+.next
+out
+dist
+build
+
+# Logs
+*.log
+logs
+
+# Env local
+.env
+.env.local
+.env.*.local
+
+# Git / IDE
+.git
+.vscode
+.idea
+
+# Arquivos grandes / backups
+backups
+Backup_BD
+**/backups
+**/Backup_BD
+*.sql.gz
+*.dump
+*.dmp
+*.bacpac
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+
+
+

@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { getDbCapabilities } from '@/lib/database/schemaCapabilities'
 
 // API PÚBLICA - Buscar imóveis em destaque (SEM autenticação)
 export async function GET(request: NextRequest) {
   try {
+    const caps = await getDbCapabilities()
+    const tipoCol = caps.imoveis.tipo_fk ? 'tipo_fk' : caps.imoveis.tipo_id ? 'tipo_id' : 'tipo_fk'
+    const statusCol = caps.imoveis.status_fk ? 'status_fk' : caps.imoveis.status_id ? 'status_id' : 'status_fk'
+    const cidadeCol = caps.imoveis.cidade_fk ? 'cidade_fk' : caps.imoveis.cidade ? 'cidade' : 'cidade_fk'
+    const estadoCol = caps.imoveis.estado_fk ? 'estado_fk' : caps.imoveis.estado ? 'estado' : 'estado_fk'
+    const hasFinalidade = caps.imoveis.finalidade_fk
+    const hasFinalidadeLandingFlags =
+      caps.finalidades_imovel.vender_landpaging && caps.finalidades_imovel.alugar_landpaging
+    const hasDestaqueNacional = caps.imoveis.destaque_nacional
+    const statusPublicClause = caps.status_imovel.consulta_imovel_internauta
+      ? 'AND si.consulta_imovel_internauta = true'
+      : ''
+
     // Obter parâmetros de filtro
     const { searchParams } = new URL(request.url)
     const tipoDestaque = searchParams.get('tipo_destaque') || 'DV' // Default: Destaque Venda
@@ -21,6 +35,16 @@ export async function GET(request: NextRequest) {
     console.log('🔍 API Pública - Parâmetro destaque_nacional_only (raw):', destaqueNacionalOnlyParam)
     console.log('🔍 API Pública - Destaque nacional apenas (parsed):', destaqueNacionalOnly)
     console.log('🔍 API Pública - URL completa:', request.url)
+    console.log('🔍 API Pública - DB Capabilities:', {
+      tipoCol,
+      statusCol,
+      cidadeCol,
+      estadoCol,
+      hasFinalidade,
+      hasFinalidadeLandingFlags,
+      hasDestaqueNacional,
+      imagens: caps.imovel_imagens
+    })
     
     // Se destaqueNacionalOnly estiver ativo, buscar apenas destaque nacional (sem filtros de estado/cidade)
     if (destaqueNacionalOnly) {
@@ -37,45 +61,45 @@ export async function GET(request: NextRequest) {
           i.descricao,
           i.preco,
           i.endereco,
-          i.numero,
-          i.complemento,
           i.bairro,
-          i.cidade_fk,
-          i.estado_fk,
+          i.${cidadeCol} as cidade_fk,
+          i.${estadoCol} as estado_fk,
           i.cep,
           i.quartos,
           i.banheiros,
           i.area_total,
           i.vagas_garagem,
-          i.tipo_fk,
-          i.finalidade_fk,
+          i.${tipoCol} as tipo_fk,
+          ${hasFinalidade ? 'i.finalidade_fk,' : 'NULL::int as finalidade_fk,'}
           ti.nome as tipo_nome,
-          fi.nome as finalidade_nome,
-          fi.tipo_destaque,
-          i.destaque_nacional,
-          fi.vender_landpaging,
-          fi.alugar_landpaging
+          ${hasFinalidade ? 'fi.nome as finalidade_nome,' : 'NULL::text as finalidade_nome,'}
+          ${caps.finalidades_imovel.tipo_destaque ? 'fi.tipo_destaque,' : `'  '::varchar(2) as tipo_destaque,`}
+          ${hasDestaqueNacional ? 'i.destaque_nacional,' : 'NULL::boolean as destaque_nacional,'}
+          ${caps.finalidades_imovel.vender_landpaging ? 'fi.vender_landpaging,' : 'false::boolean as vender_landpaging,'}
+          ${caps.finalidades_imovel.alugar_landpaging ? 'fi.alugar_landpaging' : 'false::boolean as alugar_landpaging'}
         FROM imoveis i
-        INNER JOIN tipos_imovel ti ON i.tipo_fk = ti.id
-        INNER JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
-        INNER JOIN status_imovel si ON i.status_fk = si.id
-        WHERE i.destaque_nacional = true
+        INNER JOIN tipos_imovel ti ON i.${tipoCol} = ti.id
+        ${hasFinalidade ? 'INNER JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id' : ''}
+        INNER JOIN status_imovel si ON i.${statusCol} = si.id
+        WHERE ${hasDestaqueNacional ? 'i.destaque_nacional = true' : 'i.destaque = true'}
         AND i.ativo = true
         AND si.ativo = true
-        AND si.consulta_imovel_internauta = true
+        ${statusPublicClause}
       `
       
       // Aplicar o mesmo filtro de finalidade para destaque nacional
-      if (tipoDestaque === 'DV') {
-        // Para "Comprar": filtrar por vender_landpaging = true
-        query += ` AND fi.vender_landpaging = true`
-        console.log('🔍 API Pública - Filtro aplicado: vender_landpaging = true (Comprar)')
-      } else if (tipoDestaque === 'DA') {
-        // Para "Alugar": filtrar por alugar_landpaging = true
-        query += ` AND fi.alugar_landpaging = true`
-        console.log('🔍 API Pública - Filtro aplicado: alugar_landpaging = true (Alugar)')
+      if (hasFinalidade && hasFinalidadeLandingFlags) {
+        if (tipoDestaque === 'DV') {
+          query += ` AND fi.vender_landpaging = true`
+          console.log('🔍 API Pública - Filtro aplicado: vender_landpaging = true (Comprar)')
+        } else if (tipoDestaque === 'DA') {
+          query += ` AND fi.alugar_landpaging = true`
+          console.log('🔍 API Pública - Filtro aplicado: alugar_landpaging = true (Alugar)')
+        } else {
+          console.warn('⚠️ API Pública - Tipo destaque inválido:', tipoDestaque, '- não aplicando filtro de finalidade')
+        }
       } else {
-        console.warn('⚠️ API Pública - Tipo destaque inválido:', tipoDestaque, '- não aplicando filtro de finalidade')
+        console.warn('⚠️ API Pública - Campos de finalidade/landing não disponíveis no DB, ignorando filtro DV/DA.')
       }
       
       query += ` ORDER BY i.created_at DESC LIMIT 50`
@@ -140,27 +164,39 @@ export async function GET(request: NextRequest) {
       
       console.log('✅ API Pública - Total de imóveis válidos após validações:', result.rows.length)
       
-      // Buscar imagem principal para cada imóvel
+      // Buscar imagem principal para cada imóvel (compatível com DB legado: url vs bytea)
       const imoveisComImagens = await Promise.all(
         result.rows.map(async (imovel) => {
-          console.log('🔍 API Pública - Buscando imagem para imóvel ID:', imovel.id)
-          
-          const imagemQuery = `
-            SELECT 
-              encode(imagem, 'base64') as imagem_base64,
-              tipo_mime
-            FROM imovel_imagens
-            WHERE imovel_id = $1 AND principal = true
-            LIMIT 1
-          `
-          
-          const imagemResult = await pool.query(imagemQuery, [imovel.id])
-          console.log('🔍 API Pública - Imagens encontradas para imóvel', imovel.id, ':', imagemResult.rows.length)
-          
-          const imagemPrincipal = imagemResult.rows.length > 0 
-            ? `data:${imagemResult.rows[0].tipo_mime || 'image/jpeg'};base64,${imagemResult.rows[0].imagem_base64}`
-            : null
-          
+          const hasImagemBytea = caps.imovel_imagens.imagem && caps.imovel_imagens.tipo_mime
+          const hasUrl = caps.imovel_imagens.url
+
+          let imagemPrincipal: string | null = null
+
+          if (hasImagemBytea) {
+            const imagemQuery = `
+              SELECT 
+                encode(imagem, 'base64') as imagem_base64,
+                tipo_mime
+              FROM imovel_imagens
+              WHERE imovel_id = $1 AND principal = true
+              LIMIT 1
+            `
+            const imagemResult = await pool.query(imagemQuery, [imovel.id])
+            imagemPrincipal =
+              imagemResult.rows.length > 0
+                ? `data:${imagemResult.rows[0].tipo_mime || 'image/jpeg'};base64,${imagemResult.rows[0].imagem_base64}`
+                : null
+          } else if (hasUrl) {
+            const imagemQuery = `
+              SELECT url
+              FROM imovel_imagens
+              WHERE imovel_id = $1 AND principal = true
+              LIMIT 1
+            `
+            const imagemResult = await pool.query(imagemQuery, [imovel.id])
+            imagemPrincipal = imagemResult.rows.length > 0 ? imagemResult.rows[0].url : null
+          }
+
           return {
             ...imovel,
             imagem_principal: imagemPrincipal
@@ -198,43 +234,43 @@ export async function GET(request: NextRequest) {
           i.descricao,
           i.preco,
           i.endereco,
-          i.numero,
-          i.complemento,
           i.bairro,
-          i.cidade_fk,
-          i.estado_fk,
+          i.${cidadeCol} as cidade_fk,
+          i.${estadoCol} as estado_fk,
           i.cep,
           i.quartos,
           i.banheiros,
           i.area_total,
           i.vagas_garagem,
-          i.tipo_fk,
-          i.finalidade_fk,
+          i.${tipoCol} as tipo_fk,
+          ${hasFinalidade ? 'i.finalidade_fk,' : 'NULL::int as finalidade_fk,'}
           ti.nome as tipo_nome,
-          fi.nome as finalidade_nome,
-          fi.tipo_destaque,
-          i.destaque_nacional,
-          fi.vender_landpaging,
-          fi.alugar_landpaging
+          ${hasFinalidade ? 'fi.nome as finalidade_nome,' : 'NULL::text as finalidade_nome,'}
+          ${caps.finalidades_imovel.tipo_destaque ? 'fi.tipo_destaque,' : `'  '::varchar(2) as tipo_destaque,`}
+          ${hasDestaqueNacional ? 'i.destaque_nacional,' : 'NULL::boolean as destaque_nacional,'}
+          ${caps.finalidades_imovel.vender_landpaging ? 'fi.vender_landpaging,' : 'false::boolean as vender_landpaging,'}
+          ${caps.finalidades_imovel.alugar_landpaging ? 'fi.alugar_landpaging' : 'false::boolean as alugar_landpaging'}
         FROM imoveis i
-        INNER JOIN tipos_imovel ti ON i.tipo_fk = ti.id
-        INNER JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
-        INNER JOIN status_imovel si ON i.status_fk = si.id
-        WHERE i.destaque_nacional = true
+        INNER JOIN tipos_imovel ti ON i.${tipoCol} = ti.id
+        ${hasFinalidade ? 'INNER JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id' : ''}
+        INNER JOIN status_imovel si ON i.${statusCol} = si.id
+        WHERE ${hasDestaqueNacional ? 'i.destaque_nacional = true' : 'i.destaque = true'}
         AND i.ativo = true
         AND si.ativo = true
-        AND si.consulta_imovel_internauta = true
+        ${statusPublicClause}
       `
       
       // Aplicar o mesmo filtro de finalidade para destaque nacional
-      if (tipoDestaque === 'DV') {
-        // Para "Comprar": filtrar por vender_landpaging = true
-        query += ` AND fi.vender_landpaging = true`
-        console.log('🔍 API Pública - Filtro aplicado: vender_landpaging = true (Comprar)')
-      } else if (tipoDestaque === 'DA') {
-        // Para "Alugar": filtrar por alugar_landpaging = true
-        query += ` AND fi.alugar_landpaging = true`
-        console.log('🔍 API Pública - Filtro aplicado: alugar_landpaging = true (Alugar)')
+      if (hasFinalidade && hasFinalidadeLandingFlags) {
+        if (tipoDestaque === 'DV') {
+          query += ` AND fi.vender_landpaging = true`
+          console.log('🔍 API Pública - Filtro aplicado: vender_landpaging = true (Comprar)')
+        } else if (tipoDestaque === 'DA') {
+          query += ` AND fi.alugar_landpaging = true`
+          console.log('🔍 API Pública - Filtro aplicado: alugar_landpaging = true (Alugar)')
+        }
+      } else {
+        console.warn('⚠️ API Pública - Campos de finalidade/landing não disponíveis no DB, ignorando filtro DV/DA.')
       }
       
       query += ` ORDER BY i.created_at DESC LIMIT 50`
@@ -281,7 +317,7 @@ export async function GET(request: NextRequest) {
       // Primeira tentativa: buscar imóveis com destaque = true que correspondem ao estado/cidade
       // Para "Comprar" (DV): filtrar por vender_landpaging = true
       // Para "Alugar" (DA): filtrar por alugar_landpaging = true
-      let       query = `
+      let query = `
         SELECT 
           i.id,
           i.codigo,
@@ -289,38 +325,38 @@ export async function GET(request: NextRequest) {
           i.descricao,
           i.preco,
           i.endereco,
-          i.numero,
-          i.complemento,
           i.bairro,
-          i.cidade_fk,
-          i.estado_fk,
+          i.${cidadeCol} as cidade_fk,
+          i.${estadoCol} as estado_fk,
           i.cep,
           i.quartos,
           i.banheiros,
           i.area_total,
           i.vagas_garagem,
-          i.tipo_fk,
-          i.finalidade_fk,
+          i.${tipoCol} as tipo_fk,
+          ${hasFinalidade ? 'i.finalidade_fk,' : 'NULL::int as finalidade_fk,'}
           ti.nome as tipo_nome,
-          fi.nome as finalidade_nome,
-          fi.tipo_destaque
+          ${hasFinalidade ? 'fi.nome as finalidade_nome,' : 'NULL::text as finalidade_nome,'}
+          ${caps.finalidades_imovel.tipo_destaque ? 'fi.tipo_destaque' : `'  '::varchar(2) as tipo_destaque`}
         FROM imoveis i
-        INNER JOIN tipos_imovel ti ON i.tipo_fk = ti.id
-        INNER JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
-        INNER JOIN status_imovel si ON i.status_fk = si.id
+        INNER JOIN tipos_imovel ti ON i.${tipoCol} = ti.id
+        ${hasFinalidade ? 'INNER JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id' : ''}
+        INNER JOIN status_imovel si ON i.${statusCol} = si.id
         WHERE i.destaque = true
         AND i.ativo = true
         AND si.ativo = true
-        AND si.consulta_imovel_internauta = true
+        ${statusPublicClause}
       `
       
       // Adicionar filtro baseado no tipo de destaque (Comprar ou Alugar)
-      if (tipoDestaque === 'DV') {
-        // Para "Comprar": filtrar por vender_landpaging = true
-        query += ` AND fi.vender_landpaging = true`
-      } else if (tipoDestaque === 'DA') {
-        // Para "Alugar": filtrar por alugar_landpaging = true
-        query += ` AND fi.alugar_landpaging = true`
+      if (hasFinalidade && hasFinalidadeLandingFlags) {
+        if (tipoDestaque === 'DV') {
+          query += ` AND fi.vender_landpaging = true`
+        } else if (tipoDestaque === 'DA') {
+          query += ` AND fi.alugar_landpaging = true`
+        }
+      } else {
+        console.warn('⚠️ API Pública - Campos de finalidade/landing não disponíveis no DB, ignorando filtro DV/DA.')
       }
       
       const params: any[] = []
@@ -333,7 +369,7 @@ export async function GET(request: NextRequest) {
       if (estado) {
         // estado_fk armazena sigla, então usar comparação exata (case-insensitive)
         const estadoNormalizado = estado.trim().toUpperCase()
-        query += ` AND UPPER(TRIM(i.estado_fk)) = $${paramIndex}`
+        query += ` AND UPPER(TRIM(i.${estadoCol})) = $${paramIndex}`
         params.push(estadoNormalizado)
         paramIndex++
         console.log('🔍 API Pública - Estado normalizado para busca:', estadoNormalizado)
@@ -346,7 +382,7 @@ export async function GET(request: NextRequest) {
       // Usar ILIKE com trim para remover espaços extras e fazer match case-insensitive
       if (cidade) {
         const cidadeNormalizada = cidade.trim()
-        query += ` AND TRIM(i.cidade_fk) ILIKE $${paramIndex}`
+        query += ` AND TRIM(i.${cidadeCol}) ILIKE $${paramIndex}`
         params.push(`%${cidadeNormalizada}%`)
         paramIndex++
         console.log('🔍 API Pública - Cidade normalizada para busca:', cidadeNormalizada)
@@ -357,47 +393,28 @@ export async function GET(request: NextRequest) {
       console.log('🔍 API Pública - Query SQL (destaque local):', query)
       console.log('🔍 API Pública - Parâmetros:', params)
       
-      // Query de debug para verificar se o imóvel existe
+      // Debug opcional (mantém logs úteis sem depender de colunas inexistentes)
       if (estado && cidade) {
-        const debugQuery = `
-          SELECT 
-            i.id,
-            i.destaque,
-            i.destaque_nacional,
-            i.estado_fk,
-            i.cidade_fk,
-            i.ativo,
-            i.status_fk,
-            i.finalidade_fk,
-            fi.vender_landpaging,
-            fi.alugar_landpaging,
-            si.ativo as status_ativo,
-            si.consulta_imovel_internauta
-          FROM imoveis i
-          LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
-          LEFT JOIN status_imovel si ON i.status_fk = si.id
-          WHERE i.estado_fk = $1 AND i.cidade_fk ILIKE $2
-          LIMIT 10
-        `
-        const estadoNormalizadoDebug = estado.trim().toUpperCase()
-        const cidadeNormalizadaDebug = cidade.trim()
-        const debugResult = await pool.query(debugQuery, [estadoNormalizadoDebug, `%${cidadeNormalizadaDebug}%`])
-        console.log('🔍 API Pública - DEBUG: Imóveis encontrados com estado/cidade:', debugResult.rows.length)
-        if (debugResult.rows.length > 0) {
-          console.log('🔍 API Pública - DEBUG: Detalhes dos imóveis encontrados:', debugResult.rows.map(r => ({
-            id: r.id,
-            destaque: r.destaque,
-            destaque_nacional: r.destaque_nacional,
-            estado_fk: r.estado_fk,
-            cidade_fk: r.cidade_fk,
-            ativo: r.ativo,
-            status_fk: r.status_fk,
-            finalidade_fk: r.finalidade_fk,
-            vender_landpaging: r.vender_landpaging,
-            alugar_landpaging: r.alugar_landpaging,
-            status_ativo: r.status_ativo,
-            consulta_imovel_internauta: r.consulta_imovel_internauta
-          })))
+        try {
+          const debugQuery = `
+            SELECT 
+              i.id,
+              i.destaque,
+              i.ativo,
+              i.${estadoCol} as estado_fk,
+              i.${cidadeCol} as cidade_fk,
+              i.${statusCol} as status_fk
+              ${hasFinalidade ? ', i.finalidade_fk' : ''}
+            FROM imoveis i
+            WHERE UPPER(TRIM(i.${estadoCol})) = $1 AND TRIM(i.${cidadeCol}) ILIKE $2
+            LIMIT 10
+          `
+          const estadoNormalizadoDebug = estado.trim().toUpperCase()
+          const cidadeNormalizadaDebug = cidade.trim()
+          const debugResult = await pool.query(debugQuery, [estadoNormalizadoDebug, `%${cidadeNormalizadaDebug}%`])
+          console.log('🔍 API Pública - DEBUG: Imóveis encontrados com estado/cidade:', debugResult.rows.length)
+        } catch (e) {
+          console.warn('⚠️ API Pública - DEBUG query falhou (ignorado):', e)
         }
       }
       
@@ -424,50 +441,34 @@ export async function GET(request: NextRequest) {
           mensagem: 'Verificando se há problema nos filtros de finalidade ou status'
         })
         
-        // Verificar se há imóveis que passaram nos filtros básicos mas falharam nos filtros de finalidade/status
+        // Debug leve sem depender de colunas opcionais (DB legado vs novo)
         if (estado && cidade) {
-          const estadoNormalizadoDebug = estado.trim().toUpperCase()
-          const cidadeNormalizadaDebug = cidade.trim()
-          const debugQueryCompleto = `
-            SELECT 
-              i.id,
-              i.destaque,
-              i.ativo,
-              i.status_fk,
-              i.finalidade_fk,
-              fi.vender_landpaging,
-              fi.alugar_landpaging,
-              si.ativo as status_ativo,
-              si.consulta_imovel_internauta,
-              CASE 
-                WHEN i.destaque = false THEN 'Falhou: destaque = false'
-                WHEN i.ativo = false THEN 'Falhou: ativo = false'
-                WHEN si.ativo = false THEN 'Falhou: status.ativo = false'
-                WHEN si.consulta_imovel_internauta = false THEN 'Falhou: status.consulta_imovel_internauta = false'
-                WHEN fi.vender_landpaging = false AND $3 = 'DV' THEN 'Falhou: vender_landpaging = false (tipoDestaque = DV)'
-                WHEN fi.alugar_landpaging = false AND $3 = 'DA' THEN 'Falhou: alugar_landpaging = false (tipoDestaque = DA)'
-                ELSE 'Passou em todos os filtros'
-              END as motivo_exclusao
-            FROM imoveis i
-            LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
-            LEFT JOIN status_imovel si ON i.status_fk = si.id
-            WHERE i.estado_fk = $1 
-            AND i.cidade_fk ILIKE $2
-            AND i.destaque = true
-            LIMIT 10
-          `
-          const debugResultCompleto = await pool.query(debugQueryCompleto, [estadoNormalizadoDebug, `%${cidadeNormalizadaDebug}%`, tipoDestaque])
-          if (debugResultCompleto.rows.length > 0) {
-            console.log('🔍 API Pública - DEBUG: Imóveis com destaque=true encontrados mas excluídos pelos filtros:', debugResultCompleto.rows.map(r => ({
-              id: r.id,
-              motivo_exclusao: r.motivo_exclusao,
-              destaque: r.destaque,
-              ativo: r.ativo,
-              status_ativo: r.status_ativo,
-              consulta_imovel_internauta: r.consulta_imovel_internauta,
-              vender_landpaging: r.vender_landpaging,
-              alugar_landpaging: r.alugar_landpaging
-            })))
+          try {
+            const estadoNormalizadoDebug = estado.trim().toUpperCase()
+            const cidadeNormalizadaDebug = cidade.trim()
+            const debugQueryCompleto = `
+              SELECT 
+                i.id,
+                i.destaque,
+                i.ativo,
+                i.${estadoCol} as estado_fk,
+                i.${cidadeCol} as cidade_fk,
+                i.${statusCol} as status_fk
+              FROM imoveis i
+              WHERE UPPER(TRIM(i.${estadoCol})) = $1 
+                AND TRIM(i.${cidadeCol}) ILIKE $2
+                AND i.destaque = true
+              LIMIT 10
+            `
+            const debugResultCompleto = await pool.query(debugQueryCompleto, [
+              estadoNormalizadoDebug,
+              `%${cidadeNormalizadaDebug}%`
+            ])
+            if (debugResultCompleto.rows.length > 0) {
+              console.log('🔍 API Pública - DEBUG: Imóveis com destaque=true encontrados para estado/cidade (sem passar filtros):', debugResultCompleto.rows)
+            }
+          } catch (e) {
+            console.warn('⚠️ API Pública - DEBUG completo falhou (ignorado):', e)
           }
         }
       }
@@ -485,38 +486,36 @@ export async function GET(request: NextRequest) {
             i.descricao,
             i.preco,
             i.endereco,
-            i.numero,
-            i.complemento,
             i.bairro,
-            i.cidade_fk,
-            i.estado_fk,
+            i.${cidadeCol} as cidade_fk,
+            i.${estadoCol} as estado_fk,
             i.cep,
             i.quartos,
             i.banheiros,
             i.area_total,
             i.vagas_garagem,
-            i.tipo_fk,
-            i.finalidade_fk,
+            i.${tipoCol} as tipo_fk,
+            ${hasFinalidade ? 'i.finalidade_fk,' : 'NULL::int as finalidade_fk,'}
             ti.nome as tipo_nome,
-            fi.nome as finalidade_nome,
-            fi.tipo_destaque
+            ${hasFinalidade ? 'fi.nome as finalidade_nome,' : 'NULL::text as finalidade_nome,'}
+            ${caps.finalidades_imovel.tipo_destaque ? 'fi.tipo_destaque' : `'  '::varchar(2) as tipo_destaque`}
           FROM imoveis i
-          INNER JOIN tipos_imovel ti ON i.tipo_fk = ti.id
-          INNER JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
-          INNER JOIN status_imovel si ON i.status_fk = si.id
-          WHERE i.destaque_nacional = true
+          INNER JOIN tipos_imovel ti ON i.${tipoCol} = ti.id
+          ${hasFinalidade ? 'INNER JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id' : ''}
+          INNER JOIN status_imovel si ON i.${statusCol} = si.id
+          WHERE ${hasDestaqueNacional ? 'i.destaque_nacional = true' : 'i.destaque = true'}
           AND i.ativo = true
           AND si.ativo = true
-          AND si.consulta_imovel_internauta = true
+          ${statusPublicClause}
         `
         
         // Aplicar o mesmo filtro de finalidade para destaque nacional
-        if (tipoDestaque === 'DV') {
-          // Para "Comprar": filtrar por vender_landpaging = true
-          query += ` AND fi.vender_landpaging = true`
-        } else if (tipoDestaque === 'DA') {
-          // Para "Alugar": filtrar por alugar_landpaging = true
-          query += ` AND fi.alugar_landpaging = true`
+        if (hasFinalidade && hasFinalidadeLandingFlags) {
+          if (tipoDestaque === 'DV') {
+            query += ` AND fi.vender_landpaging = true`
+          } else if (tipoDestaque === 'DA') {
+            query += ` AND fi.alugar_landpaging = true`
+          }
         }
         
         query += ` ORDER BY i.created_at DESC LIMIT 50`
@@ -539,27 +538,39 @@ export async function GET(request: NextRequest) {
     console.log('✅ API Pública - Imóveis em destaque encontrados:', result.rows.length)
     console.log('🔍 API Pública - Dados dos imóveis:', result.rows)
     
-    // Buscar imagem principal para cada imóvel
+    // Buscar imagem principal para cada imóvel (compatível com DB legado: url vs bytea)
     const imoveisComImagens = await Promise.all(
       result.rows.map(async (imovel) => {
-        console.log('🔍 API Pública - Buscando imagem para imóvel ID:', imovel.id)
-        
-        const imagemQuery = `
-          SELECT 
-            encode(imagem, 'base64') as imagem_base64,
-            tipo_mime
-          FROM imovel_imagens
-          WHERE imovel_id = $1 AND principal = true
-          LIMIT 1
-        `
-        
-        const imagemResult = await pool.query(imagemQuery, [imovel.id])
-        console.log('🔍 API Pública - Imagens encontradas para imóvel', imovel.id, ':', imagemResult.rows.length)
-        
-        const imagemPrincipal = imagemResult.rows.length > 0 
-          ? `data:${imagemResult.rows[0].tipo_mime || 'image/jpeg'};base64,${imagemResult.rows[0].imagem_base64}`
-          : null
-        
+        const hasImagemBytea = caps.imovel_imagens.imagem && caps.imovel_imagens.tipo_mime
+        const hasUrl = caps.imovel_imagens.url
+
+        let imagemPrincipal: string | null = null
+
+        if (hasImagemBytea) {
+          const imagemQuery = `
+            SELECT 
+              encode(imagem, 'base64') as imagem_base64,
+              tipo_mime
+            FROM imovel_imagens
+            WHERE imovel_id = $1 AND principal = true
+            LIMIT 1
+          `
+          const imagemResult = await pool.query(imagemQuery, [imovel.id])
+          imagemPrincipal =
+            imagemResult.rows.length > 0
+              ? `data:${imagemResult.rows[0].tipo_mime || 'image/jpeg'};base64,${imagemResult.rows[0].imagem_base64}`
+              : null
+        } else if (hasUrl) {
+          const imagemQuery = `
+            SELECT url
+            FROM imovel_imagens
+            WHERE imovel_id = $1 AND principal = true
+            LIMIT 1
+          `
+          const imagemResult = await pool.query(imagemQuery, [imovel.id])
+          imagemPrincipal = imagemResult.rows.length > 0 ? imagemResult.rows[0].url : null
+        }
+
         return {
           ...imovel,
           imagem_principal: imagemPrincipal

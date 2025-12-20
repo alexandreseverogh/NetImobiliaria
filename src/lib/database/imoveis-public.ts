@@ -1,4 +1,5 @@
 import pool from './connection'
+import { getDbCapabilities } from './schemaCapabilities'
 
 export interface PublicImovelFilters {
   tipoIds?: number[]
@@ -46,6 +47,18 @@ interface QueryResult {
 }
 
 export async function listPublicImoveis(filters: PublicImovelFilters): Promise<QueryResult> {
+  const caps = await getDbCapabilities()
+  const tipoCol = caps.imoveis.tipo_fk ? 'tipo_fk' : caps.imoveis.tipo_id ? 'tipo_id' : 'tipo_fk'
+  const statusCol = caps.imoveis.status_fk ? 'status_fk' : caps.imoveis.status_id ? 'status_id' : 'status_fk'
+  const cidadeCol = caps.imoveis.cidade_fk ? 'cidade_fk' : caps.imoveis.cidade ? 'cidade' : 'cidade_fk'
+  const estadoCol = caps.imoveis.estado_fk ? 'estado_fk' : caps.imoveis.estado ? 'estado' : 'estado_fk'
+  const hasFinalidade = caps.imoveis.finalidade_fk
+  const hasFinalidadeLandingFlags =
+    caps.finalidades_imovel.vender_landpaging && caps.finalidades_imovel.alugar_landpaging
+  const statusPublicClause = caps.status_imovel.consulta_imovel_internauta
+    ? 'AND si.consulta_imovel_internauta = true'
+    : ''
+
   const params: any[] = []
   let paramIndex = 1
 
@@ -62,7 +75,7 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
       query: `i.tipo_fk = ANY($${paramIndex}::int[])`
     })
     // Usar ::int[] para garantir que o PostgreSQL reconheça como array de inteiros
-    where.push(`i.tipo_fk = ANY($${paramIndex}::int[])`)
+    where.push(`i.${tipoCol} = ANY($${paramIndex}::int[])`)
     params.push(filters.tipoIds)
     paramIndex++
   } else {
@@ -78,7 +91,7 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
   if (filters.estado) {
     // estado_fk armazena sigla (ex: "RJ", "SP"), então usar comparação exata (case-insensitive)
     const estadoNormalizado = filters.estado.trim().toUpperCase()
-    where.push(`UPPER(TRIM(i.estado_fk)) = $${paramIndex}`)
+    where.push(`UPPER(TRIM(i.${estadoCol})) = $${paramIndex}`)
     params.push(estadoNormalizado)
     paramIndex++
   }
@@ -89,7 +102,7 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
   if (filters.cidade) {
     // cidade_fk armazena nome completo da cidade, usar ILIKE com % para busca parcial
     const cidadeNormalizada = filters.cidade.trim()
-    where.push(`TRIM(i.cidade_fk) ILIKE $${paramIndex}`)
+    where.push(`TRIM(i.${cidadeCol}) ILIKE $${paramIndex}`)
     params.push(`%${cidadeNormalizada}%`)
     paramIndex++
   }
@@ -179,7 +192,7 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
   // Adicionar JOIN com finalidades_imovel para filtrar por vender_landpaging ou alugar_landpaging
   // Usar INNER JOIN para garantir que apenas imóveis com finalidade válida sejam retornados
   let joinFinalidades = ''
-  if (filters.operation) {
+  if (filters.operation && hasFinalidade && hasFinalidadeLandingFlags) {
     // INNER JOIN garante que apenas imóveis com finalidade válida sejam retornados
     joinFinalidades = 'INNER JOIN finalidades_imovel fi ON fi.id = i.finalidade_fk'
     
@@ -204,12 +217,12 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
 
   const baseQuery = `
     FROM imoveis i
-    LEFT JOIN tipos_imovel ti ON ti.id = i.tipo_fk
-    INNER JOIN status_imovel si ON i.status_fk = si.id
+    LEFT JOIN tipos_imovel ti ON ti.id = i.${tipoCol}
+    INNER JOIN status_imovel si ON i.${statusCol} = si.id
     ${joinFinalidades}
     WHERE ${where.join(' AND ')}
     AND si.ativo = true
-    AND si.consulta_imovel_internauta = true
+    ${statusPublicClause}
   `
 
   const dataQuery = `
@@ -220,8 +233,8 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
       i.descricao,
       i.preco,
       i.bairro,
-      i.cidade_fk,
-      i.estado_fk,
+      i.${cidadeCol} as cidade_fk,
+      i.${estadoCol} as estado_fk,
       i.quartos,
       i.banheiros,
       i.suites,
@@ -267,23 +280,46 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
 async function fetchImagensPrincipais(ids: number[]): Promise<Record<number, string>> {
   if (!ids.length) return {}
 
-  const query = `
-    SELECT DISTINCT ON (imovel_id)
-      imovel_id,
-      encode(imagem, 'base64') as imagem_base64,
-      tipo_mime
-    FROM imovel_imagens
-    WHERE imovel_id = ANY($1::int[])
-      AND principal = true
-    ORDER BY imovel_id, created_at DESC
-  `
+  const caps = await getDbCapabilities()
+  const hasImagemBytea = caps.imovel_imagens.imagem && caps.imovel_imagens.tipo_mime
+  const hasUrl = caps.imovel_imagens.url
 
-  const result = await pool.query(query, [ids])
+  if (hasImagemBytea) {
+    const query = `
+      SELECT DISTINCT ON (imovel_id)
+        imovel_id,
+        encode(imagem, 'base64') as imagem_base64,
+        tipo_mime
+      FROM imovel_imagens
+      WHERE imovel_id = ANY($1::int[])
+        AND principal = true
+      ORDER BY imovel_id, created_at DESC
+    `
+    const result = await pool.query(query, [ids])
+    return result.rows.reduce<Record<number, string>>((acc, row) => {
+      acc[row.imovel_id] = `data:${row.tipo_mime || 'image/jpeg'};base64,${row.imagem_base64}`
+      return acc
+    }, {})
+  }
 
-  return result.rows.reduce<Record<number, string>>((acc, row) => {
-    acc[row.imovel_id] = `data:${row.tipo_mime || 'image/jpeg'};base64,${row.imagem_base64}`
-    return acc
-  }, {})
+  if (hasUrl) {
+    const query = `
+      SELECT DISTINCT ON (imovel_id)
+        imovel_id,
+        url
+      FROM imovel_imagens
+      WHERE imovel_id = ANY($1::int[])
+        AND principal = true
+      ORDER BY imovel_id, created_at DESC
+    `
+    const result = await pool.query(query, [ids])
+    return result.rows.reduce<Record<number, string>>((acc, row) => {
+      acc[row.imovel_id] = row.url
+      return acc
+    }, {})
+  }
+
+  return {}
 }
 
 export interface PublicFiltersMetadata {
@@ -317,6 +353,18 @@ export async function getPublicFiltersMetadata(
     bairro?: string
   }
 ): Promise<PublicFiltersMetadata> {
+  const caps = await getDbCapabilities()
+  const tipoCol = caps.imoveis.tipo_fk ? 'tipo_fk' : caps.imoveis.tipo_id ? 'tipo_id' : 'tipo_fk'
+  const statusCol = caps.imoveis.status_fk ? 'status_fk' : caps.imoveis.status_id ? 'status_id' : 'status_fk'
+  const cidadeCol = caps.imoveis.cidade_fk ? 'cidade_fk' : caps.imoveis.cidade ? 'cidade' : 'cidade_fk'
+  const estadoCol = caps.imoveis.estado_fk ? 'estado_fk' : caps.imoveis.estado ? 'estado' : 'estado_fk'
+  const hasFinalidade = caps.imoveis.finalidade_fk
+  const hasFinalidadeLandingFlags =
+    caps.finalidades_imovel.vender_landpaging && caps.finalidades_imovel.alugar_landpaging
+  const statusPublicClause = caps.status_imovel.consulta_imovel_internauta
+    ? 'AND si.consulta_imovel_internauta = true'
+    : ''
+
   // Construir query de stats com filtros opcionais
   let joinClause = ''
   const whereClauses: string[] = ['i.ativo = true']
@@ -324,7 +372,7 @@ export async function getPublicFiltersMetadata(
   let paramIndex = 1
   
   // Filtrar por tipo_destaque (DV = Comprar, DA = Alugar) usando finalidades_imovel
-  if (tipoDestaque) {
+  if (tipoDestaque && hasFinalidade && hasFinalidadeLandingFlags) {
     joinClause = 'INNER JOIN finalidades_imovel fi ON fi.id = i.finalidade_fk'
     if (tipoDestaque === 'DV') {
       whereClauses.push('fi.vender_landpaging = true')
@@ -334,19 +382,19 @@ export async function getPublicFiltersMetadata(
   }
   
   if (tipoId) {
-    whereClauses.push(`i.tipo_fk = $${paramIndex}`)
+    whereClauses.push(`i.${tipoCol} = $${paramIndex}`)
     statsParams.push(tipoId)
     paramIndex++
   }
   
   if (estado) {
-    whereClauses.push(`i.estado_fk = $${paramIndex}`)
+    whereClauses.push(`i.${estadoCol} = $${paramIndex}`)
     statsParams.push(estado)
     paramIndex++
   }
   
   if (cidade) {
-    whereClauses.push(`i.cidade_fk ILIKE $${paramIndex}`)
+    whereClauses.push(`i.${cidadeCol} ILIKE $${paramIndex}`)
     statsParams.push(`%${cidade}%`)
     paramIndex++
   }
@@ -435,11 +483,11 @@ export async function getPublicFiltersMetadata(
       COALESCE(MIN(i.vagas_garagem), 0) AS min_vagas,
       COALESCE(MAX(i.vagas_garagem), 0) AS max_vagas
     FROM imoveis i
-    INNER JOIN status_imovel si ON i.status_fk = si.id
+    INNER JOIN status_imovel si ON i.${statusCol} = si.id
     ${joinClause}
     WHERE ${whereClauses.join(' AND ')}
       AND si.ativo = true
-      AND si.consulta_imovel_internauta = true
+      ${statusPublicClause}
   `
 
   const [
