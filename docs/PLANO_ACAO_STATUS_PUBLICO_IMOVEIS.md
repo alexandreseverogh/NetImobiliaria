@@ -594,3 +594,4 @@ dadosImovel.status_fk = 1 // Sempre status_id = 1
 
 
 
+

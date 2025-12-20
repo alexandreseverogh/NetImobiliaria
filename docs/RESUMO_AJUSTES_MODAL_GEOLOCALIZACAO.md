@@ -324,3 +324,4 @@ setVagasRange([0, 0])
 
 
 
+

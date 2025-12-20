@@ -306,3 +306,4 @@ SELECT id, nome, ativo FROM status_imovel WHERE id = 99;
 
 
 
+

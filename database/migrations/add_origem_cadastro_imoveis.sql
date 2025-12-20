@@ -24,3 +24,4 @@ WHERE origem_cadastro IS NULL;
 
 
 
+

@@ -42,3 +42,4 @@ Write-Host "   SELECT MAX(ultima_coleta) FROM feed.feed_fontes WHERE ativo = tru
 
 
 
+

@@ -650,3 +650,4 @@ docker-compose exec minio mc anonymous get local/net-imobiliaria-images
 
 
 
+

@@ -19,3 +19,4 @@ COMMENT ON COLUMN imoveis.destaque_nacional IS 'Indica se o imóvel está em des
 
 
 
+

@@ -124,3 +124,4 @@ WHERE table_name = 'user_role_assignments' AND column_name = 'user_id';
 
 
 
+
