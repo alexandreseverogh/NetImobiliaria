@@ -459,6 +459,17 @@ const detectUserLocation = async () => {
 
 ---
 
+## 📣 CAMPANHAS/ANALYTICS (separado deste plano)
+
+Para manter este documento focado apenas em **Geolocalização por IP**, a parte de **Campanhas (Meta + YouTube), tracking, KPIs, dashboards (Metabase/Superset) e canal Chatbot WhatsApp** foi movida para:
+
+- `docs/PLANO_ACAO_MARKETING_ANALYTICS.md`
+
+**Integração com este plano (geo como dimensão):**
+- A cidade/UF detectadas aqui podem ser registradas no tracking (ex.: `marketing_eventos.geo = { city, region, country }`) para estratificar performance por localização.
+
+---
+
 ## ⚠️ CONSIDERAÇÕES IMPORTANTES
 
 ### **LGPD/Privacidade:**

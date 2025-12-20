@@ -12,7 +12,9 @@ import {
   Square,
   Car,
   ShowerHead,
-  X
+  X,
+  SlidersHorizontal,
+  ChevronDown
 } from 'lucide-react'
 import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import EstadoSelect from '@/components/shared/EstadoSelect'
@@ -94,6 +96,7 @@ export default function SearchForm({
   const [banheirosRange, setBanheirosRange] = useState<[number, number]>([0, 0])
   const [suitesRange, setSuitesRange] = useState<[number, number]>([0, 0])
   const [vagasRange, setVagasRange] = useState<[number, number]>([0, 0])
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
 
   const { estados, municipios, loadMunicipios, clearMunicipios } = useEstadosCidades()
 
@@ -808,6 +811,28 @@ export default function SearchForm({
 
   const disableApplyButton = isSearching || metadataLoading || !metadata
 
+  const advancedSummary = useMemo(() => {
+    const hasAdvanced =
+      !!metadata &&
+      (priceRange[0] !== metadata.priceRange.min ||
+        priceRange[1] !== metadata.priceRange.max ||
+        areaRange[0] !== metadata.areaRange.min ||
+        areaRange[1] !== metadata.areaRange.max ||
+        quartosRange[0] !== metadata.quartosRange.min ||
+        quartosRange[1] !== metadata.quartosRange.max ||
+        suitesRange[0] !== metadata.suitesRange.min ||
+        suitesRange[1] !== metadata.suitesRange.max ||
+        banheirosRange[0] !== metadata.banheirosRange.min ||
+        banheirosRange[1] !== metadata.banheirosRange.max ||
+        vagasRange[0] !== metadata.vagasRange.min ||
+        vagasRange[1] !== metadata.vagasRange.max)
+
+    return {
+      hasAdvanced,
+      label: hasAdvanced ? 'Filtros avançados ativos' : 'Filtros avançados'
+    }
+  }, [metadata, priceRange, areaRange, quartosRange, suitesRange, banheirosRange, vagasRange])
+
   const resumoOperacao = useMemo(() => {
     return operation === 'DV' ? 'Comprar' : 'Alugar'
   }, [operation])
@@ -868,7 +893,7 @@ export default function SearchForm({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-3">
-        {/* Primeira linha: Tipo, Estado, Cidade, Bairro - SEMPRE VISÍVEIS */}
+        {/* Linha principal (sempre visível) — estilo “barra de busca” */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5">
@@ -940,25 +965,51 @@ disabled={false}
             </div>
           </div>
 
-          {/* Mensagem quando não há metadados */}
-          {!hasMetadata && (
-            <div className="border border-dashed border-gray-200 rounded-2xl p-6 text-center text-gray-500 bg-gray-50">
-              {metadataLoading
-                ? (
+        {/* Toggle de filtros avançados (sliders) */}
+        <button
+          type="button"
+          onClick={() => setShowAdvancedFilters(v => !v)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-white/30 bg-white/10 hover:bg-white/15 transition-colors"
+          aria-expanded={showAdvancedFilters}
+        >
+          <span className="flex items-center gap-2 font-semibold">
+            <SlidersHorizontal className="w-5 h-5" />
+            {advancedSummary.label}
+            {advancedSummary.hasAdvanced && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                ativo
+              </span>
+            )}
+          </span>
+          <ChevronDown className={`w-5 h-5 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
+        </button>
+
+        {/* Painel colapsável (filtros avançados) */}
+        <div
+          className={`overflow-hidden transition-[max-height,opacity] duration-300 ${
+            showAdvancedFilters ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <div className="pt-1">
+            {/* Mensagem quando não há metadados (filtros avançados dependem disso) */}
+            {!hasMetadata && (
+              <div className="border border-dashed border-gray-200 rounded-2xl p-6 text-center text-gray-500 bg-gray-50">
+                {metadataLoading ? (
                   <div className="flex items-center justify-center gap-2">
                     <span className="h-5 w-5 rounded-full border-2 border-gray-400 border-t-transparent animate-spin" />
                     <span className="text-base">Carregando opções de filtros...</span>
                   </div>
-                )
-                : metadataError 
-                ? <span className="text-base text-red-600">Não foi possível carregar os filtros.</span>
-                : <span className="text-base">Selecione Estado para carregar as opções de filtros avançados.</span>}
-            </div>
-          )}
+                ) : metadataError ? (
+                  <span className="text-base text-red-600">Não foi possível carregar os filtros.</span>
+                ) : (
+                  <span className="text-base">Selecione Estado para carregar os filtros avançados.</span>
+                )}
+              </div>
+            )}
 
-          {/* Segunda linha: Sliders - Faixa de Valores, Área Mínima, Quartos, Suites, Banheiros, Garagem - SÓ QUANDO HÁ METADADOS */}
-          {hasMetadata && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[6.24fr_6.24fr_2fr_2fr_2fr_2fr] gap-4">
+            {/* Sliders — apenas quando há metadados */}
+            {hasMetadata && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[5fr_5fr_3fr_3fr_3fr_3fr] gap-4">
             {/* Faixa de Valores */}
             <div className="flex flex-col h-full">
               <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
@@ -995,6 +1046,7 @@ disabled={false}
                     type="range"
                     min={metadata!.priceRange.min}
                     max={metadata!.priceRange.max}
+                    step={5000}
                     value={priceRange[0]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'min', priceRange, setPriceRange, priceRange[0] === priceRange[1] ? 0 : 5000, metadata!.priceRange)
@@ -1006,6 +1058,7 @@ disabled={false}
                     type="range"
                     min={metadata!.priceRange.min}
                     max={metadata!.priceRange.max}
+                    step={5000}
                     value={priceRange[1]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'max', priceRange, setPriceRange, priceRange[0] === priceRange[1] ? 0 : 5000, metadata!.priceRange)
@@ -1053,6 +1106,7 @@ disabled={false}
                     type="range"
                     min={metadata!.areaRange.min}
                     max={metadata!.areaRange.max}
+                    step={5}
                     value={areaRange[0]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'min', areaRange, setAreaRange, areaRange[0] === areaRange[1] ? 0 : 5, metadata!.areaRange)
@@ -1064,6 +1118,7 @@ disabled={false}
                     type="range"
                     min={metadata!.areaRange.min}
                     max={metadata!.areaRange.max}
+                    step={5}
                     value={areaRange[1]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'max', areaRange, setAreaRange, areaRange[0] === areaRange[1] ? 0 : 5, metadata!.areaRange)
@@ -1109,6 +1164,7 @@ disabled={false}
                     type="range"
                     min={metadata!.quartosRange?.min || 0}
                     max={metadata!.quartosRange?.max || 10}
+                    step={1}
                     value={quartosRange[0]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'min', quartosRange, setQuartosRange, quartosRange[0] === quartosRange[1] ? 0 : 0, metadata!.quartosRange)
@@ -1119,6 +1175,7 @@ disabled={false}
                     type="range"
                     min={metadata!.quartosRange?.min || 0}
                     max={metadata!.quartosRange?.max || 10}
+                    step={1}
                     value={quartosRange[1]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'max', quartosRange, setQuartosRange, quartosRange[0] === quartosRange[1] ? 0 : 0, metadata!.quartosRange)
@@ -1163,6 +1220,7 @@ disabled={false}
                     type="range"
                     min={metadata!.suitesRange?.min || 0}
                     max={metadata!.suitesRange?.max || 5}
+                    step={1}
                     value={suitesRange[0]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'min', suitesRange, setSuitesRange, suitesRange[0] === suitesRange[1] ? 0 : 0, metadata!.suitesRange)
@@ -1173,6 +1231,7 @@ disabled={false}
                     type="range"
                     min={metadata!.suitesRange?.min || 0}
                     max={metadata!.suitesRange?.max || 5}
+                    step={1}
                     value={suitesRange[1]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'max', suitesRange, setSuitesRange, suitesRange[0] === suitesRange[1] ? 0 : 0, metadata!.suitesRange)
@@ -1217,6 +1276,7 @@ disabled={false}
                     type="range"
                     min={metadata!.banheirosRange?.min || 0}
                     max={metadata!.banheirosRange?.max || 10}
+                    step={1}
                     value={banheirosRange[0]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'min', banheirosRange, setBanheirosRange, banheirosRange[0] === banheirosRange[1] ? 0 : 0, metadata!.banheirosRange)
@@ -1227,6 +1287,7 @@ disabled={false}
                     type="range"
                     min={metadata!.banheirosRange?.min || 0}
                     max={metadata!.banheirosRange?.max || 10}
+                    step={1}
                     value={banheirosRange[1]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'max', banheirosRange, setBanheirosRange, banheirosRange[0] === banheirosRange[1] ? 0 : 0, metadata!.banheirosRange)
@@ -1271,6 +1332,7 @@ disabled={false}
                     type="range"
                     min={metadata!.vagasRange?.min || 0}
                     max={metadata!.vagasRange?.max || 5}
+                    step={1}
                     value={vagasRange[0]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'min', vagasRange, setVagasRange, vagasRange[0] === vagasRange[1] ? 0 : 0, metadata!.vagasRange)
@@ -1281,6 +1343,7 @@ disabled={false}
                     type="range"
                     min={metadata!.vagasRange?.min || 0}
                     max={metadata!.vagasRange?.max || 5}
+                    step={1}
                     value={vagasRange[1]}
                     onChange={(event) =>
                       handleRangeChange(Number(event.target.value), 'max', vagasRange, setVagasRange, vagasRange[0] === vagasRange[1] ? 0 : 0, metadata!.vagasRange)
@@ -1290,8 +1353,10 @@ disabled={false}
                 </div>
               </div>
             </div>
+              </div>
+            )}
           </div>
-          )}
+        </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5">
             <button

@@ -36,7 +36,8 @@ export default function HeroSection({ filterPanel, venderButton, destaquesNacion
         </div>
       )}
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12">
+      {/* Aumentar largura do hero para acomodar o painel de filtros (apenas horizontal) */}
+      <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12">
         <div className="flex flex-col items-center gap-6 mb-8">
           <div className="flex-1 text-center">
             <h1 className="text-4xl md:text-6xl font-bold mb-6">

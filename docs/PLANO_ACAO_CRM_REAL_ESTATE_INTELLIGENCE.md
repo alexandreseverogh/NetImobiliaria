@@ -127,6 +127,21 @@ CREATE TABLE leads_staging (
   faixa_preco_min DECIMAL(12,2),
   faixa_preco_max DECIMAL(12,2),
   regiao_interesse VARCHAR(255),
+
+  -- 💰 Vendas Casadas (Upgrade / Troca / Permuta) — priorização de lucro
+  -- Cenário: o lead é comprador, mas também é proprietário e precisa vender/permuta para comprar.
+  perfil_negocio VARCHAR(30), -- "comprador","proprietario","comprador_e_proprietario"
+  venda_casada_ativa BOOLEAN DEFAULT FALSE, -- se há dependência entre vender o atual e comprar o novo
+  venda_casada_modo VARCHAR(30), -- "vender_para_comprar","entrada_com_venda","permuta","permuta_parcial"
+  precisa_vender_para_comprar BOOLEAN, -- trava de decisão: só compra após vender
+  aceita_permuta BOOLEAN, -- aceita permuta total/parcial
+  aceita_usar_imovel_como_entrada BOOLEAN, -- “dar de entrada” com venda/permuta
+  imovel_atual_id INTEGER REFERENCES imoveis(id), -- se o imóvel atual já existir no inventário
+  imovel_atual_resumo JSONB, -- se não existir no inventário: {tipo, quartos, vagas, bairro, cidade, estado, metragem, condominio, iptu, faixa_preco}
+  valor_estimado_imovel_atual DECIMAL(12,2), -- (opcional) estimativa inicial/avaliacao
+  saldo_devedor_financiamento DECIMAL(12,2), -- (opcional) para calcular entrada real
+  prazo_desejado_venda_dias INTEGER, -- (opcional) urgência
+  flexibilidade_bairros JSONB, -- (opcional) bairros alternativos para destravar a cadeia
   
   -- Status no Pipeline
   status VARCHAR(50) DEFAULT 'desejo_captado', -- Ver seção 3.3
@@ -155,7 +170,48 @@ CREATE INDEX idx_leads_staging_importancia_lazer ON leads_staging(importancia_la
 CREATE INDEX idx_leads_staging_tem_filhos_estudando ON leads_staging(tem_filhos_estudando);
 CREATE INDEX idx_leads_staging_precisa_proximidade_escola ON leads_staging(precisa_proximidade_escola);
 CREATE INDEX idx_leads_staging_importancia_educacao ON leads_staging(importancia_educacao);
+CREATE INDEX idx_leads_staging_venda_casada_ativa ON leads_staging(venda_casada_ativa);
 ```
+
+#### 1.1.1.1. Entidade “Cadeia” (Venda Casada) — 1 lead pode gerar 2 negociações ligadas
+
+**Objetivo:** tratar “vender o atual → comprar o novo” como uma **cadeia única**, com dependências, prazos e ações de marketing para fechar as duas pontas.
+
+```sql
+-- Representa a transação encadeada (venda do imóvel atual + compra do imóvel desejado)
+CREATE TABLE vendas_casadas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_uuid UUID REFERENCES leads_staging(lead_uuid) ON DELETE SET NULL, -- o "upgrade buyer"
+  corretor_responsavel_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+
+  -- Imóvel destino (interesse) e imóvel origem (a vender/permuta)
+  imovel_destino_id INTEGER REFERENCES imoveis(id) ON DELETE SET NULL,
+  imovel_origem_id INTEGER REFERENCES imoveis(id) ON DELETE SET NULL,
+  imovel_origem_resumo JSONB, -- quando ainda não está cadastrado
+
+  -- Condições financeiras/negócio
+  modo VARCHAR(30) NOT NULL, -- "vender_para_comprar","entrada_com_venda","permuta","permuta_parcial"
+  aceita_permuta BOOLEAN DEFAULT FALSE,
+  precisa_vender_para_comprar BOOLEAN DEFAULT FALSE,
+  valor_estimado_origem DECIMAL(12,2),
+  valor_alvo_destino DECIMAL(12,2),
+  gap_financeiro_estimado DECIMAL(12,2), -- destino - (origem + recursos/financiamento)
+
+  -- Operação
+  status VARCHAR(30) NOT NULL DEFAULT 'aberta', -- "aberta","avaliacao_origem","captacao_origem","marketing_origem","comprador_origem","proposta_origem","proposta_destino","fechada","perdida"
+  prioridade INTEGER DEFAULT 0,
+  prazo_desejado_venda_dias INTEGER,
+  criado_em TIMESTAMP DEFAULT NOW(),
+  atualizado_em TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_vendas_casadas_status ON vendas_casadas(status);
+CREATE INDEX idx_vendas_casadas_lead ON vendas_casadas(lead_uuid);
+```
+
+**Regra de Ouro (venda casada):**
+- **Não tratar como 2 processos soltos**: a cadeia tem um “dono” e um status único.
+- Sempre registrar: **dependência** (precisa vender para comprar?) e **modo** (venda, entrada, permuta).
 
 -- Tabela de relacionamento: Leads x Necessidades Educacionais (Proximidades)
 CREATE TABLE leads_staging_necessidades_educacionais (
@@ -1188,6 +1244,95 @@ CREATE INDEX idx_marketing_eventos_evento ON marketing_eventos(evento, created_a
 - **Copy base**: “Nós cuidamos da venda do seu imóvel atual enquanto você escolhe o novo. Avaliação e plano de sincronização em 24h.”
 - **CTA**: WhatsApp (“Quero avaliar meu imóvel”).
 
+---
+
+### 2.7. Estratégia de Lucro: Priorizar “Vendas Casadas” (Upgrade / Troca / Permuta)
+
+**Objetivo:** maximizar lucro captando o **proprietário oculto** que só anuncia quando desperta desejo por outro imóvel, transformando isso em **cadeia**: *(venda do atual → compra do novo)*.
+
+#### 2.7.1. Gatilhos de detecção (IA + time)
+
+O sistema deve marcar `leads_staging.perfil_negocio = 'comprador_e_proprietario'` e `venda_casada_ativa = true` quando detectar:
+- “Quero comprar, mas preciso vender o meu”
+- “Quero trocar por maior/menor”
+- “Aceito permuta”
+- “Quero usar meu imóvel como entrada”
+
+#### 2.7.2. Fluxo operacional (cadeia única)
+
+1. **Despertar (imóvel destino)**: lead demonstra interesse em um imóvel (ou em um perfil de imóvel).
+2. **Diagnóstico de destrave**: IA/corretor confirma:
+   - se existe imóvel atual,
+   - se precisa vender antes,
+   - se aceita permuta/entrada,
+   - condições mínimas (saldo devedor, prazo, faixa).
+3. **Captação do imóvel origem (inventário)**:
+   - cadastrar o imóvel atual (ou criar `imovel_origem_resumo` + tarefa de captação/visita/avaliação).
+4. **Marketing de dupla ponta (duplo funil)**:
+   - **Funil A (comprador do destino)**: nutrir e avançar o lead para visita/proposta do imóvel desejado.
+   - **Funil B (comprador do origem)**: ativar demanda (retargeting, DPA, lista de leads com match, campanhas por bairro/ticket).
+5. **Sincronização**:
+   - quando surgir comprador do origem (ou proposta), destravar e acelerar proposta do destino.
+
+#### 2.7.3. Match para comprador do imóvel origem (aproveitar base existente)
+
+- Usar o “inventário vs demanda” (seções 7.1.2 / 7.1.4) para identificar:
+  - leads com busca compatível com o imóvel origem,
+  - clusters com alta demanda (bairro/ticket) para ativar mídia.
+- Criar um modo de campanha “**compradores para este imóvel**” com UTM e mensuração (CPLQ/SQL/visita).
+
+#### 2.7.4. Permuta como produto (oferta de alto valor)
+
+Quando `aceita_permuta = true`, o corretor deve poder:
+- cadastrar “condições de permuta” (total/parcial),
+- registrar “gap financeiro” e alternativas (bairros/valores) para destravar,
+- priorizar imóveis destino compatíveis com permuta (mesmo bairro/cluster ou “bairros-alvo”).
+
+#### 2.7.5. Mini-playbook operacional (SLA + Checklist) — “Venda casada em 7 dias”
+
+**Objetivo:** padronizar execução para que a cadeia não trave por falta de sequência. Este playbook vira tarefas obrigatórias (`leads_tarefas`) e alertas de estagnação (>48h) conforme seção 3.5.
+
+**SLA recomendado por etapa (padrão):**
+- **T0 (até 30 min)**: registrar “diagnóstico de destrave” (modo, dependências, prazo, renda/financiamento básico).
+- **T+24h**: concluir **pré-avaliação** do imóvel origem (faixa de valor + estratégia: venda rápida vs melhor preço).
+- **T+72h**: imóvel origem **captado e publicado** (ou checklist completo pendente com motivo).
+- **T+7 dias**: gerar **1ª rodada de demanda** para o imóvel origem (lista de leads com match + campanha/retargeting + contatos ativos).
+
+**Checklist obrigatório (cadeia):**
+- **Diagnóstico (lead)**:
+  - confirmar `venda_casada_modo` (vender/entrada/permuta),
+  - confirmar `precisa_vender_para_comprar` e `aceita_permuta`,
+  - coletar dados mínimos do imóvel origem (`imovel_atual_resumo`) + documentação básica,
+  - coletar **gap** estimado (ver seção 5.4).
+- **Origem (imóvel atual)**:
+  - fotos básicas / tour / documentação mínima,
+  - precificação (3 comparáveis) + estratégia (liquidez vs preço),
+  - publicação + tag “origem de venda casada”.
+- **Destino (imóvel desejado)**:
+  - registrar imóvel prioritário (`leads_imoveis_disputa.interesse_prioritario = TRUE`),
+  - agendar visita (ou vídeo-tour) e validar “must-haves”.
+- **Marketing dupla ponta**:
+  - disparar “compradores para este imóvel” (origem) via base + mídia,
+  - manter nutrição do destino (escassez + segurança da decisão).
+
+**Travas e ações padrão (para gestor):**
+- Se **T+24h sem avaliação**: alerta + redistribuição/assistência.
+- Se **T+72h sem publicação**: bloquear avanço para proposta do destino sem motivo (ex.: doc pendente).
+- Se **sem demanda no origem**: acionar “Gap de Match” para criar campanhas por cluster (seção 7.1.2/7.1.4).
+
+**Ações de Implementação (playbook):**
+- [ ] Criar templates de tarefas “Venda Casada” (diagnóstico, avaliação, captação, publicação, campanha origem)
+- [ ] Criar painel “Cadeias atrasadas (SLA)” por etapa e corretor
+- [ ] Criar regra: cadeia ativa exige tarefa futura sempre (seção 3.5)
+
+---
+
+**Ações de Implementação (venda casada):**
+- [ ] Incluir campos de venda casada no `leads_staging` (acima)
+- [ ] Criar tabela `vendas_casadas` para representar a cadeia
+- [ ] Criar telas no admin: “Cadeias ativas” + “Diagnóstico” + “Checklist de captação do imóvel origem”
+- [ ] Criar automação: ao marcar `venda_casada_ativa`, abrir cadeia e criar tarefas obrigatórias (avaliação/captação/marketing)
+
 #### 2.6.5. Biblioteca de criativos — CONSTRUTORAS / INCORPORADORAS
 
 **Objetivo:** motivar supply institucional com promessa de distribuição + dados + previsibilidade.
@@ -1248,6 +1393,13 @@ PERGUNTAS SOBRE EDUCAÇÃO (sempre fazer se mencionar filhos ou estudos):
 - "Há alguma escola ou universidade específica que você prefere ou precisa estar próxima?"
 - "Quão importante é a proximidade educacional para você? De 1 a 10, sendo 10 muito importante?"
 
+PERGUNTAS SOBRE VENDA CASADA (UPGRADE / TROCA / PERMUTA) — prioridade de lucro:
+- "Você já tem um imóvel hoje? Ele é próprio ou financiado?"
+- "Para comprar o próximo, você pretende vender o seu atual para dar entrada? Ou você consegue comprar sem vender antes?"
+- "Você aceitaria permuta (trocar seu imóvel por outro), mesmo que seja parcial?"
+- "Qual bairro/cidade e características do seu imóvel atual (quartos, vagas, metragem) e uma faixa de valor aproximada?"
+- "Existe um prazo/urgência para essa troca?"
+
 INFORMAÇÃO SOBRE TRANSPORTE PÚBLICO:
 Sempre que apresentar imóveis ao lead, mencione:
 - "Ao consultar os imóveis, você terá informações completas sobre transporte público próximo, incluindo estações de metrô, terminais de ônibus e pontos de parada."
@@ -1294,8 +1446,13 @@ Se o lead mencionar:
 - "Tenho um imóvel para vender"
 - "Quero trocar meu apartamento"
 - "Tenho uma casa que não uso mais"
+- "Quero comprar outro, mas preciso vender o meu antes"
+- "Aceito permuta / troco por outro imóvel"
 
 Marque como PROPRIETÁRIO e direcione para o setor de captação.
+
+IMPORTANTE (venda casada):
+- Se o lead for simultaneamente comprador e proprietário, marcar como `comprador_e_proprietario` e abrir uma **cadeia** (ver seção 2.7 / tabela `vendas_casadas`).
 
 NUNCA:
 - Seja robótica ou genérica
@@ -1854,11 +2011,31 @@ CREATE INDEX idx_leads_imoveis_disputa_prioritario ON leads_imoveis_disputa(lead
 CREATE INDEX idx_leads_imoveis_disputa_score ON leads_imoveis_disputa(lead_uuid, score_match DESC);
 ```
 
+#### 4.1.3.1. Venda Casada no Kanban (cadeia visível, prioridade e dupla ponta)
+
+**Objetivo:** quando `leads_staging.venda_casada_ativa = true`, o Kanban deve exibir que aquele card é uma **cadeia** (2 transações) e permitir acompanhar o estágio do **origem** (a vender) e do **destino** (a comprar).
+
+**Regras de UI/UX (mínimo viável):**
+- No card do lead, exibir badge: **“VENDA CASADA”** + modo (`vender_para_comprar`, `permuta`, etc.).
+- Mostrar “Origem”: resumo do imóvel atual (ou `imovel_atual_id`) + status da cadeia (`vendas_casadas.status`).
+- Mostrar “Destino”: imóvel prioritário (se existir em `leads_imoveis_disputa` com `interesse_prioritario = TRUE`).
+
+**Regras de priorização (recomendado):**
+- Dentro de uma coluna, ordenar primeiro por:
+  1) `venda_casada_ativa = true` (cadeias primeiro),
+  2) valor do imóvel associado (regra já existente),
+  3) `data_movimentacao` (mais recente).
+
+**Sugestão (futuro) — visão dedicada:**
+- Criar uma página “**Cadeias (Vendas Casadas)**” que lista `vendas_casadas` e permite mover o `status` da cadeia independentemente da coluna do lead (porque a cadeia tem etapas próprias).
+
 **Ações de Implementação:**
 - [ ] Criar migrations para tabelas `kanban_colunas`, `leads_kanban` e `leads_imoveis_disputa`
 - [ ] Popular colunas padrão do Kanban
 - [ ] Criar triggers para atualizar `updated_at` e `data_movimentacao`
 - [ ] Implementar validações de transição entre colunas
+ - [ ] Exibir badge “VENDA CASADA” e status da cadeia no card do Kanban quando aplicável
+ - [ ] Criar tela “Cadeias (Vendas Casadas)” (lista) consumindo `vendas_casadas`
 
 ---
 
@@ -2748,6 +2925,98 @@ CREATE INDEX idx_visitas_corretor ON visitas_agendadas(corretor_id, inicio_em DE
 
 ---
 
+### 5.4. Inteligência de Financiamento do “Gap” (Venda Casada) — destravar diferença de valores
+
+**Contexto:** na venda casada, normalmente \(Preço\_Destino > Valor\_Origem\). A cadeia só fecha rápido se o CRM calcular e orientar o **financiamento do gap** (diferença) com clareza e opções.
+
+#### 5.4.1. Dados mínimos a capturar (para viabilidade)
+
+**Do imóvel origem (atual):**
+- `valor_estimado_imovel_atual` (ou faixa), `saldo_devedor_financiamento` (se existir), prazo desejado, liquidez esperada.
+
+**Do comprador (capacidade):**
+- renda familiar (faixa), regime de trabalho (CLT/MEI/autônomo), score/“restrições” (auto-declarado), FGTS disponível (sim/não), entrada adicional (valor).
+
+**Do destino (pretendido):**
+- preço alvo (ou faixa) + “ticket máximo” real (incluindo parcelas).
+
+> Esses dados entram no `leads_staging` (campos já previstos) e podem ser normalizados futuramente em uma tabela específica (abaixo).
+
+#### 5.4.2. Cálculo operacional do gap (regra simples)
+
+Definir:
+- \(V_o\) = valor estimado do imóvel origem (líquido)
+- \(D_o\) = saldo devedor/obrigações do imóvel origem (se houver)
+- \(E\) = entrada adicional (dinheiro/FGTS/outros)
+- \(V_d\) = valor do imóvel destino
+
+Então:
+\[
+V_{origem\_liquido} = V_o - D_o
+\]
+\[
+gap = V_d - (V_{origem\_liquido} + E)
+\]
+
+Armazenar em `vendas_casadas.gap_financeiro_estimado` e usar isso para recomendar a estratégia.
+
+#### 5.4.3. Estratégias recomendadas (playbook financeiro)
+
+- **Financiamento tradicional do destino**:
+  - usar origem + entrada como parte do “down payment” e financiar o restante.
+  - **Ação CRM:** simular 2–3 cenários de parcela (prazo/juros) e registrar “parcela-alvo” do lead.
+
+- **Permuta parcial** (quando `aceita_permuta = true`):
+  - origem entra como parte do pagamento e o **gap** vira financiamento/entrada adicional.
+  - **Ação CRM:** marcar imóveis destino “compatíveis com permuta” e priorizar negociações com vendedores abertos à estrutura.
+
+- **Venda do origem com prazo curto (liquidez)**:
+  - precificar para girar rápido, mesmo abrindo mão de preço máximo, para destravar o destino.
+  - **Ação CRM:** recomendar “estratégia liquidez” quando urgência alta e gap pequeno/médio.
+
+- **Pré-aprovação de crédito (antes de publicar/propor)**:
+  - valida capacidade de financiar o gap e reduz “vai-e-volta”.
+  - **Ação CRM:** mover para coluna “Em Análise de Crédito” e criar tarefa obrigatória “pré-aprovação”.
+
+- **Produto “ponte”/alternativas (fase futura, opcional)**:
+  - crédito ponte/antecipação (banco), home equity, consórcio etc. (dependente de parceiros).
+  - **Ação CRM:** tratar como “opções avançadas” com parceiro homologado e compliance.
+
+#### 5.4.4. Módulo de simulação e recomendação (MVP + V2)
+
+**MVP (sem integrações externas):**
+- Simulador interno com parâmetros configuráveis (taxa, prazo, % entrada mínima).
+- Saída: “cenário conservador / provável / agressivo” + parcela estimada.
+- Registro no lead/cadeia (JSONB) para auditoria e decisão do corretor.
+
+**V2 (com parceiros):**
+- Integração com APIs/portais de crédito (ou fluxo manual com “status” e anexos).
+- Registro estruturado de proposta de crédito, banco, taxa e status.
+
+**Sugestão de tabela (futuro, opcional):**
+```sql
+CREATE TABLE financiamentos_gap (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  venda_casada_id UUID REFERENCES vendas_casadas(id) ON DELETE CASCADE,
+  tipo VARCHAR(30) NOT NULL, -- "financiamento","permuta_parcial","pre_aprovacao","ponte","home_equity","consorcio"
+  valor_gap DECIMAL(12,2) NOT NULL,
+  entrada DECIMAL(12,2),
+  prazo_meses INTEGER,
+  taxa_mensal DECIMAL(8,5),
+  parcela_estimada DECIMAL(12,2),
+  status VARCHAR(20) DEFAULT 'simulado', -- "simulado","em_analise","aprovado","recusado"
+  payload JSONB,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+**Ações de Implementação (financiamento do gap):**
+- [ ] Adicionar etapa “Pré-aprovação” no fluxo operacional da cadeia (tarefas + Kanban)
+- [ ] Implementar simulador simples de gap (MVP) e registrar resultado por cadeia
+- [ ] Criar recomendações automáticas baseadas em regras (urgência, gap, aceita permuta)
+
+---
+
 ### 4.2. Script de Abordagem Consultiva
 
 **Objetivo:** Roteiros para corretores focados em Upgrade e Segurança Patrimonial.
@@ -2873,6 +3142,21 @@ INSERT INTO campanhas_pos_venda (nome, tipo, trigger_dias, template_mensagem) VA
 11. **Gap de Match (Inventário vs Demanda)**
    - Quantos leads buscam perfil com baixo estoque → aciona campanha de captação.
 
+12. **Taxa de Vendas Casadas (Attach Rate)**
+   - % de fechamentos em que a imobiliária participou da **cadeia completa** (venda do imóvel origem + compra do destino).
+   - Fórmula (sugestão): `vendas_casadas_fechadas / fechamentos_totais`.
+
+13. **Tempo de Fechamento da Cadeia (Chain Cycle Time)**
+   - Tempo médio entre “cadeia aberta” e “cadeia fechada”.
+   - Fórmula (sugestão): `avg(vendas_casadas.atualizado_em - vendas_casadas.criado_em)` filtrando status `fechada`.
+
+14. **Taxa de Destravamento (Venda do Origem → Proposta do Destino)**
+   - % de cadeias em que, após “proposta/fechamento do imóvel origem”, o lead avançou para “proposta do destino” em X dias.
+
+15. **Margem/Receita por Cadeia (2 lados)**
+   - Receita média por cadeia vs receita média por venda simples (para comprovar a priorização).
+   - Requer registrar comissões e vincular `vendas_casadas` aos fechamentos (fase futura).
+
 **Ações de Implementação:**
 - [ ] Criar dashboard no admin com KPIs em tempo real
 - [ ] Implementar gráficos de tendência (últimos 6 meses)
@@ -2940,6 +3224,28 @@ INSERT INTO campanhas_pos_venda (nome, tipo, trigger_dias, template_mensagem) VA
 - [ ] Criar painel “Supply Funnel” (leads proprietários → imóveis publicados → visitas → propostas)
 - [ ] Criar campanhas específicas de captação por cluster (bairro/ticket) alimentadas pelo `Gap de Match`
 - [ ] Criar relatório mensal para incorporadoras (“demanda por bairro/ticket”, “top buscas”, “leads qualificados gerados”)
+
+---
+
+### 7.1.5. Analytics de Vendas Casadas (Duplo Funil) — lucro e previsibilidade
+
+**Objetivo:** tornar a priorização de “venda casada” **operável** e **mensurável**, com painéis que mostram onde a cadeia trava: avaliação/captação do origem, geração de comprador para o origem, e avanço do destino.
+
+**Painéis recomendados:**
+- **Cadeias Ativas (Kanban/Lista)**: por `status` da `vendas_casadas`, corretor, prazo desejado e prioridade.
+- **Duplo Funil**:
+  - Funil Origem: `avaliacao_origem → captacao_origem → marketing_origem → comprador_origem → proposta_origem → fechada`
+  - Funil Destino: `interesse → visita → proposta_destino → fechada`
+- **Travas (Top motivos)**:
+  - “precisa vender antes”, “saldo devedor alto”, “preço do origem acima do mercado”, “destino fora do budget”, “sem estoque no cluster”.
+- **Economia da cadeia**:
+  - Receita média por cadeia vs venda simples
+  - Tempo médio por etapa (SLA interno: avaliação em 24h, publicação em 72h, 1ª visita em X dias, etc.)
+
+**Ações de Implementação:**
+- [ ] Criar tela “Cadeias (vendas casadas)” com filtros e SLA interno por etapa
+- [ ] Criar alertas de estagnação por etapa da cadeia (ex.: 72h sem avaliação/captação do origem)
+- [ ] Integrar Creative Scorecard: criativos que mais geram **cadeias** (não só leads)
 
 ---
 
