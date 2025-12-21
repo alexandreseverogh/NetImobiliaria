@@ -2,7 +2,8 @@ services:
   db:
     # Dica: se o seu banco pré-docker é Postgres 17 (ex.: dump gerado em 17.x),
     # use POSTGRES_IMAGE=postgres:17-alpine no seu .env / ambiente.
-    image: ${POSTGRES_IMAGE:-postgres:15-alpine}
+    # Padronizado: Postgres 17 (mesma versão do schema/backups atuais)
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
     container_name: netimobiliaria-db
     restart: unless-stopped
     environment:
@@ -65,6 +66,33 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
+
+  # Worker do FEED (scheduler + processamento) dentro do Docker
+  # Isso garante que os conteúdos do schema "feed" sejam coletados e gravados
+  # no MESMO Postgres do container (db), evitando divergência entre máquinas.
+  feed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: netimobiliaria-feed
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-net_imobiliaria}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Usado apenas se cair no fallback HTTP (idealmente não precisa)
+      NEXT_PUBLIC_API_URL: "http://app:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: ["node", "scripts/feed-cron-scheduler.js"]
 
 volumes:
   db_data:

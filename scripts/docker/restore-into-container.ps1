@@ -3,13 +3,25 @@ param(
   [string]$AppService = "app",
   [string]$Database = "net_imobiliaria",
   [string]$User = "postgres",
-  [string]$DumpPathInContainer = "/backups/net_imobiliaria.dump"
+  [string]$DumpPathInContainer = "/backups/net_imobiliaria.dump",
+  [int]$ExpectedPgMajor = 17
 )
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "[*] Restaurando dump no Postgres do docker-compose..." -ForegroundColor Cyan
 Write-Host "[!] Isso vai recriar o banco '$Database' dentro do container." -ForegroundColor Yellow
+
+# Validar versão do Postgres (falhar rápido se não for o padrão do projeto)
+$serverVersionNum = docker compose exec -T $DbService sh -lc "psql -U $User -d postgres -tAc 'SHOW server_version_num;'"
+$serverVersionNum = $serverVersionNum.Trim()
+if (-not $serverVersionNum) {
+  throw "Não foi possível obter server_version_num do Postgres."
+}
+$serverMajor = [int]([math]::Floor([int]$serverVersionNum / 10000))
+if ($serverMajor -ne $ExpectedPgMajor) {
+  throw "Postgres major version incompatível: $serverMajor (esperado $ExpectedPgMajor). Ajuste POSTGRES_IMAGE e recrie o volume (docker compose down -v)."
+}
 
 # Parar app para liberar conexões
 Write-Host "[*] Parando app..." -ForegroundColor Cyan
@@ -43,6 +55,13 @@ if ($looksLikeCustom) {
 } else {
   Write-Host "[*] Extensão não é .sql e header não é PGDMP -> tentando pg_restore por padrão ..." -ForegroundColor Yellow
   docker compose exec -T $DbService pg_restore -U $User -d $Database --clean --if-exists --no-owner --no-privileges $DumpPathInContainer
+}
+
+# Validar schema esperado (falhar rápido)
+$tablesCount = docker compose exec -T $DbService sh -lc "psql -U $User -d $Database -tAc 'SELECT COUNT(*) FROM pg_catalog.pg_tables WHERE schemaname=\"public\";'"
+$tablesCount = $tablesCount.Trim()
+if (-not $tablesCount -or [int]$tablesCount -lt 10) {
+  throw "Restore aparentemente incompleto: apenas $tablesCount tabelas em public. Verifique se o backup corresponde ao schema esperado."
 }
 
 Write-Host "[*] Subindo app..." -ForegroundColor Cyan

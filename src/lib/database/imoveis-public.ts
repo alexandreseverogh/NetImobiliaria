@@ -1,5 +1,4 @@
 import pool from './connection'
-import { getDbCapabilities } from './schemaCapabilities'
 
 export interface PublicImovelFilters {
   tipoIds?: number[]
@@ -47,17 +46,14 @@ interface QueryResult {
 }
 
 export async function listPublicImoveis(filters: PublicImovelFilters): Promise<QueryResult> {
-  const caps = await getDbCapabilities()
-  const tipoCol = caps.imoveis.tipo_fk ? 'tipo_fk' : caps.imoveis.tipo_id ? 'tipo_id' : 'tipo_fk'
-  const statusCol = caps.imoveis.status_fk ? 'status_fk' : caps.imoveis.status_id ? 'status_id' : 'status_fk'
-  const cidadeCol = caps.imoveis.cidade_fk ? 'cidade_fk' : caps.imoveis.cidade ? 'cidade' : 'cidade_fk'
-  const estadoCol = caps.imoveis.estado_fk ? 'estado_fk' : caps.imoveis.estado ? 'estado' : 'estado_fk'
-  const hasFinalidade = caps.imoveis.finalidade_fk
-  const hasFinalidadeLandingFlags =
-    caps.finalidades_imovel.vender_landpaging && caps.finalidades_imovel.alugar_landpaging
-  const statusPublicClause = caps.status_imovel.consulta_imovel_internauta
-    ? 'AND si.consulta_imovel_internauta = true'
-    : ''
+  // Schema OFICIAL (Postgres 17 + backup net-imobiliaria_backup_2025-12-20_17-36-57.sql)
+  // Colunas fixas: imoveis.tipo_fk/status_fk/cidade_fk/estado_fk/finalidade_fk/numero/destaque_nacional
+  // status_imovel.consulta_imovel_internauta existe e deve ser respeitado
+  const tipoCol = 'tipo_fk'
+  const statusCol = 'status_fk'
+  const cidadeCol = 'cidade_fk'
+  const estadoCol = 'estado_fk'
+  const statusPublicClause = 'AND si.consulta_imovel_internauta = true'
 
   const params: any[] = []
   let paramIndex = 1
@@ -192,7 +188,7 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
   // Adicionar JOIN com finalidades_imovel para filtrar por vender_landpaging ou alugar_landpaging
   // Usar INNER JOIN para garantir que apenas imóveis com finalidade válida sejam retornados
   let joinFinalidades = ''
-  if (filters.operation && hasFinalidade && hasFinalidadeLandingFlags) {
+  if (filters.operation) {
     // INNER JOIN garante que apenas imóveis com finalidade válida sejam retornados
     joinFinalidades = 'INNER JOIN finalidades_imovel fi ON fi.id = i.finalidade_fk'
     
@@ -280,46 +276,22 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
 async function fetchImagensPrincipais(ids: number[]): Promise<Record<number, string>> {
   if (!ids.length) return {}
 
-  const caps = await getDbCapabilities()
-  const hasImagemBytea = caps.imovel_imagens.imagem && caps.imovel_imagens.tipo_mime
-  const hasUrl = caps.imovel_imagens.url
-
-  if (hasImagemBytea) {
-    const query = `
-      SELECT DISTINCT ON (imovel_id)
-        imovel_id,
-        encode(imagem, 'base64') as imagem_base64,
-        tipo_mime
-      FROM imovel_imagens
-      WHERE imovel_id = ANY($1::int[])
-        AND principal = true
-      ORDER BY imovel_id, created_at DESC
-    `
-    const result = await pool.query(query, [ids])
-    return result.rows.reduce<Record<number, string>>((acc, row) => {
-      acc[row.imovel_id] = `data:${row.tipo_mime || 'image/jpeg'};base64,${row.imagem_base64}`
-      return acc
-    }, {})
-  }
-
-  if (hasUrl) {
-    const query = `
-      SELECT DISTINCT ON (imovel_id)
-        imovel_id,
-        url
-      FROM imovel_imagens
-      WHERE imovel_id = ANY($1::int[])
-        AND principal = true
-      ORDER BY imovel_id, created_at DESC
-    `
-    const result = await pool.query(query, [ids])
-    return result.rows.reduce<Record<number, string>>((acc, row) => {
-      acc[row.imovel_id] = row.url
-      return acc
-    }, {})
-  }
-
-  return {}
+  // Schema oficial: imagem é BYTEA + tipo_mime
+  const query = `
+    SELECT DISTINCT ON (imovel_id)
+      imovel_id,
+      encode(imagem, 'base64') as imagem_base64,
+      tipo_mime
+    FROM imovel_imagens
+    WHERE imovel_id = ANY($1::int[])
+      AND principal = true
+    ORDER BY imovel_id, created_at DESC
+  `
+  const result = await pool.query(query, [ids])
+  return result.rows.reduce<Record<number, string>>((acc, row) => {
+    acc[row.imovel_id] = `data:${row.tipo_mime || 'image/jpeg'};base64,${row.imagem_base64}`
+    return acc
+  }, {})
 }
 
 export interface PublicFiltersMetadata {
@@ -353,17 +325,12 @@ export async function getPublicFiltersMetadata(
     bairro?: string
   }
 ): Promise<PublicFiltersMetadata> {
-  const caps = await getDbCapabilities()
-  const tipoCol = caps.imoveis.tipo_fk ? 'tipo_fk' : caps.imoveis.tipo_id ? 'tipo_id' : 'tipo_fk'
-  const statusCol = caps.imoveis.status_fk ? 'status_fk' : caps.imoveis.status_id ? 'status_id' : 'status_fk'
-  const cidadeCol = caps.imoveis.cidade_fk ? 'cidade_fk' : caps.imoveis.cidade ? 'cidade' : 'cidade_fk'
-  const estadoCol = caps.imoveis.estado_fk ? 'estado_fk' : caps.imoveis.estado ? 'estado' : 'estado_fk'
-  const hasFinalidade = caps.imoveis.finalidade_fk
-  const hasFinalidadeLandingFlags =
-    caps.finalidades_imovel.vender_landpaging && caps.finalidades_imovel.alugar_landpaging
-  const statusPublicClause = caps.status_imovel.consulta_imovel_internauta
-    ? 'AND si.consulta_imovel_internauta = true'
-    : ''
+  // Schema OFICIAL (Postgres 17 + backup net-imobiliaria_backup_2025-12-20_17-36-57.sql)
+  const tipoCol = 'tipo_fk'
+  const statusCol = 'status_fk'
+  const cidadeCol = 'cidade_fk'
+  const estadoCol = 'estado_fk'
+  const statusPublicClause = 'AND si.consulta_imovel_internauta = true'
 
   // Construir query de stats com filtros opcionais
   let joinClause = ''
@@ -372,7 +339,7 @@ export async function getPublicFiltersMetadata(
   let paramIndex = 1
   
   // Filtrar por tipo_destaque (DV = Comprar, DA = Alugar) usando finalidades_imovel
-  if (tipoDestaque && hasFinalidade && hasFinalidadeLandingFlags) {
+  if (tipoDestaque) {
     joinClause = 'INNER JOIN finalidades_imovel fi ON fi.id = i.finalidade_fk'
     if (tipoDestaque === 'DV') {
       whereClauses.push('fi.vender_landpaging = true')

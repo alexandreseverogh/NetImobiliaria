@@ -1,8 +1,12 @@
 param(
   [string]$PostgresImage = "postgres:17-alpine",
+  # Backup OFICIAL (schema do projeto). Se vazio, não copia do host.
   [string]$BackupSourcePath = "",
-  [string]$BackupDestName = "remote_backup.sql",
-  [string]$DumpPathInContainer = "/backups/remote_backup.sql"
+  # Nome do arquivo dentro do repo (database/backups) e dentro do container (/backups)
+  [string]$BackupDestName = "schema_oficial.sql",
+  [string]$DumpPathInContainer = "/backups/schema_oficial.sql",
+  # Se a 2ª máquina já tiver volume antigo (ex.: PG15), use -ResetDbVolume para recriar
+  [switch]$ResetDbVolume
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,11 +17,21 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
   throw "Docker não encontrado. Instale o Docker Desktop e tente novamente."
 }
 
+# Garantir que estamos na raiz do projeto (script está em scripts/docker)
+$projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..\\..")
+Set-Location $projectRoot
+Write-Host "[*] Diretório do projeto: $projectRoot" -ForegroundColor Gray
+
 # 1) Garantir Postgres 17 (compatível com dumps PGDMP 1.16)
 $env:POSTGRES_IMAGE = $PostgresImage
 
-Write-Host "[*] Subindo containers com POSTGRES_IMAGE=$PostgresImage ..." -ForegroundColor Cyan
-docker compose up -d --build
+if ($ResetDbVolume) {
+  Write-Host "[!] ResetDbVolume ativado: removendo containers e VOLUME do banco (docker compose down -v)..." -ForegroundColor Yellow
+  docker compose down -v
+}
+
+Write-Host "[*] Subindo containers (db + app + feed) com POSTGRES_IMAGE=$PostgresImage ..." -ForegroundColor Cyan
+docker compose up -d --build db app feed
 
 # 2) Copiar backup para dentro do repo (opcional)
 if ($BackupSourcePath) {
@@ -32,10 +46,12 @@ Write-Host "[*] Verificando se o backup existe no container: $DumpPathInContaine
 $check = docker compose exec -T db sh -lc "test -f '$DumpPathInContainer' && echo OK || echo MISSING"
 if ($check -match "OK") {
   Write-Host "[*] Restaurando backup no container..." -ForegroundColor Cyan
-  powershell -ExecutionPolicy Bypass -File .\scripts\docker\restore-into-container.ps1 -DumpPathInContainer $DumpPathInContainer
+  powershell -ExecutionPolicy Bypass -File .\scripts\docker\restore-into-container.ps1 -DumpPathInContainer $DumpPathInContainer -ExpectedPgMajor 17
+  # Garantir que o worker de feed está de pé após restore
+  docker compose up -d feed | Out-Null
 } else {
   Write-Host "[!] Backup não encontrado no container. Coloque o arquivo em database/backups e rode o restore manualmente:" -ForegroundColor Yellow
-  Write-Host "    powershell -ExecutionPolicy Bypass -File .\scripts\docker\restore-into-container.ps1 -DumpPathInContainer $DumpPathInContainer" -ForegroundColor Yellow
+  Write-Host "    powershell -ExecutionPolicy Bypass -File .\scripts\docker\restore-into-container.ps1 -DumpPathInContainer $DumpPathInContainer -ExpectedPgMajor 17" -ForegroundColor Yellow
 }
 
 Write-Host "[OK] Bootstrap finalizado." -ForegroundColor Green

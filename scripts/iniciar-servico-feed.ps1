@@ -3,6 +3,8 @@
 
 Write-Host "[*] Verificando servico de feed..." -ForegroundColor Cyan
 
+$ErrorActionPreference = "Stop"
+
 # Obter o diretorio atual do script e navegar para o diretorio do projeto
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectPath = Split-Path -Parent $scriptPath
@@ -92,15 +94,30 @@ if (-not (Test-Path $logPath)) {
 }
 
 $logFile = Join-Path $logPath "feed-cron-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
-$process.StartInfo.RedirectStandardOutput = $true
-$process.StartInfo.RedirectStandardError = $true
 
+# IMPORTANTE:
+# A versão anterior apenas "mostrava" o caminho do log, mas não escrevia nele.
+# Aqui nós redirecionamos stdout e stderr para o arquivo, para diagnóstico real.
 try {
-    $process.Start() | Out-Null
+    $logFileOut = $logFile
+    $logFileErr = $logFile.Replace(".log", ".err.log")
+
+    # Garantir que os arquivos existam
+    if (-not (Test-Path $logFileOut)) { New-Item -ItemType File -Path $logFileOut | Out-Null }
+    if (-not (Test-Path $logFileErr)) { New-Item -ItemType File -Path $logFileErr | Out-Null }
+
+    $process = Start-Process `
+        -FilePath "node" `
+        -ArgumentList "scripts/feed-cron-scheduler.js" `
+        -WorkingDirectory $projectPath `
+        -PassThru `
+        -RedirectStandardOutput $logFileOut `
+        -RedirectStandardError $logFileErr
     
     Write-Host "[OK] Servico iniciado com sucesso!" -ForegroundColor Green
     Write-Host "   PID: $($process.Id)" -ForegroundColor Gray
-    Write-Host "   Log: $logFile" -ForegroundColor Gray
+    Write-Host "   Log (stdout): $logFileOut" -ForegroundColor Gray
+    Write-Host "   Log (stderr): $logFileErr" -ForegroundColor Gray
     Write-Host ""
     Write-Host "[*] Proximos passos:" -ForegroundColor Cyan
     Write-Host "   1. O servico criara jobs a cada hora" -ForegroundColor Gray
@@ -115,11 +132,18 @@ try {
     
     if (-not $process.HasExited) {
         Write-Host "[OK] Servico esta rodando corretamente!" -ForegroundColor Green
+        Write-Host "   (Para acompanhar ao vivo: Get-Content -Wait `"$logFileOut`")" -ForegroundColor Gray
+        Write-Host "   (E erros: Get-Content -Wait `"$logFileErr`")" -ForegroundColor Gray
     } else {
-        Write-Host "[!] Servico parou inesperadamente. Verifique o log: $logFile" -ForegroundColor Yellow
+        Write-Host "[!] Servico parou inesperadamente. Verifique os logs:" -ForegroundColor Yellow
+        Write-Host "   - $logFileOut" -ForegroundColor Gray
+        Write-Host "   - $logFileErr" -ForegroundColor Gray
     }
     
 } catch {
     Write-Host "[ERRO] Erro ao iniciar servico: $_" -ForegroundColor Red
+    Write-Host "[*] Verifique os logs (se existirem):" -ForegroundColor Gray
+    Write-Host "   - $logFileOut" -ForegroundColor Gray
+    Write-Host "   - $logFileErr" -ForegroundColor Gray
     exit 1
 }

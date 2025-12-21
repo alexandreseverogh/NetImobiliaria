@@ -14,7 +14,7 @@ const poolConfig = {
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
   database: process.env.DB_NAME || 'net_imobiliaria',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
+  password: process.env.DB_PASSWORD || '',
   port: parseInt(process.env.DB_PORT || '5432'),
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 };
@@ -118,7 +118,14 @@ async function fetchAndParseFeed(url) {
     const feed = await parser.parseURL(url);
     return feed.items || [];
   } catch (error) {
-    console.error(`❌ Erro ao processar feed ${url}:`, error.message);
+    const msg = error?.message || String(error);
+    // Alguns feeds respondem 304 (Not Modified). Isso não é erro: apenas não há novidades.
+    if (msg.includes('Status code 304')) {
+      console.warn(`⚠️ [FeedCronProcessor] Feed sem novidades (304): ${url}`);
+      return [];
+    }
+
+    console.error(`❌ Erro ao processar feed ${url}:`, msg);
     throw error;
   }
 }
@@ -166,6 +173,16 @@ async function saveFeedItems(items, sourceId, categoryId, sourceLanguage) {
         || (item.image?.url)
         || (item.image)
         || null;
+
+      // Normalizar: alguns feeds retornam objeto/array em vez de string
+      if (imagem && typeof imagem !== 'string') {
+        const anyImg = imagem;
+        imagem =
+          (typeof anyImg?.url === 'string' && anyImg.url) ||
+          (typeof anyImg?.href === 'string' && anyImg.href) ||
+          (Array.isArray(anyImg) && typeof anyImg[0] === 'string' && anyImg[0]) ||
+          null;
+      }
       
       // Se não encontrou, tenta extrair do HTML do conteúdo
       if (!imagem && (item.content || item.contentSnippet || item.contentEncoded)) {
@@ -212,7 +229,7 @@ async function saveFeedItems(items, sourceId, categoryId, sourceLanguage) {
       }
       
       // Limpar URL da imagem (remover query strings problemáticas se necessário)
-      if (imagem) {
+      if (imagem && typeof imagem === 'string') {
         // Remover espaços e quebras de linha
         imagem = imagem.trim();
         // Remover caracteres de escape HTML

@@ -35,8 +35,16 @@ export async function fetchAndParseFeed(url: string): Promise<FeedItem[]> {
     const feed = await parser.parseURL(url);
     return feed.items as FeedItem[];
   } catch (error) {
+    const msg = (error as Error)?.message || String(error);
+    // Alguns feeds respondem 304 (Not Modified). Isso NÃO é falha: apenas não há novidades.
+    // O worker deve tratar como 0 itens novos e seguir o processamento.
+    if (msg.includes('Status code 304')) {
+      console.warn(`⚠️ [FeedService] Feed sem novidades (304): ${url}`);
+      return [];
+    }
+
     console.error(`Erro ao processar feed ${url}:`, error);
-    throw new Error(`Falha ao processar feed: ${(error as Error).message}`);
+    throw new Error(`Falha ao processar feed: ${msg}`);
   }
 }
 
@@ -153,6 +161,16 @@ export async function saveFeedItems(
         || (item as any).image?.url
         || (item as any).image
         || null;
+
+      // Normalizar: garantir que "imagem" seja string (alguns feeds retornam objeto/array)
+      if (imagem && typeof imagem !== 'string') {
+        const anyImg: any = imagem as any;
+        imagem =
+          (typeof anyImg.url === 'string' && anyImg.url) ||
+          (typeof anyImg.href === 'string' && anyImg.href) ||
+          (Array.isArray(anyImg) && typeof anyImg[0] === 'string' && anyImg[0]) ||
+          null;
+      }
       
       // Se não encontrou, tenta extrair do HTML do conteúdo
       if (!imagem && (item.content || item.contentSnippet || (item as any).contentEncoded)) {
@@ -199,7 +217,7 @@ export async function saveFeedItems(
       }
       
       // Limpar URL da imagem (remover query strings problemáticas se necessário)
-      if (imagem) {
+      if (imagem && typeof imagem === 'string') {
         // Remover espaços e quebras de linha
         imagem = imagem.trim();
         // Remover caracteres de escape HTML
