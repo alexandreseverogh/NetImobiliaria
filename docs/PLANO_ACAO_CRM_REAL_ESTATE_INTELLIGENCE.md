@@ -3488,6 +3488,16 @@ Para este projeto, **recomenda-se desenvolvimento direto** das integrações:
 - **Armazenamento:** Para imagens e documentos
 - **CDN:** Para performance de imagens
 
+#### 8.4.1. Operação (VPS) — pontos críticos para escalar com segurança
+- **CRM (mensageria e histórico)**
+  - **Retenção/Arquivamento**: definir política (ex.: arquivar mensagens antigas após X meses para tabelas de histórico ou storage frio).
+  - **Backups**: diário + retenção (ex.: 30 dias) + restore testado periodicamente.
+  - **Índices**: planejar índices nas tabelas de mensageria/conversas (por `lead_uuid`, datas, canal, status) e revisar com `EXPLAIN` conforme crescer.
+- **Net Imobiliária (site público)**
+  - **Monitorar CPU/RAM**: picos, OOM, e saturação em horários de campanha.
+  - **Monitorar disco/IO**: uso de NVMe, crescimento do volume do Postgres e logs.
+  - **Monitorar tempo de queries**: latência (p95/p99) e queries mais caras (ideal: `pg_stat_statements`).
+
 ### 8.5. Resumo de Custos Mensais
 
 **Custos Fixos (APIs e Serviços):**
