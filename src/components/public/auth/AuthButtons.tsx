@@ -126,19 +126,20 @@ export default function AuthButtons() {
           onClick={openLogin}
           className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm"
         >
-          Login
+          Entrar
         </button>
         <button
           onClick={openRegister}
           className="px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl"
         >
-          Cadastre-se
+          Criar conta
         </button>
       </div>
 
       {isModalOpen && (
         <AuthModal
           mode={modalMode}
+          onChangeMode={setModalMode}
           onClose={() => setIsModalOpen(false)}
         />
       )}

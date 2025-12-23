@@ -18,6 +18,7 @@ import TenhoInteresseFormModal from '@/components/TenhoInteresseFormModal'
 import GeolocationModal from '@/components/public/GeolocationModal'
 import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import FeedCategoriasSection from '@/components/landpaging/FeedCategoriasSection'
+import ProfileBanners from '@/components/landpaging/ProfileBanners'
 // ... import FeedSection removido para teste inline
 
 // Tipo PropertyCard
@@ -1828,6 +1829,19 @@ export default function LandingPage() {
           />
         }
       />
+
+      {/* Banners por perfil (não conflita com o card lateral "Anuncie..." pois fica no fluxo principal) */}
+      <ProfileBanners
+        onProprietarioClick={handleVenderClick}
+        onClienteClick={() => {
+          setAuthUserType('cliente')
+          setAuthModalMode('register')
+          setAuthModalOpen(true)
+        }}
+        onCorretorClick={() => {
+          router.push('/admin/login')
+        }}
+      />
       
       <section className="pt-8 pb-16 px-4 sm:px-6">
         <div className="w-full mx-auto">
@@ -2253,6 +2267,7 @@ export default function LandingPage() {
       {authModalOpen && (
         <AuthModal
           mode={authModalMode}
+          onChangeMode={setAuthModalMode}
           onClose={() => {
             setAuthModalOpen(false)
             setAuthUserType(null)
@@ -2343,15 +2358,19 @@ export default function LandingPage() {
             const urlVender = `/api/public/imoveis/destaque?tipo_destaque=DV&estado=${estadoSigla}&cidade=${cidadeNome}`
             console.log('🔍 [LANDING PAGE] Verificando destaque local para Vender:', urlVender)
             
-            const responseVender = await fetch(urlVender)
-            const dataVender = await responseVender.json()
-            
             // Verificar também para Alugar (DA)
             const urlAlugar = `/api/public/imoveis/destaque?tipo_destaque=DA&estado=${estadoSigla}&cidade=${cidadeNome}`
             console.log('🔍 [LANDING PAGE] Verificando destaque local para Alugar:', urlAlugar)
             
-            const responseAlugar = await fetch(urlAlugar)
-            const dataAlugar = await responseAlugar.json()
+            // Performance: buscar DV e DA em paralelo (reduz latência percebida)
+            const [responseVender, responseAlugar] = await Promise.all([
+              fetch(urlVender),
+              fetch(urlAlugar)
+            ])
+            const [dataVender, dataAlugar] = await Promise.all([
+              responseVender.json(),
+              responseAlugar.json()
+            ])
             
             const temDestaqueLocalVender = responseVender.ok && dataVender.success && dataVender.imoveis && dataVender.imoveis.length > 0 && !dataVender.usadoFallbackNacional
             const temDestaqueLocalAlugar = responseAlugar.ok && dataAlugar.success && dataAlugar.imoveis && dataAlugar.imoveis.length > 0 && !dataAlugar.usadoFallbackNacional
@@ -2417,15 +2436,19 @@ export default function LandingPage() {
             const urlVender = `/api/public/imoveis/destaque?tipo_destaque=DV&estado=${estadoSigla}&cidade=${cidadeNome}`
             console.log('🔍 [LANDING PAGE] Verificando destaque local para Vender:', urlVender)
             
-            const responseVender = await fetch(urlVender)
-            const dataVender = await responseVender.json()
-            
             // Verificar também para Alugar (DA)
             const urlAlugar = `/api/public/imoveis/destaque?tipo_destaque=DA&estado=${estadoSigla}&cidade=${cidadeNome}`
             console.log('🔍 [LANDING PAGE] Verificando destaque local para Alugar:', urlAlugar)
             
-            const responseAlugar = await fetch(urlAlugar)
-            const dataAlugar = await responseAlugar.json()
+            // Performance: buscar DV e DA em paralelo (reduz latência percebida)
+            const [responseVender, responseAlugar] = await Promise.all([
+              fetch(urlVender),
+              fetch(urlAlugar)
+            ])
+            const [dataVender, dataAlugar] = await Promise.all([
+              responseVender.json(),
+              responseAlugar.json()
+            ])
             
             const temDestaqueLocalVender = responseVender.ok && dataVender.success && dataVender.imoveis && dataVender.imoveis.length > 0 && !dataVender.usadoFallbackNacional
             const temDestaqueLocalAlugar = responseAlugar.ok && dataAlugar.success && dataAlugar.imoveis && dataAlugar.imoveis.length > 0 && !dataAlugar.usadoFallbackNacional

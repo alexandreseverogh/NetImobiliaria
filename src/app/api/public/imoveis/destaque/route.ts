@@ -24,6 +24,27 @@ async function fetchImagemPrincipal(imovelId: number): Promise<string | null> {
   return `data:${row.tipo_mime || 'image/jpeg'};base64,${row.imagem_base64}`
 }
 
+async function fetchImagensPrincipais(ids: number[]): Promise<Record<number, string>> {
+  if (!ids.length) return {}
+
+  // Schema oficial: imagem é BYTEA + tipo_mime
+  const query = `
+    SELECT DISTINCT ON (imovel_id)
+      imovel_id,
+      encode(imagem, 'base64') as imagem_base64,
+      tipo_mime
+    FROM imovel_imagens
+    WHERE imovel_id = ANY($1::int[])
+      AND principal = true
+    ORDER BY imovel_id, created_at DESC
+  `
+  const result = await pool.query(query, [ids])
+  return result.rows.reduce<Record<number, string>>((acc, row) => {
+    acc[row.imovel_id] = `data:${row.tipo_mime || 'image/jpeg'};base64,${row.imagem_base64}`
+    return acc
+  }, {})
+}
+
 // API PÚBLICA - Buscar imóveis em destaque (SEM autenticação)
 export async function GET(request: NextRequest) {
   try {
@@ -38,6 +59,9 @@ export async function GET(request: NextRequest) {
     const estado = searchParams.get('estado')
     const cidade = searchParams.get('cidade')
     const destaqueNacionalOnly = searchParams.get('destaque_nacional_only') === 'true'
+
+    const estadoNorm = estado?.trim().toUpperCase()
+    const cidadeNorm = cidade?.trim()
 
     // Regra: sem localização => mostrar apenas nacional; com localização => tenta local e faz fallback pra nacional
     const semLocalizacao = !estado && !cidade
@@ -57,14 +81,17 @@ export async function GET(request: NextRequest) {
         where.push('i.destaque_nacional = true')
       } else {
         where.push('i.destaque = true')
-        if (estado) {
-          where.push(`UPPER(TRIM(i.${estadoCol})) = $${paramIndex}`)
-          params.push(estado.trim().toUpperCase())
+        // IMPORTANTE (performance): evitar funções na coluna (TRIM/UPPER) para permitir uso de índice.
+        if (estadoNorm) {
+          where.push(`i.${estadoCol} = $${paramIndex}`)
+          params.push(estadoNorm)
           paramIndex++
         }
-        if (cidade) {
-          where.push(`TRIM(i.${cidadeCol}) ILIKE $${paramIndex}`)
-          params.push(`%${cidade.trim()}%`)
+        // Cidade vinda da geolocalização/seleção normalmente é exata -> usar igualdade (usa índice).
+        // Se houver divergência de acentos/case no futuro, podemos introduzir fallback opcional.
+        if (cidadeNorm) {
+          where.push(`i.${cidadeCol} = $${paramIndex}`)
+          params.push(cidadeNorm)
           paramIndex++
         }
       }
@@ -132,13 +159,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Imagens principais
-    const imoveisComImagens = await Promise.all(
-      rows.map(async (imovel) => {
-        const imagem_principal = await fetchImagemPrincipal(imovel.id)
-        return { ...imovel, imagem_principal }
-      })
-    )
+    // Imagens principais (batch) — evita N+1 queries
+    const ids = rows.map(r => r.id)
+    const imagens = await fetchImagensPrincipais(ids)
+    const imoveisComImagens = rows.map(imovel => ({
+      ...imovel,
+      imagem_principal: imagens[imovel.id] || null
+    }))
 
     return NextResponse.json({
       success: true,

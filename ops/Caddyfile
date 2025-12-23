@@ -1,0 +1,49 @@
+{
+  # Email usado pelo Let's Encrypt (opcional mas recomendado)
+  email {$LETSENCRYPT_EMAIL}
+}
+
+{$PROD_DOMAIN} {
+  encode zstd gzip
+
+  # Ajuste se houver uploads grandes (ex.: imagens)
+  request_body {
+    max_size 50MB
+  }
+
+  reverse_proxy prod_app:3000 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+    header_up X-Forwarded-For {remote}
+  }
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "SAMEORIGIN"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+}
+
+{$STAGING_DOMAIN} {
+  encode zstd gzip
+
+  request_body {
+    max_size 50MB
+  }
+
+  reverse_proxy staging_app:3000 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+    header_up X-Forwarded-For {remote}
+  }
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "SAMEORIGIN"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+}
+
+

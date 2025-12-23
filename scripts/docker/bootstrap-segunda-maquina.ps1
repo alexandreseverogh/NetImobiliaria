@@ -30,8 +30,9 @@ if ($ResetDbVolume) {
   docker compose down -v
 }
 
-Write-Host "[*] Subindo containers (db + app + feed) com POSTGRES_IMAGE=$PostgresImage ..." -ForegroundColor Cyan
-docker compose up -d --build db app feed
+Write-Host "[*] Subindo containers (db + feed) com POSTGRES_IMAGE=$PostgresImage ..." -ForegroundColor Cyan
+# Sobe o banco primeiro (e o worker do feed pode ficar rodando mesmo sem o app)
+docker compose up -d --build db feed
 
 # 2) Copiar backup para dentro do repo (opcional)
 if ($BackupSourcePath) {
@@ -53,6 +54,9 @@ if ($check -match "OK") {
   Write-Host "[!] Backup não encontrado no container. Coloque o arquivo em database/backups e rode o restore manualmente:" -ForegroundColor Yellow
   Write-Host "    powershell -ExecutionPolicy Bypass -File .\scripts\docker\restore-into-container.ps1 -DumpPathInContainer $DumpPathInContainer -ExpectedPgMajor 17" -ForegroundColor Yellow
 }
+
+Write-Host "[*] Subindo app..." -ForegroundColor Cyan
+docker compose up -d --build app | Out-Null
 
 Write-Host "[OK] Bootstrap finalizado." -ForegroundColor Green
 Write-Host "[*] Valide em http://localhost:3000/api/health e depois em /landpaging" -ForegroundColor Gray

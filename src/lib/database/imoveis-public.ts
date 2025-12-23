@@ -85,9 +85,9 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
   // IMPORTANTE: Se há estado mas NÃO há cidade selecionada, busca TODOS os imóveis do estado
   // independentemente do conteúdo do campo cidade_fk na tabela imoveis
   if (filters.estado) {
-    // estado_fk armazena sigla (ex: "RJ", "SP"), então usar comparação exata (case-insensitive)
+    // Performance: evitar UPPER/TRIM na coluna para permitir uso de índices.
     const estadoNormalizado = filters.estado.trim().toUpperCase()
-    where.push(`UPPER(TRIM(i.${estadoCol})) = $${paramIndex}`)
+    where.push(`i.${estadoCol} = $${paramIndex}`)
     params.push(estadoNormalizado)
     paramIndex++
   }
@@ -96,10 +96,11 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
   // IMPORTANTE: Este filtro só é aplicado se uma cidade específica for selecionada
   // Se não houver cidade selecionada (ou "Todas as cidades"), busca todos os imóveis do estado
   if (filters.cidade) {
-    // cidade_fk armazena nome completo da cidade, usar ILIKE com % para busca parcial
+    // Performance: quando cidade vem de seleção/geolocalização, normalmente é exata -> usar igualdade (usa índice).
+    // Para busca parcial, no futuro podemos reintroduzir um modo "contains" com trigram index.
     const cidadeNormalizada = filters.cidade.trim()
-    where.push(`TRIM(i.${cidadeCol}) ILIKE $${paramIndex}`)
-    params.push(`%${cidadeNormalizada}%`)
+    where.push(`i.${cidadeCol} = $${paramIndex}`)
+    params.push(cidadeNormalizada)
     paramIndex++
   }
 
@@ -202,14 +203,7 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
     }
   }
   
-  // Log para debug
-  console.log('🔍 [listPublicImoveis] Filtros aplicados:', {
-    operation: filters.operation,
-    estado: filters.estado,
-    cidade: filters.cidade,
-    hasJoinFinalidades: !!joinFinalidades,
-    whereClauses: where
-  })
+  // Logs muito verbosos aqui podem aumentar latência percebida em dev (especialmente em Windows).
 
   const baseQuery = `
     FROM imoveis i
@@ -244,20 +238,12 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
 
   const countQuery = `SELECT COUNT(*) ${baseQuery}`
 
-  // Log da query SQL gerada para debug
-  console.log('🔍 [listPublicImoveis] Query SQL gerada:', dataQuery)
-  console.log('🔍 [listPublicImoveis] Parâmetros:', [...params, limit, offset])
-  console.log('🔍 [listPublicImoveis] Count Query:', countQuery)
-  console.log('🔍 [listPublicImoveis] Count Parâmetros:', params)
+  // (debug opcional removido)
 
   const result = await pool.query(dataQuery, [...params, limit, offset])
   const countResult = await pool.query(countQuery, params)
   
-  console.log('🔍 [listPublicImoveis] Resultado da query:', {
-    total: countResult.rows[0]?.count,
-    quantidade: result.rows.length,
-    operation: filters.operation
-  })
+  // (debug opcional removido)
 
   const ids = result.rows.map(row => row.id)
   const imagens = await fetchImagensPrincipais(ids)
@@ -355,14 +341,16 @@ export async function getPublicFiltersMetadata(
   }
   
   if (estado) {
+    // Performance: evitar funções na coluna
     whereClauses.push(`i.${estadoCol} = $${paramIndex}`)
-    statsParams.push(estado)
+    statsParams.push(estado.trim().toUpperCase())
     paramIndex++
   }
   
   if (cidade) {
-    whereClauses.push(`i.${cidadeCol} ILIKE $${paramIndex}`)
-    statsParams.push(`%${cidade}%`)
+    // Performance: cidade normalmente vem exata -> igualdade (usa índice)
+    whereClauses.push(`i.${cidadeCol} = $${paramIndex}`)
+    statsParams.push(cidade.trim())
     paramIndex++
   }
   

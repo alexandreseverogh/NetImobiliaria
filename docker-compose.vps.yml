@@ -1,0 +1,157 @@
+services:
+  # =========================
+  # PRODUÇÃO
+  # =========================
+  prod_db:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PROD_DB_NAME:-net_imobiliaria}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${PROD_DB_PASSWORD}
+    volumes:
+      - db_data_prod:/var/lib/postgresql/data
+      - ./database/backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${PROD_DB_NAME:-net_imobiliaria}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  prod_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    depends_on:
+      prod_db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      DB_HOST: prod_db
+      DB_PORT: "5432"
+      DB_NAME: ${PROD_DB_NAME:-net_imobiliaria}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${PROD_DB_PASSWORD}
+      JWT_SECRET: ${PROD_JWT_SECRET}
+      NEXT_PUBLIC_APP_URL: ${PROD_APP_URL}
+      HEALTHCHECK_DB: "true"
+    expose:
+      - "3000"
+
+  prod_feed:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    depends_on:
+      prod_db:
+        condition: service_healthy
+      prod_app:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      DB_HOST: prod_db
+      DB_PORT: "5432"
+      DB_NAME: ${PROD_DB_NAME:-net_imobiliaria}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${PROD_DB_PASSWORD}
+      NEXT_PUBLIC_API_URL: "http://prod_app:3000"
+      CRON_SECRET: ${PROD_CRON_SECRET}
+      LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-https://libretranslate.com}
+    command: ["node", "scripts/feed-cron-scheduler.js"]
+
+  # =========================
+  # HOMOLOGAÇÃO (STAGING)
+  # =========================
+  staging_db:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${STAGING_DB_NAME:-net_imobiliaria_staging}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD}
+    volumes:
+      - db_data_staging:/var/lib/postgresql/data
+      - ./database/backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${STAGING_DB_NAME:-net_imobiliaria_staging}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  staging_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    depends_on:
+      staging_db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      DB_HOST: staging_db
+      DB_PORT: "5432"
+      DB_NAME: ${STAGING_DB_NAME:-net_imobiliaria_staging}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${STAGING_DB_PASSWORD}
+      JWT_SECRET: ${STAGING_JWT_SECRET}
+      NEXT_PUBLIC_APP_URL: ${STAGING_APP_URL}
+      HEALTHCHECK_DB: "true"
+    expose:
+      - "3000"
+
+  staging_feed:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    depends_on:
+      staging_db:
+        condition: service_healthy
+      staging_app:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      DB_HOST: staging_db
+      DB_PORT: "5432"
+      DB_NAME: ${STAGING_DB_NAME:-net_imobiliaria_staging}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${STAGING_DB_PASSWORD}
+      NEXT_PUBLIC_API_URL: "http://staging_app:3000"
+      CRON_SECRET: ${STAGING_CRON_SECRET}
+      LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-https://libretranslate.com}
+    command: ["node", "scripts/feed-cron-scheduler.js"]
+
+  # =========================
+  # REVERSE PROXY ÚNICO (80/443)
+  # =========================
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - prod_app
+      - staging_app
+    environment:
+      PROD_DOMAIN: ${PROD_DOMAIN}
+      STAGING_DOMAIN: ${STAGING_DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  db_data_prod:
+  db_data_staging:
+  caddy_data:
+  caddy_config:
+
+

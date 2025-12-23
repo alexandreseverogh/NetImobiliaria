@@ -64,6 +64,10 @@ if (-not $tablesCount -or [int]$tablesCount -lt 10) {
   throw "Restore aparentemente incompleto: apenas $tablesCount tabelas em public. Verifique se o backup corresponde ao schema esperado."
 }
 
+# Aplicar migrations do projeto (idempotente) para manter schema 100% igual
+Write-Host "[*] Aplicando migrations do projeto (idempotente)..." -ForegroundColor Cyan
+powershell -ExecutionPolicy Bypass -File .\scripts\docker\apply-migrations.ps1 -DbService $DbService -Database $Database -User $User -MigrationsDir "database/migrations_docker"
+
 Write-Host "[*] Subindo app..." -ForegroundColor Cyan
 docker compose up -d $AppService | Out-Null
 

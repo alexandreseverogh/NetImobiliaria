@@ -24,6 +24,8 @@ export async function GET(request: NextRequest) {
     const operation = searchParams.get('operation') // Para filtros
 
     console.log('🗺️ [API Mapa] Parâmetros recebidos:', { tipo, estado, cidade, operation })
+    const estadoNorm = estado?.trim().toUpperCase()
+    const cidadeNorm = cidade?.trim()
 
     let query = `
       SELECT 
@@ -78,16 +80,17 @@ export async function GET(request: NextRequest) {
         paramIndex++
       }
       
-      if (estado) {
-        query += ` AND UPPER(TRIM(i.estado_fk)) = $${paramIndex}`
-        params.push(estado.trim().toUpperCase())
+      // Performance: evitar funções na coluna para permitir uso de índice
+      if (estadoNorm) {
+        query += ` AND i.estado_fk = $${paramIndex}`
+        params.push(estadoNorm)
         paramIndex++
       }
       
-      if (cidade) {
-        // Usar ILIKE para busca flexível (case-insensitive e permite variações)
-        query += ` AND UPPER(TRIM(i.cidade_fk)) ILIKE $${paramIndex}`
-        params.push(`%${cidade.trim().toUpperCase()}%`)
+      if (cidadeNorm) {
+        // Cidade normalmente vem de seleção/geolocalização => match exato (usa índice)
+        query += ` AND i.cidade_fk = $${paramIndex}`
+        params.push(cidadeNorm)
         paramIndex++
       }
     } else if (tipo === 'filtros') {
@@ -98,16 +101,15 @@ export async function GET(request: NextRequest) {
         paramIndex++
       }
       
-      if (estado) {
-        query += ` AND UPPER(TRIM(i.estado_fk)) = $${paramIndex}`
-        params.push(estado.trim().toUpperCase())
+      if (estadoNorm) {
+        query += ` AND i.estado_fk = $${paramIndex}`
+        params.push(estadoNorm)
         paramIndex++
       }
       
-      if (cidade) {
-        // Usar ILIKE para busca flexível (case-insensitive e permite variações)
-        query += ` AND UPPER(TRIM(i.cidade_fk)) ILIKE $${paramIndex}`
-        params.push(`%${cidade.trim().toUpperCase()}%`)
+      if (cidadeNorm) {
+        query += ` AND i.cidade_fk = $${paramIndex}`
+        params.push(cidadeNorm)
         paramIndex++
       }
       
