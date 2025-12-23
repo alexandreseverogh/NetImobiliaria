@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, LogOut, ChevronDown } from 'lucide-react'
+import { User, LogOut, ChevronDown, LogIn, UserPlus } from 'lucide-react'
 import AuthModal from './AuthModal'
 import { usePublicAuth } from '@/hooks/usePublicAuth'
 
@@ -124,14 +124,16 @@ export default function AuthButtons() {
       <div className="flex items-center gap-3">
         <button
           onClick={openLogin}
-          className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm"
+          className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm inline-flex items-center gap-2"
         >
+          <LogIn className="w-4 h-4 text-gray-600" />
           Entrar
         </button>
         <button
           onClick={openRegister}
-          className="px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl"
+          className="px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl inline-flex items-center gap-2"
         >
+          <UserPlus className="w-4 h-4 text-white" />
           Criar conta
         </button>
       </div>

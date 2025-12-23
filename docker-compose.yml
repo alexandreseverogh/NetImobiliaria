@@ -47,6 +47,10 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       # Healthcheck
       HEALTHCHECK_DB: "true"
+      # Windows/Docker: garantir hot-reload detectando mudanças no bind-mount
+      WATCHPACK_POLLING: "true"
+      WATCHPACK_POLLING_INTERVAL: "1000"
+      CHOKIDAR_USEPOLLING: "true"
     ports:
       - "3000:3000"
     # Dev-friendly: hot reload
@@ -89,6 +93,8 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       # Usado apenas se cair no fallback HTTP (idealmente não precisa)
       NEXT_PUBLIC_API_URL: "http://app:3000"
+      # Windows/Docker: garante que scripts/watchers (se existirem) detectem mudanças
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
       - .:/app
       - /app/node_modules
