@@ -19,6 +19,7 @@ import GeolocationModal from '@/components/public/GeolocationModal'
 import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import FeedCategoriasSection from '@/components/landpaging/FeedCategoriasSection'
 import ProfileBanners from '@/components/landpaging/ProfileBanners'
+import FeedSectionClient from '@/components/landpaging/FeedSectionClient'
 // ... import FeedSection removido para teste inline
 
 // Tipo PropertyCard
@@ -40,7 +41,8 @@ export default function LandingPage() {
   const [featuredData, setFeaturedData] = useState<any[]>([])
   const [loadingFeatured, setLoadingFeatured] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const [tipoDestaque, setTipoDestaque] = useState<'DV' | 'DA'>('DV') // Default: Comprar (azul)
+  // DV = Comprar (usuário final), DA = Alugar
+  const [tipoDestaque, setTipoDestaque] = useState<'DV' | 'DA'>('DV') // Default: Comprar
   const [mostrarDestaquesNacional, setMostrarDestaquesNacional] = useState(true) // Controla exibição de destaque nacional - INICIALMENTE TRUE para exibir destaque nacional
   const [usadoFallbackNacional, setUsadoFallbackNacional] = useState(false) // Flag para indicar se API usou fallback para destaque nacional
   const [tipoDestaqueAnterior, setTipoDestaqueAnterior] = useState<'DV' | 'DA'>('DV') // Armazenar tipo anterior para reverter se não houver resultados
@@ -526,8 +528,9 @@ export default function LandingPage() {
   const carregandoRef = useRef(false)
   
   // Refs para rastrear os últimos valores que causaram um carregamento
-  const ultimoMostrarDestaquesNacionalCarregado = useRef(mostrarDestaquesNacional)
-  const ultimoTipoDestaqueCarregado = useRef(tipoDestaque)
+  // Forçar o primeiro carregamento sempre (evita cenário "nunca carregou, mas nada mudou")
+  const ultimoMostrarDestaquesNacionalCarregado = useRef<boolean | null>(null)
+  const ultimoTipoDestaqueCarregado = useRef<'DV' | 'DA' | null>(null)
   
   // Atualizar refs sempre que os valores mudarem
   useEffect(() => {
@@ -580,8 +583,12 @@ export default function LandingPage() {
         // IMPORTANTE: Se mostrarDestaquesNacional está ativo, ignorar mudanças em searchFormEstado/searchFormCidade
         // para evitar múltiplas chamadas desnecessárias quando os filtros são limpos
         // Só recarregar se mostrarDestaquesNacional ou tipoDestaque realmente mudaram
-        const mostrarDestaquesNacionalMudou = mostrarDestaquesNacional !== ultimoMostrarDestaquesNacionalCarregado.current
-        const tipoDestaqueMudou = tipoDestaque !== ultimoTipoDestaqueCarregado.current
+        const mostrarDestaquesNacionalMudou =
+          ultimoMostrarDestaquesNacionalCarregado.current === null
+            ? true
+            : mostrarDestaquesNacional !== ultimoMostrarDestaquesNacionalCarregado.current
+        const tipoDestaqueMudou =
+          ultimoTipoDestaqueCarregado.current === null ? true : tipoDestaque !== ultimoTipoDestaqueCarregado.current
         
         if (isDestaqueNacional) {
           // Se mostrarDestaquesNacional foi ATIVADO (mudou de false para true), sempre recarregar
@@ -668,6 +675,9 @@ export default function LandingPage() {
             lastFiltersCidade: lastFilters?.cidade
           })
         }
+
+        // Performance: o grid pagina em 20 — não precisa buscar 50 itens
+        urlParams.set('limit', '20')
         
         const urlFinal = urlParams.toString()
         console.log('🔍 [LANDING PAGE] URL FINAL construída:', {
@@ -729,63 +739,50 @@ export default function LandingPage() {
           console.log('✅ [LANDING PAGE] Imóveis carregados com sucesso:', data.imoveis.length)
           console.log('🔍 [LANDING PAGE] API usou fallback nacional?', data.usadoFallbackNacional)
           console.log('🔍 [LANDING PAGE] Estamos em modo destaque local?', !isDestaqueNacional)
-          
-          // IMPORTANTE: Se estamos em modo destaque local e a API usou fallback nacional,
-          // NÃO aceitar o fallback - manter o grid anterior e exibir mensagem
-          // Mas só fazer isso se realmente não há resultados (data.imoveis.length === 0)
-          if (!isDestaqueNacional && data.usadoFallbackNacional && data.imoveis.length === 0) {
-            const estadoParaBusca = searchFormEstado || lastFilters?.estado || null
-            const cidadeParaBusca = searchFormCidade || lastFilters?.cidade || null
-            const operationLabel = tipoDestaqueAtual === 'DA' ? 'Alugar' : 'Vender'
-            
-            console.log('⚠️ [LANDING PAGE] API tentou usar fallback nacional mas estamos em modo destaque local - rejeitando fallback')
-            console.log('⚠️ [LANDING PAGE] Nenhum imóvel encontrado para destaque local:', {
-              tipoDestaque: tipoDestaqueAtual,
-              estado: estadoParaBusca,
-              cidade: cidadeParaBusca
-            })
-            
+
+          // REGRA: se o usuário escolheu uma localidade sem destaques locais,
+          // então devemos exibir automaticamente os destaques nacionais no grid.
+          // A API marca isso com `usadoFallbackNacional=true` quando não encontra local e faz fallback para nacional.
+          const operationLabel = tipoDestaqueAtual === 'DA' ? 'Alugar' : 'Comprar'
+          const fallbackNacionalPorFaltaDeLocal =
+            !isDestaqueNacional && data.usadoFallbackNacional === true && data.imoveis.length > 0
+
+          if (fallbackNacionalPorFaltaDeLocal) {
+            console.log('✅ [LANDING PAGE] Sem destaques locais -> exibindo fallback nacional no grid')
+
             // Cancelar qualquer timeout pendente antes de criar um novo
             if (timeoutRef.current) {
               clearTimeout(timeoutRef.current)
               timeoutRef.current = null
             }
-            
-            // Exibir mensagem e reverter ao tipo anterior
-            setMensagemSemResultados(`Não existem imóveis em destaque para essa localidade para ${operationLabel}`)
-            
-            // NÃO aceitar o fallback nacional - manter mostrarDestaquesNacional como false
-            setUsadoFallbackNacional(false)
-            
-            // Reverter ao tipo anterior após 3 segundos
+
+            // Mostrar mensagem informativa (sem reverter tipo)
+            setMensagemSemResultados(
+              `Não existem imóveis em destaque para ${operationLabel} nessa localidade. Exibindo destaques nacionais.`
+            )
             timeoutRef.current = setTimeout(() => {
-              console.log('🔄 [LANDING PAGE] Revertendo tipoDestaque ao anterior:', tipoDestaqueAnterior)
-              setTipoDestaque(tipoDestaqueAnterior)
               setMensagemSemResultados(null)
               timeoutRef.current = null
-            }, 3000)
-            
-            // Manter os dados anteriores (não limpar)
-            // Não atualizar featuredData para manter o grid anterior visível
-            ultimoMostrarDestaquesNacionalCarregado.current = isDestaqueNacional
-            ultimoTipoDestaqueCarregado.current = tipoDestaqueAnterior // Manter tipo anterior
+            }, 3500)
+
+            setUsadoFallbackNacional(true)
+            if (!mostrarDestaquesNacional) {
+              setMostrarDestaquesNacional(true)
+            }
+
+            setFeaturedData(data.imoveis)
+            ultimoMostrarDestaquesNacionalCarregado.current = true
+            ultimoTipoDestaqueCarregado.current = tipoDestaqueAtual
+            setTipoDestaqueAnterior(tipoDestaqueAtual)
             return
           }
-          
-          // IMPORTANTE: Se estamos em modo destaque local, NUNCA aceitar fallback nacional
-          // Mesmo que a API tenha usado fallback, se temos localização definida, manter modo local
+
+          // Fora do fallback: se estamos em modo local, garantir que flags de fallback/nacional estejam desligadas
           if (!isDestaqueNacional) {
-            // Estamos em modo destaque local - NUNCA aceitar fallback nacional
-            console.log('✅ [LANDING PAGE] Modo destaque local ativo - IGNORANDO fallback nacional da API')
             setUsadoFallbackNacional(false)
-            // Garantir que mostrarDestaquesNacional permanece false
             if (mostrarDestaquesNacional) {
-              console.log('⚠️ [LANDING PAGE] Corrigindo mostrarDestaquesNacional - forçando false em modo local')
               setMostrarDestaquesNacional(false)
             }
-          } else {
-            // Estamos em modo destaque nacional - aceitar flag da API
-            setUsadoFallbackNacional(data.usadoFallbackNacional || false)
           }
           
           // Validação adicional: se estávamos buscando destaque nacional, garantir que todos os resultados têm destaque_nacional = true
@@ -800,53 +797,11 @@ export default function LandingPage() {
             }
           }
           
-          // Verificar se não há resultados LOCAIS e estamos em modo destaque local
-          // IMPORTANTE: Se a API usou fallback nacional mas estamos em modo local, tratar como se não houvesse resultados
-          // porque os resultados do fallback são nacionais, não locais - NÃO ACEITAR ESSES RESULTADOS
-          const apiUsouFallbackMasEstamosEmLocal = !isDestaqueNacional && data.usadoFallbackNacional
-          
-          if (apiUsouFallbackMasEstamosEmLocal) {
-            // API usou fallback nacional mas estamos em modo local - REJEITAR resultados
-            const estadoParaBusca = searchFormEstado || lastFilters?.estado || null
-            const cidadeParaBusca = searchFormCidade || lastFilters?.cidade || null
-            const operationLabel = tipoDestaqueAtual === 'DA' ? 'Alugar' : 'Vender'
-            
-            console.log('⚠️ [LANDING PAGE] API usou fallback nacional em modo local - REJEITANDO resultados nacionais:', {
-              tipoDestaque: tipoDestaqueAtual,
-              estado: estadoParaBusca,
-              cidade: cidadeParaBusca,
-              quantidadeImoveisNacionais: data.imoveis.length,
-              '⚠️ AÇÃO': 'Não aceitar resultados - são nacionais, não locais'
-            })
-            
-            // Cancelar qualquer timeout pendente antes de criar um novo
-            if (timeoutRef.current) {
-              clearTimeout(timeoutRef.current)
-              timeoutRef.current = null
-            }
-            
-            // Exibir mensagem e reverter ao tipo anterior
-            setMensagemSemResultados(`Não existem imóveis em destaque para essa localidade para ${operationLabel}`)
-            
-            // Reverter ao tipo anterior após 3 segundos
-            timeoutRef.current = setTimeout(() => {
-              console.log('🔄 [LANDING PAGE] Revertendo tipoDestaque ao anterior (fallback rejeitado):', tipoDestaqueAnterior)
-              setTipoDestaque(tipoDestaqueAnterior)
-              setMensagemSemResultados(null)
-              timeoutRef.current = null
-            }, 3000)
-            
-            // NÃO atualizar featuredData - manter o grid anterior
-            ultimoMostrarDestaquesNacionalCarregado.current = isDestaqueNacional
-            ultimoTipoDestaqueCarregado.current = tipoDestaqueAnterior
-            return // Não processar resultados do fallback nacional
-          }
-          
           // Verificar se não há resultados e estamos em modo destaque local (sem fallback)
           if (data.imoveis.length === 0 && !isDestaqueNacional && !data.usadoFallbackNacional) {
             const estadoParaBusca = searchFormEstado || lastFilters?.estado || null
             const cidadeParaBusca = searchFormCidade || lastFilters?.cidade || null
-            const operationLabel = tipoDestaqueAtual === 'DA' ? 'Alugar' : 'Vender'
+          const operationLabel = tipoDestaqueAtual === 'DA' ? 'Alugar' : 'Comprar'
             
             console.log('⚠️ [LANDING PAGE] Nenhum imóvel encontrado para destaque local:', {
               tipoDestaque: tipoDestaqueAtual,
@@ -861,21 +816,14 @@ export default function LandingPage() {
               timeoutRef.current = null
             }
             
-            // Exibir mensagem e reverter ao tipo anterior
-            setMensagemSemResultados(`Não existem imóveis em destaque para essa localidade para ${operationLabel}`)
-            
-            // Reverter ao tipo anterior após 3 segundos
+            // Sem local e sem fallback (provável ausência total) -> informar e limpar
+            setMensagemSemResultados(`Nenhum imóvel em destaque encontrado para ${operationLabel} no momento.`)
             timeoutRef.current = setTimeout(() => {
-              console.log('🔄 [LANDING PAGE] Revertendo tipoDestaque ao anterior:', tipoDestaqueAnterior)
-              setTipoDestaque(tipoDestaqueAnterior)
               setMensagemSemResultados(null)
               timeoutRef.current = null
-            }, 3000)
-            
-            // Manter os dados anteriores (não limpar)
-            // Não atualizar featuredData para manter o grid anterior visível
-            ultimoMostrarDestaquesNacionalCarregado.current = isDestaqueNacional
-            ultimoTipoDestaqueCarregado.current = tipoDestaqueAnterior // Manter tipo anterior
+            }, 3500)
+
+            setFeaturedData([])
             return
           }
           
@@ -1028,7 +976,7 @@ export default function LandingPage() {
       return null // Retornar null para usar o título do card compacto (buildTitle)
     }
 
-    const operationLabel = tipoDestaque === 'DA' ? 'Alugar' : 'Vender'
+    const operationLabel = tipoDestaque === 'DA' ? 'Alugar' : 'Comprar'
     const quantidade = featuredProperties.length
     
     // Obter estado e cidade dos filtros ou dos imóveis exibidos
@@ -1048,7 +996,7 @@ export default function LandingPage() {
       cidadeFinal = cidadeNome
     }
     
-    // Construir título: "Imóveis em Destaque - Vender/Alugar"
+    // Construir título: "Imóveis em Destaque - Comprar/Alugar"
     let titulo = `Imóveis em Destaque - ${operationLabel}`
     
     if (cidadeFinal && estadoNome) {
@@ -1064,7 +1012,7 @@ export default function LandingPage() {
     // REGRA CRÍTICA: mostrarDestaquesNacional tem PRIORIDADE ABSOLUTA
     // Se mostrarDestaquesNacional é true, SEMPRE retornar título nacional, ignorando localização
     if (mostrarDestaquesNacional === true || usadoFallbackNacional === true) {
-      const operacaoLabel = tipoDestaque === 'DA' ? 'Alugar' : 'Vender'
+      const operacaoLabel = tipoDestaque === 'DA' ? 'Alugar' : 'Comprar'
       const tituloCompleto = `Imóveis em Destaque - Nacionais - ${operacaoLabel}`
       console.log('✅ [BUILD TITLE] Destaque nacional ativo - retornando título nacional:', {
         mostrarDestaquesNacional,
@@ -1082,7 +1030,7 @@ export default function LandingPage() {
     
     if (temEstadoOuCidade) {
       // Modo destaque local - usar título local
-      const operationLabel = tipoDestaque === 'DA' ? 'Alugar' : 'Vender'
+      const operationLabel = tipoDestaque === 'DA' ? 'Alugar' : 'Comprar'
       
       // Construir título local manualmente
       const estadoSigla = searchFormEstado || lastFilters?.estado || null
@@ -2253,7 +2201,7 @@ export default function LandingPage() {
       </section>
       
       {/* Seção de Feed de Conteúdo - Fique por Dentro do Mercado */}
-      <FeedSectionInline />
+      <FeedSectionClient />
 
       {/* Popup Vender */}
       <VenderPopup
@@ -2350,16 +2298,17 @@ export default function LandingPage() {
           locationConfirmedRef.current = true
           
           // REGRA 2: Verificar se existem imóveis com destaque local para essa localização
-          // Verificar TANTO para Vender (DV) quanto para Alugar (DA)
+          // Verificar TANTO para Comprar (DV) quanto para Alugar (DA)
           try {
             setLoadingFeatured(true)
             
-            // Verificar para Vender (DV) primeiro (padrão)
-            const urlVender = `/api/public/imoveis/destaque?tipo_destaque=DV&estado=${estadoSigla}&cidade=${cidadeNome}`
-            console.log('🔍 [LANDING PAGE] Verificando destaque local para Vender:', urlVender)
+            // Verificar para Comprar (DV) primeiro (padrão)
+            // Performance: verificação leve (1 item, sem imagens) — evita baixar base64 desnecessário
+            const urlVender = `/api/public/imoveis/destaque?tipo_destaque=DV&estado=${estadoSigla}&cidade=${cidadeNome}&limit=1&include_images=false`
+            console.log('🔍 [LANDING PAGE] Verificando destaque local para Comprar:', urlVender)
             
             // Verificar também para Alugar (DA)
-            const urlAlugar = `/api/public/imoveis/destaque?tipo_destaque=DA&estado=${estadoSigla}&cidade=${cidadeNome}`
+            const urlAlugar = `/api/public/imoveis/destaque?tipo_destaque=DA&estado=${estadoSigla}&cidade=${cidadeNome}&limit=1&include_images=false`
             console.log('🔍 [LANDING PAGE] Verificando destaque local para Alugar:', urlAlugar)
             
             // Performance: buscar DV e DA em paralelo (reduz latência percebida)
@@ -2385,23 +2334,24 @@ export default function LandingPage() {
             })
             
             if (temDestaqueLocalVender || temDestaqueLocalAlugar) {
-              // Existem imóveis com destaque local (para Vender OU Alugar) - exibir grid de destaque local
+              // Existem imóveis com destaque local (para Comprar OU Alugar) - exibir grid de destaque local
               console.log('✅ [LANDING PAGE] Existem imóveis com destaque local - exibindo grid de destaque local')
               setMostrarDestaquesNacional(false)
               setUsadoFallbackNacional(false)
               setSearchFormEstado(estadoSigla)
               setSearchFormCidade(cidadeNome)
-              // Manter tipoDestaque como 'DV' (Vender) por padrão
+              // Manter tipoDestaque como 'DV' (Comprar) por padrão
               setTipoDestaque('DV')
             } else {
-              // NÃO existem imóveis com destaque local (nem para Vender nem para Alugar) - exibir grid de destaque nacional
-              console.log('⚠️ [LANDING PAGE] Nenhum imóvel com destaque local encontrado (nem Vender nem Alugar), exibindo destaque nacional')
-              // Limpar estado/cidade primeiro para garantir modo nacional
-              setSearchFormEstado(undefined)
-              setSearchFormCidade(undefined)
-              // Ativar destaque nacional - isso deve disparar o useEffect para carregar imóveis nacionais
+              // NÃO existem imóveis com destaque local (nem para Comprar nem para Alugar) - exibir grid de destaque nacional
+              console.log('⚠️ [LANDING PAGE] Nenhum imóvel com destaque local encontrado (nem Comprar nem Alugar), exibindo destaque nacional')
+              // Manter a localidade escolhida (para contexto), mas exibir nacionais no grid
+              setSearchFormEstado(estadoSigla)
+              setSearchFormCidade(cidadeNome)
               setMostrarDestaquesNacional(true)
-              setUsadoFallbackNacional(false)
+              setUsadoFallbackNacional(true)
+              setMensagemSemResultados('Não existem destaques locais para essa cidade. Exibindo destaques nacionais.')
+              setTimeout(() => setMensagemSemResultados(null), 3500)
               setTipoDestaque('DV') // Garantir tipo padrão
             }
           } catch (error) {
@@ -2428,16 +2378,17 @@ export default function LandingPage() {
           locationConfirmedRef.current = true
           
           // REGRA 2: Verificar se existem imóveis com destaque local para essa localização
-          // Verificar TANTO para Vender (DV) quanto para Alugar (DA)
+          // Verificar TANTO para Comprar (DV) quanto para Alugar (DA)
           try {
             setLoadingFeatured(true)
             
-            // Verificar para Vender (DV) primeiro (padrão)
-            const urlVender = `/api/public/imoveis/destaque?tipo_destaque=DV&estado=${estadoSigla}&cidade=${cidadeNome}`
-            console.log('🔍 [LANDING PAGE] Verificando destaque local para Vender:', urlVender)
+            // Verificar para Comprar (DV) primeiro (padrão)
+            // Performance: verificação leve (1 item, sem imagens)
+            const urlVender = `/api/public/imoveis/destaque?tipo_destaque=DV&estado=${estadoSigla}&cidade=${cidadeNome}&limit=1&include_images=false`
+            console.log('🔍 [LANDING PAGE] Verificando destaque local para Comprar:', urlVender)
             
             // Verificar também para Alugar (DA)
-            const urlAlugar = `/api/public/imoveis/destaque?tipo_destaque=DA&estado=${estadoSigla}&cidade=${cidadeNome}`
+            const urlAlugar = `/api/public/imoveis/destaque?tipo_destaque=DA&estado=${estadoSigla}&cidade=${cidadeNome}&limit=1&include_images=false`
             console.log('🔍 [LANDING PAGE] Verificando destaque local para Alugar:', urlAlugar)
             
             // Performance: buscar DV e DA em paralelo (reduz latência percebida)
@@ -2463,26 +2414,28 @@ export default function LandingPage() {
             })
             
             if (temDestaqueLocalVender || temDestaqueLocalAlugar) {
-              // Existem imóveis com destaque local (para Vender OU Alugar) - exibir grid de destaque local
+              // Existem imóveis com destaque local (para Comprar OU Alugar) - exibir grid de destaque local
               console.log('✅ [LANDING PAGE] Existem imóveis com destaque local - exibindo grid de destaque local')
               setMostrarDestaquesNacional(false)
               setUsadoFallbackNacional(false)
               setSearchFormEstado(estadoSigla)
               setSearchFormCidade(cidadeNome)
-              // Manter tipoDestaque como 'DV' (Vender) por padrão
+              // Manter tipoDestaque como 'DV' (Comprar) por padrão
               setTipoDestaque('DV')
             } else {
-              // NÃO existem imóveis com destaque local (nem para Vender nem para Alugar) - exibir grid de destaque nacional
-              console.log('⚠️ [LANDING PAGE] Nenhum imóvel com destaque local encontrado (nem Vender nem Alugar), exibindo destaque nacional')
+              // NÃO existem imóveis com destaque local (nem para Comprar nem para Alugar) - exibir grid de destaque nacional
+              console.log('⚠️ [LANDING PAGE] Nenhum imóvel com destaque local encontrado (nem Comprar nem Alugar), exibindo destaque nacional')
               // IMPORTANTE: Usar flushSync para garantir ordem correta de atualização
               // Ativar destaque nacional PRIMEIRO (isso tem prioridade absoluta na lógica do useEffect)
               flushSync(() => {
                 setMostrarDestaquesNacional(true)
               })
-              // Depois limpar estado/cidade
-              setSearchFormEstado(undefined)
-              setSearchFormCidade(undefined)
-              setUsadoFallbackNacional(false)
+              // Manter localidade selecionada e sinalizar fallback
+              setSearchFormEstado(estadoSigla)
+              setSearchFormCidade(cidadeNome)
+              setUsadoFallbackNacional(true)
+              setMensagemSemResultados('Não existem destaques locais para essa cidade. Exibindo destaques nacionais.')
+              setTimeout(() => setMensagemSemResultados(null), 3500)
               setTipoDestaque('DV') // Garantir tipo padrão
             }
           } catch (error) {

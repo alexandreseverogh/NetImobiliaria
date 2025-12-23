@@ -103,6 +103,7 @@ export default function SearchForm({
   // Refs para rastrear valores iniciais aplicados e prevenir reset quando usuário interage
   const initialEstadoAppliedRef = useRef<string | null>(null)
   const initialCidadeAppliedRef = useRef<string | null>(null)
+  const initialCidadeWaitStartedAtRef = useRef<number | null>(null)
   const userHasInteractedRef = useRef(false)
 
   // Log quando props mudam (para debug)
@@ -269,6 +270,24 @@ export default function SearchForm({
         })
       }
       return
+    }
+
+    // Performance/UX: quando a cidade vem do modal (initialCidade),
+    // esperar um curto período para a cidade ser aplicada antes de buscar metadados,
+    // evitando 2 chamadas (estado-only -> estado+cidade).
+    if (initialCidade && !selectedCidadeId && !userHasInteractedRef.current) {
+      if (!initialCidadeWaitStartedAtRef.current) {
+        initialCidadeWaitStartedAtRef.current = Date.now()
+      }
+      const elapsed = Date.now() - initialCidadeWaitStartedAtRef.current
+      if (elapsed < 1500) {
+        console.log('⏳ [SEARCH FORM] Aguardando aplicar cidade inicial antes de buscar metadados...')
+        return
+      }
+      // Passou o tempo limite: seguir com estado-only para não travar filtros caso a cidade não seja encontrada
+      console.log('⚠️ [SEARCH FORM] Timeout esperando cidade inicial; buscando metadados apenas por estado.')
+    } else {
+      initialCidadeWaitStartedAtRef.current = null
     }
 
     // Cidade é opcional - buscar apenas se selecionada

@@ -7,6 +7,12 @@ function parseTipoDestaque(raw: string | null): TipoDestaque {
   return raw === 'DA' ? 'DA' : 'DV'
 }
 
+function parseLimit(raw: string | null, fallback: number): number {
+  const n = raw ? Number(raw) : NaN
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(50, Math.max(1, Math.floor(n)))
+}
+
 async function fetchImagemPrincipal(imovelId: number): Promise<string | null> {
   // Schema oficial: imagem é BYTEA + tipo_mime
   const imagemQuery = `
@@ -59,6 +65,8 @@ export async function GET(request: NextRequest) {
     const estado = searchParams.get('estado')
     const cidade = searchParams.get('cidade')
     const destaqueNacionalOnly = searchParams.get('destaque_nacional_only') === 'true'
+    const includeImages = searchParams.get('include_images') !== 'false'
+    const limit = parseLimit(searchParams.get('limit'), 50)
 
     const estadoNorm = estado?.trim().toUpperCase()
     const cidadeNorm = cidade?.trim()
@@ -130,7 +138,7 @@ export async function GET(request: NextRequest) {
         INNER JOIN status_imovel si ON i.${statusCol} = si.id
         WHERE ${where.join(' AND ')}
         ORDER BY i.created_at DESC
-        LIMIT 50
+        LIMIT ${limit}
       `
     }
 
@@ -159,13 +167,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Imagens principais (batch) — evita N+1 queries
-    const ids = rows.map(r => r.id)
-    const imagens = await fetchImagensPrincipais(ids)
-    const imoveisComImagens = rows.map(imovel => ({
-      ...imovel,
-      imagem_principal: imagens[imovel.id] || null
-    }))
+    // Imagens principais (batch) — opcional para reduzir payload/latência
+    let imoveisComImagens: any[] = rows
+    if (includeImages) {
+      const ids = rows.map(r => r.id)
+      const imagens = await fetchImagensPrincipais(ids)
+      imoveisComImagens = rows.map(imovel => ({
+        ...imovel,
+        imagem_principal: imagens[imovel.id] || null
+      }))
+    } else {
+      imoveisComImagens = rows.map(imovel => ({ ...imovel, imagem_principal: null }))
+    }
 
     return NextResponse.json({
       success: true,
