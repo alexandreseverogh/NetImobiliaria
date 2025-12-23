@@ -13,31 +13,33 @@ EXPECTED_PG_MAJOR="${3:-17}"
 
 cd "$(dirname "$0")/../.."
 
+COMPOSE_FILE="docker-compose.vps.yml"
+ENV_FILE=".env.vps"
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "[ERRO] Arquivo $ENV_FILE não encontrado. Crie a partir de env.vps.example" >&2
+  exit 1
+fi
+
 if [[ "$ENV_NAME" == "prod" ]]; then
-  COMPOSE_FILE="docker-compose.prod.yml"
-  ENV_FILE=".env.production"
-  PROJECT="netimobiliaria-prod"
+  DB_SERVICE="prod_db"
+  APP_SERVICE="prod_app"
+  FEED_SERVICE="prod_feed"
+  DB_NAME="$(grep -E '^PROD_DB_NAME=' "$ENV_FILE" | cut -d= -f2 || true)"
+  DB_NAME="${DB_NAME:-net_imobiliaria_prod}"
 elif [[ "$ENV_NAME" == "staging" ]]; then
-  COMPOSE_FILE="docker-compose.staging.yml"
-  ENV_FILE=".env.staging"
-  PROJECT="netimobiliaria-staging"
+  DB_SERVICE="staging_db"
+  APP_SERVICE="staging_app"
+  FEED_SERVICE="staging_feed"
+  DB_NAME="$(grep -E '^STAGING_DB_NAME=' "$ENV_FILE" | cut -d= -f2 || true)"
+  DB_NAME="${DB_NAME:-net_imobiliaria_staging}"
 else
   echo "[ERRO] Ambiente inválido: $ENV_NAME (use prod|staging)" >&2
   exit 1
 fi
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "[ERRO] Arquivo $ENV_FILE não encontrado." >&2
-  exit 1
-fi
-
-export COMPOSE_PROJECT_NAME="$PROJECT"
-
-DB_SERVICE="db"
-APP_SERVICE="app"
+DB_USER="$(grep -E '^DB_USER=' "$ENV_FILE" | cut -d= -f2 || true)"
 DB_USER="${DB_USER:-postgres}"
-DB_NAME="$(grep -E '^DB_NAME=' "$ENV_FILE" | cut -d= -f2 || true)"
-DB_NAME="${DB_NAME:-net_imobiliaria}"
 
 echo "[*] Subindo DB (se necessário)..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d "$DB_SERVICE"
@@ -56,6 +58,7 @@ fi
 
 echo "[*] Parando app para liberar conexões..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" stop "$APP_SERVICE" >/dev/null || true
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" stop "$FEED_SERVICE" >/dev/null || true
 
 echo "[*] Verificando dump no container: $DUMP_PATH"
 check="$(docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T "$DB_SERVICE" sh -lc "test -f '$DUMP_PATH' && echo OK || echo MISSING")"

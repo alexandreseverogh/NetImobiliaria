@@ -6,6 +6,9 @@
   - Produção: `www.netimobiliaria.com.br`
   - Homologação: `staging.netimobiliaria.com.br`
 
+> **Importante (diferença do Windows):** na VPS (Linux) **não existe WSL/Docker Desktop**. O Docker roda como serviço nativo.
+> Aquele problema de “porta 3000 sumindo / WSL / pipe do Docker” é específico do Windows e **não se aplica** ao deploy na VPS.
+
 ---
 
 ## 1) Preparar a VPS (Ubuntu)
@@ -68,6 +71,12 @@ nano .env.vps
 docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
 ```
 
+### Arquitetura/Portas (padrão recomendado)
+- **Expor no host apenas**: `80` e `443` (Caddy / HTTPS)
+- **Não expor** `3000` (apps) nem `5432` (Postgres) no host.
+  - Isso evita conflito de portas e aumenta a segurança.
+  - Para manutenção, use `docker compose exec ...` ou tunel SSH se necessário.
+
 ---
 
 ## 5) Validar
@@ -82,6 +91,14 @@ docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
 ```bash
 git pull --ff-only
 docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
+```
+
+### Modo profissional (recomendado): usar scripts
+
+```bash
+chmod +x scripts/vps/*.sh
+./scripts/vps/deploy.sh
+./scripts/vps/status.sh
 ```
 
 ---
@@ -102,6 +119,25 @@ Coloque o dump em `./database/backups` (no servidor) e rode:
 ```bash
 chmod +x scripts/vps/restore-into-container.sh
 ./scripts/vps/restore-into-container.sh prod /backups/schema_oficial.sql
+```
+
+> O script já **para app/feed**, restaura o dump, aplica as migrations idempotentes e sobe o stack novamente.
+
+---
+
+## 8) Feed (evitar “conteúdo defasado”)
+
+No deploy da VPS, o `prod_feed` e `staging_feed` rodam com:
+- `restart: unless-stopped`
+- healthcheck (conectividade com Postgres)
+- scheduler com **sincronização na inicialização** (boot sync) + cron recorrente
+
+Se precisar “forçar agora” (sem esperar o cron):
+
+```bash
+chmod +x scripts/vps/force-feed-sync.sh
+./scripts/vps/force-feed-sync.sh prod
+./scripts/vps/force-feed-sync.sh staging
 ```
 
 

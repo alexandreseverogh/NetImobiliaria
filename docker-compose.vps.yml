@@ -39,6 +39,18 @@ services:
       HEALTHCHECK_DB: "true"
     expose:
       - "3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 40s
 
   prod_feed:
     build:
@@ -49,7 +61,7 @@ services:
       prod_db:
         condition: service_healthy
       prod_app:
-        condition: service_started
+        condition: service_healthy
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
@@ -62,6 +74,18 @@ services:
       CRON_SECRET: ${PROD_CRON_SECRET}
       LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-https://libretranslate.com}
     command: ["node", "scripts/feed-cron-scheduler.js"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const {Client}=require('pg'); const c=new Client({host:process.env.DB_HOST,port:+process.env.DB_PORT,user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME,ssl:{rejectUnauthorized:false}}); c.connect().then(()=>c.query('SELECT 1')).then(()=>c.end()).then(()=>process.exit(0)).catch(()=>process.exit(1));"
+        ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # =========================
   # HOMOLOGAÇÃO (STAGING)
@@ -103,6 +127,18 @@ services:
       HEALTHCHECK_DB: "true"
     expose:
       - "3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 40s
 
   staging_feed:
     build:
@@ -113,7 +149,7 @@ services:
       staging_db:
         condition: service_healthy
       staging_app:
-        condition: service_started
+        condition: service_healthy
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
@@ -126,6 +162,18 @@ services:
       CRON_SECRET: ${STAGING_CRON_SECRET}
       LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-https://libretranslate.com}
     command: ["node", "scripts/feed-cron-scheduler.js"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const {Client}=require('pg'); const c=new Client({host:process.env.DB_HOST,port:+process.env.DB_PORT,user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME,ssl:{rejectUnauthorized:false}}); c.connect().then(()=>c.query('SELECT 1')).then(()=>c.end()).then(()=>process.exit(0)).catch(()=>process.exit(1));"
+        ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # =========================
   # REVERSE PROXY ÚNICO (80/443)
@@ -134,8 +182,10 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     depends_on:
-      - prod_app
-      - staging_app
+      prod_app:
+        condition: service_healthy
+      staging_app:
+        condition: service_healthy
     environment:
       PROD_DOMAIN: ${PROD_DOMAIN}
       STAGING_DOMAIN: ${STAGING_DOMAIN}

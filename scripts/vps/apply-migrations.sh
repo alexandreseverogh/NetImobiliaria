@@ -11,30 +11,29 @@ ENV_NAME="${1:-prod}" # prod|staging
 
 cd "$(dirname "$0")/../.."
 
+COMPOSE_FILE="docker-compose.vps.yml"
+ENV_FILE=".env.vps"
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "[ERRO] Arquivo $ENV_FILE não encontrado. Crie a partir de env.vps.example" >&2
+  exit 1
+fi
+
 if [[ "$ENV_NAME" == "prod" ]]; then
-  COMPOSE_FILE="docker-compose.prod.yml"
-  ENV_FILE=".env.production"
-  PROJECT="netimobiliaria-prod"
+  DB_SERVICE="prod_db"
+  DB_NAME="$(grep -E '^PROD_DB_NAME=' "$ENV_FILE" | cut -d= -f2 || true)"
+  DB_NAME="${DB_NAME:-net_imobiliaria_prod}"
 elif [[ "$ENV_NAME" == "staging" ]]; then
-  COMPOSE_FILE="docker-compose.staging.yml"
-  ENV_FILE=".env.staging"
-  PROJECT="netimobiliaria-staging"
+  DB_SERVICE="staging_db"
+  DB_NAME="$(grep -E '^STAGING_DB_NAME=' "$ENV_FILE" | cut -d= -f2 || true)"
+  DB_NAME="${DB_NAME:-net_imobiliaria_staging}"
 else
   echo "[ERRO] Ambiente inválido: $ENV_NAME (use prod|staging)" >&2
   exit 1
 fi
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "[ERRO] Arquivo $ENV_FILE não encontrado." >&2
-  exit 1
-fi
-
-export COMPOSE_PROJECT_NAME="$PROJECT"
-
-DB_SERVICE="db"
+DB_USER="$(grep -E '^DB_USER=' "$ENV_FILE" | cut -d= -f2 || true)"
 DB_USER="${DB_USER:-postgres}"
-DB_NAME="$(grep -E '^DB_NAME=' "$ENV_FILE" | cut -d= -f2 || true)"
-DB_NAME="${DB_NAME:-net_imobiliaria}"
 
 MIGRATIONS_DIR="database/migrations_docker"
 

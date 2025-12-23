@@ -22,16 +22,26 @@ async function createJobs() {
   try {
     console.log('🔄 [Cron] Criando jobs de sincronização...');
     const { exec } = require('child_process');
-    
-    exec('node scripts/create-feed-jobs.js', (error, stdout, stderr) => {
-      if (error) {
-        console.error('❌ [Cron] Erro ao criar jobs:', error);
-        return;
-      }
-      console.log(stdout);
+
+    // IMPORTANTE:
+    // `exec` é assíncrono via callback. Sem retornar uma Promise, o scheduler
+    // "acha" que terminou e já tenta processar jobs antes deles existirem.
+    // Isso causa sensação de "feed defasado" (especialmente em máquina nova).
+    return await new Promise((resolve, reject) => {
+      exec('node scripts/create-feed-jobs.js', (error, stdout, stderr) => {
+        if (stdout) console.log(stdout);
+        if (stderr) console.warn(stderr);
+        if (error) {
+          console.error('❌ [Cron] Erro ao criar jobs:', error);
+          reject(error);
+          return;
+        }
+        resolve(true);
+      });
     });
   } catch (error) {
     console.error('❌ [Cron] Erro ao criar jobs:', error);
+    throw error;
   }
 }
 
@@ -145,18 +155,27 @@ console.log('   📅 Criação de jobs: A cada hora (minuto 0)');
 console.log('   📅 Processamento: A cada 15 minutos');
 console.log('\n🚀 Agendador rodando... (Ctrl+C para parar)\n');
 
-// Processar jobs pendentes imediatamente ao iniciar
-console.log('🔄 Processando jobs pendentes existentes...');
-processAllPendingJobs()
-  .then((count) => {
+// Rodar uma sincronização imediata ao subir o container.
+// Isso evita que uma nova máquina fique "parada" até o próximo tick do cron.
+(async () => {
+  try {
+    console.log('🔄 [Cron] Inicialização: criando jobs agora (boot sync)...');
+    await createJobs();
+  } catch (e) {
+    console.warn('⚠️ [Cron] Inicialização: falha ao criar jobs (continuando mesmo assim):', e?.message || e);
+  }
+
+  try {
+    console.log('🔄 [Cron] Inicialização: processando jobs pendentes (boot sync)...');
+    const count = await processAllPendingJobs();
     if (count > 0) {
-      console.log('✅ Inicialização concluída\n');
+      console.log('✅ [Cron] Inicialização concluída (jobs processados)\n');
     } else {
-      console.log('ℹ️ Nenhum job pendente para processar\n');
+      console.log('ℹ️ [Cron] Inicialização concluída (nenhum job pendente)\n');
     }
-  })
-  .catch((error) => {
-    console.error('❌ Erro ao processar jobs iniciais:', error.message);
+  } catch (error) {
+    console.error('❌ [Cron] Erro ao processar jobs iniciais:', error?.message || error);
     console.log('💡 Verifique se o banco de dados está acessível\n');
-  });
+  }
+})();
 
