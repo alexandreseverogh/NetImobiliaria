@@ -4,6 +4,9 @@ import { auditLogger } from '@/lib/utils/auditLogger'
 import { findUsersWithRoles, createUser } from '@/lib/database/users'
 import { validateApiInput } from '@/lib/validation/advancedValidation'
 import { logInvalidInput } from '@/lib/monitoring/securityMonitor'
+import { validateCPF } from '@/lib/utils/formatters'
+import { logAuditEvent as logDbAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
+import { extractRequestData } from '@/lib/utils/ipUtils'
 
 // Interface para criação de usuário
 interface CreateUserRequest {
@@ -11,9 +14,11 @@ interface CreateUserRequest {
   email: string
   nome: string
   telefone: string
+  cpf: string
   roleId: number
   password: string
   ativo?: boolean
+  isencao?: boolean
 }
 
 // Função para validar dados de entrada usando validação avançada
@@ -36,6 +41,14 @@ function validateCreateData(data: CreateUserRequest): { isValid: boolean; errors
     additionalErrors.push('Telefone é obrigatório')
   } else if (!/^\(\d{2}\)\s\d{4,5}-\d{4}$/.test(data.telefone)) {
     additionalErrors.push('Telefone deve estar no formato (XX) XXXXX-XXXX')
+  }
+
+  // Validação de CPF
+  const cpfDigits = String(data.cpf || '').replace(/\D/g, '')
+  if (!cpfDigits) {
+    additionalErrors.push('CPF é obrigatório')
+  } else if (!validateCPF(cpfDigits)) {
+    additionalErrors.push('CPF inválido')
   }
 
   // Validação de senha
@@ -136,9 +149,11 @@ export async function POST(request: NextRequest) {
       email: createData.email.trim(),
       nome: createData.nome.trim(),
       telefone: createData.telefone.trim(),
+      cpf: createData.cpf,
       roleId: createData.roleId,
       password: createData.password,
       ativo: createData.ativo !== undefined ? createData.ativo : true,
+      isencao: createData.isencao !== undefined ? createData.isencao : false,
       ultimo_login: null
     })
 
@@ -151,6 +166,34 @@ export async function POST(request: NextRequest) {
       'system',
       request.ip || 'unknown'
     )
+
+    // Auditoria na tabela audit_logs (não crítico) - especialmente importante para cadastro de corretores
+    try {
+      const { ipAddress, userAgent } = extractRequestData(request)
+      const requesterUserId = extractUserIdFromToken(request) // quem cadastrou (admin)
+
+      await logDbAuditEvent({
+        userId: requesterUserId,
+        userType: 'admin',
+        action: 'CREATE',
+        resource: 'usuarios',
+        resourceId: newUser.id,
+        details: {
+          created_user: {
+            id: newUser.id,
+            username: newUser.username,
+            nome: newUser.nome,
+            email: newUser.email,
+            cpf: (newUser as any).cpf || null,
+            roleId: createData.roleId
+          }
+        },
+        ipAddress,
+        userAgent
+      })
+    } catch (auditError) {
+      console.error('❌ Erro ao registrar auditoria (audit_logs) na criação de usuário (não crítico):', auditError)
+    }
 
     // Não retornar senha
     const { password, ...userWithoutPassword } = newUser
@@ -168,7 +211,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error) {
       if (error.message.includes('já existe')) {
         return NextResponse.json(
-          { error: 'Username ou email já existe no sistema' },
+          { error: 'Username, email ou CPF já existe no sistema' },
           { status: 400 }
         )
       }

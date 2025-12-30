@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '@/hooks/useApi';
 import {
   TrashIcon,
@@ -37,15 +37,17 @@ export default function LogPurgePage() {
   const [confirmPurge, setConfirmPurge] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [previewDeletedCount, setPreviewDeletedCount] = useState<number>(0);
+  const isFetchingStatsRef = useRef(false);
 
   const fetchStats = useCallback(async (force = false) => {
     try {
       // Evitar chamadas duplicadas se não for forçada
-      if (loading && !force) {
+      if (isFetchingStatsRef.current && !force) {
         console.log('⏸️ Chamada já em andamento, ignorando...');
         return;
       }
       
+      isFetchingStatsRef.current = true;
       setLoading(true);
       console.log('🔍 Buscando logs usando a mesma lógica da página de visualização...', { force, retentionDays });
       
@@ -197,8 +199,9 @@ export default function LogPurgePage() {
       setPreviewDeletedCount(0);
     } finally {
       setLoading(false);
+      isFetchingStatsRef.current = false;
     }
-  }, [get, loading, retentionDays]);
+  }, [get, retentionDays]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -379,8 +382,9 @@ export default function LogPurgePage() {
                 <TrashIcon className="h-8 w-8 text-orange-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Logs &gt; 30 dias</p>
+                <p className="text-sm font-medium text-gray-500">Logs com mais de 30 dias (antigos)</p>
                 <p className="text-2xl font-semibold text-orange-600">{stats.logs_older_than_30_days.toLocaleString()}</p>
+                <p className="text-xs text-gray-400 mt-1">Mais restrito (subconjunto do “&gt; 7 dias”)</p>
               </div>
             </div>
           </div>
@@ -391,8 +395,9 @@ export default function LogPurgePage() {
                 <TrashIcon className="h-8 w-8 text-yellow-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Logs &gt; 7 dias</p>
+                <p className="text-sm font-medium text-gray-500">Logs com mais de 7 dias (antigos)</p>
                 <p className="text-2xl font-semibold text-yellow-600">{stats.logs_older_than_7_days.toLocaleString()}</p>
+                <p className="text-xs text-gray-400 mt-1">Inclui também os logs “&gt; 30 dias”</p>
               </div>
             </div>
           </div>

@@ -21,6 +21,8 @@ interface Proprietario {
   estado_fk?: string
   cidade_fk?: string
   cep?: string
+  corretor_fk?: string | null
+  corretor_nome?: string | null
   origem_cadastro?: string
 }
 
@@ -836,6 +838,22 @@ export default function EditarProprietarioPage() {
           <p className="text-xs text-gray-500 mt-1">
             {buscandoCep ? 'Buscando endereço...' : 'Informe o CEP para preencher automaticamente'}
           </p>
+        </div>
+
+        {/* Corretor (readonly) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Corretor</label>
+          <input
+            type="text"
+            value={
+              proprietario?.corretor_fk
+                ? proprietario?.corretor_nome || 'Corretor não encontrado'
+                : 'Sem Corretor Associado'
+            }
+            readOnly
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 cursor-not-allowed"
+            title="Campo não editável"
+          />
         </div>
 
         {/* Endereço (preenchido automaticamente) */}

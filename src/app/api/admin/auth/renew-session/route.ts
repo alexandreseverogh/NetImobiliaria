@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
 import pool from '@/lib/database/connection'
+import { verifyTokenNode } from '@/lib/auth/jwt-node'
+
+export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,8 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar token
-    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret'
-    const decoded = jwt.verify(token, jwtSecret) as any
+    const decoded: any = verifyTokenNode(token)
     
     if (!decoded || !decoded.userId) {
       return NextResponse.json(

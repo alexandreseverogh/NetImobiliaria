@@ -159,8 +159,8 @@ export async function POST(request: NextRequest) {
     // 1. Buscar usuário no banco com informações do perfil
     const userQuery = `
       SELECT 
-        u.id, u.username, u.email, u.password, u.nome, u.ativo as is_active,
-        u.two_fa_enabled,
+        u.id, u.username, u.email, u.password, u.nome, u.telefone, u.cpf, u.creci, u.foto, u.foto_tipo_mime, u.ativo as is_active,
+        u.two_fa_enabled, u.isencao,
         ur.name as role_name, ur.description as role_description, ur.level as role_level
       FROM users u
       LEFT JOIN user_role_assignments ura ON u.id = ura.user_id
@@ -420,6 +420,44 @@ export async function POST(request: NextRequest) {
     logSecurityLoginAttempt(ipAddress, userAgent, true, user.id);
 
     // 10. Retornar resposta de sucesso
+    const rawFoto = (user as any).foto
+    const rawFotoMime = (user as any).foto_tipo_mime || null
+    let fotoBase64: string | null = null
+
+    // `pg` pode retornar BYTEA como Buffer, Uint8Array, ou como string "\\x...." (hex).
+    // Em alguns ambientes/colunas, pode vir como string base64 (TEXT) ou string binária.
+    // Garantimos conversão robusta para base64.
+    if (rawFoto) {
+      try {
+        if (Buffer.isBuffer(rawFoto)) {
+          fotoBase64 = rawFoto.toString('base64')
+        } else if (typeof rawFoto === 'string') {
+          const s = rawFoto.trim()
+          // Caso padrão do Postgres BYTEA (hex com prefixo \x)
+          if (s.startsWith('\\x')) {
+            fotoBase64 = Buffer.from(s.slice(2), 'hex').toString('base64')
+          } else {
+            // Se já parece base64, usa como está
+            const looksBase64 =
+              s.length >= 16 &&
+              s.length % 4 === 0 &&
+              /^[A-Za-z0-9+/]+={0,2}$/.test(s)
+
+            if (looksBase64) {
+              fotoBase64 = s
+            } else {
+              // fallback: string binária (latin1)
+              fotoBase64 = Buffer.from(s, 'latin1').toString('base64')
+            }
+          }
+        } else if (rawFoto instanceof Uint8Array) {
+          fotoBase64 = Buffer.from(rawFoto).toString('base64')
+        }
+      } catch {
+        fotoBase64 = null
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Login realizado com sucesso',
@@ -431,6 +469,12 @@ export async function POST(request: NextRequest) {
           username: user.username,
           email: user.email,
           nome: user.nome,
+          telefone: (user as any).telefone || null,
+          cpf: (user as any).cpf || null,
+          creci: (user as any).creci || null,
+          isencao: (user as any).isencao === true || (user as any).isencao === 't',
+          foto: fotoBase64,
+          foto_tipo_mime: rawFotoMime,
           is2FAEnabled
         }
       }

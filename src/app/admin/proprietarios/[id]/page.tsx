@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { ArrowLeftIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
@@ -21,6 +21,8 @@ interface Proprietario {
   estado_fk?: string
   cidade_fk?: string
   cep?: string
+  corretor_fk?: string | null
+  corretor_nome?: string | null
   origem_cadastro?: string
   created_at: string
   created_by?: string
@@ -32,11 +34,24 @@ export default function VisualizarProprietarioPage() {
   const { get, delete: del } = useAuthenticatedFetch()
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
+  const mineCorretor = (searchParams?.get('mine_corretor') || '').toLowerCase() === 'true'
   const proprietarioUuid = Array.isArray(params.id) ? params.id[0] : params.id
   const { user } = useAuth()
   const [proprietario, setProprietario] = useState<Proprietario | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const handleFecharCorretorFlow = () => {
+    try {
+      const returnUrl = sessionStorage.getItem('corretor_return_url') || '/landpaging'
+      const url = new URL(returnUrl, window.location.origin)
+      url.searchParams.set('corretor_home', 'true')
+      window.location.href = url.pathname + url.search
+    } catch {
+      window.location.href = '/landpaging?corretor_home=true'
+    }
+  }
 
   useEffect(() => {
     const fetchProprietario = async () => {
@@ -73,7 +88,11 @@ export default function VisualizarProprietarioPage() {
   const handleDelete = async () => {
     if (!proprietario) return
     
-    if (!confirm(`Tem certeza que deseja excluir o proprietário "${proprietario.nome}"?`)) {
+    const corretorLabel =
+      proprietario.corretor_fk
+        ? `\nCorretor: ${proprietario.corretor_nome || 'Corretor não encontrado'}`
+        : '\nCorretor: Sem Corretor Associado'
+    if (!confirm(`Tem certeza que deseja excluir o proprietário?\n\nNome: ${proprietario.nome}${corretorLabel}`)) {
       return
     }
 
@@ -129,7 +148,9 @@ export default function VisualizarProprietarioPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => router.push('/admin/proprietarios')}
+                onClick={() =>
+                  router.push(mineCorretor ? '/admin/proprietarios?mine_corretor=true' : '/admin/proprietarios')
+                }
                 className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <ArrowLeftIcon className="h-5 w-5" />
@@ -140,6 +161,14 @@ export default function VisualizarProprietarioPage() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              {mineCorretor && (
+                <button
+                  onClick={handleFecharCorretorFlow}
+                  className="inline-flex items-center px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  Fechar
+                </button>
+              )}
               <UpdateGuard resource="proprietarios">
                 <button
                   onClick={() => router.push(`/admin/proprietarios/${proprietario.uuid}/editar`)}
@@ -242,6 +271,13 @@ export default function VisualizarProprietarioPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-500">CEP</label>
                     <p className="text-gray-900 font-medium">{proprietario.cep || 'Não informado'}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Corretor</label>
+                    <p className="text-gray-900 font-medium">
+                      {proprietario.corretor_fk ? (proprietario.corretor_nome || 'Corretor não encontrado') : 'Sem Corretor Associado'}
+                    </p>
                   </div>
                 </div>
               </div>

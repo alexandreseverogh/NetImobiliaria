@@ -4,6 +4,7 @@ import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
 import { findProprietariosPaginated, createProprietario } from '@/lib/database/proprietarios'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { verifyToken } from '@/lib/auth/jwt'
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,13 +23,49 @@ export async function GET(request: NextRequest) {
     const estado = searchParams.get('estado') || undefined
     const cidade = searchParams.get('cidade') || undefined
     const bairro = searchParams.get('bairro') || undefined
+    const mineCorretor = (searchParams.get('mine_corretor') || '').toLowerCase() === 'true'
+
+    let corretor_fk: string | undefined = undefined
+    if (mineCorretor) {
+      try {
+        // Quando mine_corretor=true, NUNCA retornar lista sem filtro.
+        // Se não conseguirmos identificar o corretor pelo token, falhar.
+        const authHeader = request.headers.get('authorization') || ''
+        const token =
+          authHeader.startsWith('Bearer ')
+            ? authHeader.slice(7)
+            : request.cookies.get('accessToken')?.value || null
+
+        if (!token) {
+          return NextResponse.json({ success: false, error: 'Autenticação necessária' }, { status: 401 })
+        }
+
+        const decoded: any = await verifyToken(token)
+        const requesterUserId = decoded?.userId || null
+        const roleName = String(decoded?.role_name || decoded?.cargo || '').toLowerCase()
+
+        if (!requesterUserId) {
+          return NextResponse.json({ success: false, error: 'Token inválido ou expirado' }, { status: 401 })
+        }
+
+        if (!roleName.includes('corretor')) {
+          return NextResponse.json({ success: false, error: 'Acesso negado' }, { status: 403 })
+        }
+
+        corretor_fk = requesterUserId
+      } catch (e) {
+        console.error('❌ Erro ao aplicar filtro mine_corretor:', e)
+        return NextResponse.json({ success: false, error: 'Token inválido ou expirado' }, { status: 401 })
+      }
+    }
 
     const result = await findProprietariosPaginated(page, limit, {
       nome,
       cpf,
       estado,
       cidade,
-      bairro
+      bairro,
+      corretor_fk
     })
 
     return NextResponse.json({ success: true, ...result })
@@ -55,6 +92,26 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { nome, cpf, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by } = body
+
+    // Se quem está criando for um Corretor (login via modal público), gravar corretor_fk automaticamente.
+    // (Não confiamos em payload do cliente para esse campo.)
+    let corretor_fk: string | null = null
+    let requesterUserId: string | null = null
+    try {
+      const authHeader = request.headers.get('authorization') || ''
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+      if (token) {
+        const decoded: any = await verifyToken(token)
+        requesterUserId = decoded?.userId || null
+        const roleName = String(decoded?.role_name || decoded?.cargo || '').toLowerCase()
+        if (requesterUserId && roleName.includes('corretor')) {
+          corretor_fk = requesterUserId
+        }
+      }
+    } catch {
+      // Se falhar, não quebra o fluxo de criação (o middleware já validou auth/permissão).
+      corretor_fk = null
+    }
     
     // Validação temporariamente desabilitada para testar auditoria
     // const validator = createValidator('owners', '/api/admin/proprietarios')
@@ -93,7 +150,10 @@ export async function POST(request: NextRequest) {
       cidade_fk: cidade_fk || undefined,
       cep,
       origem_cadastro: 'Plataforma',
-      created_by: created_by || 'system'
+      created_by: requesterUserId || created_by || 'system',
+      corretor_fk,
+      // Quando o proprietário é cadastrado via acesso do corretor, a senha padrão deve ser "Proprietario"
+      ...(corretor_fk ? { password: 'Proprietario' } : {})
     })
     
     // Log de auditoria (não crítico - falha não afeta operação)
@@ -110,7 +170,8 @@ export async function POST(request: NextRequest) {
           nome: proprietario.nome,
           cpf: proprietario.cpf,
           email: proprietario.email,
-          telefone: proprietario.telefone
+          telefone: proprietario.telefone,
+          corretor_fk: (proprietario as any).corretor_fk || null
         },
         ipAddress,
         userAgent

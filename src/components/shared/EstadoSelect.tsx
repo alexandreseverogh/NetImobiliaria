@@ -73,6 +73,9 @@ export default function EstadoSelect({
       disabled={disabled}
       className={className || defaultClassName}
     >
+      {!showAllOption && placeholder && (
+        <option value="">{placeholder}</option>
+      )}
       {showAllOption && (
         <option value="">{allOptionLabel}</option>
       )}

@@ -11,6 +11,7 @@ interface User {
   nome: string
   telefone: string
   ativo: boolean
+  isencao?: boolean
   role_name?: string
   role_id?: number
 }
@@ -38,6 +39,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     nome: '',
     telefone: '',
     ativo: true,
+    isencao: false,
     password: '',
     confirmPassword: '',
     roleId: null as number | null
@@ -54,6 +56,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
         nome: user.nome,
         telefone: user.telefone || '',
         ativo: user.ativo,
+        isencao: user.isencao || false,
         password: '',
         confirmPassword: '',
         roleId: user.role_id || null
@@ -93,7 +96,9 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       newErrors.roleId = 'Perfil é obrigatório'
     }
 
-    if (formData.password && formData.password !== formData.confirmPassword) {
+    if (formData.password && !formData.confirmPassword) {
+      newErrors.confirmPassword = 'Confirmar senha é obrigatório'
+    } else if (formData.password && formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'As senhas não coincidem'
     }
 
@@ -132,6 +137,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       }
       
       updateData.ativo = formData.ativo
+      updateData.isencao = formData.isencao
       
       if (formData.roleId) {
         updateData.roleId = formData.roleId
@@ -355,11 +361,11 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
               </div>
             </div>
 
-            {/* Quarta linha: Status */}
-            <div className="grid grid-cols-1 gap-4">
+            {/* Quarta linha: Status e Isenção */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Status */}
               <div className="flex items-center justify-center">
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg w-full">
                   <input
                     type="checkbox"
                     id="ativo"
@@ -372,6 +378,24 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                   </label>
                 </div>
               </div>
+
+              {/* Isenção (Apenas para Corretor) */}
+              {roles.find(r => r.id === formData.roleId)?.name === 'Corretor' && (
+                <div className="flex items-center justify-center">
+                  <div className="flex items-center space-x-3 p-3 bg-amber-50 rounded-lg w-full border border-amber-100">
+                    <input
+                      type="checkbox"
+                      id="isencao"
+                      checked={formData.isencao}
+                      onChange={(e) => handleInputChange('isencao', e.target.checked)}
+                      className="h-5 w-5 text-amber-600 focus:ring-amber-500 border-amber-300 rounded transition-all"
+                    />
+                    <label htmlFor="isencao" className="block text-sm font-medium text-amber-900">
+                      Isenção de Mensalidade
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Quarta linha: Nova Senha e Confirmar Senha */}

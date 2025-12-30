@@ -8,7 +8,12 @@ export interface User {
   password: string
   nome: string
   telefone: string
+  cpf?: string | null
+  creci?: string | null
+  foto?: Buffer | null
+  foto_tipo_mime?: string | null
   ativo: boolean
+  isencao?: boolean
   is_active?: boolean // Alias para ativo
   ultimo_login: Date | null
   created_at: Date
@@ -39,6 +44,7 @@ export async function findUsersWithRoles(): Promise<UserWithRole[]> {
         u.nome,
         u.telefone,
         u.ativo,
+        u.isencao,
         u.ultimo_login,
         u.created_at,
         u.updated_at,
@@ -113,12 +119,22 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
     const testConnection = await pool.query('SELECT NOW()')
     console.log('Conexão com banco OK:', testConnection.rows[0])
     
-    // Verificar se username ou email já existe
-    const checkQuery = 'SELECT id FROM users WHERE username = $1 OR email = $2'
-    const checkResult = await pool.query(checkQuery, [userData.username, userData.email])
+    // Normalizações
+    const cpfDigits = userData.cpf ? String(userData.cpf).replace(/\D/g, '') : null
+
+    // Verificar se username/email/cpf já existe
+    const checkQuery = `
+      SELECT id
+      FROM users
+      WHERE username = $1
+         OR email = $2
+         OR ($3::text IS NOT NULL AND cpf = $3)
+      LIMIT 1
+    `
+    const checkResult = await pool.query(checkQuery, [userData.username, userData.email, cpfDigits])
     
     if (checkResult.rows.length > 0) {
-      throw new Error('Username ou email já existe no sistema')
+      throw new Error('Username, email ou CPF já existe no sistema')
     }
     console.log('Verificação de duplicação OK')
     
@@ -128,8 +144,8 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
     
     // Inserir usuário
     const insertUserQuery = `
-      INSERT INTO users (username, email, password, nome, telefone, ativo)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO users (username, email, password, nome, telefone, ativo, cpf, creci, foto, foto_tipo_mime, isencao)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `
     
@@ -139,7 +155,12 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
       hashedPassword,
       userData.nome,
       userData.telefone,
-      userData.ativo
+      userData.ativo,
+      cpfDigits,
+      userData.creci || null,
+      userData.foto || null,
+      userData.foto_tipo_mime || null,
+      userData.isencao || false
     ]
     
     console.log('Executando inserção do usuário...')
@@ -231,9 +252,40 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
       paramCount++
     }
     
+    if (userData.cpf !== undefined) {
+      const cpfDigits = userData.cpf ? String(userData.cpf).replace(/\D/g, '') : null
+      fields.push(`cpf = $${paramCount}`)
+      values.push(cpfDigits)
+      paramCount++
+    }
+
+    if (userData.creci !== undefined) {
+      fields.push(`creci = $${paramCount}`)
+      values.push(userData.creci)
+      paramCount++
+    }
+
+    if (userData.foto !== undefined) {
+      fields.push(`foto = $${paramCount}`)
+      values.push(userData.foto)
+      paramCount++
+    }
+
+    if (userData.foto_tipo_mime !== undefined) {
+      fields.push(`foto_tipo_mime = $${paramCount}`)
+      values.push(userData.foto_tipo_mime)
+      paramCount++
+    }
+
     if (userData.ativo !== undefined) {
       fields.push(`ativo = $${paramCount}`)
       values.push(userData.ativo)
+      paramCount++
+    }
+
+    if (userData.isencao !== undefined) {
+      fields.push(`isencao = $${paramCount}`)
+      values.push(userData.isencao)
       paramCount++
     }
     

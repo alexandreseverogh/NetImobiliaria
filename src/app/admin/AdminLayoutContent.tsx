@@ -15,26 +15,60 @@ export default function AdminLayoutContent({
 }: {
   children: React.ReactNode
 }) {
-  const { user, loading, logout } = useAuth()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
-  const router = useRouter()
   const searchParams = useSearchParams()
   const isLoginPage = pathname === '/admin/login'
+  // Harden: tolerate trailing slashes / nested (Next can vary) and ensure public broker signup doesn't get redirected
+  const publicBrokerByWindow =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('public_broker') === 'true'
+
+  const isPublicBrokerSignup =
+    (pathname === '/admin/usuarios' || pathname?.startsWith('/admin/usuarios/')) &&
+    (searchParams?.get('public_broker') === 'true' || publicBrokerByWindow)
   
   // Verificar se deve ocultar sidebar via query param
   const hideSidebar = searchParams?.get('noSidebar') === 'true'
 
-  // Sistema de aviso de sessão
-  const {
-    showWarning,
-    timeRemaining,
-    sessionData,
-    renewSession,
-    logout: sessionLogout,
-    dismissWarning
-  } = useSessionWarning({
-    warningMinutes: 5, // Avisar 5 minutos antes
+  // Tratamento de erro para falhas de autenticação
+  const handleAuthError = useCallback((error: Error) => {
+    console.error('Erro de autenticação:', error)
+    // Aqui poderia implementar logging para auditoria
+  }, [])
+
+  // IMPORTANTE: para páginas públicas dentro de /admin (ex.: cadastro público de corretor),
+  // NUNCA executar hooks/guards de sessão do admin (eles redirecionam para /admin/login).
+  if (isLoginPage || isPublicBrokerSignup) {
+    return (
+      <ErrorBoundary onError={handleAuthError}>
+        {children}
+      </ErrorBoundary>
+    )
+  }
+
+  return (
+    <AdminLayoutPrivateContent hideSidebar={hideSidebar} onError={handleAuthError}>
+      {children}
+    </AdminLayoutPrivateContent>
+  )
+}
+
+function AdminLayoutPrivateContent({
+  children,
+  hideSidebar,
+  onError,
+}: {
+  children: React.ReactNode
+  hideSidebar: boolean
+  onError: (error: Error) => void
+}) {
+  const { user, loading, logout } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const router = useRouter()
+
+  // Sistema de aviso de sessão (somente admin privado)
+  const { showWarning, timeRemaining, renewSession, logout: sessionLogout, dismissWarning } = useSessionWarning({
+    warningMinutes: 5,
     onSessionExpired: () => {
       logout()
       router.push('/admin/login')
@@ -44,7 +78,6 @@ export default function AdminLayoutContent({
     }
   })
 
-  // Memoizar callbacks para evitar re-renders desnecessários
   const handleMenuClick = useCallback(() => {
     setSidebarOpen(true)
   }, [])
@@ -53,35 +86,12 @@ export default function AdminLayoutContent({
     setSidebarOpen(false)
   }, [])
 
-  // Memoizar classes CSS
-  const containerClasses = useMemo(() => 
-    'min-h-screen bg-gray-100',
-    []
-  )
-
-  const gridClasses = useMemo(() => 
-    'grid grid-cols-1 lg:grid-cols-[256px_1fr]',
-    []
-  )
-
-  // Tratamento de erro para falhas de autenticação
-  const handleAuthError = useCallback((error: Error) => {
-    console.error('Erro de autenticação:', error)
-    // Aqui poderia implementar logging para auditoria
-  }, [])
+  const containerClasses = useMemo(() => 'min-h-screen bg-gray-100', [])
+  const gridClasses = useMemo(() => 'grid grid-cols-1 lg:grid-cols-[256px_1fr]', [])
 
   // Se estiver carregando, mostrar loading
   if (loading) {
     return <LoadingSpinner message="Carregando..." />
-  }
-
-  // Se estiver na página de login, mostrar apenas o conteúdo (sem header/sidebar)
-  if (isLoginPage) {
-    return (
-      <ErrorBoundary onError={handleAuthError}>
-        {children}
-      </ErrorBoundary>
-    )
   }
 
   // Se não há usuário e não está na página de login, redirecionar para login
@@ -130,7 +140,7 @@ export default function AdminLayoutContent({
 
   // Usuário autenticado - mostrar layout completo
   return (
-    <ErrorBoundary onError={handleAuthError}>
+    <ErrorBoundary onError={onError}>
       <div className={containerClasses}>
         {/* Header fixo no topo */}
         <AdminHeader 

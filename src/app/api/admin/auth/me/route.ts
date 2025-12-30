@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import { getUserWithPermissions } from '@/lib/database/userPermissions'
+import pool from '@/lib/database/connection'
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,6 +35,35 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Buscar foto (BYTEA) e tipo_mime de forma isolada para evitar que o /auth/me "apague" a foto do localStorage
+    const fotoResult = await pool.query('SELECT foto, foto_tipo_mime FROM users WHERE id = $1 LIMIT 1', [
+      decoded.userId
+    ])
+    const rawFoto = fotoResult.rows?.[0]?.foto ?? null
+    const rawFotoMime = fotoResult.rows?.[0]?.foto_tipo_mime ?? null
+
+    let fotoBase64: string | null = null
+    if (rawFoto) {
+      try {
+        if (Buffer.isBuffer(rawFoto)) {
+          fotoBase64 = rawFoto.toString('base64')
+        } else if (rawFoto instanceof Uint8Array) {
+          fotoBase64 = Buffer.from(rawFoto).toString('base64')
+        } else if (typeof rawFoto === 'string') {
+          const s = rawFoto.trim()
+          if (s.startsWith('\\x')) {
+            fotoBase64 = Buffer.from(s.slice(2), 'hex').toString('base64')
+          } else {
+            const looksBase64 =
+              s.length >= 16 && s.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(s)
+            fotoBase64 = looksBase64 ? s : Buffer.from(s, 'latin1').toString('base64')
+          }
+        }
+      } catch {
+        fotoBase64 = null
+      }
+    }
+
     // Construir resposta com dados do banco
     const userResponse = {
       id: userWithPermissions.id,
@@ -45,7 +75,9 @@ export async function GET(request: NextRequest) {
       role_description: userWithPermissions.role_description || 'Usuário do sistema',
       role_level: userWithPermissions.role_level || 0,  // Nível hierárquico
       permissoes: userWithPermissions.permissoes || {},
-      status: userWithPermissions.ativo ? 'ATIVO' : 'INATIVO'
+      status: userWithPermissions.ativo ? 'ATIVO' : 'INATIVO',
+      foto: fotoBase64,
+      foto_tipo_mime: rawFotoMime
     }
     
     return NextResponse.json({

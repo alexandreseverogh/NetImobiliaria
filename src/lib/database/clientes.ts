@@ -488,23 +488,19 @@ export async function deleteClienteByUuid(uuid: string): Promise<void> {
 // Verificar se CPF já existe
 export async function checkCPFExists(cpf: string, excludeUuid?: string): Promise<boolean> {
   try {
-    let query = 'SELECT 1 FROM clientes WHERE cpf = $1'
-    const params: any[] = [cpf]
+    const cpfRaw = String(cpf || '')
+    const cpfDigits = cpfRaw.replace(/\D/g, '')
+    // Preferir match exato (index-friendly) e ter fallback por dígitos para cobrir CPFs armazenados com/sem máscara.
+    let query =
+      "SELECT 1 FROM clientes WHERE cpf = $1 OR REPLACE(REPLACE(cpf, '.', ''), '-', '') = $2"
+    const params: any[] = [cpfRaw, cpfDigits]
     
     if (excludeUuid) {
-      query += ' AND uuid != $2'
+      query += ' AND uuid != $3'
       params.push(excludeUuid)
     }
-    
-    console.log('🔍 [DB] Consultando CPF:', cpf, 'Query:', query, 'Params:', params)
-    
+
     const result = await pool.query(query, params)
-    
-    console.log('📊 [DB] Registros encontrados:', result.rows.length)
-    if (result.rows.length > 0) {
-      console.log('📋 [DB] Primeiro registro:', result.rows[0])
-    }
-    
     return result.rows.length > 0
   } catch (error) {
     console.error('❌ Erro ao verificar CPF:', error)

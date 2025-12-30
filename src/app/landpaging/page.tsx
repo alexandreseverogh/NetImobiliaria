@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import * as HeroIcons from '@heroicons/react/24/outline'
 import { ArrowTrendingUpIcon, ExclamationCircleIcon, StarIcon } from '@heroicons/react/24/outline'
 import { Home, Building } from 'lucide-react'
@@ -12,7 +12,10 @@ import HeroSection from '@/components/HeroSection'
 import LandingPropertyCard from '@/components/LandingPropertyCard'
 import SearchForm, { SearchFormFilters } from '@/components/SearchForm'
 import VenderPopup from '@/components/VenderPopup'
+import CorretorPopup from '@/components/CorretorPopup'
 import AuthModal from '@/components/public/auth/AuthModal'
+import CorretorLoginModal from '@/components/public/auth/CorretorLoginModal'
+import UserSuccessModal from '@/components/public/auth/UserSuccessModal'
 import MeuPerfilModal from '@/components/public/MeuPerfilModal'
 import TenhoInteresseFormModal from '@/components/TenhoInteresseFormModal'
 import GeolocationModal from '@/components/public/GeolocationModal'
@@ -38,6 +41,7 @@ interface PropertyCard {
 
 export default function LandingPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [featuredData, setFeaturedData] = useState<any[]>([])
   const [loadingFeatured, setLoadingFeatured] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
@@ -61,6 +65,17 @@ export default function LandingPage() {
   const [filtersError, setFiltersError] = useState<string | null>(null)
   const [lastFilters, setLastFilters] = useState<SearchFormFilters | null>(null)
   const [venderPopupOpen, setVenderPopupOpen] = useState(false)
+  const [corretorPopupOpen, setCorretorPopupOpen] = useState(false)
+  const [corretorLoginModalOpen, setCorretorLoginModalOpen] = useState(false)
+  const [corretorHomeSuccessOpen, setCorretorHomeSuccessOpen] = useState(false)
+  const [corretorHomeUser, setCorretorHomeUser] = useState<{
+    nome: string
+    email: string
+    telefone?: string
+    cpf?: string
+    creci?: string
+    fotoDataUrl?: string
+  } | null>(null)
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('register')
   const [authUserType, setAuthUserType] = useState<'cliente' | 'proprietario' | null>(null)
@@ -86,6 +101,35 @@ export default function LandingPage() {
 
   const { estados, municipios, loadMunicipios } = useEstadosCidades()
 
+  // Reabrir o modal de informações do corretor após voltar do fluxo "Novo Proprietário"
+  useEffect(() => {
+    const shouldOpen = (searchParams?.get('corretor_home') || '').toLowerCase() === 'true'
+    if (!shouldOpen) return
+
+    try {
+      const raw = sessionStorage.getItem('corretor_success_user')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        
+        // Tentar sincronizar isencao do localStorage caso esteja stale no sessionStorage
+        try {
+          const localRaw = localStorage.getItem('user-data')
+          if (localRaw) {
+            const localUser = JSON.parse(localRaw)
+            if ((localUser.id === parsed.id || localUser.uuid === parsed.id) && localUser.isencao !== undefined) {
+              parsed.isencao = !!localUser.isencao
+            }
+          }
+        } catch {}
+
+        if (parsed?.nome && parsed?.email) {
+          setCorretorHomeUser(parsed)
+          setCorretorHomeSuccessOpen(true)
+        }
+      }
+    } catch {}
+  }, [searchParams])
+
   // Monitorar mudanças nos valores de estado e cidade para debug
   useEffect(() => {
     console.log('🔍 [LANDING PAGE] Valores de searchForm mudaram:', {
@@ -100,6 +144,7 @@ export default function LandingPage() {
   const geolocationExecutedRef = useRef(false)
   const geolocationRequestInProgressRef = useRef(false)
   const geolocationModalOpenRef = useRef(false)
+  const GEOLOCATION_AUTORUN_KEY = 'geolocation-landpaging-autorun-done'
   
   // Atualizar ref quando modal abre/fecha
   useEffect(() => {
@@ -136,13 +181,19 @@ export default function LandingPage() {
     
     geolocationRequestInProgressRef.current = true
     setGeolocationLoading(true)
+
+    // Abrir o modal imediatamente (melhora UX: não “trava” esperando a API)
+    if (!geolocationModalOpenRef.current) {
+      geolocationModalOpenRef.current = true
+      setGeolocationModalOpen(true)
+    }
     
     try {
       console.log(`🔍 [LANDING PAGE] Detectando localização do usuário... (tentativa ${retryCount + 1})`)
       
       // Adicionar timeout na requisição fetch
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 segundos de timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s de timeout (mantém confiabilidade da detecção)
       
       const response = await fetch('/api/public/geolocation', {
         signal: controller.signal,
@@ -161,15 +212,7 @@ export default function LandingPage() {
         const errorData = await response.json().catch(() => ({}))
         console.warn('⚠️ [LANDING PAGE] Dados do erro:', errorData)
         
-        // Retry se for erro de servidor (5xx) e ainda não excedeu tentativas
-        if (response.status >= 500 && retryCount < 2) {
-          console.log(`🔄 [LANDING PAGE] Tentando novamente em ${(retryCount + 1) * 2} segundos...`)
-          setGeolocationLoading(false)
-          setTimeout(() => {
-            detectUserLocation(retryCount + 1)
-          }, (retryCount + 1) * 2000) // Backoff exponencial: 2s, 4s
-          return
-        }
+        // Não insistir em retries automáticos: não queremos atrasar nem reabrir modal ao voltar
         return
       }
       
@@ -233,17 +276,7 @@ export default function LandingPage() {
       } else {
         console.warn('⚠️ [LANDING PAGE] Não foi possível detectar localização')
         console.warn('⚠️ [LANDING PAGE] Resposta completa:', JSON.stringify(data, null, 2))
-        
-        // Retry se não excedeu tentativas
-        if (retryCount < 2) {
-          console.log(`🔄 [LANDING PAGE] Tentando novamente em ${(retryCount + 1) * 2} segundos...`)
-          setGeolocationLoading(false)
-          setTimeout(() => {
-            detectUserLocation(retryCount + 1)
-          }, (retryCount + 1) * 2000) // Backoff exponencial: 2s, 4s
-          return
-        }
-        // Não exibir modal em caso de erro (não bloqueia experiência)
+        // Se não detectou, manter modal aberto apenas se usuário quiser escolher manualmente; caso contrário ele pode fechar.
       }
     } catch (error) {
       console.error('❌ [LANDING PAGE] Erro ao detectar localização:', error)
@@ -251,15 +284,7 @@ export default function LandingPage() {
         console.error('❌ [LANDING PAGE] Mensagem de erro:', error.message)
         console.error('❌ [LANDING PAGE] Stack:', error.stack)
         
-        // Retry se for erro de rede/timeout e ainda não excedeu tentativas
-        if ((error.name === 'AbortError' || error.message.includes('fetch')) && retryCount < 2) {
-          console.log(`🔄 [LANDING PAGE] Erro de rede, tentando novamente em ${(retryCount + 1) * 2} segundos...`)
-          setGeolocationLoading(false)
-          setTimeout(() => {
-            detectUserLocation(retryCount + 1)
-          }, (retryCount + 1) * 2000) // Backoff exponencial: 2s, 4s
-          return
-        }
+        // Sem retries automáticos (UX mais rápida e evita executar de novo ao retornar)
       }
       // Não exibir modal em caso de erro (não bloqueia experiência)
     } finally {
@@ -278,6 +303,13 @@ export default function LandingPage() {
     // Verificar se já foi executado nesta sessão
     if (geolocationExecutedRef.current) {
       console.log('ℹ️ [LANDING PAGE] Detecção já foi executada nesta sessão, pulando...')
+      return
+    }
+
+    // Verificar se já foi executado alguma vez neste navegador (não repetir ao voltar de outras páginas)
+    const alreadyAutoRan = sessionStorage.getItem(GEOLOCATION_AUTORUN_KEY) === 'true'
+    if (alreadyAutoRan) {
+      console.log('ℹ️ [LANDING PAGE] Geolocalização automática já executada no primeiro acesso, pulando...')
       return
     }
 
@@ -300,8 +332,10 @@ export default function LandingPage() {
       hasExecuted = true
       timer = setTimeout(() => {
         console.log('🔍 [LANDING PAGE] Iniciando detecção de localização...')
+        // Marcar como executado ANTES de chamar (garante “apenas uma vez” mesmo se o usuário navegar e voltar)
+        sessionStorage.setItem(GEOLOCATION_AUTORUN_KEY, 'true')
         detectUserLocation()
-      }, 1500) // 1.5 segundos após página estar pronta
+      }, 200) // rápido: modal aparece quase imediato
     }
 
     // Se a página já está totalmente carregada
@@ -332,6 +366,9 @@ export default function LandingPage() {
       (window as any).resetGeolocationModal = () => {
         console.log('🔄 [DEBUG] Resetando preferência de geolocalização...')
         localStorage.removeItem('geolocation-modal-dismissed')
+        try {
+          sessionStorage.removeItem(GEOLOCATION_AUTORUN_KEY)
+        } catch {}
         console.log('✅ [DEBUG] Preferência limpa. O modal aparecerá novamente ao recarregar.')
         location.reload()
       }
@@ -1090,6 +1127,14 @@ export default function LandingPage() {
       if (lastFilters?.bairro) params.append('bairro', lastFilters.bairro)
     }
     
+    // Permite que o botão "Voltar" do mapa retorne para a tela correta (ex.: landpaging)
+    try {
+      if (typeof window !== 'undefined') {
+        const returnTo = window.location.pathname + window.location.search
+        params.append('return_to', returnTo)
+      }
+    } catch {}
+
     return `/mapa-imoveis?${params.toString()}`
   }, [tipoDestaque, searchFormEstado, searchFormCidade, lastFilters])
 
@@ -1787,7 +1832,7 @@ export default function LandingPage() {
           setAuthModalOpen(true)
         }}
         onCorretorClick={() => {
-          router.push('/admin/login')
+          setCorretorPopupOpen(true)
         }}
       />
       
@@ -2087,9 +2132,14 @@ export default function LandingPage() {
               {/* Título do grid de destaque nacional */}
               {mostrarDestaquesNacional && buildTitle && (
                 <div className="px-6 pt-6 pb-4 flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-gray-900">
-                    {buildTitle}
-                  </h3>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">
+                      {buildTitle}
+                    </h3>
+                    <p className="text-sm text-gray-600 italic mt-1">
+                      Para consultar outras opções de imóveis preencha suas opções de escolha em "Encontre o imóvel da sua preferência".
+                    </p>
+                  </div>
                   <button
                     onClick={() => window.open(construirUrlMapa('nacional'), '_blank', 'noopener,noreferrer')}
                     className="px-5 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-2 shadow-lg"
@@ -2106,9 +2156,14 @@ export default function LandingPage() {
               {/* Título do grid de destaque local */}
               {buildFeaturedLocalTitle && (
                 <div className="px-6 pt-6 pb-4 flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-gray-900">
-                    {buildFeaturedLocalTitle}
-                  </h3>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">
+                      {buildFeaturedLocalTitle}
+                    </h3>
+                    <p className="text-sm text-gray-600 italic mt-1">
+                      Para consultar outras opções de imóveis preencha suas opções de escolha em "Encontre o imóvel da sua preferência".
+                    </p>
+                  </div>
                   <button
                     onClick={() => window.open(construirUrlMapa('local'), '_blank', 'noopener,noreferrer')}
                     className="px-5 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-2 shadow-lg"
@@ -2211,6 +2266,20 @@ export default function LandingPage() {
         onLoginClick={handleLoginProprietario}
       />
 
+      {/* Popup Corretor (antes de navegar para cadastro/login) */}
+      <CorretorPopup
+        isOpen={corretorPopupOpen}
+        onClose={() => setCorretorPopupOpen(false)}
+        onCadastrarClick={() => {
+          setCorretorPopupOpen(false)
+          router.push('/admin/usuarios?public_broker=true')
+        }}
+        onLoginClick={() => {
+          setCorretorPopupOpen(false)
+          setCorretorLoginModalOpen(true)
+        }}
+      />
+
       {/* Modal de Cadastro de Proprietário */}
       {authModalOpen && (
         <AuthModal
@@ -2222,6 +2291,34 @@ export default function LandingPage() {
           }}
           initialUserType={authUserType}
           redirectTo={authModalMode === 'login' && authUserType === 'proprietario' ? '/admin/imoveis/novo?noSidebar=true' : undefined}
+          onCorretorLoginClick={() => setCorretorLoginModalOpen(true)}
+        />
+      )}
+
+      <CorretorLoginModal
+        isOpen={corretorLoginModalOpen}
+        onClose={() => setCorretorLoginModalOpen(false)}
+        redirectTo="/landpaging"
+      />
+
+      {corretorHomeSuccessOpen && corretorHomeUser && (
+        <UserSuccessModal
+          isOpen={true}
+          onClose={() => {
+            setCorretorHomeSuccessOpen(false)
+            // Limpar o parâmetro corretor_home sem perder outros parâmetros do contexto original
+            try {
+              const url = new URL(window.location.href)
+              url.searchParams.delete('corretor_home')
+              router.replace(url.pathname + (url.search ? url.search : ''))
+            } catch {
+              router.replace('/landpaging')
+            }
+          }}
+          userData={{
+            ...corretorHomeUser,
+            userType: 'corretor'
+          }}
         />
       )}
 
@@ -2289,9 +2386,10 @@ export default function LandingPage() {
             locationConfirmedRef.current = false
           }, 200)
         }}
-        city={detectedCity || 'sua região'}
+        city={detectedCity || ''}
         region={detectedRegion}
         country={detectedCountry}
+        loading={geolocationLoading}
         onConfirmLocation={async (estadoSigla, cidadeNome) => {
           console.log('✅ [LANDING PAGE] Confirmando localização detectada:', estadoSigla, cidadeNome)
           // Marcar que localização foi confirmada ANTES de setar valores (usando ref para evitar timing issues)

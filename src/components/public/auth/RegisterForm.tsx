@@ -51,6 +51,12 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
   
   // Ref para rastrear o último CEP buscado e evitar buscas duplicadas
   const ultimoCepBuscadoRef = useRef<string>('')
+  const cpfInputRef = useRef<HTMLInputElement | null>(null)
+  const emailInputRef = useRef<HTMLInputElement | null>(null)
+  const lastValidatedEmailRef = useRef<string>('') // email já verificado (valor atual)
+  const lastValidatedCpfRef = useRef<string>('') // cpf já verificado (somente dígitos)
+  const cpfAbortRef = useRef<AbortController | null>(null)
+  const cpfExistsCacheRef = useRef<Map<string, boolean>>(new Map()) // cpfDigits -> exists
 
   const cidades = formData.estado_fk ? getCidadesPorEstado(formData.estado_fk) : []
 
@@ -186,20 +192,44 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
       setCpfPendingValidation(true)
     }
 
+    // Cache: se já checamos esse CPF nesta sessão do modal, responder instantaneamente
+    const cached = cpfExistsCacheRef.current.get(cpfLimpo)
+    if (cached !== undefined) {
+      setCpfExists(cached)
+      setCpfValidating(false)
+      setCpfPendingValidation(false)
+      lastValidatedCpfRef.current = cpfLimpo
+      return
+    }
+
+    // Cancelar checagem anterior em andamento
+    if (cpfAbortRef.current) {
+      cpfAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    cpfAbortRef.current = controller
+
     const verificarCPF = async () => {
       setCpfValidating(true)
       try {
         const response = await fetch('/api/public/check-cpf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cpf, userType })
+          body: JSON.stringify({ cpf, userType }),
+          signal: controller.signal
         })
         if (response.ok) {
           const data = await response.json()
-          setCpfExists(data.exists)
+          const exists = !!data.exists
+          setCpfExists(exists)
+          cpfExistsCacheRef.current.set(cpfLimpo, exists)
+          lastValidatedCpfRef.current = cpfLimpo
         }
-      } catch (error) {
-        console.error('Erro ao verificar CPF:', error)
+      } catch (error: any) {
+        // Abort é esperado quando o usuário continua digitando rápido
+        if (error?.name !== 'AbortError') {
+          console.error('Erro ao verificar CPF:', error)
+        }
       } finally {
         setCpfValidating(false)
         // Validação concluída
@@ -207,7 +237,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
       }
     }
 
-    const timeoutId = setTimeout(verificarCPF, 500)
+    // Debounce menor para ficar mais "instantâneo"
+    const timeoutId = setTimeout(verificarCPF, 200)
     return () => clearTimeout(timeoutId)
   }, [formData.cpf, userType])
 
@@ -234,6 +265,7 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
         if (response.ok) {
           const data = await response.json()
           setEmailExists(data.exists)
+          lastValidatedEmailRef.current = email.trim().toLowerCase()
         }
       } catch (error) {
         console.error('Erro ao verificar Email:', error)
@@ -263,6 +295,11 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
           // Bloquear se: vazio, validando, existe, inválido, incompleto, OU aguardando validação
           if (!formData.cpf || cpfValidating || cpfExists || cpfInvalid || cpfPendingValidation || cpfLimpoKeyDown.length !== 11 || !validateCPF(formData.cpf)) {
             e.preventDefault()
+            setErrors(prev => ({
+              ...prev,
+              cpf: cpfPendingValidation || cpfValidating ? 'Aguarde a validação do CPF' : (cpfExists ? 'CPF já cadastrado' : 'CPF inválido')
+            }))
+            setTimeout(() => cpfInputRef.current?.focus(), 0)
             return
           }
           break
@@ -276,6 +313,11 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
           // Bloquear se: vazio, validando, existe, inválido, OU aguardando validação
           if (!formData.email || emailValidating || emailExists || emailPendingValidation || !validateEmail(formData.email)) {
             e.preventDefault()
+            setErrors(prev => ({
+              ...prev,
+              email: emailPendingValidation || emailValidating ? 'Aguarde a validação do email' : (emailExists ? 'Email já cadastrado' : 'Email inválido')
+            }))
+            setTimeout(() => emailInputRef.current?.focus(), 0)
             return
           }
           break
@@ -343,6 +385,29 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
       formattedValue = formatTelefone(value)
     } else if (name === 'cep') {
       formattedValue = formatCEP(value)
+    }
+
+    // Limpar erro do campo ao digitar
+    if (errors[name]) {
+      setErrors(prev => {
+        const next = { ...prev }
+        delete next[name]
+        return next
+      })
+    }
+
+    // IMPORTANTÍSSIMO: marcar validação pendente imediatamente (fecha janela de "digitei e tab rápido")
+    if (name === 'email') {
+      const emailNow = String(formattedValue || '').trim().toLowerCase()
+      if (validateEmail(emailNow) && emailNow !== lastValidatedEmailRef.current) {
+        setEmailPendingValidation(true)
+      }
+    }
+    if (name === 'cpf') {
+      const cpfDigits = String(formattedValue || '').replace(/\D/g, '')
+      if (cpfDigits.length === 11 && validateCPF(cpfDigits) && cpfDigits !== lastValidatedCpfRef.current) {
+        setCpfPendingValidation(true)
+      }
     }
 
     setFormData(prev => ({
@@ -549,6 +614,24 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
             value={formData.cpf}
             onChange={handleChange}
             onKeyDown={(e) => handleKeyDown(e, 'cpf')}
+            onBlur={() => {
+              const cpfDigits = formData.cpf.replace(/\D/g, '')
+              const invalid =
+                !cpfDigits ||
+                cpfDigits.length !== 11 ||
+                !validateCPF(formData.cpf) ||
+                cpfExists ||
+                cpfPendingValidation ||
+                cpfValidating
+              if (invalid) {
+                setErrors(prev => ({
+                  ...prev,
+                  cpf: cpfPendingValidation || cpfValidating ? 'Aguarde a validação do CPF' : (cpfExists ? 'CPF já cadastrado' : 'CPF inválido')
+                }))
+                setTimeout(() => cpfInputRef.current?.focus(), 0)
+              }
+            }}
+            ref={cpfInputRef}
           />
           {cpfValidating && (
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -766,6 +849,23 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
             value={formData.email}
             onChange={handleChange}
             onKeyDown={(e) => handleKeyDown(e, 'email')}
+            onBlur={() => {
+              const email = formData.email.trim()
+              const invalid =
+                !email ||
+                !validateEmail(email) ||
+                emailExists ||
+                emailPendingValidation ||
+                emailValidating
+              if (invalid) {
+                setErrors(prev => ({
+                  ...prev,
+                  email: emailPendingValidation || emailValidating ? 'Aguarde a validação do email' : (emailExists ? 'Email já cadastrado' : 'Email inválido')
+                }))
+                setTimeout(() => emailInputRef.current?.focus(), 0)
+              }
+            }}
+            ref={emailInputRef}
           />
           {emailValidating && (
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">

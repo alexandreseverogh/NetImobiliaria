@@ -12,6 +12,8 @@ interface AuthModalProps {
   onChangeMode?: (mode: 'login' | 'register') => void
   initialUserType?: 'cliente' | 'proprietario' | null
   redirectTo?: string
+  onCorretorLoginClick?: () => void
+  onCorretorRegisterClick?: () => void
 }
 
 export default function AuthModal({
@@ -19,7 +21,9 @@ export default function AuthModal({
   onClose,
   onChangeMode,
   initialUserType = null,
-  redirectTo
+  redirectTo,
+  onCorretorLoginClick,
+  onCorretorRegisterClick
 }: AuthModalProps) {
   const router = useRouter()
   const [userType, setUserType] = useState<'cliente' | 'proprietario' | null>(initialUserType)
@@ -43,9 +47,29 @@ export default function AuthModal({
   }
 
   const handleCorretorClick = () => {
-    // Por enquanto: corretor usa o login do admin
+    // Entrar: abrir o modal de login do corretor (sem navegar para /admin/login)
+    if (mode === 'login') {
+      onClose()
+      if (onCorretorLoginClick) {
+        onCorretorLoginClick()
+        return
+      }
+      // Fallback robusto: em qualquer lugar que use AuthModal, abrimos o modal de credenciais do corretor
+      // via evento global (evita navegar direto para /admin por conta de token pré-existente).
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('open-corretor-login-modal'))
+      }
+      return
+    }
+
+    // Criar conta: direcionar para o cadastro público de corretor
+    if (onCorretorRegisterClick) {
+      onClose()
+      onCorretorRegisterClick()
+      return
+    }
     onClose()
-    router.push('/admin/login')
+    router.push('/admin/usuarios?public_broker=true')
   }
 
   const handleBack = () => {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeftIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
@@ -33,6 +33,8 @@ type ValidationErrors = Partial<Record<keyof FormData, string>>
 export default function NovoProprietarioPage() {
   const { get, post, put, delete: del } = useAuthenticatedFetch()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const fromCorretor = (searchParams?.get('from_corretor') || '').toLowerCase() === 'true'
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -546,16 +548,22 @@ export default function NovoProprietarioPage() {
       
       console.log('📤 Enviando payload:', payload)
       
-      const response = await fetch('/api/admin/proprietarios', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
+      const response = await post('/api/admin/proprietarios', payload)
 
       if (response.ok) {
-        router.push('/admin/proprietarios')
+        if (fromCorretor) {
+          // Voltar para o mesmo modal/contexto do corretor (de onde ele iniciou o fluxo)
+          try {
+            const returnUrl = sessionStorage.getItem('corretor_return_url') || '/landpaging'
+            const url = new URL(returnUrl, window.location.origin)
+            url.searchParams.set('corretor_home', 'true')
+            router.push(url.pathname + url.search)
+          } catch {
+            router.push('/landpaging?corretor_home=true')
+          }
+        } else {
+          router.push('/admin/proprietarios')
+        }
       } else {
         const errorData = await response.json()
         alert(`Erro: ${errorData.error}`)
@@ -776,6 +784,23 @@ export default function NovoProprietarioPage() {
               )}
               <p className="mt-1 text-xs text-gray-500">
                 {buscandoCep ? 'Buscando endereço...' : 'Informe o CEP para preencher automaticamente'}
+              </p>
+            </div>
+
+            {/* Corretor (informativo) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Corretor
+              </label>
+              <input
+                type="text"
+                value={(user as any)?.nome || 'Não informado'}
+                readOnly
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+                title="Campo informativo"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Se o cadastro for feito por um usuário do perfil <strong>Corretor</strong>, o sistema gravará automaticamente esse corretor como responsável.
               </p>
             </div>
 

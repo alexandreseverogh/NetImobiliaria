@@ -1,7 +1,7 @@
 'use client'
 
 import { Imovel } from '@/lib/types/admin'
-import { useState, useEffect, useCallback } from 'react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { useSearchParams } from 'next/navigation'
 
@@ -12,6 +12,7 @@ interface GeneralDataStepProps {
   finalidades?: any[]
   tipos?: any[]
   finalidadePreSelecionada?: boolean
+  onlyMineProprietarios?: boolean
 }
 
 interface Proprietario {
@@ -19,15 +20,55 @@ interface Proprietario {
   nome: string
 }
 
-export default function GeneralDataStep({ data, onUpdate, mode, finalidades = [], tipos = [], finalidadePreSelecionada = false }: GeneralDataStepProps) {
+export default function GeneralDataStep({
+  data,
+  onUpdate,
+  mode,
+  finalidades = [],
+  tipos = [],
+  finalidadePreSelecionada = false,
+  onlyMineProprietarios = false
+}: GeneralDataStepProps) {
   const { get } = useAuthenticatedFetch()
   const searchParams = useSearchParams()
+  // Fonte de verdade: se a URL está com from_corretor=true, estamos no fluxo do corretor.
+  // (Isso garante que "Buscar Proprietário" tenha a MESMA lógica do "Selecionar Proprietário",
+  // mesmo que algum prop não seja repassado por engano.)
+  const isCorretorFlow = onlyMineProprietarios || (searchParams?.get('from_corretor') || '').toLowerCase() === 'true'
   const [proprietarioSearch, setProprietarioSearch] = useState('')
   const [proprietarios, setProprietarios] = useState<Proprietario[]>([])
   const [todosProprietarios, setTodosProprietarios] = useState<Proprietario[]>([])
   const [proprietarioSelecionado, setProprietarioSelecionado] = useState<Proprietario | null>(null)
   const [loadingProprietarios, setLoadingProprietarios] = useState(false)
+  const [loadingTodosProprietarios, setLoadingTodosProprietarios] = useState(false)
+  const [corretorUserId, setCorretorUserId] = useState<string | null>(null)
   const [proprietarioPublicoCarregado, setProprietarioPublicoCarregado] = useState(false)
+
+  // Evitar autocomplete do navegador no campo "Buscar Proprietário"
+  const proprietarioSearchFieldName = useMemo(
+    () => `proprietario_search_${Math.random().toString(36).slice(2)}`,
+    []
+  )
+  // No fluxo do corretor, pegamos o ID do corretor logado (salvo no login do corretor)
+  useEffect(() => {
+    if (!isCorretorFlow) {
+      setCorretorUserId(null)
+      return
+    }
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('user-data') : null
+      if (!raw) {
+        setCorretorUserId(null)
+        return
+      }
+      const parsed = JSON.parse(raw)
+      const id = parsed?.id ? String(parsed.id) : null
+      setCorretorUserId(id)
+    } catch {
+      setCorretorUserId(null)
+    }
+  }, [isCorretorFlow])
+
   const [caracteristicas, setCaracteristicas] = useState({
     quartos: '',
     banheiros: '',
@@ -79,9 +120,22 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
       return
     }
 
+    // Fluxo do corretor: mesma lógica do "Selecionar Proprietário":
+    // buscar APENAS dentro do universo já carregado em todosProprietarios (que já vem filtrado por corretor).
+    if (isCorretorFlow) {
+      const q = nome.trim().toLowerCase()
+      const filtered = todosProprietarios
+        .filter((p) => (p.nome || '').toLowerCase().includes(q))
+        .slice(0, 50)
+      setProprietarios(filtered)
+      return
+    }
+
     setLoadingProprietarios(true)
     try {
-      const response = await get(`/api/admin/proprietarios?nome=${encodeURIComponent(nome)}`)
+      const response = await get(
+        `/api/admin/proprietarios?nome=${encodeURIComponent(nome)}`
+      )
       const result = await response.json()
       
       if (result.success) {
@@ -96,21 +150,41 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
     } finally {
       setLoadingProprietarios(false)
     }
-  }, [get])
+  }, [get, isCorretorFlow, todosProprietarios])
 
   // Carregar todos os proprietários para o select
   const carregarTodosProprietarios = useCallback(async () => {
     try {
-      const response = await get('/api/admin/proprietarios')
+      setLoadingTodosProprietarios(true)
+      // Evitar “vazamento” por estado antigo ao alternar fluxo (admin -> corretor)
+      setTodosProprietarios([])
+      setProprietarios([])
+      const url = isCorretorFlow
+        ? `/api/admin/proprietarios/mine?limit=1000`
+        : `/api/admin/proprietarios?limit=1000`
+      const response = await get(url)
       const result = await response.json()
       
       if (result.success) {
-        setTodosProprietarios(result.proprietarios)
+        const list = (result.proprietarios || []) as any[]
+        // Blindagem extra: no fluxo do corretor, filtrar também no front por corretor_fk
+        // (mesma lógica do "Selecionar Proprietário" e do backend).
+        if (isCorretorFlow && corretorUserId) {
+          const filtered = list.filter((p) => String(p?.corretor_fk || '') === String(corretorUserId))
+          setTodosProprietarios(filtered)
+        } else {
+          setTodosProprietarios(list)
+        }
+      } else {
+        setTodosProprietarios([])
       }
     } catch (error) {
       console.error('Erro ao carregar todos os proprietários:', error)
+      setTodosProprietarios([])
+    } finally {
+      setLoadingTodosProprietarios(false)
     }
-  }, [get])
+  }, [get, isCorretorFlow, corretorUserId])
 
   // Carregar proprietário selecionado (modo edição)
   const carregarProprietarioSelecionado = useCallback(
@@ -263,6 +337,18 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
 
     return () => clearTimeout(timeoutId)
   }, [proprietarioSearch, buscarProprietarios])
+
+  // No fluxo do corretor, a lista do "Buscar Proprietário" deve ser o MESMO universo do select.
+  // Para garantir isso, renderizamos a lista a partir de todosProprietarios (filtrada),
+  // e ignoramos qualquer estado anterior de `proprietarios`.
+  const proprietariosParaExibirNoBuscar = useMemo(() => {
+    if (!isCorretorFlow) return proprietarios
+    const q = proprietarioSearch.trim().toLowerCase()
+    if (!q || q.length < 2) return []
+    return todosProprietarios
+      .filter((p) => (p.nome || '').toLowerCase().includes(q))
+      .slice(0, 50)
+  }, [isCorretorFlow, proprietarios, proprietarioSearch, todosProprietarios])
 
   // REMOVIDO: Busca automática de CEP do GeneralDataStep
   // A busca de CEP deve acontecer APENAS no LocationStep (Step 1)
@@ -534,17 +620,27 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
               <input
                 type="text"
                 id="proprietarioSearch"
+                name={proprietarioSearchFieldName}
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 value={proprietarioSearch}
                 onChange={(e) => handleProprietarioSearchChange(e.target.value)}
                 placeholder="Digite o nome do proprietário..."
-                disabled={proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true'}
+                disabled={
+                  (proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true') ||
+                  (isCorretorFlow && loadingTodosProprietarios)
+                }
                 className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                   proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true' 
                     ? 'bg-gray-100 cursor-not-allowed' 
+                    : isCorretorFlow && loadingTodosProprietarios
+                      ? 'bg-gray-100 cursor-not-allowed'
                     : ''
                 }`}
               />
-              {loadingProprietarios && (
+              {(loadingProprietarios || (isCorretorFlow && loadingTodosProprietarios)) && (
                 <div className="absolute right-3 top-2.5">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                 </div>
@@ -552,9 +648,9 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
             </div>
             
             {/* Lista de proprietários encontrados */}
-            {proprietarios.length > 0 && (
+            {proprietariosParaExibirNoBuscar.length > 0 && (
               <div className="mt-2 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto z-10 relative">
-                {proprietarios.map((proprietario) => (
+                {proprietariosParaExibirNoBuscar.map((proprietario) => (
                   <div
                     key={proprietario.uuid ?? proprietario.nome}
                     onClick={() => handleProprietarioSelect(proprietario)}

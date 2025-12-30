@@ -6,8 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { cpf, userType } = body
-    
-    console.log('🔍 [PUBLIC] Verificando CPF:', cpf, 'Tipo:', userType)
+    const cpfStr = String(cpf || '')
     
     if (!cpf) {
       return NextResponse.json(
@@ -24,10 +23,8 @@ export async function POST(request: NextRequest) {
     }
     
     const exists = userType === 'cliente' 
-      ? await checkClienteCPF(cpf)
-      : await checkProprietarioCPF(cpf)
-    
-    console.log('✅ [PUBLIC] Resultado CPF exists:', exists)
+      ? await checkClienteCPF(cpfStr)
+      : await checkProprietarioCPF(cpfStr)
     
     return NextResponse.json({ exists })
   } catch (error) {

@@ -29,6 +29,7 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
   const [loading, setLoading] = useState(true)
   const [buscandoCep, setBuscandoCep] = useState(false)
   const [cepState, setCepState] = useState<{ valid: boolean; message: string | null }>({ valid: false, message: null })
+  const cepInputRef = useRef<HTMLInputElement | null>(null)
 
   const mergeEndereco = useCallback((partial: Partial<Imovel['endereco']>): Imovel['endereco'] => ({
     endereco: data.endereco?.endereco ?? '',
@@ -140,6 +141,42 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
       controller.abort()
     }
   }, [data.endereco?.cep, mergeEndereco, onUpdate, selectedMunicipio, selectedEstado])
+
+  const isCepMaskOk = (value: string) => /^[0-9]{5}-[0-9]{3}$/.test(value)
+
+  // "Focus lock" do CEP: se o CEP estiver inválido, não deixa sair do campo (Tab/click)
+  const enforceCepValidityOrRefocus = useCallback(() => {
+    const current = String(data.endereco?.cep || '')
+    const digits = current.replace(/\D/g, '')
+
+    // Se não digitou nada, não força foco (mas o step não avança)
+    if (!current) {
+      setCepState({ valid: false, message: 'Informe um CEP válido para continuar.' })
+      setTimeout(() => cepInputRef.current?.focus(), 0)
+      return
+    }
+
+    // Máscara incompleta
+    if (!isCepMaskOk(current) || digits.length !== 8) {
+      setCepState({ valid: false, message: 'CEP deve conter 8 dígitos.' })
+      setTimeout(() => cepInputRef.current?.focus(), 0)
+      return
+    }
+
+    // Está validando no ViaCEP
+    if (buscandoCep) {
+      setCepState({ valid: false, message: 'Aguarde validar o CEP para continuar.' })
+      setTimeout(() => cepInputRef.current?.focus(), 0)
+      return
+    }
+
+    // Formato ok, mas ViaCEP ainda não confirmou (ou não encontrou)
+    if (!cepState.valid) {
+      setCepState((prev) => ({ valid: false, message: prev.message || 'Informe um CEP válido para continuar.' }))
+      setTimeout(() => cepInputRef.current?.focus(), 0)
+      return
+    }
+  }, [buscandoCep, cepState.valid, data.endereco?.cep])
 
   // Garantir que CEP pré-existente em modo edição já habilite o passo
   useEffect(() => {
@@ -335,6 +372,7 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
               <input
                 type="text"
                 id="cep"
+                ref={cepInputRef}
                 value={data.endereco?.cep || ''}
                 onChange={(e) => {
                   let value = e.target.value.replace(/[^\d]/g, '')
@@ -357,6 +395,21 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
                     ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
                     : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 }`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Tab') {
+                    // Bloquear tab se CEP não estiver validado
+                    if (!cepState.valid) {
+                      e.preventDefault()
+                      enforceCepValidityOrRefocus()
+                    }
+                  }
+                }}
+                onBlur={() => {
+                  // Se tentar sair do campo e não estiver validado, volta o foco
+                  if (!cepState.valid) {
+                    enforceCepValidityOrRefocus()
+                  }
+                }}
               />
               {buscandoCep && (
                 <div className="absolute right-3 top-2.5">

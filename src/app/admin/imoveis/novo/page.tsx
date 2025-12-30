@@ -83,6 +83,25 @@ export default function NovoImovelPage() {
   // Verificar se a finalidade foi pré-selecionada (vem da página pública)
   const finalidadePreSelecionada = !!finalidadeId
 
+  // Fluxo iniciado via portal do corretor (modal público)
+  const fromCorretorPortal = (searchParams?.get('from_corretor') || '').toLowerCase() === 'true'
+  const [corretorSuccessRedirectTo, setCorretorSuccessRedirectTo] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!fromCorretorPortal) {
+      setCorretorSuccessRedirectTo(undefined)
+      return
+    }
+    try {
+      const returnUrl = sessionStorage.getItem('corretor_return_url') || '/landpaging'
+      const url = new URL(returnUrl, window.location.origin)
+      url.searchParams.set('corretor_home', 'true')
+      setCorretorSuccessRedirectTo(url.pathname + url.search)
+    } catch {
+      setCorretorSuccessRedirectTo('/landpaging?corretor_home=true')
+    }
+  }, [fromCorretorPortal])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 py-8 flex items-center justify-center">
@@ -116,6 +135,8 @@ export default function NovoImovelPage() {
           tiposImovel={tiposImovel}
           statusImovel={statusImovel}
           redirectTo={searchParams?.get('noSidebar') === 'true' ? '/landpaging' : undefined}
+          successRedirectTo={fromCorretorPortal ? corretorSuccessRedirectTo : undefined}
+          onlyMineProprietarios={fromCorretorPortal}
           finalidadePreSelecionada={finalidadePreSelecionada}
           onSave={async (data) => {
             console.log('🔍 onSave chamado com dados:', data)
@@ -162,7 +183,8 @@ export default function NovoImovelPage() {
               const requestBody: any = {
                 ...data,
                 created_by: "1",
-                origemPublica: fromPublic // Flag para indicar origem pública
+                origemPublica: fromPublic, // Flag para indicar origem pública
+                fromCorretorPortal // Flag para gravar em imovel_corretor SOMENTE no fluxo do corretor
               }
               
               // Converter vídeo para base64 se for File object

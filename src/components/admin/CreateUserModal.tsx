@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useApi } from '@/hooks/useApi'
 // import { XMarkIcon } from '@heroicons/react/24/outline'
+import { formatCPF, validateCPF } from '@/lib/utils/formatters'
 
 interface UserRole {
   id: number
@@ -25,12 +26,16 @@ interface CreateUserForm {
   confirmPassword: string
   nome: string
   telefone: string
+  cpf: string
   roleId: number | null
   ativo: boolean
+  isencao: boolean
 }
 
 export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: CreateUserModalProps) {
   const { post } = useApi()
+  const emailInputRef = useRef<HTMLInputElement | null>(null)
+  const cpfInputRef = useRef<HTMLInputElement | null>(null)
   const [form, setForm] = useState<CreateUserForm>({
     username: '',
     email: '',
@@ -38,12 +43,27 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     confirmPassword: '',
     nome: '',
     telefone: '',
+    cpf: '',
     roleId: null,
-    ativo: true
+    ativo: true,
+    isencao: false
   })
   
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Partial<Record<keyof CreateUserForm, string>>>({})
+  const [emailChecking, setEmailChecking] = useState(false)
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null)
+  const [cpfChecking, setCpfChecking] = useState(false)
+  const [cpfAvailable, setCpfAvailable] = useState<boolean | null>(null)
+  const [emailPendingValidation, setEmailPendingValidation] = useState(false)
+  const [cpfPendingValidation, setCpfPendingValidation] = useState(false)
+
+  const lastValidatedEmailRef = useRef<string>('')
+  const lastValidatedCpfRef = useRef<string>('')
+  const cpfAbortRef = useRef<AbortController | null>(null)
+  const cpfExistsCacheRef = useRef<Map<string, boolean>>(new Map())
+  const emailDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cpfDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Limpar formulário sempre que o modal abrir
   useEffect(() => {
@@ -55,12 +75,160 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
         confirmPassword: '',
         nome: '',
         telefone: '',
+        cpf: '',
         roleId: null,
         ativo: true
       })
       setErrors({})
+      setEmailChecking(false)
+      setEmailAvailable(null)
+      setCpfChecking(false)
+      setCpfAvailable(null)
+      setEmailPendingValidation(false)
+      setCpfPendingValidation(false)
+      lastValidatedEmailRef.current = ''
+      lastValidatedCpfRef.current = ''
+      cpfExistsCacheRef.current.clear()
     }
   }, [isOpen])
+
+  // Validação online de e-mail (disponibilidade)
+  useEffect(() => {
+    const email = form.email.trim().toLowerCase()
+    setEmailAvailable(null)
+    setEmailChecking(false)
+    
+    if (emailDebounceRef.current) {
+      clearTimeout(emailDebounceRef.current)
+      emailDebounceRef.current = null
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailPendingValidation(false)
+      return
+    }
+
+    // Cache: se já checamos esse e-mail nesta sessão do modal
+    if (email === lastValidatedEmailRef.current) {
+      setEmailPendingValidation(false)
+      return
+    }
+
+    // bloquear saída do campo enquanto valida online
+    setEmailPendingValidation(true)
+    emailDebounceRef.current = setTimeout(async () => {
+      setEmailChecking(true)
+      try {
+        const res = await fetch(`/api/public/users/check-email?email=${encodeURIComponent(email)}`, {
+          method: 'GET',
+          cache: 'no-store'
+        })
+        const data = await res.json().catch(() => null)
+        if (res.ok && data?.success) {
+          const available = Boolean(data.available)
+          setEmailAvailable(available)
+          lastValidatedEmailRef.current = email
+        }
+      } catch {
+        setEmailAvailable(null)
+      } finally {
+        setEmailChecking(false)
+        setEmailPendingValidation(false)
+      }
+    }, 400)
+
+    return () => {
+      if (emailDebounceRef.current) clearTimeout(emailDebounceRef.current)
+      emailDebounceRef.current = null
+    }
+  }, [form.email])
+
+  // Validação online de CPF (disponibilidade)
+  useEffect(() => {
+    const cpfDigits = form.cpf.replace(/\D/g, '')
+    setCpfAvailable(null)
+    setCpfChecking(false)
+
+    if (cpfDebounceRef.current) {
+      clearTimeout(cpfDebounceRef.current)
+      cpfDebounceRef.current = null
+    }
+
+    if (!cpfDigits || !validateCPF(cpfDigits)) {
+      setCpfPendingValidation(false)
+      return
+    }
+
+    // Cache: se já checamos esse CPF nesta sessão do modal
+    const cached = cpfExistsCacheRef.current.get(cpfDigits)
+    if (cached !== undefined) {
+      setCpfAvailable(!cached) // available = !exists
+      setCpfChecking(false)
+      setCpfPendingValidation(false)
+      lastValidatedCpfRef.current = cpfDigits
+      return
+    }
+
+    // Cancelar checagem anterior
+    if (cpfAbortRef.current) {
+      cpfAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    cpfAbortRef.current = controller
+
+    // bloquear saída do campo enquanto valida online
+    setCpfPendingValidation(true)
+    cpfDebounceRef.current = setTimeout(async () => {
+      setCpfChecking(true)
+      try {
+        const res = await fetch(`/api/public/users/check-cpf?cpf=${encodeURIComponent(cpfDigits)}`, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal
+        })
+        const data = await res.json().catch(() => null)
+        if (res.ok && data?.success) {
+          const available = Boolean(data.available)
+          setCpfAvailable(available)
+          cpfExistsCacheRef.current.set(cpfDigits, !available)
+          lastValidatedCpfRef.current = cpfDigits
+        }
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          console.error('Erro ao verificar CPF:', error)
+        }
+      } finally {
+        setCpfChecking(false)
+        setCpfPendingValidation(false)
+      }
+    }, 200)
+
+    return () => {
+      if (cpfDebounceRef.current) clearTimeout(cpfDebounceRef.current)
+      cpfDebounceRef.current = null
+    }
+  }, [form.cpf])
+
+  // Validação online (UX): senhas precisam ser iguais enquanto o usuário digita
+  useEffect(() => {
+    // Só mostrar mismatch depois que o usuário começou a preencher a confirmação
+    if (!form.confirmPassword) {
+      if (errors.confirmPassword === 'Senhas não coincidem') {
+        setErrors(prev => ({ ...prev, confirmPassword: undefined }))
+      }
+      return
+    }
+
+    if (form.password !== form.confirmPassword) {
+      if (errors.confirmPassword !== 'Senhas não coincidem') {
+        setErrors(prev => ({ ...prev, confirmPassword: 'Senhas não coincidem' }))
+      }
+    } else {
+      if (errors.confirmPassword === 'Senhas não coincidem') {
+        setErrors(prev => ({ ...prev, confirmPassword: undefined }))
+      }
+    }
+  }, [form.password, form.confirmPassword])
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof CreateUserForm, string>> = {}
@@ -75,6 +243,20 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
       newErrors.email = 'Email é obrigatório'
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       newErrors.email = 'Email inválido'
+    } else if (emailAvailable === false) {
+      newErrors.email = 'Este e-mail já está cadastrado para outro usuário'
+    } else if (emailPendingValidation || emailChecking) {
+      newErrors.email = 'Aguarde a validação do e-mail'
+    }
+
+    if (!form.cpf.trim()) {
+      newErrors.cpf = 'CPF é obrigatório'
+    } else if (!validateCPF(form.cpf)) {
+      newErrors.cpf = 'CPF inválido'
+    } else if (cpfAvailable === false) {
+      newErrors.cpf = 'Este CPF já está cadastrado para outro usuário'
+    } else if (cpfPendingValidation || cpfChecking) {
+      newErrors.cpf = 'Aguarde a validação do CPF'
     }
 
     if (!form.password) {
@@ -83,7 +265,9 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
       newErrors.password = 'Senha deve ter pelo menos 8 caracteres'
     }
 
-    if (form.password !== form.confirmPassword) {
+    if (!form.confirmPassword) {
+      newErrors.confirmPassword = 'Confirmar senha é obrigatório'
+    } else if (form.password !== form.confirmPassword) {
       newErrors.confirmPassword = 'Senhas não coincidem'
     }
 
@@ -128,8 +312,10 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
         password: form.password,
         nome: form.nome,
         telefone: form.telefone,
+        cpf: form.cpf.replace(/\D/g, ''),
         roleId: form.roleId,
-        ativo: form.ativo
+        ativo: form.ativo,
+        isencao: form.isencao
       }
       
       console.log('📤 Dados sendo enviados para a API:', requestData)
@@ -147,11 +333,12 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
           password: '',
           confirmPassword: '',
           nome: '',
-          telefone: '',
-          roleId: null,
-          ativo: true
-        })
-        
+        telefone: '',
+        roleId: null,
+        ativo: true,
+        isencao: false
+      })
+
         onSuccess()
         onClose()
       } else {
@@ -193,10 +380,27 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
   }
 
   const handleInputChange = (field: keyof CreateUserForm, value: string | number | boolean | null) => {
+    // IMPORTANTÍSSIMO: marcar validação pendente imediatamente
+    if (field === 'email') {
+      const emailNow = String(value || '').trim().toLowerCase()
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNow) && emailNow !== lastValidatedEmailRef.current) {
+        setEmailPendingValidation(true)
+      }
+    }
+    if (field === 'cpf') {
+      const cpfDigits = String(value || '').replace(/\D/g, '')
+      if (cpfDigits.length === 11 && validateCPF(cpfDigits) && cpfDigits !== lastValidatedCpfRef.current) {
+        setCpfPendingValidation(true)
+      }
+    }
+
     // Formatar telefone automaticamente
     if (field === 'telefone' && typeof value === 'string') {
       const formattedValue = formatPhoneNumber(value)
       setForm(prev => ({ ...prev, [field]: formattedValue }))
+    } else if (field === 'cpf' && typeof value === 'string') {
+      const formattedCpf = formatCPF(value)
+      setForm(prev => ({ ...prev, [field]: formattedCpf }))
     } else {
       setForm(prev => ({ ...prev, [field]: value }))
     }
@@ -224,6 +428,18 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
         newErrors.email = 'Email é obrigatório'
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
         newErrors.email = 'Email inválido'
+      } else if (emailAvailable === false) {
+        newErrors.email = 'Este e-mail já está cadastrado para outro usuário'
+      }
+    }
+
+    if (field === 'cpf') {
+      if (!form.cpf.trim()) {
+        newErrors.cpf = 'CPF é obrigatório'
+      } else if (!validateCPF(form.cpf)) {
+        newErrors.cpf = 'CPF inválido'
+      } else if (cpfAvailable === false) {
+        newErrors.cpf = 'Este CPF já está cadastrado para outro usuário'
       }
     }
 
@@ -236,7 +452,9 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     }
 
     if (field === 'confirmPassword') {
-      if (form.password !== form.confirmPassword) {
+      if (!form.confirmPassword) {
+        newErrors.confirmPassword = 'Confirmar senha é obrigatório'
+      } else if (form.password !== form.confirmPassword) {
         newErrors.confirmPassword = 'Senhas não coincidem'
       }
     }
@@ -269,6 +487,24 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     if (Object.keys(newErrors).length > 0) {
       setErrors(prev => ({ ...prev, ...newErrors }))
     }
+  }
+
+  const validateEmailForBlur = (): boolean => {
+    const email = form.email.trim()
+    if (!email) return false
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false
+    if (emailPendingValidation || emailChecking) return false
+    if (emailAvailable === false) return false
+    return true
+  }
+
+  const validateCpfForBlur = (): boolean => {
+    const cpfDigits = form.cpf.replace(/\D/g, '')
+    if (!cpfDigits || cpfDigits.length < 11) return false
+    if (!validateCPF(cpfDigits)) return false
+    if (cpfPendingValidation || cpfChecking) return false
+    if (cpfAvailable === false) return false
+    return true
   }
 
   if (!isOpen) return null
@@ -333,13 +569,39 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                   type="email"
                   value={form.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  onBlur={() => handleInputBlur('email')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      // não permitir sair do campo se inválido/duplicado/ainda verificando
+                      const ok = validateEmailForBlur()
+                      if (!ok) {
+                        e.preventDefault()
+                        setTimeout(() => emailInputRef.current?.focus(), 0)
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    handleInputBlur('email')
+                    const ok = validateEmailForBlur()
+                    if (!ok) {
+                      setTimeout(() => emailInputRef.current?.focus(), 0)
+                    }
+                  }}
                   className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
                     errors.email ? 'border-red-300' : 'border-gray-300'
                   }`}
                   placeholder="Digite o email"
                   autoComplete="off"
+                  ref={emailInputRef}
                 />
+                {!errors.email && (emailChecking || emailPendingValidation) && (
+                  <p className="mt-1 text-xs text-gray-500">Verificando disponibilidade do e-mail...</p>
+                )}
+                {!errors.email && !emailChecking && !emailPendingValidation && emailAvailable === false && (
+                  <p className="mt-1 text-sm text-red-600">Este e-mail já está cadastrado para outro usuário</p>
+                )}
+                {!errors.email && !emailChecking && !emailPendingValidation && emailAvailable === true && (
+                  <p className="mt-1 text-xs text-emerald-600">E-mail disponível</p>
+                )}
                 {errors.email && (
                   <p className="mt-1 text-sm text-red-600">{errors.email}</p>
                 )}
@@ -389,7 +651,58 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
               </div>
             </div>
 
-            {/* Terceira linha: Perfil */}
+            {/* Terceira linha: CPF */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  CPF *
+                </label>
+                <input
+                  type="text"
+                  value={form.cpf}
+                  onChange={(e) => handleInputChange('cpf', e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      const ok = validateCpfForBlur()
+                      if (!ok) {
+                        e.preventDefault()
+                        setTimeout(() => cpfInputRef.current?.focus(), 0)
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    handleInputBlur('cpf')
+                    const cpfDigits = form.cpf.replace(/\D/g, '')
+                    const ok = validateCpfForBlur()
+                    if (!ok) {
+                      // Não permitir sair do campo CPF se inválido/duplicado
+                      setTimeout(() => cpfInputRef.current?.focus(), 0)
+                    }
+                  }}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                    errors.cpf ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="000.000.000-00"
+                  autoComplete="off"
+                  ref={cpfInputRef}
+                />
+                {!errors.cpf && (cpfChecking || cpfPendingValidation) && (
+                  <p className="mt-1 text-xs text-gray-500">Verificando CPF...</p>
+                )}
+                {!errors.cpf && !cpfChecking && !cpfPendingValidation && cpfAvailable === false && (
+                  <p className="mt-1 text-sm text-red-600">Este CPF já está cadastrado para outro usuário</p>
+                )}
+                {!errors.cpf && !cpfChecking && !cpfPendingValidation && cpfAvailable === true && (
+                  <p className="mt-1 text-xs text-emerald-600">CPF disponível</p>
+                )}
+                {errors.cpf && (
+                  <p className="mt-1 text-sm text-red-600">{errors.cpf}</p>
+                )}
+              </div>
+              <div />
+            </div>
+
+            {/* Quarta linha: Perfil */}
             <div className="grid grid-cols-1 gap-4">
               {/* Perfil */}
               <div>
@@ -417,7 +730,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
               </div>
             </div>
 
-            {/* Quarta linha: Senha e Confirmar Senha */}
+            {/* Quinta linha: Senha e Confirmar Senha */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Senha */}
               <div>
@@ -462,18 +775,35 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
               </div>
             </div>
 
-            {/* Campo Ativo */}
-            <div className="flex items-center space-x-3 pt-4">
-              <input
-                type="checkbox"
-                id="ativo"
-                checked={form.ativo}
-                onChange={(e) => handleInputChange('ativo', e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="ativo" className="text-sm font-medium text-gray-700">
-                Usuário ativo
-              </label>
+            {/* Campos de Status e Isenção */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="ativo"
+                  checked={form.ativo}
+                  onChange={(e) => handleInputChange('ativo', e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="ativo" className="text-sm font-medium text-gray-700">
+                  Usuário ativo
+                </label>
+              </div>
+
+              {roles.find(r => r.id === form.roleId)?.name === 'Corretor' && (
+                <div className="flex items-center space-x-3 px-3 py-2 bg-amber-50 rounded-lg border border-amber-100">
+                  <input
+                    type="checkbox"
+                    id="isencao"
+                    checked={form.isencao}
+                    onChange={(e) => handleInputChange('isencao', e.target.checked)}
+                    className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-amber-300 rounded"
+                  />
+                  <label htmlFor="isencao" className="text-sm font-medium text-amber-900">
+                    Isenção de Mensalidade
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Botões */}

@@ -58,6 +58,12 @@ export function useSessionWarning(options: SessionWarningOptions) {
       }
 
       const data = await response.json()
+      if (!data?.success || !data?.session) {
+        // Sem sessão ativa (ou endpoint retornou "success=false"): tratar como sessão expirada
+        onSessionExpired()
+        return
+      }
+
       if (data.success && data.session) {
         setSessionData(data.session)
         

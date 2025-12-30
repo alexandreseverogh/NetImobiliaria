@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
 import pool from '@/lib/database/connection'
+import { verifyTokenNode } from '@/lib/auth/jwt-node'
+
+export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,27 +16,19 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Verificar token
-    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret'
-    let decoded: any
-    
-    try {
-      decoded = jwt.verify(token, jwtSecret) as any
-    } catch (jwtError: any) {
-      console.error('Erro ao verificar token JWT:', jwtError.message)
-      return NextResponse.json(
-        { error: 'Token inválido ou expirado', details: jwtError.message },
-        { status: 401 }
-      )
-    }
+    // Verificar token (compatível com nosso padrão HS256/base64url)
+    const decoded: any = verifyTokenNode(token)
     
     if (!decoded || !decoded.userId) {
-      console.error('Token decodificado sem userId:', decoded)
       return NextResponse.json(
         { error: 'Token inválido: userId não encontrado' },
         { status: 401 }
       )
     }
+
+    // Fallback: expiração pelo próprio JWT (caso user_sessions esteja indisponível)
+    const jwtExpiresAt =
+      decoded?.exp && typeof decoded.exp === 'number' ? new Date(decoded.exp * 1000) : null
 
     // Buscar informações da sessão ativa
     const query = `
@@ -58,19 +52,54 @@ export async function GET(request: NextRequest) {
     try {
       result = await pool.query(query, [decoded.userId])
     } catch (dbError: any) {
-      console.error('Erro ao buscar sessão no banco:', dbError.message)
-      return NextResponse.json(
-        { error: 'Erro ao buscar informações da sessão', details: dbError.message },
-        { status: 500 }
-      )
+      console.error('Erro ao buscar sessão no banco:', dbError?.message || dbError)
+
+      // Se o banco falhar, ainda conseguimos informar expiração aproximada pelo JWT
+      if (jwtExpiresAt) {
+        const now = new Date()
+        const minutesRemaining = Math.floor((jwtExpiresAt.getTime() - now.getTime()) / (1000 * 60))
+        return NextResponse.json({
+          success: true,
+          session: {
+            id: null,
+            userId: decoded.userId,
+            username: decoded.username || null,
+            nome: null,
+            expiresAt: jwtExpiresAt.toISOString(),
+            createdAt: null,
+            timeRemaining: minutesRemaining,
+            source: 'jwt'
+          }
+        })
+      }
+
+      return NextResponse.json({ error: 'Erro ao buscar informações da sessão' }, { status: 500 })
     }
 
     if (result.rows.length === 0) {
-      // Não é erro crítico, apenas informa que não há sessão ativa
-      return NextResponse.json({
-        success: false,
-        message: 'Nenhuma sessão ativa encontrada'
-      }, { status: 200 }) // Retorna 200, não 500
+      // Se não há sessão ativa no banco, usar expiração do JWT (se existir)
+      if (jwtExpiresAt) {
+        const now = new Date()
+        const minutesRemaining = Math.floor((jwtExpiresAt.getTime() - now.getTime()) / (1000 * 60))
+        return NextResponse.json({
+          success: true,
+          session: {
+            id: null,
+            userId: decoded.userId,
+            username: decoded.username || null,
+            nome: null,
+            expiresAt: jwtExpiresAt.toISOString(),
+            createdAt: null,
+            timeRemaining: minutesRemaining,
+            source: 'jwt'
+          }
+        })
+      }
+
+      return NextResponse.json(
+        { success: false, message: 'Nenhuma sessão ativa encontrada' },
+        { status: 200 }
+      )
     }
 
     const session = result.rows[0]
@@ -90,7 +119,8 @@ export async function GET(request: NextRequest) {
         nome: session.nome,
         expiresAt: session.expires_at,
         createdAt: session.created_at,
-        timeRemaining: minutesRemaining
+        timeRemaining: minutesRemaining,
+        source: 'db'
       }
     })
 

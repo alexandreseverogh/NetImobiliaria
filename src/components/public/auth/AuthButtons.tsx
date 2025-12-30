@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, LogOut, ChevronDown, LogIn, UserPlus } from 'lucide-react'
 import AuthModal from './AuthModal'
+import CorretorLoginModal from './CorretorLoginModal'
 import { usePublicAuth } from '@/hooks/usePublicAuth'
 
 export default function AuthButtons() {
@@ -12,6 +13,7 @@ export default function AuthButtons() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'login' | 'register'>('login')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [corretorLoginOpen, setCorretorLoginOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Escutar eventos de mudança de autenticação
@@ -25,6 +27,25 @@ export default function AuthButtons() {
       window.removeEventListener('public-auth-changed', handleAuthChange)
     }
   }, [checkAuth])
+
+  // Fallback global: se qualquer parte do app disparar abertura do login do corretor,
+  // abrir o mesmo modal de credenciais usado na landing.
+  useEffect(() => {
+    const open = () => setCorretorLoginOpen(true)
+    window.addEventListener('open-corretor-login-modal', open)
+    
+    // Verificar se há parâmetro na URL para abrir o login do corretor (ex: após cadastro)
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('open_corretor_login') === 'true') {
+      setCorretorLoginOpen(true)
+      
+      // Limpar o parâmetro da URL para não reabrir se der refresh
+      const newUrl = window.location.pathname + window.location.search.replace(/[?&]open_corretor_login=true/, '').replace(/^&/, '?')
+      window.history.replaceState({}, '', newUrl)
+    }
+
+    return () => window.removeEventListener('open-corretor-login-modal', open)
+  }, [])
 
   const openLogin = () => {
     setModalMode('login')
@@ -143,8 +164,22 @@ export default function AuthButtons() {
           mode={modalMode}
           onChangeMode={setModalMode}
           onClose={() => setIsModalOpen(false)}
+          onCorretorLoginClick={() => {
+            setIsModalOpen(false)
+            setCorretorLoginOpen(true)
+          }}
+          onCorretorRegisterClick={() => {
+            setIsModalOpen(false)
+            router.push('/admin/usuarios?public_broker=true')
+          }}
         />
       )}
+
+      <CorretorLoginModal
+        isOpen={corretorLoginOpen}
+        onClose={() => setCorretorLoginOpen(false)}
+        redirectTo="/landpaging"
+      />
     </>
   )
 }

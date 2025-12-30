@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import { auditLogger } from '@/lib/utils/auditLogger'
 import { findUserById, updateUser, deleteUser } from '@/lib/database/users'
+import { validateCPF } from '@/lib/utils/formatters'
 
 // Interface para atualização de usuário
 interface UpdateUserRequest {
@@ -10,7 +11,12 @@ interface UpdateUserRequest {
   password?: string
   nome?: string
   telefone?: string
+  cpf?: string
+  creci?: string
+  foto?: Buffer | null
+  foto_tipo_mime?: string | null
   ativo?: boolean
+  isencao?: boolean
   roleId?: number
 }
 
@@ -46,11 +52,9 @@ function validateUpdateData(data: UpdateUserRequest): { isValid: boolean; errors
   }
 
   // Validação do telefone (se fornecido)
-  if (data.telefone !== undefined) {
-    if (!data.telefone.trim()) {
-      errors.push('Telefone é obrigatório')
-    } else {
-      const telefone = data.telefone.trim()
+  if (data.telefone !== undefined && data.telefone !== null) {
+    const telefone = data.telefone.trim()
+    if (telefone !== '') {
       // Aceitar formatos: (81) 99999-9999, (81) 999999999, (81) 9999-9999
       const telefoneRegex = /^\(\d{2}\) \d{4,5}-?\d{4}$/
       if (!telefoneRegex.test(telefone)) {
@@ -59,7 +63,12 @@ function validateUpdateData(data: UpdateUserRequest): { isValid: boolean; errors
     }
   }
 
-
+  // Validação do CPF (se fornecido)
+  if (data.cpf !== undefined && data.cpf !== null && data.cpf.trim() !== '') {
+    if (!validateCPF(data.cpf)) {
+      errors.push('CPF inválido')
+    }
+  }
 
   // Validação da senha (se fornecida)
   if (data.password !== undefined && data.password.length > 0) {
@@ -99,9 +108,19 @@ export async function GET(
     // Não retornar senha
     const { password, ...userWithoutPassword } = user
 
+    // Converter foto Buffer para base64 se existir
+    let fotoBase64 = null
+    if (user.foto) {
+      fotoBase64 = user.foto.toString('base64')
+    }
+
     return NextResponse.json({
       success: true,
-      user: userWithoutPassword
+      user: {
+        ...userWithoutPassword,
+        isencao: user.isencao,
+        foto: fotoBase64
+      }
     })
 
   } catch (error) {
@@ -158,23 +177,51 @@ export async function PUT(
 
     const loggedUserId = decoded.userId
 
-    // 🛡️ VERIFICAÇÃO HIERÁRQUICA OBRIGATÓRIA
+    // 🛡️ VERIFICAÇÃO HIERÁRQUICA OBRIGATÓRIA (Permitir editar a si mesmo no fluxo do corretor)
     const { canManageUser } = await import('@/lib/database/users')
-    const hierarchyCheck = await canManageUser(loggedUserId, userId)
     
-    if (!hierarchyCheck.allowed) {
-      console.log('🚫 Bloqueado por hierarquia:', hierarchyCheck.reason)
-      return NextResponse.json(
-        { error: hierarchyCheck.reason },
-        { status: 403 }
-      )
+    // Se não for o próprio usuário tentando se editar, verifica hierarquia
+    if (loggedUserId !== userId) {
+      const hierarchyCheck = await canManageUser(loggedUserId, userId)
+      if (!hierarchyCheck.allowed) {
+        console.log('🚫 Bloqueado por hierarquia:', hierarchyCheck.reason)
+        return NextResponse.json(
+          { error: hierarchyCheck.reason },
+          { status: 403 }
+        )
+      }
     }
 
-    console.log('✅ Verificação hierárquica passou - pode editar')
+    console.log('✅ Verificação de permissão passou')
 
-    const updateData: UpdateUserRequest = await request.json()
+    let updateData: UpdateUserRequest = {}
+    const contentType = request.headers.get('content-type') || ''
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData()
+      
+      if (formData.has('nome')) updateData.nome = formData.get('nome') as string
+      if (formData.has('username')) updateData.username = formData.get('username') as string
+      if (formData.has('email')) updateData.email = formData.get('email') as string
+      if (formData.has('telefone')) updateData.telefone = formData.get('telefone') as string
+      if (formData.has('cpf')) updateData.cpf = formData.get('cpf') as string
+      if (formData.has('creci')) updateData.creci = formData.get('creci') as string
+      if (formData.has('password')) updateData.password = formData.get('password') as string
+      if (formData.has('ativo')) updateData.ativo = formData.get('ativo') === 'true'
+      if (formData.has('isencao')) updateData.isencao = formData.get('isencao') === 'true'
+      if (formData.has('roleId')) updateData.roleId = parseInt(formData.get('roleId') as string)
+
+      const fotoFile = formData.get('foto') as File | null
+      if (fotoFile && typeof fotoFile !== 'string') {
+        const bytes = await fotoFile.arrayBuffer()
+        updateData.foto = Buffer.from(bytes)
+        updateData.foto_tipo_mime = fotoFile.type
+      }
+    } else {
+      updateData = await request.json()
+    }
     
-    console.log('📥 Dados recebidos para atualização:', updateData)
+    console.log('📥 Dados recebidos para atualização:', { ...updateData, foto: updateData.foto ? '[BUFFER]' : undefined })
     console.log('🆔 ID do usuário:', userId)
 
     // Validação dos dados de entrada
@@ -212,10 +259,20 @@ export async function PUT(
     // Não retornar senha
     const { password, ...userWithoutPassword } = updatedUser
 
+    // Converter foto Buffer para base64 para o retorno
+    let fotoBase64 = null
+    if (updatedUser.foto) {
+      fotoBase64 = updatedUser.foto.toString('base64')
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Usuário atualizado com sucesso',
-      user: userWithoutPassword
+      user: {
+        ...userWithoutPassword,
+        isencao: updatedUser.isencao,
+        foto: fotoBase64
+      }
     })
 
   } catch (error) {

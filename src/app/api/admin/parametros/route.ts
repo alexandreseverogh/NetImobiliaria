@@ -11,27 +11,36 @@ export async function GET(request: NextRequest) {
       return permissionCheck
     }
 
-    // Buscar valor atual
+    // Buscar valores atuais
     const result = await pool.query(
-      'SELECT vl_destaque_nacional FROM parametros LIMIT 1'
+      'SELECT vl_destaque_nacional, valor_corretor, chave_pix_corretor, cidade_beneficiario_recebimento_corretor FROM parametros LIMIT 1'
     )
 
     if (result.rows.length === 0) {
-      // Se não existir registro, criar com valor padrão
+      // Se não existir registro, criar com valores padrão
       await pool.query(
-        'INSERT INTO parametros (vl_destaque_nacional) VALUES (0.00)'
+        'INSERT INTO parametros (vl_destaque_nacional, valor_corretor, chave_pix_corretor, cidade_beneficiario_recebimento_corretor) VALUES (0.00, 0.00, $1, $2)',
+        ['', 'BRASILIA']
       )
       
       return NextResponse.json({
         success: true,
-        data: { vl_destaque_nacional: 0.00 }
+        data: { 
+          vl_destaque_nacional: 0.00,
+          valor_corretor: 0.00,
+          chave_pix_corretor: '',
+          cidade_beneficiario_recebimento_corretor: 'BRASILIA'
+        }
       })
     }
 
     return NextResponse.json({
       success: true,
       data: {
-        vl_destaque_nacional: parseFloat(result.rows[0].vl_destaque_nacional) || 0.00
+        vl_destaque_nacional: parseFloat(result.rows[0].vl_destaque_nacional) || 0.00,
+        valor_corretor: parseFloat(result.rows[0].valor_corretor) || 0.00,
+        chave_pix_corretor: result.rows[0].chave_pix_corretor || '',
+        cidade_beneficiario_recebimento_corretor: result.rows[0].cidade_beneficiario_recebimento_corretor || 'BRASILIA'
       }
     })
 
@@ -44,6 +53,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
+interface ParametrosRequest {
+  vl_destaque_nacional?: number;
+  valor_corretor?: number;
+  chave_pix_corretor?: string;
+  cidade_beneficiario_recebimento_corretor?: string;
+}
+
 // PUT - Atualizar valor do parâmetro
 export async function PUT(request: NextRequest) {
   try {
@@ -53,46 +69,76 @@ export async function PUT(request: NextRequest) {
       return permissionCheck
     }
 
-    const body = await request.json()
-    const { vl_destaque_nacional } = body
+    const body: ParametrosRequest = await request.json()
+    const { 
+      vl_destaque_nacional, 
+      valor_corretor, 
+      chave_pix_corretor, 
+      cidade_beneficiario_recebimento_corretor 
+    } = body
 
-    // Validações
-    if (vl_destaque_nacional === undefined || vl_destaque_nacional === null) {
-      return NextResponse.json(
-        { error: 'Valor de destaque nacional é obrigatório' },
-        { status: 400 }
-      )
+    // Preparar campos e valores para atualização
+    const updates: string[] = []
+    const values: any[] = []
+    let paramCount = 1
+
+    if (vl_destaque_nacional !== undefined) {
+      const valorNumerico = parseFloat(vl_destaque_nacional.toString())
+      if (isNaN(valorNumerico) || valorNumerico < 0) {
+        return NextResponse.json({ error: 'Valor de destaque nacional inválido' }, { status: 400 })
+      }
+      updates.push(`vl_destaque_nacional = $${paramCount++}`)
+      values.push(valorNumerico)
     }
 
-    const valorNumerico = parseFloat(vl_destaque_nacional)
-    if (isNaN(valorNumerico) || valorNumerico < 0) {
-      return NextResponse.json(
-        { error: 'Valor de destaque nacional deve ser um número positivo' },
-        { status: 400 }
-      )
+    if (valor_corretor !== undefined) {
+      const valorNumerico = parseFloat(valor_corretor.toString())
+      if (isNaN(valorNumerico) || valorNumerico < 0) {
+        return NextResponse.json({ error: 'Valor do corretor inválido' }, { status: 400 })
+      }
+      updates.push(`valor_corretor = $${paramCount++}`)
+      values.push(valorNumerico)
+    }
+
+    if (chave_pix_corretor !== undefined) {
+      updates.push(`chave_pix_corretor = $${paramCount++}`)
+      values.push(chave_pix_corretor)
+    }
+
+    if (cidade_beneficiario_recebimento_corretor !== undefined) {
+      // O PIX exige cidade em maiúsculas e sem acentos para máxima compatibilidade, 
+      // mas vamos apenas garantir que não seja vazia aqui.
+      updates.push(`cidade_beneficiario_recebimento_corretor = $${paramCount++}`)
+      values.push(cidade_beneficiario_recebimento_corretor.trim().toUpperCase())
+    }
+
+    if (updates.length === 0) {
+      return NextResponse.json({ error: 'Nenhum dado para atualizar' }, { status: 400 })
     }
 
     // Verificar se existe registro
     const existe = await pool.query('SELECT 1 FROM parametros LIMIT 1')
 
     if (existe.rows.length === 0) {
-      // Criar registro se não existir
+      // Criar registro se não existir (usando apenas o que foi enviado)
+      const columns = updates.map(u => u.split(' = ')[0]).join(', ')
+      const placeholders = updates.map((_, i) => `$${i + 1}`).join(', ')
       await pool.query(
-        'INSERT INTO parametros (vl_destaque_nacional) VALUES ($1)',
-        [valorNumerico]
+        `INSERT INTO parametros (${columns}) VALUES (${placeholders})`,
+        values
       )
     } else {
       // Atualizar valor existente
       await pool.query(
-        'UPDATE parametros SET vl_destaque_nacional = $1',
-        [valorNumerico]
+        `UPDATE parametros SET ${updates.join(', ')}`,
+        values
       )
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Parâmetro atualizado com sucesso',
-      data: { vl_destaque_nacional: valorNumerico }
+      message: 'Parâmetros atualizados com sucesso',
+      data: body
     })
 
   } catch (error) {

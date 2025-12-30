@@ -130,6 +130,11 @@ const nextConfig = {
         protocol: 'https',
         hostname: '**.propmodo.com',
       },
+      // Propmodo (domínio raiz)
+      {
+        protocol: 'https',
+        hostname: 'propmodo.com',
+      },
       // CNET (wildcard cobre todos os subdomínios)
       {
         protocol: 'https',

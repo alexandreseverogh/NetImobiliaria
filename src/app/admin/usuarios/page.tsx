@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useApi } from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
@@ -8,6 +8,9 @@ import { API_ENDPOINTS } from '@/lib/config/constants'
 import PermissionGuard from '@/components/admin/PermissionGuard'
 import CreateUserModal from '@/components/admin/CreateUserModal'
 import EditUserModal from '@/components/admin/EditUserModal'
+import { useSearchParams } from 'next/navigation'
+import { Eye, EyeOff } from 'lucide-react'
+import { formatCPF, validateCPF } from '@/lib/utils/formatters'
 
 interface User {
   id: string
@@ -34,6 +37,16 @@ interface UserRole {
 }
 
 export default function UsuariosPage() {
+  const searchParams = useSearchParams()
+  const isPublicBroker = searchParams?.get('public_broker') === 'true'
+  if (isPublicBroker) {
+    return <PublicBrokerSignup />
+  }
+
+  return <UsuariosAdminInner />
+}
+
+function UsuariosAdminInner() {
   const { get, patch, delete: del } = useApi()
   const { user: loggedUser } = useAuth()  // Usuário logado
   const [users, setUsers] = useState<User[]>([])
@@ -51,23 +64,14 @@ export default function UsuariosPage() {
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [twoFactorFilter, setTwoFactorFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
 
-
   const fetchUserPermissions = useCallback(async () => {
     try {
-      // Usando hook centralizado
       const response = await get(API_ENDPOINTS.AUTH.ME)
       
       if (response.ok) {
         const data = await response.json()
         console.log('🔐 Permissões do usuário logado:', data.user.permissoes)
         setUserPermissions(data.user.permissoes)
-        
-        // Verificar se tem permissões para usuários
-        if (data.user.permissoes?.usuarios) {
-          console.log(`✅ Usuário tem permissão para usuários: ${data.user.permissoes.usuarios}`)
-        } else {
-          console.log('❌ Usuário NÃO tem permissão para usuários')
-        }
       } else {
         console.error('❌ Erro ao buscar permissões:', response.status, response.statusText)
       }
@@ -104,8 +108,6 @@ export default function UsuariosPage() {
       
       if (response.ok) {
         const data = await response.json()
-        console.log('✅ Perfis carregados:', data.roles)
-        console.log('📊 Quantidade de perfis:', data.roles?.length)
         setRoles(data.roles || [])
       } else {
         const errorData = await response.json()
@@ -125,17 +127,6 @@ export default function UsuariosPage() {
   const applyFilters = useCallback(() => {
     let filtered = [...users]
 
-    // Debug: Log dos dados 2FA
-    console.log('🔍 DEBUG - Total de usuários:', users.length)
-    console.log('🔍 DEBUG - Dados 2FA dos usuários:', users.map(u => ({
-      username: u.username,
-      nome: u.nome,
-      two_factor_enabled: u.two_factor_enabled,
-      two_factor_method: u.two_factor_method,
-      role_name: u.role_name
-    })))
-
-    // Filtro por termo de busca
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
       filtered = filtered.filter(user => 
@@ -146,37 +137,28 @@ export default function UsuariosPage() {
       )
     }
 
-    // Filtro por status
     if (statusFilter !== 'all') {
       filtered = filtered.filter(user => 
         statusFilter === 'active' ? user.ativo : !user.ativo
       )
     }
 
-    // Filtro por perfil
     if (roleFilter !== 'all') {
       filtered = filtered.filter(user => 
         user.role_name === roleFilter
       )
     }
 
-    // Filtro por 2FA
     if (twoFactorFilter !== 'all') {
-      console.log('🔍 DEBUG - Aplicando filtro 2FA:', twoFactorFilter)
       filtered = filtered.filter(user => {
-        // 2FA está habilitado se o usuário tem 2FA ativado
         const has2FA = user.two_factor_enabled === true
-        const shouldInclude = twoFactorFilter === 'enabled' ? has2FA : !has2FA
-        console.log(`🔍 DEBUG - ${user.username}: has2FA=${has2FA}, method=${user.two_factor_method}, shouldInclude=${shouldInclude}`)
-        return shouldInclude
+        return twoFactorFilter === 'enabled' ? has2FA : !has2FA
       })
     }
 
-    console.log('🔍 DEBUG - Usuários filtrados:', filtered.length)
     setFilteredUsers(filtered)
   }, [users, searchTerm, statusFilter, roleFilter, twoFactorFilter])
 
-  // Aplicar filtros quando os dados ou filtros mudarem
   useEffect(() => {
     applyFilters()
   }, [applyFilters])
@@ -655,6 +637,567 @@ export default function UsuariosPage() {
         user={editingUser}
         roles={roles}
       />
+    </div>
+  )
+}
+
+function PublicBrokerSignup() {
+  const [loading, setLoading] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [emailChecking, setEmailChecking] = useState(false)
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null)
+  const [cpfChecking, setCpfChecking] = useState(false)
+  const [cpfAvailable, setCpfAvailable] = useState<boolean | null>(null)
+  const [emailPendingValidation, setEmailPendingValidation] = useState(false)
+  const [cpfPendingValidation, setCpfPendingValidation] = useState(false)
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [cpfError, setCpfError] = useState<string | null>(null)
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null)
+
+  const [form, setForm] = useState({
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    nome: '',
+    telefone: '',
+    cpf: '',
+    creci: ''
+  })
+
+  const [foto, setFoto] = useState<File | null>(null)
+
+  const emailInputRef = useRef<HTMLInputElement | null>(null)
+  const cpfInputRef = useRef<HTMLInputElement | null>(null)
+  const confirmPasswordInputRef = useRef<HTMLInputElement | null>(null)
+  const lastValidatedEmailRef = useRef<string>('')
+  const lastValidatedCpfRef = useRef<string>('')
+  const cpfAbortRef = useRef<AbortController | null>(null)
+  const cpfExistsCacheRef = useRef<Map<string, boolean>>(new Map())
+  const emailDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cpfDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fotoInputId = 'broker-foto-input'
+
+  const onChange = (key: keyof typeof form, value: string) => {
+    // IMPORTANTÍSSIMO: marcar validação pendente imediatamente
+    if (key === 'email') {
+      const emailNow = String(value || '').trim().toLowerCase()
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNow) && emailNow !== lastValidatedEmailRef.current) {
+        setEmailPendingValidation(true)
+      }
+    }
+    if (key === 'cpf') {
+      const cpfDigits = String(value || '').replace(/\D/g, '')
+      if (cpfDigits.length === 11 && validateCPF(cpfDigits) && cpfDigits !== lastValidatedCpfRef.current) {
+        setCpfPendingValidation(true)
+      }
+    }
+
+    setForm((p) => ({ ...p, [key]: value }))
+  }
+
+  const validate = () => {
+    const errs: string[] = []
+    if (!form.username.trim() || form.username.trim().length < 3) errs.push('Username deve ter pelo menos 3 caracteres')
+    if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.push('Email inválido')
+    if (emailAvailable === false) errs.push('Este e-mail já está cadastrado para outro usuário')
+    if (emailPendingValidation || emailChecking) errs.push('Aguarde a validação do e-mail')
+    if (!form.nome.trim()) errs.push('Nome é obrigatório')
+    if (!form.telefone.trim()) errs.push('Telefone é obrigatório')
+    if (form.telefone.trim() && !/^\(\d{2}\)\s\d{9}$/.test(form.telefone.trim())) {
+      errs.push('Telefone deve estar no formato (99) 999999999')
+    }
+    if (!form.cpf.trim()) errs.push('CPF é obrigatório')
+    if (form.cpf.trim() && !validateCPF(form.cpf)) errs.push('CPF inválido')
+    if (cpfAvailable === false) errs.push('Este CPF já está cadastrado para outro usuário')
+    if (cpfPendingValidation || cpfChecking) errs.push('Aguarde a validação do CPF')
+    if (!form.creci.trim()) errs.push('CRECI é obrigatório')
+    if (!form.password || form.password.length < 8) errs.push('Senha deve ter pelo menos 8 caracteres')
+    if (!form.confirmPassword) errs.push('Confirmar senha é obrigatório')
+    if (form.password !== form.confirmPassword) errs.push('Senhas não coincidem')
+    if (!foto) errs.push('Foto é obrigatória')
+    return errs
+  }
+
+  const validateCpfForBlur = (): string | null => {
+    const cpfDigits = form.cpf.replace(/\D/g, '')
+    if (!cpfDigits) return 'CPF é obrigatório'
+    if (cpfDigits.length < 11) return 'CPF incompleto'
+    if (!validateCPF(cpfDigits)) return 'CPF inválido'
+    if (cpfPendingValidation || cpfChecking) return 'Verificando CPF...'
+    if (cpfAvailable === false) return 'Este CPF já está cadastrado'
+    return null
+  }
+
+  const validateEmailForBlur = (): string | null => {
+    const email = form.email.trim()
+    if (!email) return 'Email é obrigatório'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Email inválido'
+    if (emailPendingValidation || emailChecking) return 'Verificando e-mail...'
+    if (emailAvailable === false) return 'Este e-mail já está cadastrado'
+    return null
+  }
+
+  // Validação online (UX): senhas precisam ser iguais enquanto digita (igual cadastro de cliente)
+  useEffect(() => {
+    if (!form.confirmPassword) {
+      setConfirmPasswordError(null)
+      return
+    }
+    if (form.password !== form.confirmPassword) {
+      setConfirmPasswordError('Senhas não coincidem')
+    } else {
+      setConfirmPasswordError(null)
+    }
+  }, [form.password, form.confirmPassword])
+
+  // Validação online de e-mail (disponibilidade)
+  useEffect(() => {
+    const email = form.email.trim().toLowerCase()
+    setEmailAvailable(null)
+    setEmailChecking(false)
+    setEmailError(null)
+    
+    if (emailDebounceRef.current) {
+      clearTimeout(emailDebounceRef.current)
+      emailDebounceRef.current = null
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailPendingValidation(false)
+      return
+    }
+
+    // Cache: se já checamos esse e-mail nesta sessão
+    if (email === lastValidatedEmailRef.current) {
+      setEmailPendingValidation(false)
+      return
+    }
+
+    // bloquear saída do campo enquanto valida online
+    setEmailPendingValidation(true)
+    emailDebounceRef.current = setTimeout(async () => {
+      setEmailChecking(true)
+      try {
+        const res = await fetch(`/api/public/users/check-email?email=${encodeURIComponent(email)}`, {
+          method: 'GET',
+          cache: 'no-store'
+        })
+        const data = await res.json().catch(() => null)
+        if (res.ok && data?.success) {
+          const available = Boolean(data.available)
+          setEmailAvailable(available)
+          lastValidatedEmailRef.current = email
+        }
+      } catch {
+        setEmailAvailable(null)
+      } finally {
+        setEmailChecking(false)
+        setEmailPendingValidation(false)
+      }
+    }, 400)
+
+    return () => {
+      if (emailDebounceRef.current) clearTimeout(emailDebounceRef.current)
+      emailDebounceRef.current = null
+    }
+  }, [form.email])
+
+  // Validação online de CPF (disponibilidade)
+  useEffect(() => {
+    const cpfDigits = form.cpf.replace(/\D/g, '')
+    setCpfAvailable(null)
+    setCpfChecking(false)
+    setCpfError(null)
+
+    if (cpfDebounceRef.current) {
+      clearTimeout(cpfDebounceRef.current)
+      cpfDebounceRef.current = null
+    }
+
+    if (!cpfDigits || !validateCPF(cpfDigits)) {
+      setCpfPendingValidation(false)
+      return
+    }
+
+    // Cache: se já checamos esse CPF nesta sessão
+    const cached = cpfExistsCacheRef.current.get(cpfDigits)
+    if (cached !== undefined) {
+      setCpfAvailable(!cached) // available = !exists
+      setCpfChecking(false)
+      setCpfPendingValidation(false)
+      lastValidatedCpfRef.current = cpfDigits
+      return
+    }
+
+    // Cancelar checagem anterior
+    if (cpfAbortRef.current) {
+      cpfAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    cpfAbortRef.current = controller
+
+    // bloquear saída do campo enquanto valida online
+    setCpfPendingValidation(true)
+    cpfDebounceRef.current = setTimeout(async () => {
+      setCpfChecking(true)
+      try {
+        const res = await fetch(`/api/public/users/check-cpf?cpf=${encodeURIComponent(cpfDigits)}`, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal
+        })
+        const data = await res.json().catch(() => null)
+        if (res.ok && data?.success) {
+          const available = Boolean(data.available)
+          setCpfAvailable(available)
+          cpfExistsCacheRef.current.set(cpfDigits, !available)
+          lastValidatedCpfRef.current = cpfDigits
+        }
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          console.error('Erro ao verificar CPF:', error)
+        }
+      } finally {
+        setCpfChecking(false)
+        setCpfPendingValidation(false)
+      }
+    }, 200)
+
+    return () => {
+      if (cpfDebounceRef.current) clearTimeout(cpfDebounceRef.current)
+      cpfDebounceRef.current = null
+    }
+  }, [form.cpf])
+
+  const formatTelefone = (value: string): string => {
+    const digits = value.replace(/\D/g, '').slice(0, 11) // (DD) + 9 dígitos
+    if (digits.length <= 2) return digits
+    const ddd = digits.slice(0, 2)
+    const rest = digits.slice(2)
+    return `(${ddd}) ${rest}`
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    const errs = validate()
+    if (errs.length > 0) {
+      setError(errs.join('\n'))
+      return
+    }
+
+    setLoading(true)
+    try {
+      const fd = new FormData()
+      fd.set('username', form.username.trim())
+      fd.set('email', form.email.trim())
+      fd.set('nome', form.nome.trim())
+      fd.set('telefone', form.telefone.trim())
+      fd.set('password', form.password)
+      fd.set('cpf', form.cpf.replace(/\D/g, ''))
+      fd.set('creci', form.creci.trim())
+      if (foto) fd.set('foto', foto)
+
+      const res = await fetch('/api/public/corretor/register', {
+        method: 'POST',
+        body: fd
+      })
+
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.success) {
+        const msg = data?.error || `Erro HTTP ${res.status}`
+        const details = Array.isArray(data?.details) ? data.details.join('\n') : null
+        throw new Error(details ? `${msg}\n${details}` : msg)
+      }
+
+      setDone(true)
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao cadastrar corretor')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Ao concluir, direcionar para o login de corretor (via parâmetro na landing page)
+  useEffect(() => {
+    if (!done) return
+    const t = setTimeout(() => {
+      window.location.href = '/landpaging?open_corretor_login=true'
+    }, 2500)
+    return () => clearTimeout(t)
+  }, [done])
+
+  if (done) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
+          <h1 className="text-2xl font-extrabold text-gray-900">Cadastro enviado</h1>
+          <p className="mt-2 text-gray-600">
+            Seu usuário de corretor foi criado. Você será redirecionado para a página inicial.
+          </p>
+          <a
+            href="/landpaging"
+            className="mt-6 inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+          >
+            Voltar para a página inicial
+          </a>
+          <p className="mt-3 text-xs text-gray-500">
+            Dica: para entrar como corretor, use o botão <strong>Sou Corretor</strong> na página inicial e clique em “logar”.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+      <div className="max-w-3xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-extrabold text-gray-900">Cadastro de Corretor</h1>
+          <p className="mt-2 text-gray-600">
+            Preencha seus dados. O <strong>CRECI</strong> será validado por nossa equipe.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200/70 ring-1 ring-black/5 p-6 sm:p-8">
+          {error && (
+            <pre className="whitespace-pre-wrap rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 mb-4">
+              {error}
+            </pre>
+          )}
+
+          {/* Campos dummy para reduzir autofill agressivo do navegador */}
+          <input className="hidden" autoComplete="username" name="fake-username" />
+          <input className="hidden" type="password" autoComplete="current-password" name="fake-password" />
+
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Usuário (username) *</label>
+                <input
+                  name="broker_username"
+                  autoComplete="off"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
+                  value={form.username}
+                  onChange={(e) => onChange('username', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Email *</label>
+                <input
+                  name="broker_email"
+                  autoComplete="off"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
+                  value={form.email}
+                  onChange={(e) => onChange('email', e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      const msg = validateEmailForBlur()
+                      setEmailError(msg)
+                      if (msg || emailPendingValidation || emailChecking) {
+                        e.preventDefault()
+                        setTimeout(() => emailInputRef.current?.focus(), 0)
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    const msg = validateEmailForBlur()
+                    setEmailError(msg)
+                    if (msg || emailPendingValidation || emailChecking) {
+                      setTimeout(() => emailInputRef.current?.focus(), 0)
+                    }
+                  }}
+                  ref={emailInputRef}
+                />
+                {emailError && <p className="mt-1 text-sm text-red-600">{emailError}</p>}
+                {!emailChecking && !emailPendingValidation && emailAvailable === false && (
+                  <p className="mt-1 text-sm text-red-600">Este e-mail já está cadastrado</p>
+                )}
+                {(emailChecking || emailPendingValidation) && (
+                  <p className="mt-1 text-xs text-gray-500">Verificando e-mail...</p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Senha *</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="broker_password"
+                    autoComplete="new-password"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-12 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
+                    value={form.password}
+                    onChange={(e) => onChange('password', e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex items-center justify-center w-12 text-gray-500 hover:text-gray-700"
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Confirmar senha *</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    name="broker_password_confirm"
+                    autoComplete="new-password"
+                    className={`w-full rounded-xl border px-4 py-3 pr-12 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300 ${
+                      confirmPasswordError ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}
+                    value={form.confirmPassword}
+                    onChange={(e) => onChange('confirmPassword', e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Tab') {
+                        const invalid = !form.confirmPassword || form.password !== form.confirmPassword
+                        if (invalid) {
+                          e.preventDefault()
+                          setConfirmPasswordError(!form.confirmPassword ? 'Confirmar senha é obrigatório' : 'Senhas não coincidem')
+                          setTimeout(() => confirmPasswordInputRef.current?.focus(), 0)
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      const invalid = !form.confirmPassword || form.password !== form.confirmPassword
+                      if (invalid) {
+                        setConfirmPasswordError(!form.confirmPassword ? 'Confirmar senha é obrigatório' : 'Senhas não coincidem')
+                        setTimeout(() => confirmPasswordInputRef.current?.focus(), 0)
+                      }
+                    }}
+                    ref={confirmPasswordInputRef}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex items-center justify-center w-12 text-gray-500 hover:text-gray-700"
+                    aria-label={showConfirmPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showConfirmPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                  </button>
+                </div>
+                {confirmPasswordError && <p className="mt-1 text-sm text-red-600">{confirmPasswordError}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Nome *</label>
+                <input
+                  name="broker_nome"
+                  autoComplete="off"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
+                  value={form.nome}
+                  onChange={(e) => onChange('nome', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Telefone *</label>
+                <input
+                  name="broker_telefone"
+                  autoComplete="off"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
+                  value={form.telefone}
+                  onChange={(e) => onChange('telefone', formatTelefone(e.target.value))}
+                  placeholder="(99) 999999999"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">CPF *</label>
+                <input
+                  name="broker_cpf"
+                  autoComplete="off"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
+                  value={form.cpf}
+                  onChange={(e) => onChange('cpf', formatCPF(e.target.value))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      const msg = validateCpfForBlur()
+                      setCpfError(msg)
+                      if (msg || cpfPendingValidation || cpfChecking) {
+                        e.preventDefault()
+                        setTimeout(() => cpfInputRef.current?.focus(), 0)
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    const msg = validateCpfForBlur()
+                    setCpfError(msg)
+                    if (msg || cpfPendingValidation || cpfChecking) {
+                      // Reforçar: não permitir sair do campo CPF se inválido/duplicado
+                      setTimeout(() => cpfInputRef.current?.focus(), 0)
+                    }
+                  }}
+                  placeholder="000.000.000-00"
+                  ref={cpfInputRef}
+                />
+                {cpfError && <p className="mt-1 text-sm text-red-600">{cpfError}</p>}
+                {!cpfChecking && !cpfPendingValidation && cpfAvailable === false && (
+                  <p className="mt-1 text-sm text-red-600">Este CPF já está cadastrado</p>
+                )}
+                {(cpfChecking || cpfPendingValidation) && <p className="mt-1 text-xs text-gray-500">Verificando CPF...</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">CRECI *</label>
+                <input
+                  name="broker_creci"
+                  autoComplete="off"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
+                  value={form.creci}
+                  onChange={(e) => onChange('creci', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-1">Foto *</label>
+              <div className="rounded-xl border border-gray-200 bg-white p-3">
+                <input
+                  id={fotoInputId}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={(e) => setFoto(e.target.files?.[0] || null)}
+                />
+                <div className="flex flex-col gap-2">
+                  <label
+                    htmlFor={fotoInputId}
+                    className="inline-flex w-fit items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 cursor-pointer"
+                  >
+                    Escolher foto
+                  </label>
+                  <div className="min-w-0">
+                    <div className="text-xs text-gray-500">JPG/PNG/WEBP • até 2MB</div>
+                    <div className="text-sm font-medium text-gray-800 truncate">
+                      {foto ? foto.name : 'Nenhum arquivo selecionado'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              disabled={loading}
+              className="w-full rounded-xl bg-blue-600 text-white font-semibold py-3 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Enviando...' : 'Criar conta de corretor'}
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   )
 }

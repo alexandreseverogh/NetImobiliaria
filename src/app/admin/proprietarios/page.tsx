@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { PlusIcon, MagnifyingGlassIcon, EyeIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline'
 import Pagination from '@/components/admin/Pagination'
 import { usePageFocus } from '@/hooks/usePageFocus'
@@ -22,6 +22,8 @@ interface Proprietario {
   estado_fk?: number
   cidade_fk?: number
   cep?: string
+  corretor_fk?: string | null
+  corretor_nome?: string | null
   created_at: string
 }
 
@@ -36,6 +38,8 @@ interface PaginatedResponse {
 
 export default function ProprietariosPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const mineCorretor = (searchParams?.get('mine_corretor') || '').toLowerCase() === 'true'
   const { get, delete: del } = useApi()
   const [proprietarios, setProprietarios] = useState<Proprietario[]>([])
   const [loading, setLoading] = useState(true)
@@ -85,6 +89,10 @@ export default function ProprietariosPage() {
         page: currentPage.toString(),
         limit: '10'
       })
+
+      if (mineCorretor) {
+        queryParams.append('mine_corretor', 'true')
+      }
       
       // Adicionar filtros à query
       if (filtersToUse.nome) queryParams.append('nome', filtersToUse.nome)
@@ -128,7 +136,7 @@ export default function ProprietariosPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, getEstadoNome, getCidadeNome, get])
+  }, [currentPage, getEstadoNome, getCidadeNome, get, mineCorretor])
 
   // Hook para recarregar quando a página ganha foco
   usePageFocus(fetchProprietarios)
@@ -183,13 +191,17 @@ export default function ProprietariosPage() {
     setCurrentPage(page)
   }
 
-  const handleDelete = async (uuid: string) => {
-    if (!confirm('Tem certeza que deseja excluir este proprietário?')) {
+  const handleDelete = async (proprietario: Proprietario) => {
+    const corretorLabel =
+      proprietario.corretor_fk
+        ? `\nCorretor: ${proprietario.corretor_nome || 'Corretor não encontrado'}`
+        : '\nCorretor: Sem Corretor Associado'
+    if (!confirm(`Tem certeza que deseja excluir este proprietário?\n\nNome: ${proprietario.nome}${corretorLabel}`)) {
       return
     }
 
     try {
-      const response = await del(`/api/admin/proprietarios/${uuid}`)
+      const response = await del(`/api/admin/proprietarios/${proprietario.uuid}`)
 
       if (!response.ok) {
         throw new Error('Erro ao excluir proprietário')
@@ -200,6 +212,17 @@ export default function ProprietariosPage() {
     } catch (error) {
       console.error('Erro ao excluir proprietário:', error)
       alert('Erro ao excluir proprietário')
+    }
+  }
+
+  const handleFecharCorretorFlow = () => {
+    try {
+      const returnUrl = sessionStorage.getItem('corretor_return_url') || '/landpaging'
+      const url = new URL(returnUrl, window.location.origin)
+      url.searchParams.set('corretor_home', 'true')
+      window.location.href = url.pathname + url.search
+    } catch {
+      window.location.href = '/landpaging?corretor_home=true'
     }
   }
 
@@ -255,15 +278,25 @@ export default function ProprietariosPage() {
             <h1 className="text-3xl font-bold text-gray-900">Proprietários</h1>
             <p className="mt-2 text-gray-600">Gerencie os proprietários da imobiliária</p>
           </div>
-          <CreateGuard resource="proprietarios">
-            <button
-              onClick={() => router.push('/admin/proprietarios/novo')}
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-200"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Novo Proprietário
-            </button>
-          </CreateGuard>
+          <div className="flex items-center gap-3">
+            {mineCorretor && (
+              <button
+                onClick={handleFecharCorretorFlow}
+                className="inline-flex items-center px-6 py-3 text-base font-medium rounded-lg shadow-lg text-white bg-gray-700 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-600 transition-all duration-200"
+              >
+                Fechar
+              </button>
+            )}
+            <CreateGuard resource="proprietarios">
+              <button
+                onClick={() => router.push('/admin/proprietarios/novo')}
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-200"
+              >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Novo Proprietário
+              </button>
+            </CreateGuard>
+          </div>
         </div>
       </div>
 
@@ -417,7 +450,13 @@ export default function ProprietariosPage() {
                     </p>
                     <div className="flex items-center space-x-1">
                       <button
-                        onClick={() => router.push(`/admin/proprietarios/${proprietario.uuid}`)}
+                        onClick={() =>
+                          router.push(
+                            mineCorretor
+                              ? `/admin/proprietarios/${proprietario.uuid}?mine_corretor=true`
+                              : `/admin/proprietarios/${proprietario.uuid}`
+                          )
+                        }
                         className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
                         title="Visualizar"
                       >
@@ -434,7 +473,7 @@ export default function ProprietariosPage() {
                       </UpdateGuard>
                       <DeleteGuard resource="proprietarios">
                         <button
-                          onClick={() => handleDelete(proprietario.uuid)}
+                          onClick={() => handleDelete(proprietario)}
                           className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
                           title="Excluir"
                         >
@@ -488,12 +527,17 @@ export default function ProprietariosPage() {
                     </div>
                   )}
                   
-                  {proprietario.cep && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-500">CEP:</span>
-                      <span className="text-sm text-gray-900">{formatCEP(proprietario.cep)}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-500">CEP:</span>
+                    <span className="text-sm text-gray-900">{formatCEP(proprietario.cep)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-500">Corretor:</span>
+                    <span className="text-sm text-gray-900 text-right max-w-[200px] truncate">
+                      {proprietario.corretor_fk ? (proprietario.corretor_nome || 'Corretor não encontrado') : 'Sem Corretor Associado'}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}

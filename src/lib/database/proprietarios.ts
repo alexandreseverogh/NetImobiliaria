@@ -25,6 +25,8 @@ export interface Proprietario {
   cidade_fk?: string
   cep?: string
   origem_cadastro?: string
+  corretor_fk?: string | null
+  corretor_nome?: string | null
   created_at: Date
   created_by?: string
   updated_at: Date
@@ -45,6 +47,7 @@ export interface CreateProprietarioData {
   cidade_fk?: string
   cep?: string
   origem_cadastro?: string
+  corretor_fk?: string | null
   created_by?: string
 }
 
@@ -71,6 +74,7 @@ export interface ProprietarioFilters {
   estado?: string
   cidade?: string
   bairro?: string
+  corretor_fk?: string
 }
 
 // ========================================
@@ -160,7 +164,7 @@ export async function findProprietariosPaginated(
 
     if (filters.nome) {
       paramCount++
-      whereConditions.push(`nome ILIKE $${paramCount}`)
+      whereConditions.push(`p.nome ILIKE $${paramCount}`)
       queryParams.push(`%${filters.nome}%`)
     }
 
@@ -168,26 +172,32 @@ export async function findProprietariosPaginated(
       paramCount++
       // Remover formatação do CPF para busca
       const cleanCPF = filters.cpf.replace(/\D/g, '')
-      whereConditions.push(`REPLACE(REPLACE(cpf, '.', ''), '-', '') ILIKE $${paramCount}`)
+      whereConditions.push(`REPLACE(REPLACE(p.cpf, '.', ''), '-', '') ILIKE $${paramCount}`)
       queryParams.push(`%${cleanCPF}%`)
     }
 
     if (filters.estado) {
       paramCount++
-      whereConditions.push(`estado_fk ILIKE $${paramCount}`)
+      whereConditions.push(`p.estado_fk ILIKE $${paramCount}`)
       queryParams.push(`%${filters.estado}%`)
     }
 
     if (filters.cidade) {
       paramCount++
-      whereConditions.push(`cidade_fk ILIKE $${paramCount}`)
+      whereConditions.push(`p.cidade_fk ILIKE $${paramCount}`)
       queryParams.push(`%${filters.cidade}%`)
     }
 
     if (filters.bairro) {
       paramCount++
-      whereConditions.push(`bairro ILIKE $${paramCount}`)
+      whereConditions.push(`p.bairro ILIKE $${paramCount}`)
       queryParams.push(`%${filters.bairro}%`)
+    }
+
+    if (filters.corretor_fk) {
+      paramCount++
+      whereConditions.push(`p.corretor_fk = $${paramCount}`)
+      queryParams.push(filters.corretor_fk)
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
@@ -195,33 +205,36 @@ export async function findProprietariosPaginated(
     // Query para contar total de proprietários com filtros
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM proprietarios
+      FROM proprietarios p
       ${whereClause}
     `
     
     // Query para buscar proprietários com paginação e filtros
     const dataQuery = `
       SELECT 
-        uuid,
-        nome,
-        cpf,
-        telefone,
-        endereco,
-        numero,
-        bairro,
-        complemento,
-        password,
-        email,
-        estado_fk,
-        cidade_fk,
-        cep,
-        created_at,
-        created_by,
-        updated_at,
-        updated_by
-      FROM proprietarios
+        p.uuid,
+        p.nome,
+        p.cpf,
+        p.telefone,
+        p.endereco,
+        p.numero,
+        p.bairro,
+        p.complemento,
+        p.password,
+        p.email,
+        p.estado_fk,
+        p.cidade_fk,
+        p.cep,
+        p.corretor_fk,
+        ucor.nome AS corretor_nome,
+        p.created_at,
+        p.created_by,
+        p.updated_at,
+        p.updated_by
+      FROM proprietarios p
+      LEFT JOIN users ucor ON ucor.id = p.corretor_fk
       ${whereClause}
-      ORDER BY nome
+      ORDER BY p.nome
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `
     
@@ -251,26 +264,29 @@ export async function findProprietarioByUuid(uuid: string): Promise<Proprietario
     const result = await pool.query(
       `
         SELECT 
-          uuid,
-          nome,
-          cpf,
-          telefone,
-          endereco,
-          numero,
-          bairro,
-          complemento,
-          password,
-          email,
-          estado_fk,
-          cidade_fk,
-          cep,
-          origem_cadastro,
-          created_at,
-          created_by,
-          updated_at,
-          updated_by
-        FROM proprietarios 
-        WHERE uuid = $1::uuid
+          p.uuid,
+          p.nome,
+          p.cpf,
+          p.telefone,
+          p.endereco,
+          p.numero,
+          p.bairro,
+          p.complemento,
+          p.password,
+          p.email,
+          p.estado_fk,
+          p.cidade_fk,
+          p.cep,
+          p.origem_cadastro,
+          p.corretor_fk,
+          ucor.nome AS corretor_nome,
+          p.created_at,
+          p.created_by,
+          p.updated_at,
+          p.updated_by
+        FROM proprietarios p
+        LEFT JOIN users ucor ON ucor.id = p.corretor_fk
+        WHERE p.uuid = $1::uuid
       `,
       [uuid]
     )
@@ -311,8 +327,8 @@ export async function createProprietario(data: CreateProprietarioData): Promise<
       INSERT INTO proprietarios (
         nome, cpf, telefone, endereco, numero, bairro, complemento,
         password, email, estado_fk, cidade_fk, cep, 
-        origem_cadastro, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        origem_cadastro, created_by, corretor_fk
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
     `, [
       data.nome,
@@ -328,7 +344,8 @@ export async function createProprietario(data: CreateProprietarioData): Promise<
       data.cidade_fk || null,
       data.cep,
       data.origem_cadastro || 'Plataforma',
-      data.created_by || 'system'
+      data.created_by || 'system',
+      data.corretor_fk || null
     ])
     
     return result.rows[0]
@@ -478,11 +495,15 @@ export async function deleteProprietarioByUuid(uuid: string): Promise<void> {
 // Verificar se CPF já existe
 export async function checkCPFExists(cpf: string, excludeUuid?: string): Promise<boolean> {
   try {
-    const params: any[] = [cpf]
-    let query = 'SELECT 1 FROM proprietarios WHERE cpf = $1'
+    const cpfRaw = String(cpf || '')
+    const cpfDigits = cpfRaw.replace(/\D/g, '')
+    const params: any[] = [cpfRaw, cpfDigits]
+    // Preferir match exato e ter fallback por dígitos para cobrir CPFs armazenados com/sem máscara.
+    let query =
+      "SELECT 1 FROM proprietarios WHERE cpf = $1 OR REPLACE(REPLACE(cpf, '.', ''), '-', '') = $2"
 
     if (excludeUuid) {
-      query += ' AND uuid != $2::uuid'
+      query += ' AND uuid != $3::uuid'
       params.push(excludeUuid)
     }
 

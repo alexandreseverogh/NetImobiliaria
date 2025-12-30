@@ -11,6 +11,7 @@ interface GeolocationModalProps {
   city: string
   region?: string
   country?: string
+  loading?: boolean
   onConfirmLocation?: (estadoSigla: string, cidadeNome: string) => void
   onSelectOtherLocation?: (estadoSigla: string, cidadeNome: string) => void
   onCloseWithoutClearing?: () => void // Callback para fechar sem limpar valores
@@ -32,6 +33,7 @@ export default function GeolocationModal({
   city,
   region,
   country,
+  loading,
   onConfirmLocation,
   onSelectOtherLocation,
   onCloseWithoutClearing
@@ -174,12 +176,12 @@ export default function GeolocationModal({
     }
   }
 
+  const isLoading = loading === true
+  const hasDetectedLocation = Boolean(city || region || country)
+
   // Formatar localização completa
   const locationParts = [city, region, country].filter(Boolean)
   const fullLocation = locationParts.join(', ') || city || 'sua região'
-
-  // Log para debug
-  console.log('🔍 [GEOLOCATION MODAL] Renderizando com:', { city, region, country, fullLocation })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -206,42 +208,75 @@ export default function GeolocationModal({
           </div>
 
           {/* Mensagem principal */}
-          <div className="space-y-3">
-            <p className="text-lg text-gray-700 leading-relaxed">
-              <span className="font-semibold text-primary-600">📍 Detectamos que você está em:</span>
-            </p>
-            
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4">
-              <p className="text-xl font-bold text-gray-900 text-center">
-                {fullLocation}
+          {isLoading ? (
+            <div className="space-y-3">
+              <p className="text-lg text-gray-700 leading-relaxed">
+                <span className="font-semibold text-primary-600">📍 Detectando sua localização...</span>
+              </p>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5 flex items-center justify-center gap-3">
+                <div className="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+                <p className="text-sm font-semibold text-gray-800">
+                  Aguarde alguns segundos
+                </p>
+              </div>
+              <p className="text-xs text-gray-500 italic">
+                * Localização aproximada baseada no seu endereço IP
               </p>
             </div>
+          ) : !hasDetectedLocation ? (
+            <div className="space-y-3">
+              <p className="text-lg text-gray-700 leading-relaxed">
+                <span className="font-semibold text-primary-600">📍 Não foi possível detectar sua localização automaticamente.</span>
+              </p>
+              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-4">
+                <p className="text-sm font-semibold text-gray-900 text-center">
+                  Se preferir, selecione Estado e Cidade manualmente abaixo.
+                </p>
+              </div>
+              <p className="text-xs text-gray-500 italic">
+                * Localização aproximada baseada no seu endereço IP
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-lg text-gray-700 leading-relaxed">
+                <span className="font-semibold text-primary-600">📍 Detectamos que você está em:</span>
+              </p>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4">
+                <p className="text-xl font-bold text-gray-900 text-center">
+                  {fullLocation}
+                </p>
+              </div>
 
-            <p className="text-gray-600 leading-relaxed mt-4">
-              Estamos mostrando os melhores imóveis disponíveis na sua região!
-            </p>
+              <p className="text-gray-600 leading-relaxed mt-4">
+                Estamos mostrando os melhores imóveis disponíveis na sua região!
+              </p>
 
-            <p className="text-xs text-gray-500 italic mt-2">
-              * Localização aproximada baseada no seu endereço IP
-            </p>
-          </div>
+              <p className="text-xs text-gray-500 italic mt-2">
+                * Localização aproximada baseada no seu endereço IP
+              </p>
+            </div>
+          )}
 
           {/* Checkbox "Não mostrar novamente" */}
-          <div className="flex items-center gap-2 pt-2">
-            <input
-              type="checkbox"
-              id="dontShowAgain"
-              checked={dontShowAgain}
-              onChange={(e) => setDontShowAgain(e.target.checked)}
-              className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-            />
-            <label
-              htmlFor="dontShowAgain"
-              className="text-sm text-gray-600 cursor-pointer select-none"
-            >
-              Não mostrar esta mensagem novamente
-            </label>
-          </div>
+          {!isLoading && (
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                type="checkbox"
+                id="dontShowAgain"
+                checked={dontShowAgain}
+                onChange={(e) => setDontShowAgain(e.target.checked)}
+                className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              />
+              <label
+                htmlFor="dontShowAgain"
+                className="text-sm text-gray-600 cursor-pointer select-none"
+              >
+                Não mostrar esta mensagem novamente
+              </label>
+            </div>
+          )}
 
           {/* Seleção de Outras Localizações */}
           {showOtherLocations && (
@@ -304,6 +339,7 @@ export default function GeolocationModal({
                 <div className="space-y-2">
                   <button
                     onClick={handleConfirmDetectedLocation}
+                    disabled={isLoading}
                     className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors duration-200 shadow-md hover:shadow-lg"
                   >
                     {selectedEstadoId && selectedCidadeId 

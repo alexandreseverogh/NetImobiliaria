@@ -119,7 +119,7 @@ export default function ProfileBanners({
                     onClick={onCorretorClick}
                     className="flex-1 px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-sm font-semibold transition-colors"
                   >
-                    Acessar área do corretor
+                    Sou Corretor
                   </button>
                 </div>
               </div>

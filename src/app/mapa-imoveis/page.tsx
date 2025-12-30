@@ -45,6 +45,16 @@ export default function MapaImoveisPage() {
   const [isClient, setIsClient] = useState(false)
   const [popupImovel, setPopupImovel] = useState<ImovelMapa | null>(null)
 
+  const handleVoltar = () => {
+    const returnTo = searchParams.get('return_to')
+    // Segurança: aceitar apenas paths relativos do próprio site
+    if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+      router.push(returnTo)
+      return
+    }
+    router.push('/landpaging')
+  }
+
   useEffect(() => {
     setIsClient(true)
   }, [])
@@ -132,7 +142,7 @@ export default function MapaImoveisPage() {
         <div className="text-center">
           <p className="text-lg text-red-600 mb-4">{error}</p>
           <button
-            onClick={() => router.back()}
+            onClick={handleVoltar}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Voltar
@@ -148,7 +158,7 @@ export default function MapaImoveisPage() {
         <div className="text-center">
           <p className="text-lg text-gray-600 mb-4">Nenhum imóvel encontrado com coordenadas válidas</p>
           <button
-            onClick={() => router.back()}
+            onClick={handleVoltar}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Voltar
@@ -173,7 +183,7 @@ export default function MapaImoveisPage() {
               </p>
             </div>
             <button
-              onClick={() => router.back()}
+              onClick={handleVoltar}
               className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
             >
               Voltar

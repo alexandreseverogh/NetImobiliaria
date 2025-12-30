@@ -248,34 +248,13 @@ export default function SearchForm({
       initialCidade
     })
 
-    // Não carregar se não tiver estado selecionado (cidade é opcional)
-    if (!selectedEstadoSigla || municipios.length === 0) {
-      // Limpar metadados se estado foi desmarcado
-      if (metadata) {
-        console.log('🔍 [SEARCH FORM] Limpando metadados - estado desmarcado')
-        setMetadata(null)
-        setMetadataLoading(false)
-        setMetadataError(null)
-        // Resetar ranges para valores padrão vazios
-        setPriceRange([0, 0])
-        setAreaRange([0, 0])
-        setQuartosRange([0, 0])
-        setBanheirosRange([0, 0])
-        setSuitesRange([0, 0])
-        setVagasRange([0, 0])
-      } else {
-        console.log('⏳ [SEARCH FORM] Aguardando condições para carregar metadados:', {
-          faltaEstado: !selectedEstadoSigla,
-          faltaMunicipios: municipios.length === 0
-        })
-      }
-      return
-    }
-
+    // Carregar metadados (tipos e ranges) mesmo sem estado selecionado
+    // Se não houver estado, o backend calculará as faixas globais
+    
     // Performance/UX: quando a cidade vem do modal (initialCidade),
     // esperar um curto período para a cidade ser aplicada antes de buscar metadados,
     // evitando 2 chamadas (estado-only -> estado+cidade).
-    if (initialCidade && !selectedCidadeId && !userHasInteractedRef.current) {
+    if (initialCidade && !selectedCidadeId && !userHasInteractedRef.current && selectedEstadoSigla) {
       if (!initialCidadeWaitStartedAtRef.current) {
         initialCidadeWaitStartedAtRef.current = Date.now()
       }
@@ -955,8 +934,8 @@ export default function SearchForm({
               <select
                 value={selectedCidadeId}
                 onChange={(event) => handleCidadeChange(event.target.value)}
-disabled={false}
-                className="w-full px-2.5 py-2 text-base border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-400"
+                disabled={!selectedEstadoId || municipios.length === 0}
+                className="w-full px-2.5 py-2 text-base border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
               >
                 <option value="">Todas as cidades</option>
                 {municipios.map((municipio) => (

@@ -24,7 +24,9 @@ interface ImovelWizardProps {
   registrarImagemPrincipalRascunho?: (imageId: string) => Promise<void>
   rascunho?: any // Dados do rascunho para verificar alterações pendentes
   redirectTo?: string // URL para redirecionar após salvar (opcional)
+  successRedirectTo?: string // URL para redirecionar após salvar (fluxos especiais, ex.: portal do corretor)
   finalidadePreSelecionada?: boolean // Indica se a finalidade foi pré-selecionada (vem da página pública)
+  onlyMineProprietarios?: boolean // No Step 2, limitar proprietários ao corretor logado (fluxo do portal do corretor)
 }
 
 interface WizardStep {
@@ -80,7 +82,9 @@ export default function ImovelWizard({
   registrarImagemPrincipalRascunho,
   rascunho,
   redirectTo,
-  finalidadePreSelecionada = false
+  successRedirectTo,
+  finalidadePreSelecionada = false,
+  onlyMineProprietarios = false
 }: ImovelWizardProps) {
   console.log('🔍 ImovelWizard - COMPONENTE INICIADO - mode:', mode, 'initialData:', initialData)
   console.log('🔍 ImovelWizard - TESTE SIMPLES - 1, 2, 3')
@@ -695,6 +699,7 @@ export default function ImovelWizard({
                 registrarImagemPrincipalRascunho={registrarImagemPrincipalRascunho}
                 rascunho={rascunho}
                 finalidadePreSelecionada={finalidadePreSelecionada}
+                onlyMineProprietarios={onlyMineProprietarios}
               />
               </>
             )}
@@ -786,7 +791,12 @@ export default function ImovelWizard({
             {/* Botões */}
             <div className="flex space-x-3">
               <button
-                onClick={() => setShowSuccessPopup(false)}
+                onClick={() => {
+                  setShowSuccessPopup(false)
+                  if (successRedirectTo) {
+                    window.location.href = successRedirectTo
+                  }
+                }}
                 className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
               >
                 Fechar
@@ -797,6 +807,8 @@ export default function ImovelWizard({
                   // Se houver redirectTo definido, redirecionar para landpaging
                   if (redirectTo) {
                     window.location.href = redirectTo
+                  } else if (successRedirectTo) {
+                    window.location.href = successRedirectTo
                   } else if (onCancel) {
                     // Usar o onCancel padrão (admin)
                     onCancel()

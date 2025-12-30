@@ -13,7 +13,7 @@ import { saveImovelVideo } from '@/lib/database/imovel-video'
 import { buscarCoordenadasPorEnderecoCompleto } from '@/lib/utils/geocoding'
 
 // Função para extrair usuário logado
-function getCurrentUser(request: NextRequest): string | null {
+function getCurrentUserPayload(request: NextRequest) {
   try {
     const token = request.cookies.get('accessToken')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '')
@@ -30,7 +30,7 @@ function getCurrentUser(request: NextRequest): string | null {
     }
 
     console.log('🔍 Usuário logado:', decoded.userId)
-    return decoded.userId
+    return decoded
   } catch (error) {
     console.error('🔍 Erro ao extrair usuário:', error)
     return null
@@ -273,7 +273,12 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Documentos recebidos:', body.documentos)
     
     // Obter usuário logado
-    const currentUserId = getCurrentUser(request)
+    const currentUser = getCurrentUserPayload(request)
+    const currentUserId = (currentUser as any)?.userId || null
+    // Tokens do sistema podem trazer cargo OU role_name (ex.: login do corretor).
+    const currentUserRoleName = String(
+      (currentUser as any)?.role_name || (currentUser as any)?.cargo || ''
+    ).toLowerCase()
     console.log('🔍 Usuário atual:', currentUserId)
     console.log('🔍 Campos específicos:', {
       codigo: body.codigo,
@@ -310,6 +315,31 @@ export async function POST(request: NextRequest) {
           code: 'PROPRIETARIO_REQUIRED'
         },
         { status: 400 }
+      )
+    }
+
+    // Fluxo do portal do corretor: o proprietário selecionado DEVE pertencer ao corretor logado.
+    try {
+      const fromCorretorPortal = body.fromCorretorPortal === true
+      const isCorretor = currentUserRoleName.includes('corretor')
+      if (fromCorretorPortal && isCorretor && currentUserId) {
+        const pool = (await import('@/lib/database/connection')).default
+        const check = await pool.query(
+          `SELECT 1 FROM public.proprietarios WHERE uuid = $1::uuid AND corretor_fk = $2::uuid LIMIT 1;`,
+          [body.proprietario_uuid, currentUserId]
+        )
+        if (check.rows.length === 0) {
+          return NextResponse.json(
+            { error: 'Proprietário não pertence ao corretor logado' },
+            { status: 403 }
+          )
+        }
+      }
+    } catch (e) {
+      console.error('❌ Erro ao validar proprietário do corretor:', e)
+      return NextResponse.json(
+        { error: 'Erro ao validar proprietário do corretor' },
+        { status: 500 }
       )
     }
 
@@ -547,6 +577,27 @@ export async function POST(request: NextRequest) {
     // TODO: Implementar autenticação real e pegar o UUID do usuário logado
     // Por enquanto, vamos usar NULL para created_by
     const novoImovel = await createImovel(dadosImovel, currentUserId)
+
+    // Registrar vínculo imovel_corretor SOMENTE quando o cadastro foi iniciado via portal do corretor
+    // e o usuário logado for de fato um corretor.
+    try {
+      const fromCorretorPortal = body.fromCorretorPortal === true
+      const isCorretor = currentUserRoleName.includes('corretor')
+      if (fromCorretorPortal && isCorretor && currentUserId && novoImovel?.id) {
+        const pool = (await import('@/lib/database/connection')).default
+        await pool.query(
+          `
+            INSERT INTO public.imovel_corretor (imovel_fk, corretor_fk, created_by)
+            VALUES ($1, $2::uuid, $3::uuid)
+            ON CONFLICT (imovel_fk, corretor_fk) DO NOTHING
+          `,
+          [novoImovel.id, currentUserId, currentUserId]
+        )
+      }
+    } catch (e) {
+      // Não quebrar o cadastro do imóvel por falha no vínculo (observabilidade via log)
+      console.error('❌ Erro ao registrar vínculo em imovel_corretor:', e)
+    }
 
     // Gerar código final com o ID real
     if (novoImovel && novoImovel.id) {
