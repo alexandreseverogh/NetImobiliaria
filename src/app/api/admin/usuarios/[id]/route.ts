@@ -17,6 +17,7 @@ interface UpdateUserRequest {
   foto_tipo_mime?: string | null
   ativo?: boolean
   isencao?: boolean
+  is_plantonista?: boolean
   roleId?: number
 }
 
@@ -209,6 +210,7 @@ export async function PUT(
       if (formData.has('password')) updateData.password = formData.get('password') as string
       if (formData.has('ativo')) updateData.ativo = formData.get('ativo') === 'true'
       if (formData.has('isencao')) updateData.isencao = formData.get('isencao') === 'true'
+      if (formData.has('is_plantonista')) updateData.is_plantonista = formData.get('is_plantonista') === 'true'
       if (formData.has('roleId')) updateData.roleId = parseInt(formData.get('roleId') as string)
 
       const fotoFile = formData.get('foto') as File | null

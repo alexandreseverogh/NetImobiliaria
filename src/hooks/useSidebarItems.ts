@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useApi } from '@/hooks/useApi'
@@ -132,7 +132,7 @@ export function useSidebarItems(): UseSidebarItemsReturn {
       
       if (response.ok) {
         await reload()
-        // Notificar mudanças na sidebar
+        // Notificar mudan├ºas na sidebar
         sidebarEventManager.notify()
       }
     } catch (err) {
@@ -155,8 +155,8 @@ export function useSidebarItems(): UseSidebarItemsReturn {
       if (response.ok) {
         console.log('useSidebarItems: Item atualizado, recarregando dados...')
         await reload()
-        console.log('useSidebarItems: Notificando mudanças na sidebar...')
-        // Notificar mudanças na sidebar
+        console.log('useSidebarItems: Notificando mudan├ºas na sidebar...')
+        // Notificar mudan├ºas na sidebar
         sidebarEventManager.notify()
       }
     } catch (err) {
@@ -174,12 +174,18 @@ export function useSidebarItems(): UseSidebarItemsReturn {
       
       if (response.ok) {
         await reload()
-        // Notificar mudanças na sidebar
+        // Notificar mudan├ºas na sidebar
         sidebarEventManager.notify()
+      } else {
+        const data = await response.json().catch(() => ({}))
+        const errorMsg = data.message || 'Erro ao deletar item'
+        setError(errorMsg)
+        throw new Error(errorMsg)
       }
     } catch (err) {
       console.error('Erro ao deletar item:', err)
-      setError(err instanceof Error ? err.message : 'Erro ao deletar item')
+      const message = err instanceof Error ? err.message : 'Erro ao deletar item'
+      setError(message)
       throw err
     }
   }, [del, reload])
@@ -190,7 +196,7 @@ export function useSidebarItems(): UseSidebarItemsReturn {
       if (!item) return
       
       await updateItem(id, { is_active: !item.is_active })
-      // Notificar mudanças na sidebar (já é chamado pelo updateItem)
+      // Notificar mudan├ºas na sidebar (j├í ├® chamado pelo updateItem)
     } catch (err) {
       console.error('Erro ao alterar status:', err)
     }

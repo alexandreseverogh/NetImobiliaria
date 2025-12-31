@@ -14,6 +14,7 @@ export interface User {
   foto_tipo_mime?: string | null
   ativo: boolean
   isencao?: boolean
+  is_plantonista?: boolean
   is_active?: boolean // Alias para ativo
   ultimo_login: Date | null
   created_at: Date
@@ -45,6 +46,7 @@ export async function findUsersWithRoles(): Promise<UserWithRole[]> {
         u.telefone,
         u.ativo,
         u.isencao,
+        u.is_plantonista,
         u.ultimo_login,
         u.created_at,
         u.updated_at,
@@ -144,8 +146,8 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
     
     // Inserir usuário
     const insertUserQuery = `
-      INSERT INTO users (username, email, password, nome, telefone, ativo, cpf, creci, foto, foto_tipo_mime, isencao)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO users (username, email, password, nome, telefone, ativo, cpf, creci, foto, foto_tipo_mime, isencao, is_plantonista)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `
     
@@ -160,7 +162,8 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
       userData.creci || null,
       userData.foto || null,
       userData.foto_tipo_mime || null,
-      userData.isencao || false
+      userData.isencao || false,
+      userData.is_plantonista || false
     ]
     
     console.log('Executando inserção do usuário...')
@@ -286,6 +289,12 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
     if (userData.isencao !== undefined) {
       fields.push(`isencao = $${paramCount}`)
       values.push(userData.isencao)
+      paramCount++
+    }
+
+    if (userData.is_plantonista !== undefined) {
+      fields.push(`is_plantonista = $${paramCount}`)
+      values.push(userData.is_plantonista)
       paramCount++
     }
     

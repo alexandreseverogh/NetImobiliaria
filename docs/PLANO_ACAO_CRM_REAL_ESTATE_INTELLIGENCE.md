@@ -1,10 +1,71 @@
-# 📜 PLANO DE AÇÃO: CRM REAL ESTATE INTELLIGENCE
+# 📈 GUIA COMERCIAL PARA CORRETORES — NET IMOBILIÁRIA
 
 **Data:** 13 de Dezembro de 2025  
-**Objetivo:** Integração total entre Marketing, IA Conversacional e Gestão de Leads para Imobiliária Digital  
-**Foco:** Inteligência de Dados a serviço da Segurança Emocional
+**Objetivo:** Apresentar a proposta da plataforma e o plano de implantação do CRM + IA de forma clara para corretores.
 
 ---
+
+## 1. O que você ganha (sem rodeios)
+
+A Net Imobiliária existe para uma coisa: **colocar você conversando com pessoas com intenção real**, com contexto suficiente para você fechar mais — sem depender de sorte, indicação ocasional ou “curioso”.
+
+Você entra para uma operação que combina:
+- **Investimento contínuo em marketing** (Meta/YouTube)
+- **Organização e ritmo de atendimento** (CRM + Kanban + SLA)
+- **IA para qualificar e preparar o lead** (antes de cair no seu WhatsApp)
+
+## 2. Por que isso funciona (o “segredo” é processo)
+
+Lead bom não é só “nome e telefone”. Lead bom vem com:
+- **o motivo** (o que a pessoa busca de verdade)
+- **a urgência** (por que agora)
+- **as restrições** (faixa, região, tipo, condição de compra)
+- **os próximos passos** (o que fazer hoje para não esfriar)
+
+O sistema transforma conversa em direção — e direção em resultado.
+
+## 3. Quem pode participar (credibilidade e confiança)
+
+- **CRECI é obrigatório** (exigência legal e também proteção do cliente).
+- O cadastro do corretor prevê **validação operacional** do CRECI.
+
+## 4. A sua área de atuação (isso muda tudo)
+
+Você define **onde atende** (UF/cidade e, se desejado, zonas/bairros).  
+Isso é essencial para:
+- receber leads com maior chance de conversão
+- reduzir desperdício de atendimento fora da sua praça
+- elevar taxa de visita e proposta
+
+## 5. Como o lead chega até você (fluxo simples)
+
+1) A plataforma capta o lead com anúncios e conteúdos  
+2) A IA conversa, qualifica e registra contexto  
+3) O CRM organiza o lead em etapas (Kanban)  
+4) O lead é encaminhado para o corretor certo (pela área de atuação e regras de distribuição)  
+5) Você atende com histórico, roteiro e próximos passos claros
+
+## 6. Perguntas que todo corretor faz (FAQ rápido)
+
+- **“Isso substitui meu atendimento?”** Não. O objetivo é você atender melhor e mais rápido — com o lead mais pronto.
+- **“Vou receber curiosos?”** A meta é reduzir ao máximo com qualificação e regras de processo (e medir isso).
+- **“Posso escolher minha praça?”** Sim. Área de atuação é requisito central.
+- **“E o CRECI?”** É obrigatório e validado.
+
+## 7. Próximo passo (CTA)
+
+Se você quer participar:
+- faça o cadastro como corretor
+- defina sua área de atuação
+- aguarde a validação do CRECI
+
+> A partir daí você entra no fluxo de distribuição e atendimento com processo.
+
+---
+
+## APÊNDICE TÉCNICO (IMPLANTAÇÃO CRM + IA)
+
+> Esta seção é o plano detalhado de execução para produto/engenharia/operação.
 
 ## ⚠️ IMPORTANTE: Uso de Tabelas Existentes
 
@@ -12,12 +73,12 @@ Este plano foi ajustado para **utilizar as tabelas existentes** da aplicação, 
 
 ### ✅ Tabelas Existentes Utilizadas:
 
-**Variáveis Endógenas (Amenidades):**
+**Atrativos do imóvel (Amenidades):**
 - `categorias_amenidades` - Categorias de amenidades
 - `amenidades` - Amenidades específicas dos imóveis
 - `imovel_amenidades` - Relacionamento N:N entre imóveis e amenidades
 
-**Variáveis Exógenas (Proximidades):**
+**Atrativos do entorno (Proximidades):**
 - `categorias_proximidades` - Categorias de proximidades
 - `proximidades` - Proximidades específicas do entorno
 - `imovel_proximidades` - Relacionamento N:N com `distancia_metros` e `tempo_caminhada`
@@ -59,7 +120,7 @@ Apenas as tabelas necessárias para o CRM que não existem ainda:
 
 ---
 
-## 📋 ÍNDICE EXECUTIVO
+## 📋 ÍNDICE (APÊNDICE TÉCNICO)
 
 1. [Arquitetura e Estrutura de Dados](#1-arquitetura-e-estrutura-de-dados)
 2. [Captação e Inteligência de Marketing](#2-captação-e-inteligência-de-marketing)
@@ -71,6 +132,7 @@ Apenas as tabelas necessárias para o CRM que não existem ainda:
 8. [Cronograma de Implementação](#8-cronograma-de-implementação)
 9. [Recursos Necessários](#9-recursos-necessários)
 10. [Considerações Finais](#10-considerações-finais)
+11. [Agente de IA para Geração de Leads (Blueprint)](#11-agente-de-ia-para-geração-de-leads-blueprint)
 
 ---
 
@@ -420,7 +482,7 @@ $$ LANGUAGE plpgsql;
 
 **Objetivo:** Utilizar as tabelas existentes de amenidades e proximidades para matching inteligente.
 
-#### 1.3.1. Variáveis Endógenas (Do Imóvel) - Tabelas Existentes
+#### 1.3.1. Atrativos do imóvel (Amenidades) - Tabelas Existentes
 
 **Estrutura Atual:**
 - `categorias_amenidades` - Categorias de amenidades (ex: "Lazer & Entretenimento", "Segurança")
@@ -440,7 +502,7 @@ WHERE ia.imovel_id = 123
   AND a.ativo = true;
 ```
 
-#### 1.3.2. Variáveis Exógenas (Do Entorno) - Tabelas Existentes
+#### 1.3.2. Atrativos do entorno (Proximidades) - Tabelas Existentes
 
 **Estrutura Atual:**
 - `categorias_proximidades` - Categorias de proximidades (ex: "Comércio", "Saúde", "Educação")
@@ -3299,6 +3361,8 @@ CREATE TABLE loss_intelligence (
 - [ ] Sistema básico de IA conversacional
 - [ ] Importação CSV/XLSX com mapeador + dedupe (entrada manual/automática)
 - [ ] LGPD mínimo: consentimento + auditoria + retenção
+- [ ] (Corretor) Cadastro com CRECI + fluxo de validação (operacional)
+- [ ] (Corretor) Definição de área de atuação (UF/cidade) e uso disso no roteamento de leads
 
 ### FASE 2: Marketing Inteligente (Semanas 5-8)
 - [ ] Campanhas emocionais e tags de sonho
@@ -3306,6 +3370,7 @@ CREATE TABLE loss_intelligence (
 - [ ] Cálculo de IPVE
 - [ ] Integração com Facebook Ads
 - [ ] Taxonomia de eventos + Pixel + CAPI + atribuição (UTM/click ids)
+- [ ] (Agente IA) Handoff: IA → humano com SLA e rastreio de conversão
 
 ### FASE 3: Qualificação e Conversão (Semanas 9-12)
 - [ ] System prompt completo da IA
@@ -3314,6 +3379,7 @@ CREATE TABLE loss_intelligence (
 - [ ] Templates de abordagem
 - [ ] SLA de aceite (5 min) + transbordo automático
 - [ ] Tarefas obrigatórias por etapa + painel de estagnação (>48h)
+- [ ] (Agente IA) Qualificação automática + score de prontidão + roteamento por área de atuação
 
 ### FASE 4: Pós-Venda e Métricas (Semanas 13-16)
 - [ ] Campanhas pós-venda automáticas
@@ -3542,4 +3608,230 @@ Este projeto posiciona sua imobiliária digital não apenas como uma vendedora d
 
 *Documento criado em: 13 de Dezembro de 2025*  
 *Versão: 1.0*
+
+---
+
+## 11. AGENTE DE IA PARA GERAÇÃO DE LEADS (BLUEPRINT)
+
+### 11.1. Objetivo do agente
+
+Criar um agente de IA que:
+- **conversa** com leads (WhatsApp/Instagram/site),
+- **qualifica** (intenção, urgência, restrições e contexto),
+- **direciona** para o corretor certo (por área de atuação/plantão/performance),
+- e **acompanha** a cadência (sem deixar lead morrer).
+
+O agente não “substitui corretor”: ele aumenta a taxa de resposta, reduz ruído e padroniza o processo.
+
+### 11.2. Escopo do MVP (primeira entrega)
+
+- **Entrada**: mensagens do lead (site + WhatsApp como prioridade)
+- **Saída**: lead estruturado em `leads_staging` + status inicial + tarefa sugerida
+- **Handoff**: encaminhar para corretor em até X minutos quando virar SQL
+- **Registro**: salvar resumo da conversa + sinais de intenção + próximos passos
+
+### 11.2.1. Subproduto crítico: Agente de Distribuição (Lead Router)
+
+**Objetivo:** garantir que cada lead seja encaminhado para o corretor certo, no tempo certo, com regras claras e mensuráveis.
+
+O Lead Router decide:
+- **quem recebe** o lead (corretor responsável)
+- **quando** (SLA e transbordo)
+- **por quê** (explicação auditável: área, desempenho, disponibilidade, tipo de intenção)
+
+---
+
+### 11.3. Arquitetura do agente (recomendada)
+
+#### 11.3.1. Linguagem e stack
+
+- **Orquestrador do agente (recomendado): Python + FastAPI**
+  - Motivo: facilita evolução do agente (pipelines, avaliação, observabilidade) sem travar o CRM.
+- **Framework do agente (recomendado): LangGraph (Python)**
+  - Motivo: o agente vira um **grafo/estado** (roteamento, decisões, retries, handoff, jobs) com **checkpoints** e **observabilidade**.
+  - Observação: LangGraph trabalha muito bem com tool-calling (via LangChain tools) e/ou com ferramentas expostas por MCP.
+- **CRM/Core (existente): Next.js/Node**
+  - Mantém UI, rotas admin, regras de negócio e persistência principal.
+
+> Alternativa: tudo em Node/TypeScript. É viável, mas a evolução do agente costuma ser mais rápida em Python.
+
+#### 11.3.2. MCP (Model Context Protocol)
+
+**Recomendado**: expor as ferramentas do CRM como um (ou mais) **MCP Servers** internos e fazer o orquestrador atuar como **MCP Client**.
+
+Benefícios:
+- governança (auth, rate limit, auditoria)
+- versionamento/contratos de tools
+- isolamento entre “IA” e “dados/negócio”
+
+#### 11.3.3. Componentes
+
+- **Ingestão de eventos** (Webhooks):
+  - Site (landpaging/modal) — **MVP**
+  - WhatsApp Business Platform (mensagens e eventos) — **fase futura**
+  - Instagram Messaging API (DMs) — **fase futura**
+  - Meta Lead Ads (form) e cliques (UTM/click ids)
+  - YouTube/Google Ads (UTM/gclid, quando aplicável)
+- **Orquestrador (LLM Router)**
+  - decide quais tools chamar
+  - gera respostas e atualizações estruturadas
+- **Lead Router (distribuição)**
+  - recebe um “lead pronto para roteamento”
+  - escolhe corretor, cria SLA, aplica transbordo
+- **Workers/Jobs**
+  - reengajamento, estagnação >48h, expiração SLA, retries
+- **Fonte da verdade**: Postgres (tabelas do CRM) + logs/auditoria
+
+---
+
+### 11.3. Ferramentas (tools) que o agente pode chamar (server-side)
+
+- `criar_ou_atualizar_lead_staging(dados)`
+- `registrar_evento_marketing(evento)` (com consentimento)
+- `buscar_imoveis(params)` e `buscar_detalhes_imovel(imovel_id)` (somente dados reais)
+- `atribuir_corretor(lead_uuid)` (round robin por área de atuação)
+- `criar_tarefa(lead_uuid, tipo, agendada_para, descricao)`
+
+#### 11.3.1. Tools específicas do Lead Router (mínimo)
+
+- `get_lead_context(lead_uuid)`:
+  - retorna: intenção, região, ticket, urgência, origem/campanha/creative_id, histórico de contatos
+- `list_eligible_brokers(uf, cidade, criterios)`:
+  - retorna lista com: disponibilidade, performance, carga, SLA, status/ativo, CRECI validado
+- `assign_lead(lead_uuid, broker_id, reason)`:
+  - grava atribuição (auditável) e cria vínculo do lead com corretor
+- `create_sla(lead_uuid, broker_id, expira_em)`:
+  - SLA de aceite/primeiro contato
+- `transbordar_lead(lead_uuid, motivo)`:
+  - remove/expira atribuição anterior e re-roteia
+- `log_router_decision(lead_uuid, decision_payload)`:
+  - guarda explicação + candidatos + pontuações (auditoria/observabilidade)
+
+---
+
+### 11.4. Engenharia de contexto (o que alimenta a decisão)
+
+O Lead Router precisa de um “pacote de contexto” consistente e curto:
+
+#### 11.4.1. Contexto do lead
+- intenção (`comprar`, `alugar`, `vender`, `investir`)
+- região (UF/cidade e opcional bairro)
+- faixa de preço/ticket (quando existir)
+- urgência (sinal de timing)
+- tag emocional (tag_sonho) e preferências relevantes (lazer/educação/mobilidade)
+
+#### 11.4.2. Contexto de marketing (atribuição)
+- `utm_*`, `fbclid/fbp/fbc`, `gclid`
+- IDs quando disponíveis: `campaign_id`, `adset_id`, `ad_id`, `creative_id`
+- versão de prompt/fluxo (para experimentos e comparação)
+
+#### 11.4.3. Contexto do corretor (elegibilidade)
+- CRECI validado
+- área de atuação (UF/cidade)
+- disponibilidade (online/plantão/horário)
+- capacidade atual (carga, leads ativos, backlog)
+- performance recente (visita/lead, proposta/visita, LRT)
+- compliance: ativo, em dia (se houver regra de mensalidade), permissões
+
+---
+
+### 11.5. Modelo de dados necessário (para roteamento)
+
+O roteamento por área de atuação exige dados explícitos. Se ainda não existir, criar:
+
+- `corretor_areas_atuacao`:
+  - `user_id`, `uf`, `cidade`, `ativo`, `prioridade` (opcional)
+
+> Nota de padronização: para o roteamento, **usar somente `public.corretor_areas_atuacao`** como fonte da verdade.  
+> Qualquer estrutura alternativa (ex.: tabelas antigas de localidades) deve ser **ignorada** pelo Lead Router para evitar divergência.
+- `corretor_status_operacional`:
+  - `user_id`, `online`, `plantao`, `capacidade_max`, `carga_atual`, `atualizado_em`
+- `leads_atribuicoes` (ou equivalente):
+  - `lead_uuid`, `user_id`, `status` (atribuido/aceito/transbordado), `motivo`, `created_at`
+- `leads_sla_aceite` (já sugerido no plano):
+  - `lead_uuid`, `corretor_id`, `expira_em`, `aceito_em`, `status`
+- `marketing_eventos` (já sugerido no plano):
+  - amarra lead/session → campanha/ad/creative + utm + click ids
+
+> Observação: o objetivo é permitir auditoria (“por que esse corretor recebeu?”) e otimização (“quais criativos geram leads que viram visita?”).
+
+---
+
+### 11.6. Algoritmo de distribuição (técnico, auditável e justo)
+
+#### 11.6.1. Elegibilidade (gating)
+
+Um corretor só entra no pool se:
+- CRECI validado
+- ativo
+- atende UF/cidade do lead
+- dentro da capacidade (carga_atual < capacidade_max)
+- não está bloqueado (compliance/regra interna)
+
+#### 11.6.2. Score de roteamento (exemplo)
+
+Pontuar candidatos com pesos configuráveis:
+
+- **Área/fit geográfico** (peso alto)
+- **Disponibilidade** (online/plantão)
+- **Velocidade** (LRT histórico)
+- **Performance** (visita/lead, proposta/visita, conversão por tag_sonho)
+- **Carga** (preferir quem está abaixo do limite)
+- **Especialidade** (opcional: tipo de imóvel/ticket)
+
+Saída do algoritmo:
+- `broker_id` escolhido
+- `ranked_candidates[]` com score e motivos (para auditoria)
+
+#### 11.6.3. SLA e transbordo
+
+- Cria SLA (ex.: 5 min para aceite/primeiro contato)
+- Se expirar:
+  - marca como expirado
+  - aplica penalidade (score interno)
+  - transborda para o próximo candidato
+
+---
+
+### 11.7. Integrações com Meta/YouTube e criativos (do clique ao corretor)
+
+#### 11.7.1. Ingestão mínima obrigatória
+- Capturar `utm_source/medium/campaign/content/term`
+- Capturar `fbclid/fbp/fbc` (Meta) e `gclid` (Google/YouTube, quando existir)
+- Persistir em `marketing_eventos` e referenciar em `leads_staging.origem_detalhada`
+
+#### 11.7.2. Uso no agente
+- A campanha (e o `creative_id`) definem:
+  - pergunta inicial
+  - tag_sonho
+  - fluxo de qualificação (curto/longo)
+- O Lead Router usa:
+  - praça/segmento (quando campanha é geolocalizada)
+  - sinais de intenção (ex.: “Lead Ad” tende a ser diferente de “DM”)
+
+---
+
+### 11.4. Regras de segurança (obrigatórias)
+
+- O agente **não inventa** imóveis/dados: sempre consulta a base.
+- Rate limit por IP/número.
+- Logs e auditoria de: criação/alteração de lead, atribuição, mensagens enviadas.
+- LGPD: consentimento para tracking/remarketing e opt-out de comunicações.
+
+### 11.8. Métricas para validar o agente (incluindo roteamento)
+
+- LRT (Lead Response Time)
+- % SQL (lead qualificado) por origem/campanha
+- taxa de visita/lead e proposta/visita
+- SLA de aceite do corretor (5 min)
+- % leads estagnados >48h (deve cair)
+- taxa de transbordo (quanto menor, melhor — sem “mascarar” baixa disponibilidade)
+- conversão por corretor × praça × tag_sonho × creative_id
+
+### 11.9. Roadmap recomendado (incremental e seguro)
+
+- **MVP**: triagem + qualificação + handoff + registro
+- **V1**: busca guiada de imóveis + “lista curta” (3 opções) + follow-ups
+- **V2**: integração WhatsApp completa (templates fora da janela) + reengajamento
+- **V3**: otimização por performance (feedback loop do corretor + aprendizado de perdas)
 

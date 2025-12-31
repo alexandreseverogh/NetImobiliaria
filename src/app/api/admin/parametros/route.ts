@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 
-// GET - Buscar valor atual do parâmetro
+// GET - Buscar valor atual do par├ómetro
 export async function GET(request: NextRequest) {
   try {
-    // Verificar permissões
+    // Verificar permiss├Áes
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
       return permissionCheck
@@ -13,13 +13,33 @@ export async function GET(request: NextRequest) {
 
     // Buscar valores atuais
     const result = await pool.query(
-      'SELECT vl_destaque_nacional, valor_corretor, chave_pix_corretor, cidade_beneficiario_recebimento_corretor FROM parametros LIMIT 1'
+      `SELECT 
+        vl_destaque_nacional, 
+        valor_corretor, 
+        chave_pix_corretor, 
+        cidade_beneficiario_recebimento_corretor, 
+        valor_mensal_imovel,
+        qtde_anuncios_imoveis_corretor,
+        periodo_anuncio_corretor,
+        proximos_corretores_recebem_leads,
+        sla_minutos_aceite_lead
+      FROM parametros LIMIT 1`
     )
 
     if (result.rows.length === 0) {
-      // Se não existir registro, criar com valores padrão
+      // Se n├úo existir registro, criar com valores padr├úo
       await pool.query(
-        'INSERT INTO parametros (vl_destaque_nacional, valor_corretor, chave_pix_corretor, cidade_beneficiario_recebimento_corretor) VALUES (0.00, 0.00, $1, $2)',
+        `INSERT INTO parametros (
+          vl_destaque_nacional, 
+          valor_corretor, 
+          chave_pix_corretor, 
+          cidade_beneficiario_recebimento_corretor, 
+          valor_mensal_imovel,
+          qtde_anuncios_imoveis_corretor,
+          periodo_anuncio_corretor,
+          proximos_corretores_recebem_leads,
+          sla_minutos_aceite_lead
+        ) VALUES (0.00, 0.00, $1, $2, 0.00, 5, 30, 3, 5)`,
         ['', 'BRASILIA']
       )
       
@@ -29,7 +49,12 @@ export async function GET(request: NextRequest) {
           vl_destaque_nacional: 0.00,
           valor_corretor: 0.00,
           chave_pix_corretor: '',
-          cidade_beneficiario_recebimento_corretor: 'BRASILIA'
+          cidade_beneficiario_recebimento_corretor: 'BRASILIA',
+          valor_mensal_imovel: 0.00,
+          qtde_anuncios_imoveis_corretor: 5,
+          periodo_anuncio_corretor: 30,
+          proximos_corretores_recebem_leads: 3,
+          sla_minutos_aceite_lead: 5
         }
       })
     }
@@ -40,14 +65,19 @@ export async function GET(request: NextRequest) {
         vl_destaque_nacional: parseFloat(result.rows[0].vl_destaque_nacional) || 0.00,
         valor_corretor: parseFloat(result.rows[0].valor_corretor) || 0.00,
         chave_pix_corretor: result.rows[0].chave_pix_corretor || '',
-        cidade_beneficiario_recebimento_corretor: result.rows[0].cidade_beneficiario_recebimento_corretor || 'BRASILIA'
+        cidade_beneficiario_recebimento_corretor: result.rows[0].cidade_beneficiario_recebimento_corretor || 'BRASILIA',
+        valor_mensal_imovel: parseFloat(result.rows[0].valor_mensal_imovel) || 0.00,
+        qtde_anuncios_imoveis_corretor: parseInt(result.rows[0].qtde_anuncios_imoveis_corretor) || 5,
+        periodo_anuncio_corretor: parseInt(result.rows[0].periodo_anuncio_corretor) || 30,
+        proximos_corretores_recebem_leads: parseInt(result.rows[0].proximos_corretores_recebem_leads) || 3,
+        sla_minutos_aceite_lead: parseInt(result.rows[0].sla_minutos_aceite_lead) || 5
       }
     })
 
   } catch (error) {
-    console.error('Erro ao buscar parâmetros:', error)
+    console.error('Erro ao buscar par├ómetros:', error)
     return NextResponse.json(
-      { error: 'Erro interno do servidor ao buscar parâmetros' },
+      { error: 'Erro interno do servidor ao buscar par├ómetros' },
       { status: 500 }
     )
   }
@@ -58,12 +88,17 @@ interface ParametrosRequest {
   valor_corretor?: number;
   chave_pix_corretor?: string;
   cidade_beneficiario_recebimento_corretor?: string;
+  valor_mensal_imovel?: number;
+  qtde_anuncios_imoveis_corretor?: number;
+  periodo_anuncio_corretor?: number;
+  proximos_corretores_recebem_leads?: number;
+  sla_minutos_aceite_lead?: number;
 }
 
-// PUT - Atualizar valor do parâmetro
+// PUT - Atualizar valor do par├ómetro
 export async function PUT(request: NextRequest) {
   try {
-    // Verificar permissões
+    // Verificar permiss├Áes
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
       return permissionCheck
@@ -74,10 +109,15 @@ export async function PUT(request: NextRequest) {
       vl_destaque_nacional, 
       valor_corretor, 
       chave_pix_corretor, 
-      cidade_beneficiario_recebimento_corretor 
+      cidade_beneficiario_recebimento_corretor,
+      valor_mensal_imovel,
+      qtde_anuncios_imoveis_corretor,
+      periodo_anuncio_corretor,
+      proximos_corretores_recebem_leads,
+      sla_minutos_aceite_lead
     } = body
 
-    // Preparar campos e valores para atualização
+    // Preparar campos e valores para atualiza├º├úo
     const updates: string[] = []
     const values: any[] = []
     let paramCount = 1
@@ -85,7 +125,7 @@ export async function PUT(request: NextRequest) {
     if (vl_destaque_nacional !== undefined) {
       const valorNumerico = parseFloat(vl_destaque_nacional.toString())
       if (isNaN(valorNumerico) || valorNumerico < 0) {
-        return NextResponse.json({ error: 'Valor de destaque nacional inválido' }, { status: 400 })
+        return NextResponse.json({ error: 'Valor de destaque nacional inv├ílido' }, { status: 400 })
       }
       updates.push(`vl_destaque_nacional = $${paramCount++}`)
       values.push(valorNumerico)
@@ -94,7 +134,7 @@ export async function PUT(request: NextRequest) {
     if (valor_corretor !== undefined) {
       const valorNumerico = parseFloat(valor_corretor.toString())
       if (isNaN(valorNumerico) || valorNumerico < 0) {
-        return NextResponse.json({ error: 'Valor do corretor inválido' }, { status: 400 })
+        return NextResponse.json({ error: 'Valor do corretor inv├ílido' }, { status: 400 })
       }
       updates.push(`valor_corretor = $${paramCount++}`)
       values.push(valorNumerico)
@@ -106,10 +146,55 @@ export async function PUT(request: NextRequest) {
     }
 
     if (cidade_beneficiario_recebimento_corretor !== undefined) {
-      // O PIX exige cidade em maiúsculas e sem acentos para máxima compatibilidade, 
-      // mas vamos apenas garantir que não seja vazia aqui.
+      // O PIX exige cidade em mai├║sculas e sem acentos para m├íxima compatibilidade, 
+      // mas vamos apenas garantir que n├úo seja vazia aqui.
       updates.push(`cidade_beneficiario_recebimento_corretor = $${paramCount++}`)
       values.push(cidade_beneficiario_recebimento_corretor.trim().toUpperCase())
+    }
+
+    if (valor_mensal_imovel !== undefined) {
+      const valorNumerico = parseFloat(valor_mensal_imovel.toString())
+      if (isNaN(valorNumerico) || valorNumerico < 0) {
+        return NextResponse.json({ error: 'Valor mensal do im├│vel inv├ílido' }, { status: 400 })
+      }
+      updates.push(`valor_mensal_imovel = $${paramCount++}`)
+      values.push(valorNumerico)
+    }
+
+    if (qtde_anuncios_imoveis_corretor !== undefined) {
+      const qtde = parseInt(qtde_anuncios_imoveis_corretor.toString())
+      if (isNaN(qtde) || qtde < 0) {
+        return NextResponse.json({ error: 'Quantidade de an├║ncios inv├ílida' }, { status: 400 })
+      }
+      updates.push(`qtde_anuncios_imoveis_corretor = $${paramCount++}`)
+      values.push(qtde)
+    }
+
+    if (periodo_anuncio_corretor !== undefined) {
+      const periodo = parseInt(periodo_anuncio_corretor.toString())
+      if (isNaN(periodo) || periodo < 0) {
+        return NextResponse.json({ error: 'Per├¡odo de an├║ncio inv├ílido' }, { status: 400 })
+      }
+      updates.push(`periodo_anuncio_corretor = $${paramCount++}`)
+      values.push(periodo)
+    }
+
+    if (proximos_corretores_recebem_leads !== undefined) {
+      const n = parseInt(proximos_corretores_recebem_leads.toString())
+      if (isNaN(n) || n < 0) {
+        return NextResponse.json({ error: 'Valor inv├ílido para pr├│ximos corretores' }, { status: 400 })
+      }
+      updates.push(`proximos_corretores_recebem_leads = $${paramCount++}`)
+      values.push(n)
+    }
+
+    if (sla_minutos_aceite_lead !== undefined) {
+      const n = parseInt(sla_minutos_aceite_lead.toString())
+      if (isNaN(n) || n <= 0) {
+        return NextResponse.json({ error: 'Valor inv├ílido para SLA (minutos)' }, { status: 400 })
+      }
+      updates.push(`sla_minutos_aceite_lead = $${paramCount++}`)
+      values.push(n)
     }
 
     if (updates.length === 0) {
@@ -120,7 +205,7 @@ export async function PUT(request: NextRequest) {
     const existe = await pool.query('SELECT 1 FROM parametros LIMIT 1')
 
     if (existe.rows.length === 0) {
-      // Criar registro se não existir (usando apenas o que foi enviado)
+      // Criar registro se n├úo existir (usando apenas o que foi enviado)
       const columns = updates.map(u => u.split(' = ')[0]).join(', ')
       const placeholders = updates.map((_, i) => `$${i + 1}`).join(', ')
       await pool.query(
@@ -137,14 +222,14 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Parâmetros atualizados com sucesso',
+      message: 'Par├ómetros atualizados com sucesso',
       data: body
     })
 
   } catch (error) {
-    console.error('Erro ao atualizar parâmetros:', error)
+    console.error('Erro ao atualizar par├ómetros:', error)
     return NextResponse.json(
-      { error: 'Erro interno do servidor ao atualizar parâmetros' },
+      { error: 'Erro interno do servidor ao atualizar par├ómetros' },
       { status: 500 }
     )
   }

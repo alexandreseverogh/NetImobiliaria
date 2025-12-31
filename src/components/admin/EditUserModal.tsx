@@ -12,6 +12,7 @@ interface User {
   telefone: string
   ativo: boolean
   isencao?: boolean
+  is_plantonista?: boolean
   role_name?: string
   role_id?: number
 }
@@ -40,6 +41,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     telefone: '',
     ativo: true,
     isencao: false,
+    is_plantonista: false,
     password: '',
     confirmPassword: '',
     roleId: null as number | null
@@ -57,6 +59,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
         telefone: user.telefone || '',
         ativo: user.ativo,
         isencao: user.isencao || false,
+        is_plantonista: user.is_plantonista || false,
         password: '',
         confirmPassword: '',
         roleId: user.role_id || null
@@ -138,6 +141,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       
       updateData.ativo = formData.ativo
       updateData.isencao = formData.isencao
+      updateData.is_plantonista = formData.is_plantonista
       
       if (formData.roleId) {
         updateData.roleId = formData.roleId
@@ -392,6 +396,24 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                     />
                     <label htmlFor="isencao" className="block text-sm font-medium text-amber-900">
                       Isenção de Mensalidade
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Plantonista (Fallback) - Apenas para Corretor */}
+              {roles.find(r => r.id === formData.roleId)?.name === 'Corretor' && (
+                <div className="flex items-center justify-center">
+                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg w-full border border-slate-200">
+                    <input
+                      type="checkbox"
+                      id="is_plantonista"
+                      checked={formData.is_plantonista}
+                      onChange={(e) => handleInputChange('is_plantonista', e.target.checked)}
+                      className="h-5 w-5 text-slate-700 focus:ring-slate-500 border-slate-300 rounded transition-all"
+                    />
+                    <label htmlFor="is_plantonista" className="block text-sm font-medium text-slate-900">
+                      Corretor plantonista (fallback)
                     </label>
                   </div>
                 </div>

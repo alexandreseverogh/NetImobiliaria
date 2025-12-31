@@ -103,6 +103,32 @@ services:
       - /app/node_modules
     command: ["node", "scripts/feed-cron-scheduler.js"]
 
+  # Worker de SLA do Lead Router (expiração + transbordo)
+  lead-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: netimobiliaria-lead-worker
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-net_imobiliaria}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      # URL base para montar o link do painel no e-mail
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: ["node", "scripts/lead-router-sla-worker.js"]
+
 volumes:
   db_data:
 

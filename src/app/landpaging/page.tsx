@@ -39,6 +39,10 @@ interface PropertyCard {
   type: string
 }
 
+// IMPORTANTE: usar escapes Unicode (ASCII-only) para evitar qualquer problema de encoding no runtime/build.
+const TITULO_DESTAQUE = 'Im\u00F3veis em Destaque'
+const TITULO_DESTAQUE_NACIONAL = `${TITULO_DESTAQUE} Nacional`
+
 export default function LandingPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -129,6 +133,22 @@ export default function LandingPage() {
       }
     } catch {}
   }, [searchParams])
+
+  // Abrir popup do corretor quando vindo de cadastro/login de corretor
+  useEffect(() => {
+    const shouldOpen = (searchParams?.get('corretor_popup') || '').toLowerCase() === 'true'
+    if (shouldOpen) {
+      setCorretorPopupOpen(true)
+      // Limpar o parâmetro corretor_popup da URL
+      try {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('corretor_popup')
+        router.replace(url.pathname + (url.search ? url.search : ''))
+      } catch {
+        router.replace('/landpaging')
+      }
+    }
+  }, [searchParams, router])
 
   // Monitorar mudanças nos valores de estado e cidade para debug
   useEffect(() => {
@@ -1034,7 +1054,7 @@ export default function LandingPage() {
     }
     
     // Construir título: "Imóveis em Destaque - Comprar/Alugar"
-    let titulo = `Imóveis em Destaque - ${operationLabel}`
+    let titulo = `${TITULO_DESTAQUE} - ${operationLabel}`
     
     if (cidadeFinal && estadoNome) {
       titulo += ` - ${cidadeFinal}, ${estadoNome}`
@@ -1050,7 +1070,7 @@ export default function LandingPage() {
     // Se mostrarDestaquesNacional é true, SEMPRE retornar título nacional, ignorando localização
     if (mostrarDestaquesNacional === true || usadoFallbackNacional === true) {
       const operacaoLabel = tipoDestaque === 'DA' ? 'Alugar' : 'Comprar'
-      const tituloCompleto = `Imóveis em Destaque - Nacionais - ${operacaoLabel}`
+      const tituloCompleto = `${TITULO_DESTAQUE} - Nacionais - ${operacaoLabel}`
       console.log('✅ [BUILD TITLE] Destaque nacional ativo - retornando título nacional:', {
         mostrarDestaquesNacional,
         usadoFallbackNacional,
@@ -1079,7 +1099,7 @@ export default function LandingPage() {
         estadoNome = estado?.nome || estadoSigla
       }
       
-      let tituloLocal = `Imóveis em Destaque - ${operationLabel}`
+      let tituloLocal = `${TITULO_DESTAQUE} - ${operationLabel}`
       if (cidadeNome && estadoNome) {
         tituloLocal += ` - ${cidadeNome}, ${estadoNome}`
       } else if (estadoNome) {
@@ -1096,7 +1116,7 @@ export default function LandingPage() {
     }
     
     // Se não é destaque nacional nem tem localização, retornar título padrão
-    const tituloPadrao = 'Imóveis em Destaque'
+    const tituloPadrao = TITULO_DESTAQUE
     console.log('🔍 [BUILD TITLE] Retornando título padrão', {
       mostrarDestaquesNacional,
       usadoFallbackNacional,
@@ -1799,7 +1819,7 @@ export default function LandingPage() {
             }`}
           >
             <StarIcon className="w-6 h-6 flex-shrink-0" />
-            Imóveis em Destaque Nacional
+            {TITULO_DESTAQUE_NACIONAL}
           </button>
         }
         filterPanel={
@@ -1967,7 +1987,7 @@ export default function LandingPage() {
                               operation,
                               operationLabel
                             })
-                            return `Imóveis em Destaque - Nacionais - ${operationLabel}`
+                            return `${TITULO_DESTAQUE} - Nacionais - ${operationLabel}`
                           }
                           
                           // Caso contrário, mostrar título normal de resultados filtrados

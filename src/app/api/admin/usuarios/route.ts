@@ -19,6 +19,7 @@ interface CreateUserRequest {
   password: string
   ativo?: boolean
   isencao?: boolean
+  is_plantonista?: boolean
 }
 
 // Função para validar dados de entrada usando validação avançada
@@ -154,6 +155,7 @@ export async function POST(request: NextRequest) {
       password: createData.password,
       ativo: createData.ativo !== undefined ? createData.ativo : true,
       isencao: createData.isencao !== undefined ? createData.isencao : false,
+      is_plantonista: createData.is_plantonista !== undefined ? createData.is_plantonista : false,
       ultimo_login: null
     })
 

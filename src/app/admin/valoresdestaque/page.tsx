@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import PermissionGuard from '@/components/admin/PermissionGuard'
@@ -10,7 +10,6 @@ interface EstadoValor {
   sigla: string
   nome: string
   valor_destaque: number
-  valor_mensal: number
 }
 
 export default function ValoresDestaquePage() {
@@ -22,8 +21,6 @@ export default function ValoresDestaquePage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [valoresEditados, setValoresEditados] = useState<Map<string, number>>(new Map())
   const [valoresFormatados, setValoresFormatados] = useState<Map<string, string>>(new Map())
-  const [valoresMensaisEditados, setValoresMensaisEditados] = useState<Map<string, number>>(new Map())
-  const [valoresMensaisFormatados, setValoresMensaisFormatados] = useState<Map<string, string>>(new Map())
 
   // Debug: verificar permissões
   useEffect(() => {
@@ -50,21 +47,15 @@ export default function ValoresDestaquePage() {
         
         if (data.data && Array.isArray(data.data) && data.data.length > 0) {
           setEstados(data.data)
-          // Inicializar mapas de valores editados (destaque e mensal)
+          // Inicializar mapas de valores editados
           const valoresMap = new Map<string, number>()
           const valoresFormatadosMap = new Map<string, string>()
-          const valoresMensaisMap = new Map<string, number>()
-          const valoresMensaisFormatadosMap = new Map<string, string>()
           data.data.forEach((estado: EstadoValor) => {
             valoresMap.set(estado.sigla, estado.valor_destaque)
             valoresFormatadosMap.set(estado.sigla, estado.valor_destaque > 0 ? formatCurrencyInput(estado.valor_destaque) : '')
-            valoresMensaisMap.set(estado.sigla, estado.valor_mensal || 0)
-            valoresMensaisFormatadosMap.set(estado.sigla, (estado.valor_mensal || 0) > 0 ? formatCurrencyInput(estado.valor_mensal || 0) : '')
           })
           setValoresEditados(valoresMap)
           setValoresFormatados(valoresFormatadosMap)
-          setValoresMensaisEditados(valoresMensaisMap)
-          setValoresMensaisFormatados(valoresMensaisFormatadosMap)
         } else {
           setMessage({ type: 'error', text: 'Nenhum estado encontrado. Execute a migration para popular a tabela.' })
         }
@@ -110,27 +101,18 @@ export default function ValoresDestaquePage() {
     })
   }
 
-  const handleValorChange = (sigla: string, valor: string, tipo: 'destaque' | 'mensal') => {
+  const handleValorChange = (sigla: string, valor: string) => {
     // Remover tudo exceto números
     const digits = valor.replace(/\D/g, '')
     
     if (!digits) {
       // Se vazio, definir como 0
-      if (tipo === 'destaque') {
-        const novosValores = new Map(valoresEditados)
-        const novosFormatados = new Map(valoresFormatados)
-        novosValores.set(sigla, 0)
-        novosFormatados.set(sigla, '')
-        setValoresEditados(novosValores)
-        setValoresFormatados(novosFormatados)
-      } else {
-        const novosValores = new Map(valoresMensaisEditados)
-        const novosFormatados = new Map(valoresMensaisFormatados)
-        novosValores.set(sigla, 0)
-        novosFormatados.set(sigla, '')
-        setValoresMensaisEditados(novosValores)
-        setValoresMensaisFormatados(novosFormatados)
-      }
+      const novosValores = new Map(valoresEditados)
+      const novosFormatados = new Map(valoresFormatados)
+      novosValores.set(sigla, 0)
+      novosFormatados.set(sigla, '')
+      setValoresEditados(novosValores)
+      setValoresFormatados(novosFormatados)
       return
     }
 
@@ -140,36 +122,20 @@ export default function ValoresDestaquePage() {
     // Formatar para exibição
     const valorFormatado = formatCurrencyMask(digits)
     
-    // Atualizar mapas conforme o tipo
-    if (tipo === 'destaque') {
-      const novosValores = new Map(valoresEditados)
-      const novosFormatados = new Map(valoresFormatados)
-      novosValores.set(sigla, valorNumerico)
-      novosFormatados.set(sigla, valorFormatado)
-      setValoresEditados(novosValores)
-      setValoresFormatados(novosFormatados)
-      
-      // Atualizar estado visual
-      setEstados(prev => prev.map(estado => 
-        estado.sigla === sigla 
-          ? { ...estado, valor_destaque: valorNumerico }
-          : estado
-      ))
-    } else {
-      const novosValores = new Map(valoresMensaisEditados)
-      const novosFormatados = new Map(valoresMensaisFormatados)
-      novosValores.set(sigla, valorNumerico)
-      novosFormatados.set(sigla, valorFormatado)
-      setValoresMensaisEditados(novosValores)
-      setValoresMensaisFormatados(novosFormatados)
-      
-      // Atualizar estado visual
-      setEstados(prev => prev.map(estado => 
-        estado.sigla === sigla 
-          ? { ...estado, valor_mensal: valorNumerico }
-          : estado
-      ))
-    }
+    // Atualizar mapas
+    const novosValores = new Map(valoresEditados)
+    const novosFormatados = new Map(valoresFormatados)
+    novosValores.set(sigla, valorNumerico)
+    novosFormatados.set(sigla, valorFormatado)
+    setValoresEditados(novosValores)
+    setValoresFormatados(novosFormatados)
+    
+    // Atualizar estado visual
+    setEstados(prev => prev.map(estado => 
+      estado.sigla === sigla 
+        ? { ...estado, valor_destaque: valorNumerico }
+        : estado
+    ))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -179,11 +145,10 @@ export default function ValoresDestaquePage() {
       setSaving(true)
       setMessage(null)
 
-      // Preparar array de estados para envio (com ambos os valores)
+      // Preparar array de estados para envio
       const estadosParaEnviar = Array.from(valoresEditados.entries()).map(([sigla, valor]) => ({
         sigla,
-        valor_destaque: valor,
-        valor_mensal: valoresMensaisEditados.get(sigla) || 0
+        valor_destaque: valor
       }))
 
       const response = await put('/api/admin/valoresdestaque', {
@@ -219,40 +184,22 @@ export default function ValoresDestaquePage() {
     })
   }
 
-  const handleBlur = (sigla: string, tipo: 'destaque' | 'mensal') => {
-    if (tipo === 'destaque') {
-      const valor = valoresEditados.get(sigla) || 0
-      // Garantir que o valor seja formatado com 2 casas decimais
-      const valorFormatado = parseFloat(valor.toFixed(2))
-      const novosValores = new Map(valoresEditados)
-      const novosFormatados = new Map(valoresFormatados)
-      novosValores.set(sigla, valorFormatado)
-      novosFormatados.set(sigla, valorFormatado > 0 ? formatCurrencyInput(valorFormatado) : '')
-      setValoresEditados(novosValores)
-      setValoresFormatados(novosFormatados)
-      
-      setEstados(prev => prev.map(estado => 
-        estado.sigla === sigla 
-          ? { ...estado, valor_destaque: valorFormatado }
-          : estado
-      ))
-    } else {
-      const valor = valoresMensaisEditados.get(sigla) || 0
-      // Garantir que o valor seja formatado com 2 casas decimais
-      const valorFormatado = parseFloat(valor.toFixed(2))
-      const novosValores = new Map(valoresMensaisEditados)
-      const novosFormatados = new Map(valoresMensaisFormatados)
-      novosValores.set(sigla, valorFormatado)
-      novosFormatados.set(sigla, valorFormatado > 0 ? formatCurrencyInput(valorFormatado) : '')
-      setValoresMensaisEditados(novosValores)
-      setValoresMensaisFormatados(novosFormatados)
-      
-      setEstados(prev => prev.map(estado => 
-        estado.sigla === sigla 
-          ? { ...estado, valor_mensal: valorFormatado }
-          : estado
-      ))
-    }
+  const handleBlur = (sigla: string) => {
+    const valor = valoresEditados.get(sigla) || 0
+    // Garantir que o valor seja formatado com 2 casas decimais
+    const valorFormatado = parseFloat(valor.toFixed(2))
+    const novosValores = new Map(valoresEditados)
+    const novosFormatados = new Map(valoresFormatados)
+    novosValores.set(sigla, valorFormatado)
+    novosFormatados.set(sigla, valorFormatado > 0 ? formatCurrencyInput(valorFormatado) : '')
+    setValoresEditados(novosValores)
+    setValoresFormatados(novosFormatados)
+    
+    setEstados(prev => prev.map(estado => 
+      estado.sigla === sigla 
+        ? { ...estado, valor_destaque: valorFormatado }
+        : estado
+    ))
   }
 
   // Debug: verificar se tem permissão
@@ -324,7 +271,7 @@ export default function ValoresDestaquePage() {
                 Valores de Destaque por Estado
               </h2>
               <p className="text-sm text-gray-500 mt-1">
-                Configure o valor mensal e o valor de destaque de anúncio para cada estado (R$)
+                Configure o valor de destaque de anúncio para cada estado (R$)
               </p>
             </div>
 
@@ -351,7 +298,6 @@ export default function ValoresDestaquePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {estados.map((estado) => {
                     const valorDestaqueFormatado = valoresFormatados.get(estado.sigla) || ''
-                    const valorMensalFormatado = valoresMensaisFormatados.get(estado.sigla) || ''
                     
                     return (
                       <div key={estado.sigla} className="border-2 border-blue-300 rounded-lg p-4 space-y-3 bg-blue-50 shadow-sm">
@@ -359,26 +305,6 @@ export default function ValoresDestaquePage() {
                           <span className="font-semibold text-blue-900">{estado.sigla}</span> - <span className="text-xs text-blue-800">{estado.nome}</span>
                         </label>
                         
-                        {/* Campo Valor Mensal */}
-                        <div>
-                          <label className="block text-xs text-gray-600 mb-1">Valor Mensal</label>
-                          <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                              <span className="text-gray-500 text-xs">R$</span>
-                            </div>
-                            <input
-                              type="text"
-                              value={valorMensalFormatado}
-                              onChange={(e) => handleValorChange(estado.sigla, e.target.value, 'mensal')}
-                              onBlur={() => handleBlur(estado.sigla, 'mensal')}
-                              placeholder="0,00"
-                              disabled={saving}
-                              maxLength={15}
-                              className="block w-full pl-8 pr-2 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            />
-                          </div>
-                        </div>
-
                         {/* Campo Valor Destaque Anúncio */}
                         <div>
                           <label className="block text-xs text-gray-600 mb-1">Valor Destaque Anúncio</label>
@@ -389,8 +315,8 @@ export default function ValoresDestaquePage() {
                             <input
                               type="text"
                               value={valorDestaqueFormatado}
-                              onChange={(e) => handleValorChange(estado.sigla, e.target.value, 'destaque')}
-                              onBlur={() => handleBlur(estado.sigla, 'destaque')}
+                              onChange={(e) => handleValorChange(estado.sigla, e.target.value)}
+                              onBlur={() => handleBlur(estado.sigla)}
                               placeholder="0,00"
                               disabled={saving}
                               maxLength={15}
@@ -429,7 +355,7 @@ export default function ValoresDestaquePage() {
         {/* Informações adicionais */}
         <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-800">
-            <strong>Nota:</strong> Configure o <strong>Valor Mensal</strong> e o <strong>Valor Destaque Anúncio</strong> para cada estado. 
+            <strong>Nota:</strong> Configure o <strong>Valor Destaque Anúncio</strong> para cada estado. 
             Certifique-se de que os valores estão corretos antes de salvar.
           </p>
         </div>

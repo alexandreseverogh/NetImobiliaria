@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { CheckCircle, X, User, Mail, Phone, MapPin, Building2, BadgeCheck, UserPlus, Users, List, Edit2, Save, XCircle, QrCode } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { CheckCircle, X, User, Mail, Phone, MapPin, Building2, BadgeCheck, UserPlus, Users, List, Edit2, Save, XCircle, QrCode, Clock, CheckCircle2, RefreshCcw, Bell, Settings, ArrowUpRight } from 'lucide-react'
 import { formatCPF, validateCPF } from '@/lib/utils/formatters'
+import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 
 interface UserSuccessModalProps {
   isOpen: boolean
@@ -33,6 +34,7 @@ export default function UserSuccessModal({
   userData,
   redirectTo 
 }: UserSuccessModalProps) {
+  const { get, post } = useAuthenticatedFetch()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -75,6 +77,252 @@ export default function UserSuccessModal({
   }
 
   const userId = getUserId()
+
+  // ===========================
+  // Leads do corretor (aceite)
+  // ===========================
+  type LeadRow = {
+    prospect_id: number
+    status: string
+    atribuido_em: string
+    expira_em: string | null
+    aceito_em: string | null
+    imovel_id: number
+    codigo: string | null
+    titulo: string | null
+    preco: number | null
+    cidade_fk: string | null
+    estado_fk: string | null
+    cliente_nome: string | null
+    cliente_email: string | null
+    cliente_telefone: string | null
+    preferencia_contato: string | null
+    mensagem: string | null
+  }
+
+  const [leadsModalOpen, setLeadsModalOpen] = useState(false)
+  const [leadsLoading, setLeadsLoading] = useState(false)
+  const [leadsError, setLeadsError] = useState<string | null>(null)
+  const [leads, setLeads] = useState<LeadRow[]>([])
+  const [acceptingProspectId, setAcceptingProspectId] = useState<number | null>(null)
+  const [slaMinutos, setSlaMinutos] = useState<number | null>(null)
+  const [leadStats, setLeadStats] = useState<{
+    recebidos: number
+    perdidosSla: number
+    aceiteNoSlaPercent: number | null
+    aceiteNoSlaAceitos: number
+    aceiteNoSlaAvaliados: number
+  } | null>(null)
+
+  const formatMoney = (v: number | null | undefined) => {
+    if (v === null || v === undefined) return '-'
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+  }
+
+  const loadLeads = useCallback(async () => {
+    try {
+      setLeadsLoading(true)
+      setLeadsError(null)
+      const resp = await get('/api/corretor/prospects?status=atribuido')
+      const data = await resp.json()
+      if (!resp.ok || !data?.success) throw new Error(data?.error || 'Erro ao carregar leads')
+      setLeads(data.leads || [])
+    } catch (e: any) {
+      setLeadsError(e?.message || 'Erro ao carregar leads')
+    } finally {
+      setLeadsLoading(false)
+    }
+  }, [get])
+
+  useEffect(() => {
+    if (userData.userType !== 'corretor') return
+    // Pré-carregar contagem (badge do sino) assim que o modal abrir.
+    // A seção pode ficar fechada, mas o corretor já vê quantos leads pendentes existem.
+    loadLeads()
+
+    ;(async () => {
+      try {
+        const resp = await get('/api/corretor/lead-config')
+        const data = await resp.json()
+        if (resp.ok && data?.success) {
+          const n = Number(data?.data?.sla_minutos_aceite_lead)
+          if (Number.isFinite(n) && n > 0) setSlaMinutos(n)
+        }
+      } catch {}
+    })()
+
+    ;(async () => {
+      try {
+        const resp = await get('/api/corretor/lead-stats')
+        const data = await resp.json()
+        if (resp.ok && data?.success) {
+          setLeadStats({
+            recebidos: Number(data?.data?.leads_recebidos_total) || 0,
+            perdidosSla: Number(data?.data?.leads_perdidos_sla_total) || 0,
+            // Nunca aceitar NaN/undefined no KPI: se vier inválido, vira 0.00
+            aceiteNoSlaPercent: (() => {
+              const n = Number(data?.data?.aceite_no_sla_percent)
+              return Number.isFinite(n) ? n : 0
+            })(),
+            aceiteNoSlaAceitos: Number(data?.data?.aceite_no_sla_aceitos) || 0,
+            aceiteNoSlaAvaliados: Number(data?.data?.aceite_no_sla_avaliados) || 0
+          })
+        }
+      } catch {}
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userData.userType])
+
+  useEffect(() => {
+    if (userData.userType !== 'corretor') return
+    if (!leadsModalOpen) return
+    loadLeads()
+  }, [leadsModalOpen, loadLeads, userData.userType])
+
+  const acceptLead = useCallback(
+    async (prospectId: number) => {
+      try {
+        setAcceptingProspectId(prospectId)
+        setLeadsError(null)
+        const resp = await post(`/api/corretor/prospects/${prospectId}/accept`, {})
+        const data = await resp.json()
+        if (!resp.ok || !data?.success) throw new Error(data?.error || 'Não foi possível aceitar o lead')
+        await loadLeads()
+      } catch (e: any) {
+        setLeadsError(e?.message || 'Erro ao aceitar lead')
+      } finally {
+        setAcceptingProspectId(null)
+      }
+    },
+    [post, loadLeads]
+  )
+
+  const leadsResumo = useMemo(() => {
+    const total = leads.length
+    return { total }
+  }, [leads.length])
+
+  const openImovelPublic = (imovelId: number) => {
+    if (!imovelId) return
+    window.open(`/imoveis/${imovelId}`, '_blank', 'noopener,noreferrer')
+  }
+
+  function LeadsModal() {
+    if (!leadsModalOpen) return null
+    return (
+      <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Novos leads">
+        <button
+          type="button"
+          aria-label="Fechar"
+          onClick={() => setLeadsModalOpen(false)}
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        />
+
+        <div className="absolute inset-0 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-start justify-between gap-4 p-5 border-b border-gray-200">
+              <div>
+                <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Leads atribuídos</div>
+                <div className="text-xl font-black text-slate-900 mt-1">Novos leads pendentes</div>
+                <div className="text-sm text-slate-600 mt-1">
+                  Total pendentes: <strong>{leadsResumo.total}</strong>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={loadLeads}
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-white text-xs font-black hover:bg-slate-800"
+                >
+                  <RefreshCcw className="w-4 h-4" />
+                  Atualizar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLeadsModalOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  aria-label="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5">
+              {leadsError && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-red-800 text-sm font-semibold">
+                  {leadsError}
+                </div>
+              )}
+
+              {leadsLoading ? (
+                <div className="text-slate-600">Carregando leads...</div>
+              ) : leads.length === 0 ? (
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-8 text-center">
+                  <div className="text-slate-900 font-black">Nenhum lead pendente.</div>
+                  <div className="text-slate-600 text-sm mt-1">Quando chegar um novo lead, ele aparecerá aqui.</div>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                  {leads.map((l) => (
+                    <div key={l.prospect_id} className="rounded-2xl border border-gray-200 bg-white p-4">
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        {l.estado_fk || '-'} • {l.cidade_fk || '-'} • Código {l.codigo || '-'}
+                      </div>
+                      <div className="mt-1 text-base font-extrabold text-slate-900">
+                        {l.titulo || 'Imóvel'}
+                      </div>
+                      <div className="mt-1 text-sm font-black text-slate-900">
+                        {formatMoney(l.preco)}
+                      </div>
+                      <div className="mt-2 text-sm text-slate-700">
+                        <strong>Cliente:</strong> {l.cliente_nome || '-'} • {l.cliente_telefone || '-'} • {l.cliente_email || '-'}
+                      </div>
+                      <div className="mt-1 text-sm text-slate-700">
+                        <strong>Preferência de contato:</strong> {l.preferencia_contato || 'Não informado'}
+                      </div>
+                      {l.mensagem && (
+                        <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
+                          <strong>Mensagem:</strong> {l.mensagem}
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="inline-flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900 text-xs font-black">
+                          <Clock className="w-4 h-4" />
+                            SLA de aceite{slaMinutos ? `: ${slaMinutos} min` : ''}
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openImovelPublic(l.imovel_id)}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white text-xs font-black hover:bg-slate-800"
+                          >
+                            <ArrowUpRight className="w-4 h-4" />
+                            Ver detalhes do imóvel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => acceptLead(l.prospect_id)}
+                            disabled={acceptingProspectId === l.prospect_id}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white text-xs font-black hover:bg-blue-700 disabled:opacity-60"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            {acceptingProspectId === l.prospect_id ? 'Aceitando...' : 'Aceitar lead'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const handleEditToggle = () => {
     if (isEditing) {
@@ -369,6 +617,7 @@ export default function UserSuccessModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className={`relative w-full ${userData.userType === 'corretor' ? 'max-w-4xl' : 'max-w-lg'} bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-hidden`}>
+        <LeadsModal />
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
           <div className="flex items-center gap-3">
@@ -492,10 +741,63 @@ export default function UserSuccessModal({
 
               {/* Lado Direito: Dashboard de Ações (7 colunas) */}
               <div className="md:col-span-7 space-y-8 py-2">
+                {/* Leads atribuídos (aceite necessário) - dentro do modal do corretor */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="flex items-center gap-2 text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">
+                      <Bell className="w-4 h-4 text-amber-600" />
+                      Leads atribuídos
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setLeadsModalOpen(true)}
+                      className="inline-flex items-center gap-3 rounded-2xl bg-blue-600 px-6 py-4 text-white text-xs font-black uppercase hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl"
+                    >
+                      <span className="relative inline-flex">
+                        <Bell className="w-5 h-5" />
+                        {leadsResumo.total > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-black leading-[18px] text-center">
+                            {leadsResumo.total}
+                          </span>
+                        )}
+                      </span>
+                      Visualizar novos leads
+                    </button>
+                  </div>
+
+                  {leadStats && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Seu desempenho</div>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="rounded-xl bg-white border border-slate-200 p-3">
+                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Leads recebidos</div>
+                          <div className="mt-1 text-2xl font-black text-slate-900">{leadStats.recebidos}</div>
+                        </div>
+                        <div className="rounded-xl bg-white border border-rose-200 p-3">
+                          <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Perdidos por SLA</div>
+                          <div className="mt-1 text-2xl font-black text-rose-700">{leadStats.perdidosSla}</div>
+                        </div>
+                        <div className="rounded-xl bg-white border border-emerald-200 p-3">
+                          <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Aceite no SLA</div>
+                          <div className="mt-1 text-2xl font-black text-emerald-700">
+                            {(Number(leadStats.aceiteNoSlaPercent) || 0).toLocaleString('pt-BR', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}%
+                          </div>
+                          <div className="mt-1 text-[11px] font-bold text-slate-500">
+                            {`${leadStats.aceiteNoSlaAceitos ?? 0}/${leadStats.aceiteNoSlaAvaliados ?? 0} dentro do SLA`}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Gestão de Proprietários */}
                 <div className="space-y-4">
                   <h4 className="flex items-center gap-2 text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">
-                    <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
+                    <Users className="w-4 h-4 text-blue-600" />
                     Gestão de Proprietários
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
@@ -523,7 +825,7 @@ export default function UserSuccessModal({
                 {/* Gestão de Imóveis */}
                 <div className="space-y-4">
                   <h4 className="flex items-center gap-2 text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">
-                    <span className="w-1.5 h-4 bg-green-600 rounded-full"></span>
+                    <Building2 className="w-4 h-4 text-green-600" />
                     Gestão de Imóveis
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
@@ -551,7 +853,7 @@ export default function UserSuccessModal({
                 {/* Ferramentas e Configurações */}
                 <div className="space-y-4">
                   <h4 className="flex items-center gap-2 text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">
-                    <span className="w-1.5 h-4 bg-amber-500 rounded-full"></span>
+                    <Settings className="w-4 h-4 text-amber-600" />
                     Ferramentas de Apoio
                   </h4>
                   <div className={`grid ${userData.isencao ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>

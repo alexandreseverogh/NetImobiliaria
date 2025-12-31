@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useApi } from '@/hooks/useApi'
@@ -8,7 +8,7 @@ import { API_ENDPOINTS } from '@/lib/config/constants'
 import PermissionGuard from '@/components/admin/PermissionGuard'
 import CreateUserModal from '@/components/admin/CreateUserModal'
 import EditUserModal from '@/components/admin/EditUserModal'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { formatCPF, validateCPF } from '@/lib/utils/formatters'
 
@@ -21,8 +21,9 @@ interface User {
 
   role_name?: string
   role_description?: string
-  role_level?: number  // Nível hierárquico do perfil
+  role_level?: number  // N├¡vel hier├írquico do perfil
   ativo: boolean
+  isencao?: boolean
   ultimo_login: string | null
   created_at: string
   two_factor_enabled?: boolean
@@ -70,13 +71,13 @@ function UsuariosAdminInner() {
       
       if (response.ok) {
         const data = await response.json()
-        console.log('🔐 Permissões do usuário logado:', data.user.permissoes)
+        console.log('­ƒöÉ Permiss├Áes do usu├írio logado:', data.user.permissoes)
         setUserPermissions(data.user.permissoes)
       } else {
-        console.error('❌ Erro ao buscar permissões:', response.status, response.statusText)
+        console.error('ÔØî Erro ao buscar permiss├Áes:', response.status, response.statusText)
       }
     } catch (error) {
-      console.error('❌ Erro ao buscar permissões:', error)
+      console.error('ÔØî Erro ao buscar permiss├Áes:', error)
     }
   }, [get])
 
@@ -89,11 +90,11 @@ function UsuariosAdminInner() {
         setUsers(data.users || [])
       } else {
         const errorData = await response.json()
-        console.error('Erro na API de usuários:', errorData)
+        console.error('Erro na API de usu├írios:', errorData)
         setUsers([])
       }
     } catch (error) {
-      console.error('Erro ao buscar usuários:', error)
+      console.error('Erro ao buscar usu├írios:', error)
       setUsers([])
     } finally {
       setLoading(false)
@@ -102,19 +103,19 @@ function UsuariosAdminInner() {
 
   const fetchRoles = useCallback(async () => {
     try {
-      console.log('🔍 Buscando perfis em:', API_ENDPOINTS.USERS.ROLES)
+      console.log('­ƒöì Buscando perfis em:', API_ENDPOINTS.USERS.ROLES)
       const response = await get(API_ENDPOINTS.USERS.ROLES)
-      console.log('📡 Resposta da API de perfis:', response.status, response.statusText)
+      console.log('­ƒôí Resposta da API de perfis:', response.status, response.statusText)
       
       if (response.ok) {
         const data = await response.json()
         setRoles(data.roles || [])
       } else {
         const errorData = await response.json()
-        console.error('❌ Erro na API de perfis:', errorData)
+        console.error('ÔØî Erro na API de perfis:', errorData)
       }
     } catch (error) {
-      console.error('❌ Erro ao buscar perfis:', error)
+      console.error('ÔØî Erro ao buscar perfis:', error)
     }
   }, [get])
 
@@ -168,7 +169,7 @@ function UsuariosAdminInner() {
   }
 
   const handleCreateSuccess = () => {
-    fetchUsers() // Recarregar lista após criar usuário
+    fetchUsers() // Recarregar lista ap├│s criar usu├írio
   }
 
   const handleEditUser = (userId: string) => {
@@ -180,58 +181,58 @@ function UsuariosAdminInner() {
   }
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
-    console.log('🔄 handleToggleStatus chamado:', { userId, currentStatus })
+    console.log('­ƒöä handleToggleStatus chamado:', { userId, currentStatus })
     
     try {
-      console.log('📡 Enviando requisição PATCH para alterar status...')
+      console.log('­ƒôí Enviando requisi├º├úo PATCH para alterar status...')
       const response = await patch(`/api/admin/usuarios/${userId}/status`, { ativo: !currentStatus })
 
-      console.log('📥 Resposta recebida:', response.status, response.statusText)
+      console.log('­ƒôÑ Resposta recebida:', response.status, response.statusText)
 
       if (response.ok) {
         const data = await response.json()
-        console.log('✅ Status alterado com sucesso:', data)
+        console.log('Ô£à Status alterado com sucesso:', data)
         fetchUsers() // Recarregar lista
       } else {
         const errorData = await response.json()
-        console.error('❌ Erro ao alterar status:', errorData)
+        console.error('ÔØî Erro ao alterar status:', errorData)
         alert(`Erro ao alterar status: ${errorData.error || 'Erro desconhecido'}`)
       }
     } catch (error) {
-      console.error('❌ Erro ao alterar status:', error)
+      console.error('ÔØî Erro ao alterar status:', error)
       alert('Erro ao alterar status. Tente novamente.')
     }
   }
 
-  // Verificar se pode gerenciar usuário (hierarquia)
+  // Verificar se pode gerenciar usu├írio (hierarquia)
   const canManageUser = (targetUser: User): boolean => {
     if (!loggedUser) {
-      console.log('🔍 canManageUser - loggedUser é NULL')
+      console.log('­ƒöì canManageUser - loggedUser ├® NULL')
       return false
     }
     
     const loggedLevel = loggedUser.role_level || 0
     const targetLevel = targetUser.role_level || 0
     
-    console.log('🔍 canManageUser - Verificando:', {
+    console.log('­ƒöì canManageUser - Verificando:', {
       logged: { username: loggedUser.username, level: loggedLevel },
       target: { username: targetUser.username, level: targetLevel },
       canManage: loggedLevel > targetLevel
     })
     
-    // Não pode gerenciar a si mesmo
+    // N├úo pode gerenciar a si mesmo
     if (loggedUser.id === targetUser.id) {
-      console.log('🚫 Não pode gerenciar a si mesmo')
+      console.log('­ƒÜ½ N├úo pode gerenciar a si mesmo')
       return false
     }
     
-    // Não pode gerenciar nível igual ou superior
+    // N├úo pode gerenciar n├¡vel igual ou superior
     if (loggedLevel <= targetLevel) {
-      console.log('🚫 Nível insuficiente:', loggedLevel, '<=', targetLevel)
+      console.log('­ƒÜ½ N├¡vel insuficiente:', loggedLevel, '<=', targetLevel)
       return false
     }
     
-    console.log('✅ Pode gerenciar!')
+    console.log('Ô£à Pode gerenciar!')
     return true
   }
   
@@ -240,39 +241,39 @@ function UsuariosAdminInner() {
   const canEditUser = canManageUser
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    console.log('🗑️ handleDeleteUser chamado:', { userId, userName })
+    console.log('­ƒùæ´©Å handleDeleteUser chamado:', { userId, userName })
     
-    if (!confirm(`Tem certeza que deseja excluir o usuário "${userName}"? Esta ação não pode ser desfeita.`)) {
-      console.log('❌ Usuário cancelou a exclusão')
+    if (!confirm(`Tem certeza que deseja excluir o usu├írio "${userName}"? Esta a├º├úo n├úo pode ser desfeita.`)) {
+      console.log('ÔØî Usu├írio cancelou a exclus├úo')
       return
     }
 
     try {
-      console.log('📡 Enviando requisição DELETE para excluir usuário...')
+      console.log('­ƒôí Enviando requisi├º├úo DELETE para excluir usu├írio...')
       const response = await del(`/api/admin/usuarios/${userId}`)
 
-      console.log('📥 Resposta recebida:', response.status, response.statusText)
+      console.log('­ƒôÑ Resposta recebida:', response.status, response.statusText)
 
       if (response.ok) {
         const data = await response.json()
-        console.log('✅ Usuário excluído com sucesso:', data)
+        console.log('Ô£à Usu├írio exclu├¡do com sucesso:', data)
         fetchUsers() // Recarregar lista
-        alert('Usuário excluído com sucesso!')
+        alert('Usu├írio exclu├¡do com sucesso!')
       } else {
         const error = await response.json()
-        console.error('❌ Erro ao excluir usuário:', error)
-        alert(`Erro ao excluir usuário: ${error.error || 'Erro desconhecido'}`)
+        console.error('ÔØî Erro ao excluir usu├írio:', error)
+        alert(`Erro ao excluir usu├írio: ${error.error || 'Erro desconhecido'}`)
       }
     } catch (error) {
-      console.error('❌ Erro ao excluir usuário:', error)
-      alert('Erro ao excluir usuário. Tente novamente.')
+      console.error('ÔØî Erro ao excluir usu├írio:', error)
+      alert('Erro ao excluir usu├írio. Tente novamente.')
     }
   }
 
   const handleToggle2FA = async (userId: string, currentState: boolean, userName: string) => {
     const action = currentState ? 'desabilitar' : 'habilitar'
     
-    if (!confirm(`Tem certeza que deseja ${action} 2FA para o usuário "${userName}"?`)) {
+    if (!confirm(`Tem certeza que deseja ${action} 2FA para o usu├írio "${userName}"?`)) {
       return
     }
 
@@ -283,16 +284,16 @@ function UsuariosAdminInner() {
 
       if (response.ok) {
         const data = await response.json()
-        console.log('✅ 2FA alterado com sucesso:', data)
+        console.log('Ô£à 2FA alterado com sucesso:', data)
         alert(`2FA ${!currentState ? 'habilitado' : 'desabilitado'} com sucesso!`)
         fetchUsers() // Recarregar lista
       } else {
         const errorData = await response.json()
-        console.error('❌ Erro ao alterar 2FA:', errorData)
+        console.error('ÔØî Erro ao alterar 2FA:', errorData)
         alert(`Erro ao alterar 2FA: ${errorData.message || 'Erro desconhecido'}`)
       }
     } catch (error) {
-      console.error('❌ Erro ao alterar 2FA:', error)
+      console.error('ÔØî Erro ao alterar 2FA:', error)
       alert('Erro ao alterar 2FA. Tente novamente.')
     }
   }
@@ -300,7 +301,7 @@ function UsuariosAdminInner() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Carregando usuários...</div>
+        <div className="text-lg">Carregando usu├írios...</div>
       </div>
     )
   }
@@ -383,7 +384,7 @@ function UsuariosAdminInner() {
                 </div>
               </div>
               
-              {/* Botão para limpar filtros */}
+              {/* Bot├úo para limpar filtros */}
               <div className="mt-4 flex justify-end">
                 <button
                   onClick={() => {
@@ -436,6 +437,9 @@ function UsuariosAdminInner() {
                         Perfil
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Isenção
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -482,6 +486,18 @@ function UsuariosAdminInner() {
                             {user.role_name || 'Sem perfil'}
                           </span>
                         </td>
+
+                        <td className="px-4 py-4">
+                          {user.role_name === 'Corretor' ? (
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              user.isencao ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {user.isencao ? 'Isento' : 'Sem isenção'}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-gray-400">—</span>
+                          )}
+                        </td>
                         
                         <td className="px-4 py-4">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -507,7 +523,7 @@ function UsuariosAdminInner() {
                                 {user.two_factor_method}
                               </div>
                             )}
-                            {/* Botão 2FA - sem PermissionGuard temporariamente */}
+                            {/* Bot├úo 2FA - sem PermissionGuard temporariamente */}
                             <button
                               onClick={() => handleToggle2FA(user.id, user.two_factor_enabled || false, user.nome)}
                               className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
@@ -534,12 +550,12 @@ function UsuariosAdminInner() {
                         
                         <td className="px-4 py-4 text-sm font-medium">
                           <div className="flex flex-wrap gap-1">
-                            {/* Botão Editar - Com verificação hierárquica */}
+                            {/* Bot├úo Editar - Com verifica├º├úo hier├írquica */}
                             {canEditUser(user) ? (
                               <button
                                 onClick={() => handleEditUser(user.id)}
                                 className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded text-xs font-medium transition-colors flex items-center"
-                                title="Editar usuário"
+                                title="Editar usu├írio"
                               >
                                 <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -558,12 +574,12 @@ function UsuariosAdminInner() {
                               </span>
                             )}
 
-                            {/* Botão Excluir - Com verificação hierárquica */}
+                            {/* Bot├úo Excluir - Com verifica├º├úo hier├írquica */}
                             {canDeleteUser(user) ? (
                               <button
                                 onClick={() => handleDeleteUser(user.id, user.nome)}
                                 className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded text-xs font-medium transition-colors flex items-center"
-                                title="Excluir usuário"
+                                title="Excluir usu├írio"
                               >
                                 <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -618,7 +634,7 @@ function UsuariosAdminInner() {
                          )}
       </div>
 
-            {/* Modal de Criação de Usuário */}
+            {/* Modal de Cria├º├úo de Usu├írio */}
       <CreateUserModal
         isOpen={showCreateForm}
         onClose={() => setShowCreateForm(false)}
@@ -626,7 +642,7 @@ function UsuariosAdminInner() {
         roles={roles}
       />
 
-      {/* Modal de Edição de Usuário */}
+      {/* Modal de Edi├º├úo de Usu├írio */}
       <EditUserModal
         isOpen={showEditForm}
         onClose={() => {
@@ -642,6 +658,8 @@ function UsuariosAdminInner() {
 }
 
 function PublicBrokerSignup() {
+  const router = useRouter()
+
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -681,8 +699,13 @@ function PublicBrokerSignup() {
   const cpfDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fotoInputId = 'broker-foto-input'
 
+  const handleVoltar = () => {
+    // Redirecionar para landpaging com flag para abrir o modal do corretor
+    router.push('/landpaging?corretor_popup=true')
+  }
+
   const onChange = (key: keyof typeof form, value: string) => {
-    // IMPORTANTÍSSIMO: marcar validação pendente imediatamente
+    // IMPORTANT├ìSSIMO: marcar valida├º├úo pendente imediatamente
     if (key === 'email') {
       const emailNow = String(value || '').trim().toLowerCase()
       if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNow) && emailNow !== lastValidatedEmailRef.current) {
@@ -741,7 +764,7 @@ function PublicBrokerSignup() {
     return null
   }
 
-  // Validação online (UX): senhas precisam ser iguais enquanto digita (igual cadastro de cliente)
+  // Valida├º├úo online (UX): senhas precisam ser iguais enquanto digita (igual cadastro de cliente)
   useEffect(() => {
     if (!form.confirmPassword) {
       setConfirmPasswordError(null)
@@ -754,7 +777,7 @@ function PublicBrokerSignup() {
     }
   }, [form.password, form.confirmPassword])
 
-  // Validação online de e-mail (disponibilidade)
+  // Valida├º├úo online de e-mail (disponibilidade)
   useEffect(() => {
     const email = form.email.trim().toLowerCase()
     setEmailAvailable(null)
@@ -771,13 +794,13 @@ function PublicBrokerSignup() {
       return
     }
 
-    // Cache: se já checamos esse e-mail nesta sessão
+    // Cache: se j├í checamos esse e-mail nesta sess├úo
     if (email === lastValidatedEmailRef.current) {
       setEmailPendingValidation(false)
       return
     }
 
-    // bloquear saída do campo enquanto valida online
+    // bloquear sa├¡da do campo enquanto valida online
     setEmailPendingValidation(true)
     emailDebounceRef.current = setTimeout(async () => {
       setEmailChecking(true)
@@ -806,7 +829,7 @@ function PublicBrokerSignup() {
     }
   }, [form.email])
 
-  // Validação online de CPF (disponibilidade)
+  // Valida├º├úo online de CPF (disponibilidade)
   useEffect(() => {
     const cpfDigits = form.cpf.replace(/\D/g, '')
     setCpfAvailable(null)
@@ -823,7 +846,7 @@ function PublicBrokerSignup() {
       return
     }
 
-    // Cache: se já checamos esse CPF nesta sessão
+    // Cache: se j├í checamos esse CPF nesta sess├úo
     const cached = cpfExistsCacheRef.current.get(cpfDigits)
     if (cached !== undefined) {
       setCpfAvailable(!cached) // available = !exists
@@ -840,7 +863,7 @@ function PublicBrokerSignup() {
     const controller = new AbortController()
     cpfAbortRef.current = controller
 
-    // bloquear saída do campo enquanto valida online
+    // bloquear sa├¡da do campo enquanto valida online
     setCpfPendingValidation(true)
     cpfDebounceRef.current = setTimeout(async () => {
       setCpfChecking(true)
@@ -874,7 +897,7 @@ function PublicBrokerSignup() {
   }, [form.cpf])
 
   const formatTelefone = (value: string): string => {
-    const digits = value.replace(/\D/g, '').slice(0, 11) // (DD) + 9 dígitos
+    const digits = value.replace(/\D/g, '').slice(0, 11) // (DD) + 9 d├¡gitos
     if (digits.length <= 2) return digits
     const ddd = digits.slice(0, 2)
     const rest = digits.slice(2)
@@ -923,7 +946,7 @@ function PublicBrokerSignup() {
     }
   }
 
-  // Ao concluir, direcionar para o login de corretor (via parâmetro na landing page)
+  // Ao concluir, direcionar para o login de corretor (via par├ómetro na landing page)
   useEffect(() => {
     if (!done) return
     const t = setTimeout(() => {
@@ -958,6 +981,17 @@ function PublicBrokerSignup() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <button
+              onClick={handleVoltar}
+              className="inline-flex items-center px-4 py-2 bg-white border-2 border-gray-300 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Voltar
+            </button>
+          </div>
           <h1 className="text-3xl font-extrabold text-gray-900">Cadastro de Corretor</h1>
           <p className="mt-2 text-gray-600">
             Preencha seus dados. O <strong>CRECI</strong> será validado por nossa equipe.
@@ -1180,7 +1214,7 @@ function PublicBrokerSignup() {
                     Escolher foto
                   </label>
                   <div className="min-w-0">
-                    <div className="text-xs text-gray-500">JPG/PNG/WEBP • até 2MB</div>
+                    <div className="text-xs text-gray-500">JPG/PNG/WEBP ÔÇó at├® 2MB</div>
                     <div className="text-sm font-medium text-gray-800 truncate">
                       {foto ? foto.name : 'Nenhum arquivo selecionado'}
                     </div>

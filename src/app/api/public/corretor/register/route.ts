@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
       password,
       roleId,
       ativo: true,
+      isencao: false,
       ultimo_login: null,
       cpf,
       creci,

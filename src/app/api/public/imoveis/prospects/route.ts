@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import emailService from '@/services/emailService'
+import { routeProspectAndNotify } from '@/lib/routing/prospectRouter'
 
 /**
  * POST /api/public/imoveis/prospects
@@ -65,6 +66,17 @@ export async function POST(request: NextRequest) {
        RETURNING id, id_cliente, id_imovel, created_at`,
       [clienteUuid, imovelId, clienteUuid, preferenciaContato || null, mensagem || null]
     )
+
+    // Disparar roteamento do lead para corretor (não bloquear o fluxo se falhar)
+    try {
+      const prospectId = Number(result.rows[0]?.id)
+      if (prospectId) {
+        // MVP: executar inline com catch (sem fila). Evoluir para job/queue quando WhatsApp entrar.
+        await routeProspectAndNotify(prospectId)
+      }
+    } catch (routerError) {
+      console.error('⚠️ Falha ao rotear lead para corretor (não bloqueia o registro):', routerError)
+    }
 
     // Buscar dados completos do imóvel e cliente para enviar e-mail
     const imovelDataQuery = await pool.query(

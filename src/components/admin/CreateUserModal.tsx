@@ -30,6 +30,7 @@ interface CreateUserForm {
   roleId: number | null
   ativo: boolean
   isencao: boolean
+  is_plantonista: boolean
 }
 
 export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: CreateUserModalProps) {
@@ -46,7 +47,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     cpf: '',
     roleId: null,
     ativo: true,
-    isencao: false
+    isencao: false,
+    is_plantonista: false
   })
   
   const [loading, setLoading] = useState(false)
@@ -77,7 +79,9 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
         telefone: '',
         cpf: '',
         roleId: null,
-        ativo: true
+        ativo: true,
+        isencao: false,
+        is_plantonista: false
       })
       setErrors({})
       setEmailChecking(false)
@@ -315,7 +319,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
         cpf: form.cpf.replace(/\D/g, ''),
         roleId: form.roleId,
         ativo: form.ativo,
-        isencao: form.isencao
+        isencao: form.isencao,
+        is_plantonista: form.is_plantonista
       }
       
       console.log('📤 Dados sendo enviados para a API:', requestData)
@@ -333,11 +338,14 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
           password: '',
           confirmPassword: '',
           nome: '',
-        telefone: '',
-        roleId: null,
-        ativo: true,
-        isencao: false
-      })
+          telefone: '',
+          cpf: '',
+          roleId: null,
+          ativo: true,
+          isencao: false
+          ,
+          is_plantonista: false
+        })
 
         onSuccess()
         onClose()
@@ -791,17 +799,32 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
               </div>
 
               {roles.find(r => r.id === form.roleId)?.name === 'Corretor' && (
-                <div className="flex items-center space-x-3 px-3 py-2 bg-amber-50 rounded-lg border border-amber-100">
-                  <input
-                    type="checkbox"
-                    id="isencao"
-                    checked={form.isencao}
-                    onChange={(e) => handleInputChange('isencao', e.target.checked)}
-                    className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-amber-300 rounded"
-                  />
-                  <label htmlFor="isencao" className="text-sm font-medium text-amber-900">
-                    Isenção de Mensalidade
-                  </label>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3 px-3 py-2 bg-amber-50 rounded-lg border border-amber-100">
+                    <input
+                      type="checkbox"
+                      id="isencao"
+                      checked={form.isencao}
+                      onChange={(e) => handleInputChange('isencao', e.target.checked)}
+                      className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-amber-300 rounded"
+                    />
+                    <label htmlFor="isencao" className="text-sm font-medium text-amber-900">
+                      Isenção de Mensalidade
+                    </label>
+                  </div>
+
+                  <div className="flex items-center space-x-3 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+                    <input
+                      type="checkbox"
+                      id="is_plantonista"
+                      checked={form.is_plantonista}
+                      onChange={(e) => handleInputChange('is_plantonista', e.target.checked)}
+                      className="h-4 w-4 text-slate-700 focus:ring-slate-500 border-slate-300 rounded"
+                    />
+                    <label htmlFor="is_plantonista" className="text-sm font-medium text-slate-900">
+                      Corretor plantonista (fallback)
+                    </label>
+                  </div>
                 </div>
               )}
             </div>

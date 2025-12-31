@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -15,7 +15,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [displayLocation, setDisplayLocation] = useState<string>('Recife, PE')
 
-  // Carregar localização do localStorage na inicialização
+  // Carregar localiza├º├úo do localStorage na inicializa├º├úo
   useEffect(() => {
     if (typeof window === 'undefined') return
     
@@ -27,7 +27,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
     }
   }, [])
 
-  // Atualizar localização exibida quando receber props
+  // Atualizar localiza├º├úo exibida quando receber props
   useEffect(() => {
     if (selectedCidade && selectedEstado) {
       const location = `${selectedCidade}, ${selectedEstado}`
@@ -37,7 +37,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
     }
   }, [selectedCidade, selectedEstado])
 
-  // Escutar eventos de mudança de localização (do modal de geolocalização)
+  // Escutar eventos de mudan├ºa de localiza├º├úo (do modal de geolocaliza├º├úo)
   useEffect(() => {
     const handleLocationChange = (event: CustomEvent) => {
       const { cidade, estado } = event.detail || {}
@@ -73,7 +73,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
             <Link href="/" className="flex items-center">
               <Image
                 src="/logo.png"
-                alt="NET IMOBILIÁRIA"
+                alt="NET IMOBILI├üRIA"
                 width={120}
                 height={40}
                 className="h-10 w-auto"
@@ -95,7 +95,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
             ))}
           </nav>
 
-          {/* Área Direita: Contact Info e Botão de Autenticação */}
+          {/* ├ürea Direita: Contact Info e Bot├úo de Autentica├º├úo */}
           <div className="hidden md:flex items-center gap-4 flex-shrink-0 pr-4 sm:pr-6 lg:pr-8">
             {/* Contact Info */}
             <div className="flex items-center space-x-4">
@@ -108,7 +108,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
                 <span>{displayLocation}</span>
               </div>
             </div>
-            {/* Botão de Autenticação - Separado e à direita */}
+            {/* Bot├úo de Autentica├º├úo - Separado e ├á direita */}
             <div className="pl-4 border-l border-gray-300">
               <AuthButtons />
             </div>
@@ -149,7 +149,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
                 <MapPin className="w-4 h-4 mr-2" />
                 <span>{displayLocation}</span>
               </div>
-              {/* Botão de Autenticação Mobile */}
+              {/* Bot├úo de Autentica├º├úo Mobile */}
               <div className="pt-2 border-t">
                 <AuthButtons />
               </div>
