@@ -161,6 +161,31 @@ async function pickNextBrokerByArea(estado, cidade, prospectId) {
   return r.rows[0]
 }
 
+async function pickBrokerByAreaInitial(estado, cidade) {
+  const q = `
+    SELECT
+      u.id, u.nome, u.email,
+      COUNT(a2.id) AS total_recebidos,
+      MAX(a2.created_at) AS ultimo_recebimento
+    FROM public.users u
+    INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
+    INNER JOIN public.user_roles ur ON ura.role_id = ur.id
+    INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
+    LEFT JOIN public.imovel_prospect_atribuicoes a2 ON a2.corretor_fk = u.id
+    WHERE u.ativo = true
+      AND ur.name = 'Corretor'
+      AND COALESCE(u.is_plantonista, false) = false
+      AND caa.estado_fk = $1
+      AND caa.cidade_fk = $2
+    GROUP BY u.id, u.nome, u.email
+    ORDER BY COUNT(a2.id) ASC, MAX(a2.created_at) ASC NULLS FIRST, u.created_at ASC
+    LIMIT 1
+  `
+  const r = await pool.query(q, [estado, cidade])
+  if (!r.rows.length) return null
+  return r.rows[0]
+}
+
 async function pickPlantonistaBroker() {
   // Plantonista por menor carga / maior tempo sem receber
   const q = `
@@ -206,6 +231,98 @@ async function getLeadPayload(prospectId) {
   `
   const r = await pool.query(q, [prospectId])
   return r.rows?.[0] || null
+}
+
+async function getUnassignedProspects(limit = 50) {
+  const q = `
+    SELECT ip.id AS prospect_id
+    FROM public.imovel_prospects ip
+    WHERE ip.created_at >= NOW() - INTERVAL '2 days'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.imovel_prospect_atribuicoes a
+        WHERE a.prospect_id = ip.id
+      )
+    ORDER BY ip.id ASC
+    LIMIT $1
+  `
+  const r = await pool.query(q, [limit])
+  return r.rows || []
+}
+
+async function processUnassignedProspectsOnce() {
+  const slaMinutes = await getParametroSlaMinutosAceiteLead()
+  const rows = await getUnassignedProspects(50)
+  if (!rows.length) return 0
+
+  let processed = 0
+  for (const row of rows) {
+    const prospectId = Number(row.prospect_id)
+    if (!prospectId) continue
+
+    try {
+      const payload = await getLeadPayload(prospectId)
+      if (!payload) continue
+
+      const estado = String(payload.estado_fk || '').trim()
+      const cidade = String(payload.cidade_fk || '').trim()
+      if (!estado || !cidade) continue
+
+      // Regra: se o imóvel tiver corretor_fk, direciona direto (se ativo e corretor)
+      let broker = null
+      const imovelCorretorFk = payload.corretor_fk ? String(payload.corretor_fk).trim() : ''
+      if (imovelCorretorFk) {
+        broker = await getUserById(imovelCorretorFk)
+      }
+      if (!broker) broker = await pickBrokerByAreaInitial(estado, cidade)
+      if (!broker) broker = await pickPlantonistaBroker()
+      if (!broker) continue
+
+      const expiraEm = new Date(Date.now() + slaMinutes * 60 * 1000)
+
+      // Inserir atribuição (apenas se ainda estiver sem atribuição)
+      await pool.query(
+        `
+        INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em)
+        SELECT $1, $2::uuid, 'atribuido', $3::jsonb, $4
+        WHERE NOT EXISTS (
+          SELECT 1 FROM public.imovel_prospect_atribuicoes a WHERE a.prospect_id = $1
+        )
+        `,
+        [
+          prospectId,
+          broker.id,
+          JSON.stringify({ type: imovelCorretorFk ? 'imovel_corretor_fk' : 'area_match', source: 'backfill_unassigned' }),
+          expiraEm
+        ]
+      )
+
+      // Notificar corretor escolhido
+      if (broker.email) {
+        const painelUrl = `${appBaseUrl()}/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}`
+        await sendTemplateEmail(broker.email, 'novo-lead-corretor', {
+          corretor_nome: broker.nome || 'Corretor',
+          codigo: String(payload.codigo || '-'),
+          titulo: String(payload.titulo || 'Imóvel'),
+          cidade: String(payload.cidade_fk || '-'),
+          estado: String(payload.estado_fk || '-'),
+          preco: formatCurrency(payload.preco),
+          cliente_nome: String(payload.cliente_nome || '-'),
+          cliente_telefone: String(payload.cliente_telefone || '-'),
+          cliente_email: String(payload.cliente_email || '-'),
+          preferencia_contato: String(payload.preferencia_contato || 'Não informado'),
+          mensagem: String(payload.mensagem || 'Sem mensagem'),
+          painel_url: painelUrl
+        })
+      }
+
+      processed++
+    } catch (e) {
+      console.warn('⚠️ [LeadWorker] Falha ao backfill de prospect sem atribuição:', e?.message || e)
+    }
+  }
+
+  return processed
 }
 
 function formatCurrency(value) {
@@ -387,6 +504,9 @@ async function processExpiredOnce() {
 
 async function tick() {
   try {
+    const backfilled = await processUnassignedProspectsOnce()
+    if (backfilled > 0) console.log(`✅ [LeadWorker] Backfill: atribuídos ${backfilled} prospects sem atribuição`)
+
     const n = await processExpiredOnce()
     if (n > 0) console.log(`✅ [LeadWorker] Reprocessados ${n} leads expirados`)
   } catch (e) {
