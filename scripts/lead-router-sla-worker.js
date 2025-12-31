@@ -89,6 +89,63 @@ async function logEmailSend(templateName, toEmail, success, errorMessage) {
   }
 }
 
+function looksLikeInvalidRecipient(errorMessage) {
+  const msg = String(errorMessage || '').toLowerCase()
+  // Heurística simples (SMTP/providers variam). A ideia é cortar repetição quando o provedor rejeita o destinatário.
+  return (
+    msg.includes('recipient') ||
+    msg.includes('address') ||
+    msg.includes('user unknown') ||
+    msg.includes('no such user') ||
+    msg.includes('mailbox unavailable') ||
+    msg.includes('invalid') ||
+    msg.includes('550') ||
+    msg.includes('553') ||
+    msg.includes('5.1.1')
+  )
+}
+
+async function markEmailBounce(toEmail, errorMessage) {
+  try {
+    // Só marca bounce para erros que parecem rejeição do destinatário
+    if (!looksLikeInvalidRecipient(errorMessage)) return
+
+    await pool.query(
+      `
+      INSERT INTO public.email_bounces (to_email, bounce_count, last_error, last_bounced_at, updated_at)
+      VALUES ($1, 1, $2, NOW(), NOW())
+      ON CONFLICT ((lower(to_email)))
+      DO UPDATE SET
+        bounce_count = public.email_bounces.bounce_count + 1,
+        last_error = EXCLUDED.last_error,
+        last_bounced_at = NOW(),
+        updated_at = NOW()
+      `,
+      [toEmail, String(errorMessage || '')]
+    )
+  } catch (e) {
+    console.warn('⚠️ [LeadWorker] Falha ao gravar email_bounces:', e?.message || e)
+  }
+}
+
+async function isEmailBouncedRecently(toEmail, minutes = 180) {
+  try {
+    const r = await pool.query(
+      `
+      SELECT 1
+      FROM public.email_bounces
+      WHERE lower(to_email) = lower($1)
+        AND last_bounced_at >= NOW() - ($2::text || ' minutes')::interval
+      LIMIT 1
+      `,
+      [toEmail, String(minutes)]
+    )
+    return r.rows.length > 0
+  } catch {
+    return false
+  }
+}
+
 async function sendTemplateEmail(to, templateName, variables) {
   const settings = await getEmailConfig()
   const template = await getEmailTemplate(templateName)
@@ -107,6 +164,14 @@ async function sendTemplateEmail(to, templateName, variables) {
   const text = applyVars(template.text_content, variables)
 
   try {
+    // Anti-spam: se já deu bounce recentemente, não insistir.
+    const bounced = await isEmailBouncedRecently(to, 180)
+    if (bounced) {
+      console.warn(`⚠️ [LeadWorker] Email bloqueado (bounce recente): ${to} (template=${templateName})`)
+      await logEmailSend(templateName, to, false, 'Bloqueado: bounce recente')
+      return false
+    }
+
     const info = await transporter.sendMail({
       from: `"${settings.from_name || 'Net Imobiliária'}" <${settings.from_email || 'noreply@localhost'}>`,
       to,
@@ -120,6 +185,7 @@ async function sendTemplateEmail(to, templateName, variables) {
   } catch (e) {
     const msg = e?.message || String(e)
     await logEmailSend(templateName, to, false, msg)
+    await markEmailBounce(to, msg)
     console.warn(`⚠️ [LeadWorker] Falha ao enviar email (${templateName}) para ${to}:`, msg)
     return false
   }

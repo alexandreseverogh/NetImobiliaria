@@ -195,22 +195,25 @@ export async function routeProspectAndNotify(prospectId: number): Promise<{ succ
       return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
     }
 
-    // Link direto para o lead específico (o corretor ainda precisa estar logado)
-    const painelUrl = `${getAppBaseUrl()}/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}`
-    await emailService.sendTemplateEmail('novo-lead-corretor', broker.email, {
-      corretor_nome: broker.nome || 'Corretor',
-      codigo: String(p.codigo || '-'),
-      titulo: String(p.titulo || 'Imóvel'),
-      cidade: String(p.cidade_fk || '-'),
-      estado: String(p.estado_fk || '-'),
-      preco: formatCurrency(p.preco),
-      cliente_nome: String(p.cliente_nome || '-'),
-      cliente_telefone: String(p.cliente_telefone || '-'),
-      cliente_email: String(p.cliente_email || '-'),
-      preferencia_contato: String(p.preferencia_contato || 'Não informado'),
-      mensagem: String(p.mensagem || 'Sem mensagem'),
-      painel_url: painelUrl
-    })
+    // Se o corretor não tiver e-mail, não disparar (evita tentativas inúteis).
+    if (broker.email && String(broker.email).trim()) {
+      // Link direto para o lead específico (o corretor ainda precisa estar logado)
+      const painelUrl = `${getAppBaseUrl()}/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}`
+      await emailService.sendTemplateEmail('novo-lead-corretor', broker.email, {
+        corretor_nome: broker.nome || 'Corretor',
+        codigo: String(p.codigo || '-'),
+        titulo: String(p.titulo || 'Imóvel'),
+        cidade: String(p.cidade_fk || '-'),
+        estado: String(p.estado_fk || '-'),
+        preco: formatCurrency(p.preco),
+        cliente_nome: String(p.cliente_nome || '-'),
+        cliente_telefone: String(p.cliente_telefone || '-'),
+        cliente_email: String(p.cliente_email || '-'),
+        preferencia_contato: String(p.preferencia_contato || 'Não informado'),
+        mensagem: String(p.mensagem || 'Sem mensagem'),
+        painel_url: painelUrl
+      })
+    }
   } catch {
     // Não falhar o roteamento se o e-mail falhar
   }
