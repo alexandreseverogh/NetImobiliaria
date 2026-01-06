@@ -47,18 +47,10 @@ export default function AuthModal({
   }
 
   const handleCorretorClick = () => {
-    // Entrar: abrir o modal de login do corretor (sem navegar para /admin/login)
+    // Entrar: ir para a página pública de login do corretor (mesma do fluxo "Já sou corretor - Entrar na plataforma")
     if (mode === 'login') {
       onClose()
-      if (onCorretorLoginClick) {
-        onCorretorLoginClick()
-        return
-      }
-      // Fallback robusto: em qualquer lugar que use AuthModal, abrimos o modal de credenciais do corretor
-      // via evento global (evita navegar direto para /admin por conta de token pré-existente).
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('open-corretor-login-modal'))
-      }
+      router.push('/corretor/entrar?next=/landpaging?corretor_home=true')
       return
     }
 
@@ -69,7 +61,7 @@ export default function AuthModal({
       return
     }
     onClose()
-    router.push('/admin/usuarios?public_broker=true')
+    router.push('/corretor/cadastro')
   }
 
   const handleBack = () => {

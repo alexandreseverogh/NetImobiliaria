@@ -29,6 +29,12 @@ function appBaseUrl() {
   return String(base).replace(/\/+$/, '')
 }
 
+function buildCorretorPainelUrl(prospectId) {
+  const base = appBaseUrl()
+  const next = `/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}`
+  return `${base}/corretor/entrar?next=${encodeURIComponent(next)}`
+}
+
 async function getParametroProximosCorretores() {
   try {
     const r = await pool.query('SELECT proximos_corretores_recebem_leads FROM public.parametros LIMIT 1')
@@ -86,6 +92,21 @@ async function logEmailSend(templateName, toEmail, success, errorMessage) {
   } catch (e) {
     // Nunca quebrar o worker por causa de log
     console.warn('⚠️ [LeadWorker] Falha ao gravar email_logs:', e?.message || e)
+  }
+}
+
+async function logAudit(action, resource, resourceId, details) {
+  try {
+    await pool.query(
+      `
+      INSERT INTO public.audit_logs (user_id, user_type, action, resource, resource_id, details, ip_address, user_agent)
+      VALUES (NULL, 'system', $1, $2, $3, $4::jsonb, NULL, NULL)
+      `,
+      [String(action), String(resource), resourceId ?? null, details ? JSON.stringify(details) : null]
+    )
+  } catch (e) {
+    // Nunca quebrar worker por auditoria
+    console.warn('⚠️ [LeadWorker] Falha ao registrar audit_logs (não crítico):', e?.message || e)
   }
 }
 
@@ -279,19 +300,61 @@ async function getLeadPayload(prospectId) {
   const q = `
     SELECT
       ip.id as prospect_id,
+      ip.created_at as data_interesse,
       ip.preferencia_contato,
       ip.mensagem,
       i.codigo,
       i.titulo,
+      i.descricao,
       i.preco,
+      i.preco_condominio,
+      i.preco_iptu,
+      i.taxa_extra,
+      i.area_total,
+      i.area_construida,
+      i.quartos,
+      i.banheiros,
+      i.suites,
+      i.vagas_garagem,
+      i.varanda,
+      i.andar,
+      i.total_andares,
+      i.mobiliado,
+      i.aceita_permuta,
+      i.aceita_financiamento,
+      i.endereco,
+      i.numero,
+      i.complemento,
+      i.bairro,
+      i.cep,
+      i.latitude,
+      i.longitude,
       i.cidade_fk,
       i.estado_fk,
       i.corretor_fk,
+      ti.nome as tipo_nome,
+      fi.nome as finalidade_nome,
+      si.nome as status_nome,
+      pr.nome as proprietario_nome,
+      pr.cpf as proprietario_cpf,
+      pr.telefone as proprietario_telefone,
+      pr.email as proprietario_email,
+      pr.endereco as proprietario_endereco,
+      pr.numero as proprietario_numero,
+      pr.complemento as proprietario_complemento,
+      pr.bairro as proprietario_bairro,
+      pr.cidade_fk as proprietario_cidade,
+      pr.estado_fk as proprietario_estado,
+      pr.cep as proprietario_cep,
       c.nome as cliente_nome,
       c.email as cliente_email,
       c.telefone as cliente_telefone
     FROM public.imovel_prospects ip
     INNER JOIN public.imoveis i ON ip.id_imovel = i.id
+    LEFT JOIN public.tipos_imovel ti ON i.tipo_fk = ti.id
+    LEFT JOIN public.finalidades_imovel fi ON i.finalidade_fk = fi.id
+    LEFT JOIN public.status_imovel si ON i.status_fk = si.id
+    LEFT JOIN public.proprietarios pr ON pr.uuid = i.proprietario_uuid
     INNER JOIN public.clientes c ON ip.id_cliente = c.uuid
     WHERE ip.id = $1
   `
@@ -337,14 +400,17 @@ async function processUnassignedProspectsOnce() {
       // Regra: se o imóvel tiver corretor_fk, direciona direto (se ativo e corretor)
       let broker = null
       const imovelCorretorFk = payload.corretor_fk ? String(payload.corretor_fk).trim() : ''
+      let directBroker = false
       if (imovelCorretorFk) {
         broker = await getUserById(imovelCorretorFk)
+        directBroker = !!broker
       }
       if (!broker) broker = await pickBrokerByAreaInitial(estado, cidade)
       if (!broker) broker = await pickPlantonistaBroker()
       if (!broker) continue
 
-      const expiraEm = new Date(Date.now() + slaMinutes * 60 * 1000)
+      // REGRA CRÍTICA: se veio por imovel.corretor_fk, NÃO aplicar transbordo/SLA (expira_em = NULL)
+      const expiraEm = directBroker ? null : new Date(Date.now() + slaMinutes * 60 * 1000)
 
       // Inserir atribuição (apenas se ainda estiver sem atribuição)
       await pool.query(
@@ -358,26 +424,76 @@ async function processUnassignedProspectsOnce() {
         [
           prospectId,
           broker.id,
-          JSON.stringify({ type: imovelCorretorFk ? 'imovel_corretor_fk' : 'area_match', source: 'backfill_unassigned' }),
+          JSON.stringify({ type: directBroker ? 'imovel_corretor_fk' : 'area_match', source: 'backfill_unassigned' }),
           expiraEm
         ]
       )
 
       // Notificar corretor escolhido
       if (broker.email) {
-        const painelUrl = `${appBaseUrl()}/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}`
-        await sendTemplateEmail(broker.email, 'novo-lead-corretor', {
+        const painelUrl = buildCorretorPainelUrl(prospectId)
+        const templateName = directBroker ? 'novo-lead-corretor-imovel-fk' : 'novo-lead-corretor'
+        const imovelEnderecoCompleto = joinParts([
+          payload.endereco,
+          payload.numero ? `nº ${payload.numero}` : '',
+          payload.complemento,
+          payload.bairro,
+          payload.cidade_fk,
+          payload.estado_fk,
+          payload.cep ? `CEP: ${payload.cep}` : ''
+        ])
+        const proprietarioEnderecoCompleto = joinParts([
+          payload.proprietario_endereco,
+          payload.proprietario_numero ? `nº ${payload.proprietario_numero}` : '',
+          payload.proprietario_complemento,
+          payload.proprietario_bairro,
+          payload.proprietario_cidade,
+          payload.proprietario_estado,
+          payload.proprietario_cep ? `CEP: ${payload.proprietario_cep}` : ''
+        ])
+        await sendTemplateEmail(broker.email, templateName, {
           corretor_nome: broker.nome || 'Corretor',
-          codigo: String(payload.codigo || '-'),
-          titulo: String(payload.titulo || 'Imóvel'),
-          cidade: String(payload.cidade_fk || '-'),
-          estado: String(payload.estado_fk || '-'),
+          // Bloco 1: Imóvel (steps 1 e 2)
+          codigo: toStr(payload.codigo),
+          titulo: toStr(payload.titulo),
+          descricao: toStr(payload.descricao),
+          tipo: toStr(payload.tipo_nome),
+          finalidade: toStr(payload.finalidade_nome),
+          status: toStr(payload.status_nome),
+          cidade: toStr(payload.cidade_fk),
+          estado: toStr(payload.estado_fk),
           preco: formatCurrency(payload.preco),
-          cliente_nome: String(payload.cliente_nome || '-'),
-          cliente_telefone: String(payload.cliente_telefone || '-'),
-          cliente_email: String(payload.cliente_email || '-'),
-          preferencia_contato: String(payload.preferencia_contato || 'Não informado'),
-          mensagem: String(payload.mensagem || 'Sem mensagem'),
+          preco_condominio: formatCurrency(payload.preco_condominio),
+          preco_iptu: formatCurrency(payload.preco_iptu),
+          taxa_extra: formatCurrency(payload.taxa_extra),
+          area_total: payload.area_total !== null && payload.area_total !== undefined ? `${payload.area_total} m²` : '-',
+          area_construida: payload.area_construida !== null && payload.area_construida !== undefined ? `${payload.area_construida} m²` : '-',
+          quartos: payload.quartos !== null && payload.quartos !== undefined ? String(payload.quartos) : '-',
+          banheiros: payload.banheiros !== null && payload.banheiros !== undefined ? String(payload.banheiros) : '-',
+          suites: payload.suites !== null && payload.suites !== undefined ? String(payload.suites) : '-',
+          vagas_garagem: payload.vagas_garagem !== null && payload.vagas_garagem !== undefined ? String(payload.vagas_garagem) : '-',
+          varanda: payload.varanda !== null && payload.varanda !== undefined ? String(payload.varanda) : '-',
+          andar: payload.andar !== null && payload.andar !== undefined ? String(payload.andar) : '-',
+          total_andares: payload.total_andares !== null && payload.total_andares !== undefined ? String(payload.total_andares) : '-',
+          mobiliado: yn(payload.mobiliado),
+          aceita_permuta: yn(payload.aceita_permuta),
+          aceita_financiamento: yn(payload.aceita_financiamento),
+          endereco_completo: imovelEnderecoCompleto || '-',
+          latitude: payload.latitude !== null && payload.latitude !== undefined ? String(payload.latitude) : '-',
+          longitude: payload.longitude !== null && payload.longitude !== undefined ? String(payload.longitude) : '-',
+          // Bloco 2: Proprietário
+          proprietario_nome: toStr(payload.proprietario_nome),
+          proprietario_cpf: toStr(payload.proprietario_cpf),
+          proprietario_telefone: toStr(payload.proprietario_telefone),
+          proprietario_email: toStr(payload.proprietario_email),
+          proprietario_endereco_completo: proprietarioEnderecoCompleto || '-',
+          // Bloco 3: Cliente (Tenho interesse)
+          cliente_nome: toStr(payload.cliente_nome),
+          cliente_telefone: toStr(payload.cliente_telefone),
+          cliente_email: toStr(payload.cliente_email),
+          data_interesse: formatDateTime(payload.data_interesse),
+          preferencia_contato: toStr(payload.preferencia_contato || 'Não informado'),
+          mensagem: toStr(payload.mensagem || 'Sem mensagem'),
           painel_url: painelUrl
         })
       }
@@ -400,9 +516,60 @@ function formatCurrency(value) {
   }
 }
 
+function yn(value) {
+  if (value === true) return 'Sim'
+  if (value === false) return 'Não'
+  return '-'
+}
+
+function toStr(v) {
+  if (v === null || v === undefined) return '-'
+  const s = String(v).trim()
+  return s ? s : '-'
+}
+
+function formatDateTime(value) {
+  if (!value) return '-'
+  try {
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) return '-'
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const yyyy = d.getFullYear()
+    const hh = String(d.getHours()).padStart(2, '0')
+    const mi = String(d.getMinutes()).padStart(2, '0')
+    return `${dd}/${mm}/${yyyy} ${hh}:${mi}`
+  } catch {
+    return '-'
+  }
+}
+
+function joinParts(parts) {
+  return (parts || [])
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+    .join(', ')
+}
+
 async function processExpiredOnce() {
   const proximos = await getParametroProximosCorretores()
   const slaMinutes = await getParametroSlaMinutosAceiteLead()
+
+  // Normalização defensiva: atribuições fixas (imovel_corretor_fk) não podem expirar.
+  // Isso garante que não entrem em transbordo e não bloqueiem o aceite por expiração.
+  try {
+    await pool.query(
+      `
+      UPDATE public.imovel_prospect_atribuicoes
+      SET expira_em = NULL
+      WHERE status = 'atribuido'
+        AND expira_em IS NOT NULL
+        AND COALESCE(motivo->>'type','') = 'imovel_corretor_fk'
+      `
+    )
+  } catch (e) {
+    console.warn('⚠️ [LeadWorker] Falha ao normalizar expira_em para imovel_corretor_fk:', e?.message || e)
+  }
 
   const expired = await pool.query(
     `
@@ -411,6 +578,7 @@ async function processExpiredOnce() {
     WHERE status = 'atribuido'
       AND expira_em IS NOT NULL
       AND expira_em <= NOW()
+      AND COALESCE(motivo->>'type','') <> 'imovel_corretor_fk'
     ORDER BY expira_em ASC
     LIMIT 50
     `
@@ -440,6 +608,14 @@ async function processExpiredOnce() {
         await pool.query('ROLLBACK')
         continue
       }
+
+      // Auditoria: expirou por SLA (antes do transbordo)
+      await logAudit('UPDATE', 'imovel_prospect_atribuicoes', assignmentId, {
+        event: 'SLA_EXPIRED',
+        prospect_id: prospectId,
+        assignment_id: assignmentId,
+        previous_corretor_fk: prevBrokerId
+      })
 
       // Quantas tentativas (não-plantonista) já foram feitas?
       const attemptsQ = await pool.query(
@@ -500,34 +676,97 @@ async function processExpiredOnce() {
       }
 
       const expiraEm = new Date(Date.now() + slaMinutes * 60 * 1000)
-      await pool.query(
+      const newAssignRes = await pool.query(
         `
         INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em)
         VALUES ($1, $2::uuid, 'atribuido', $3::jsonb, $4)
+        RETURNING id
         `,
         [prospectId, broker.id, JSON.stringify(motivo || {}), expiraEm]
       )
+      const newAssignmentId = newAssignRes.rows?.[0]?.id ?? null
 
       await pool.query('COMMIT')
+
+      // Auditoria: reatribuído (transbordo) para outro corretor/plantonista
+      await logAudit('UPDATE', 'imovel_prospect_atribuicoes', newAssignmentId, {
+        event: 'SLA_REASSIGNED',
+        prospect_id: prospectId,
+        previous_assignment_id: assignmentId,
+        previous_corretor_fk: prevBrokerId,
+        new_assignment_id: newAssignmentId,
+        new_corretor_fk: broker.id,
+        motivo: motivo || null,
+        sla_minutes: slaMinutes
+      })
 
       // Notificar novo corretor
       try {
         if (!broker?.email) {
           console.warn('⚠️ [LeadWorker] Corretor destino sem email; não foi possível notificar. corretor_fk=', broker?.id)
         } else {
-          const painelUrl = `${appBaseUrl()}/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}`
+          const painelUrl = buildCorretorPainelUrl(prospectId)
+          const imovelEnderecoCompleto = joinParts([
+            payload.endereco,
+            payload.numero ? `nº ${payload.numero}` : '',
+            payload.complemento,
+            payload.bairro,
+            payload.cidade_fk,
+            payload.estado_fk,
+            payload.cep ? `CEP: ${payload.cep}` : ''
+          ])
+          const proprietarioEnderecoCompleto = joinParts([
+            payload.proprietario_endereco,
+            payload.proprietario_numero ? `nº ${payload.proprietario_numero}` : '',
+            payload.proprietario_complemento,
+            payload.proprietario_bairro,
+            payload.proprietario_cidade,
+            payload.proprietario_estado,
+            payload.proprietario_cep ? `CEP: ${payload.proprietario_cep}` : ''
+          ])
           await sendTemplateEmail(broker.email, 'novo-lead-corretor', {
             corretor_nome: broker.nome || 'Corretor',
-            codigo: String(payload.codigo || '-'),
-            titulo: String(payload.titulo || 'Imóvel'),
-            cidade: String(payload.cidade_fk || '-'),
-            estado: String(payload.estado_fk || '-'),
+            // Bloco 1: Imóvel (steps 1 e 2)
+            codigo: toStr(payload.codigo),
+            titulo: toStr(payload.titulo),
+            descricao: toStr(payload.descricao),
+            tipo: toStr(payload.tipo_nome),
+            finalidade: toStr(payload.finalidade_nome),
+            status: toStr(payload.status_nome),
+            cidade: toStr(payload.cidade_fk),
+            estado: toStr(payload.estado_fk),
             preco: formatCurrency(payload.preco),
-            cliente_nome: String(payload.cliente_nome || '-'),
-            cliente_telefone: String(payload.cliente_telefone || '-'),
-            cliente_email: String(payload.cliente_email || '-'),
-            preferencia_contato: String(payload.preferencia_contato || 'Não informado'),
-            mensagem: String(payload.mensagem || 'Sem mensagem'),
+            preco_condominio: formatCurrency(payload.preco_condominio),
+            preco_iptu: formatCurrency(payload.preco_iptu),
+            taxa_extra: formatCurrency(payload.taxa_extra),
+            area_total: payload.area_total !== null && payload.area_total !== undefined ? `${payload.area_total} m²` : '-',
+            area_construida: payload.area_construida !== null && payload.area_construida !== undefined ? `${payload.area_construida} m²` : '-',
+            quartos: payload.quartos !== null && payload.quartos !== undefined ? String(payload.quartos) : '-',
+            banheiros: payload.banheiros !== null && payload.banheiros !== undefined ? String(payload.banheiros) : '-',
+            suites: payload.suites !== null && payload.suites !== undefined ? String(payload.suites) : '-',
+            vagas_garagem: payload.vagas_garagem !== null && payload.vagas_garagem !== undefined ? String(payload.vagas_garagem) : '-',
+            varanda: payload.varanda !== null && payload.varanda !== undefined ? String(payload.varanda) : '-',
+            andar: payload.andar !== null && payload.andar !== undefined ? String(payload.andar) : '-',
+            total_andares: payload.total_andares !== null && payload.total_andares !== undefined ? String(payload.total_andares) : '-',
+            mobiliado: yn(payload.mobiliado),
+            aceita_permuta: yn(payload.aceita_permuta),
+            aceita_financiamento: yn(payload.aceita_financiamento),
+            endereco_completo: imovelEnderecoCompleto || '-',
+            latitude: payload.latitude !== null && payload.latitude !== undefined ? String(payload.latitude) : '-',
+            longitude: payload.longitude !== null && payload.longitude !== undefined ? String(payload.longitude) : '-',
+            // Bloco 2: Proprietário
+            proprietario_nome: toStr(payload.proprietario_nome),
+            proprietario_cpf: toStr(payload.proprietario_cpf),
+            proprietario_telefone: toStr(payload.proprietario_telefone),
+            proprietario_email: toStr(payload.proprietario_email),
+            proprietario_endereco_completo: proprietarioEnderecoCompleto || '-',
+            // Bloco 3: Cliente (Tenho interesse)
+            cliente_nome: toStr(payload.cliente_nome),
+            cliente_telefone: toStr(payload.cliente_telefone),
+            cliente_email: toStr(payload.cliente_email),
+            data_interesse: formatDateTime(payload.data_interesse),
+            preferencia_contato: toStr(payload.preferencia_contato || 'Não informado'),
+            mensagem: toStr(payload.mensagem || 'Sem mensagem'),
             painel_url: painelUrl
           })
         }

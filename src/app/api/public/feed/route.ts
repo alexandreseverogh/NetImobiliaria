@@ -44,7 +44,7 @@ export async function GET() {
       c.resumo, 
       c.url_original, 
       c.url_imagem, 
-      c.data_publicacao,
+      to_char(c.data_publicacao, 'YYYY-MM-DD"T"HH24:MI:SS') as data_publicacao,
       cat.nome as categoria_nome,
       cat.cor as categoria_cor,
       cat.icone as categoria_icone,
@@ -75,7 +75,9 @@ export async function GET() {
         resumo: row.resumo || '',
         url_original: row.url_original,
         url_imagem: row.url_imagem || null,
-        data_publicacao: row.data_publicacao ? new Date(row.data_publicacao).toISOString() : new Date().toISOString(),
+        // data_publicacao vem como texto sem timezone (timestamp do banco),
+        // para evitar "shift" de dia/ano por conversão UTC/local no browser.
+        data_publicacao: row.data_publicacao || new Date().toISOString(),
         categoria_nome: row.categoria_nome,
         categoria_cor: row.categoria_cor || '#3B82F6',
         categoria_icone: row.categoria_icone || 'NewspaperIcon',
@@ -104,6 +106,7 @@ export async function GET() {
     }, { status: 500 });
   }
 }
+
 
 
 

@@ -3,6 +3,7 @@ import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionM
 import { auditLogger } from '@/lib/utils/auditLogger'
 import { findUserById, updateUser, deleteUser } from '@/lib/database/users'
 import { validateCPF } from '@/lib/utils/formatters'
+import { logAuditEvent as logDbAuditEvent, extractRequestData } from '@/lib/audit/auditLogger'
 
 // Interface para atualização de usuário
 interface UpdateUserRequest {
@@ -248,7 +249,35 @@ export async function PUT(
       )
     }
 
-    // Log de auditoria
+    // Log de auditoria (compatível com audit_logs no banco)
+    // Observação: resource_id é INTEGER; para UUID (users.id), guardamos em details.
+    try {
+      const { ipAddress, userAgent } = extractRequestData(request)
+      await logDbAuditEvent({
+        userId: loggedUserId,
+        userType: loggedUserId === userId ? 'corretor' : 'admin',
+        action: 'UPDATE',
+        resource: 'usuarios',
+        resourceId: null,
+        details: {
+          target_user_id: userId,
+          target_username: currentUser.username,
+          self_edit: loggedUserId === userId,
+          updated_fields: Object.keys(updateData || {}),
+          // Não registrar valores sensíveis (senha/foto) em detalhes
+          flags: {
+            includes_password: updateData.password !== undefined,
+            includes_foto: !!updateData.foto
+          }
+        },
+        ipAddress,
+        userAgent
+      })
+    } catch (auditError) {
+      console.error('❌ Erro ao registrar auditoria (audit_logs) no update de usuário (não crítico):', auditError)
+    }
+
+    // Log legado (console/telemetria interna)
     auditLogger.log(
       'USER_UPDATE',
       `Dados do usuário ${currentUser.username} foram atualizados`,

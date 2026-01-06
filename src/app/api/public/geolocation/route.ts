@@ -15,16 +15,20 @@ import { getGeolocationByIP } from '@/lib/services/geolocationService'
  * - Tratamento de erros: Não expõe detalhes sensíveis
  */
 
-// Rate limiting: 10 requisições por IP por hora
+// Rate limiting: tolerante a refresh (cache reduz chamadas externas)
+// Regra de UX: geolocalização pode rodar a cada refresh; então o rate limit por IP não pode ser agressivo.
 const limiter = new RateLimiterMemory({
-  points: 10,        // 10 requisições
+  points: 120,       // 120 requisições
   duration: 3600     // por hora (3600 segundos)
 })
 
 // Cache em memória: IP -> { data, timestamp }
-// TTL: 5 minutos (300000 ms)
-const cache = new Map<string, { data: any; timestamp: number }>()
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
+// TTL: 24 horas (prioridade: velocidade e menor dependência de provedores externos)
+// Importante em dev: usar globalThis para não perder cache em hot-reload/worker reload.
+const globalAny = globalThis as any
+const cache: Map<string, { data: any; timestamp: number }> =
+  globalAny.__netimobiliariaGeolocationCache || (globalAny.__netimobiliariaGeolocationCache = new Map())
+const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 horas
 
 /**
  * Limpa cache antigo periodicamente (prevenção de memory leak)
@@ -38,8 +42,11 @@ function cleanCache() {
   }
 }
 
-// Limpar cache a cada 10 minutos
-setInterval(cleanCache, 10 * 60 * 1000)
+// Limpar cache a cada 10 minutos (registrar apenas uma vez)
+if (!globalAny.__netimobiliariaGeolocationCacheCleanerStarted) {
+  globalAny.__netimobiliariaGeolocationCacheCleanerStarted = true
+  setInterval(cleanCache, 10 * 60 * 1000)
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -57,21 +64,6 @@ export async function GET(request: NextRequest) {
     
     console.log('🔍 [GEOLOCATION API] Requisição recebida para IP:', ipAddress)
 
-    // Verificar rate limiting
-    try {
-      await limiter.consume(ipAddress)
-    } catch (rateLimiterError: any) {
-      console.warn('⚠️ [GEOLOCATION API] Rate limit excedido para IP:', ipAddress)
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: 'Muitas requisições. Tente novamente mais tarde.',
-          error: 'rate_limit_exceeded'
-        },
-        { status: 429 }
-      )
-    }
-
     // Verificar cache
     const cached = cache.get(ipAddress)
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
@@ -81,6 +73,21 @@ export async function GET(request: NextRequest) {
         data: cached.data,
         cached: true
       })
+    }
+
+    // Verificar rate limiting (somente quando NÃO temos cache)
+    try {
+      await limiter.consume(ipAddress)
+    } catch (rateLimiterError: any) {
+      console.warn('⚠️ [GEOLOCATION API] Rate limit excedido para IP:', ipAddress)
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Muitas requisições. Tente novamente mais tarde.',
+          error: 'rate_limit_exceeded'
+        },
+        { status: 429 }
+      )
     }
 
     // Consultar serviço de geolocalização

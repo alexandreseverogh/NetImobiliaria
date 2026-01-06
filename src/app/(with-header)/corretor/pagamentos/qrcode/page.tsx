@@ -157,6 +157,10 @@ export default function GerarQRCodePage() {
   }
 
   const handleVoltar = () => {
+    // Ao retornar para a landpaging, não abrir modal de geolocalização novamente nesta visita
+    try {
+      sessionStorage.setItem('suppress-geolocation-modal-once', 'true')
+    } catch {}
     const returnUrl = sessionStorage.getItem('corretor_return_url') || '/landpaging'
     const url = new URL(returnUrl, window.location.origin)
     url.searchParams.set('corretor_home', 'true')

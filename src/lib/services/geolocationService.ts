@@ -104,82 +104,122 @@ export async function getGeolocationByIP(ipAddress: string): Promise<Geolocation
     console.log('🔍 [GEOLOCATION] URL da API:', url)
     console.log('🔍 [GEOLOCATION] API Key configurada:', apiKey ? 'Sim' : 'Não (usando modo gratuito)')
 
-    // Fazer requisição com timeout de 5 segundos
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000)
-
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-        signal: controller.signal
-      })
-
-      clearTimeout(timeoutId)
-
-      if (!response.ok) {
-        throw new Error(`API retornou status ${response.status}`)
+    const fetchJsonWithTimeout = async (requestUrl: string, timeoutMs: number) => {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+      try {
+        const response = await fetch(requestUrl, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal
+        })
+        if (!response.ok) throw new Error(`API retornou status ${response.status}`)
+        return await response.json()
+      } finally {
+        clearTimeout(timeoutId)
       }
+    }
 
-      const data = await response.json()
-      
-      console.log('🔍 [GEOLOCATION] Resposta da API:', JSON.stringify(data, null, 2))
-
+    const parseIpApi = (data: any): GeolocationResponse => {
       // ip-api.com retorna: { status: 'success', city: '...', regionName: '...', country: '...' }
-      // Se status for 'fail', retorna: { status: 'fail', message: '...' }
-      // Outras APIs podem ter formato diferente
-      if (data.status === 'success' && data.city) {
+      if (data?.status === 'success' && data?.city) {
         const city = data.city || null
         const region = data.regionName || data.region || data.state || null
         const country = data.country || data.countryName || null
-
-        console.log('✅ [GEOLOCATION] Localização detectada:', { city, region, country })
-
-        return {
-          city,
-          region,
-          country,
-          success: true
-        }
-      } else if (data.city) {
-        // Algumas APIs retornam city diretamente sem status
+        return { city, region, country, success: true }
+      }
+      if (data?.city) {
         const city = data.city || null
         const region = data.regionName || data.region || data.state || null
         const country = data.country || data.countryName || null
+        return { city, region, country, success: true }
+      }
+      const errorMessage = data?.message || data?.error || 'Erro desconhecido na API de geolocalização'
+      return { city: null, region: null, country: null, success: false, error: errorMessage }
+    }
 
-        console.log('✅ [GEOLOCATION] Localização detectada (sem status):', { city, region, country })
+    // Em redes/containers, 5s pode ser longo demais e piora a UX. Trabalhamos com timeouts curtos
+    // e executamos mais de um provedor em paralelo para pegar o mais rápido.
+    // Prioridade: velocidade. Se não der em ~1.5s, o usuário pode escolher manualmente no modal.
+    const PROVIDER_TIMEOUT_MS = Number(process.env.GEOLOCATION_PROVIDER_TIMEOUT_MS || 1500)
 
-        return {
-          city,
-          region,
-          country,
-          success: true
-        }
+    const tryProviderIpApi = async (): Promise<GeolocationResponse> => {
+      const data = await fetchJsonWithTimeout(url, PROVIDER_TIMEOUT_MS)
+      console.log('🔍 [GEOLOCATION] Resposta da API (ip-api):', JSON.stringify(data, null, 2))
+      const parsed = parseIpApi(data)
+      if (parsed.success) {
+        console.log('✅ [GEOLOCATION] Localização detectada (ip-api):', {
+          city: parsed.city,
+          region: parsed.region,
+          country: parsed.country
+        })
       } else {
-        // API retornou erro
-        const errorMessage = data.message || data.error || 'Erro desconhecido na API de geolocalização'
-        console.warn('⚠️ [GEOLOCATION] API retornou erro:', errorMessage)
-        console.warn('⚠️ [GEOLOCATION] Dados completos da resposta:', data)
-        
-        return {
-          city: null,
-          region: null,
-          country: null,
-          success: false,
-          error: errorMessage
-        }
+        console.warn('⚠️ [GEOLOCATION] ip-api falhou:', parsed.error)
       }
-    } catch (fetchError: any) {
-      clearTimeout(timeoutId)
-      
-      if (fetchError.name === 'AbortError') {
-        console.error('❌ [GEOLOCATION] Timeout ao consultar API (5s)')
-        throw new Error('Timeout ao consultar serviço de geolocalização')
+      return parsed
+    }
+
+    const tryProviderIpwho = async (): Promise<GeolocationResponse> => {
+      // Fallback HTTPS (mais resiliente em redes que bloqueiam HTTP)
+      const base = 'https://ipwho.is'
+      const fallbackUrl = isLocal ? `${base}/?fields=success,message,country,region,city` : `${base}/${ipAddress}?fields=success,message,country,region,city`
+      const data = await fetchJsonWithTimeout(fallbackUrl, PROVIDER_TIMEOUT_MS)
+      console.log('🔍 [GEOLOCATION] Resposta da API (ipwho.is):', JSON.stringify(data, null, 2))
+
+      if (data?.success === true && data?.city) {
+        const city = data.city || null
+        const region = data.region || null
+        const country = data.country || null
+        console.log('✅ [GEOLOCATION] Localização detectada (ipwho.is):', { city, region, country })
+        return { city, region, country, success: true }
       }
-      
-      throw fetchError
+
+      const errorMessage = data?.message || data?.error || 'Erro desconhecido na API de geolocalização'
+      console.warn('⚠️ [GEOLOCATION] ipwho.is falhou:', errorMessage)
+      return { city: null, region: null, country: null, success: false, error: errorMessage }
+    }
+
+    const tryProviderIpapiCo = async (): Promise<GeolocationResponse> => {
+      // HTTPS e bem simples. Campos: city, region, country_name
+      // Para IP local (docker/localhost), o endpoint /json/ faz auto-detect.
+      const base = 'https://ipapi.co'
+      const ipapiUrl = isLocal ? `${base}/json/` : `${base}/${ipAddress}/json/`
+      const data = await fetchJsonWithTimeout(ipapiUrl, PROVIDER_TIMEOUT_MS)
+
+      const city = data?.city || null
+      const region = data?.region || data?.region_code || null
+      const country = data?.country_name || data?.country || null
+
+      if (city) {
+        console.log('✅ [GEOLOCATION] Localização detectada (ipapi.co):', { city, region, country })
+        return { city, region, country, success: true }
+      }
+
+      const errorMessage = data?.error || data?.reason || data?.message || 'Erro desconhecido na API de geolocalização'
+      console.warn('⚠️ [GEOLOCATION] ipapi.co falhou:', errorMessage)
+      return { city: null, region: null, country: null, success: false, error: errorMessage }
+    }
+
+    const providerOrThrow = async (name: string, fn: () => Promise<GeolocationResponse>) => {
+      const res = await fn()
+      if (!res.success) {
+        throw new Error(`${name}: ${res.error || 'falha'}`)
+      }
+      return res
+    }
+
+    // Performance: rodar provedores em paralelo e pegar o primeiro sucesso.
+    // Preferimos HTTPS (ipwho) mas ainda tentamos ip-api em paralelo pois pode ser mais rápido em algumas redes.
+    try {
+      return await Promise.any([
+        providerOrThrow('ipwho', tryProviderIpwho),
+        providerOrThrow('ipapi.co', tryProviderIpapiCo),
+        providerOrThrow('ip-api', tryProviderIpApi)
+      ])
+    } catch (e: any) {
+      // Se ambos falharem, retornar erro amigável
+      const msg = e?.errors?.[0]?.message || e?.message || 'Falha ao consultar provedores de geolocalização'
+      return { city: null, region: null, country: null, success: false, error: msg }
     }
   } catch (error: any) {
     console.error('❌ [GEOLOCATION] Erro ao consultar geolocalização:', error)

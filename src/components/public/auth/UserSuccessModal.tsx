@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { CheckCircle, X, User, Mail, Phone, MapPin, Building2, BadgeCheck, UserPlus, Users, List, Edit2, Save, XCircle, QrCode, Clock, CheckCircle2, RefreshCcw, Bell, Settings, ArrowUpRight } from 'lucide-react'
 import { formatCPF, validateCPF } from '@/lib/utils/formatters'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
@@ -34,6 +35,7 @@ export default function UserSuccessModal({
   userData,
   redirectTo 
 }: UserSuccessModalProps) {
+  const router = useRouter()
   const { get, post } = useAuthenticatedFetch()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -78,6 +80,16 @@ export default function UserSuccessModal({
 
   const userId = getUserId()
 
+  const handleEditarCadastroCorretor = () => {
+    // UX: manter consistente com o fluxo de retorno (não disparar geolocalização novamente na landing)
+    try {
+      sessionStorage.setItem('suppress-geolocation-modal-once', 'true')
+    } catch {}
+    onClose()
+    // Abrir tela pública de cadastro em modo edição
+    router.push('/corretor/cadastro?edit=true')
+  }
+
   // ===========================
   // Leads do corretor (aceite)
   // ===========================
@@ -87,6 +99,8 @@ export default function UserSuccessModal({
     atribuido_em: string
     expira_em: string | null
     aceito_em: string | null
+    motivo_type?: string | null
+    requires_aceite?: boolean | null
     imovel_id: number
     codigo: string | null
     titulo: string | null
@@ -100,7 +114,6 @@ export default function UserSuccessModal({
     mensagem: string | null
   }
 
-  const [leadsModalOpen, setLeadsModalOpen] = useState(false)
   const [leadsLoading, setLeadsLoading] = useState(false)
   const [leadsError, setLeadsError] = useState<string | null>(null)
   const [leads, setLeads] = useState<LeadRow[]>([])
@@ -123,7 +136,8 @@ export default function UserSuccessModal({
     try {
       setLeadsLoading(true)
       setLeadsError(null)
-      const resp = await get('/api/corretor/prospects?status=atribuido')
+      // Precisamos de todos os status para conseguir categorizar (Pendentes/Atribuídos/Aceitos/Perdidos).
+      const resp = await get('/api/corretor/prospects?status=all')
       const data = await resp.json()
       if (!resp.ok || !data?.success) throw new Error(data?.error || 'Erro ao carregar leads')
       setLeads(data.leads || [])
@@ -136,8 +150,7 @@ export default function UserSuccessModal({
 
   useEffect(() => {
     if (userData.userType !== 'corretor') return
-    // Pré-carregar contagem (badge do sino) assim que o modal abrir.
-    // A seção pode ficar fechada, mas o corretor já vê quantos leads pendentes existem.
+    // Pré-carregar categorias e KPIs assim que o modal abrir.
     loadLeads()
 
     ;(async () => {
@@ -173,12 +186,6 @@ export default function UserSuccessModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userData.userType])
 
-  useEffect(() => {
-    if (userData.userType !== 'corretor') return
-    if (!leadsModalOpen) return
-    loadLeads()
-  }, [leadsModalOpen, loadLeads, userData.userType])
-
   const acceptLead = useCallback(
     async (prospectId: number) => {
       try {
@@ -198,130 +205,90 @@ export default function UserSuccessModal({
   )
 
   const leadsResumo = useMemo(() => {
-    const total = leads.length
-    return { total }
-  }, [leads.length])
+    const isReq = (l: any) => (l?.requires_aceite ?? (l?.expira_em ? true : false)) === true
+    const pendentes = leads.filter((l: any) => l.status === 'atribuido' && isReq(l)).length
+    const atribuidos = leads.filter((l: any) => (l.status === 'aceito' || (l.status === 'atribuido' && !isReq(l)))).length
+    const aceitos = leads.filter((l: any) => l.status === 'aceito').length
+    const perdidos = leads.filter((l: any) => l.status === 'expirado').length
+    const fechados = 0 // futuro
+    const todos = leads.length
+    return { pendentes, atribuidos, aceitos, perdidos, fechados, todos }
+  }, [leads])
+
+  const leadTabs = useMemo(
+    () =>
+      [
+        { id: 'pendentes', label: 'Pendentes (SLA)', count: leadsResumo.pendentes, tone: 'danger' as const },
+        { id: 'atribuido', label: 'Atribuídos (diretos ou via plataforma)', count: leadsResumo.atribuidos, tone: 'primary' as const },
+        { id: 'aceito', label: 'Aceitos', count: leadsResumo.aceitos, tone: 'success' as const },
+        { id: 'expirado', label: 'Perdidos (SLA)', count: leadsResumo.perdidos, tone: 'muted' as const },
+        { id: 'fechado', label: 'Fechados', count: leadsResumo.fechados, tone: 'muted' as const, disabled: true as const },
+        { id: 'todos', label: 'Todos', count: leadsResumo.todos, tone: 'muted' as const }
+      ] as const,
+    [leadsResumo]
+  )
+
+  type LeadTabId = (typeof leadTabs)[number]['id']
+  const [activeLeadTab, setActiveLeadTab] = useState<LeadTabId>('atribuido')
+  const defaultTabSetRef = useRef(false)
+  useEffect(() => {
+    if (defaultTabSetRef.current) return
+    // Opção (A): se houver pendentes, abrir em Pendentes, senão em Atribuídos.
+    if (leadsResumo.pendentes > 0) setActiveLeadTab('pendentes')
+    else setActiveLeadTab('atribuido')
+    defaultTabSetRef.current = true
+  }, [leadsResumo.pendentes])
+
+  const getTabLeads = useCallback(
+    (tab: LeadTabId): LeadRow[] => {
+      const isReq = (l: any) => (l?.requires_aceite ?? (l?.expira_em ? true : false)) === true
+      if (tab === 'pendentes') return leads.filter((l: any) => l.status === 'atribuido' && isReq(l))
+      if (tab === 'atribuido') return leads.filter((l: any) => l.status === 'aceito' || (l.status === 'atribuido' && !isReq(l)))
+      if (tab === 'aceito') return leads.filter((l: any) => l.status === 'aceito')
+      if (tab === 'expirado') return leads.filter((l: any) => l.status === 'expirado')
+      if (tab === 'fechado') return []
+      return leads
+    },
+    [leads]
+  )
+
+  const formatDateTime = (value: any): string => {
+    if (!value) return '-'
+    try {
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return '-'
+      const dd = String(d.getDate()).padStart(2, '0')
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const yyyy = d.getFullYear()
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mi = String(d.getMinutes()).padStart(2, '0')
+      return `${dd}/${mm}/${yyyy} ${hh}:${mi}`
+    } catch {
+      return '-'
+    }
+  }
+
+  const openLeadsPanel = useCallback(
+    (tab: LeadTabId, prospectId?: number) => {
+      // UX: abrir em nova aba para não "tomar" o modal do corretor.
+      const params = new URLSearchParams()
+      params.set('status', 'all')
+      params.set('view', tab)
+      if (prospectId) params.set('prospectId', String(prospectId))
+      window.open(`/corretor/leads?${params.toString()}`, '_blank', 'noopener,noreferrer')
+    },
+    []
+  )
+
+  const openLeadDetailsPage = useCallback((prospectId: number) => {
+    if (!prospectId) return
+    // Abrir em nova aba para não "perder" o contexto do modal do corretor.
+    window.open(`/corretor/leads/${prospectId}`, '_blank', 'noopener,noreferrer')
+  }, [])
 
   const openImovelPublic = (imovelId: number) => {
     if (!imovelId) return
     window.open(`/imoveis/${imovelId}`, '_blank', 'noopener,noreferrer')
-  }
-
-  function LeadsModal() {
-    if (!leadsModalOpen) return null
-    return (
-      <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Novos leads">
-        <button
-          type="button"
-          aria-label="Fechar"
-          onClick={() => setLeadsModalOpen(false)}
-          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        />
-
-        <div className="absolute inset-0 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-start justify-between gap-4 p-5 border-b border-gray-200">
-              <div>
-                <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Leads atribuídos</div>
-                <div className="text-xl font-black text-slate-900 mt-1">Novos leads pendentes</div>
-                <div className="text-sm text-slate-600 mt-1">
-                  Total pendentes: <strong>{leadsResumo.total}</strong>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={loadLeads}
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-white text-xs font-black hover:bg-slate-800"
-                >
-                  <RefreshCcw className="w-4 h-4" />
-                  Atualizar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLeadsModalOpen(false)}
-                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="Fechar"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-5">
-              {leadsError && (
-                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-red-800 text-sm font-semibold">
-                  {leadsError}
-                </div>
-              )}
-
-              {leadsLoading ? (
-                <div className="text-slate-600">Carregando leads...</div>
-              ) : leads.length === 0 ? (
-                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-8 text-center">
-                  <div className="text-slate-900 font-black">Nenhum lead pendente.</div>
-                  <div className="text-slate-600 text-sm mt-1">Quando chegar um novo lead, ele aparecerá aqui.</div>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-                  {leads.map((l) => (
-                    <div key={l.prospect_id} className="rounded-2xl border border-gray-200 bg-white p-4">
-                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        {l.estado_fk || '-'} • {l.cidade_fk || '-'} • Código {l.codigo || '-'}
-                      </div>
-                      <div className="mt-1 text-base font-extrabold text-slate-900">
-                        {l.titulo || 'Imóvel'}
-                      </div>
-                      <div className="mt-1 text-sm font-black text-slate-900">
-                        {formatMoney(l.preco)}
-                      </div>
-                      <div className="mt-2 text-sm text-slate-700">
-                        <strong>Cliente:</strong> {l.cliente_nome || '-'} • {l.cliente_telefone || '-'} • {l.cliente_email || '-'}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-700">
-                        <strong>Preferência de contato:</strong> {l.preferencia_contato || 'Não informado'}
-                      </div>
-                      {l.mensagem && (
-                        <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
-                          <strong>Mensagem:</strong> {l.mensagem}
-                        </div>
-                      )}
-
-                      <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="inline-flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900 text-xs font-black">
-                          <Clock className="w-4 h-4" />
-                            SLA de aceite{slaMinutos ? `: ${slaMinutos} min` : ''}
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openImovelPublic(l.imovel_id)}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white text-xs font-black hover:bg-slate-800"
-                          >
-                            <ArrowUpRight className="w-4 h-4" />
-                            Ver detalhes do imóvel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => acceptLead(l.prospect_id)}
-                            disabled={acceptingProspectId === l.prospect_id}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white text-xs font-black hover:bg-blue-700 disabled:opacity-60"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            {acceptingProspectId === l.prospect_id ? 'Aceitando...' : 'Aceitar lead'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   const handleEditToggle = () => {
@@ -529,20 +496,66 @@ export default function UserSuccessModal({
   }
 
   const handleCadastrarImovelComoCorretor = () => {
-    onClose()
-    setTimeout(() => {
-      // Opcional: reaproveitar a finalidade escolhida, se houver
+    // Regra: não permitir cadastrar imóvel se o corretor ainda não tem nenhum proprietário associado.
+    ;(async () => {
       try {
-        // Salvar de onde o corretor veio (para voltar ao mesmo modal/contexto após cadastrar imóvel)
-        sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
-      } catch {}
-      const finalidadeEscolhida =
-        typeof window !== 'undefined' ? sessionStorage.getItem('finalidadeEscolhida') : null
-      const url = finalidadeEscolhida
-        ? `/admin/imoveis/novo?from_corretor=true&finalidade=${finalidadeEscolhida}`
-        : '/admin/imoveis/novo?from_corretor=true'
-      window.location.href = url
-    }, 100)
+        const resp = await get('/api/admin/proprietarios/mine?limit=1&page=1')
+        const data = await resp.json().catch(() => null)
+        const total =
+          Number(data?.total) ||
+          Number(data?.pagination?.total) ||
+          (Array.isArray(data?.proprietarios) ? data.proprietarios.length : 0) ||
+          (Array.isArray(data?.data) ? data.data.length : 0) ||
+          0
+
+        if (!resp.ok || !data?.success) {
+          throw new Error(data?.error || 'Não foi possível verificar seus proprietários no momento.')
+        }
+
+        if (total <= 0) {
+          // Alerta UX (central) e não navega
+          try {
+            window.dispatchEvent(
+              new CustomEvent('ui-toast', {
+                detail: {
+                  type: 'warning',
+                  position: 'center',
+                  durationMs: 0,
+                  message:
+                    'Antes de cadastrar um imóvel, você precisa cadastrar pelo menos 1 proprietário associado ao seu perfil de corretor. No seu painel, clique em “Novo Proprietário” e depois volte para cadastrar o imóvel.'
+                }
+              })
+            )
+          } catch {}
+          return
+        }
+
+        onClose()
+        setTimeout(() => {
+          // Opcional: reaproveitar a finalidade escolhida, se houver
+          try {
+            // Salvar de onde o corretor veio (para voltar ao mesmo modal/contexto após cadastrar imóvel)
+            sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
+          } catch {}
+          const finalidadeEscolhida =
+            typeof window !== 'undefined' ? sessionStorage.getItem('finalidadeEscolhida') : null
+          const url = finalidadeEscolhida
+            ? `/admin/imoveis/novo?from_corretor=true&finalidade=${finalidadeEscolhida}`
+            : '/admin/imoveis/novo?from_corretor=true'
+          window.location.href = url
+        }, 100)
+      } catch (e: any) {
+        // Falha na checagem: avisar e não navegar
+        const msg = e?.message || 'Não foi possível verificar seus proprietários. Tente novamente.'
+        try {
+          window.dispatchEvent(
+            new CustomEvent('ui-toast', {
+              detail: { type: 'error', position: 'center', durationMs: 0, message: msg }
+            })
+          )
+        } catch {}
+      }
+    })()
   }
 
   const handleVisualizarImoveis = () => {
@@ -557,23 +570,19 @@ export default function UserSuccessModal({
   }
 
   const handleAreasAtuacao = () => {
-    onClose()
-    setTimeout(() => {
-      try {
-        sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
-      } catch {}
-      window.location.href = '/corretor/areas-atuacao'
-    }, 100)
+    // UX: abrir em nova aba para não sobrepor o modal do corretor
+    try {
+      sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
+    } catch {}
+    window.open('/corretor/areas-atuacao', '_blank', 'noopener,noreferrer')
   }
 
   const handleGerarQRCode = () => {
-    onClose()
-    setTimeout(() => {
-      try {
-        sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
-      } catch {}
-      window.location.href = '/corretor/pagamentos/qrcode'
-    }, 100)
+    // UX: abrir em nova aba para não sobrepor o modal do corretor
+    try {
+      sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
+    } catch {}
+    window.open('/corretor/pagamentos/qrcode', '_blank', 'noopener,noreferrer')
   }
 
   const handleCadastrarImovel = () => {
@@ -616,8 +625,11 @@ export default function UserSuccessModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className={`relative w-full ${userData.userType === 'corretor' ? 'max-w-4xl' : 'max-w-lg'} bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-hidden`}>
-        <LeadsModal />
+      <div
+        className={`relative w-full ${
+          userData.userType === 'corretor' ? 'max-w-7xl' : 'max-w-lg'
+        } bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-hidden`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
           <div className="flex items-center gap-3">
@@ -640,18 +652,18 @@ export default function UserSuccessModal({
         </div>
 
         {/* Content Area */}
-        <div className="p-6">
+        <div className="p-5">
           {userData.userType === 'corretor' ? (
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-              {/* Lado Esquerdo: Perfil e Dados (4 colunas) */}
-              <div className="md:col-span-5 space-y-6 border-r border-gray-100 pr-0 md:pr-8">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+              {/* 1) Informações do corretor + KPIs */}
+              <div className="md:col-span-3 space-y-5">
                 {/* Foto e Nome */}
                 <div className="flex flex-col items-center text-center space-y-4">
                   <div className="relative group">
                     <img
                       src={fotoPreview || '/default-avatar.png'}
                       alt={userData.nome}
-                      className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-xl transition-all group-hover:brightness-90"
+                      className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl transition-all group-hover:brightness-90"
                     />
                     {isEditing && (
                       <label 
@@ -683,14 +695,24 @@ export default function UserSuccessModal({
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Informações Pessoais</span>
                     {!isSaving && (
-                      <button
-                        onClick={handleEditToggle}
-                        className={`text-[10px] font-bold uppercase transition-all ${
-                          isEditing ? 'text-red-500 hover:text-red-600' : 'text-blue-500 hover:text-blue-600'
-                        }`}
-                      >
-                        {isEditing ? 'Cancelar' : 'Editar'}
-                      </button>
+                      userData.userType === 'corretor' ? (
+                        <button
+                          type="button"
+                          onClick={handleEditarCadastroCorretor}
+                          className="text-[10px] font-bold uppercase transition-all text-blue-600 hover:text-blue-700"
+                        >
+                          Editar cadastro
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleEditToggle}
+                          className={`text-[10px] font-bold uppercase transition-all ${
+                            isEditing ? 'text-red-500 hover:text-red-600' : 'text-blue-500 hover:text-blue-600'
+                          }`}
+                        >
+                          {isEditing ? 'Cancelar' : 'Editar'}
+                        </button>
+                      )
                     )}
                   </div>
 
@@ -736,147 +758,339 @@ export default function UserSuccessModal({
                       {isSaving ? 'Salvando...' : <><Save className="w-3.5 h-3.5" /> Salvar Alterações</>}
                     </button>
                   )}
+
                 </div>
-              </div>
 
-              {/* Lado Direito: Dashboard de Ações (7 colunas) */}
-              <div className="md:col-span-7 space-y-8 py-2">
-                {/* Leads atribuídos (aceite necessário) - dentro do modal do corretor */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <h4 className="flex items-center gap-2 text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">
-                      <Bell className="w-4 h-4 text-amber-600" />
-                      Leads atribuídos
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={() => setLeadsModalOpen(true)}
-                      className="inline-flex items-center gap-3 rounded-2xl bg-blue-600 px-6 py-4 text-white text-xs font-black uppercase hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl"
-                    >
-                      <span className="relative inline-flex">
-                        <Bell className="w-5 h-5" />
-                        {leadsResumo.total > 0 && (
-                          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-black leading-[18px] text-center">
-                            {leadsResumo.total}
-                          </span>
-                        )}
-                      </span>
-                      Visualizar novos leads
-                    </button>
-                  </div>
-
-                  {leadStats && (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Seu desempenho</div>
-                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="rounded-xl bg-white border border-slate-200 p-3">
-                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Leads recebidos</div>
-                          <div className="mt-1 text-2xl font-black text-slate-900">{leadStats.recebidos}</div>
+                {/* KPIs */}
+                {leadStats && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Seus Índices - Leads</div>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div className="rounded-xl bg-white border border-rose-200 p-3">
+                        <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Pendentes</div>
+                        <div className="mt-1 text-xl font-black text-rose-700">{leadsResumo.pendentes}</div>
+                      </div>
+                      <div className="rounded-xl bg-white border border-slate-200 p-3">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recebidos</div>
+                        <div className="mt-1 text-xl font-black text-slate-900">{leadStats.recebidos}</div>
+                      </div>
+                      <div className="rounded-xl bg-white border border-rose-200 p-3">
+                        <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Perdidos SLA</div>
+                        <div className="mt-1 text-xl font-black text-rose-700">{leadStats.perdidosSla}</div>
+                      </div>
+                      <div className="rounded-xl bg-white border border-emerald-200 p-3">
+                        <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Aceite no SLA</div>
+                        <div className="mt-1 text-xl font-black text-emerald-700">
+                          {(Number(leadStats.aceiteNoSlaPercent) || 0).toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}%
                         </div>
-                        <div className="rounded-xl bg-white border border-rose-200 p-3">
-                          <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Perdidos por SLA</div>
-                          <div className="mt-1 text-2xl font-black text-rose-700">{leadStats.perdidosSla}</div>
-                        </div>
-                        <div className="rounded-xl bg-white border border-emerald-200 p-3">
-                          <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Aceite no SLA</div>
-                          <div className="mt-1 text-2xl font-black text-emerald-700">
-                            {(Number(leadStats.aceiteNoSlaPercent) || 0).toLocaleString('pt-BR', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            })}%
-                          </div>
-                          <div className="mt-1 text-[11px] font-bold text-slate-500">
-                            {`${leadStats.aceiteNoSlaAceitos ?? 0}/${leadStats.aceiteNoSlaAvaliados ?? 0} dentro do SLA`}
-                          </div>
+                        <div className="mt-1 text-[11px] font-bold text-slate-500">
+                          {`${leadStats.aceiteNoSlaAceitos ?? 0}/${leadStats.aceiteNoSlaAvaliados ?? 0}`}
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
-
-                {/* Gestão de Proprietários */}
-                <div className="space-y-4">
-                  <h4 className="flex items-center gap-2 text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">
-                    <Users className="w-4 h-4 text-blue-600" />
-                    Gestão de Proprietários
-                  </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      onClick={handleCadastrarProprietario}
-                      className="flex flex-col items-center justify-center p-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition-all shadow-md hover:shadow-xl hover:-translate-y-1 group"
-                    >
-                      <div className="w-10 h-10 flex items-center justify-center bg-white/20 rounded-xl mb-3 group-hover:scale-110 transition-transform">
-                        <UserPlus className="w-5 h-5" />
-                      </div>
-                      <span className="text-xs font-bold">Novo Proprietário</span>
-                    </button>
-                    <button
-                      onClick={handleVisualizarProprietarios}
-                      className="flex flex-col items-center justify-center p-5 bg-white border-2 border-slate-100 hover:border-blue-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 rounded-2xl transition-all hover:-translate-y-1 group"
-                    >
-                      <div className="w-10 h-10 flex items-center justify-center bg-blue-50 rounded-xl mb-3 group-hover:scale-110 transition-transform">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <span className="text-xs font-bold">Visualizar Todos</span>
-                    </button>
                   </div>
-                </div>
+                )}
+              </div>
 
-                {/* Gestão de Imóveis */}
-                <div className="space-y-4">
-                  <h4 className="flex items-center gap-2 text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">
-                    <Building2 className="w-4 h-4 text-green-600" />
-                    Gestão de Imóveis
-                  </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      onClick={handleCadastrarImovelComoCorretor}
-                      className="flex flex-col items-center justify-center p-5 bg-green-600 hover:bg-green-700 text-white rounded-2xl transition-all shadow-md hover:shadow-xl hover:-translate-y-1 group"
-                    >
-                      <div className="w-10 h-10 flex items-center justify-center bg-white/20 rounded-xl mb-3 group-hover:scale-110 transition-transform">
-                        <Building2 className="w-5 h-5" />
-                      </div>
-                      <span className="text-xs font-bold">Novo Imóvel</span>
-                    </button>
-                    <button
-                      onClick={handleVisualizarImoveis}
-                      className="flex flex-col items-center justify-center p-5 bg-white border-2 border-slate-100 hover:border-green-100 hover:bg-green-50 text-slate-600 hover:text-green-700 rounded-2xl transition-all hover:-translate-y-1 group"
-                    >
-                      <div className="w-10 h-10 flex items-center justify-center bg-green-50 rounded-xl mb-3 group-hover:scale-110 transition-transform">
-                        <List className="w-5 h-5" />
-                      </div>
-                      <span className="text-xs font-bold">Meus Imóveis</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Ferramentas e Configurações */}
-                <div className="space-y-4">
-                  <h4 className="flex items-center gap-2 text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">
-                    <Settings className="w-4 h-4 text-amber-600" />
-                    Ferramentas de Apoio
-                  </h4>
-                  <div className={`grid ${userData.isencao ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
-                    <button
-                      onClick={handleAreasAtuacao}
-                      className="flex flex-col items-center justify-center p-5 bg-slate-100 border-2 border-slate-200 hover:border-slate-400 hover:bg-slate-200 text-slate-800 rounded-2xl transition-all hover:-translate-y-1 group"
-                    >
-                      <div className="w-10 h-10 flex items-center justify-center bg-white rounded-xl mb-3 shadow-md group-hover:scale-110 transition-transform">
-                        <MapPin className="w-5 h-5 text-slate-600" />
-                      </div>
-                      <span className="text-xs font-bold">Áreas de Atuação</span>
-                    </button>
-                    {!userData.isencao && (
-                      <button
-                        onClick={handleGerarQRCode}
-                        className="flex flex-col items-center justify-center p-5 bg-white border-2 border-amber-100 hover:bg-amber-50 text-amber-700 rounded-2xl transition-all hover:-translate-y-1 group"
-                      >
-                        <div className="w-10 h-10 flex items-center justify-center bg-amber-50 rounded-xl mb-3 group-hover:scale-110 transition-transform">
-                          <QrCode className="w-5 h-5 text-amber-600" />
+              {/* 2) Leads (mais “deitados” / horizontais) */}
+              <div className="md:col-span-6 space-y-5">
+                  {/* HUB premium de Leads */}
+                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Bell className="w-5 h-5 text-amber-600" />
+                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em]">Leads</h4>
+                          </div>
+                          <div className="mt-1 text-sm text-slate-600">
+                            {leadsResumo.pendentes > 0 ? (
+                              <>
+                                Você tem <strong className="text-rose-700">{leadsResumo.pendentes} pendente(s)</strong> para aceite.
+                              </>
+                            ) : (
+                              <>
+                                Sem pendências de aceite agora. Confira seus leads atribuídos e aceitos.
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-xs font-bold">Gerar QR Code</span>
-                      </button>
-                    )}
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => loadLeads()}
+                            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-white text-xs font-black hover:bg-slate-800"
+                          >
+                            <RefreshCcw className="w-4 h-4" />
+                            Atualizar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openLeadsPanel(leadsResumo.pendentes > 0 ? 'pendentes' : 'atribuido')}
+                            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black shadow-sm hover:shadow-md transition-all ${
+                              leadsResumo.pendentes > 0
+                                ? 'bg-rose-600 text-white hover:bg-rose-700'
+                                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            }`}
+                          >
+                            {leadsResumo.pendentes > 0 ? (
+                              <>
+                                <Clock className="w-4 h-4" />
+                                Ver pendentes ({leadsResumo.pendentes})
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-4 h-4" />
+                                Ver atribuídos
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Tabs */}
+                      <div className="flex flex-wrap gap-2">
+                        {leadTabs.map((t) => {
+                          const isActive = activeLeadTab === t.id
+                          const disabled = (t as any).disabled === true
+                          const base =
+                            'inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-[11px] font-black transition-all'
+                          const active =
+                            'bg-slate-900 text-white shadow-md'
+                          const inactive =
+                            'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                          const dis =
+                            'bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed'
+                          const badgeTone =
+                            t.tone === 'danger'
+                              ? 'bg-rose-600 text-white'
+                              : t.tone === 'success'
+                              ? 'bg-emerald-600 text-white'
+                              : t.tone === 'primary'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-200 text-slate-700'
+
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => !disabled && setActiveLeadTab(t.id)}
+                              className={`${base} ${disabled ? dis : isActive ? active : inactive}`}
+                              title={disabled ? 'Em breve' : undefined}
+                            >
+                              <span>{t.label}</span>
+                              <span className={`inline-flex items-center justify-center min-w-[22px] h-[22px] px-2 rounded-full text-[10px] ${badgeTone}`}>
+                                {t.count}
+                              </span>
+                              {disabled && <span className="text-[10px] font-black">(em breve)</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {leadsError && (
+                        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800 text-sm font-semibold">
+                          {leadsError}
+                        </div>
+                      )}
+
+                      {/* Preview */}
+                      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
+                          <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Resumo</div>
+                          <button
+                            type="button"
+                            onClick={() => openLeadsPanel(activeLeadTab)}
+                            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-white text-[11px] font-black hover:bg-slate-800"
+                          >
+                            <ArrowUpRight className="w-4 h-4" />
+                            Ver todos
+                          </button>
+                        </div>
+
+                        <div className="p-3">
+                          {leadsLoading ? (
+                            <div className="text-slate-600 text-sm">Carregando leads...</div>
+                          ) : getTabLeads(activeLeadTab).length === 0 ? (
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
+                              <div className="text-slate-900 font-black">
+                                {activeLeadTab === 'fechado'
+                                  ? 'Em breve: leads fechados.'
+                                  : 'Nenhum lead nesta categoria.'}
+                              </div>
+                              <div className="text-slate-600 text-sm mt-1">
+                                {activeLeadTab === 'pendentes'
+                                  ? 'Quando houver lead com SLA para aceite, ele aparecerá aqui.'
+                                  : 'Assim que houver novos leads, eles serão listados automaticamente.'}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {getTabLeads(activeLeadTab)
+                                .slice(0, 3)
+                                .map((l: any) => (
+                                  <div
+                                    key={l.prospect_id}
+                                    className="rounded-2xl border border-slate-200 p-3 hover:shadow-sm transition-shadow"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                          Código <span className="text-slate-700">{l.codigo || '-'}</span>
+                                        </div>
+                                        <div className="mt-0.5 text-sm font-black text-slate-900">{formatMoney(l.preco)}</div>
+                                        <div className="mt-0.5 text-[11px] text-slate-600 font-bold">
+                                          <span className="text-slate-500 font-black">Data:</span>{' '}
+                                          {formatDateTime(l.data_interesse || l.atribuido_em)}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {activeLeadTab === 'pendentes' && (
+                                          <span className="inline-flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-amber-900 text-[11px] font-black">
+                                            <Clock className="w-4 h-4" />
+                                            SLA{slaMinutos ? `: ${slaMinutos} min` : ''}
+                                          </span>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => openLeadDetailsPage(l.prospect_id)}
+                                          className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-slate-900 text-[11px] font-black hover:bg-slate-50"
+                                        >
+                                          <ArrowUpRight className="w-4 h-4" />
+                                          Ver detalhes
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-2 text-[12px] text-slate-700 leading-snug">
+                                      <span className="font-black text-slate-900">Cliente:</span> {l.cliente_nome || '-'}
+                                      <span className="text-slate-300 font-black"> • </span>
+                                      <span className="font-black text-slate-900">Tel:</span> {l.cliente_telefone || '-'}
+                                      <span className="text-slate-300 font-black"> • </span>
+                                      <span className="font-black text-slate-900">E-mail:</span>{' '}
+                                      <span className="break-all">{l.cliente_email || '-'}</span>
+                                    </div>
+                                    <div className="mt-1 text-[12px] text-slate-700 leading-snug">
+                                      <span className="font-black text-slate-900">Preferência:</span> {l.preferencia_contato || 'Não informado'}
+                                      <span className="text-slate-300 font-black"> • </span>
+                                      <span className="font-black text-slate-900">Msg:</span>{' '}
+                                      <span className="italic line-clamp-1">{l.mensagem ? String(l.mensagem) : 'Sem mensagem.'}</span>
+                                    </div>
+
+                                    {activeLeadTab === 'pendentes' && (
+                                      <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => acceptLead(l.prospect_id)}
+                                          disabled={acceptingProspectId === l.prospect_id}
+                                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white text-xs font-black hover:bg-blue-700 disabled:opacity-60"
+                                        >
+                                          <CheckCircle2 className="w-4 h-4" />
+                                          {acceptingProspectId === l.prospect_id ? 'Aceitando...' : 'Aceitar agora'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => openImovelPublic(l.imovel_id)}
+                                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white text-xs font-black hover:bg-slate-800"
+                                        >
+                                          <ArrowUpRight className="w-4 h-4" />
+                                          Ver imóvel
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
+              </div>
+              
+              {/* 3) Operacionais */}
+              <div className="md:col-span-3 space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">Operacionais</div>
+                    <div className="text-[11px] font-bold text-slate-500">Acesso rápido</div>
+                  </div>
+
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proprietários</div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={handleCadastrarProprietario}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-white text-xs font-black hover:bg-blue-700 shadow-sm"
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          Novo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleVisualizarProprietarios}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-slate-900 text-xs font-black hover:bg-slate-50 shadow-sm"
+                        >
+                          <Users className="w-4 h-4 text-blue-700" />
+                          Todos
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Imóveis</div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={handleCadastrarImovelComoCorretor}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-white text-xs font-black hover:bg-emerald-700 shadow-sm"
+                        >
+                          <Building2 className="w-4 h-4" />
+                          Novo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleVisualizarImoveis}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-slate-900 text-xs font-black hover:bg-slate-50 shadow-sm"
+                        >
+                          <List className="w-4 h-4 text-emerald-700" />
+                          Meus
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Configurações</div>
+                      <div className="mt-2 flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAreasAtuacao}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-2.5 text-white text-xs font-black hover:bg-indigo-700 shadow-sm"
+                        >
+                          <MapPin className="w-6 h-6" />
+                          Áreas de atuação
+                        </button>
+                        {!userData.isencao && (
+                          <button
+                            type="button"
+                            onClick={handleGerarQRCode}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-3 py-2.5 text-white text-xs font-black hover:bg-amber-600 shadow-sm"
+                          >
+                            <QrCode className="w-6 h-6" />
+                            Gerar QR Code para Pagamento
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

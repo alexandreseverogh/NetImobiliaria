@@ -9,6 +9,7 @@ export interface Finalidade {
   tipo_destaque?: string
   alugar_landpaging?: boolean
   vender_landpaging?: boolean
+  exibe_financiadores?: boolean
   created_at: string
   updated_at: string
 }
@@ -20,6 +21,7 @@ export interface CreateFinalidadeData {
   tipo_destaque?: string
   alugar_landpaging?: boolean
   vender_landpaging?: boolean
+  exibe_financiadores?: boolean
 }
 
 /**
@@ -108,8 +110,8 @@ export async function findFinalidadesPaginated(page: number = 1, limit: number =
 export async function createFinalidade(data: CreateFinalidadeData): Promise<Finalidade> {
   try {
     const query = `
-      INSERT INTO finalidades_imovel (nome, descricao, ativo, tipo_destaque, alugar_landpaging, vender_landpaging)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO finalidades_imovel (nome, descricao, ativo, tipo_destaque, alugar_landpaging, vender_landpaging, exibe_financiadores)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `
     const result: QueryResult<Finalidade> = await pool.query(query, [
@@ -118,7 +120,8 @@ export async function createFinalidade(data: CreateFinalidadeData): Promise<Fina
       data.ativo !== undefined ? data.ativo : true,
       data.tipo_destaque || '  ', // Default: sem destaque
       data.alugar_landpaging !== undefined ? data.alugar_landpaging : false,
-      data.vender_landpaging !== undefined ? data.vender_landpaging : false
+      data.vender_landpaging !== undefined ? data.vender_landpaging : false,
+      data.exibe_financiadores !== undefined ? data.exibe_financiadores : false
     ])
     return result.rows[0]
   } catch (error) {
@@ -178,6 +181,11 @@ export async function updateFinalidade(id: number, data: Partial<CreateFinalidad
     if (data.vender_landpaging !== undefined) {
       fields.push(`vender_landpaging = $${++paramCount}`)
       values.push(data.vender_landpaging)
+    }
+
+    if (data.exibe_financiadores !== undefined) {
+      fields.push(`exibe_financiadores = $${++paramCount}`)
+      values.push(data.exibe_financiadores)
     }
 
     if (fields.length === 0) {

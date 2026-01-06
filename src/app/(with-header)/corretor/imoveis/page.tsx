@@ -41,6 +41,8 @@ export default function ImoveisDoCorretorPage() {
 
   const handleFechar = () => {
     try {
+      // Ao retornar para a landpaging, não abrir modal de geolocalização novamente nesta visita
+      sessionStorage.setItem('suppress-geolocation-modal-once', 'true')
       const returnUrl = sessionStorage.getItem('corretor_return_url') || '/landpaging'
       const url = new URL(returnUrl, window.location.origin)
       url.searchParams.set('corretor_home', 'true')

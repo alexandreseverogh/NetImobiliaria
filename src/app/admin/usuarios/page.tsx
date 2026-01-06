@@ -698,9 +698,13 @@ function PublicBrokerSignup() {
   const emailDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cpfDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fotoInputId = 'broker-foto-input'
+  const SUPPRESS_GEOLOCATION_MODAL_KEY = 'suppress-geolocation-modal-once'
 
   const handleVoltar = () => {
     // Redirecionar para landpaging com flag para abrir o modal do corretor
+    try {
+      sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
+    } catch {}
     router.push('/landpaging?corretor_popup=true')
   }
 
@@ -950,6 +954,9 @@ function PublicBrokerSignup() {
   useEffect(() => {
     if (!done) return
     const t = setTimeout(() => {
+      try {
+        sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
+      } catch {}
       window.location.href = '/landpaging?open_corretor_login=true'
     }, 2500)
     return () => clearTimeout(t)
@@ -966,6 +973,11 @@ function PublicBrokerSignup() {
           <a
             href="/landpaging"
             className="mt-6 inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+            onClick={() => {
+              try {
+                sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
+              } catch {}
+            }}
           >
             Voltar para a página inicial
           </a>
@@ -1055,72 +1067,6 @@ function PublicBrokerSignup() {
                 {(emailChecking || emailPendingValidation) && (
                   <p className="mt-1 text-xs text-gray-500">Verificando e-mail...</p>
                 )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-1">Senha *</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    name="broker_password"
-                    autoComplete="new-password"
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-12 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
-                    value={form.password}
-                    onChange={(e) => onChange('password', e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute inset-y-0 right-0 flex items-center justify-center w-12 text-gray-500 hover:text-gray-700"
-                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                  >
-                    {showPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-1">Confirmar senha *</label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    name="broker_password_confirm"
-                    autoComplete="new-password"
-                    className={`w-full rounded-xl border px-4 py-3 pr-12 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300 ${
-                      confirmPasswordError ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                    }`}
-                    value={form.confirmPassword}
-                    onChange={(e) => onChange('confirmPassword', e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Tab') {
-                        const invalid = !form.confirmPassword || form.password !== form.confirmPassword
-                        if (invalid) {
-                          e.preventDefault()
-                          setConfirmPasswordError(!form.confirmPassword ? 'Confirmar senha é obrigatório' : 'Senhas não coincidem')
-                          setTimeout(() => confirmPasswordInputRef.current?.focus(), 0)
-                        }
-                      }
-                    }}
-                    onBlur={() => {
-                      const invalid = !form.confirmPassword || form.password !== form.confirmPassword
-                      if (invalid) {
-                        setConfirmPasswordError(!form.confirmPassword ? 'Confirmar senha é obrigatório' : 'Senhas não coincidem')
-                        setTimeout(() => confirmPasswordInputRef.current?.focus(), 0)
-                      }
-                    }}
-                    ref={confirmPasswordInputRef}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword((v) => !v)}
-                    className="absolute inset-y-0 right-0 flex items-center justify-center w-12 text-gray-500 hover:text-gray-700"
-                    aria-label={showConfirmPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                  >
-                    {showConfirmPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-                  </button>
-                </div>
-                {confirmPasswordError && <p className="mt-1 text-sm text-red-600">{confirmPasswordError}</p>}
               </div>
             </div>
 
@@ -1220,6 +1166,73 @@ function PublicBrokerSignup() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Senha / Confirmar senha (abaixo da foto) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Senha *</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="broker_password"
+                    autoComplete="new-password"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-12 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300"
+                    value={form.password}
+                    onChange={(e) => onChange('password', e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex items-center justify-center w-12 text-gray-500 hover:text-gray-700"
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Confirmar senha *</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    name="broker_password_confirm"
+                    autoComplete="new-password"
+                    className={`w-full rounded-xl border px-4 py-3 pr-12 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-300 ${
+                      confirmPasswordError ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}
+                    value={form.confirmPassword}
+                    onChange={(e) => onChange('confirmPassword', e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Tab') {
+                        const invalid = !form.confirmPassword || form.password !== form.confirmPassword
+                        if (invalid) {
+                          e.preventDefault()
+                          setConfirmPasswordError(!form.confirmPassword ? 'Confirmar senha é obrigatório' : 'Senhas não coincidem')
+                          setTimeout(() => confirmPasswordInputRef.current?.focus(), 0)
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      const invalid = !form.confirmPassword || form.password !== form.confirmPassword
+                      if (invalid) {
+                        setConfirmPasswordError(!form.confirmPassword ? 'Confirmar senha é obrigatório' : 'Senhas não coincidem')
+                        setTimeout(() => confirmPasswordInputRef.current?.focus(), 0)
+                      }
+                    }}
+                    ref={confirmPasswordInputRef}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex items-center justify-center w-12 text-gray-500 hover:text-gray-700"
+                    aria-label={showConfirmPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showConfirmPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                  </button>
+                </div>
+                {confirmPasswordError && <p className="mt-1 text-sm text-red-600">{confirmPasswordError}</p>}
               </div>
             </div>
 

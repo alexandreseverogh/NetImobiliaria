@@ -15,6 +15,7 @@ interface Finalidade {
   tipo_destaque?: string
   alugar_landpaging?: boolean
   vender_landpaging?: boolean
+  exibe_financiadores?: boolean
   created_at: string
   updated_at: string
 }
@@ -251,6 +252,9 @@ export default function FinalidadesPage() {
                     Landing Page
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Financiadores
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -305,6 +309,15 @@ export default function FinalidadesPage() {
                           <span className="text-xs text-gray-400">-</span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {finalidade.exibe_financiadores ? (
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
+                          Exibe
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button

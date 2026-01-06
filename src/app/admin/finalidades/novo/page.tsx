@@ -11,6 +11,7 @@ interface FinalidadeForm {
   tipo_destaque: string
   alugar_landpaging: boolean
   vender_landpaging: boolean
+  exibe_financiadores: boolean
 }
 
 export default function NovaFinalidadePage() {
@@ -21,12 +22,13 @@ export default function NovaFinalidadePage() {
     descricao: '',
     tipo_destaque: '  ', // Default: sem destaque
     alugar_landpaging: false,
-    vender_landpaging: false
+    vender_landpaging: false,
+    exibe_financiadores: false
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleInputChange = (field: keyof FinalidadeForm, value: string) => {
+  const handleInputChange = (field: keyof FinalidadeForm, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -216,6 +218,18 @@ export default function NovaFinalidadePage() {
                   />
                   <label htmlFor="vender_landpaging" className="ml-3 text-sm text-gray-700">
                     Exibir na landing page para Venda
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="exibe_financiadores"
+                    checked={formData.exibe_financiadores}
+                    onChange={(e) => handleInputChange('exibe_financiadores', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="exibe_financiadores" className="ml-3 text-sm text-gray-700">
+                    Exibir patrocinadores de financiamento (compra)
                   </label>
                 </div>
               </div>

@@ -373,9 +373,14 @@ export async function POST(request: NextRequest) {
               ipAddress,
               userAgent
             })
+            // Não retornar 500 (erro interno). Aqui o problema é infra/config de e-mail.
             return NextResponse.json(
-              { success: false, message: 'Erro ao enviar código de verificação' },
-              { status: 500 }
+              {
+                success: false,
+                message:
+                  'Não foi possível enviar o código de verificação por e-mail no momento. Tente novamente em alguns minutos.'
+              },
+              { status: 503 }
             )
           }
         } catch (twoFAError: any) {
@@ -400,9 +405,14 @@ export async function POST(request: NextRequest) {
             ipAddress,
             userAgent
           })
+          // Não vazar detalhes de SMTP/infra para o cliente; retornar erro controlado.
           return NextResponse.json(
-            { success: false, message: `Erro ao enviar código de verificação: ${twoFAError?.message || 'Erro desconhecido'}` },
-            { status: 500 }
+            {
+              success: false,
+              message:
+                'Não foi possível enviar o código de verificação por e-mail no momento. Tente novamente em alguns minutos.'
+            },
+            { status: 503 }
           )
         }
       } else {

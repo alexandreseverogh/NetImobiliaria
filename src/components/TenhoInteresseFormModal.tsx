@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { X, Send, Phone, Mail, MessageSquare } from 'lucide-react'
+import FinanciadoresSponsorsSection from '@/components/public/FinanciadoresSponsorsSection'
+import FinanciamentoInfoSection from '@/components/public/FinanciamentoInfoSection'
 
 interface TenhoInteresseFormModalProps {
   isOpen: boolean
@@ -26,8 +28,10 @@ export default function TenhoInteresseFormModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [prefillLoading, setPrefillLoading] = useState(false)
 
   // Obter dados do usuário logado para preencher campos
+  const publicToken = typeof window !== 'undefined' ? localStorage.getItem('public-auth-token') : null
   const userData = typeof window !== 'undefined' ? localStorage.getItem('public-user-data') : null
   const user = userData ? JSON.parse(userData) : null
 
@@ -51,7 +55,7 @@ export default function TenhoInteresseFormModal({
   // Verificar se o cliente está logado quando o modal é aberto e preencher telefone padrão
   useEffect(() => {
     if (isOpen) {
-      if (!userData) {
+      if (!publicToken || !userData) {
         setError('Você precisa estar logado para registrar interesse')
         // Fechar modal após 2 segundos se não estiver logado
         setTimeout(() => {
@@ -84,6 +88,35 @@ export default function TenhoInteresseFormModal({
             return prev
           })
         }
+
+        // Pré-preencher preferencia/mensagem caso já exista registro em imovel_prospects (mesmo id_cliente + id_imovel)
+        ;(async () => {
+          try {
+            setPrefillLoading(true)
+            const token = localStorage.getItem('public-auth-token')
+            if (!token) return
+
+            const resp = await fetch(`/api/public/imoveis/prospects?imovelId=${encodeURIComponent(String(imovelId))}`, {
+              method: 'GET',
+              headers: { Authorization: `Bearer ${token}` }
+            })
+            const data = await resp.json().catch(() => null)
+            if (!resp.ok || !data?.success) return
+
+            const p = data?.data?.prospect
+            if (p) {
+              setFormData((prev) => ({
+                ...prev,
+                preferenciaContato: (p.preferencia_contato || prev.preferenciaContato) as any,
+                mensagem: p.mensagem ?? prev.mensagem
+              }))
+            }
+          } catch {
+            // não bloquear UX
+          } finally {
+            setPrefillLoading(false)
+          }
+        })()
       } catch (error) {
         setError('Erro ao verificar autenticação')
         setTimeout(() => {
@@ -100,8 +133,9 @@ export default function TenhoInteresseFormModal({
       })
       setError('')
       setSuccess(false)
+      setPrefillLoading(false)
     }
-  }, [isOpen, onClose, userData])
+  }, [isOpen, onClose, userData, imovelId])
 
   if (!isOpen) return null
 
@@ -121,8 +155,9 @@ export default function TenhoInteresseFormModal({
 
     try {
       // Obter dados do cliente logado
+      const publicToken = localStorage.getItem('public-auth-token')
       const userData = localStorage.getItem('public-user-data')
-      if (!userData) {
+      if (!publicToken || !userData) {
         setError('Você precisa estar logado para registrar interesse')
         setLoading(false)
         return
@@ -138,7 +173,7 @@ export default function TenhoInteresseFormModal({
       // Registrar interesse na tabela imovel_prospects
       const response = await fetch('/api/public/imoveis/prospects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${publicToken}` },
         body: JSON.stringify({
           imovelId,
           clienteUuid: user.uuid,
@@ -197,6 +232,12 @@ export default function TenhoInteresseFormModal({
             </p>
           )}
 
+          {/* Patrocinadores (somente se houver registros) */}
+          <FinanciadoresSponsorsSection enabled={isOpen} />
+
+          {/* Informações perenes (não dependem de taxa/regra do dia) */}
+          <FinanciamentoInfoSection />
+
           {success ? (
             <div className="space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -229,6 +270,11 @@ export default function TenhoInteresseFormModal({
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {prefillLoading && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 font-semibold">
+                  Carregando seus dados anteriores deste imóvel...
+                </div>
+              )}
               {/* Telefone */}
               <div>
                 <label htmlFor="telefone" className="block text-sm font-medium text-gray-700 mb-1">

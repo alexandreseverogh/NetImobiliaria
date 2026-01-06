@@ -66,6 +66,18 @@ export default function LoginForm({ userType, onBack, onSuccess, redirectTo }: L
         // Login bem-sucedido
         localStorage.setItem('public-auth-token', data.data.token)
         localStorage.setItem('public-user-data', JSON.stringify(data.data.user))
+
+        // Registrar "último login" (para exibir iniciais no header da landpaging)
+        try {
+          localStorage.setItem(
+            'last-auth-user',
+            JSON.stringify({
+              nome: data.data.user?.nome || '',
+              userType,
+              at: Date.now()
+            })
+          )
+        } catch {}
         
         // Se for proprietário e houver redirectTo, usar autenticação admin primeiro
         if (userType === 'proprietario' && redirectTo) {

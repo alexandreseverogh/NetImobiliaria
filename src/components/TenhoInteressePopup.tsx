@@ -1,6 +1,8 @@
 'use client'
 
 import { X } from 'lucide-react'
+import FinanciadoresSponsorsSection from '@/components/public/FinanciadoresSponsorsSection'
+import FinanciamentoInfoSection from '@/components/public/FinanciamentoInfoSection'
 
 interface TenhoInteressePopupProps {
   isOpen: boolean
@@ -37,6 +39,12 @@ export default function TenhoInteressePopup({
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
             Tenho Interesse em Alugar ou Comprar
           </h2>
+
+          {/* Patrocinadores (somente se houver registros) */}
+          <FinanciadoresSponsorsSection enabled={isOpen} />
+
+          {/* Informações perenes (não dependem de taxa/regra do dia) */}
+          <FinanciamentoInfoSection />
           
           <p className="text-gray-700 leading-relaxed">
             Aqui você poderá registrar seu interesse em imóveis e nossa equipe entrará em contato para ajudar você a encontrar o imóvel ideal.

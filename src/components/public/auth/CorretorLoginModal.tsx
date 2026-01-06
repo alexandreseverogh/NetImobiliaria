@@ -2,15 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { X, Eye, EyeOff } from 'lucide-react'
-import UserSuccessModal from '@/components/public/auth/UserSuccessModal'
-
 interface CorretorLoginModalProps {
   isOpen: boolean
   onClose: () => void
   redirectTo?: string
+  afterLoginRedirectTo?: string
 }
 
-export default function CorretorLoginModal({ isOpen, onClose, redirectTo = '/admin' }: CorretorLoginModalProps) {
+export default function CorretorLoginModal({
+  isOpen,
+  onClose,
+  redirectTo = '/admin',
+  afterLoginRedirectTo
+}: CorretorLoginModalProps) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [twoFactorCode, setTwoFactorCode] = useState('')
@@ -19,17 +23,6 @@ export default function CorretorLoginModal({ isOpen, onClose, redirectTo = '/adm
   const [requires2FA, setRequires2FA] = useState(false)
   const [twoFAMessage, setTwoFAMessage] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [successOpen, setSuccessOpen] = useState(false)
-  const [successUser, setSuccessUser] = useState<{
-    id: string
-    nome: string
-    email: string
-    telefone?: string
-    cpf?: string
-    creci?: string
-    isencao?: boolean
-    fotoDataUrl?: string
-  } | null>(null)
 
   useEffect(() => {
     if (!isOpen) return
@@ -41,8 +34,6 @@ export default function CorretorLoginModal({ isOpen, onClose, redirectTo = '/adm
     setRequires2FA(false)
     setTwoFAMessage('')
     setShowPassword(false)
-    setSuccessOpen(false)
-    setSuccessUser(null)
   }, [isOpen])
 
   if (!isOpen) return null
@@ -72,11 +63,30 @@ export default function CorretorLoginModal({ isOpen, onClose, redirectTo = '/adm
         if (data.data?.user) {
           localStorage.setItem('user-data', JSON.stringify(data.data.user))
         }
+        // Registrar "último login" (para exibir iniciais no header da landpaging)
+        try {
+          localStorage.setItem(
+            'last-auth-user',
+            JSON.stringify({
+              nome: data.data?.user?.nome || '',
+              userType: 'corretor',
+              at: Date.now()
+            })
+          )
+          window.dispatchEvent(new Event('admin-auth-changed'))
+        } catch {}
 
-        const u = data.data?.user
-        if (u?.nome && u?.email) {
-          const fotoBase64 = u.foto as string | null | undefined
-          const fotoMime = (u.foto_tipo_mime as string | null | undefined) || 'image/jpeg'
+        // Se esse modal foi aberto como "gate" de login (ex.: vindo do link do e-mail),
+        // redirecionar direto para o destino após autenticar (sem exigir mais cliques).
+        if (afterLoginRedirectTo) {
+          onClose()
+          window.location.href = afterLoginRedirectTo
+          return
+        }
+
+        const buildSuccessAndRedirect = (u: any) => {
+          const fotoBase64 = u?.foto as string | null | undefined
+          const fotoMime = (u?.foto_tipo_mime as string | null | undefined) || 'image/jpeg'
           const fotoDataUrl = fotoBase64 ? `data:${fotoMime};base64,${fotoBase64}` : undefined
           const successPayload = {
             id: u.id,
@@ -89,17 +99,70 @@ export default function CorretorLoginModal({ isOpen, onClose, redirectTo = '/adm
             fotoDataUrl
           }
 
-          // Persistir dados do corretor para reabrir o modal ao voltar de fluxos do admin (ex.: Novo Proprietário)
+          // Persistir dados do corretor para reabrir o modal ao voltar de fluxos do admin
           try {
             sessionStorage.setItem('corretor_success_user', JSON.stringify(successPayload))
           } catch {}
 
-          setSuccessUser(successPayload)
-          setSuccessOpen(true)
+          // Regra: NUNCA renderizar o painel do corretor aqui dentro.
+          // Apenas redirecionar/disparar evento para a página alvo abrir o painel (evita duplicidade de modais).
+          try {
+            const to = redirectTo || '/landpaging?corretor_home=true'
+            if (String(to).startsWith('/landpaging')) {
+              // Se já estamos na landpaging, NÃO redirecionar (isso causa "pisca" e pode duplicar modais).
+              // Em vez disso, disparar um evento para a própria landpaging abrir o painel do corretor 1x.
+              try {
+                if (typeof window !== 'undefined' && window.location?.pathname?.startsWith('/landpaging')) {
+                  window.dispatchEvent(new CustomEvent('open-corretor-home-modal', { detail: successPayload }))
+                  onClose()
+                  return
+                }
+              } catch {}
+
+              // Caso contrário (ex.: veio de outra rota), redirecionar e suprimir geolocalização 1x.
+              try {
+                sessionStorage.setItem('suppress-geolocation-detect-once', 'true')
+                sessionStorage.setItem('suppress-geolocation-modal-once', 'true')
+              } catch {}
+              onClose()
+              window.location.href = to
+              return
+            }
+          } catch {}
+
+          // fallback: se não houver redirectTo, fechar e mandar para /admin (comportamento atual)
+          onClose()
+          window.location.href = redirectTo
+        }
+
+        const u = data.data?.user
+        if (u?.nome && u?.email) {
+          buildSuccessAndRedirect(u)
           return
         }
 
-        // fallback: se não vier user, segue fluxo antigo
+        // Fallback robusto: se o login retornou ok mas não veio user completo,
+        // buscar via /api/admin/auth/me e abrir o modal do corretor logado.
+        try {
+          const token = data.data?.token || localStorage.getItem('auth-token')
+          if (token) {
+            const meResp = await fetch('/api/admin/auth/me', {
+              method: 'GET',
+              headers: { Authorization: `Bearer ${token}` }
+            })
+            const meData = await meResp.json().catch(() => null)
+            if (meResp.ok && meData?.success && meData?.user?.nome && meData?.user?.email) {
+              // Garantir que user-data esteja atualizado
+              try {
+                localStorage.setItem('user-data', JSON.stringify(meData.user))
+              } catch {}
+              buildSuccessAndRedirect(meData.user)
+              return
+            }
+          }
+        } catch {}
+
+        // fallback final: segue fluxo antigo
         onClose()
         window.location.href = redirectTo
         return
@@ -124,31 +187,6 @@ export default function CorretorLoginModal({ isOpen, onClose, redirectTo = '/adm
     } finally {
       setLoading(false)
     }
-  }
-
-  if (successOpen && successUser) {
-    return (
-      <UserSuccessModal
-        isOpen={true}
-        onClose={() => {
-          setSuccessOpen(false)
-          setSuccessUser(null)
-          onClose()
-        }}
-        userData={{
-          id: successUser.id,
-          nome: successUser.nome,
-          email: successUser.email,
-          telefone: successUser.telefone,
-          cpf: successUser.cpf,
-          creci: successUser.creci,
-          isencao: successUser.isencao,
-          fotoDataUrl: successUser.fotoDataUrl,
-          userType: 'corretor'
-        }}
-        redirectTo={redirectTo}
-      />
-    )
   }
 
   const update2FACodeAt = (index: number, value: string) => {

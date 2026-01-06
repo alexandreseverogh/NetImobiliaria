@@ -12,6 +12,7 @@ interface FinalidadeForm {
   tipo_destaque: string
   alugar_landpaging: boolean
   vender_landpaging: boolean
+  exibe_financiadores: boolean
 }
 
 export default function EditarFinalidadePage() {
@@ -26,7 +27,8 @@ export default function EditarFinalidadePage() {
     ativo: true,
     tipo_destaque: '  ', // Default: sem destaque
     alugar_landpaging: false,
-    vender_landpaging: false
+    vender_landpaging: false,
+    exibe_financiadores: false
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -58,7 +60,8 @@ export default function EditarFinalidadePage() {
         ativo: data.data.ativo !== undefined ? data.data.ativo : true,
         tipo_destaque: data.data.tipo_destaque || '  ',
         alugar_landpaging: data.data.alugar_landpaging !== undefined ? data.data.alugar_landpaging : false,
-        vender_landpaging: data.data.vender_landpaging !== undefined ? data.data.vender_landpaging : false
+        vender_landpaging: data.data.vender_landpaging !== undefined ? data.data.vender_landpaging : false,
+        exibe_financiadores: data.data.exibe_financiadores !== undefined ? data.data.exibe_financiadores : false
       })
     } catch (error) {
       console.error('Erro ao carregar finalidade:', error)
@@ -280,6 +283,18 @@ export default function EditarFinalidadePage() {
                   />
                   <label htmlFor="vender_landpaging" className="ml-3 text-sm text-gray-700">
                     Exibir na landing page para Venda
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="exibe_financiadores"
+                    checked={formData.exibe_financiadores}
+                    onChange={(e) => handleInputChange('exibe_financiadores', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="exibe_financiadores" className="ml-3 text-sm text-gray-700">
+                    Exibir patrocinadores de financiamento (compra)
                   </label>
                 </div>
               </div>

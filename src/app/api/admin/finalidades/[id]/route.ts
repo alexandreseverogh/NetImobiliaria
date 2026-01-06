@@ -54,7 +54,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { nome, descricao, ativo, tipo_destaque, alugar_landpaging, vender_landpaging } = body
+    const { nome, descricao, ativo, tipo_destaque, alugar_landpaging, vender_landpaging, exibe_financiadores } = body
     
     // Validar tipo_destaque (se fornecido)
     if (tipo_destaque !== undefined && tipo_destaque !== null) {
@@ -83,7 +83,8 @@ export async function PUT(
       ativo,
       tipo_destaque,
       alugar_landpaging,
-      vender_landpaging
+      vender_landpaging,
+      exibe_financiadores
     })
 
     // Log de auditoria com before/after (não crítico)
@@ -122,6 +123,12 @@ export async function PUT(
         changes.vender_landpaging = { 
           before: finalidadeAntes.vender_landpaging || false, 
           after: finalidadeAtualizada.vender_landpaging || false 
+        }
+      }
+      if (finalidadeAntes.exibe_financiadores !== finalidadeAtualizada.exibe_financiadores) {
+        changes.exibe_financiadores = {
+          before: finalidadeAntes.exibe_financiadores || false,
+          after: finalidadeAtualizada.exibe_financiadores || false
         }
       }
       

@@ -42,6 +42,20 @@ export default function AdminLoginPage() {
           localStorage.setItem('auth-token', data.data.token)
           localStorage.setItem('user-data', JSON.stringify(data.data.user))
         }
+        // Registrar "último login" (para exibir iniciais no header da landpaging)
+        try {
+          const nome = data.data?.user?.nome || ''
+          const isCorretor = !!data.data?.user?.creci || !!data.data?.user?.is_corretor
+          localStorage.setItem(
+            'last-auth-user',
+            JSON.stringify({
+              nome,
+              userType: isCorretor ? 'corretor' : 'corretor',
+              at: Date.now()
+            })
+          )
+          window.dispatchEvent(new Event('admin-auth-changed'))
+        } catch {}
         window.location.href = '/admin'
       } else if (data.requires2FA) {
         // 2FA necessário

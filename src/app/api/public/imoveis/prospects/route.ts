@@ -2,6 +2,53 @@ import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import emailService from '@/services/emailService'
 import { routeProspectAndNotify } from '@/lib/routing/prospectRouter'
+import jwt from 'jsonwebtoken'
+
+/**
+ * GET /api/public/imoveis/prospects?imovelId=123
+ * Busca o registro de interesse (imovel_prospects) do cliente logado para um imóvel.
+ * Usado para pré-preencher o modal "Tenho Interesse" e evitar duplicidade.
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const imovelId = Number(searchParams.get('imovelId') || '')
+    if (!Number.isFinite(imovelId) || imovelId <= 0) {
+      return NextResponse.json({ success: false, message: 'ID do imóvel inválido' }, { status: 400 })
+    }
+
+    const authHeader = request.headers.get('authorization') || ''
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (!token) {
+      return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret'
+    const decoded: any = jwt.verify(token, jwtSecret)
+    const clienteUuid = String(decoded?.userUuid || '')
+    const userType = String(decoded?.userType || '')
+    if (!clienteUuid || userType !== 'cliente') {
+      return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
+    }
+
+    const q = `
+      SELECT id, id_cliente, id_imovel, preferencia_contato, mensagem, created_at
+      FROM imovel_prospects
+      WHERE id_cliente = $1 AND id_imovel = $2
+      LIMIT 1
+    `
+    const res = await pool.query(q, [clienteUuid, imovelId])
+    const prospect = res.rows?.[0] || null
+    return NextResponse.json({ success: true, data: { prospect } })
+  } catch (error: any) {
+    const msg = String(error?.message || '')
+    if (msg.toLowerCase().includes('jwt') || msg.toLowerCase().includes('token')) {
+      return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
+    }
+    console.error('❌ Erro ao buscar prospect existente:', error)
+    return NextResponse.json({ success: false, message: 'Erro interno' }, { status: 500 })
+  }
+}
 
 /**
  * POST /api/public/imoveis/prospects
@@ -12,8 +59,26 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { imovelId, clienteUuid, preferenciaContato, mensagem } = body
 
+    // Se houver token público, ele é a fonte de verdade para o cliente logado.
+    let clienteUuidFromToken: string | null = null
+    try {
+      const authHeader = request.headers.get('authorization') || ''
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+      if (token) {
+        const jwtSecret = process.env.JWT_SECRET || 'fallback-secret'
+        const decoded: any = jwt.verify(token, jwtSecret)
+        if (decoded?.userType === 'cliente' && decoded?.userUuid) {
+          clienteUuidFromToken = String(decoded.userUuid)
+        }
+      }
+    } catch {
+      // Se token inválido, segue fluxo antigo (compatibilidade). Não bloquear aqui.
+      clienteUuidFromToken = null
+    }
+    const effectiveClienteUuid = clienteUuidFromToken || clienteUuid
+
     // Validações
-    if (!imovelId || !clienteUuid) {
+    if (!imovelId || !effectiveClienteUuid) {
       return NextResponse.json(
         { success: false, message: 'ID do imóvel e UUID do cliente são obrigatórios' },
         { status: 400 }
@@ -23,7 +88,7 @@ export async function POST(request: NextRequest) {
     // Verificar se o cliente existe
     const clienteCheck = await pool.query(
       'SELECT uuid FROM clientes WHERE uuid = $1',
-      [clienteUuid]
+      [effectiveClienteUuid]
     )
 
     if (clienteCheck.rows.length === 0) {
@@ -46,36 +111,57 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verificar se já existe registro (evitar duplicatas)
+    // Verificar se já existe registro (há constraint UNIQUE em id_cliente+id_imovel)
+    // Regra de negócio (UX): mesmo que já exista, podemos reenviar o e-mail de interesse,
+    // atualizando mensagem/preferência, sem criar duplicata.
     const existingCheck = await pool.query(
-      'SELECT id FROM imovel_prospects WHERE id_cliente = $1 AND id_imovel = $2',
-      [clienteUuid, imovelId]
+      'SELECT id, created_at FROM imovel_prospects WHERE id_cliente = $1 AND id_imovel = $2',
+      [effectiveClienteUuid, imovelId]
     )
+
+    let prospectId: number | null = null
+    let alreadyExists = false
 
     if (existingCheck.rows.length > 0) {
-      return NextResponse.json(
-        { success: true, message: 'Interesse já registrado anteriormente', alreadyExists: true },
-        { status: 200 }
-      )
-    }
+      alreadyExists = true
+      prospectId = Number(existingCheck.rows[0]?.id)
 
-    // Inserir novo registro
-    const result = await pool.query(
-      `INSERT INTO imovel_prospects (id_cliente, id_imovel, created_by, preferencia_contato, mensagem, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
-       RETURNING id, id_cliente, id_imovel, created_at`,
-      [clienteUuid, imovelId, clienteUuid, preferenciaContato || null, mensagem || null]
-    )
-
-    // Disparar roteamento do lead para corretor (não bloquear o fluxo se falhar)
-    try {
-      const prospectId = Number(result.rows[0]?.id)
-      if (prospectId) {
-        // MVP: executar inline com catch (sem fila). Evoluir para job/queue quando WhatsApp entrar.
-        await routeProspectAndNotify(prospectId)
+      // Atualizar preferencia/mensagem e "tocar" o timestamp para refletir novo clique do usuário.
+      // Não roteamos novamente aqui para evitar duplicidade de atribuições/SLA.
+      try {
+        await pool.query(
+          `
+          UPDATE imovel_prospects
+          SET
+            preferencia_contato = COALESCE($1, preferencia_contato),
+            mensagem = COALESCE($2, mensagem),
+            created_at = NOW()
+          WHERE id = $3
+          `,
+          [preferenciaContato || null, mensagem || null, prospectId]
+        )
+      } catch (e) {
+        console.warn('⚠️ Não foi possível atualizar dados do prospect existente (não bloqueia):', e)
       }
-    } catch (routerError) {
-      console.error('⚠️ Falha ao rotear lead para corretor (não bloqueia o registro):', routerError)
+    } else {
+      // Inserir novo registro
+      const result = await pool.query(
+        `INSERT INTO imovel_prospects (id_cliente, id_imovel, created_by, preferencia_contato, mensagem, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         RETURNING id, id_cliente, id_imovel, created_at`,
+        [effectiveClienteUuid, imovelId, effectiveClienteUuid, preferenciaContato || null, mensagem || null]
+      )
+      prospectId = Number(result.rows[0]?.id)
+
+      // Disparar roteamento do lead para corretor (não bloquear o fluxo se falhar)
+      try {
+        if (prospectId) {
+          // MVP: executar inline com catch (sem fila). Evoluir para job/queue quando WhatsApp entrar.
+          await routeProspectAndNotify(prospectId)
+        }
+      } catch (routerError) {
+        console.error('⚠️ Falha ao rotear lead para corretor (não bloqueia o registro):', routerError)
+      }
     }
 
     // Buscar dados completos do imóvel e cliente para enviar e-mail
@@ -114,7 +200,7 @@ export async function POST(request: NextRequest) {
        LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
        INNER JOIN clientes c ON ip.id_cliente = c.uuid
        WHERE ip.id = $1`,
-      [result.rows[0].id]
+      [prospectId]
     )
 
     // Enviar e-mail de notificação (não bloquear o fluxo se falhar)
@@ -212,8 +298,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Interesse registrado com sucesso',
-      data: result.rows[0]
+      message: alreadyExists ? 'Interesse atualizado e notificação reenviada' : 'Interesse registrado com sucesso',
+      alreadyExists,
+      data: { id: prospectId, id_cliente: effectiveClienteUuid, id_imovel: imovelId }
     })
 
   } catch (error: any) {

@@ -2,10 +2,16 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, LogOut, ChevronDown, LogIn, UserPlus } from 'lucide-react'
+import { LogOut, ChevronDown, LogIn, UserPlus } from 'lucide-react'
 import AuthModal from './AuthModal'
 import CorretorLoginModal from './CorretorLoginModal'
 import { usePublicAuth } from '@/hooks/usePublicAuth'
+
+type LastAuthUser = {
+  nome?: string
+  userType?: 'cliente' | 'proprietario' | 'corretor'
+  at?: number
+}
 
 export default function AuthButtons() {
   const router = useRouter()
@@ -15,18 +21,79 @@ export default function AuthButtons() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [corretorLoginOpen, setCorretorLoginOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [adminUserNome, setAdminUserNome] = useState<string | null>(null)
+  const [lastAuthUser, setLastAuthUser] = useState<LastAuthUser | null>(null)
+
+  const getInitials = (nome?: string | null) => {
+    const n = String(nome || '').trim()
+    if (!n) return '??'
+    const parts = n.split(/\s+/).filter(Boolean)
+    const a = parts[0]?.[0] || ''
+    const b = (parts.length > 1 ? parts[1]?.[0] : parts[0]?.[1]) || ''
+    return (a + b).toUpperCase()
+  }
+
+  const refreshAdminUser = () => {
+    try {
+      const token = localStorage.getItem('auth-token')
+      const raw = localStorage.getItem('user-data')
+      if (token && raw) {
+        const parsed = JSON.parse(raw)
+        setAdminUserNome(parsed?.nome || null)
+      } else {
+        setAdminUserNome(null)
+      }
+    } catch {
+      setAdminUserNome(null)
+    }
+  }
+
+  const refreshLastAuthUser = () => {
+    try {
+      const raw = localStorage.getItem('last-auth-user')
+      if (!raw) return setLastAuthUser(null)
+      setLastAuthUser(JSON.parse(raw))
+    } catch {
+      setLastAuthUser(null)
+    }
+  }
 
   // Escutar eventos de mudança de autenticação
   useEffect(() => {
     const handleAuthChange = () => {
       checkAuth()
+      refreshAdminUser()
+      refreshLastAuthUser()
     }
 
     window.addEventListener('public-auth-changed', handleAuthChange)
+    window.addEventListener('admin-auth-changed', handleAuthChange)
     return () => {
       window.removeEventListener('public-auth-changed', handleAuthChange)
+      window.removeEventListener('admin-auth-changed', handleAuthChange)
     }
   }, [checkAuth])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    refreshAdminUser()
+    refreshLastAuthUser()
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key) return
+      if (
+        e.key === 'auth-token' ||
+        e.key === 'user-data' ||
+        e.key === 'public-auth-token' ||
+        e.key === 'public-user-data' ||
+        e.key === 'last-auth-user'
+      ) {
+        refreshAdminUser()
+        refreshLastAuthUser()
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   // Fallback global: se qualquer parte do app disparar abertura do login do corretor,
   // abrir o mesmo modal de credenciais usado na landing.
@@ -59,6 +126,12 @@ export default function AuthButtons() {
 
   const handleLogout = () => {
     setIsDropdownOpen(false)
+    try {
+      localStorage.removeItem('auth-token')
+      localStorage.removeItem('user-data')
+      localStorage.removeItem('last-auth-user')
+      window.dispatchEvent(new Event('admin-auth-changed'))
+    } catch {}
     logout()
   }
 
@@ -93,8 +166,18 @@ export default function AuthButtons() {
     )
   }
 
-  // Usuário logado - Mostrar dropdown
-  if (user) {
+  // Regra: sempre exibir o ÚLTIMO usuário que logou (last-auth-user).
+  // Se esse marcador não existir, priorizar sessão admin (auth-token/user-data) em relação ao login público,
+  // pois é comum o usuário já ter logado como cliente e depois logar como corretor.
+  const displayNome = lastAuthUser?.nome || adminUserNome || user?.nome || null
+  const displayType = (lastAuthUser?.userType || (adminUserNome ? 'corretor' : user?.userType)) as
+    | 'cliente'
+    | 'proprietario'
+    | 'corretor'
+    | undefined
+
+  // Usuário logado (público ou corretor) - Mostrar dropdown com iniciais
+  if (user || adminUserNome) {
     return (
       <div className="relative" ref={dropdownRef}>
         <button
@@ -102,13 +185,13 @@ export default function AuthButtons() {
           className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 border-2 border-blue-500 rounded-lg hover:from-blue-700 hover:to-blue-800 hover:border-blue-600 transition-all duration-200 shadow-md hover:shadow-lg max-w-[200px]"
         >
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 border border-white/30">
-              <User className="w-3.5 h-3.5 text-white" />
+            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 border border-white/30">
+              <span className="text-white font-black text-xs tracking-wide">{getInitials(displayNome)}</span>
             </div>
             <div className="text-left min-w-0 flex-1">
-              <div className="font-semibold text-white truncate text-xs">{user.nome}</div>
+              <div className="font-semibold text-white truncate text-xs">{displayNome}</div>
               <div className="text-[10px] text-blue-100 truncate">
-                {user.userType === 'cliente' ? 'Cliente' : 'Proprietário'}
+                {displayType === 'cliente' ? 'Cliente' : displayType === 'proprietario' ? 'Proprietário' : 'Corretor'}
               </div>
             </div>
           </div>
@@ -122,7 +205,9 @@ export default function AuthButtons() {
               onClick={handleMeuPerfil}
               className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 transition-colors"
             >
-              <User className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-black text-[10px]">{getInitials(displayNome)}</span>
+              </div>
               <span className="font-medium">Meu Perfil</span>
             </button>
             <div className="border-t border-gray-200 my-1"></div>
@@ -170,7 +255,7 @@ export default function AuthButtons() {
           }}
           onCorretorRegisterClick={() => {
             setIsModalOpen(false)
-            router.push('/admin/usuarios?public_broker=true')
+            router.push('/corretor/cadastro')
           }}
         />
       )}
@@ -178,7 +263,7 @@ export default function AuthButtons() {
       <CorretorLoginModal
         isOpen={corretorLoginOpen}
         onClose={() => setCorretorLoginOpen(false)}
-        redirectTo="/landpaging"
+        redirectTo="/landpaging?corretor_home=true"
       />
     </>
   )

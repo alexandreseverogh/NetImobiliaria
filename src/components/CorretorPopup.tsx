@@ -339,9 +339,10 @@ export default function CorretorPopup({ isOpen, onClose, onCadastrarClick, onLog
 
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors z-10"
+          className="absolute top-3 right-3 inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-800 bg-gray-100 border-2 border-gray-300 hover:bg-gray-200 rounded-lg transition-colors z-20 shadow-md"
           aria-label="Fechar"
         >
+          <span>Fechar</span>
           <X className="w-5 h-5" />
         </button>
 

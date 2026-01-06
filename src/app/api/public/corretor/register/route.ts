@@ -99,16 +99,19 @@ export async function POST(request: NextRequest) {
       foto_tipo_mime: file.type
     })
 
-    // Auditoria (não crítico)
+    // Auditoria em audit_logs (não crítico)
     try {
       const { ipAddress, userAgent } = extractRequestData(request)
       await logAuditEvent({
         userId: null,
         userType: 'corretor',
-        action: 'PUBLIC_CORRETOR_REGISTER_SUCCESS',
+        // Padrão do sistema: CREATE/UPDATE/DELETE
+        action: 'CREATE',
         resource: 'corretores',
-        resourceId: newUser.id,
+        // resource_id é INTEGER no banco; para UUID, guardar em details
+        resourceId: null,
         details: {
+          created_user_id: newUser.id,
           username: newUser.username,
           nome: newUser.nome,
           email: newUser.email,

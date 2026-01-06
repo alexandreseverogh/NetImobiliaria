@@ -26,6 +26,12 @@ function getAppBaseUrl(): string {
   return 'http://localhost:3000'
 }
 
+function buildCorretorPainelUrl(prospectId: number): string {
+  const base = getAppBaseUrl()
+  const next = `/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}`
+  return `${base}/corretor/entrar?next=${encodeURIComponent(next)}`
+}
+
 async function pickBrokerByArea(estado: string, cidade: string): Promise<RoutedBroker | null> {
   // Regra de escolha:
   // 1) menor carga de leads recebidos (COUNT atribuições)
@@ -125,14 +131,55 @@ export async function routeProspectAndNotify(prospectId: number): Promise<{ succ
       i.corretor_fk,
       i.codigo,
       i.titulo,
+      i.descricao,
       i.preco,
+      i.preco_condominio,
+      i.preco_iptu,
+      i.taxa_extra,
+      i.area_total,
+      i.area_construida,
+      i.quartos,
+      i.banheiros,
+      i.suites,
+      i.vagas_garagem,
+      i.varanda,
+      i.andar,
+      i.total_andares,
+      i.mobiliado,
+      i.aceita_permuta,
+      i.aceita_financiamento,
+      i.endereco,
+      i.numero,
+      i.complemento,
+      i.bairro,
       i.cidade_fk,
       i.estado_fk,
+      i.cep,
+      i.latitude,
+      i.longitude,
+      ti.nome as tipo_nome,
+      fi.nome as finalidade_nome,
+      si.nome as status_nome,
+      pr.nome as proprietario_nome,
+      pr.cpf as proprietario_cpf,
+      pr.telefone as proprietario_telefone,
+      pr.email as proprietario_email,
+      pr.endereco as proprietario_endereco,
+      pr.numero as proprietario_numero,
+      pr.complemento as proprietario_complemento,
+      pr.bairro as proprietario_bairro,
+      pr.cidade_fk as proprietario_cidade,
+      pr.estado_fk as proprietario_estado,
+      pr.cep as proprietario_cep,
       c.nome as cliente_nome,
       c.email as cliente_email,
       c.telefone as cliente_telefone
     FROM imovel_prospects ip
     INNER JOIN imoveis i ON ip.id_imovel = i.id
+    LEFT JOIN tipos_imovel ti ON i.tipo_fk = ti.id
+    LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
+    LEFT JOIN status_imovel si ON i.status_fk = si.id
+    LEFT JOIN proprietarios pr ON pr.uuid = i.proprietario_uuid
     INNER JOIN clientes c ON ip.id_cliente = c.uuid
     WHERE ip.id = $1
     `,
@@ -160,7 +207,9 @@ export async function routeProspectAndNotify(prospectId: number): Promise<{ succ
 
   // Criar atribuição com SLA (minutos configurável em parametros.sla_minutos_aceite_lead)
   const slaMinutos = await getSlaMinutosAceiteLead()
-  const expiraEm = new Date(Date.now() + slaMinutos * 60 * 1000)
+  // REGRA CRÍTICA: se veio por imovel.corretor_fk, NÃO aplicar transbordo/SLA (expira_em = NULL)
+  const motivoType = String((broker as any)?.motivo?.type || '')
+  const expiraEm: Date | null = motivoType === 'imovel_corretor_fk' ? null : new Date(Date.now() + slaMinutos * 60 * 1000)
   try {
     // Evitar criar atribuição duplicada caso esse método seja chamado mais de uma vez
     const activeCheck = await pool.query(
@@ -194,23 +243,97 @@ export async function routeProspectAndNotify(prospectId: number): Promise<{ succ
       if (value === null || value === undefined) return '-'
       return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
     }
+    const yn = (v: any): string => (v === true ? 'Sim' : v === false ? 'Não' : '-')
+    const toStr = (v: any): string => {
+      if (v === null || v === undefined) return '-'
+      const s = String(v).trim()
+      return s ? s : '-'
+    }
+    const formatDateTime = (value: any): string => {
+      if (!value) return '-'
+      try {
+        const d = new Date(value)
+        if (Number.isNaN(d.getTime())) return '-'
+        const dd = String(d.getDate()).padStart(2, '0')
+        const mm = String(d.getMonth() + 1).padStart(2, '0')
+        const yyyy = d.getFullYear()
+        const hh = String(d.getHours()).padStart(2, '0')
+        const mi = String(d.getMinutes()).padStart(2, '0')
+        return `${dd}/${mm}/${yyyy} ${hh}:${mi}`
+      } catch {
+        return '-'
+      }
+    }
+    const joinParts = (parts: Array<any>) => parts.map((x) => String(x || '').trim()).filter(Boolean).join(', ')
 
     // Se o corretor não tiver e-mail, não disparar (evita tentativas inúteis).
     if (broker.email && String(broker.email).trim()) {
-      // Link direto para o lead específico (o corretor ainda precisa estar logado)
-      const painelUrl = `${getAppBaseUrl()}/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}`
-      await emailService.sendTemplateEmail('novo-lead-corretor', broker.email, {
+      // Link seguro: passa por /corretor/entrar (sem token na URL) e redireciona após login
+      const painelUrl = buildCorretorPainelUrl(prospectId)
+      const templateName = motivoType === 'imovel_corretor_fk'
+        ? 'novo-lead-corretor-imovel-fk'
+        : 'novo-lead-corretor'
+      const imovelEnderecoCompleto = joinParts([
+        p.endereco,
+        p.numero ? `nº ${p.numero}` : '',
+        p.complemento,
+        p.bairro,
+        p.cidade_fk,
+        p.estado_fk,
+        p.cep ? `CEP: ${p.cep}` : ''
+      ])
+      const proprietarioEnderecoCompleto = joinParts([
+        p.proprietario_endereco,
+        p.proprietario_numero ? `nº ${p.proprietario_numero}` : '',
+        p.proprietario_complemento,
+        p.proprietario_bairro,
+        p.proprietario_cidade,
+        p.proprietario_estado,
+        p.proprietario_cep ? `CEP: ${p.proprietario_cep}` : ''
+      ])
+      await emailService.sendTemplateEmail(templateName, broker.email, {
         corretor_nome: broker.nome || 'Corretor',
-        codigo: String(p.codigo || '-'),
-        titulo: String(p.titulo || 'Imóvel'),
-        cidade: String(p.cidade_fk || '-'),
-        estado: String(p.estado_fk || '-'),
+        // Bloco 1: Imóvel (steps 1 e 2)
+        codigo: toStr(p.codigo),
+        titulo: toStr(p.titulo),
+        descricao: toStr(p.descricao),
+        tipo: toStr(p.tipo_nome),
+        finalidade: toStr(p.finalidade_nome),
+        status: toStr(p.status_nome),
+        cidade: toStr(p.cidade_fk),
+        estado: toStr(p.estado_fk),
         preco: formatCurrency(p.preco),
-        cliente_nome: String(p.cliente_nome || '-'),
-        cliente_telefone: String(p.cliente_telefone || '-'),
-        cliente_email: String(p.cliente_email || '-'),
-        preferencia_contato: String(p.preferencia_contato || 'Não informado'),
-        mensagem: String(p.mensagem || 'Sem mensagem'),
+        preco_condominio: formatCurrency(p.preco_condominio),
+        preco_iptu: formatCurrency(p.preco_iptu),
+        taxa_extra: formatCurrency(p.taxa_extra),
+        area_total: p.area_total !== null && p.area_total !== undefined ? `${p.area_total} m²` : '-',
+        area_construida: p.area_construida !== null && p.area_construida !== undefined ? `${p.area_construida} m²` : '-',
+        quartos: p.quartos !== null && p.quartos !== undefined ? String(p.quartos) : '-',
+        banheiros: p.banheiros !== null && p.banheiros !== undefined ? String(p.banheiros) : '-',
+        suites: p.suites !== null && p.suites !== undefined ? String(p.suites) : '-',
+        vagas_garagem: p.vagas_garagem !== null && p.vagas_garagem !== undefined ? String(p.vagas_garagem) : '-',
+        varanda: p.varanda !== null && p.varanda !== undefined ? String(p.varanda) : '-',
+        andar: p.andar !== null && p.andar !== undefined ? String(p.andar) : '-',
+        total_andares: p.total_andares !== null && p.total_andares !== undefined ? String(p.total_andares) : '-',
+        mobiliado: yn(p.mobiliado),
+        aceita_permuta: yn(p.aceita_permuta),
+        aceita_financiamento: yn(p.aceita_financiamento),
+        endereco_completo: imovelEnderecoCompleto || '-',
+        latitude: p.latitude !== null && p.latitude !== undefined ? String(p.latitude) : '-',
+        longitude: p.longitude !== null && p.longitude !== undefined ? String(p.longitude) : '-',
+        // Bloco 2: Proprietário
+        proprietario_nome: toStr(p.proprietario_nome),
+        proprietario_cpf: toStr(p.proprietario_cpf),
+        proprietario_telefone: toStr(p.proprietario_telefone),
+        proprietario_email: toStr(p.proprietario_email),
+        proprietario_endereco_completo: proprietarioEnderecoCompleto || '-',
+        // Bloco 3: Cliente (Tenho interesse)
+        cliente_nome: toStr(p.cliente_nome),
+        cliente_telefone: toStr(p.cliente_telefone),
+        cliente_email: toStr(p.cliente_email),
+        data_interesse: formatDateTime(p.data_interesse),
+        preferencia_contato: toStr(p.preferencia_contato || 'Não informado'),
+        mensagem: toStr(p.mensagem || 'Sem mensagem'),
         painel_url: painelUrl
       })
     }

@@ -462,6 +462,23 @@ export async function POST(request: NextRequest) {
     dadosImovel.created_by = currentUserId
     dadosImovel.updated_by = currentUserId
     dadosImovel.origem_cadastro = origemCadastro
+
+    // Fluxo do portal do corretor: garantir corretor_fk = corretor logado (e impedir spoof via body)
+    try {
+      const fromCorretorPortal = body.fromCorretorPortal === true
+      const isCorretor = currentUserRoleName.includes('corretor')
+      if (fromCorretorPortal && isCorretor && currentUserId) {
+        dadosImovel.corretor_fk = currentUserId
+      } else {
+        // No fluxo padrão, não confiar em corretor_fk vindo do frontend
+        // (se um dia admin puder setar manualmente, isso deve ser implementado com permissão explícita).
+        if ('corretor_fk' in dadosImovel) {
+          delete (dadosImovel as any).corretor_fk
+        }
+      }
+    } catch {
+      // não bloquear criação por esse motivo
+    }
     
     console.log('🔍 IDs convertidos:', {
       tipo_fk: dadosImovel.tipo_fk,

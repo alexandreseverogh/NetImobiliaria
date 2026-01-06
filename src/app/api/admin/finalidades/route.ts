@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { nome, descricao, ativo, tipo_destaque, alugar_landpaging, vender_landpaging } = body
+    const { nome, descricao, ativo, tipo_destaque, alugar_landpaging, vender_landpaging, exibe_financiadores } = body
     
     if (!nome) {
       return NextResponse.json(
@@ -57,7 +57,8 @@ export async function POST(request: Request) {
       ativo: ativo !== undefined ? ativo : true,
       tipo_destaque: tipo_destaque || '  ',
       alugar_landpaging: alugar_landpaging !== undefined ? alugar_landpaging : false,
-      vender_landpaging: vender_landpaging !== undefined ? vender_landpaging : false
+      vender_landpaging: vender_landpaging !== undefined ? vender_landpaging : false,
+      exibe_financiadores: exibe_financiadores !== undefined ? exibe_financiadores : false
     })
     
     // Log de auditoria (não crítico - falha não afeta operação)

@@ -134,10 +134,36 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
           <button 
             onClick={() => {
               console.log('🔍 [LANDING PROPERTY CARD] Botão Tenho Interesse clicado, imovelId:', property.id)
+
+              // Regra: apenas CLIENTE logado pode seguir para o fluxo de interesse.
+              // Se o usuário ativo for corretor/proprietário (ou houver sessão admin), bloquear.
+              try {
+                const lastAuthRaw = localStorage.getItem('last-auth-user')
+                const adminToken = localStorage.getItem('auth-token')
+                const adminUser = localStorage.getItem('user-data')
+                const lastAuth = lastAuthRaw ? JSON.parse(lastAuthRaw) : null
+                const lastType = lastAuth?.userType
+                if (adminToken || adminUser || (lastType && lastType !== 'cliente')) {
+                  try {
+                    window.dispatchEvent(
+                      new CustomEvent('ui-toast', {
+                        detail: {
+                          type: 'warning',
+                          position: 'center',
+                          message:
+                            'Apenas clientes logados podem registrar interesse. Você poderá acessar a sua conta ou criar um novo cadastro, acessando os botões Criar Conta ou Entrar, localizados no menu superior à direita'
+                        }
+                      })
+                    )
+                  } catch {}
+                  return
+                }
+              } catch {}
               
               // Verificar se o usuário já está logado como cliente
+              const publicToken = localStorage.getItem('public-auth-token')
               const userData = localStorage.getItem('public-user-data')
-              if (userData) {
+              if (publicToken && userData) {
                 try {
                   const user = JSON.parse(userData)
                   if (user.userType === 'cliente' && user.uuid) {
@@ -153,9 +179,22 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
                 }
               }
               
-              // Usuário não está logado ou não é cliente, abrir modal Tenho Interesse (cadastro/login)
-              console.log('🔍 [LANDING PROPERTY CARD] Usuário não logado, abrindo modal Tenho Interesse')
-              setShowTenhoInteresseModal(true)
+              // Regra do produto: sem cliente logado, NÃO abrir modal de preenchimento nem modal de cadastro/login aqui.
+              // Apenas orientar o usuário a usar os botões do topo (Criar conta / Entrar).
+              try {
+                window.dispatchEvent(
+                  new CustomEvent('ui-toast', {
+                    detail: {
+                      type: 'warning',
+                      position: 'center',
+                      durationMs: 0,
+                      message:
+                        'Apenas clientes logados podem registrar interesse. Você poderá acessar a sua conta ou criar um novo cadastro, acessando os botões Criar Conta ou Entrar, localizados no menu superior à direita'
+                    }
+                  })
+                )
+              } catch {}
+              return
             }}
             className="flex-1 bg-white hover:bg-gray-50 text-primary-600 font-semibold py-2.5 px-3 rounded-lg border border-primary-600 transition-colors duration-200 whitespace-nowrap text-sm text-center"
           >

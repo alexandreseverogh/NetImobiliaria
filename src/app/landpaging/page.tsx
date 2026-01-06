@@ -19,6 +19,7 @@ import UserSuccessModal from '@/components/public/auth/UserSuccessModal'
 import MeuPerfilModal from '@/components/public/MeuPerfilModal'
 import TenhoInteresseFormModal from '@/components/TenhoInteresseFormModal'
 import GeolocationModal from '@/components/public/GeolocationModal'
+import ToastViewport from '@/components/ui/ToastViewport'
 import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import FeedCategoriasSection from '@/components/landpaging/FeedCategoriasSection'
 import ProfileBanners from '@/components/landpaging/ProfileBanners'
@@ -48,6 +49,7 @@ export default function LandingPage() {
   const searchParams = useSearchParams()
   const [featuredData, setFeaturedData] = useState<any[]>([])
   const [loadingFeatured, setLoadingFeatured] = useState(true)
+  const [reloadNonce, setReloadNonce] = useState(0) // força recarregar destaques quando algo muda durante um fetch
   const [currentPage, setCurrentPage] = useState(1)
   // DV = Comprar (usuário final), DA = Alugar
   const [tipoDestaque, setTipoDestaque] = useState<'DV' | 'DA'>('DV') // Default: Comprar
@@ -73,13 +75,23 @@ export default function LandingPage() {
   const [corretorLoginModalOpen, setCorretorLoginModalOpen] = useState(false)
   const [corretorHomeSuccessOpen, setCorretorHomeSuccessOpen] = useState(false)
   const [corretorHomeUser, setCorretorHomeUser] = useState<{
+    id?: string
+    uuid?: string
     nome: string
     email: string
     telefone?: string
     cpf?: string
     creci?: string
+    isencao?: boolean
     fotoDataUrl?: string
   } | null>(null)
+
+  // Dedupe: evitar abrir o painel do corretor 2x (por query + por evento, ou múltiplos efeitos).
+  const corretorHomeOpenRef = useRef(false)
+  const corretorHomeQueryConsumedRef = useRef(false)
+  useEffect(() => {
+    corretorHomeOpenRef.current = !!corretorHomeSuccessOpen
+  }, [corretorHomeSuccessOpen])
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('register')
   const [authUserType, setAuthUserType] = useState<'cliente' | 'proprietario' | null>(null)
@@ -103,12 +115,27 @@ export default function LandingPage() {
   const [searchFormCidade, setSearchFormCidade] = useState<string | undefined>(undefined)
   const locationConfirmedRef = useRef(false) // Ref para rastrear se localização foi confirmada (não usa estado para evitar timing issues)
 
+  // Hidratação inicial: evita fazer fetch "nacional" antes de restaurar a última localidade confirmada
+  const [initialHydrated, setInitialHydrated] = useState(false)
+
+  // Persistência de localização confirmada (para manter destaque local após navegar para outros fluxos e voltar)
+  const LAST_GEOLOCATION_ESTADO_KEY = 'last-geolocation-estado'
+  const LAST_GEOLOCATION_CIDADE_KEY = 'last-geolocation-cidade'
+
+  // Cache leve do grid de destaques (evita recarregar ao entrar/sair de fluxos onde a localidade não muda)
+  const FEATURED_CACHE_PREFIX = 'featured-destaque-cache:'
+  const FEATURED_CACHE_TTL_MS = 5 * 60 * 1000 // 5 min
+  const forceFeaturedFetchRef = useRef(false) // true quando usuário pediu explicitamente (ex.: Destaques Nacional)
+
   const { estados, municipios, loadMunicipios } = useEstadosCidades()
 
   // Reabrir o modal de informações do corretor após voltar do fluxo "Novo Proprietário"
   useEffect(() => {
     const shouldOpen = (searchParams?.get('corretor_home') || '').toLowerCase() === 'true'
     if (!shouldOpen) return
+    if (corretorHomeOpenRef.current) return
+    if (corretorHomeQueryConsumedRef.current) return
+    corretorHomeQueryConsumedRef.current = true
 
     try {
       const raw = sessionStorage.getItem('corretor_success_user')
@@ -127,12 +154,41 @@ export default function LandingPage() {
         } catch {}
 
         if (parsed?.nome && parsed?.email) {
+          corretorHomeOpenRef.current = true
           setCorretorHomeUser(parsed)
           setCorretorHomeSuccessOpen(true)
+
+          // Consumir o parâmetro imediatamente para não reabrir em re-hidratações
+          try {
+            const url = new URL(window.location.href)
+            url.searchParams.delete('corretor_home')
+            router.replace(url.pathname + (url.search ? url.search : ''))
+          } catch {}
         }
       }
     } catch {}
-  }, [searchParams])
+  }, [searchParams, router])
+
+  // Abrir painel do corretor sem redirecionar (login via header na própria landpaging).
+  // Evita "pisca" e evita duplicidade visual de modais.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = (e: any) => {
+      try {
+        if (corretorHomeOpenRef.current) return
+        const payload = e?.detail
+        if (payload?.nome && payload?.email) {
+          // Garantir que o popup "Sou Corretor" não fique aberto por trás
+          setCorretorPopupOpen(false)
+          corretorHomeOpenRef.current = true
+          setCorretorHomeUser(payload)
+          setCorretorHomeSuccessOpen(true)
+        }
+      } catch {}
+    }
+    window.addEventListener('open-corretor-home-modal', handler as EventListener)
+    return () => window.removeEventListener('open-corretor-home-modal', handler as EventListener)
+  }, [])
 
   // Abrir popup do corretor quando vindo de cadastro/login de corretor
   useEffect(() => {
@@ -164,7 +220,43 @@ export default function LandingPage() {
   const geolocationExecutedRef = useRef(false)
   const geolocationRequestInProgressRef = useRef(false)
   const geolocationModalOpenRef = useRef(false)
-  const GEOLOCATION_AUTORUN_KEY = 'geolocation-landpaging-autorun-done'
+
+  // Se o usuário abriu o modal do corretor, não devemos exibir o modal de geolocalização
+  // "por trás" (isso costuma aparecer apenas quando o modal do corretor é fechado).
+  const suppressGeolocationModalOnceRef = useRef(false)
+  const corretorPopupOpenRef = useRef(false)
+  useEffect(() => {
+    corretorPopupOpenRef.current = corretorPopupOpen
+  }, [corretorPopupOpen])
+
+  const SUPPRESS_GEOLOCATION_MODAL_KEY = 'suppress-geolocation-modal-once'
+  const SUPPRESS_GEOLOCATION_DETECT_KEY = 'suppress-geolocation-detect-once'
+
+  // Restaurar última localização confirmada para manter destaque local ao voltar para a landpaging
+  // (ex.: fluxo Sou Corretor -> Cadastro -> Retornar -> Fechar modal do corretor)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const estado =
+        localStorage.getItem(LAST_GEOLOCATION_ESTADO_KEY) || localStorage.getItem('header-selected-estado')
+      const cidade =
+        localStorage.getItem(LAST_GEOLOCATION_CIDADE_KEY) || localStorage.getItem('header-selected-cidade')
+
+      if (estado && cidade) {
+        // Só restaurar se ainda não houver um contexto de localização em estado atual
+        if (!searchFormEstado && !searchFormCidade) {
+          console.log('✅ [LANDING PAGE] Restaurando última localização confirmada:', { estado, cidade })
+          setSearchFormEstado(estado)
+          setSearchFormCidade(cidade)
+          setMostrarDestaquesNacional(false)
+          setUsadoFallbackNacional(false)
+        }
+      }
+    } catch {}
+    // Marcar hidratação como concluída (com ou sem restauração)
+    setInitialHydrated(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   
   // Atualizar ref quando modal abre/fecha
   useEffect(() => {
@@ -173,12 +265,17 @@ export default function LandingPage() {
 
   // Função para detectar localização do usuário com retry mechanism
   const detectUserLocation = useCallback(async (retryCount = 0): Promise<void> => {
-    // Verificar apenas se usuário pediu explicitamente para não mostrar novamente
+    // Se usuário pediu explicitamente para não mostrar novamente, ainda assim
+    // vamos detectar e salvar a localização (para filtros), apenas sem abrir modal.
     const geolocationDismissed = localStorage.getItem('geolocation-modal-dismissed')
+    const shouldShowModal = geolocationDismissed !== 'true'
+    const suppressedBySession =
+      typeof window !== 'undefined' && sessionStorage.getItem(SUPPRESS_GEOLOCATION_MODAL_KEY) === 'true'
+    const shouldShowModalNow =
+      shouldShowModal && !suppressedBySession && !suppressGeolocationModalOnceRef.current && !corretorPopupOpenRef.current
     
-    if (geolocationDismissed === 'true') {
-      console.log('ℹ️ [LANDING PAGE] Usuário pediu para não mostrar o modal novamente')
-      return // Usuário pediu para não mostrar
+    if (!shouldShowModal) {
+      console.log('ℹ️ [LANDING PAGE] Usuário pediu para não mostrar o modal novamente (mas vamos detectar em background)')
     }
     
     // Verificar se já foi executado nesta sessão
@@ -202,8 +299,22 @@ export default function LandingPage() {
     geolocationRequestInProgressRef.current = true
     setGeolocationLoading(true)
 
+    // Turbo UX: usar a última localização conhecida imediatamente (sem esperar a rede),
+    // mas ainda assim rodar a detecção atual (você pediu para rodar a cada refresh).
+    try {
+      const cachedCity = localStorage.getItem('geolocation-city')
+      const cachedRegion = localStorage.getItem('geolocation-region')
+      const cachedCountry = localStorage.getItem('geolocation-country')
+      if (cachedCity && !detectedCity) {
+        setDetectedCity(cachedCity)
+        setDetectedRegion(cachedRegion || null)
+        setDetectedCountry(cachedCountry || null)
+      }
+    } catch {}
+
     // Abrir o modal imediatamente (melhora UX: não “trava” esperando a API)
-    if (!geolocationModalOpenRef.current) {
+    // Apenas se o usuário não tiver dispensado permanentemente.
+    if (shouldShowModalNow && !geolocationModalOpenRef.current) {
       geolocationModalOpenRef.current = true
       setGeolocationModalOpen(true)
     }
@@ -211,19 +322,13 @@ export default function LandingPage() {
     try {
       console.log(`🔍 [LANDING PAGE] Detectando localização do usuário... (tentativa ${retryCount + 1})`)
       
-      // Adicionar timeout na requisição fetch
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s de timeout (mantém confiabilidade da detecção)
-      
+      // Fetch sem AbortController: em alguns navegadores/ambientes, AbortController pode disparar AbortError
+      // indevidamente e gerar falso-negativo de geolocalização. Preferimos manter o modal em "Detectando..."
+      // (sem bloquear a página) até a resposta chegar.
       const response = await fetch('/api/public/geolocation', {
-        signal: controller.signal,
-        cache: 'no-cache',
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-store' }
       })
-      
-      clearTimeout(timeoutId)
       
       console.log('🔍 [LANDING PAGE] Status da resposta:', response.status)
       
@@ -254,9 +359,14 @@ export default function LandingPage() {
         
         // Marcar como executado ANTES de abrir o modal
         geolocationExecutedRef.current = true
+
+        // Se suprimimos o modal nesta visita, consumir o flag para não "travar" para sempre
+        try {
+          sessionStorage.removeItem(SUPPRESS_GEOLOCATION_MODAL_KEY)
+        } catch {}
         
         // Só abrir modal se não estiver já aberto (usando ref para valor atualizado)
-        if (!geolocationModalOpenRef.current) {
+        if (shouldShowModalNow && !geolocationModalOpenRef.current) {
           geolocationModalOpenRef.current = true
           setGeolocationModalOpen(true)
         }
@@ -278,9 +388,14 @@ export default function LandingPage() {
         
         // Marcar como executado ANTES de abrir o modal
         geolocationExecutedRef.current = true
+
+        // Se suprimimos o modal nesta visita, consumir o flag para não "travar" para sempre
+        try {
+          sessionStorage.removeItem(SUPPRESS_GEOLOCATION_MODAL_KEY)
+        } catch {}
         
         // Só abrir modal se não estiver já aberto (usando ref para valor atualizado)
-        if (!geolocationModalOpenRef.current) {
+        if (shouldShowModalNow && !geolocationModalOpenRef.current) {
           geolocationModalOpenRef.current = true
           setGeolocationModalOpen(true)
         }
@@ -313,71 +428,43 @@ export default function LandingPage() {
     }
   }, []) // Sem dependências - função estável que não muda
 
-  // Detectar localização no primeiro acesso (executa apenas UMA vez)
+  // Detectar localização no primeiro acesso: prioridade máxima para velocidade.
+  // NÃO esperar window.load (isso pode demorar 10s+ por causa de imagens/feeds).
   useEffect(() => {
-    // Verificar se estamos no cliente (não SSR)
-    if (typeof window === 'undefined') {
-      return
-    }
+    if (typeof window === 'undefined') return
+    if (geolocationExecutedRef.current) return
 
-    // Verificar se já foi executado nesta sessão
-    if (geolocationExecutedRef.current) {
-      console.log('ℹ️ [LANDING PAGE] Detecção já foi executada nesta sessão, pulando...')
-      return
-    }
+    // Caso especial: se a landpaging foi recarregada apenas para abrir o modal do corretor logado
+    // (ex.: pós-login via botão "Entrar"), NÃO reexecutar geolocalização.
+    try {
+      const suppressDetectOnce = sessionStorage.getItem(SUPPRESS_GEOLOCATION_DETECT_KEY) === 'true'
+      if (suppressDetectOnce) {
+        sessionStorage.removeItem(SUPPRESS_GEOLOCATION_DETECT_KEY)
+        // Também consumir o flag do modal para evitar qualquer abertura "por trás"
+        sessionStorage.removeItem(SUPPRESS_GEOLOCATION_MODAL_KEY)
 
-    // Verificar se já foi executado alguma vez neste navegador (não repetir ao voltar de outras páginas)
-    const alreadyAutoRan = sessionStorage.getItem(GEOLOCATION_AUTORUN_KEY) === 'true'
-    if (alreadyAutoRan) {
-      console.log('ℹ️ [LANDING PAGE] Geolocalização automática já executada no primeiro acesso, pulando...')
-      return
-    }
+        // Aplicar imediatamente a última detecção conhecida (melhora UX sem bater na API)
+        const cachedCity = localStorage.getItem('geolocation-city')
+        const cachedRegion = localStorage.getItem('geolocation-region')
+        const cachedCountry = localStorage.getItem('geolocation-country')
+        if (cachedCity && !detectedCity) {
+          setDetectedCity(cachedCity)
+          setDetectedRegion(cachedRegion || null)
+          setDetectedCountry(cachedCountry || null)
+        }
 
-    let timer: NodeJS.Timeout | null = null
-    let loadHandler: (() => void) | null = null
-    let hasExecuted = false
-
-    const startDetection = () => {
-      // Prevenir execução múltipla
-      if (hasExecuted) {
-        console.log('ℹ️ [LANDING PAGE] startDetection já foi executado, pulando...')
+        geolocationExecutedRef.current = true
+        console.log('ℹ️ [LANDING PAGE] Geolocalização suprimida (1x) no pós-login do corretor.')
         return
       }
-      
-      // Limpar timer anterior se existir
-      if (timer) {
-        clearTimeout(timer)
-      }
-      
-      hasExecuted = true
-      timer = setTimeout(() => {
-        console.log('🔍 [LANDING PAGE] Iniciando detecção de localização...')
-        // Marcar como executado ANTES de chamar (garante “apenas uma vez” mesmo se o usuário navegar e voltar)
-        sessionStorage.setItem(GEOLOCATION_AUTORUN_KEY, 'true')
-        detectUserLocation()
-      }, 200) // rápido: modal aparece quase imediato
-    }
+    } catch {}
 
-    // Se a página já está totalmente carregada
-    if (document.readyState === 'complete') {
-      startDetection()
-    } else {
-      // Aguardar evento load
-      loadHandler = () => {
-        startDetection()
-      }
-      window.addEventListener('load', loadHandler, { once: true })
-    }
+    const timer = setTimeout(() => {
+      console.log('🔍 [LANDING PAGE] Iniciando detecção de localização (sem esperar window.load)...')
+      detectUserLocation()
+    }, 0)
 
-    // Cleanup
-    return () => {
-      if (timer) {
-        clearTimeout(timer)
-      }
-      if (loadHandler) {
-        window.removeEventListener('load', loadHandler)
-      }
-    }
+    return () => clearTimeout(timer)
   }, [detectUserLocation])
 
   // Expor função global para debug (apenas em desenvolvimento)
@@ -386,9 +473,6 @@ export default function LandingPage() {
       (window as any).resetGeolocationModal = () => {
         console.log('🔄 [DEBUG] Resetando preferência de geolocalização...')
         localStorage.removeItem('geolocation-modal-dismissed')
-        try {
-          sessionStorage.removeItem(GEOLOCATION_AUTORUN_KEY)
-        } catch {}
         console.log('✅ [DEBUG] Preferência limpa. O modal aparecerá novamente ao recarregar.')
         location.reload()
       }
@@ -470,15 +554,34 @@ export default function LandingPage() {
       if (data.success) {
         console.log('✅ Interesse registrado com sucesso:', data.data)
         setPendingImovelId(null)
-        // Mostrar mensagem de sucesso ao usuário (opcional)
-        alert('Seu interesse foi registrado com sucesso!')
+        // UX: feedback via toast (não-bloqueante)
+        try {
+          window.dispatchEvent(
+            new CustomEvent('ui-toast', { detail: { type: 'success', message: 'Interesse registrado com sucesso!' } })
+          )
+        } catch {}
       } else {
         console.warn('⚠️ Erro ao registrar interesse:', data.message, data.details)
-        alert(`Erro ao registrar interesse: ${data.message}${data.details ? '\n' + data.details : ''}`)
+        try {
+          window.dispatchEvent(
+            new CustomEvent('ui-toast', {
+              detail: {
+                type: 'error',
+                message: `Erro ao registrar interesse: ${data.message}${data.details ? ' — ' + data.details : ''}`
+              }
+            })
+          )
+        } catch {}
       }
     } catch (error: any) {
       console.error('❌ Erro ao registrar interesse:', error)
-      alert('Erro de conexão ao registrar interesse. Tente novamente.')
+      try {
+        window.dispatchEvent(
+          new CustomEvent('ui-toast', {
+            detail: { type: 'error', message: 'Erro de conexão ao registrar interesse. Tente novamente.' }
+          })
+        )
+      } catch {}
     }
   }
 
@@ -486,6 +589,20 @@ export default function LandingPage() {
   useEffect(() => {
     const handleAuthChanged = () => {
       console.log('🔍 [LANDING PAGE] Evento public-auth-changed recebido')
+
+      // Regra: só CLIENTE pode abrir o modal de interesse.
+      // Se a sessão ativa for corretor/proprietário (ou houver sessão admin), bloqueia.
+      try {
+        const lastAuthRaw = localStorage.getItem('last-auth-user')
+        const adminToken = localStorage.getItem('auth-token')
+        const adminUser = localStorage.getItem('user-data')
+        const lastAuth = lastAuthRaw ? JSON.parse(lastAuthRaw) : null
+        const lastType = lastAuth?.userType
+        if (adminToken || adminUser || (lastType && lastType !== 'cliente')) {
+          console.log('ℹ️ [LANDING PAGE] Bloqueando abertura do modal de interesse: usuário ativo não é cliente')
+          return
+        }
+      } catch {}
       
       // Tentar recuperar imovelId do estado ou sessionStorage
       let imovelIdToUse = pendingImovelId
@@ -498,8 +615,9 @@ export default function LandingPage() {
       }
       
       if (imovelIdToUse) {
+        const publicToken = localStorage.getItem('public-auth-token')
         const userData = localStorage.getItem('public-user-data')
-        if (userData) {
+        if (publicToken && userData) {
           try {
             const user = JSON.parse(userData)
             if (user.userType === 'cliente' && user.uuid) {
@@ -521,7 +639,7 @@ export default function LandingPage() {
             console.error('❌ Erro ao processar dados do usuário:', error)
           }
         } else {
-          console.log('⚠️ [LANDING PAGE] Nenhum dado de usuário encontrado no localStorage')
+          console.log('⚠️ [LANDING PAGE] Sessão pública de cliente ausente (token e/ou user-data)')
         }
       } else {
         console.log('⚠️ [LANDING PAGE] Nenhum imovelId pendente encontrado')
@@ -536,9 +654,35 @@ export default function LandingPage() {
 
   // Handler para quando o botão "Tenho Interesse" é clicado
   const handleTenhoInteresseClick = (imovelId: number, imovelTitulo?: string) => {
+    // Regra: somente CLIENTE logado pode abrir o modal de interesse.
+    // Se o usuário ativo for corretor/proprietário, não permitir.
+    try {
+      const lastAuthRaw = localStorage.getItem('last-auth-user')
+      const adminToken = localStorage.getItem('auth-token')
+      const adminUser = localStorage.getItem('user-data')
+      const lastAuth = lastAuthRaw ? JSON.parse(lastAuthRaw) : null
+      const lastType = lastAuth?.userType
+      if (adminToken || adminUser || (lastType && lastType !== 'cliente')) {
+        try {
+          window.dispatchEvent(
+            new CustomEvent('ui-toast', {
+              detail: {
+                type: 'warning',
+                position: 'center',
+                message:
+                  'Apenas clientes logados podem registrar interesse. Você poderá acessar a sua conta ou criar um novo cadastro, acessando os botões Criar Conta ou Entrar, localizados no menu superior à direita'
+              }
+            })
+          )
+        } catch {}
+        return
+      }
+    } catch {}
+
     // Verificar se o usuário já está logado como cliente
+    const publicToken = localStorage.getItem('public-auth-token')
     const userData = localStorage.getItem('public-user-data')
-    if (userData) {
+    if (publicToken && userData) {
       try {
         const user = JSON.parse(userData)
         if (user.userType === 'cliente' && user.uuid) {
@@ -555,14 +699,22 @@ export default function LandingPage() {
       }
     }
 
-    // Usuário não está logado ou não é cliente, abrir modal de cadastro/login
-    setPendingImovelId(imovelId)
-    if (imovelTitulo) {
-      sessionStorage.setItem('pendingImovelTitulo', imovelTitulo)
-    }
-    setAuthModalMode('register')
-    setAuthUserType('cliente')
-    setAuthModalOpen(true)
+    // Regra do produto: se NÃO estiver logado como cliente, NÃO abrir nenhum modal aqui.
+    // Apenas instruir o usuário a usar os botões do topo (Criar conta / Entrar).
+    try {
+      window.dispatchEvent(
+        new CustomEvent('ui-toast', {
+          detail: {
+            type: 'warning',
+            position: 'center',
+            durationMs: 0,
+            message:
+              'Apenas clientes logados podem registrar interesse. Você poderá acessar a sua conta ou criar um novo cadastro, acessando os botões Criar Conta ou Entrar, localizados no menu superior à direita'
+          }
+        })
+      )
+    } catch {}
+    return
   }
 
   // Carregar municípios quando houver filtro de estado
@@ -583,6 +735,10 @@ export default function LandingPage() {
   
   // Ref para rastrear se estamos carregando para evitar múltiplas chamadas simultâneas
   const carregandoRef = useRef(false)
+
+  // Se alguma mudança acontecer enquanto um carregamento está em andamento,
+  // marcamos para rodar novamente assim que o carregamento atual finalizar.
+  const pendingReloadRef = useRef(false)
   
   // Refs para rastrear os últimos valores que causaram um carregamento
   // Forçar o primeiro carregamento sempre (evita cenário "nunca carregou, mas nada mudou")
@@ -602,9 +758,15 @@ export default function LandingPage() {
 
   useEffect(() => {
     const carregarImoveis = async () => {
+      // Evitar fetch antes de restaurar a última localidade confirmada (performance + consistência)
+      if (!initialHydrated) {
+        return
+      }
+
       // Evitar múltiplas chamadas simultâneas
       if (carregandoRef.current) {
-        console.log('⚠️ [LANDING PAGE] Já está carregando - ignorando chamada duplicada')
+        pendingReloadRef.current = true
+        console.log('⚠️ [LANDING PAGE] Já está carregando - marcando recarregamento pendente')
         return
       }
       
@@ -753,6 +915,31 @@ export default function LandingPage() {
         console.log('🔍 [LANDING PAGE] URL contém estado?', url.includes('estado='))
         console.log('🔍 [LANDING PAGE] URL contém cidade?', url.includes('cidade='))
         
+        // Cache: se a chave é a mesma e está fresca, reaproveitar (principalmente ao voltar de fluxos sem mudar filtros/localidade)
+        // Só ignoramos cache quando o usuário explicitamente pediu recarregar (forceFeaturedFetchRef=true).
+        const cacheKey = `${FEATURED_CACHE_PREFIX}${urlFinal}`
+        if (!forceFeaturedFetchRef.current) {
+          try {
+            const raw = sessionStorage.getItem(cacheKey)
+            if (raw) {
+              const parsed = JSON.parse(raw)
+              const tsOk = typeof parsed?.ts === 'number' && Date.now() - parsed.ts <= FEATURED_CACHE_TTL_MS
+              const imoveisOk = Array.isArray(parsed?.imoveis)
+              if (tsOk && imoveisOk) {
+                console.log('✅ [LANDING PAGE] Cache HIT - reutilizando grid de destaques:', { cacheKey })
+                setMensagemSemResultados(null)
+                setFeaturedData(parsed.imoveis)
+                setUsadoFallbackNacional(false)
+                // Atualizar refs dos últimos valores carregados
+                ultimoMostrarDestaquesNacionalCarregado.current = isDestaqueNacional
+                ultimoTipoDestaqueCarregado.current = tipoDestaqueAtual
+                setTipoDestaqueAnterior(tipoDestaqueAtual)
+                return
+              }
+            }
+          } catch {}
+        }
+
         const response = await fetch(url)
         const data = await response.json()
 
@@ -895,6 +1082,11 @@ export default function LandingPage() {
           setMensagemSemResultados(null)
           
           setFeaturedData(data.imoveis)
+
+          // Persistir cache (melhora performance ao voltar de rotas/modais sem mudar localidade/filtros)
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), imoveis: data.imoveis }))
+          } catch {}
           
           // Atualizar refs dos últimos valores carregados
           ultimoMostrarDestaquesNacionalCarregado.current = isDestaqueNacional
@@ -934,11 +1126,19 @@ export default function LandingPage() {
       } finally {
         carregandoRef.current = false
         setLoadingFeatured(false)
+        forceFeaturedFetchRef.current = false
+
+        // Se houve alguma mudança durante o carregamento (ex.: restauramos estado/cidade),
+        // disparar um novo ciclo do useEffect para usar estado atualizado (evita stale closure).
+        if (pendingReloadRef.current) {
+          pendingReloadRef.current = false
+          setReloadNonce((n) => n + 1)
+        }
       }
     }
 
     carregarImoveis()
-  }, [tipoDestaque, mostrarDestaquesNacional, searchFormEstado, searchFormCidade, lastFilters?.estado, lastFilters?.cidade])
+  }, [tipoDestaque, mostrarDestaquesNacional, searchFormEstado, searchFormCidade, lastFilters?.estado, lastFilters?.cidade, reloadNonce, initialHydrated])
 
   const mapToPropertyCard = useCallback((imovel: any): PropertyCard => {
     const estado = estados.find((state) => state.sigla === imovel.estado_fk)
@@ -1757,6 +1957,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen">
+      <ToastViewport />
       <HeroSection
         venderButton={
           <button
@@ -1775,6 +1976,12 @@ export default function LandingPage() {
                 estadoAtual: mostrarDestaquesNacional,
                 novoEstado
               })
+              
+              // Ação explícita do usuário: ao ATIVAR o Destaque Nacional, devemos recarregar o grid
+              // (ao desativar, a exibição volta ao padrão local/não-local e o cache pode ser reaproveitado)
+              if (novoEstado === true) {
+                forceFeaturedFetchRef.current = true
+              }
 
               // IMPORTANTE: Se estamos ATIVANDO o destaque nacional (novoEstado === true),
               // usar flushSync para garantir que mostrarDestaquesNacional seja atualizado
@@ -1852,6 +2059,43 @@ export default function LandingPage() {
           setAuthModalOpen(true)
         }}
         onCorretorClick={() => {
+          // Se já existe sessão de CORRETOR (admin login) válida no client, abrir direto o painel/modal do corretor.
+          // Caso contrário, seguir fluxo padrão (popup -> login/cadastro).
+          try {
+            const token = localStorage.getItem('auth-token')
+            const raw = localStorage.getItem('user-data')
+            if (token && raw) {
+              const parsed: any = JSON.parse(raw)
+              const roleName = String(parsed?.role_name || parsed?.cargo || '').toLowerCase()
+              const isCorretor = roleName.includes('corretor')
+              if (isCorretor) {
+                const fotoBase64 = (parsed?.foto as string | null | undefined) || null
+                const fotoMime = (parsed?.foto_tipo_mime as string | null | undefined) || 'image/jpeg'
+                const fotoDataUrl = fotoBase64 ? `data:${fotoMime};base64,${fotoBase64}` : undefined
+
+                setCorretorHomeUser({
+                  id: String(parsed?.id || parsed?.uuid || ''),
+                  nome: String(parsed?.nome || ''),
+                  email: String(parsed?.email || ''),
+                  telefone: parsed?.telefone ? String(parsed.telefone) : undefined,
+                  cpf: parsed?.cpf ? String(parsed.cpf) : undefined,
+                  creci: parsed?.creci ? String(parsed.creci) : undefined,
+                  fotoDataUrl,
+                  isencao: parsed?.isencao !== undefined ? !!parsed.isencao : undefined
+                })
+                setCorretorHomeSuccessOpen(true)
+                return
+              }
+            }
+          } catch {}
+
+          // Fluxo padrão: abrir popup do corretor
+          suppressGeolocationModalOnceRef.current = true
+          try {
+            sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
+          } catch {}
+          geolocationModalOpenRef.current = false
+          setGeolocationModalOpen(false)
           setCorretorPopupOpen(true)
         }}
       />
@@ -2289,12 +2533,25 @@ export default function LandingPage() {
       {/* Popup Corretor (antes de navegar para cadastro/login) */}
       <CorretorPopup
         isOpen={corretorPopupOpen}
-        onClose={() => setCorretorPopupOpen(false)}
-        onCadastrarClick={() => {
+        onClose={() => {
+          // Fechar modal do corretor não deve disparar/mostrar geolocalização.
+          suppressGeolocationModalOnceRef.current = true
+          try {
+            sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
+          } catch {}
           setCorretorPopupOpen(false)
-          router.push('/admin/usuarios?public_broker=true')
+        }}
+        onCadastrarClick={() => {
+          try {
+            sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
+          } catch {}
+          setCorretorPopupOpen(false)
+          router.push('/corretor/cadastro')
         }}
         onLoginClick={() => {
+          try {
+            sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
+          } catch {}
           setCorretorPopupOpen(false)
           setCorretorLoginModalOpen(true)
         }}
@@ -2318,7 +2575,7 @@ export default function LandingPage() {
       <CorretorLoginModal
         isOpen={corretorLoginModalOpen}
         onClose={() => setCorretorLoginModalOpen(false)}
-        redirectTo="/landpaging"
+        redirectTo="/landpaging?corretor_home=true"
       />
 
       {corretorHomeSuccessOpen && corretorHomeUser && (
@@ -2414,6 +2671,11 @@ export default function LandingPage() {
           console.log('✅ [LANDING PAGE] Confirmando localização detectada:', estadoSigla, cidadeNome)
           // Marcar que localização foi confirmada ANTES de setar valores (usando ref para evitar timing issues)
           locationConfirmedRef.current = true
+
+          // IMPORTANTÍSSIMO: ao confirmar localização (principalmente no 1º carregamento),
+          // não reutilizar cache de destaques (pode estar stale e “esconder” imóveis novos).
+          // Isso explica o cenário onde só aparece após "Aplicar filtros".
+          forceFeaturedFetchRef.current = true
           
           // REGRA 2: Verificar se existem imóveis com destaque local para essa localização
           // Verificar TANTO para Comprar (DV) quanto para Alugar (DA)
@@ -2487,6 +2749,12 @@ export default function LandingPage() {
           window.dispatchEvent(new CustomEvent('geolocation-confirmed', {
             detail: { cidade: cidadeNome, estado: estadoSigla }
           }))
+
+          // Persistir para restaurar destaque local quando a página for remontada
+          try {
+            localStorage.setItem(LAST_GEOLOCATION_ESTADO_KEY, estadoSigla)
+            localStorage.setItem(LAST_GEOLOCATION_CIDADE_KEY, cidadeNome)
+          } catch {}
           
           console.log('✅ [LANDING PAGE] Valores setados, locationConfirmedRef:', locationConfirmedRef.current)
         }}
@@ -2494,6 +2762,9 @@ export default function LandingPage() {
           console.log('✅ [LANDING PAGE] Selecionando localização manual:', estadoSigla, cidadeNome)
           // Marcar que localização foi confirmada ANTES de setar valores (usando ref para evitar timing issues)
           locationConfirmedRef.current = true
+
+          // Mesma regra: seleção manual deve ignorar cache 1x para refletir o estado atual do catálogo
+          forceFeaturedFetchRef.current = true
           
           // REGRA 2: Verificar se existem imóveis com destaque local para essa localização
           // Verificar TANTO para Comprar (DV) quanto para Alugar (DA)
@@ -2573,6 +2844,12 @@ export default function LandingPage() {
           window.dispatchEvent(new CustomEvent('geolocation-confirmed', {
             detail: { cidade: cidadeNome, estado: estadoSigla }
           }))
+
+          // Persistir para restaurar destaque local quando a página for remontada
+          try {
+            localStorage.setItem(LAST_GEOLOCATION_ESTADO_KEY, estadoSigla)
+            localStorage.setItem(LAST_GEOLOCATION_CIDADE_KEY, cidadeNome)
+          } catch {}
           
           console.log('✅ [LANDING PAGE] Valores setados após seleção manual')
         }}
