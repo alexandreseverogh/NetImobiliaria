@@ -104,9 +104,12 @@ function getPermissionLevel(permission: string): number {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('🔍 [LOGIN] Início da requisição POST');
   try {
+    console.log('🔍 [LOGIN] Parseando body...');
     const body: LoginRequest = await request.json();
     const { username, password, twoFactorCode } = body;
+    console.log('🔍 [LOGIN] Body parseado:', { username, hasPassword: !!password, twoFactorCode });
 
     // Validar dados de entrada
     if (!username || !password) {
@@ -250,41 +253,66 @@ export async function POST(request: NextRequest) {
     console.log('🔍 DEBUG LOGIN - Campo two_fa_enabled do usuário:', user.two_fa_enabled);
     console.log('🔍 DEBUG LOGIN - Campo two_factor_enabled mapeado:', user.two_factor_enabled);
     
-    const is2FAEnabled = await twoFactorAuthService.is2FAEnabled(user.id);
-    console.log('🔍 DEBUG LOGIN - 2FA habilitado para usuário', user.username, ':', is2FAEnabled);
+    let is2FAEnabled = false;
+    try {
+      is2FAEnabled = await twoFactorAuthService.is2FAEnabled(user.id);
+      console.log('🔍 DEBUG LOGIN - 2FA habilitado para usuário', user.username, ':', is2FAEnabled);
+    } catch (error2FA) {
+      console.error('❌ Erro ao verificar 2FA:', error2FA);
+      console.error('❌ Stack trace 2FA:', error2FA instanceof Error ? error2FA.stack : 'N/A');
+      // Continuar sem 2FA em caso de erro
+      is2FAEnabled = false;
+    }
     
     if (is2FAEnabled) {
       console.log('🔐 2FA requerido para usuário:', user.username);
       // Se 2FA está habilitado mas código não foi fornecido
       if (!twoFactorCode) {
         // Enviar código 2FA
-        const codeSent = await twoFactorAuthService.sendCodeByEmail(
-          user.id, 
-          user.email, 
-          ipAddress, 
-          userAgent
-        );
-        
-        if (codeSent) {
-          // Log que 2FA foi requerido
-          const client = await pool.connect();
-          try {
-            await logLoginAttempt(client, user.id, username, '2fa_required', ipAddress, userAgent, false, 'Código 2FA enviado por email');
-          } finally {
-            client.release();
-          }
+        try {
+          console.log('📧 Tentando enviar código 2FA para:', user.email);
+          const codeSent = await twoFactorAuthService.sendCodeByEmail(
+            user.id, 
+            user.email, 
+            ipAddress, 
+            userAgent
+          );
           
+          if (codeSent) {
+            // Log que 2FA foi requerido
+            const client = await pool.connect();
+            try {
+              await logLoginAttempt(client, user.id, username, '2fa_required', ipAddress, userAgent, false, 'Código 2FA enviado por email');
+            } finally {
+              client.release();
+            }
+            
+            return NextResponse.json(
+              { 
+                success: false, 
+                requires2FA: true, 
+                message: 'Código de verificação enviado por email' 
+              },
+              { status: 200 }
+            );
+          } else {
+            console.error('❌ Falha ao enviar código 2FA');
+            return NextResponse.json(
+              { success: false, message: 'Erro ao enviar código de verificação' },
+              { status: 500 }
+            );
+          }
+        } catch (errorSendCode) {
+          console.error('❌ Exceção ao enviar código 2FA:', errorSendCode);
+          console.error('❌ Stack trace envio código:', errorSendCode instanceof Error ? errorSendCode.stack : 'N/A');
           return NextResponse.json(
             { 
               success: false, 
-              requires2FA: true, 
-              message: 'Código de verificação enviado por email' 
+              message: 'Erro ao enviar código de verificação',
+              ...(process.env.NODE_ENV === 'development' && {
+                error: errorSendCode instanceof Error ? errorSendCode.message : String(errorSendCode)
+              })
             },
-            { status: 200 }
-          );
-        } else {
-          return NextResponse.json(
-            { success: false, message: 'Erro ao enviar código de verificação' },
             { status: 500 }
           );
         }
@@ -482,9 +510,21 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Erro no login:', error);
+    console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A');
+    console.error('❌ Detalhes do erro:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error)
+    });
     
+    // SEMPRE retornar detalhes do erro para debug
     return NextResponse.json(
-      { success: false, message: 'Erro interno do servidor' },
+      { 
+        success: false, 
+        message: 'Erro interno do servidor',
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        errorName: error instanceof Error ? error.name : 'Unknown'
+      },
       { status: 500 }
     );
   }

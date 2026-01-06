@@ -59,54 +59,75 @@ class EmailService {
    * Carrega configurações de email do banco de dados
    */
   private async loadEmailConfig(): Promise<void> {
-    const query = 'SELECT * FROM email_settings WHERE is_active = true LIMIT 1';
-    const result = await pool.query(query);
-    
-    if (result.rows.length === 0) {
-      throw new Error('Nenhuma configuração de email ativa encontrada no banco');
+    try {
+      console.log('🔍 EmailService - Carregando configurações de email...');
+      const query = 'SELECT * FROM email_settings WHERE is_active = true LIMIT 1';
+      const result = await pool.query(query);
+      
+      if (result.rows.length === 0) {
+        throw new Error('Nenhuma configuração de email ativa encontrada no banco');
+      }
+
+      const settings = result.rows[0];
+      console.log('🔍 EmailService - Configurações carregadas:', {
+        host: settings.smtp_host,
+        port: settings.smtp_port,
+        secure: settings.smtp_secure,
+        from: settings.from_email
+      });
+      
+      this.config = {
+        host: settings.smtp_host,
+        port: settings.smtp_port,
+        secure: settings.smtp_secure,
+        auth: {
+          user: settings.smtp_username,
+          pass: settings.smtp_password
+        },
+        from: settings.from_email,
+        fromName: settings.from_name
+      };
+
+      // Criar transporter
+      console.log('🔍 EmailService - Criando transporter...');
+      this.transporter = nodemailer.createTransport(this.config);
+      
+      // Verificar conexão
+      console.log('🔍 EmailService - Verificando conexão SMTP...');
+      await this.transporter.verify();
+      console.log('✅ Conexão SMTP verificada com sucesso');
+    } catch (error) {
+      console.error('❌ EmailService - Erro ao carregar configurações:', error);
+      throw error;
     }
-
-    const settings = result.rows[0];
-    
-    this.config = {
-      host: settings.smtp_host,
-      port: settings.smtp_port,
-      secure: settings.smtp_secure,
-      auth: {
-        user: settings.smtp_username,
-        pass: settings.smtp_password
-      },
-      from: settings.from_email,
-      fromName: settings.from_name
-    };
-
-    // Criar transporter
-    this.transporter = nodemailer.createTransport(this.config);
-    
-    // Verificar conexão
-    await this.transporter.verify();
-    console.log('✅ Conexão SMTP verificada com sucesso');
   }
 
   /**
    * Carrega templates de email do banco de dados
    */
   private async loadEmailTemplates(): Promise<void> {
-    const query = 'SELECT * FROM email_templates WHERE is_active = true';
-    const result = await pool.query(query);
-    
-    result.rows.forEach(template => {
-      this.templates.set(template.name, {
-        id: template.id,
-        name: template.name,
-        subject: template.subject,
-        html_content: template.html_content,
-        text_content: template.text_content,
-        variables: template.variables || []
+    try {
+      console.log('🔍 EmailService - Carregando templates de email...');
+      const query = 'SELECT * FROM email_templates WHERE is_active = true';
+      const result = await pool.query(query);
+      
+      result.rows.forEach(template => {
+        this.templates.set(template.name, {
+          id: template.id,
+          name: template.name,
+          subject: template.subject,
+          html_content: template.html_content,
+          text_content: template.text_content,
+          variables: template.variables || []
+        });
       });
-    });
 
-    console.log(`✅ ${this.templates.size} templates de email carregados`);
+      console.log(`✅ ${this.templates.size} templates de email carregados`);
+      console.log('🔍 Templates disponíveis:', Array.from(this.templates.keys()));
+    } catch (error) {
+      console.error('❌ EmailService - Erro ao carregar templates:', error);
+      throw error;
+    }
   }
 
   /**
@@ -261,8 +282,11 @@ let isInitialized = false;
  */
 async function ensureInitialized(): Promise<void> {
   if (isInitialized) {
+    console.log('🔍 EmailService - Já inicializado');
     return; // Já inicializado
   }
+  
+  console.log('🔍 EmailService - Iniciando inicialização...');
   
   if (!initializationPromise) {
     initializationPromise = emailServiceInstance.initialize()
@@ -272,6 +296,7 @@ async function ensureInitialized(): Promise<void> {
       })
       .catch((error) => {
         console.error('❌ Erro na inicialização automática do EmailService:', error);
+        console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A');
         initializationPromise = null; // Reset para permitir nova tentativa
         throw error;
       });
