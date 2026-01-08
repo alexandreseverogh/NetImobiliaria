@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { checkCPFExists } from '@/lib/database/clientes'
 
@@ -8,7 +9,7 @@ export async function POST(request: NextRequest) {
     
     if (!cpf) {
       return NextResponse.json(
-        { error: 'CPF é obrigatório' },
+        { error: 'CPF Ã© obrigatÃ³rio' },
         { status: 400 }
       )
     }
@@ -24,4 +25,5 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
 

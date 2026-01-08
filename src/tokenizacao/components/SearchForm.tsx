@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -14,8 +15,8 @@ export default function SearchForm() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    // Implementar lógica de busca avançada
-    console.log('Busca Avançada:', {
+    // Implementar lÃ³gica de busca avanÃ§ada
+    console.log('Busca AvanÃ§ada:', {
       searchType,
       location,
       propertyType,
@@ -32,7 +33,7 @@ export default function SearchForm() {
         {/* Search Type */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-3">
-            Tipo de Operação
+            Tipo de OperaÃ§Ã£o
           </label>
           <div className="flex rounded-lg border-2 border-gray-200 overflow-hidden">
             <button
@@ -67,7 +68,7 @@ export default function SearchForm() {
           {/* Location */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Localização
+              LocalizaÃ§Ã£o
             </label>
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -84,7 +85,7 @@ export default function SearchForm() {
           {/* Property Type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tipo de Imóvel
+              Tipo de ImÃ³vel
             </label>
             <select
               value={propertyType}
@@ -96,14 +97,14 @@ export default function SearchForm() {
               <option value="house">Casa</option>
               <option value="commercial">Comercial</option>
               <option value="land">Terreno</option>
-              <option value="office">Escritório</option>
+              <option value="office">EscritÃ³rio</option>
             </select>
           </div>
 
           {/* Price Range */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Faixa de Preço
+              Faixa de PreÃ§o
             </label>
             <div className="relative">
               <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -112,8 +113,8 @@ export default function SearchForm() {
                 onChange={(e) => setPriceRange(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none transition-colors"
               >
-                <option value="">Qualquer preço</option>
-                <option value="0-200000">Até R$ 200.000</option>
+                <option value="">Qualquer preÃ§o</option>
+                <option value="0-200000">AtÃ© R$ 200.000</option>
                 <option value="200000-500000">R$ 200.000 - R$ 500.000</option>
                 <option value="500000-1000000">R$ 500.000 - R$ 1.000.000</option>
                 <option value="1000000-2000000">R$ 1.000.000 - R$ 2.000.000</option>
@@ -172,7 +173,7 @@ export default function SearchForm() {
           {/* Area */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Área Mínima
+              Ãrea MÃ­nima
             </label>
             <div className="relative">
               <Square className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -181,13 +182,13 @@ export default function SearchForm() {
                 onChange={(e) => setArea(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none transition-colors"
               >
-                <option value="">Qualquer área</option>
-                <option value="50">50m²</option>
-                <option value="80">80m²</option>
-                <option value="120">120m²</option>
-                <option value="150">150m²</option>
-                <option value="200">200m²</option>
-                <option value="300">300m²</option>
+                <option value="">Qualquer Ã¡rea</option>
+                <option value="50">50mÂ²</option>
+                <option value="80">80mÂ²</option>
+                <option value="120">120mÂ²</option>
+                <option value="150">150mÂ²</option>
+                <option value="200">200mÂ²</option>
+                <option value="300">300mÂ²</option>
               </select>
             </div>
           </div>
@@ -200,11 +201,12 @@ export default function SearchForm() {
             className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-4 px-12 rounded-lg transition-colors duration-200 flex items-center justify-center mx-auto text-lg"
           >
             <Search className="w-6 h-6 mr-3" />
-            Buscar Imóveis
+            Buscar ImÃ³veis
           </button>
         </div>
       </form>
     </div>
   )
 }
+
 

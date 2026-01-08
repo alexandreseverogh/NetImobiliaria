@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
-  MagnifyingGlassIcon, 
-  EyeIcon, 
+import {
+  MagnifyingGlassIcon,
+  EyeIcon,
   MapPinIcon,
   HomeIcon,
   BuildingOfficeIcon,
@@ -21,16 +21,16 @@ export default function DestacarImovelPage() {
   const [codigo, setCodigo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
-  
+
   // Estados para controle da busca
   const [dadosBasicos, setDadosBasicos] = useState<any>(null)
   const [loadingImovel, setLoadingImovel] = useState(false)
   const [errorImovel, setErrorImovel] = useState<string | null>(null)
-  
+
   // Estado para destaque
   const [destaque, setDestaque] = useState<boolean>(false)
   const [destaqueNacional, setDestaqueNacional] = useState<boolean>(false)
-  
+
   // Hook para estados e cidades
   const { estados } = useEstadosCidades()
 
@@ -40,12 +40,12 @@ export default function DestacarImovelPage() {
     if (!tipoDestaque || tipoDestaque === null || tipoDestaque === undefined) {
       return false
     }
-    
+
     // Se é string vazia, não permite
     if (tipoDestaque === '') {
       return false
     }
-    
+
     // Se é string com apenas espaços (incluindo '  '), não permite
     if (typeof tipoDestaque === 'string') {
       const trimmed = tipoDestaque.trim()
@@ -57,7 +57,7 @@ export default function DestacarImovelPage() {
         return false
       }
     }
-    
+
     // Se chegou aqui, permite (tem valor válido como 'DV' ou 'DA')
     return true
   }
@@ -79,27 +79,27 @@ export default function DestacarImovelPage() {
       console.log('🔍 Buscando imóvel com código:', codigo)
       const response = await get(`/api/admin/imoveis/by-codigo/${codigo}`)
       const result = await response.json()
-      
+
       if (response.ok && result.success) {
         console.log('✅ Imóvel encontrado:', result.imovel)
         console.log('🔍 finalidade_tipo_destaque:', result.imovel.finalidade_tipo_destaque)
         console.log('🔍 finalidade_nome:', result.imovel.finalidade_nome)
         console.log('🔍 finalidade_fk:', result.imovel.finalidade_fk)
         setDadosBasicos(result.imovel)
-        
+
         // Validar se pode ter destaque antes de definir o estado
         const podeTerDestaque = tipoDestaquePermiteDestaque(result.imovel.finalidade_tipo_destaque)
         const destaqueAtual = result.imovel.destaque || false
-        
+
         console.log('🔍 Carregando imóvel - podeTerDestaque:', podeTerDestaque)
         console.log('🔍 Carregando imóvel - destaqueAtual:', destaqueAtual)
-        
+
         // Se o imóvel está marcado como destaque mas não pode ter destaque, desmarcar e alertar
         if (destaqueAtual && !podeTerDestaque) {
           console.log('⚠️ Imóvel está marcado como destaque mas não pode ter destaque - desmarcando')
           alert(`Esse Imóvel não poderá receber destaque em função da Finalidade ${result.imovel.finalidade_nome || 'não identificada'} cadastrada. O destaque será removido automaticamente.`)
           setDestaque(false)
-          
+
           // Remover destaque do banco automaticamente
           setTimeout(async () => {
             try {
@@ -116,7 +116,7 @@ export default function DestacarImovelPage() {
         } else {
           setDestaque(destaqueAtual)
         }
-        
+
         setDestaqueNacional(result.imovel.destaque_nacional || false)
       } else {
         console.error('❌ Imóvel não encontrado - Status:', response.status)
@@ -138,7 +138,7 @@ export default function DestacarImovelPage() {
     console.log('🔍 Validando destaque - tipoDestaque tipo:', typeof tipoDestaque)
     console.log('🔍 Validando destaque - tipoDestaque length:', tipoDestaque?.length)
     console.log('🔍 Validando destaque - tipoDestaque permite destaque:', tipoDestaquePermiteDestaque(tipoDestaque))
-    
+
     // Verificar se permite destacar
     if (destaque && !tipoDestaquePermiteDestaque(tipoDestaque)) {
       alert(`Esse Imóvel não poderá receber destaque em função da Finalidade ${dadosBasicos?.finalidade_nome || 'não identificada'} cadastrada`)
@@ -226,7 +226,7 @@ export default function DestacarImovelPage() {
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               />
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={handleSearch}
@@ -253,7 +253,7 @@ export default function DestacarImovelPage() {
               </button>
             </div>
           </div>
-          
+
           {error && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
               <p className="text-red-600 text-sm">{error}</p>
@@ -265,7 +265,7 @@ export default function DestacarImovelPage() {
         {dadosBasicos && (
           <div className="bg-white min-h-screen">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              
+
               {/* Título e Código */}
               <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">{dadosBasicos.titulo}</h1>
@@ -422,7 +422,7 @@ export default function DestacarImovelPage() {
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <div className="flex items-center">
                       <span className="text-xs font-medium text-gray-600 mr-2">Status Atual:</span>
-                      <span 
+                      <span
                         className="px-2 py-1 rounded-full text-xs font-medium text-white"
                         style={{ backgroundColor: dadosBasicos.status_cor || '#6B7280' }}
                       >
@@ -436,12 +436,12 @@ export default function DestacarImovelPage() {
               {/* Campo Destacar */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6" style={{ maxWidth: '1400px', margin: '0 auto' }}>
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Destacar Imóvel</h2>
-                
+
                 <div className="mb-6">
                   {(() => {
                     const tipoDestaque = dadosBasicos?.finalidade_tipo_destaque
                     const podeTerDestaque = tipoDestaquePermiteDestaque(tipoDestaque)
-                    
+
                     return (
                       <>
                         <label className={`flex items-center space-x-3 ${podeTerDestaque ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
@@ -454,7 +454,7 @@ export default function DestacarImovelPage() {
                               console.log('🔍 onChange destaque - tipoDestaque:', tipoDestaque)
                               console.log('🔍 onChange destaque - tipoDestaque permite destaque:', podeTerDestaque)
                               console.log('🔍 onChange destaque - e.target.checked:', e.target.checked)
-                              
+
                               if (e.target.checked && !podeTerDestaque) {
                                 alert(`Esse Imóvel não poderá receber destaque em função da Finalidade ${dadosBasicos?.finalidade_nome || 'não identificada'} cadastrada`)
                                 return
@@ -472,7 +472,7 @@ export default function DestacarImovelPage() {
                         </p>
                         {!podeTerDestaque && (
                           <p className="text-sm text-red-600 mt-2 ml-8 font-medium">
-                            ⚠️ Este imóvel não pode receber destaque devido à finalidade "{dadosBasicos?.finalidade_nome || 'não identificada'}" cadastrada.
+                            ⚠️ Este imóvel não pode receber destaque devido à finalidade &quot;{dadosBasicos?.finalidade_nome || 'não identificada'}&quot; cadastrada.
                           </p>
                         )}
                       </>

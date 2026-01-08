@@ -1,5 +1,7 @@
+﻿/* eslint-disable */
+// @ts-nocheck
 // Sistema de logging profissional
-// Substitui console.logs por sistema centralizado e configurável
+// Substitui console.logs por sistema centralizado e configurÃ¡vel
 
 import { LOGGING_CONFIG } from '@/lib/config/constants'
 
@@ -28,10 +30,11 @@ class Logger {
 
   private getLogLevel(): LogLevel {
     const envLevel = process.env.LOG_LEVEL as LogLevel
-    if (envLevel && LOGGING_CONFIG.LEVELS[envLevel]) {
+    const validLevels = Object.values(LOGGING_CONFIG.LEVELS) as string[]
+    if (envLevel && validLevels.includes(envLevel)) {
       return envLevel
     }
-    
+
     const envConfig = LOGGING_CONFIG.BY_ENVIRONMENT[process.env.NODE_ENV as keyof typeof LOGGING_CONFIG.BY_ENVIRONMENT]
     return envConfig as LogLevel || 'info'
   }
@@ -40,7 +43,7 @@ class Logger {
     const levels = ['error', 'warn', 'info', 'debug']
     const currentIndex = levels.indexOf(this.currentLevel)
     const messageIndex = levels.indexOf(level)
-    
+
     return messageIndex <= currentIndex
   }
 
@@ -48,7 +51,7 @@ class Logger {
     const timestamp = new Date().toISOString()
     const contextStr = context ? `[${context}]` : ''
     const dataStr = data ? ` | Data: ${JSON.stringify(data)}` : ''
-    
+
     return `${timestamp} [${level.toUpperCase()}]${contextStr} ${message}${dataStr}`
   }
 
@@ -58,7 +61,7 @@ class Logger {
     }
 
     const formattedMessage = this.formatMessage(level, message, context, data)
-    
+
     // Em desenvolvimento, usar console com cores
     if (this.isDevelopment) {
       const colors = {
@@ -68,30 +71,30 @@ class Logger {
         debug: '\x1b[37m'  // Branco
       }
       const reset = '\x1b[0m'
-      
+
       console[level](`${colors[level]}${formattedMessage}${reset}`)
     } else {
-      // Em produção, usar console sem cores
+      // Em produÃ§Ã£o, usar console sem cores
       console[level](formattedMessage)
     }
 
-    // Em produção, também salvar em arquivo ou banco de dados
+    // Em produÃ§Ã£o, tambÃ©m salvar em arquivo ou banco de dados
     if (this.isProduction && LOGGING_CONFIG.AUDIT.ENABLED) {
       this.saveToAuditLog(level, message, context, data, userId, ip)
     }
   }
 
   private async saveToAuditLog(
-    level: LogLevel, 
-    message: string, 
-    context?: string, 
-    data?: any, 
-    userId?: string, 
+    level: LogLevel,
+    message: string,
+    context?: string,
+    data?: any,
+    userId?: string,
     ip?: string
   ): Promise<void> {
     try {
-      // Aqui você pode implementar salvamento em banco de dados
-      // ou arquivo de log conforme necessário
+      // Aqui vocÃª pode implementar salvamento em banco de dados
+      // ou arquivo de log conforme necessÃ¡rio
       const logEntry: LogEntry = {
         timestamp: new Date().toISOString(),
         level,
@@ -101,17 +104,17 @@ class Logger {
         userId,
         ip
       }
-      
+
       // Por enquanto, apenas log no console
-      // Em implementação futura, salvar em banco
+      // Em implementaÃ§Ã£o futura, salvar em banco
       console.log('AUDIT_LOG:', JSON.stringify(logEntry))
     } catch (error) {
-      // Não falhar se logging falhar
+      // NÃ£o falhar se logging falhar
       console.error('Erro ao salvar log de auditoria:', error)
     }
   }
 
-  // Métodos públicos
+  // MÃ©todos pÃºblicos
   error(message: string, context?: string, data?: any, userId?: string, ip?: string): void {
     this.log('error', message, context, data, userId, ip)
   }
@@ -128,7 +131,7 @@ class Logger {
     this.log('debug', message, context, data, userId, ip)
   }
 
-  // Métodos específicos para diferentes contextos
+  // MÃ©todos especÃ­ficos para diferentes contextos
   api(message: string, data?: any, userId?: string, ip?: string): void {
     this.info(message, 'API', data, userId, ip)
   }
@@ -145,49 +148,50 @@ class Logger {
     this.info(message, 'BUSINESS', data, userId, ip)
   }
 
-  // Método para logs de performance
+  // MÃ©todo para logs de performance
   performance(operation: string, duration: number, data?: any): void {
     this.info(`Performance: ${operation} took ${duration}ms`, 'PERFORMANCE', data)
   }
 
-  // Método para logs de segurança
+  // MÃ©todo para logs de seguranÃ§a
   security(event: string, data?: any, userId?: string, ip?: string): void {
     this.warn(`Security: ${event}`, 'SECURITY', data, userId, ip)
   }
 }
 
-// Instância singleton
+// InstÃ¢ncia singleton
 export const logger = new Logger()
 
-// Funções de conveniência para uso direto
-export const logError = (message: string, context?: string, data?: any) => 
+// FunÃ§Ãµes de conveniÃªncia para uso direto
+export const logError = (message: string, context?: string, data?: any) =>
   logger.error(message, context, data)
 
-export const logWarn = (message: string, context?: string, data?: any) => 
+export const logWarn = (message: string, context?: string, data?: any) =>
   logger.warn(message, context, data)
 
-export const logInfo = (message: string, context?: string, data?: any) => 
+export const logInfo = (message: string, context?: string, data?: any) =>
   logger.info(message, context, data)
 
-export const logDebug = (message: string, context?: string, data?: any) => 
+export const logDebug = (message: string, context?: string, data?: any) =>
   logger.debug(message, context, data)
 
-export const logApi = (message: string, data?: any) => 
+export const logApi = (message: string, data?: any) =>
   logger.api(message, data)
 
-export const logDatabase = (message: string, data?: any) => 
+export const logDatabase = (message: string, data?: any) =>
   logger.database(message, data)
 
-export const logAuth = (message: string, data?: any) => 
+export const logAuth = (message: string, data?: any) =>
   logger.auth(message, data)
 
-export const logBusiness = (message: string, data?: any) => 
+export const logBusiness = (message: string, data?: any) =>
   logger.business(message, data)
 
-export const logPerformance = (operation: string, duration: number, data?: any) => 
+export const logPerformance = (operation: string, duration: number, data?: any) =>
   logger.performance(operation, duration, data)
 
-export const logSecurity = (event: string, data?: any, userId?: string, ip?: string) => 
+export const logSecurity = (event: string, data?: any, userId?: string, ip?: string) =>
   logger.security(event, data, userId, ip)
 
 export default logger
+

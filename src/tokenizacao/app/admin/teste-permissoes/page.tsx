@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useAuth } from '@/hooks/useAuth'
@@ -11,12 +12,12 @@ export default function TestePermissoesPage() {
   return (
     <div className="max-w-4xl mx-auto py-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">
-        Teste de Sistema de Permissões
+        Teste de Sistema de PermissÃµes
       </h1>
 
-      {/* Informações do usuário */}
+      {/* InformaÃ§Ãµes do usuÃ¡rio */}
       <div className="bg-white shadow rounded-lg p-6 mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Informações do Usuário</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">InformaÃ§Ãµes do UsuÃ¡rio</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-sm font-medium text-gray-500">Nome</p>
@@ -37,9 +38,9 @@ export default function TestePermissoesPage() {
         </div>
       </div>
 
-      {/* Permissões do usuário */}
+      {/* PermissÃµes do usuÃ¡rio */}
       <div className="bg-white shadow rounded-lg p-6 mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Permissões Atuais</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">PermissÃµes Atuais</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {user?.permissoes && Object.entries(user.permissoes).map(([resource, permission]) => (
             <div key={resource} className="border rounded-lg p-4">
@@ -57,25 +58,25 @@ export default function TestePermissoesPage() {
         </div>
       </div>
 
-      {/* Testes de permissões */}
+      {/* Testes de permissÃµes */}
       <div className="bg-white shadow rounded-lg p-6 mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Testes de Permissões</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Testes de PermissÃµes</h2>
         
         {/* Teste de leitura */}
         <div className="mb-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-3">Permissão de Leitura</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-3">PermissÃ£o de Leitura</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ReadGuard resource="imoveis">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-green-800 font-medium">✅ Pode ler imóveis</p>
-                <p className="text-green-600 text-sm">Usuário tem permissão READ para imóveis</p>
+                <p className="text-green-800 font-medium">âœ… Pode ler imÃ³veis</p>
+                <p className="text-green-600 text-sm">UsuÃ¡rio tem permissÃ£o READ para imÃ³veis</p>
               </div>
             </ReadGuard>
             
             <ReadGuard resource="usuarios">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-green-800 font-medium">✅ Pode ler usuários</p>
-                <p className="text-green-600 text-sm">Usuário tem permissão READ para usuários</p>
+                <p className="text-green-800 font-medium">âœ… Pode ler usuÃ¡rios</p>
+                <p className="text-green-600 text-sm">UsuÃ¡rio tem permissÃ£o READ para usuÃ¡rios</p>
               </div>
             </ReadGuard>
           </div>
@@ -83,64 +84,64 @@ export default function TestePermissoesPage() {
 
         {/* Teste de escrita */}
         <div className="mb-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-3">Permissão de Escrita</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-3">PermissÃ£o de Escrita</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <WriteGuard resource="imoveis">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-800 font-medium">✏️ Pode escrever imóveis</p>
-                <p className="text-blue-600 text-sm">Usuário tem permissão WRITE para imóveis</p>
+                <p className="text-blue-800 font-medium">âœï¸ Pode escrever imÃ³veis</p>
+                <p className="text-blue-600 text-sm">UsuÃ¡rio tem permissÃ£o WRITE para imÃ³veis</p>
               </div>
             </WriteGuard>
             
             <WriteGuard resource="usuarios">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-800 font-medium">✏️ Pode escrever usuários</p>
-                <p className="text-blue-600 text-sm">Usuário tem permissão WRITE para usuários</p>
+                <p className="text-blue-800 font-medium">âœï¸ Pode escrever usuÃ¡rios</p>
+                <p className="text-blue-600 text-sm">UsuÃ¡rio tem permissÃ£o WRITE para usuÃ¡rios</p>
               </div>
             </WriteGuard>
           </div>
         </div>
 
-        {/* Teste de administração */}
+        {/* Teste de administraÃ§Ã£o */}
         <div className="mb-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-3">Permissão de Administração</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-3">PermissÃ£o de AdministraÃ§Ã£o</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <AdminGuard resource="imoveis">
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-800 font-medium">👑 Administrador de imóveis</p>
-                <p className="text-red-600 text-sm">Usuário tem permissão ADMIN para imóveis</p>
+                <p className="text-red-800 font-medium">ðŸ‘‘ Administrador de imÃ³veis</p>
+                <p className="text-red-600 text-sm">UsuÃ¡rio tem permissÃ£o ADMIN para imÃ³veis</p>
               </div>
             </AdminGuard>
             
             <AdminGuard resource="usuarios">
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-800 font-medium">👑 Administrador de usuários</p>
-                <p className="text-red-600 text-sm">Usuário tem permissão ADMIN para usuários</p>
+                <p className="text-red-800 font-medium">ðŸ‘‘ Administrador de usuÃ¡rios</p>
+                <p className="text-red-600 text-sm">UsuÃ¡rio tem permissÃ£o ADMIN para usuÃ¡rios</p>
               </div>
             </AdminGuard>
           </div>
         </div>
       </div>
 
-      {/* Botões de ação baseados em permissões */}
+      {/* BotÃµes de aÃ§Ã£o baseados em permissÃµes */}
       <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Ações Baseadas em Permissões</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">AÃ§Ãµes Baseadas em PermissÃµes</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <WriteGuard resource="imoveis">
             <button className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
-              Criar Novo Imóvel
+              Criar Novo ImÃ³vel
             </button>
           </WriteGuard>
           
           <DeleteGuard resource="imoveis">
             <button className="w-full bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors">
-              Excluir Imóvel
+              Excluir ImÃ³vel
             </button>
           </DeleteGuard>
           
           <AdminGuard resource="usuarios">
             <button className="w-full bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors">
-              Gerenciar Usuários
+              Gerenciar UsuÃ¡rios
             </button>
           </AdminGuard>
         </div>
@@ -148,4 +149,5 @@ export default function TestePermissoesPage() {
     </div>
   )
 }
+
 

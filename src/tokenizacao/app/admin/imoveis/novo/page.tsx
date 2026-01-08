@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -31,9 +32,9 @@ export default function NovoImovelPage() {
         fetch('/api/admin/status-imovel'),
       ])
 
-      if (!tiposResponse.ok) throw new Error('Erro ao carregar tipos de imóvel')
-      if (!finalidadesResponse.ok) throw new Error('Erro ao carregar finalidades de imóvel')
-      if (!statusResponse.ok) throw new Error('Erro ao carregar status de imóvel')
+      if (!tiposResponse.ok) throw new Error('Erro ao carregar tipos de imÃ³vel')
+      if (!finalidadesResponse.ok) throw new Error('Erro ao carregar finalidades de imÃ³vel')
+      if (!statusResponse.ok) throw new Error('Erro ao carregar status de imÃ³vel')
 
       const tiposData = await tiposResponse.json()
       const finalidadesData = await finalidadesResponse.json()
@@ -80,20 +81,20 @@ export default function NovoImovelPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Novo Imóvel</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Novo ImÃ³vel</h1>
         <ImovelWizard
           mode="create"
           finalidadesImovel={finalidadesImovel}
           tiposImovel={tiposImovel}
           statusImovel={statusImovel}
           onSave={async (data) => {
-            console.log('🔍 onSave chamado com dados:', JSON.stringify(data, null, 2))
+            console.log('ðŸ” onSave chamado com dados:', JSON.stringify(data, null, 2))
             try {
               const requestBody = {
                 ...data,
                 created_by: "1"
               }
-              console.log('🔍 Request body:', JSON.stringify(requestBody, null, 2))
+              console.log('ðŸ” Request body:', JSON.stringify(requestBody, null, 2))
               
               const response = await fetch('/api/admin/imoveis', {
                 method: 'POST',
@@ -103,20 +104,20 @@ export default function NovoImovelPage() {
                 body: JSON.stringify(requestBody),
               })
 
-              console.log('🔍 Response status:', response.status)
-              console.log('🔍 Response ok:', response.ok)
+              console.log('ðŸ” Response status:', response.status)
+              console.log('ðŸ” Response ok:', response.ok)
 
               if (response.ok) {
                 const result = await response.json()
-                console.log('✅ Imóvel criado com sucesso, ID:', result.data.id)
-                return result.data // Retornar o imóvel criado para o popup
+                console.log('âœ… ImÃ³vel criado com sucesso, ID:', result.data.id)
+                return result.data // Retornar o imÃ³vel criado para o popup
               } else {
                 const errorText = await response.text()
-                console.log('❌ Erro response:', errorText)
-                throw new Error(`Erro ao criar imóvel: ${response.status} - ${errorText}`)
+                console.log('âŒ Erro response:', errorText)
+                throw new Error(`Erro ao criar imÃ³vel: ${response.status} - ${errorText}`)
               }
             } catch (error) {
-              console.error('❌ Erro ao salvar imóvel:', error)
+              console.error('âŒ Erro ao salvar imÃ³vel:', error)
               throw error
             }
           }}

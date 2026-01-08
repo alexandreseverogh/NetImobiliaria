@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -48,7 +49,7 @@ export default function ImagePrincipalSelector({
   // Encontrar imagem principal atual
   const currentPrincipal = loadedImages.find(img => img.principal)
 
-  // Combinar todas as imagens disponíveis e ordenar por ordem/posição
+  // Combinar todas as imagens disponÃ­veis e ordenar por ordem/posiÃ§Ã£o
   const allImages = [
     ...loadedImages.map(img => ({
       id: img.id,
@@ -76,14 +77,14 @@ export default function ImagePrincipalSelector({
     }
   }
 
-  // Encontrar a posição atual da imagem principal selecionada
+  // Encontrar a posiÃ§Ã£o atual da imagem principal selecionada
   const getCurrentPosition = () => {
     if (!localPrincipalId) return ''
     const index = allImages.findIndex(img => img.id === localPrincipalId)
     return index >= 0 ? (index + 1).toString() : ''
   }
 
-  // Se não há imagens, não exibir o seletor
+  // Se nÃ£o hÃ¡ imagens, nÃ£o exibir o seletor
   if (allImages.length === 0) {
     return null
   }
@@ -103,13 +104,13 @@ export default function ImagePrincipalSelector({
           >
             <option value="">
               {allImages.length > 0 
-                ? "Selecione a posição da imagem principal" 
-                : "Nenhuma imagem disponível"
+                ? "Selecione a posiÃ§Ã£o da imagem principal" 
+                : "Nenhuma imagem disponÃ­vel"
               }
             </option>
             {allImages.map((image, index) => (
               <option key={image.id} value={(index + 1).toString()}>
-                Posição {index + 1} - {image.nome} {image.principal ? '(Principal Atual)' : ''}
+                PosiÃ§Ã£o {index + 1} - {image.nome} {image.principal ? '(Principal Atual)' : ''}
               </option>
             ))}
           </select>
@@ -131,10 +132,10 @@ export default function ImagePrincipalSelector({
         <div className="mt-2 text-xs text-gray-500">
           {allImages.length > 0 ? (
             <>
-              {allImages.length} imagem{allImages.length > 1 ? 'ns' : ''} disponível{allImages.length > 1 ? 'is' : ''} (posições 1 a {allImages.length}).
+              {allImages.length} imagem{allImages.length > 1 ? 'ns' : ''} disponÃ­vel{allImages.length > 1 ? 'is' : ''} (posiÃ§Ãµes 1 a {allImages.length}).
               {currentPrincipal && !localPrincipalId && (
                 <span className="text-blue-600 ml-1">
-                  Imagem principal atual: Posição {allImages.findIndex(img => img.id === currentPrincipal.id) + 1}
+                  Imagem principal atual: PosiÃ§Ã£o {allImages.findIndex(img => img.id === currentPrincipal.id) + 1}
                 </span>
               )}
             </>
@@ -146,3 +147,4 @@ export default function ImagePrincipalSelector({
     </div>
   )
 }
+

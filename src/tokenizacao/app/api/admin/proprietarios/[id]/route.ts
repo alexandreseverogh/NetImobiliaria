@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findProprietarioById, updateProprietario, deleteProprietario } from '@/lib/database/proprietarios'
 

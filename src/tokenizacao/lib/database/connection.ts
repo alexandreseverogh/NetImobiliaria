@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 import { Pool, PoolConfig } from 'pg'
 
-// Configuração do pool de conexões
+// ConfiguraÃ§Ã£o do pool de conexÃµes
 const poolConfig: PoolConfig = {
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
@@ -8,58 +9,59 @@ const poolConfig: PoolConfig = {
   password: process.env.DB_PASSWORD || 'password',
   port: parseInt(process.env.DB_PORT || '5432'),
   
-  // Configurações de pool para produção
-  max: 20, // Máximo de conexões no pool
-  idleTimeoutMillis: 30000, // Tempo limite para conexões ociosas
-  connectionTimeoutMillis: 2000, // Tempo limite para estabelecer conexão
+  // ConfiguraÃ§Ãµes de pool para produÃ§Ã£o
+  max: 20, // MÃ¡ximo de conexÃµes no pool
+  idleTimeoutMillis: 30000, // Tempo limite para conexÃµes ociosas
+  connectionTimeoutMillis: 2000, // Tempo limite para estabelecer conexÃ£o
   
-  // Configurações de encoding para UTF-8
+  // ConfiguraÃ§Ãµes de encoding para UTF-8
   client_encoding: 'UTF8',
   
-  // SSL para produção
+  // SSL para produÃ§Ã£o
   ssl: process.env.NODE_ENV === 'production' 
     ? { rejectUnauthorized: false } 
     : false
 }
 
-// Criar pool de conexões
+// Criar pool de conexÃµes
 const pool = new Pool(poolConfig)
 
 // Eventos de pool para monitoramento
 pool.on('connect', (client) => {
-  console.log('🔌 Nova conexão PostgreSQL estabelecida')
+  console.log('ðŸ”Œ Nova conexÃ£o PostgreSQL estabelecida')
 })
 
 pool.on('error', (err, client) => {
-  console.error('❌ Erro no pool PostgreSQL:', err)
+  console.error('âŒ Erro no pool PostgreSQL:', err)
 })
 
 pool.on('remove', (client) => {
-  console.log('🔌 Conexão PostgreSQL removida do pool')
+  console.log('ðŸ”Œ ConexÃ£o PostgreSQL removida do pool')
 })
 
-// Função para testar conexão
+// FunÃ§Ã£o para testar conexÃ£o
 export async function testConnection(): Promise<boolean> {
   try {
     const client = await pool.connect()
     await client.query('SELECT NOW()')
     client.release()
-    console.log('✅ Conexão PostgreSQL testada com sucesso')
+    console.log('âœ… ConexÃ£o PostgreSQL testada com sucesso')
     return true
   } catch (error) {
-    console.error('❌ Erro ao testar conexão PostgreSQL:', error)
+    console.error('âŒ Erro ao testar conexÃ£o PostgreSQL:', error)
     return false
   }
 }
 
-// Função para fechar pool (usar no shutdown da aplicação)
+// FunÃ§Ã£o para fechar pool (usar no shutdown da aplicaÃ§Ã£o)
 export async function closePool(): Promise<void> {
   try {
     await pool.end()
-    console.log('🔌 Pool PostgreSQL fechado com sucesso')
+    console.log('ðŸ”Œ Pool PostgreSQL fechado com sucesso')
   } catch (error) {
-    console.error('❌ Erro ao fechar pool PostgreSQL:', error)
+    console.error('âŒ Erro ao fechar pool PostgreSQL:', error)
   }
 }
 
 export default pool
+

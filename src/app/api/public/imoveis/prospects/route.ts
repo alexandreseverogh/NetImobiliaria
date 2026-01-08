@@ -12,41 +12,122 @@ import jwt from 'jsonwebtoken'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const imovelId = Number(searchParams.get('imovelId') || '')
-    if (!Number.isFinite(imovelId) || imovelId <= 0) {
-      return NextResponse.json({ success: false, message: 'ID do imóvel inválido' }, { status: 400 })
+    const imovelIdParam = searchParams.get('imovelId')
+    const clienteUuidParam = searchParams.get('cliente_uuid')
+
+    // CENÁRIO 1: Buscar prospect específico (imovelId)
+    // Usado para pré-preencher o modal "Tenho Interesse" e evitar duplicidade.
+    if (imovelIdParam) {
+      const imovelId = Number(imovelIdParam)
+      if (!Number.isFinite(imovelId) || imovelId <= 0) {
+        return NextResponse.json({ success: false, message: 'ID do imóvel inválido' }, { status: 400 })
+      }
+
+      const authHeader = request.headers.get('authorization') || ''
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+      if (!token) {
+        return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
+      }
+
+      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret'
+      const decoded: any = jwt.verify(token, jwtSecret)
+      const clienteUuid = String(decoded?.userUuid || '')
+      const userType = String(decoded?.userType || '')
+      
+      if (!clienteUuid || userType !== 'cliente') {
+        return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
+      }
+
+      const q = `
+        SELECT id, id_cliente, id_imovel, preferencia_contato, mensagem, created_at
+        FROM imovel_prospects
+        WHERE id_cliente = $1 AND id_imovel = $2
+        LIMIT 1
+      `
+      const res = await pool.query(q, [clienteUuid, imovelId])
+      const prospect = res.rows?.[0] || null
+      return NextResponse.json({ success: true, data: { prospect } })
     }
 
-    const authHeader = request.headers.get('authorization') || ''
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-    if (!token) {
-      return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
+    // CENÁRIO 2: Listar prospects de um cliente (cliente_uuid)
+    // Lista imóveis que um cliente demonstrou interesse
+    else if (clienteUuidParam) {
+      // 🚨 GUARDIAN RULE: Security Check
+      // Validar se o token corresponde ao cliente solicitado
+      const authHeader = request.headers.get('authorization') || ''
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+      
+      if (!token) {
+        return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
+      }
+
+      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret'
+      const decoded: any = jwt.verify(token, jwtSecret)
+      const tokenClienteUuid = String(decoded?.userUuid || '')
+      const userType = String(decoded?.userType || '')
+
+      if (userType !== 'cliente' || tokenClienteUuid !== clienteUuidParam) {
+        return NextResponse.json({ success: false, message: 'Acesso negado: Você só pode ver seus próprios interesses.' }, { status: 403 })
+      }
+
+      const result = await pool.query(
+        `SELECT 
+          ip.id,
+          ip.id_cliente,
+          ip.id_imovel,
+          ip.created_at,
+          i.titulo,
+          i.codigo,
+          i.preco,
+          i.preco_condominio as condominio,
+          i.preco_iptu as iptu,
+          i.taxa_extra,
+          i.area_total,
+          i.quartos,
+          i.suites,
+          i.banheiros,
+          i.vagas_garagem,
+          i.varanda,
+          i.andar,
+          i.total_andares,
+          i.endereco,
+          i.numero,
+          i.complemento,
+          i.bairro,
+          i.cidade_fk,
+          i.estado_fk,
+          i.cep,
+          fi.nome as finalidade
+        FROM imovel_prospects ip
+        INNER JOIN imoveis i ON ip.id_imovel = i.id
+        LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
+        WHERE ip.id_cliente = $1 AND i.ativo = true
+        ORDER BY ip.created_at DESC`,
+        [clienteUuidParam]
+      )
+
+      return NextResponse.json({
+        success: true,
+        data: result.rows,
+        total: result.rows.length
+      })
     }
 
-    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret'
-    const decoded: any = jwt.verify(token, jwtSecret)
-    const clienteUuid = String(decoded?.userUuid || '')
-    const userType = String(decoded?.userType || '')
-    if (!clienteUuid || userType !== 'cliente') {
-      return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
+    // CENÁRIO 3: Parâmetros inválidos
+    else {
+      return NextResponse.json(
+        { success: false, message: 'Parâmetros inválidos. Informe imovelId (busca única) ou cliente_uuid (listagem).' }, 
+        { status: 400 }
+      )
     }
 
-    const q = `
-      SELECT id, id_cliente, id_imovel, preferencia_contato, mensagem, created_at
-      FROM imovel_prospects
-      WHERE id_cliente = $1 AND id_imovel = $2
-      LIMIT 1
-    `
-    const res = await pool.query(q, [clienteUuid, imovelId])
-    const prospect = res.rows?.[0] || null
-    return NextResponse.json({ success: true, data: { prospect } })
   } catch (error: any) {
     const msg = String(error?.message || '')
     if (msg.toLowerCase().includes('jwt') || msg.toLowerCase().includes('token')) {
       return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
     }
-    console.error('❌ Erro ao buscar prospect existente:', error)
-    return NextResponse.json({ success: false, message: 'Erro interno' }, { status: 500 })
+    console.error('❌ Erro na rota prospects:', error)
+    return NextResponse.json({ success: false, message: 'Erro interno', error: error.message }, { status: 500 })
   }
 }
 
@@ -324,70 +405,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * GET /api/public/imoveis/prospects
- * Lista imóveis que um cliente demonstrou interesse
- */
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const clienteUuid = searchParams.get('cliente_uuid')
 
-    if (!clienteUuid) {
-      return NextResponse.json(
-        { success: false, message: 'UUID do cliente é obrigatório' },
-        { status: 400 }
-      )
-    }
-
-    const result = await pool.query(
-      `SELECT 
-        ip.id,
-        ip.id_cliente,
-        ip.id_imovel,
-        ip.created_at,
-        i.titulo,
-        i.codigo,
-        i.preco,
-        i.preco_condominio as condominio,
-        i.preco_iptu as iptu,
-        i.taxa_extra,
-        i.area_total,
-        i.quartos,
-        i.suites,
-        i.banheiros,
-        i.vagas_garagem,
-        i.varanda,
-        i.andar,
-        i.total_andares,
-        i.endereco,
-        i.numero,
-        i.complemento,
-        i.bairro,
-        i.cidade_fk,
-        i.estado_fk,
-        i.cep,
-        fi.nome as finalidade
-       FROM imovel_prospects ip
-       INNER JOIN imoveis i ON ip.id_imovel = i.id
-       LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
-       WHERE ip.id_cliente = $1 AND i.ativo = true
-       ORDER BY ip.created_at DESC`,
-      [clienteUuid]
-    )
-
-    return NextResponse.json({
-      success: true,
-      data: result.rows,
-      total: result.rows.length
-    })
-
-  } catch (error: any) {
-    console.error('❌ Erro ao listar interesses:', error)
-    return NextResponse.json(
-      { success: false, message: 'Erro ao listar interesses', error: error.message },
-      { status: 500 }
-    )
-  }
-}
 

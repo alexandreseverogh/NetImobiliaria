@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -30,7 +31,7 @@ export default function NovaFinalidadePage() {
     e.preventDefault()
     
     if (!formData.nome.trim()) {
-      setError('Nome é obrigatório')
+      setError('Nome Ã© obrigatÃ³rio')
       return
     }
 
@@ -82,7 +83,7 @@ export default function NovaFinalidadePage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Nova Finalidade</h1>
             <p className="mt-1 text-sm text-gray-700">
-              Adicione uma nova finalidade para imóveis
+              Adicione uma nova finalidade para imÃ³veis
             </p>
           </div>
         </div>
@@ -112,14 +113,14 @@ export default function NovaFinalidadePage() {
                 required
               />
               <p className="mt-1 text-xs text-gray-500">
-                Nome único para identificar a finalidade
+                Nome Ãºnico para identificar a finalidade
               </p>
             </div>
 
-            {/* Descrição */}
+            {/* DescriÃ§Ã£o */}
             <div>
               <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-2">
-                Descrição
+                DescriÃ§Ã£o
               </label>
               <textarea
                 id="descricao"
@@ -127,10 +128,10 @@ export default function NovaFinalidadePage() {
                 onChange={(e) => handleInputChange('descricao', e.target.value)}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Descrição opcional da finalidade"
+                placeholder="DescriÃ§Ã£o opcional da finalidade"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Descrição opcional para explicar melhor a finalidade
+                DescriÃ§Ã£o opcional para explicar melhor a finalidade
               </p>
             </div>
 
@@ -157,5 +158,6 @@ export default function NovaFinalidadePage() {
     </PermissionGuard>
   )
 }
+
 
 

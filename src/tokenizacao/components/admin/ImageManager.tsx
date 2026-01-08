@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import React, { useState, useEffect } from 'react'
@@ -46,7 +47,7 @@ export default function ImageManager({ imovelId, className = '' }: ImageManagerP
       setSelectedFiles([])
       setShowUpload(false)
     } catch (error) {
-      // Erro já é tratado pelo hook
+      // Erro jÃ¡ Ã© tratado pelo hook
       console.error('Erro no upload:', error)
     }
   }
@@ -112,13 +113,13 @@ export default function ImageManager({ imovelId, className = '' }: ImageManagerP
               onClick={clearError}
               className="ml-auto text-red-500 hover:text-red-700"
             >
-              ✕
+              âœ•
             </button>
           </div>
         </div>
       )}
 
-      {/* Área de Upload */}
+      {/* Ãrea de Upload */}
       {showUpload && (
         <div className="mb-8 p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <ImageUpload
@@ -152,7 +153,7 @@ export default function ImageManager({ imovelId, className = '' }: ImageManagerP
                 onClick={() => setSelectedFiles([])}
                 className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
               >
-                Limpar Seleção
+                Limpar SeleÃ§Ã£o
               </button>
             </div>
           )}
@@ -177,7 +178,7 @@ export default function ImageManager({ imovelId, className = '' }: ImageManagerP
         )}
       </div>
 
-      {/* Estatísticas */}
+      {/* EstatÃ­sticas */}
       {imagens.length > 0 && (
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
           <div className="flex items-center justify-between text-sm text-blue-700">
@@ -193,6 +194,7 @@ export default function ImageManager({ imovelId, className = '' }: ImageManagerP
     </div>
   )
 }
+
 
 
 

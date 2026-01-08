@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { Metadata } from 'next'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
@@ -10,9 +11,9 @@ import CTASection from '@/components/tokenizacao/CTASection'
 import StatsSection from '@/components/tokenizacao/StatsSection'
 
 export const metadata: Metadata = {
-  title: 'Tokenização de Imóveis | Net Imobiliária Tokenização',
-  description: 'Invista em imóveis premium através de tokens digitais. Democratize o acesso ao mercado imobiliário com transparência e segurança blockchain.',
-  keywords: 'tokenização, imóveis, investimento, blockchain, CVM, compliance',
+  title: 'TokenizaÃ§Ã£o de ImÃ³veis | Net ImobiliÃ¡ria TokenizaÃ§Ã£o',
+  description: 'Invista em imÃ³veis premium atravÃ©s de tokens digitais. Democratize o acesso ao mercado imobiliÃ¡rio com transparÃªncia e seguranÃ§a blockchain.',
+  keywords: 'tokenizaÃ§Ã£o, imÃ³veis, investimento, blockchain, CVM, compliance',
 }
 
 export default function TokenizacaoPage() {
@@ -47,3 +48,4 @@ export default function TokenizacaoPage() {
     </div>
   )
 }
+

@@ -9,11 +9,13 @@ import { verifyTokenNode } from '@/lib/auth/jwt-node';
 // Usa função do banco: get_sidebar_menu_for_user(UUID)
 // ============================================================
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // 1. Buscar userId do token
     const userId = getUserIdFromRequest(request);
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, message: 'Usuário não autenticado' },

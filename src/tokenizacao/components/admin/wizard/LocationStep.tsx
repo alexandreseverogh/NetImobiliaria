@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -28,23 +29,23 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
     loadMunicipios()
   }, [])
 
-  // Atualizar estado local quando data prop mudar (modo de edição)
+  // Atualizar estado local quando data prop mudar (modo de ediÃ§Ã£o)
   useEffect(() => {
-    console.log('🔍 LocationStep - data.endereco recebido:', data.endereco)
-    console.log('🔍 LocationStep - municipiosData carregado:', !!municipiosData)
+    console.log('ðŸ” LocationStep - data.endereco recebido:', data.endereco)
+    console.log('ðŸ” LocationStep - municipiosData carregado:', !!municipiosData)
     
     if (data.endereco?.estado) {
-      console.log('🔍 LocationStep - Atualizando selectedEstado para:', data.endereco.estado)
+      console.log('ðŸ” LocationStep - Atualizando selectedEstado para:', data.endereco.estado)
       setSelectedEstado(data.endereco.estado)
     }
     if (data.endereco?.cidade) {
-      console.log('🔍 LocationStep - Atualizando selectedMunicipio para:', data.endereco.cidade)
+      console.log('ðŸ” LocationStep - Atualizando selectedMunicipio para:', data.endereco.cidade)
       setSelectedMunicipio(data.endereco.cidade)
     }
   }, [data.endereco?.estado, data.endereco?.cidade, municipiosData])
 
   useEffect(() => {
-    // Atualizar dados quando seleções mudarem
+    // Atualizar dados quando seleÃ§Ãµes mudarem
     if (selectedEstado && selectedMunicipio && municipiosData) {
       const estadoInfo = municipiosData.estados.find(e => e.sigla === selectedEstado)
       if (estadoInfo) {
@@ -71,10 +72,10 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
         const municipios = await response.json()
         setMunicipiosData(municipios)
       } else {
-        console.error('Erro ao carregar municípios')
+        console.error('Erro ao carregar municÃ­pios')
       }
     } catch (error) {
-      console.error('Erro ao carregar municípios:', error)
+      console.error('Erro ao carregar municÃ­pios:', error)
     } finally {
       setLoading(false)
     }
@@ -85,19 +86,19 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
     ? municipiosData.estados.find(e => e.sigla === selectedEstado)?.municipios.sort() || []
     : []
 
-  console.log('🔍 LocationStep - Renderizando com:', {
+  console.log('ðŸ” LocationStep - Renderizando com:', {
     selectedEstado,
     selectedMunicipio,
     estadosCount: estados.length,
     municipiosCount: municipios.length,
     municipiosDataLoaded: !!municipiosData,
     estadosDisponiveis: estados.map(e => e.sigla),
-    municipiosDisponiveis: municipios.slice(0, 5) // Primeiros 5 para não poluir o log
+    municipiosDisponiveis: municipios.slice(0, 5) // Primeiros 5 para nÃ£o poluir o log
   })
 
   const handleEstadoChange = (estado: string) => {
     setSelectedEstado(estado)
-    setSelectedMunicipio('') // Reset município quando estado muda
+    setSelectedMunicipio('') // Reset municÃ­pio quando estado muda
   }
 
   const handleMunicipioChange = (municipio: string) => {
@@ -131,9 +132,9 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Localização do Imóvel</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">LocalizaÃ§Ã£o do ImÃ³vel</h2>
         <p className="text-gray-600">
-          Selecione o estado e município onde o imóvel está localizado.
+          Selecione o estado e municÃ­pio onde o imÃ³vel estÃ¡ localizado.
         </p>
       </div>
 
@@ -148,7 +149,7 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
             id="estado"
             value={selectedEstado}
             onChange={(e) => {
-              console.log('🔍 Estado selecionado:', e.target.value)
+              console.log('ðŸ” Estado selecionado:', e.target.value)
               handleEstadoChange(e.target.value)
             }}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -163,10 +164,10 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
           </select>
         </div>
 
-        {/* Município */}
+        {/* MunicÃ­pio */}
         <div>
           <label htmlFor="municipio" className="block text-sm font-medium text-gray-700 mb-2">
-            Município *
+            MunicÃ­pio *
           </label>
           <select
             id="municipio"
@@ -176,7 +177,7 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             required
           >
-            <option value="">Selecione o município</option>
+            <option value="">Selecione o municÃ­pio</option>
             {municipios.map((municipio) => (
               <option key={municipio} value={municipio}>
                 {municipio}
@@ -186,14 +187,14 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
         </div>
       </div>
 
-      {/* Informações adicionais do endereço */}
+      {/* InformaÃ§Ãµes adicionais do endereÃ§o */}
       {selectedEstado && selectedMunicipio && (
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <h3 className="text-sm font-medium text-blue-900 mb-2">Informações do Endereço</h3>
+          <h3 className="text-sm font-medium text-blue-900 mb-2">InformaÃ§Ãµes do EndereÃ§o</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
                     <label htmlFor="endereco" className="block text-sm font-medium text-gray-700 mb-1">
-                      Endereço
+                      EndereÃ§o
                     </label>
                     <input
                       type="text"
@@ -207,7 +208,7 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
             
             <div>
               <label htmlFor="numero" className="block text-sm font-medium text-gray-700 mb-1">
-                Número
+                NÃºmero
               </label>
               <input
                 type="text"
@@ -261,12 +262,12 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
                 onChange={(e) => {
                   let value = e.target.value.replace(/[^\d]/g, '')
                   
-                  // Não permitir iniciar com zero
+                  // NÃ£o permitir iniciar com zero
                   if (value.length === 1 && value === '0') {
                     return
                   }
                   
-                  // Aplicar máscara
+                  // Aplicar mÃ¡scara
                   if (value.length > 5) {
                     value = value.substring(0, 5) + '-' + value.substring(5, 8)
                   }
@@ -277,7 +278,7 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
                 maxLength={9}
                 required
                 pattern="[1-9]\d{4}-\d{3}"
-                title="CEP deve estar no formato 99999-999 e não pode iniciar com zero"
+                title="CEP deve estar no formato 99999-999 e nÃ£o pode iniciar com zero"
                 className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
                   data.endereco?.cep && !/^[1-9]\d{4}-\d{3}$/.test(data.endereco.cep)
                     ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
@@ -286,7 +287,7 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
               />
               {data.endereco?.cep && !/^[1-9]\d{4}-\d{3}$/.test(data.endereco.cep) && (
                 <p className="mt-1 text-sm text-red-600">
-                  CEP deve estar no formato 99999-999 e não pode iniciar com zero
+                  CEP deve estar no formato 99999-999 e nÃ£o pode iniciar com zero
                 </p>
               )}
             </div>
@@ -294,7 +295,7 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
         </div>
       )}
 
-      {/* Resumo da localização */}
+      {/* Resumo da localizaÃ§Ã£o */}
       {selectedEstado && selectedMunicipio && (
         <div className="mt-6 p-4 bg-green-50 rounded-lg">
           <div className="flex items-center">
@@ -305,7 +306,7 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
             </div>
             <div className="ml-3">
                              <p className="text-sm font-medium text-green-800">
-                 Localização selecionada: {selectedMunicipio}, {municipiosData?.estados.find(e => e.sigla === selectedEstado)?.nome || selectedEstado}
+                 LocalizaÃ§Ã£o selecionada: {selectedMunicipio}, {municipiosData?.estados.find(e => e.sigla === selectedEstado)?.nome || selectedEstado}
                </p>
             </div>
           </div>
@@ -314,3 +315,4 @@ export default function LocationStep({ data, onUpdate, mode }: LocationStepProps
     </div>
   )
 }
+

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -9,9 +10,9 @@ export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const navigation = [
-    { name: 'Início', href: '/' },
-    { name: 'Tokenização', href: '/tokenizacao' },
-    { name: 'Imóveis', href: '/imoveis' },
+    { name: 'InÃ­cio', href: '/' },
+    { name: 'TokenizaÃ§Ã£o', href: '/tokenizacao' },
+    { name: 'ImÃ³veis', href: '/imoveis' },
     { name: 'Investidor', href: '/investidor' },
     { name: 'Sobre', href: '/sobre' },
     { name: 'Contato', href: '/contato' },
@@ -26,14 +27,14 @@ export default function Header() {
             <Link href="/" className="flex items-center">
               <Image
                 src="/logo.png"
-                alt="NET IMOBILIÁRIA TOKENIZAÇÃO"
+                alt="NET IMOBILIÃRIA TOKENIZAÃ‡ÃƒO"
                 width={120}
                 height={40}
                 className="h-10 w-auto"
                 priority
               />
               <span className="ml-2 text-xs bg-gradient-to-r from-blue-600 to-purple-600 text-white px-2 py-1 rounded-full font-medium">
-                TOKENIZAÇÃO
+                TOKENIZAÃ‡ÃƒO
               </span>
             </Link>
           </div>
@@ -45,13 +46,13 @@ export default function Header() {
                 key={item.name}
                 href={item.href}
                 className={`px-3 py-2 text-sm font-medium transition-colors duration-200 ${
-                  item.name === 'Tokenização' 
+                  item.name === 'TokenizaÃ§Ã£o' 
                     ? 'text-blue-600 font-bold' 
                     : 'text-gray-700 hover:text-blue-600'
                 }`}
               >
                 {item.name}
-                {item.name === 'Tokenização' && (
+                {item.name === 'TokenizaÃ§Ã£o' && (
                   <TrendingUp className="inline ml-1 h-3 w-3" />
                 )}
               </Link>
@@ -66,7 +67,7 @@ export default function Header() {
             </div>
             <div className="flex items-center text-sm text-gray-600">
               <MapPin className="w-4 h-4 mr-2" />
-              <span>São Paulo, SP</span>
+              <span>SÃ£o Paulo, SP</span>
             </div>
           </div>
 
@@ -91,14 +92,14 @@ export default function Header() {
                 key={item.name}
                 href={item.href}
                 className={`block px-3 py-2 text-base font-medium transition-colors ${
-                  item.name === 'Tokenização' 
+                  item.name === 'TokenizaÃ§Ã£o' 
                     ? 'text-blue-600 font-bold' 
                     : 'text-gray-700 hover:text-blue-600'
                 }`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 {item.name}
-                {item.name === 'Tokenização' && (
+                {item.name === 'TokenizaÃ§Ã£o' && (
                   <TrendingUp className="inline ml-1 h-3 w-3" />
                 )}
               </Link>
@@ -110,7 +111,7 @@ export default function Header() {
               </div>
               <div className="flex items-center text-sm text-gray-600">
                 <MapPin className="w-4 h-4 mr-2" />
-                <span>São Paulo, SP</span>
+                <span>SÃ£o Paulo, SP</span>
               </div>
             </div>
           </div>

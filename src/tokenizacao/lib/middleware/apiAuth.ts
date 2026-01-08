@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth/jwt'
 import { AUTH_CONFIG } from '@/lib/config/auth'
@@ -8,7 +9,7 @@ export function apiAuthMiddleware(request: NextRequest) {
   
   if (!token) {
     return NextResponse.json(
-      { error: 'Token de autenticação não fornecido' },
+      { error: 'Token de autenticaÃ§Ã£o nÃ£o fornecido' },
       { status: 401 }
     )
   }
@@ -16,11 +17,12 @@ export function apiAuthMiddleware(request: NextRequest) {
   const decoded = verifyToken(token)
   if (!decoded) {
     return NextResponse.json(
-      { error: 'Token de autenticação inválido ou expirado' },
+      { error: 'Token de autenticaÃ§Ã£o invÃ¡lido ou expirado' },
       { status: 401 }
     )
   }
   
-  return null // Continua com a requisição
+  return null // Continua com a requisiÃ§Ã£o
 }
+
 

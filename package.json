@@ -13,6 +13,7 @@
     "clean": "rm -rf .next node_modules package-lock.json && npm install",
     "feed:create-jobs": "node scripts/create-feed-jobs.js",
     "feed:cron": "node scripts/feed-cron-scheduler.js",
+    "transbordo:cron": "node scripts/transbordo-scheduler.js",
     "feed:process": "node scripts/feed-cron-processor.js",
     "feed:check": "powershell -ExecutionPolicy Bypass -File ./scripts/verificar-servico-feed.ps1",
     "feed:status": "powershell -ExecutionPolicy Bypass -File ./scripts/verificar-status-feed.ps1",

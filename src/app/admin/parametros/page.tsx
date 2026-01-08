@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react'
 import PermissionGuard from '@/components/admin/PermissionGuard'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
-import { 
-  CheckCircleIcon, 
-  XCircleIcon, 
-  BanknotesIcon, 
-  QrCodeIcon, 
+import {
+  CheckCircleIcon,
+  XCircleIcon,
+  BanknotesIcon,
+  QrCodeIcon,
   GlobeAltIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline'
@@ -22,6 +22,7 @@ interface Parametros {
   periodo_anuncio_corretor: number
   proximos_corretores_recebem_leads: number
   sla_minutos_aceite_lead: number
+  valor_ticket_alto: number
 }
 
 export default function ParametrosPage() {
@@ -35,9 +36,10 @@ export default function ParametrosPage() {
     qtde_anuncios_imoveis_corretor: 5,
     periodo_anuncio_corretor: 30,
     proximos_corretores_recebem_leads: 3,
-    sla_minutos_aceite_lead: 5
+    sla_minutos_aceite_lead: 5,
+    valor_ticket_alto: 2000000
   })
-  
+
   // Estados locais para os inputs de número para evitar o problema do "zero à esquerda"
   const [inputDestaque, setInputDestaque] = useState<string>('0')
   const [inputValorCorretor, setInputValorCorretor] = useState<string>('0')
@@ -46,7 +48,8 @@ export default function ParametrosPage() {
   const [inputPeriodoAnuncio, setInputPeriodoAnuncio] = useState<string>('30')
   const [inputProximosCorretores, setInputProximosCorretores] = useState<string>('3')
   const [inputSlaMinutosAceiteLead, setInputSlaMinutosAceiteLead] = useState<string>('5')
-  
+  const [inputValorTicketAlto, setInputValorTicketAlto] = useState<string>('2000000')
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -60,7 +63,7 @@ export default function ParametrosPage() {
     try {
       setLoading(true)
       const response = await get('/api/admin/parametros')
-      
+
       if (response.ok) {
         const data = await response.json()
         const vlDestaque = data.data.vl_destaque_nacional || 0
@@ -70,7 +73,8 @@ export default function ParametrosPage() {
         const periodoAnuncio = data.data.periodo_anuncio_corretor || 30
         const proximosCorretores = data.data.proximos_corretores_recebem_leads ?? 3
         const slaMinutos = data.data.sla_minutos_aceite_lead ?? 5
-        
+        const vlTicketAlto = data.data.valor_ticket_alto || 2000000
+
         setFormData({
           vl_destaque_nacional: vlDestaque,
           valor_corretor: vlCorretor,
@@ -80,9 +84,10 @@ export default function ParametrosPage() {
           qtde_anuncios_imoveis_corretor: qtdeAnuncios,
           periodo_anuncio_corretor: periodoAnuncio,
           proximos_corretores_recebem_leads: Number(proximosCorretores) || 3,
-          sla_minutos_aceite_lead: Number(slaMinutos) || 5
+          sla_minutos_aceite_lead: Number(slaMinutos) || 5,
+          valor_ticket_alto: vlTicketAlto
         })
-        
+
         setInputDestaque(vlDestaque.toString())
         setInputValorCorretor(vlCorretor.toString())
         setInputValorMensalImovel(vlMensalImovel.toString())
@@ -90,12 +95,13 @@ export default function ParametrosPage() {
         setInputPeriodoAnuncio(periodoAnuncio.toString())
         setInputProximosCorretores(String(proximosCorretores))
         setInputSlaMinutosAceiteLead(String(slaMinutos))
+        setInputValorTicketAlto(vlTicketAlto.toString())
       } else {
-        setMessage({ type: 'error', text: 'Erro ao carregar par+�metros' })
+        setMessage({ type: 'error', text: 'Erro ao carregar parâmetros' })
       }
     } catch (error) {
-      console.error('Erro ao carregar par+�metros:', error)
-      setMessage({ type: 'error', text: 'Erro ao carregar par+�metros' })
+      console.error('Erro ao carregar parâmetros:', error)
+      setMessage({ type: 'error', text: 'Erro ao carregar parâmetros' })
     } finally {
       setLoading(false)
     }
@@ -103,7 +109,7 @@ export default function ParametrosPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     try {
       setSaving(true)
       setMessage(null)
@@ -117,19 +123,20 @@ export default function ParametrosPage() {
         qtde_anuncios_imoveis_corretor: parseInt(inputQtdeAnuncios) || 5,
         periodo_anuncio_corretor: parseInt(inputPeriodoAnuncio) || 30,
         proximos_corretores_recebem_leads: parseInt(inputProximosCorretores) || 3,
-        sla_minutos_aceite_lead: parseInt(inputSlaMinutosAceiteLead) || 5
+        sla_minutos_aceite_lead: parseInt(inputSlaMinutosAceiteLead) || 5,
+        valor_ticket_alto: parseFloat(inputValorTicketAlto) || 0
       }
 
       const response = await put('/api/admin/parametros', finalData)
 
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Par+�metros atualizados com sucesso!' })
+        setMessage({ type: 'success', text: 'Parâmetros atualizados com sucesso!' })
         setTimeout(() => setMessage(null), 3000)
       } else {
         const errorData = await response.json()
-        setMessage({ 
-          type: 'error', 
-          text: errorData.error || 'Erro ao atualizar parâmetros' 
+        setMessage({
+          type: 'error',
+          text: errorData.error || 'Erro ao atualizar parâmetros'
         })
       }
     } catch (error) {
@@ -154,7 +161,7 @@ export default function ParametrosPage() {
       setter('0')
       return
     }
-    
+
     // Remove o zero à esquerda se o próximo caractere for um dígito (mas mantém se for ponto)
     if (value.length > 1 && value.startsWith('0') && value[1] !== '.') {
       setter(value.substring(1))
@@ -177,11 +184,10 @@ export default function ParametrosPage() {
         <form onSubmit={handleSubmit} className="max-w-4xl space-y-6">
           {/* Mensagem de sucesso/erro fixa no topo do form */}
           {message && (
-            <div className={`p-4 rounded-2xl flex items-center space-x-3 animate-in fade-in slide-in-from-top-2 ${
-              message.type === 'success' 
-                ? 'bg-green-50 text-green-800 border border-green-200' 
+            <div className={`p-4 rounded-2xl flex items-center space-x-3 animate-in fade-in slide-in-from-top-2 ${message.type === 'success'
+                ? 'bg-green-50 text-green-800 border border-green-200'
                 : 'bg-red-50 text-red-800 border border-red-200'
-            }`}>
+              }`}>
               {message.type === 'success' ? (
                 <CheckCircleIcon className="w-6 h-6" />
               ) : (
@@ -241,10 +247,29 @@ export default function ParametrosPage() {
                     />
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Valor Ticket Alto (R$)</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <span className="text-slate-400 font-bold text-sm">R$</span>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={inputValorTicketAlto}
+                      onChange={(e) => handleNumberInput(e.target.value, setInputValorTicketAlto)}
+                      disabled={loading || saving}
+                      className="block w-full pl-12 pr-4 py-4 bg-slate-50 border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-slate-700"
+                    />
+                  </div>
+                </div>
+
                 <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-start gap-2">
                   <InformationCircleIcon className="w-4 h-4 text-blue-600 mt-0.5" />
                   <p className="text-[11px] text-blue-700 font-medium leading-relaxed">
-                    Este valor será cobrado por imóvel que o usuário desejar destacar nacionalmente na plataforma.
+                    Este valor ("Ticket Alto") define o limiar para acionar regras especiais de gamificação (Shark Tank) e Destaque Nacional.
                   </p>
                 </div>
               </div>
@@ -316,7 +341,7 @@ export default function ParametrosPage() {
                       type="text"
                       placeholder="CNPJ, E-mail, Celular ou Chave Aleatória"
                       value={formData.chave_pix_corretor}
-                      onChange={(e) => setFormData({...formData, chave_pix_corretor: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, chave_pix_corretor: e.target.value })}
                       disabled={loading || saving}
                       className="block w-full pl-12 pr-4 py-4 bg-slate-50 border-slate-200 rounded-2xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all font-bold text-slate-700"
                     />
@@ -333,7 +358,7 @@ export default function ParametrosPage() {
                       type="text"
                       placeholder="Ex: BRASILIA"
                       value={formData.cidade_beneficiario_recebimento_corretor}
-                      onChange={(e) => setFormData({...formData, cidade_beneficiario_recebimento_corretor: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, cidade_beneficiario_recebimento_corretor: e.target.value })}
                       onBlur={(e) => setFormData(prev => ({ ...prev, cidade_beneficiario_recebimento_corretor: e.target.value.toUpperCase() }))}
                       disabled={loading || saving}
                       className="block w-full pl-12 pr-4 py-4 bg-slate-50 border-slate-200 rounded-2xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all font-bold text-slate-700"

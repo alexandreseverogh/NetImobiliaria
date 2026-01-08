@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import React, { useState } from 'react'
@@ -24,11 +25,11 @@ export default function VideoPreview({
 }: VideoPreviewProps) {
   const [isLoading, setIsLoading] = useState(false)
 
-  // Determinar se há vídeo para exibir
+  // Determinar se hÃ¡ vÃ­deo para exibir
   const hasVideo = video || (rascunho && rascunho.alteracoes && rascunho.alteracoes.video && rascunho.alteracoes.video.dados)
   const displayVideo = video || (rascunho && rascunho.alteracoes && rascunho.alteracoes.video && rascunho.alteracoes.video.dados)
   
-  console.log('🔍 VideoPreview - Props recebidas:', { 
+  console.log('ðŸ” VideoPreview - Props recebidas:', { 
     video, 
     rascunho, 
     hasVideo, 
@@ -37,9 +38,9 @@ export default function VideoPreview({
     rascunhoVideoDados: rascunho?.alteracoes?.video?.dados
   })
   
-  console.log('🔍 VideoPreview - Detalhes do rascunho:', JSON.stringify(rascunho, null, 2))
-  console.log('🔍 VideoPreview - hasVideo:', hasVideo)
-  console.log('🔍 VideoPreview - displayVideo:', displayVideo)
+  console.log('ðŸ” VideoPreview - Detalhes do rascunho:', JSON.stringify(rascunho, null, 2))
+  console.log('ðŸ” VideoPreview - hasVideo:', hasVideo)
+  console.log('ðŸ” VideoPreview - displayVideo:', displayVideo)
 
   // Formatar tamanho do arquivo
   const formatFileSize = (bytes: number) => {
@@ -50,14 +51,14 @@ export default function VideoPreview({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  // Formatar duração
+  // Formatar duraÃ§Ã£o
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Renderizar quando não há vídeo
+  // Renderizar quando nÃ£o hÃ¡ vÃ­deo
   if (!hasVideo) {
     return (
       <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
@@ -68,25 +69,25 @@ export default function VideoPreview({
             </svg>
           </div>
           <div>
-            <p className="text-lg font-medium text-gray-900">Nenhum vídeo adicionado</p>
-            <p className="text-sm text-gray-500">Faça upload de um vídeo para visualizar aqui</p>
+            <p className="text-lg font-medium text-gray-900">Nenhum vÃ­deo adicionado</p>
+            <p className="text-sm text-gray-500">FaÃ§a upload de um vÃ­deo para visualizar aqui</p>
           </div>
         </div>
       </div>
     )
   }
 
-  // Renderizar vídeo existente
+  // Renderizar vÃ­deo existente
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-white relative group">
-      {/* Botão X de remover no canto superior direito (igual às imagens) */}
+      {/* BotÃ£o X de remover no canto superior direito (igual Ã s imagens) */}
       <button
         onClick={onRemove}
         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
         disabled={disabled}
-        title="Remover vídeo"
+        title="Remover vÃ­deo"
       >
-        ×
+        Ã—
       </button>
 
       <div className="flex items-center justify-between mb-4">
@@ -99,7 +100,7 @@ export default function VideoPreview({
           <div>
             <p className="font-medium text-gray-900">{displayVideo?.nome_arquivo || displayVideo?.nomeArquivo}</p>
             <p className="text-sm text-gray-500">
-              {formatFileSize(displayVideo?.tamanho_bytes || displayVideo?.tamanhoBytes || 0)} • {formatDuration(displayVideo?.duracao_segundos || displayVideo?.duracaoSegundos || 0)} • {(displayVideo?.formato || 'mp4').toUpperCase()}
+              {formatFileSize(displayVideo?.tamanho_bytes || displayVideo?.tamanhoBytes || 0)} â€¢ {formatDuration(displayVideo?.duracao_segundos || displayVideo?.duracaoSegundos || 0)} â€¢ {(displayVideo?.formato || 'mp4').toUpperCase()}
             </p>
             {(displayVideo?.resolucao) && (
               <p className="text-xs text-gray-400">{displayVideo.resolucao}</p>
@@ -131,7 +132,7 @@ export default function VideoPreview({
         </div>
       </div>
 
-      {/* Thumbnail do vídeo (simulação) */}
+      {/* Thumbnail do vÃ­deo (simulaÃ§Ã£o) */}
       <div className="relative bg-gray-100 rounded-lg overflow-hidden">
         <div className="aspect-video flex items-center justify-center">
           <div className="text-center">
@@ -149,10 +150,11 @@ export default function VideoPreview({
       {rascunho && rascunho.video && (
         <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
           <p className="text-xs text-yellow-700">
-            ⚠️ Alterações em rascunho - clique em "Salvar Alterações" para confirmar
+            âš ï¸ AlteraÃ§Ãµes em rascunho - clique em "Salvar AlteraÃ§Ãµes" para confirmar
           </p>
         </div>
       )}
     </div>
   )
 }
+

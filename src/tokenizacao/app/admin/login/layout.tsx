@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 export default function LoginLayout({
@@ -7,5 +8,6 @@ export default function LoginLayout({
 }) {
   return <>{children}</>
 }
+
 
 

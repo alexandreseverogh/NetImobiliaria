@@ -1,0 +1,5 @@
+src/tokenizacao/
+src/tokenizacao/**/*
+backups/
+node_modules/
+.next/

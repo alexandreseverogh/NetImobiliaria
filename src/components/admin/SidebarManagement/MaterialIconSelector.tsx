@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 
 // ✅ IMPORTAR APENAS OS ÍCONES QUE VAMOS USAR (não todos os 2000+)
 // Isso reduz DRASTICAMENTE o tamanho do bundle
@@ -181,6 +182,4 @@ export function MaterialIconSelector({ selected, onSelect }: MaterialIconSelecto
     </div>
   )
 }
-
-
 

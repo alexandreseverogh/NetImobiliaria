@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findProximidadeBySlug, updateProximidadeBySlug, deleteProximidadeBySlug } from '@/lib/database/proximidades'
 

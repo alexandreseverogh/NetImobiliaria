@@ -58,10 +58,10 @@ async function logLoginAttempt(
     ]);
 
     // Log na tabela audit_logs
-    const auditAction = action === 'login' ? 'LOGIN_SUCCESS' : 
-                       action === 'login_failed' ? 'LOGIN_FAILED' :
-                       action === '2fa_success' ? '2FA_SUCCESS' :
-                       action === '2fa_failed' ? '2FA_FAILED' : 'LOGIN_ATTEMPT';
+    const auditAction = action === 'login' ? 'LOGIN_SUCCESS' :
+      action === 'login_failed' ? 'LOGIN_FAILED' :
+        action === '2fa_success' ? '2FA_SUCCESS' :
+          action === '2fa_failed' ? '2FA_FAILED' : 'LOGIN_ATTEMPT';
 
     await client.query(`
       INSERT INTO audit_logs (
@@ -99,7 +99,7 @@ function getPermissionLevel(permission: string): number {
     'DELETE': 5,
     'ADMIN': 6
   };
-  
+
   return levels[permission] || 0;
 }
 
@@ -121,13 +121,13 @@ export async function POST(request: NextRequest) {
 
     // Obter IP real do cliente (múltiplas tentativas)
     let ipAddress = 'unknown';
-    
+
     // Tentar diferentes headers de proxy
     const forwardedFor = request.headers.get('x-forwarded-for');
     const realIp = request.headers.get('x-real-ip');
     const cfConnectingIp = request.headers.get('cf-connecting-ip');
     const clientIp = request.headers.get('x-client-ip');
-    
+
     if (forwardedFor) {
       // x-forwarded-for pode ter múltiplos IPs, pegar o primeiro
       ipAddress = forwardedFor.split(',')[0].trim();
@@ -141,13 +141,13 @@ export async function POST(request: NextRequest) {
       // Fallback para IP de conexão direta
       ipAddress = request.ip || 'unknown';
     }
-    
+
     // Se for IP local, tentar obter IP real do ambiente
     if (ipAddress === '::1' || ipAddress === '127.0.0.1' || ipAddress === 'localhost') {
       // Em desenvolvimento, usar IP da máquina local
       ipAddress = process.env.LOCAL_IP || '192.168.1.100';
     }
-    
+
     console.log('🔍 DEBUG IP - Headers capturados:', {
       'x-forwarded-for': forwardedFor,
       'x-real-ip': realIp,
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     // 1. Buscar usuário no banco com informações do perfil
     const userQuery = `
       SELECT 
-        u.id, u.username, u.email, u.password, u.nome, u.telefone, u.cpf, u.creci, u.foto, u.foto_tipo_mime, u.ativo as is_active,
+        u.id, u.username, u.email, u.password, u.nome, u.telefone, u.creci, u.cpf, u.foto, u.foto_tipo_mime, u.ativo as is_active,
         u.two_fa_enabled, u.isencao,
         ur.name as role_name, ur.description as role_description, ur.level as role_level
       FROM users u
@@ -170,9 +170,9 @@ export async function POST(request: NextRequest) {
       LEFT JOIN user_roles ur ON ura.role_id = ur.id
       WHERE u.username = $1 OR u.email = $1
     `;
-    
+
     const userResult = await pool.query(userQuery, [username]);
-    
+
     if (userResult.rows.length === 0) {
       // Log tentativa de login com usuário inexistente
       const client = await pool.connect();
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
 
       // Log no sistema de monitoramento de segurança
       logSecurityLoginAttempt(ipAddress, userAgent, false, undefined);
-      
+
       return NextResponse.json(
         { success: false, message: 'Credenciais inválidas' },
         { status: 401 }
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
     }
 
     const user: User = userResult.rows[0];
-    
+
     // Mapear campo do banco para compatibilidade com interface
     user.two_factor_enabled = user.two_fa_enabled;
 
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
 
       // Log no sistema de monitoramento de segurança
       logSecurityLoginAttempt(ipAddress, userAgent, false, user.id);
-      
+
       return NextResponse.json(
         { success: false, message: 'Conta desativada' },
         { status: 401 }
@@ -229,7 +229,7 @@ export async function POST(request: NextRequest) {
 
     // 4. Verificar senha
     const passwordMatch = await bcrypt.compare(password, user.password);
-    
+
     if (!passwordMatch) {
       // Log tentativa de login com senha incorreta
       const client = await pool.connect();
@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
 
       // Log no sistema de monitoramento de segurança
       logSecurityLoginAttempt(ipAddress, userAgent, false, user.id);
-      
+
       return NextResponse.json(
         { success: false, message: 'Credenciais inválidas' },
         { status: 401 }
@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
     console.log('🔍 DEBUG LOGIN - Verificando 2FA para usuário:', user.username, 'ID:', user.id);
     console.log('🔍 DEBUG LOGIN - Campo two_fa_enabled do usuário:', user.two_fa_enabled);
     console.log('🔍 DEBUG LOGIN - Campo two_factor_enabled mapeado:', user.two_factor_enabled);
-    
+
     let is2FAEnabled = false;
     try {
       is2FAEnabled = await twoFactorAuthService.is2FAEnabled(user.id);
@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
       // Continuar sem 2FA em caso de erro
       is2FAEnabled = false;
     }
-    
+
     if (is2FAEnabled) {
       console.log('🔐 2FA requerido para usuário:', user.username);
       // Se 2FA está habilitado mas código não foi fornecido
@@ -272,12 +272,12 @@ export async function POST(request: NextRequest) {
         try {
           console.log('📧 Tentando enviar código 2FA para:', user.email);
           const codeSent = await twoFactorAuthService.sendCodeByEmail(
-            user.id, 
-            user.email, 
-            ipAddress, 
+            user.id,
+            user.email,
+            ipAddress,
             userAgent
           );
-          
+
           if (codeSent) {
             // Log que 2FA foi requerido
             const client = await pool.connect();
@@ -286,12 +286,12 @@ export async function POST(request: NextRequest) {
             } finally {
               client.release();
             }
-            
+
             return NextResponse.json(
-              { 
-                success: false, 
-                requires2FA: true, 
-                message: 'Código de verificação enviado por email' 
+              {
+                success: false,
+                requires2FA: true,
+                message: 'Código de verificação enviado por email'
               },
               { status: 200 }
             );
@@ -306,8 +306,8 @@ export async function POST(request: NextRequest) {
           console.error('❌ Exceção ao enviar código 2FA:', errorSendCode);
           console.error('❌ Stack trace envio código:', errorSendCode instanceof Error ? errorSendCode.stack : 'N/A');
           return NextResponse.json(
-            { 
-              success: false, 
+            {
+              success: false,
               message: 'Erro ao enviar código de verificação',
               ...(process.env.NODE_ENV === 'development' && {
                 error: errorSendCode instanceof Error ? errorSendCode.message : String(errorSendCode)
@@ -319,11 +319,11 @@ export async function POST(request: NextRequest) {
       } else {
         // Validar código 2FA
         const validationResult = await twoFactorAuthService.validateCode(
-          user.id, 
-          twoFactorCode, 
+          user.id,
+          twoFactorCode,
           'email'
         );
-        
+
         if (!validationResult.valid) {
           const client = await pool.connect();
           try {
@@ -331,14 +331,14 @@ export async function POST(request: NextRequest) {
           } finally {
             client.release();
           }
-          
+
           return NextResponse.json(
             { success: false, message: validationResult.message },
             { status: 401 }
           );
         }
       }
-      
+
       // Log 2FA success se 2FA foi usado
       if (is2FAEnabled) {
         const client = await pool.connect();
@@ -382,16 +382,16 @@ export async function POST(request: NextRequest) {
         AND sf.is_active = true
       ORDER BY sc.sort_order, p.action
     `;
-    
+
     console.log('🔍 DEBUG LOGIN - Executando query de permissões para usuário ID:', user.id);
-    
+
     let permissionsMap: { [key: string]: string } = {};
-    
+
     try {
       const permissionsResult = await pool.query(permissionsQuery, [user.id]);
       console.log('✅ DEBUG LOGIN - Query de permissões executada com sucesso');
       console.log('🔍 DEBUG LOGIN - Resultado:', permissionsResult.rows.length, 'permissões encontradas');
-      
+
       // Organizar permissões por recurso
       permissionsResult.rows.forEach((row: any) => {
         const { resource, permission_level } = row;
@@ -406,30 +406,30 @@ export async function POST(request: NextRequest) {
       console.log('🔍 DEBUG LOGIN - Total de permissões:', permissionsResult.rows.length);
       console.log('🔍 DEBUG LOGIN - Mapa de permissões:', permissionsMap);
       console.log('🔍 DEBUG LOGIN - Permissão para usuários:', permissionsMap['usuarios']);
-      
+
     } catch (permissionsError) {
       console.error('❌ DEBUG LOGIN - Erro na query de permissões:', permissionsError);
       // Continuar com permissões vazias se houver erro
       permissionsMap = {};
       console.log('⚠️ DEBUG LOGIN - Continuando com permissões vazias devido ao erro');
     }
-    
+
     // 8. Gerar JWT com permissões
     const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
-    
+
     console.log('🔍 DEBUG LOGIN - Finalizando login com sucesso');
     console.log('🔍 DEBUG LOGIN - Token será gerado:', jwtSecret ? 'SIM' : 'NÃO');
-    const jwtPayload = { 
-      userId: user.id, 
-      username: user.username, 
+    const jwtPayload = {
+      userId: user.id,
+      username: user.username,
       email: user.email,
       role_name: user.role_name || 'Usuário',
       role_level: user.role_level || 1,
       is2FAEnabled: is2FAEnabled,
       permissoes: permissionsMap
     };
-    
-    const token = jwt.sign(jwtPayload, jwtSecret, { 
+
+    const token = jwt.sign(jwtPayload, jwtSecret, {
       expiresIn: '1h'
     } as SignOptions);
 
@@ -515,11 +515,11 @@ export async function POST(request: NextRequest) {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error)
     });
-    
+
     // SEMPRE retornar detalhes do erro para debug
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: 'Erro interno do servidor',
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
@@ -543,7 +543,7 @@ async function incrementFailedAttempts(userId: string): Promise<void> {
         END
     WHERE id = $1
   `;
-  
+
   await pool.query(query, [userId]);
 }
 
@@ -553,21 +553,21 @@ async function resetFailedAttempts(userId: number): Promise<void> {
     SET failed_login_attempts = 0, locked_until = NULL
     WHERE id = $1
   `;
-  
+
   await pool.query(query, [userId]);
 }
 
 async function createUserSession(userId: string, ipAddress: string, userAgent: string): Promise<string> {
   const refreshToken = require('crypto').randomUUID();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
-  
+
   const query = `
     INSERT INTO user_sessions (user_id, refresh_token, expires_at, created_at, last_used_at, ip_address)
     VALUES ($1::uuid, $2, $3, NOW(), NOW(), $4)
   `;
-  
+
   await pool.query(query, [userId, refreshToken, expiresAt, ipAddress]);
-  
+
   return refreshToken;
 }
 
@@ -580,7 +580,7 @@ async function updateLastLogin(userId: string): Promise<void> {
       SET ultimo_login = NOW() 
       WHERE id = $1
     `;
-    
+
     await pool.query(query, [userId]);
     console.log(`✅ Último login atualizado para usuário ID: ${userId}`);
   } catch (error) {

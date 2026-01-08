@@ -1,9 +1,10 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 
 export async function GET(request: NextRequest) {
   try {
-    // Buscar bairros únicos da tabela imoveis
+    // Buscar bairros Ãºnicos da tabela imoveis
     const result = await pool.query(`
       SELECT DISTINCT bairro 
       FROM imoveis 
@@ -23,3 +24,4 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+

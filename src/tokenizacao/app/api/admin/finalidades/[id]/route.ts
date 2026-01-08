@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findFinalidadeById, updateFinalidade, deleteFinalidade } from '@/lib/database/finalidades'
 

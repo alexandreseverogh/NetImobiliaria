@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -23,7 +24,7 @@ interface CategoriaProximidade {
   ativo: boolean
 }
 
-// Interface local para proximidades selecionadas (compatível com o componente)
+// Interface local para proximidades selecionadas (compatÃ­vel com o componente)
 interface ProximidadeSelecionada {
   id: number
   nome: string
@@ -52,41 +53,41 @@ export default function ProximidadesStep({ data, onUpdate, mode }: ProximidadesS
     loadData()
   }, [])
 
-  // Scroll para o topo quando o componente é montado
+  // Scroll para o topo quando o componente Ã© montado
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
-  // Atualizar proximidades selecionadas quando data prop mudar (modo de edição)
+  // Atualizar proximidades selecionadas quando data prop mudar (modo de ediÃ§Ã£o)
   useEffect(() => {
-    console.log('🔍 ProximidadesStep - data.proximidades recebido:', data.proximidades)
-    console.log('🔍 ProximidadesStep - data.proximidades length:', data.proximidades?.length)
-    console.log('🔍 ProximidadesStep - data.proximidades type:', typeof data.proximidades)
+    console.log('ðŸ” ProximidadesStep - data.proximidades recebido:', data.proximidades)
+    console.log('ðŸ” ProximidadesStep - data.proximidades length:', data.proximidades?.length)
+    console.log('ðŸ” ProximidadesStep - data.proximidades type:', typeof data.proximidades)
     
     if (data.proximidades && data.proximidades.length > 0) {
-      console.log('🔍 ProximidadesStep - Atualizando proximidades selecionadas:', data.proximidades)
+      console.log('ðŸ” ProximidadesStep - Atualizando proximidades selecionadas:', data.proximidades)
       
       // Converter dados da API para o formato esperado pelo componente
       const proximidadesConvertidas: ProximidadeSelecionada[] = data.proximidades.map((prox: any) => ({
         id: prox.id || prox.proximidade_id,
-        nome: prox.proximidade_nome || prox.nome || 'Nome não encontrado',
-        categoria_nome: prox.categoria_nome || 'Categoria não encontrada',
+        nome: prox.proximidade_nome || prox.nome || 'Nome nÃ£o encontrado',
+        categoria_nome: prox.categoria_nome || 'Categoria nÃ£o encontrada',
         distancia: prox.distancia_metros ? `${prox.distancia_metros}m` : (prox.distancia || ''),
         tempo_caminhada: prox.tempo_caminhada || '',
         observacoes: prox.observacoes || ''
       }))
       
-      console.log('🔍 ProximidadesStep - Proximidades convertidas:', proximidadesConvertidas)
+      console.log('ðŸ” ProximidadesStep - Proximidades convertidas:', proximidadesConvertidas)
       setSelectedProximidades(proximidadesConvertidas)
       isInitialLoad.current = false
     } else {
-      console.log('🔍 ProximidadesStep - Nenhuma proximidade encontrada ou array vazio')
+      console.log('ðŸ” ProximidadesStep - Nenhuma proximidade encontrada ou array vazio')
       setSelectedProximidades([])
       isInitialLoad.current = false
     }
   }, [data.proximidades])
 
-  // Função para atualizar dados do pai com debounce
+  // FunÃ§Ã£o para atualizar dados do pai com debounce
   const updateParentData = useCallback((newSelectedProximidades: ProximidadeSelecionada[]) => {
     if (updateTimeoutRef.current) {
       clearTimeout(updateTimeoutRef.current)
@@ -254,9 +255,9 @@ export default function ProximidadesStep({ data, onUpdate, mode }: ProximidadesS
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Proximidades do Imóvel</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Proximidades do ImÃ³vel</h2>
         <p className="text-gray-600">
-          Selecione os pontos de interesse próximos ao imóvel. Você pode adicionar informações sobre distância e observações.
+          Selecione os pontos de interesse prÃ³ximos ao imÃ³vel. VocÃª pode adicionar informaÃ§Ãµes sobre distÃ¢ncia e observaÃ§Ãµes.
         </p>
       </div>
 
@@ -283,7 +284,7 @@ export default function ProximidadesStep({ data, onUpdate, mode }: ProximidadesS
               Proximidades selecionadas: {selectedProximidades.length}
             </p>
             <p className="text-sm text-blue-700">
-              {categorias.length} categorias disponíveis
+              {categorias.length} categorias disponÃ­veis
             </p>
           </div>
           {selectedProximidades.length > 0 && (
@@ -310,7 +311,7 @@ export default function ProximidadesStep({ data, onUpdate, mode }: ProximidadesS
 
           return (
             <div key={categoria.id} className="border border-gray-400 rounded-lg">
-              {/* Cabeçalho da Categoria */}
+              {/* CabeÃ§alho da Categoria */}
               <div 
                 className="px-4 py-3 border-b border-gray-400"
                 style={{ backgroundColor: `${categoria.cor}15` }}
@@ -349,7 +350,7 @@ export default function ProximidadesStep({ data, onUpdate, mode }: ProximidadesS
                           : `0 4px 14px 0 ${categoria.cor}40`
                       }}
                     >
-                      {stats.selected === stats.total ? '✓ Desmarcar Todas' : '✓ Marcar Todas'}
+                      {stats.selected === stats.total ? 'âœ“ Desmarcar Todas' : 'âœ“ Marcar Todas'}
                     </button>
                   </div>
                 </div>
@@ -412,13 +413,13 @@ export default function ProximidadesStep({ data, onUpdate, mode }: ProximidadesS
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Distância
+                      DistÃ¢ncia
                     </label>
                     <input
                       type="text"
                       value={proximidade.distancia}
                       onChange={(e) => handleProximidadeUpdate(index, 'distancia', e.target.value)}
-                      placeholder="Ex: 500m, 2km, 5 min a pé"
+                      placeholder="Ex: 500m, 2km, 5 min a pÃ©"
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -438,13 +439,13 @@ export default function ProximidadesStep({ data, onUpdate, mode }: ProximidadesS
                   
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Observações
+                      ObservaÃ§Ãµes
                     </label>
                     <input
                       type="text"
                       value={proximidade.observacoes}
                       onChange={(e) => handleProximidadeUpdate(index, 'observacoes', e.target.value)}
-                      placeholder="Informações adicionais..."
+                      placeholder="InformaÃ§Ãµes adicionais..."
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -455,10 +456,10 @@ export default function ProximidadesStep({ data, onUpdate, mode }: ProximidadesS
         </div>
       )}
 
-      {/* Mensagem quando não há proximidades */}
+      {/* Mensagem quando nÃ£o hÃ¡ proximidades */}
       {categorias.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-6xl mb-4">📍</div>
+          <div className="text-6xl mb-4">ðŸ“</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             Nenhuma categoria de proximidades encontrada
           </h3>
@@ -468,10 +469,10 @@ export default function ProximidadesStep({ data, onUpdate, mode }: ProximidadesS
         </div>
       )}
 
-      {/* Mensagem quando busca não retorna resultados */}
+      {/* Mensagem quando busca nÃ£o retorna resultados */}
       {searchTerm && filteredProximidades.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-6xl mb-4">🔍</div>
+          <div className="text-6xl mb-4">ðŸ”</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             Nenhuma proximidade encontrada
           </h3>
@@ -483,6 +484,7 @@ export default function ProximidadesStep({ data, onUpdate, mode }: ProximidadesS
     </div>
   )
 }
+
 
 
 

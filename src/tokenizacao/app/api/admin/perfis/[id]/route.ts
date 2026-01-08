@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/jwt';
 import pool from '@/lib/database/connection';

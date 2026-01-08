@@ -26,10 +26,10 @@ interface CreateUserRequest {
 function validateCreateData(data: CreateUserRequest): { isValid: boolean; errors: string[]; sanitizedData?: any } {
   // Usar validação avançada
   const validationResult = validateApiInput(data, 'users')
-  
+
   // Validações específicas adicionais
   const additionalErrors: string[] = []
-  
+
   // Validação de username (não coberta pelas regras padrão)
   if (!data.username.trim()) {
     additionalErrors.push('Username é obrigatório')
@@ -134,11 +134,11 @@ export async function POST(request: NextRequest) {
         '/api/admin/usuarios',
         validation.errors
       )
-      
+
       return NextResponse.json(
-        { 
+        {
           error: 'Dados inválidos',
-          details: validation.errors 
+          details: validation.errors
         },
         { status: 400 }
       )
@@ -156,7 +156,9 @@ export async function POST(request: NextRequest) {
       ativo: createData.ativo !== undefined ? createData.ativo : true,
       isencao: createData.isencao !== undefined ? createData.isencao : false,
       is_plantonista: createData.is_plantonista !== undefined ? createData.is_plantonista : false,
-      ultimo_login: null
+      ultimo_login: null,
+      // Se for Corretor (roleId = 3), define como Interno (para cadastros via Admin).
+      tipo_corretor: createData.roleId === 3 ? 'Interno' : null
     })
 
     // Log de auditoria
@@ -208,7 +210,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Erro ao criar usuário:', error)
-    
+
     // Tratar erros específicos do banco
     if (error instanceof Error) {
       if (error.message.includes('já existe')) {
@@ -224,7 +226,7 @@ export async function POST(request: NextRequest) {
         )
       }
     }
-    
+
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

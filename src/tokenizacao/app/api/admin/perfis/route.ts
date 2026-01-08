@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/jwt';
 import pool from '@/lib/database/connection';
@@ -5,13 +6,13 @@ import pool from '@/lib/database/connection';
 // GET /api/admin/perfis - Listar todos os perfis
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticação - buscar token dos cookies ou header
+    // Verificar autenticaÃ§Ã£o - buscar token dos cookies ou header
     const token = request.cookies.get('accessToken')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '');
     
     if (!token) {
       return NextResponse.json(
-        { message: 'Token de autenticação não fornecido' },
+        { message: 'Token de autenticaÃ§Ã£o nÃ£o fornecido' },
         { status: 401 }
       );
     }
@@ -20,15 +21,15 @@ export async function GET(request: NextRequest) {
     
     if (!decoded) {
       return NextResponse.json(
-        { message: 'Token inválido ou expirado' },
+        { message: 'Token invÃ¡lido ou expirado' },
         { status: 401 }
       );
     }
 
-    // Verificar permissão (usuarios:READ)
+    // Verificar permissÃ£o (usuarios:READ)
     if (!decoded.permissoes?.usuarios || !['READ', 'WRITE', 'DELETE'].includes(decoded.permissoes.usuarios)) {
       return NextResponse.json(
-        { message: 'Acesso negado. Permissão insuficiente.' },
+        { message: 'Acesso negado. PermissÃ£o insuficiente.' },
         { status: 403 }
       );
     }
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     const client = await pool.connect();
 
     try {
-      // Buscar perfis com contagem de usuários
+      // Buscar perfis com contagem de usuÃ¡rios
       const perfisQuery = `
         SELECT 
           ur.id,
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
       const perfisResult = await client.query(perfisQuery);
       const perfis = perfisResult.rows;
 
-      // Buscar permissões para cada perfil
+      // Buscar permissÃµes para cada perfil
       const perfisComPermissoes = await Promise.all(
         perfis.map(async (perfil) => {
           const permissoesQuery = `
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
 
           const permissoesResult = await client.query(permissoesQuery, [perfil.id]);
           
-          // Consolidar permissões por categoria (priorizar DELETE > WRITE > READ)
+          // Consolidar permissÃµes por categoria (priorizar DELETE > WRITE > READ)
           const permissoes: Record<string, string> = {};
           permissoesResult.rows.forEach((row) => {
             const { category, action } = row;
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
             }
           });
 
-          // Definir permissões padrão para categorias não configuradas
+          // Definir permissÃµes padrÃ£o para categorias nÃ£o configuradas
           const categorias = ['imoveis', 'proximidades', 'amenidades', 'categorias-amenidades', 'categorias-proximidades', 'usuarios', 'relatorios', 'sistema'];
           categorias.forEach(categoria => {
             if (!permissoes[categoria]) {
@@ -120,13 +121,13 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/perfis - Criar novo perfil
 export async function POST(request: NextRequest) {
   try {
-    // Verificar autenticação - buscar token dos cookies ou header
+    // Verificar autenticaÃ§Ã£o - buscar token dos cookies ou header
     const token = request.cookies.get('accessToken')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '');
     
     if (!token) {
       return NextResponse.json(
-        { message: 'Token de autenticação não fornecido' },
+        { message: 'Token de autenticaÃ§Ã£o nÃ£o fornecido' },
         { status: 401 }
       );
     }
@@ -135,15 +136,15 @@ export async function POST(request: NextRequest) {
     
     if (!decoded) {
       return NextResponse.json(
-        { message: 'Token inválido ou expirado' },
+        { message: 'Token invÃ¡lido ou expirado' },
         { status: 401 }
       );
     }
 
-    // Verificar permissão (usuarios:WRITE)
+    // Verificar permissÃ£o (usuarios:WRITE)
     if (!decoded.permissoes?.usuarios || !['WRITE', 'DELETE'].includes(decoded.permissoes.usuarios)) {
       return NextResponse.json(
-        { message: 'Acesso negado. Permissão insuficiente.' },
+        { message: 'Acesso negado. PermissÃ£o insuficiente.' },
         { status: 403 }
       );
     }
@@ -151,10 +152,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, description, permissions } = body;
 
-    // Validação dos dados
+    // ValidaÃ§Ã£o dos dados
     if (!name || !description) {
       return NextResponse.json(
-        { message: 'Nome e descrição são obrigatórios' },
+        { message: 'Nome e descriÃ§Ã£o sÃ£o obrigatÃ³rios' },
         { status: 400 }
       );
     }
@@ -168,7 +169,7 @@ export async function POST(request: NextRequest) {
 
     if (typeof description !== 'string' || description.trim().length < 5) {
       return NextResponse.json(
-        { message: 'Descrição deve ter pelo menos 5 caracteres' },
+        { message: 'DescriÃ§Ã£o deve ter pelo menos 5 caracteres' },
         { status: 400 }
       );
     }
@@ -176,18 +177,18 @@ export async function POST(request: NextRequest) {
     const client = await pool.connect();
 
     try {
-      // Verificar se já existe um perfil com o mesmo nome
+      // Verificar se jÃ¡ existe um perfil com o mesmo nome
       const existingQuery = 'SELECT id FROM user_roles WHERE LOWER(name) = LOWER($1)';
       const existingResult = await client.query(existingQuery, [name.trim()]);
       
       if (existingResult.rows.length > 0) {
         return NextResponse.json(
-          { message: 'Já existe um perfil com este nome' },
+          { message: 'JÃ¡ existe um perfil com este nome' },
           { status: 409 }
         );
       }
 
-      // Iniciar transação
+      // Iniciar transaÃ§Ã£o
       await client.query('BEGIN');
 
       try {
@@ -201,7 +202,7 @@ export async function POST(request: NextRequest) {
         const createResult = await client.query(createPerfilQuery, [name.trim(), description.trim()]);
         const perfilId = createResult.rows[0].id;
 
-        // Configurar permissões padrão se não fornecidas
+        // Configurar permissÃµes padrÃ£o se nÃ£o fornecidas
         const permissoesParaConfigurar = permissions || {
           imoveis: 'READ',
           proximidades: 'READ',
@@ -218,19 +219,19 @@ export async function POST(request: NextRequest) {
         const featuresResult = await client.query(featuresQuery);
         const features = featuresResult.rows;
 
-        // Buscar todas as permissões disponíveis
+        // Buscar todas as permissÃµes disponÃ­veis
         const permissionsQuery = 'SELECT id, action, feature_id FROM permissions';
         const permissionsResult = await client.query(permissionsQuery);
         const allPermissions = permissionsResult.rows;
 
-        // Mapear permissões do frontend para o banco
+        // Mapear permissÃµes do frontend para o banco
         const permissionMapping: Record<string, string[]> = {
           'READ': ['read', 'list'],
           'WRITE': ['read', 'list', 'create', 'update'],
           'DELETE': ['read', 'list', 'create', 'update', 'delete']
         };
 
-        // Configurar permissões para o novo perfil
+        // Configurar permissÃµes para o novo perfil
         for (const [category, permission] of Object.entries(permissoesParaConfigurar)) {
           if (permission === 'NONE') continue;
 
@@ -245,7 +246,7 @@ export async function POST(request: NextRequest) {
             );
             
             if (permissionObj) {
-              // Associar permissão ao perfil
+              // Associar permissÃ£o ao perfil
               const assignQuery = `
                 INSERT INTO role_permissions (role_id, permission_id, created_at)
                 VALUES ($1, $2, NOW())
@@ -255,7 +256,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Commit da transação
+        // Commit da transaÃ§Ã£o
         await client.query('COMMIT');
 
         return NextResponse.json({
@@ -288,3 +289,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

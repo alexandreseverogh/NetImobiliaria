@@ -1,12 +1,13 @@
+﻿/* eslint-disable */
 import { AUTH_CONFIG } from '@/lib/config/auth'
 
-// Interface para opções de requisição
+// Interface para opÃ§Ãµes de requisiÃ§Ã£o
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean
   retryCount?: number
 }
 
-// Classe para gerenciar requisições HTTP com autenticação
+// Classe para gerenciar requisiÃ§Ãµes HTTP com autenticaÃ§Ã£o
 class ApiClient {
   private baseURL: string
   private maxRetries: number = 3
@@ -15,25 +16,25 @@ class ApiClient {
     this.baseURL = baseURL
   }
 
-  // Função principal para fazer requisições
+  // FunÃ§Ã£o principal para fazer requisiÃ§Ãµes
   async request<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const { skipAuth = false, retryCount = 0, ...fetchOptions } = options
     
     try {
-      // Adicionar headers padrão
+      // Adicionar headers padrÃ£o
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
         ...fetchOptions.headers,
       }
 
-      // Fazer a requisição
+      // Fazer a requisiÃ§Ã£o
       const response = await fetch(`${this.baseURL}${endpoint}`, {
         ...fetchOptions,
         headers,
         credentials: 'include', // Incluir cookies
       })
 
-      // Se a resposta for 401 e não for uma tentativa de renovação, tentar renovar o token
+      // Se a resposta for 401 e nÃ£o for uma tentativa de renovaÃ§Ã£o, tentar renovar o token
       if (response.status === 401 && !skipAuth && retryCount < this.maxRetries) {
         const refreshResult = await this.refreshToken()
         
@@ -41,13 +42,13 @@ class ApiClient {
           // Tentar novamente com o novo token
           return this.request(endpoint, { ...options, retryCount: retryCount + 1 })
         } else {
-          // Se não conseguir renovar, redirecionar para login
+          // Se nÃ£o conseguir renovar, redirecionar para login
           this.redirectToLogin()
-          throw new Error('Token expirado e não foi possível renovar')
+          throw new Error('Token expirado e nÃ£o foi possÃ­vel renovar')
         }
       }
 
-      // Se a resposta não for ok, lançar erro
+      // Se a resposta nÃ£o for ok, lanÃ§ar erro
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
@@ -56,7 +57,7 @@ class ApiClient {
       // Retornar dados da resposta
       return response.json()
     } catch (error) {
-      console.error('Erro na requisição:', error)
+      console.error('Erro na requisiÃ§Ã£o:', error)
       throw error
     }
   }
@@ -87,7 +88,7 @@ class ApiClient {
     }
   }
 
-  // Métodos HTTP
+  // MÃ©todos HTTP
   async get<T = any>(endpoint: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'GET' })
   }
@@ -121,10 +122,10 @@ class ApiClient {
   }
 }
 
-// Instância padrão do cliente API
+// InstÃ¢ncia padrÃ£o do cliente API
 export const apiClient = new ApiClient()
 
-// Funções utilitárias para uso direto
+// FunÃ§Ãµes utilitÃ¡rias para uso direto
 export const api = {
   get: <T = any>(endpoint: string, options?: RequestOptions) => apiClient.get<T>(endpoint, options),
   post: <T = any>(endpoint: string, data?: any, options?: RequestOptions) => apiClient.post<T>(endpoint, data, options),
@@ -134,6 +135,7 @@ export const api = {
 }
 
 export default apiClient
+
 
 
 

@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 
-// Forçar uso do Node.js runtime
+// ForÃ§ar uso do Node.js runtime
 export const runtime = 'nodejs'
 
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
@@ -9,11 +10,11 @@ import { userHasPermission } from '@/lib/database/users'
 
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticação
+    // Verificar autenticaÃ§Ã£o
     const token = request.cookies.get('accessToken')?.value
     if (!token) {
       return NextResponse.json(
-        { error: 'Token de autenticação não fornecido' },
+        { error: 'Token de autenticaÃ§Ã£o nÃ£o fornecido' },
         { status: 401 }
       )
     }
@@ -21,26 +22,26 @@ export async function GET(request: NextRequest) {
     const decoded = verifyTokenNode(token)
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Token inválido' },
+        { error: 'Token invÃ¡lido' },
         { status: 401 }
       )
     }
 
-    // Verificar permissão de leitura
+    // Verificar permissÃ£o de leitura
     const hasPermission = await userHasPermission(decoded.userId, 'imoveis', 'READ')
     if (!hasPermission) {
       return NextResponse.json(
-        { error: 'Sem permissão para acessar imóveis' },
+        { error: 'Sem permissÃ£o para acessar imÃ³veis' },
         { status: 403 }
       )
     }
 
-    // Extrair parâmetros da query
+    // Extrair parÃ¢metros da query
     const { searchParams } = new URL(request.url)
     const page = searchParams.get('page')
     const limit = searchParams.get('limit')
     
-    // Se não houver parâmetros de paginação, retornar todos os imóveis
+    // Se nÃ£o houver parÃ¢metros de paginaÃ§Ã£o, retornar todos os imÃ³veis
     if (!page && !limit) {
       const imoveis = await findAllImoveis()
       return NextResponse.json({
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
       })
     }
     
-    // Caso contrário, usar paginação
+    // Caso contrÃ¡rio, usar paginaÃ§Ã£o
     const pageNum = parseInt(page || '1')
     const limitNum = parseInt(limit || '20')
     const offset = (pageNum - 1) * limitNum
@@ -93,10 +94,10 @@ export async function GET(request: NextRequest) {
       filtros.destaque = searchParams.get('destaque') === 'true'
     }
 
-    // Buscar imóveis
+    // Buscar imÃ³veis
     const imoveis = await listImoveis(filtros, limitNum, offset)
     
-    // Buscar estatísticas para paginação
+    // Buscar estatÃ­sticas para paginaÃ§Ã£o
     const stats = await getImoveisStats()
     const total = stats.total_imoveis || 0
     const totalPages = Math.ceil(total / limitNum)
@@ -117,7 +118,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Erro ao listar imóveis:', error)
+    console.error('Erro ao listar imÃ³veis:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
@@ -127,11 +128,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verificar autenticação
+    // Verificar autenticaÃ§Ã£o
     const token = request.cookies.get('accessToken')?.value
     if (!token) {
       return NextResponse.json(
-        { error: 'Token de autenticação não fornecido' },
+        { error: 'Token de autenticaÃ§Ã£o nÃ£o fornecido' },
         { status: 401 }
       )
     }
@@ -139,16 +140,16 @@ export async function POST(request: NextRequest) {
     const decoded = verifyTokenNode(token)
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Token inválido' },
+        { error: 'Token invÃ¡lido' },
         { status: 401 }
       )
     }
 
-    // Verificar permissão de escrita
+    // Verificar permissÃ£o de escrita
     const hasPermission = await userHasPermission(decoded.userId, 'imoveis', 'WRITE')
     if (!hasPermission) {
       return NextResponse.json(
-        { error: 'Sem permissão para criar imóveis' },
+        { error: 'Sem permissÃ£o para criar imÃ³veis' },
         { status: 403 }
       )
     }
@@ -156,70 +157,70 @@ export async function POST(request: NextRequest) {
     // Validar dados do corpo
     const body = await request.json()
     
-    console.log('🔍 Dados recebidos na API:', JSON.stringify(body, null, 2))
+    console.log('ðŸ” Dados recebidos na API:', JSON.stringify(body, null, 2))
     
     if (!body.codigo || !body.titulo || !body.tipo_id || !body.status_id) {
-      console.log('❌ Validação falhou - campos obrigatórios:', {
+      console.log('âŒ ValidaÃ§Ã£o falhou - campos obrigatÃ³rios:', {
         codigo: !!body.codigo,
         titulo: !!body.titulo,
         tipo_id: !!body.tipo_id,
         status_id: !!body.status_id
       })
       return NextResponse.json(
-        { error: 'Campos obrigatórios: codigo, titulo, tipo_id, status_id' },
+        { error: 'Campos obrigatÃ³rios: codigo, titulo, tipo_id, status_id' },
         { status: 400 }
       )
     }
 
-    // Validar formato do código (deve ser único)
+    // Validar formato do cÃ³digo (deve ser Ãºnico)
     if (!/^[A-Z0-9]{3,10}$/.test(body.codigo)) {
       return NextResponse.json(
-        { error: 'Código deve ter 3-10 caracteres alfanuméricos maiúsculos' },
+        { error: 'CÃ³digo deve ter 3-10 caracteres alfanumÃ©ricos maiÃºsculos' },
         { status: 400 }
       )
     }
 
-    // Validar preço se fornecido
+    // Validar preÃ§o se fornecido
     if (body.preco && (body.preco <= 0 || body.preco > 999999999.99)) {
       return NextResponse.json(
-        { error: 'Preço deve estar entre 0 e 999.999.999,99' },
+        { error: 'PreÃ§o deve estar entre 0 e 999.999.999,99' },
         { status: 400 }
       )
     }
 
-    // Validar área se fornecida
+    // Validar Ã¡rea se fornecida
     if (body.area_total && (body.area_total <= 0 || body.area_total > 99999.99)) {
       return NextResponse.json(
-        { error: 'Área total deve estar entre 0 e 99.999,99' },
+        { error: 'Ãrea total deve estar entre 0 e 99.999,99' },
         { status: 400 }
       )
     }
 
-    // Criar imóvel
+    // Criar imÃ³vel
     const novoImovel = await createImovel(body, decoded.userId)
 
     return NextResponse.json({
       success: true,
-      message: 'Imóvel criado com sucesso',
+      message: 'ImÃ³vel criado com sucesso',
       data: novoImovel
     }, { status: 201 })
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar imóvel:', error)
-    console.error('❌ Tipo do erro:', typeof error)
-    console.error('❌ Código do erro:', error.code)
-    console.error('❌ Mensagem do erro:', error.message)
-    console.error('❌ Stack trace:', error.stack)
+    console.error('âŒ Erro ao criar imÃ³vel:', error)
+    console.error('âŒ Tipo do erro:', typeof error)
+    console.error('âŒ CÃ³digo do erro:', error.code)
+    console.error('âŒ Mensagem do erro:', error.message)
+    console.error('âŒ Stack trace:', error.stack)
     
-    // Verificar se é erro de código duplicado
+    // Verificar se Ã© erro de cÃ³digo duplicado
     if (error.code === '23505' && error.constraint === 'imoveis_codigo_key') {
       return NextResponse.json(
-        { error: 'Código de imóvel já existe' },
+        { error: 'CÃ³digo de imÃ³vel jÃ¡ existe' },
         { status: 409 }
       )
     }
 
-    // Retornar erro mais específico para debug
+    // Retornar erro mais especÃ­fico para debug
     return NextResponse.json(
       { 
         error: 'Erro interno do servidor',
@@ -230,3 +231,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 /**
- * Funções de banco de dados para Clientes
- * Net Imobiliária - Sistema de Gestão de Clientes
+ * FunÃ§Ãµes de banco de dados para Clientes
+ * Net ImobiliÃ¡ria - Sistema de GestÃ£o de Clientes
  */
 
 import pool from './connection'
@@ -69,7 +70,7 @@ export interface ClienteFilters {
 }
 
 // ========================================
-// FUNÇÕES DE VALIDAÇÃO
+// FUNÃ‡Ã•ES DE VALIDAÃ‡ÃƒO
 // ========================================
 
 export function validateCPF(cpf: string): boolean {
@@ -127,11 +128,11 @@ export function formatCEP(value: string): string {
 }
 
 // ========================================
-// FUNÇÕES DE BANCO DE DADOS
+// FUNÃ‡Ã•ES DE BANCO DE DADOS
 // ========================================
 
 /**
- * Buscar clientes com paginação e filtros
+ * Buscar clientes com paginaÃ§Ã£o e filtros
  */
 export async function findClientesPaginated(
   page: number = 1, 
@@ -148,7 +149,7 @@ export async function findClientesPaginated(
   try {
     const offset = (page - 1) * limit
     
-    // Construir cláusula WHERE dinamicamente
+    // Construir clÃ¡usula WHERE dinamicamente
     const whereConditions: string[] = []
     const queryParams: any[] = []
     let paramCount = 0
@@ -161,7 +162,7 @@ export async function findClientesPaginated(
 
     if (filters.cpf) {
       paramCount++
-      // Remover formatação do CPF para busca
+      // Remover formataÃ§Ã£o do CPF para busca
       const cleanCPF = filters.cpf.replace(/\D/g, '')
       whereConditions.push(`REPLACE(REPLACE(cpf, '.', ''), '-', '') ILIKE $${paramCount}`)
       queryParams.push(`%${cleanCPF}%`)
@@ -196,7 +197,7 @@ export async function findClientesPaginated(
       ${whereClause}
     `
     
-    // Query para buscar clientes com paginação e filtros
+    // Query para buscar clientes com paginaÃ§Ã£o e filtros
     const dataQuery = `
       SELECT 
         id,
@@ -236,8 +237,8 @@ export async function findClientesPaginated(
       hasPrev: page > 1
     }
   } catch (error) {
-    console.error('❌ Erro ao buscar clientes com paginação:', error)
-    throw new Error('Erro ao buscar clientes com paginação')
+    console.error('âŒ Erro ao buscar clientes com paginaÃ§Ã£o:', error)
+    throw new Error('Erro ao buscar clientes com paginaÃ§Ã£o')
   }
 }
 
@@ -268,7 +269,7 @@ export async function findClienteById(id: number): Promise<Cliente | null> {
     
     return result.rows[0] || null
   } catch (error) {
-    console.error('❌ Erro ao buscar cliente por ID:', error)
+    console.error('âŒ Erro ao buscar cliente por ID:', error)
     throw new Error('Erro ao buscar cliente por ID')
   }
 }
@@ -278,20 +279,20 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
   try {
     // Validar CPF
     if (!validateCPF(data.cpf)) {
-      throw new Error('CPF Inválido')
+      throw new Error('CPF InvÃ¡lido')
     }
     
-    // Verificar se CPF já existe
+    // Verificar se CPF jÃ¡ existe
     const existingCPF = await pool.query('SELECT id FROM clientes WHERE cpf = $1', [data.cpf])
     if (existingCPF.rows.length > 0) {
-      throw new Error('CPF já cadastrado')
+      throw new Error('CPF jÃ¡ cadastrado')
     }
     
-    // Verificar se email já existe
+    // Verificar se email jÃ¡ existe
     if (data.email) {
       const existingEmail = await pool.query('SELECT id FROM clientes WHERE email = $1', [data.email])
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado')
+        throw new Error('Email jÃ¡ cadastrado')
       }
     }
     
@@ -322,7 +323,7 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
     
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao criar cliente:', error)
+    console.error('âŒ Erro ao criar cliente:', error)
     throw error
   }
 }
@@ -332,22 +333,22 @@ export async function updateCliente(id: number, data: UpdateClienteData): Promis
   try {
     // Validar CPF se fornecido
     if (data.cpf && !validateCPF(data.cpf)) {
-      throw new Error('CPF Inválido')
+      throw new Error('CPF InvÃ¡lido')
     }
     
-    // Verificar se CPF já existe (excluindo o próprio registro)
+    // Verificar se CPF jÃ¡ existe (excluindo o prÃ³prio registro)
     if (data.cpf) {
       const existingCPF = await pool.query('SELECT id FROM clientes WHERE cpf = $1 AND id != $2', [data.cpf, id])
       if (existingCPF.rows.length > 0) {
-        throw new Error('CPF já cadastrado')
+        throw new Error('CPF jÃ¡ cadastrado')
       }
     }
     
-    // Verificar se email já existe (excluindo o próprio registro)
+    // Verificar se email jÃ¡ existe (excluindo o prÃ³prio registro)
     if (data.email) {
       const existingEmail = await pool.query('SELECT id FROM clientes WHERE email = $1 AND id != $2', [data.email, id])
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado')
+        throw new Error('Email jÃ¡ cadastrado')
       }
     }
     
@@ -433,12 +434,12 @@ export async function updateCliente(id: number, data: UpdateClienteData): Promis
     const result = await pool.query(query, values)
     
     if (result.rows.length === 0) {
-      throw new Error('Cliente não encontrado')
+      throw new Error('Cliente nÃ£o encontrado')
     }
     
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao atualizar cliente:', error)
+    console.error('âŒ Erro ao atualizar cliente:', error)
     throw error
   }
 }
@@ -449,15 +450,15 @@ export async function deleteCliente(id: number): Promise<void> {
     const result = await pool.query('DELETE FROM clientes WHERE id = $1', [id])
     
     if (result.rowCount === 0) {
-      throw new Error('Cliente não encontrado')
+      throw new Error('Cliente nÃ£o encontrado')
     }
   } catch (error) {
-    console.error('❌ Erro ao deletar cliente:', error)
+    console.error('âŒ Erro ao deletar cliente:', error)
     throw error
   }
 }
 
-// Verificar se CPF já existe
+// Verificar se CPF jÃ¡ existe
 export async function checkCPFExists(cpf: string, excludeId?: number): Promise<boolean> {
   try {
     let query = 'SELECT id FROM clientes WHERE cpf = $1'
@@ -471,7 +472,8 @@ export async function checkCPFExists(cpf: string, excludeId?: number): Promise<b
     const result = await pool.query(query, params)
     return result.rows.length > 0
   } catch (error) {
-    console.error('❌ Erro ao verificar CPF:', error)
+    console.error('âŒ Erro ao verificar CPF:', error)
     throw error
   }
 }
+

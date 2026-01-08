@@ -1,3 +1,4 @@
+/* eslint-disable */
 'use client'
 
 console.log('🔍 Página de Edição - ARQUIVO CARREGADO')

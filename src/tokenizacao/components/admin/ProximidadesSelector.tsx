@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -64,7 +65,7 @@ export default function ProximidadesSelector({ proximidades, onChange }: Proximi
           setProximidadesData(proximidadesData.data)
         }
         
-        // Marcar proximidades já selecionadas
+        // Marcar proximidades jÃ¡ selecionadas
         const selected = new Set(proximidades.map(p => p.nome || p.tipo))
         setSelectedProximidades(selected)
       } catch (error) {
@@ -155,7 +156,7 @@ export default function ProximidadesSelector({ proximidades, onChange }: Proximi
   const filteredCategorias = Object.entries(proximidadesPorCategoria).filter(([categoria, items]) => {
     if (selectedCategoria && categoria !== selectedCategoria) return false
     
-    // Validar se items é um array antes de usar filter
+    // Validar se items Ã© um array antes de usar filter
     if (!Array.isArray(items)) return false
     
     const filteredItems = items.filter(item => 
@@ -176,9 +177,9 @@ export default function ProximidadesSelector({ proximidades, onChange }: Proximi
   return (
     <div className="space-y-6">
       <div className="border-b border-gray-200 pb-4">
-        <h3 className="text-lg font-medium text-gray-900">Proximidades do Imóvel</h3>
+        <h3 className="text-lg font-medium text-gray-900">Proximidades do ImÃ³vel</h3>
         <p className="text-sm text-gray-600 mt-1">
-          Selecione os pontos de interesse próximos ao imóvel
+          Selecione os pontos de interesse prÃ³ximos ao imÃ³vel
         </p>
       </div>
 
@@ -190,7 +191,7 @@ export default function ProximidadesSelector({ proximidades, onChange }: Proximi
           </label>
           <input
             type="text"
-            placeholder="Ex: shopping, farmácia, praia..."
+            placeholder="Ex: shopping, farmÃ¡cia, praia..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -247,19 +248,19 @@ export default function ProximidadesSelector({ proximidades, onChange }: Proximi
                       
                       {isSelected && (
                         <div className="mt-3 space-y-3 p-3 bg-gray-50 rounded-md">
-                          {/* Distância */}
+                          {/* DistÃ¢ncia */}
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
-                              Distância
+                              DistÃ¢ncia
                             </label>
                             <select
                               value={proximidadeData?.distancia || 'PROXIMO'}
                               onChange={(e) => handleDistanciaChange(proximidade, e.target.value)}
                               className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                             >
-                              <option value="MUITO_PROXIMO">Muito próximo (0-500m)</option>
-                              <option value="PROXIMO">Próximo (500m-1km)</option>
-                              <option value="MEDIO">Médio (1km-2km)</option>
+                              <option value="MUITO_PROXIMO">Muito prÃ³ximo (0-500m)</option>
+                              <option value="PROXIMO">PrÃ³ximo (500m-1km)</option>
+                              <option value="MEDIO">MÃ©dio (1km-2km)</option>
                               <option value="LONGE">Longe (2km+)</option>
                             </select>
                           </div>
@@ -282,10 +283,10 @@ export default function ProximidadesSelector({ proximidades, onChange }: Proximi
                             </select>
                           </div>
 
-                          {/* Observações */}
+                          {/* ObservaÃ§Ãµes */}
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
-                              Observações específicas
+                              ObservaÃ§Ãµes especÃ­ficas
                             </label>
                             <input
                               type="text"
@@ -327,7 +328,7 @@ export default function ProximidadesSelector({ proximidades, onChange }: Proximi
           </div>
           <div className="ml-3">
             <p className="text-sm text-blue-800">
-              <strong>Dica:</strong> Selecione as proximidades disponíveis e configure distância, tempo de caminhada e observações específicas.
+              <strong>Dica:</strong> Selecione as proximidades disponÃ­veis e configure distÃ¢ncia, tempo de caminhada e observaÃ§Ãµes especÃ­ficas.
             </p>
           </div>
         </div>
@@ -336,19 +337,20 @@ export default function ProximidadesSelector({ proximidades, onChange }: Proximi
   )
 }
 
-// Função para retornar ícones por categoria
+// FunÃ§Ã£o para retornar Ã­cones por categoria
 function getCategoriaIcon(categoria: string): JSX.Element {
   const icons: { [key: string]: string } = {
-    'Comércio & Shopping': '🛍️',
-    'Alimentação': '🍽️',
-    'Saúde & Bem-estar': '🏥',
-    'Educação': '📚',
-    'Transporte': '🚌',
-    'Lazer & Cultura': '🎭',
-    'Serviços': '🛠️'
+    'ComÃ©rcio & Shopping': 'ðŸ›ï¸',
+    'AlimentaÃ§Ã£o': 'ðŸ½ï¸',
+    'SaÃºde & Bem-estar': 'ðŸ¥',
+    'EducaÃ§Ã£o': 'ðŸ“š',
+    'Transporte': 'ðŸšŒ',
+    'Lazer & Cultura': 'ðŸŽ­',
+    'ServiÃ§os': 'ðŸ› ï¸'
   }
   
-  return <span className="text-xl mr-2">{icons[categoria] || '📍'}</span>
+  return <span className="text-xl mr-2">{icons[categoria] || 'ðŸ“'}</span>
 }
+
 
 

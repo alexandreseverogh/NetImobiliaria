@@ -32,7 +32,7 @@ function buildCorretorPainelUrl(prospectId: number): string {
   return `${base}/corretor/entrar?next=${encodeURIComponent(next)}`
 }
 
-async function pickBrokerByArea(estado: string, cidade: string): Promise<RoutedBroker | null> {
+async function pickBrokerByArea(estado: string, cidade: string, excludeIds: string[] = []): Promise<RoutedBroker | null> {
   // Regra de escolha:
   // 1) menor carga de leads recebidos (COUNT atribuições)
   // 2) em empate, maior tempo sem receber leads (MAX created_at mais antigo; NULL primeiro)
@@ -52,11 +52,12 @@ async function pickBrokerByArea(estado: string, cidade: string): Promise<RoutedB
       AND COALESCE(u.is_plantonista, false) = false
       AND caa.estado_fk = $1
       AND caa.cidade_fk = $2
+      AND (CASE WHEN array_length($3::uuid[], 1) > 0 THEN u.id != ALL($3::uuid[]) ELSE true END)
     GROUP BY u.id, u.nome, u.email
     ORDER BY COUNT(a.id) ASC, MAX(a.created_at) ASC NULLS FIRST, u.created_at ASC
     LIMIT 1
   `
-  const r = await pool.query(q, [estado, cidade])
+  const r = await pool.query(q, [estado, cidade, excludeIds || []])
   if (r.rows.length === 0) return null
   const row = r.rows[0]
   return {
@@ -89,7 +90,7 @@ async function pickBrokerById(corretorFk: string): Promise<RoutedBroker | null> 
   }
 }
 
-async function pickPlantonistaBroker(): Promise<RoutedBroker | null> {
+async function pickPlantonistaBroker(excludeIds: string[] = []): Promise<RoutedBroker | null> {
   // Plantonista também segue menor carga e maior tempo sem receber, para evitar concentrar em 1 só.
   const q = `
     SELECT
@@ -103,11 +104,12 @@ async function pickPlantonistaBroker(): Promise<RoutedBroker | null> {
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = true
+      AND (CASE WHEN array_length($1::uuid[], 1) > 0 THEN u.id != ALL($1::uuid[]) ELSE true END)
     GROUP BY u.id, u.nome, u.email
     ORDER BY COUNT(a.id) ASC, MAX(a.created_at) ASC NULLS FIRST, u.created_at ASC
     LIMIT 1
   `
-  const r = await pool.query(q)
+  const r = await pool.query(q, [excludeIds || []])
   if (r.rows.length === 0) return null
   const row = r.rows[0]
   return {
@@ -118,7 +120,7 @@ async function pickPlantonistaBroker(): Promise<RoutedBroker | null> {
   }
 }
 
-export async function routeProspectAndNotify(prospectId: number): Promise<{ success: boolean; reason?: string }> {
+export async function routeProspectAndNotify(prospectId: number, excludeIds: string[] = []): Promise<{ success: boolean; reason?: string }> {
   // Buscar dados do prospect com imóvel e cliente (para roteamento e email)
   const dataQuery = await pool.query(
     `
@@ -201,8 +203,9 @@ export async function routeProspectAndNotify(prospectId: number): Promise<{ succ
   }
 
   // Caso não haja corretor_fk válido no imóvel, usar menor carga / maior tempo sem receber
-  if (!broker) broker = await pickBrokerByArea(estado, cidade)
-  if (!broker) broker = await pickPlantonistaBroker()
+  if (!broker) broker = await pickBrokerByArea(estado, cidade, excludeIds)
+  // Se não achou na área (ou todos excluídos), tenta plantonista (respeitando exclusões também, para rodízio)
+  if (!broker) broker = await pickPlantonistaBroker(excludeIds)
   if (!broker) return { success: false, reason: 'Nenhum corretor elegível (sem área e sem plantonista)' }
 
   // Criar atribuição com SLA (minutos configurável em parametros.sla_minutos_aceite_lead)

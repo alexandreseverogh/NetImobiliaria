@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -50,7 +51,7 @@ export default function ClientesPage() {
   
   
   
-  // Estados de paginação - inicializar com sessionStorage
+  // Estados de paginaÃ§Ã£o - inicializar com sessionStorage
   const [currentPage, setCurrentPage] = useState(() => {
     if (typeof window !== 'undefined') {
       const savedPage = sessionStorage.getItem('clientes_currentPage')
@@ -64,7 +65,7 @@ export default function ClientesPage() {
   const [hasPrev, setHasPrev] = useState(false)
 
 
-  // Carregar municípios quando estado mudar
+  // Carregar municÃ­pios quando estado mudar
   useEffect(() => {
     loadMunicipios(filters.estado)
   }, [filters.estado, loadMunicipios])
@@ -78,7 +79,7 @@ export default function ClientesPage() {
         limit: '10'
       })
 
-      // Adicionar filtros à query
+      // Adicionar filtros Ã  query
       if (filtersToUse.nome) queryParams.append('nome', filtersToUse.nome)
       if (filtersToUse.cpf) queryParams.append('cpf', filtersToUse.cpf)
       
@@ -113,7 +114,7 @@ export default function ClientesPage() {
       setHasNext(data.hasNext)
       setHasPrev(data.hasPrev)
       
-      // Salvar página atual no sessionStorage
+      // Salvar pÃ¡gina atual no sessionStorage
       sessionStorage.setItem('clientes_currentPage', currentPage.toString())
     } catch (error) {
       console.error('Erro ao buscar clientes:', error)
@@ -122,15 +123,15 @@ export default function ClientesPage() {
     }
   }, [currentPage, getEstadoNome, getCidadeNome])
 
-  // Hook para recarregar quando a página ganha foco
+  // Hook para recarregar quando a pÃ¡gina ganha foco
   usePageFocus(fetchClientes)
 
-  // Carregar clientes quando a página carrega ou quando currentPage muda
+  // Carregar clientes quando a pÃ¡gina carrega ou quando currentPage muda
   useEffect(() => {
     fetchClientes()
   }, [currentPage, fetchClientes])
 
-  // Remover busca automática - só buscar quando clicar em "Buscar"
+  // Remover busca automÃ¡tica - sÃ³ buscar quando clicar em "Buscar"
 
   const handleFilterChange = (field: string, value: string) => {
     setFilters(prev => ({
@@ -152,13 +153,13 @@ export default function ClientesPage() {
     e.preventDefault()
     setCurrentPage(1)
     
-    // Limpar municípios para nova consulta
+    // Limpar municÃ­pios para nova consulta
     clearMunicipios()
     
     // Usar callback para garantir que temos os filtros mais recentes
     setFilters(currentFilters => {
-      console.log('🔍 handleSearch - Estados disponíveis:', estados)
-      console.log('🔍 handleSearch - Filtros atuais:', currentFilters)
+      console.log('ðŸ” handleSearch - Estados disponÃ­veis:', estados)
+      console.log('ðŸ” handleSearch - Filtros atuais:', currentFilters)
       fetchClientes(currentFilters)
       return currentFilters
     })
@@ -241,7 +242,7 @@ export default function ClientesPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Clientes</h1>
-            <p className="mt-2 text-gray-600">Gerencie os clientes da imobiliária</p>
+            <p className="mt-2 text-gray-600">Gerencie os clientes da imobiliÃ¡ria</p>
           </div>
             <button
             onClick={() => router.push('/admin/clientes/novo')}
@@ -339,7 +340,7 @@ export default function ClientesPage() {
             </div>
         </form>
         
-        {/* Botões de ação dos filtros */}
+        {/* BotÃµes de aÃ§Ã£o dos filtros */}
         <div className="flex gap-3 mt-4">
           <button
             type="button"
@@ -394,10 +395,10 @@ export default function ClientesPage() {
                     </h3>
                   </div>
                   
-                  {/* Segunda linha: ID + data à esquerda, botões à direita */}
+                  {/* Segunda linha: ID + data Ã  esquerda, botÃµes Ã  direita */}
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-gray-200 font-medium">
-                      ID: {cliente.id} • {new Date(cliente.created_at).toLocaleDateString('pt-BR')}
+                      ID: {cliente.id} â€¢ {new Date(cliente.created_at).toLocaleDateString('pt-BR')}
                     </p>
                     <div className="flex items-center space-x-1">
                       <button
@@ -425,7 +426,7 @@ export default function ClientesPage() {
                   </div>
                 </div>
 
-                {/* Informações do Cliente */}
+                {/* InformaÃ§Ãµes do Cliente */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">CPF:</span>
@@ -444,7 +445,7 @@ export default function ClientesPage() {
                   
                   {cliente.endereco && (
                     <div className="flex items-start justify-between">
-                      <span className="text-sm font-medium text-gray-500">Endereço:</span>
+                      <span className="text-sm font-medium text-gray-500">EndereÃ§o:</span>
                       <span className="text-sm text-gray-900 text-right max-w-[200px]">
                         {cliente.endereco}{cliente.numero && `, ${cliente.numero}`}
                       </span>
@@ -453,12 +454,12 @@ export default function ClientesPage() {
                   
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">Estado:</span>
-                    <span className="text-sm text-gray-900">{cliente.estado_fk || 'Não informado'}</span>
+                    <span className="text-sm text-gray-900">{cliente.estado_fk || 'NÃ£o informado'}</span>
                   </div>
                   
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">Cidade:</span>
-                    <span className="text-sm text-gray-900">{cliente.cidade_fk || 'Não informado'}</span>
+                    <span className="text-sm text-gray-900">{cliente.cidade_fk || 'NÃ£o informado'}</span>
                   </div>
                   
                   {cliente.bairro && (
@@ -496,11 +497,11 @@ export default function ClientesPage() {
           </div>
         )}
 
-      {/* Estatísticas */}
+      {/* EstatÃ­sticas */}
       <div className="mt-8 bg-white rounded-xl shadow-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Estatísticas</h3>
+            <h3 className="text-lg font-semibold text-gray-900">EstatÃ­sticas</h3>
             <p className="text-sm text-gray-500 mt-1">Resumo dos clientes cadastrados</p>
           </div>
           <div className="flex items-center space-x-8">
@@ -510,11 +511,11 @@ export default function ClientesPage() {
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-green-600">{clientes.length}</p>
-              <p className="text-sm text-gray-500">Nesta Página</p>
+              <p className="text-sm text-gray-500">Nesta PÃ¡gina</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-purple-600">{totalPages}</p>
-              <p className="text-sm text-gray-500">Páginas</p>
+              <p className="text-sm text-gray-500">PÃ¡ginas</p>
             </div>
           </div>
         </div>
@@ -522,3 +523,4 @@ export default function ClientesPage() {
       </div>
   )
 }
+

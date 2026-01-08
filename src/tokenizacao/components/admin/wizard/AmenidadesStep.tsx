@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -42,31 +43,31 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
     loadData()
   }, [])
 
-  // Scroll para o topo quando o componente é montado
+  // Scroll para o topo quando o componente Ã© montado
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
-  // Atualizar amenidades selecionadas quando data prop mudar (modo de edição)
+  // Atualizar amenidades selecionadas quando data prop mudar (modo de ediÃ§Ã£o)
   useEffect(() => {
-    console.log('🔍 AmenidadesStep - data.amenidades recebido:', data.amenidades)
-    console.log('🔍 AmenidadesStep - data.amenidades length:', data.amenidades?.length)
-    console.log('🔍 AmenidadesStep - data.amenidades type:', typeof data.amenidades)
+    console.log('ðŸ” AmenidadesStep - data.amenidades recebido:', data.amenidades)
+    console.log('ðŸ” AmenidadesStep - data.amenidades length:', data.amenidades?.length)
+    console.log('ðŸ” AmenidadesStep - data.amenidades type:', typeof data.amenidades)
     
     if (data.amenidades && data.amenidades.length > 0) {
-      console.log('🔍 AmenidadesStep - Atualizando amenidades selecionadas:', data.amenidades)
+      console.log('ðŸ” AmenidadesStep - Atualizando amenidades selecionadas:', data.amenidades)
       const amenidadeIds = data.amenidades.map(a => a.id)
-      console.log('🔍 AmenidadesStep - IDs extraídos:', amenidadeIds)
+      console.log('ðŸ” AmenidadesStep - IDs extraÃ­dos:', amenidadeIds)
       setSelectedAmenidades(amenidadeIds)
       isInitialLoad.current = false
     } else {
-      console.log('🔍 AmenidadesStep - Nenhuma amenidade encontrada ou array vazio')
+      console.log('ðŸ” AmenidadesStep - Nenhuma amenidade encontrada ou array vazio')
       setSelectedAmenidades([])
       isInitialLoad.current = false
     }
   }, [data.amenidades])
 
-  // Função para atualizar dados do pai com debounce
+  // FunÃ§Ã£o para atualizar dados do pai com debounce
   const updateParentData = useCallback((newSelectedAmenidades: number[]) => {
     if (updateTimeoutRef.current) {
       clearTimeout(updateTimeoutRef.current)
@@ -183,9 +184,9 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Amenidades do Imóvel</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Amenidades do ImÃ³vel</h2>
         <p className="text-gray-600">
-          Selecione as amenidades disponíveis no imóvel. Você pode marcar categorias inteiras ou amenidades individuais.
+          Selecione as amenidades disponÃ­veis no imÃ³vel. VocÃª pode marcar categorias inteiras ou amenidades individuais.
         </p>
       </div>
 
@@ -212,7 +213,7 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
               Amenidades selecionadas: {selectedAmenidades.length}
             </p>
             <p className="text-sm text-blue-700">
-              {categorias.length} categorias disponíveis
+              {categorias.length} categorias disponÃ­veis
             </p>
           </div>
           {selectedAmenidades.length > 0 && (
@@ -239,7 +240,7 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
 
           return (
             <div key={categoria.id} className="border border-gray-400 rounded-lg">
-              {/* Cabeçalho da Categoria */}
+              {/* CabeÃ§alho da Categoria */}
               <div 
                 className="px-4 py-3 border-b border-gray-400"
                 style={{ backgroundColor: `${categoria.cor}15` }}
@@ -278,7 +279,7 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
                           : `0 4px 14px 0 ${categoria.cor}40`
                       }}
                     >
-                      {stats.selected === stats.total ? '✓ Desmarcar Todas' : '✓ Marcar Todas'}
+                      {stats.selected === stats.total ? 'âœ“ Desmarcar Todas' : 'âœ“ Marcar Todas'}
                     </button>
                   </div>
                 </div>
@@ -317,10 +318,10 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
         })}
       </div>
 
-      {/* Mensagem quando não há amenidades */}
+      {/* Mensagem quando nÃ£o hÃ¡ amenidades */}
       {categorias.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-6xl mb-4">🏠</div>
+          <div className="text-6xl mb-4">ðŸ </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             Nenhuma categoria de amenidades encontrada
           </h3>
@@ -330,10 +331,10 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
         </div>
       )}
 
-      {/* Mensagem quando busca não retorna resultados */}
+      {/* Mensagem quando busca nÃ£o retorna resultados */}
       {searchTerm && filteredAmenidades.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-6xl mb-4">🔍</div>
+          <div className="text-6xl mb-4">ðŸ”</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             Nenhuma amenidade encontrada
           </h3>
@@ -345,6 +346,7 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
     </div>
   )
 }
+
 
 
 

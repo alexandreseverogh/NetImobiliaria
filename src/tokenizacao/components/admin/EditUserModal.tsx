@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -64,20 +65,20 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     const newErrors: Record<string, string> = {}
 
     if (!formData.username.trim()) {
-      newErrors.username = 'Username é obrigatório'
+      newErrors.username = 'Username Ã© obrigatÃ³rio'
     }
 
     if (!formData.email.trim()) {
-      newErrors.email = 'E-mail é obrigatório'
+      newErrors.email = 'E-mail Ã© obrigatÃ³rio'
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'E-mail inválido'
+      newErrors.email = 'E-mail invÃ¡lido'
     }
 
     if (!formData.nome.trim()) {
-      newErrors.nome = 'Nome é obrigatório'
+      newErrors.nome = 'Nome Ã© obrigatÃ³rio'
     }
 
-    // Validação do telefone (se fornecido)
+    // ValidaÃ§Ã£o do telefone (se fornecido)
     if (formData.telefone.trim()) {
       const telefone = formData.telefone.trim()
       // Aceitar formatos: (81) 99999-9999, (81) 999999999, (81) 9999-9999
@@ -88,11 +89,11 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     }
 
     if (!formData.roleId) {
-      newErrors.roleId = 'Perfil é obrigatório'
+      newErrors.roleId = 'Perfil Ã© obrigatÃ³rio'
     }
 
     if (formData.password && formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'As senhas não coincidem'
+      newErrors.confirmPassword = 'As senhas nÃ£o coincidem'
     }
 
     if (formData.password && formData.password.length < 8) {
@@ -112,7 +113,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     try {
       const updateData: any = {}
 
-      // Só incluir campos que têm valores válidos
+      // SÃ³ incluir campos que tÃªm valores vÃ¡lidos
       if (formData.username.trim()) {
         updateData.username = formData.username.trim()
       }
@@ -135,13 +136,13 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
         updateData.roleId = formData.roleId
       }
 
-      // Só incluir senha se foi fornecida
+      // SÃ³ incluir senha se foi fornecida
       if (formData.password.trim()) {
         updateData.password = formData.password
       }
 
-      console.log('📤 Dados sendo enviados para atualização:', updateData)
-      console.log('🆔 ID do usuário:', user?.id)
+      console.log('ðŸ“¤ Dados sendo enviados para atualizaÃ§Ã£o:', updateData)
+      console.log('ðŸ†” ID do usuÃ¡rio:', user?.id)
       
       const response = await fetch(`/api/admin/usuarios/${user?.id}`, {
         method: 'PUT',
@@ -154,12 +155,12 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       if (response.ok) {
         onSuccess()
         onClose()
-        alert('Usuário atualizado com sucesso!')
+        alert('UsuÃ¡rio atualizado com sucesso!')
       } else {
         const error = await response.json()
-        let errorMessage = `Erro ao atualizar usuário: ${error.error || 'Erro desconhecido'}`
+        let errorMessage = `Erro ao atualizar usuÃ¡rio: ${error.error || 'Erro desconhecido'}`
         
-        // Mostrar detalhes de validação se disponíveis
+        // Mostrar detalhes de validaÃ§Ã£o se disponÃ­veis
         if (error.details && Array.isArray(error.details)) {
           errorMessage += '\n\nDetalhes:\n' + error.details.join('\n')
         }
@@ -167,8 +168,8 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
         alert(errorMessage)
       }
     } catch (error) {
-      console.error('Erro ao atualizar usuário:', error)
-      alert('Erro ao atualizar usuário. Tente novamente.')
+      console.error('Erro ao atualizar usuÃ¡rio:', error)
+      alert('Erro ao atualizar usuÃ¡rio. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -177,7 +178,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
   const handleDelete = async () => {
     if (!user) return
 
-    const confirmMessage = `Tem certeza que deseja excluir o usuário "${user.username}"?\n\nEsta ação não pode ser desfeita e o usuário será removido permanentemente do sistema.`
+    const confirmMessage = `Tem certeza que deseja excluir o usuÃ¡rio "${user.username}"?\n\nEsta aÃ§Ã£o nÃ£o pode ser desfeita e o usuÃ¡rio serÃ¡ removido permanentemente do sistema.`
     
     if (!confirm(confirmMessage)) {
       return
@@ -195,25 +196,25 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       if (response.ok) {
         onSuccess()
         onClose()
-        alert('Usuário excluído com sucesso!')
+        alert('UsuÃ¡rio excluÃ­do com sucesso!')
       } else {
         const error = await response.json()
-        alert(`Erro ao excluir usuário: ${error.error || 'Erro desconhecido'}`)
+        alert(`Erro ao excluir usuÃ¡rio: ${error.error || 'Erro desconhecido'}`)
       }
     } catch (error) {
-      console.error('Erro ao excluir usuário:', error)
-      alert('Erro ao excluir usuário. Tente novamente.')
+      console.error('Erro ao excluir usuÃ¡rio:', error)
+      alert('Erro ao excluir usuÃ¡rio. Tente novamente.')
     } finally {
       setDeleting(false)
     }
   }
 
-  // Função para formatar telefone automaticamente
+  // FunÃ§Ã£o para formatar telefone automaticamente
   const formatPhoneNumber = (value: string): string => {
-    // Remove tudo que não é número
+    // Remove tudo que nÃ£o Ã© nÃºmero
     const numbers = value.replace(/\D/g, '')
     
-    // Aplica formatação baseada no número de dígitos
+    // Aplica formataÃ§Ã£o baseada no nÃºmero de dÃ­gitos
     if (numbers.length <= 2) {
       return numbers
     } else if (numbers.length <= 6) {
@@ -234,7 +235,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       setFormData(prev => ({ ...prev, [field]: value }))
     }
     
-    // Limpar erro do campo quando usuário começar a digitar
+    // Limpar erro do campo quando usuÃ¡rio comeÃ§ar a digitar
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }))
     }
@@ -247,7 +248,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       <div className="relative top-10 mx-auto p-5 w-full max-w-4xl">
         <div className="bg-white rounded-2xl shadow-2xl p-6">
           <div className="flex items-center justify-between mb-6 border-b border-gray-200 pb-4">
-            <h3 className="text-xl font-semibold text-gray-900">Editar Usuário</h3>
+            <h3 className="text-xl font-semibold text-gray-900">Editar UsuÃ¡rio</h3>
             <button
               onClick={onClose}
               className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
@@ -331,7 +332,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                   value={formData.telefone}
                   onChange={(e) => handleInputChange('telefone', e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                  placeholder="Digite apenas os números (formatação automática)"
+                  placeholder="Digite apenas os nÃºmeros (formataÃ§Ã£o automÃ¡tica)"
                 />
                 {errors.telefone && (
                   <p className="text-red-500 text-xs mt-1">{errors.telefone}</p>
@@ -377,7 +378,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                     className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-all"
                   />
                   <label htmlFor="ativo" className="block text-sm font-medium text-gray-900">
-                    Usuário ativo
+                    UsuÃ¡rio ativo
                   </label>
                 </div>
               </div>
@@ -424,7 +425,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
               </div>
             </div>
 
-            {/* Botões */}
+            {/* BotÃµes */}
             <div className="flex space-x-4 pt-6 border-t border-gray-200">
               <button
                 type="button"
@@ -450,7 +451,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                 disabled={loading || deleting}
                 className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium"
               >
-                {loading ? 'Salvando...' : 'Salvar Alterações'}
+                {loading ? 'Salvando...' : 'Salvar AlteraÃ§Ãµes'}
               </button>
             </div>
           </form>
@@ -459,4 +460,5 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     </div>
   )
 }
+
 

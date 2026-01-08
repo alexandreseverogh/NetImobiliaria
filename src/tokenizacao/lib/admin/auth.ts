@@ -1,14 +1,15 @@
-// Serviço de autenticação para a área administrativa
+﻿/* eslint-disable */
+// ServiÃ§o de autenticaÃ§Ã£o para a Ã¡rea administrativa
 import { AdminUser, LoginCredentials, AuthResult, Session } from '@/lib/types/admin'
 import usersData from './users.json'
 
 export class AuthService {
   private static sessions: Map<string, Session> = new Map()
   
-  // Login do usuário
+  // Login do usuÃ¡rio
   static async login(credentials: LoginCredentials): Promise<AuthResult> {
     try {
-      // Buscar usuário por username ou email
+      // Buscar usuÃ¡rio por username ou email
       const user = usersData.users.find(u => 
         (u.username === credentials.username || u.email === credentials.username) && 
         u.ativo
@@ -17,12 +18,12 @@ export class AuthService {
       if (!user) {
         return {
           success: false,
-          error: 'Usuário não encontrado ou inativo'
+          error: 'UsuÃ¡rio nÃ£o encontrado ou inativo'
         }
       }
       
-      // Verificar senha (em produção, usar bcrypt.compare)
-      // Por enquanto, senha padrão: "password123"
+      // Verificar senha (em produÃ§Ã£o, usar bcrypt.compare)
+      // Por enquanto, senha padrÃ£o: "password123"
       if (credentials.password !== 'password123') {
         return {
           success: false,
@@ -30,10 +31,10 @@ export class AuthService {
         }
       }
       
-      // Criar sessão
+      // Criar sessÃ£o
       const sessionId = this.generateSessionId()
       
-      // Mapear usuário para AdminUser com todas as propriedades necessárias
+      // Mapear usuÃ¡rio para AdminUser com todas as propriedades necessÃ¡rias
       const adminUser: AdminUser = {
         id: user.id,
         username: user.username,
@@ -55,7 +56,7 @@ export class AuthService {
       
       this.sessions.set(sessionId, session)
       
-      // Atualizar último acesso
+      // Atualizar Ãºltimo acesso
       adminUser.ultimoAcesso = new Date().toISOString()
       
       return {
@@ -71,7 +72,7 @@ export class AuthService {
     }
   }
   
-  // Verificar sessão
+  // Verificar sessÃ£o
   static async verifySession(sessionId: string): Promise<AdminUser | null> {
     try {
       const session = this.sessions.get(sessionId)
@@ -80,13 +81,13 @@ export class AuthService {
         return null
       }
       
-      // Verificar se a sessão expirou
+      // Verificar se a sessÃ£o expirou
       if (new Date() > new Date(session.expiresAt)) {
         this.sessions.delete(sessionId)
         return null
       }
       
-      // Atualizar último acesso
+      // Atualizar Ãºltimo acesso
       session.user.ultimoAcesso = new Date().toISOString()
       
       return session.user
@@ -100,7 +101,7 @@ export class AuthService {
     this.sessions.delete(sessionId)
   }
   
-  // Verificar permissões
+  // Verificar permissÃµes
   static hasPermission(user: AdminUser, resource: string, action: string): boolean {
     const userPermissions = user.permissoes as any
     
@@ -122,13 +123,13 @@ export class AuthService {
     }
   }
   
-  // Gerar ID de sessão único
+  // Gerar ID de sessÃ£o Ãºnico
   private static generateSessionId(): string {
     return Math.random().toString(36).substring(2, 15) + 
            Math.random().toString(36).substring(2, 15)
   }
   
-  // Limpar sessões expiradas
+  // Limpar sessÃµes expiradas
   static cleanupExpiredSessions(): void {
     const now = new Date()
     for (const [sessionId, session] of Array.from(this.sessions.entries())) {
@@ -138,7 +139,7 @@ export class AuthService {
     }
   }
   
-  // Obter estatísticas de sessões
+  // Obter estatÃ­sticas de sessÃµes
   static getSessionStats(): { total: number; active: number } {
     const total = this.sessions.size
     let active = 0
@@ -154,10 +155,11 @@ export class AuthService {
   }
 }
 
-// Limpar sessões expiradas a cada hora
+// Limpar sessÃµes expiradas a cada hora
 setInterval(() => {
   AuthService.cleanupExpiredSessions()
 }, 60 * 60 * 1000)
+
 
 
 

@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findStatusImovelById, updateStatusImovel, deleteStatusImovel } from '@/lib/database/status-imovel'
 

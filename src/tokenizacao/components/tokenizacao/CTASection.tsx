@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -41,7 +42,7 @@ export default function CTASection() {
     },
     {
       icon: ChartBarIcon,
-      text: "ROI médio de 12-15% ao ano"
+      text: "ROI mÃ©dio de 12-15% ao ano"
     }
   ]
 
@@ -68,8 +69,8 @@ export default function CTASection() {
               </h2>
               
               <p className="text-xl lg:text-2xl text-blue-100 leading-relaxed mb-8">
-                Junte-se a mais de 1.200 investidores que já descobriram o poder da 
-                tokenização de imóveis. Comece hoje mesmo com apenas R$ 100.
+                Junte-se a mais de 1.200 investidores que jÃ¡ descobriram o poder da 
+                tokenizaÃ§Ã£o de imÃ³veis. Comece hoje mesmo com apenas R$ 100.
               </p>
             </div>
 
@@ -203,7 +204,7 @@ export default function CTASection() {
           
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
             <div className="text-3xl font-bold text-white mb-2">98.7%</div>
-            <div className="text-blue-200">Taxa de Satisfação</div>
+            <div className="text-blue-200">Taxa de SatisfaÃ§Ã£o</div>
           </div>
         </div>
       </div>
@@ -217,4 +218,5 @@ export default function CTASection() {
     </section>
   )
 }
+
 

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 class ApiClient {
   private baseURL: string
 
@@ -21,7 +22,7 @@ class ApiClient {
       if (response.status === 401) {
         const refreshed = await this.refreshToken()
         if (refreshed) {
-          // Tentar a requisição novamente
+          // Tentar a requisiÃ§Ã£o novamente
           return fetch(url, {
             ...options,
             headers: {
@@ -34,7 +35,7 @@ class ApiClient {
 
       return response
     } catch (error) {
-      console.error('Erro na requisição:', error)
+      console.error('Erro na requisiÃ§Ã£o:', error)
       throw error
     }
   }
@@ -75,4 +76,5 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient()
+
 

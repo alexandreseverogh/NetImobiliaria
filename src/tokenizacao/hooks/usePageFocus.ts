@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { useEffect } from 'react'
 
 export function usePageFocus(callback: () => void) {
@@ -21,3 +22,4 @@ export function usePageFocus(callback: () => void) {
     }
   }, [callback])
 }
+

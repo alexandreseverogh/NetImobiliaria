@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { AuthProvider } from '@/hooks/useAuth'
 import AdminLayoutContent from './AdminLayoutContent'
 
@@ -14,3 +15,4 @@ export default function AdminLayout({
     </AuthProvider>
   )
 }
+

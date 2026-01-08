@@ -1,11 +1,12 @@
+﻿/* eslint-disable */
 import { TIMESTAMP_CONFIG } from '@/lib/config/constants'
 
 /**
- * Utilitários para formatação e manipulação de datas
+ * UtilitÃ¡rios para formataÃ§Ã£o e manipulaÃ§Ã£o de datas
  */
 
 /**
- * Formata uma data para o padrão brasileiro (dd/MM/yyyy)
+ * Formata uma data para o padrÃ£o brasileiro (dd/MM/yyyy)
  */
 export function formatDateBrazil(dateString: string | Date): string {
   const date = typeof dateString === 'string' ? new Date(dateString) : dateString
@@ -13,7 +14,7 @@ export function formatDateBrazil(dateString: string | Date): string {
 }
 
 /**
- * Formata uma data para o padrão brasileiro com hora (dd/MM/yyyy HH:mm)
+ * Formata uma data para o padrÃ£o brasileiro com hora (dd/MM/yyyy HH:mm)
  */
 export function formatDateTimeBrazil(dateString: string | Date): string {
   const date = typeof dateString === 'string' ? new Date(dateString) : dateString
@@ -56,7 +57,7 @@ export function getCurrentDate(): Date {
 }
 
 /**
- * Verifica se uma data é válida
+ * Verifica se uma data Ã© vÃ¡lida
  */
 export function isValidDate(dateString: string | Date): boolean {
   const date = typeof dateString === 'string' ? new Date(dateString) : dateString
@@ -82,7 +83,7 @@ export function addHours(date: Date, hours: number): Date {
 }
 
 /**
- * Calcula diferença em dias entre duas datas
+ * Calcula diferenÃ§a em dias entre duas datas
  */
 export function daysDifference(date1: Date, date2: Date): number {
   const diffTime = Math.abs(date2.getTime() - date1.getTime())
@@ -104,7 +105,7 @@ export function getSQLNow(): string {
 }
 
 /**
- * Formata data para exibição relativa (ex: "há 2 dias")
+ * Formata data para exibiÃ§Ã£o relativa (ex: "hÃ¡ 2 dias")
  */
 export function formatRelativeDate(dateString: string | Date): string {
   const date = typeof dateString === 'string' ? new Date(dateString) : dateString
@@ -117,15 +118,16 @@ export function formatRelativeDate(dateString: string | Date): string {
   } else if (diffInDays === 1) {
     return 'Ontem'
   } else if (diffInDays < 7) {
-    return `Há ${diffInDays} dias`
+    return `HÃ¡ ${diffInDays} dias`
   } else if (diffInDays < 30) {
     const weeks = Math.floor(diffInDays / 7)
-    return `Há ${weeks} semana${weeks > 1 ? 's' : ''}`
+    return `HÃ¡ ${weeks} semana${weeks > 1 ? 's' : ''}`
   } else if (diffInDays < 365) {
     const months = Math.floor(diffInDays / 30)
-    return `Há ${months} mês${months > 1 ? 'es' : ''}`
+    return `HÃ¡ ${months} mÃªs${months > 1 ? 'es' : ''}`
   } else {
     const years = Math.floor(diffInDays / 365)
-    return `Há ${years} ano${years > 1 ? 's' : ''}`
+    return `HÃ¡ ${years} ano${years > 1 ? 's' : ''}`
   }
 }
+

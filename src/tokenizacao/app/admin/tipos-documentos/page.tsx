@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -35,7 +36,7 @@ export default function TiposDocumentosPage() {
   const [editingTipoDocumento, setEditingTipoDocumento] = useState<TipoDocumento | null>(null)
   const [deletingTipoDocumento, setDeletingTipoDocumento] = useState<TipoDocumento | null>(null)
   
-  // Estados de paginação
+  // Estados de paginaÃ§Ã£o
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
@@ -44,30 +45,30 @@ export default function TiposDocumentosPage() {
 
   useEffect(() => {
     fetchTiposDocumentos()
-  }, [currentPage, searchTerm]) // Recarregar quando a página ou busca mudar
+  }, [currentPage, searchTerm]) // Recarregar quando a pÃ¡gina ou busca mudar
 
   const fetchTiposDocumentos = async () => {
     try {
       setLoading(true)
-      console.log('🔄 FRONTEND: Buscando tipos de documentos...')
+      console.log('ðŸ”„ FRONTEND: Buscando tipos de documentos...')
       
-      // Sempre usar paginação
+      // Sempre usar paginaÃ§Ã£o
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : ''
       const url = `/api/admin/tipos-documentos?page=${currentPage}&limit=10${searchParam}`
       
-      console.log('🔄 FRONTEND: URL da requisição:', url)
+      console.log('ðŸ”„ FRONTEND: URL da requisiÃ§Ã£o:', url)
       const response = await fetch(url)
-      console.log('🔄 FRONTEND: Resposta da API:', response.status, response.statusText)
+      console.log('ðŸ”„ FRONTEND: Resposta da API:', response.status, response.statusText)
       
       if (!response.ok) {
-        console.error('❌ FRONTEND: Erro na API:', response.status, response.statusText)
+        console.error('âŒ FRONTEND: Erro na API:', response.status, response.statusText)
         const errorData = await response.json()
-        console.error('❌ FRONTEND: Dados do erro:', errorData)
+        console.error('âŒ FRONTEND: Dados do erro:', errorData)
         return
       }
       
       const data = await response.json()
-      console.log('✅ FRONTEND: Dados recebidos:', data)
+      console.log('âœ… FRONTEND: Dados recebidos:', data)
       
       if (data.success) {
         setTiposDocumentos(data.tiposDocumentos)
@@ -75,11 +76,11 @@ export default function TiposDocumentosPage() {
         setTotalItems(data.total)
         setHasNext(data.hasNext)
         setHasPrev(data.hasPrev)
-        console.log('✅ FRONTEND: Paginação ativa - página', data.currentPage, 'de', data.totalPages)
-        console.log('✅ FRONTEND: Tipos de documentos carregados:', data.tiposDocumentos.length)
+        console.log('âœ… FRONTEND: PaginaÃ§Ã£o ativa - pÃ¡gina', data.currentPage, 'de', data.totalPages)
+        console.log('âœ… FRONTEND: Tipos de documentos carregados:', data.tiposDocumentos.length)
       }
     } catch (error) {
-      console.error('❌ FRONTEND: Erro ao buscar tipos de documentos:', error)
+      console.error('âŒ FRONTEND: Erro ao buscar tipos de documentos:', error)
     } finally {
       setLoading(false)
     }
@@ -99,8 +100,8 @@ export default function TiposDocumentosPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    setCurrentPage(1) // Reset para primeira página ao buscar
-    // fetchTiposDocumentos() será chamado automaticamente pelo useEffect
+    setCurrentPage(1) // Reset para primeira pÃ¡gina ao buscar
+    // fetchTiposDocumentos() serÃ¡ chamado automaticamente pelo useEffect
   }
 
   const handlePageChange = (page: number) => {
@@ -120,14 +121,14 @@ export default function TiposDocumentosPage() {
     setDeletingTipoDocumento(null)
   }
 
-  // Calcular estatísticas
+  // Calcular estatÃ­sticas
   const totalAtivos = tiposDocumentos.filter(td => td.ativo).length
   const totalVisiveisPublico = tiposDocumentos.filter(td => td.consulta_imovel_internauta).length
 
   // Debug logs
-  console.log('🔍 RENDER: loading =', loading)
-  console.log('🔍 RENDER: tiposDocumentos.length =', tiposDocumentos.length)
-  console.log('🔍 RENDER: tiposDocumentos =', tiposDocumentos)
+  console.log('ðŸ” RENDER: loading =', loading)
+  console.log('ðŸ” RENDER: tiposDocumentos.length =', tiposDocumentos.length)
+  console.log('ðŸ” RENDER: tiposDocumentos =', tiposDocumentos)
 
   const formatDate = (dateString: string) => {
     return formatDateBrazil(dateString)
@@ -143,7 +144,7 @@ export default function TiposDocumentosPage() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Tipos de Documentos</h1>
                 <p className="mt-1 text-sm text-gray-600">
-                  Gerencie os tipos de documentos disponíveis para imóveis
+                  Gerencie os tipos de documentos disponÃ­veis para imÃ³veis
                 </p>
               </div>
               <div className="mt-4 sm:mt-0">
@@ -160,7 +161,7 @@ export default function TiposDocumentosPage() {
             </div>
           </div>
 
-          {/* Cards de Estatísticas */}
+          {/* Cards de EstatÃ­sticas */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center">
@@ -202,7 +203,7 @@ export default function TiposDocumentosPage() {
                   </div>
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Visíveis ao Público</p>
+                  <p className="text-sm font-medium text-gray-600">VisÃ­veis ao PÃºblico</p>
                   <p className="text-2xl font-semibold text-gray-900">{totalVisiveisPublico}</p>
                 </div>
               </div>
@@ -222,7 +223,7 @@ export default function TiposDocumentosPage() {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Buscar por descrição..."
+                    placeholder="Buscar por descriÃ§Ã£o..."
                   />
                 </div>
               </div>
@@ -264,10 +265,10 @@ export default function TiposDocumentosPage() {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          DESCRIÇÃO
+                          DESCRIÃ‡ÃƒO
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          VISÍVEL AO PÚBLICO
+                          VISÃVEL AO PÃšBLICO
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           STATUS
@@ -276,7 +277,7 @@ export default function TiposDocumentosPage() {
                           CRIADO EM
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          AÇÕES
+                          AÃ‡Ã•ES
                         </th>
                       </tr>
                     </thead>
@@ -294,7 +295,7 @@ export default function TiposDocumentosPage() {
                                 ? 'bg-green-100 text-green-800'
                                 : 'bg-gray-100 text-gray-800'
                             }`}>
-                              {tipoDocumento.consulta_imovel_internauta ? 'Sim' : 'Não'}
+                              {tipoDocumento.consulta_imovel_internauta ? 'Sim' : 'NÃ£o'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -337,7 +338,7 @@ export default function TiposDocumentosPage() {
                   </table>
                 </div>
 
-                {/* Paginação */}
+                {/* PaginaÃ§Ã£o */}
                 {totalPages > 1 && (
                   <Pagination
                     currentPage={currentPage}

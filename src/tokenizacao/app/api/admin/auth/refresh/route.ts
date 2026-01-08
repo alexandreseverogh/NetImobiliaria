@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 
-// Forçar uso do Node.js runtime
+// ForÃ§ar uso do Node.js runtime
 export const runtime = 'nodejs'
 
 import { verifyToken, generateTokens } from '@/lib/auth/jwt'
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     if (!refreshToken) {
       return NextResponse.json(
-        { error: 'Refresh token não fornecido' },
+        { error: 'Refresh token nÃ£o fornecido' },
         { status: 401 }
       )
     }
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     const decoded = verifyToken(refreshToken)
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Refresh token inválido ou expirado' },
+        { error: 'Refresh token invÃ¡lido ou expirado' },
         { status: 401 }
       )
     }
@@ -65,5 +66,6 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
 
 

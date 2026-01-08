@@ -1,3 +1,5 @@
+'use client'
+
 import PropertyCard from '@/components/PropertyCard'
 import SearchForm from '@/components/SearchForm'
 import { Filter, Grid, List } from 'lucide-react'
@@ -81,7 +83,7 @@ export default function ImoveisPage() {
             Catálogo de Imóveis
           </h1>
           <p className="text-xl text-primary-100 max-w-2xl mx-auto">
-            Descubra nossa seleção exclusiva de imóveis em São Paulo. 
+            Descubra nossa seleção exclusiva de imóveis em São Paulo.
             Encontre o lar perfeito para você e sua família.
           </p>
         </div>
@@ -90,7 +92,12 @@ export default function ImoveisPage() {
       {/* Search and Filters */}
       <section className="py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <SearchForm />
+          <SearchForm
+            onSearch={() => { }}
+            onClear={() => { }}
+            isSearching={false}
+            hasActiveFilters={false}
+          />
         </div>
       </section>
 
@@ -107,7 +114,7 @@ export default function ImoveisPage() {
                 Mostrando todos os imóveis disponíveis
               </p>
             </div>
-            
+
             {/* View Options */}
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">Visualizar:</span>

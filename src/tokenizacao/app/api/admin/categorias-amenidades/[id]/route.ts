@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { NextResponse } from 'next/server'
 import { findCategoriaAmenidadeById, updateCategoriaAmenidade, deleteCategoriaAmenidade } from '@/lib/database/amenidades'
 

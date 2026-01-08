@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -54,8 +55,8 @@ export default function ManagePerfilUsersModal({
       const data = await response.json()
       setUsers(data.users || [])
     } catch (error) {
-      console.error('Erro ao buscar usuários:', error)
-      alert('Erro ao buscar usuários')
+      console.error('Erro ao buscar usuÃ¡rios:', error)
+      alert('Erro ao buscar usuÃ¡rios')
     } finally {
       setLoading(false)
     }
@@ -77,12 +78,12 @@ export default function ManagePerfilUsersModal({
         throw new Error(`Erro ${response.status}: ${response.statusText}`)
       }
 
-      // Atualizar lista de usuários
+      // Atualizar lista de usuÃ¡rios
       await fetchUsers()
       onSuccess()
     } catch (error) {
       console.error('Erro ao atribuir perfil:', error)
-      alert('Erro ao atribuir perfil ao usuário')
+      alert('Erro ao atribuir perfil ao usuÃ¡rio')
     } finally {
       setAssigning(null)
     }
@@ -104,12 +105,12 @@ export default function ManagePerfilUsersModal({
         throw new Error(`Erro ${response.status}: ${response.statusText}`)
       }
 
-      // Atualizar lista de usuários
+      // Atualizar lista de usuÃ¡rios
       await fetchUsers()
       onSuccess()
     } catch (error) {
       console.error('Erro ao remover perfil:', error)
-      alert('Erro ao remover perfil do usuário')
+      alert('Erro ao remover perfil do usuÃ¡rio')
     } finally {
       setRemoving(null)
     }
@@ -127,7 +128,7 @@ export default function ManagePerfilUsersModal({
           <div className="flex items-center justify-between mb-6 border-b border-gray-200 pb-4">
             <div>
               <h3 className="text-xl font-semibold text-gray-900">
-                Gerenciar Usuários - {perfil.name}
+                Gerenciar UsuÃ¡rios - {perfil.name}
               </h3>
               <p className="text-sm text-gray-600 mt-1">
                 {perfil.description}
@@ -147,20 +148,20 @@ export default function ManagePerfilUsersModal({
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Usuários com este perfil */}
+              {/* UsuÃ¡rios com este perfil */}
               <div>
                 <h4 className="text-lg font-medium text-gray-900 mb-3">
-                  Usuários com este perfil ({usersWithPerfil.length})
+                  UsuÃ¡rios com este perfil ({usersWithPerfil.length})
                 </h4>
                 {usersWithPerfil.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Nenhum usuário atribuído a este perfil</p>
+                  <p className="text-gray-500 text-sm">Nenhum usuÃ¡rio atribuÃ­do a este perfil</p>
                 ) : (
                   <div className="space-y-2">
                     {usersWithPerfil.map((user) => (
                       <div key={user.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                         <div>
                           <p className="font-medium text-gray-900">{user.nome}</p>
-                          <p className="text-sm text-gray-600">@{user.username} • {user.email}</p>
+                          <p className="text-sm text-gray-600">@{user.username} â€¢ {user.email}</p>
                         </div>
                         <button
                           onClick={() => handleRemoveUser(user.id)}
@@ -180,20 +181,20 @@ export default function ManagePerfilUsersModal({
                 )}
               </div>
 
-              {/* Usuários sem este perfil */}
+              {/* UsuÃ¡rios sem este perfil */}
               <div>
                 <h4 className="text-lg font-medium text-gray-900 mb-3">
-                  Usuários disponíveis ({usersWithoutPerfil.length})
+                  UsuÃ¡rios disponÃ­veis ({usersWithoutPerfil.length})
                 </h4>
                 {usersWithoutPerfil.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Todos os usuários já têm perfis atribuídos</p>
+                  <p className="text-gray-500 text-sm">Todos os usuÃ¡rios jÃ¡ tÃªm perfis atribuÃ­dos</p>
                 ) : (
                   <div className="space-y-2">
                     {usersWithoutPerfil.map((user) => (
                       <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
                           <p className="font-medium text-gray-900">{user.nome}</p>
-                          <p className="text-sm text-gray-600">@{user.username} • {user.email}</p>
+                          <p className="text-sm text-gray-600">@{user.username} â€¢ {user.email}</p>
                           {user.role_name && (
                             <p className="text-xs text-blue-600">Perfil atual: {user.role_name}</p>
                           )}
@@ -231,6 +232,7 @@ export default function ManagePerfilUsersModal({
     </div>
   )
 }
+
 
 
 

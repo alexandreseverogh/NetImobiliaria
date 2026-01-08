@@ -1,0 +1,303 @@
+--- INSPEÇÃO BANCO LOCAL (5432) ---
+
+>>> TABLE: system_categorias
+   Cols: id(integer), name(character varying), slug(character varying), description(text), icon(character varying), color(character varying), sort_order(integer), is_active(boolean), created_at(timestamp without time zone), updated_at(timestamp without time zone), created_by(integer), updated_by(integer)
+   ROWS:
+[
+  {
+    "id": 2,
+    "name": "Permissões",
+    "slug": "permissoes",
+    "description": "Gestão de permissões e segurança",
+    "icon": "LockClosedIcon",
+    "color": "#EF4444",
+    "sort_order": 2,
+    "is_active": true,
+    "created_at": "2025-10-14T22:56:55.716Z",
+    "updated_at": "2025-10-14T22:56:55.716Z",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": 3,
+    "name": "Administrativo",
+    "slug": "administrativo",
+    "description": "Funções administrativas",
+    "icon": "ShieldCheckIcon",
+    "color": "#3B82F6",
+    "sort_order": 3,
+    "is_active": true,
+    "created_at": "2025-10-14T22:56:55.716Z",
+    "updated_at": "2025-10-14T22:56:55.716Z",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": 4,
+    "name": "Imóveis",
+    "slug": "imoveis",
+    "description": "Gestão de imóveis",
+    "icon": "BuildingOfficeIcon",
+    "color": "#10B981",
+    "sort_order": 4,
+    "is_active": true,
+    "created_at": "2025-10-14T22:56:55.716Z",
+    "updated_at": "2025-10-14T22:56:55.716Z",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": 5,
+    "name": "Clientes",
+    "slug": "clientes",
+    "description": "Gestão de clientes",
+    "icon": "UserIcon",
+    "color": "#8B5CF6",
+    "sort_order": 5,
+    "is_active": true,
+    "created_at": "2025-10-14T22:56:55.716Z",
+    "updated_at": "2025-10-14T22:56:55.716Z",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": 6,
+    "name": "Proprietários",
+    "slug": "proprietarios",
+    "description": "Gestão de proprietários",
+    "icon": "UserGroupIcon",
+    "color": "#F59E0B",
+    "sort_order": 6,
+    "is_active": true,
+    "created_at": "2025-10-14T22:56:55.716Z",
+    "updated_at": "2025-10-14T22:56:55.716Z",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": 1,
+    "name": "Sistema",
+    "slug": "sistema",
+    "description": "Funcionalidades do sistema",
+    "icon": "CogIcon",
+    "color": "#6B7280",
+    "sort_order": 1,
+    "is_active": true,
+    "created_at": "2025-10-14T22:56:55.716Z",
+    "updated_at": "2025-10-17T15:44:36.597Z",
+    "created_by": null,
+    "updated_by": 1
+  },
+  {
+    "id": 7,
+    "name": "Dashboard / Relatórios",
+    "slug": "dashboard-relatorios",
+    "description": "Dashboards e relatórios",
+    "icon": "ChartBarIcon",
+    "color": "#06B6D4",
+    "sort_order": 7,
+    "is_active": true,
+    "created_at": "2025-10-14T22:56:55.716Z",
+    "updated_at": "2025-10-23T18:18:42.963Z",
+    "created_by": null,
+    "updated_by": 1
+  }
+]
+
+>>> TABLE: system_features
+   Cols: id(integer), name(character varying), description(text), category_id(integer), url(character varying), is_active(boolean), created_at(timestamp without time zone), updated_at(timestamp without time zone), created_by(integer), updated_by(integer), Crud_Execute(character varying), slug(character varying)
+   ROWS:
+[
+  {
+    "id": 54,
+    "name": "Parâmetros",
+    "description": "Parâmetros da Empresa",
+    "category_id": 3,
+    "url": "/admin/parametros",
+    "is_active": true,
+    "created_at": "2025-11-22T18:46:27.421Z",
+    "updated_at": "2025-11-22T18:46:27.421Z",
+    "created_by": null,
+    "updated_by": null,
+    "Crud_Execute": "EXECUTE",
+    "slug": "parametros"
+  }
+]
+
+>>> TABLE: system_feature_categoria
+   ❌ NÃO EXISTE.
+
+>>> TABLE: sidebar_menu_items
+   Cols: id(integer), parent_id(integer), name(character varying), icon_name(character varying), url(character varying), resource(character varying), order_index(integer), is_active(boolean), roles_required(jsonb), permission_required(character varying), permission_action(character varying), description(text), created_at(timestamp without time zone), updated_at(timestamp without time zone), created_by(uuid), updated_by(uuid), feature_id(integer), permission_id(integer)
+   (0 rows matched)
+
+>>> TABLE: sidebar_item_roles
+   Cols: id(integer), sidebar_item_id(integer), role_id(integer), created_at(timestamp without time zone), created_by(uuid)
+   ROWS:
+[
+  {
+    "id": 1,
+    "sidebar_item_id": 16,
+    "role_id": 1,
+    "created_at": "2025-10-29T11:56:51.577Z",
+    "created_by": null
+  },
+  {
+    "id": 2,
+    "sidebar_item_id": 16,
+    "role_id": 2,
+    "created_at": "2025-10-29T11:56:51.577Z",
+    "created_by": null
+  },
+  {
+    "id": 3,
+    "sidebar_item_id": 6,
+    "role_id": 1,
+    "created_at": "2025-10-29T11:56:51.577Z",
+    "created_by": null
+  },
+  {
+    "id": 4,
+    "sidebar_item_id": 6,
+    "role_id": 2,
+    "created_at": "2025-10-29T11:56:51.577Z",
+    "created_by": null
+  },
+  {
+    "id": 5,
+    "sidebar_item_id": 6,
+    "role_id": 3,
+    "created_at": "2025-10-29T11:56:51.577Z",
+    "created_by": null
+  },
+  {
+    "id": 6,
+    "sidebar_item_id": 14,
+    "role_id": 1,
+    "created_at": "2025-10-29T11:56:51.577Z",
+    "created_by": null
+  },
+  {
+    "id": 7,
+    "sidebar_item_id": 14,
+    "role_id": 2,
+    "created_at": "2025-10-29T11:56:51.577Z",
+    "created_by": null
+  },
+  {
+    "id": 8,
+    "sidebar_item_id": 17,
+    "role_id": 1,
+    "created_at": "2025-10-29T11:56:51.577Z",
+    "created_by": null
+  },
+  {
+    "id": 9,
+    "sidebar_item_id": 17,
+    "role_id": 2,
+    "created_at": "2025-10-29T11:56:51.577Z",
+    "created_by": null
+  },
+  {
+    "id": 10,
+    "sidebar_item_id": 5,
+    "role_id": 1,
+    "created_at": "2025-10-29T11:56:51.577Z",
+    "created_by": null
+  }
+]
+
+>>> TABLE: sidebar_menu_versions
+   Cols: id(integer), version_name(character varying), menu_structure(jsonb), is_active(boolean), description(text), created_at(timestamp without time zone), created_by(uuid)
+   (0 rows matched)
+
+>>> TABLE: permissions
+   Cols: id(integer), feature_id(integer), action(character varying), description(text), created_at(timestamp without time zone), updated_at(date), requires_2fa(boolean)
+   ROWS:
+[
+  {
+    "id": 852,
+    "feature_id": 54,
+    "action": "execute",
+    "description": "Executar Parâmetros",
+    "created_at": "2025-11-22T18:46:27.421Z",
+    "updated_at": "2025-11-22T03:00:00.000Z",
+    "requires_2fa": false
+  }
+]
+
+>>> TABLE: role_permissions
+   Cols: id(integer), role_id(integer), permission_id(integer), granted_by(uuid), granted_at(timestamp without time zone)
+   ROWS:
+[
+  {
+    "id": 1792,
+    "role_id": 9,
+    "permission_id": 782,
+    "granted_by": null,
+    "granted_at": "2025-10-30T19:50:11.443Z"
+  },
+  {
+    "id": 1793,
+    "role_id": 9,
+    "permission_id": 780,
+    "granted_by": null,
+    "granted_at": "2025-10-30T19:50:11.443Z"
+  },
+  {
+    "id": 1794,
+    "role_id": 9,
+    "permission_id": 779,
+    "granted_by": null,
+    "granted_at": "2025-10-30T19:50:11.443Z"
+  },
+  {
+    "id": 1795,
+    "role_id": 9,
+    "permission_id": 781,
+    "granted_by": null,
+    "granted_at": "2025-10-30T19:50:11.443Z"
+  },
+  {
+    "id": 1825,
+    "role_id": 1,
+    "permission_id": 851,
+    "granted_by": null,
+    "granted_at": "2025-11-01T14:27:38.239Z"
+  },
+  {
+    "id": 1826,
+    "role_id": 2,
+    "permission_id": 851,
+    "granted_by": null,
+    "granted_at": "2025-11-01T14:27:38.239Z"
+  },
+  {
+    "id": 1850,
+    "role_id": 1,
+    "permission_id": 852,
+    "granted_by": null,
+    "granted_at": "2025-11-22T18:46:27.421Z"
+  },
+  {
+    "id": 1851,
+    "role_id": 2,
+    "permission_id": 852,
+    "granted_by": null,
+    "granted_at": "2025-11-22T18:46:27.421Z"
+  },
+  {
+    "id": 1856,
+    "role_id": 1,
+    "permission_id": 855,
+    "granted_by": null,
+    "granted_at": "2025-11-22T22:30:36.067Z"
+  },
+  {
+    "id": 1857,
+    "role_id": 2,
+    "permission_id": 855,
+    "granted_by": null,
+    "granted_at": "2025-11-22T22:30:36.067Z"
+  }
+]

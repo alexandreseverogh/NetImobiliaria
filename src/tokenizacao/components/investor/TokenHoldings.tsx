@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -60,7 +61,7 @@ export default function TokenHoldings() {
       id: 3,
       tokenSymbol: 'NETHOUSE-03',
       propertyName: 'Loft Industrial Vila Madalena',
-      location: 'Vila Madalena, São Paulo - SP',
+      location: 'Vila Madalena, SÃ£o Paulo - SP',
       tokensOwned: 5,
       totalTokens: 1500,
       ownershipPercentage: 0.33,
@@ -174,7 +175,7 @@ export default function TokenHoldings() {
           <div key={holding.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg transition-shadow">
             <div className="p-6">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                {/* Informações da Propriedade */}
+                {/* InformaÃ§Ãµes da Propriedade */}
                 <div className="flex items-start space-x-4 mb-4 lg:mb-0">
                   <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
                     <Building className="h-8 w-8 text-white" />
@@ -202,13 +203,13 @@ export default function TokenHoldings() {
                     
                     <div className="flex items-center space-x-4 text-sm text-gray-600">
                       <span>Comprado em: {new Date(holding.purchaseDate).toLocaleDateString('pt-BR')}</span>
-                      <span>•</span>
-                      <span>{holding.ownershipPercentage.toFixed(2)}% do imóvel</span>
+                      <span>â€¢</span>
+                      <span>{holding.ownershipPercentage.toFixed(2)}% do imÃ³vel</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Ações */}
+                {/* AÃ§Ãµes */}
                 <div className="flex items-center space-x-2">
                   <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
                     <Eye className="h-4 w-4" />
@@ -223,14 +224,14 @@ export default function TokenHoldings() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <p className="text-2xl font-bold text-gray-900">{holding.tokensOwned}</p>
-                  <p className="text-sm text-gray-600">Tokens Possuídos</p>
+                  <p className="text-sm text-gray-600">Tokens PossuÃ­dos</p>
                   <p className="text-xs text-gray-500">de {holding.totalTokens}</p>
                 </div>
                 
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <p className="text-2xl font-bold text-gray-900">R$ {holding.valuePerToken.toLocaleString()}</p>
                   <p className="text-sm text-gray-600">Valor por Token</p>
-                  <p className="text-xs text-gray-500">Custo médio: R$ {holding.averageCost.toLocaleString()}</p>
+                  <p className="text-xs text-gray-500">Custo mÃ©dio: R$ {holding.averageCost.toLocaleString()}</p>
                 </div>
                 
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
@@ -242,7 +243,7 @@ export default function TokenHoldings() {
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <p className="text-2xl font-bold text-purple-600">R$ {holding.monthlyDividend.toLocaleString()}</p>
                   <p className="text-sm text-gray-600">Dividendo Mensal</p>
-                  <p className="text-xs text-gray-500">Último: {new Date(holding.lastDividend).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-xs text-gray-500">Ãšltimo: {new Date(holding.lastDividend).toLocaleDateString('pt-BR')}</p>
                 </div>
               </div>
 
@@ -289,7 +290,7 @@ export default function TokenHoldings() {
             <p className="text-2xl font-bold text-purple-600">
               {(tokenHoldings.reduce((sum, h) => sum + h.ownershipPercentage, 0) / tokenHoldings.length).toFixed(1)}%
             </p>
-            <p className="text-sm text-gray-600">Participação Média</p>
+            <p className="text-sm text-gray-600">ParticipaÃ§Ã£o MÃ©dia</p>
             <p className="text-xs text-gray-500">Por Propriedade</p>
           </div>
         </div>
@@ -297,4 +298,5 @@ export default function TokenHoldings() {
     </div>
   )
 }
+
 

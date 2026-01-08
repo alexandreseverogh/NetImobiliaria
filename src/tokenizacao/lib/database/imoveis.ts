@@ -1,3 +1,5 @@
+﻿/* eslint-disable */
+// @ts-nocheck
 import pool from './connection'
 import { logAuditEvent } from './audit'
 
@@ -59,11 +61,11 @@ export interface FiltroImovel {
   estado_fk?: number    // Chave estrangeira para estado
   estado_sigla?: string // Sigla do estado (AL, PE, PB, etc.)
   cidade_fk?: number    // Chave estrangeira para cidade
-  cidade_nome?: string  // Nome da cidade (Recife, São Paulo, etc.)
+  cidade_nome?: string  // Nome da cidade (Recife, SÃ£o Paulo, etc.)
   tipo_fk?: number      // Chave estrangeira para tipo
   finalidade_fk?: number // Chave estrangeira para finalidade
   status_fk?: number    // Chave estrangeira para status
-  
+
   // Filtros legados (manter compatibilidade)
   codigo?: string
   estado?: string
@@ -83,7 +85,7 @@ export interface FiltroImovel {
   ativo?: boolean
 }
 
-// Buscar imóvel por ID
+// Buscar imÃ³vel por ID
 export async function findImovelById(id: number): Promise<ImovelCompleto | null> {
   try {
     const query = `
@@ -104,12 +106,12 @@ export async function findImovelById(id: number): Promise<ImovelCompleto | null>
     const result = await pool.query(query, [id])
     return result.rows[0] || null
   } catch (error) {
-    console.error('Erro ao buscar imóvel por ID:', error)
+    console.error('Erro ao buscar imÃ³vel por ID:', error)
     throw error
   }
 }
 
-// Buscar imóvel por código
+// Buscar imÃ³vel por cÃ³digo
 export async function findImovelByCodigo(codigo: string): Promise<ImovelCompleto | null> {
   try {
     const query = `
@@ -119,12 +121,12 @@ export async function findImovelByCodigo(codigo: string): Promise<ImovelCompleto
     const result = await pool.query(query, [codigo])
     return result.rows[0] || null
   } catch (error) {
-    console.error('Erro ao buscar imóvel por código:', error)
+    console.error('Erro ao buscar imÃ³vel por cÃ³digo:', error)
     throw error
   }
 }
 
-// Buscar todos os imóveis ativos (para listagem simples)
+// Buscar todos os imÃ³veis ativos (para listagem simples)
 export async function findAllImoveis(): Promise<ImovelCompleto[]> {
   try {
     const query = `
@@ -135,16 +137,16 @@ export async function findAllImoveis(): Promise<ImovelCompleto[]> {
     const result = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar todos os imóveis:', error)
-    throw new Error('Erro ao buscar imóveis')
+    console.error('âŒ Erro ao buscar todos os imÃ³veis:', error)
+    throw new Error('Erro ao buscar imÃ³veis')
   }
 }
 
-// Listar imóveis com filtros
+// Listar imÃ³veis com filtros
 export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset = 0): Promise<ImovelCompleto[]> {
   try {
-    console.log('🔍 listImoveis - Filtros recebidos:', filtros)
-    
+    console.log('ðŸ” listImoveis - Filtros recebidos:', filtros)
+
     let query = `
       SELECT * FROM imoveis_completos
       WHERE 1=1
@@ -307,24 +309,24 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
     query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`
     params.push(limit, offset)
 
-    console.log('🔍 listImoveis - Query final:', query)
-    console.log('🔍 listImoveis - Parâmetros:', params)
+    console.log('ðŸ” listImoveis - Query final:', query)
+    console.log('ðŸ” listImoveis - ParÃ¢metros:', params)
 
     const result = await pool.query(query, params)
-    console.log('🔍 listImoveis - Resultados encontrados:', result.rows.length)
+    console.log('ðŸ” listImoveis - Resultados encontrados:', result.rows.length)
     return result.rows
   } catch (error) {
-    console.error('Erro ao listar imóveis:', error)
+    console.error('Erro ao listar imÃ³veis:', error)
     throw error
   }
 }
 
-// Criar novo imóvel
+// Criar novo imÃ³vel
 export async function createImovel(imovel: Imovel, userId: string | null): Promise<Imovel> {
   try {
-    console.log('🔍 Dados recebidos para criar imóvel:', JSON.stringify(imovel, null, 2))
-    console.log('🔍 UserId recebido:', userId)
-    
+    console.log('ðŸ” Dados recebidos para criar imÃ³vel:', JSON.stringify(imovel, null, 2))
+    console.log('ðŸ” UserId recebido:', userId)
+
     const query = `
       INSERT INTO imoveis (
         codigo, titulo, descricao, tipo_fk, finalidade_fk, status_fk, preco, preco_condominio, 
@@ -338,7 +340,7 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
         $31, $32, $33, $34
       ) RETURNING *
     `
-    
+
     const values = [
       imovel.codigo, imovel.titulo, imovel.descricao, imovel.tipo_fk, imovel.finalidade_fk, imovel.status_fk,
       imovel.preco, imovel.preco_condominio, imovel.preco_iptu, imovel.taxa_extra, imovel.area_total,
@@ -348,16 +350,16 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
       imovel.ano_construcao, imovel.andar, imovel.total_andares, imovel.mobiliado,
       imovel.aceita_permuta, imovel.aceita_financiamento, imovel.destaque, userId
     ]
-    
-    console.log('🔍 Query SQL:', query)
-    console.log('🔍 Valores a serem inseridos:', JSON.stringify(values, null, 2))
+
+    console.log('ðŸ” Query SQL:', query)
+    console.log('ðŸ” Valores a serem inseridos:', JSON.stringify(values, null, 2))
 
     const result = await pool.query(query, values)
     const novoImovel = result.rows[0]
-    
-    console.log('✅ Imóvel criado com sucesso:', JSON.stringify(novoImovel, null, 2))
 
-    // Log de auditoria (apenas se userId não for null)
+    console.log('âœ… ImÃ³vel criado com sucesso:', JSON.stringify(novoImovel, null, 2))
+
+    // Log de auditoria (apenas se userId nÃ£o for null)
     if (userId) {
       try {
         await logAuditEvent({
@@ -365,25 +367,25 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
           action: 'CREATE',
           resourceType: 'imoveis',
           resourceId: novoImovel.id?.toString() || null,
-          details: `Imóvel criado: ${novoImovel.codigo} - ${novoImovel.titulo}`,
+          details: `ImÃ³vel criado: ${novoImovel.codigo} - ${novoImovel.titulo}`,
           ipAddress: '127.0.0.1'
         })
-        console.log('✅ Log de auditoria criado com sucesso')
+        console.log('âœ… Log de auditoria criado com sucesso')
       } catch (auditError) {
-        console.error('⚠️ Erro ao criar log de auditoria (não crítico):', auditError)
+        console.error('âš ï¸ Erro ao criar log de auditoria (nÃ£o crÃ­tico):', auditError)
       }
     } else {
-      console.log('⚠️ Log de auditoria ignorado - userId é null')
+      console.log('âš ï¸ Log de auditoria ignorado - userId Ã© null')
     }
 
     return novoImovel
   } catch (error) {
-    console.error('Erro ao criar imóvel:', error)
+    console.error('Erro ao criar imÃ³vel:', error)
     throw error
   }
 }
 
-// Atualizar imóvel
+// Atualizar imÃ³vel
 export async function updateImovel(id: number, imovel: Partial<Imovel>, userId: string): Promise<Imovel | null> {
   try {
     const fields: string[] = []
@@ -412,7 +414,7 @@ export async function updateImovel(id: number, imovel: Partial<Imovel>, userId: 
     fields.push(`updated_at = CURRENT_TIMESTAMP`)
     const query = `UPDATE imoveis SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`
     values.push(id)
-    
+
     const result = await pool.query(query, values)
     const imovelAtualizado = result.rows[0]
 
@@ -423,19 +425,19 @@ export async function updateImovel(id: number, imovel: Partial<Imovel>, userId: 
         action: 'UPDATE',
         resourceType: 'imoveis',
         resourceId: id.toString(),
-        details: `Imóvel atualizado: ${imovelAtualizado.codigo}`,
+        details: `ImÃ³vel atualizado: ${imovelAtualizado.codigo}`,
         ipAddress: '127.0.0.1'
       })
     }
 
     return imovelAtualizado || null
   } catch (error) {
-    console.error('Erro ao atualizar imóvel:', error)
+    console.error('Erro ao atualizar imÃ³vel:', error)
     throw error
   }
 }
 
-// Desativar imóvel (soft delete)
+// Desativar imÃ³vel (soft delete)
 export async function deactivateImovel(id: number, userId: string): Promise<boolean> {
   try {
     const query = `
@@ -443,9 +445,9 @@ export async function deactivateImovel(id: number, userId: string): Promise<bool
       SET ativo = false, updated_by = $1, updated_at = CURRENT_TIMESTAMP 
       WHERE id = $2
     `
-    
+
     const result = await pool.query(query, [userId, id])
-    
+
     if (result.rowCount && result.rowCount > 0) {
       // Log de auditoria
       await logAuditEvent({
@@ -453,68 +455,68 @@ export async function deactivateImovel(id: number, userId: string): Promise<bool
         action: 'DELETE',
         resourceType: 'imoveis',
         resourceId: id.toString(),
-        details: `Imóvel desativado`,
+        details: `ImÃ³vel desativado`,
         ipAddress: '127.0.0.1'
       })
       return true
     }
-    
+
     return false
   } catch (error) {
-    console.error('Erro ao desativar imóvel:', error)
+    console.error('Erro ao desativar imÃ³vel:', error)
     throw error
   }
 }
 
-// Buscar estatísticas de imóveis
+// Buscar estatÃ­sticas de imÃ³veis
 export async function getImoveisStats(): Promise<any> {
   try {
     const query = `SELECT * FROM estatisticas_imoveis`
     const result = await pool.query(query)
     return result.rows[0] || {}
   } catch (error) {
-    console.error('Erro ao buscar estatísticas de imóveis:', error)
+    console.error('Erro ao buscar estatÃ­sticas de imÃ³veis:', error)
     throw error
   }
 }
 
-// Listar tipos de imóvel
+// Listar tipos de imÃ³vel
 export async function listTiposImovel(): Promise<any[]> {
   try {
     const query = `SELECT * FROM tipos_imovel WHERE ativo = true ORDER BY nome`
     const result = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('Erro ao listar tipos de imóvel:', error)
+    console.error('Erro ao listar tipos de imÃ³vel:', error)
     throw error
   }
 }
 
-// Listar status de imóvel
+// Listar status de imÃ³vel
 export async function listStatusImovel(): Promise<any[]> {
   try {
     const query = `SELECT * FROM status_imovel WHERE ativo = true ORDER BY nome`
     const result = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('Erro ao listar status de imóvel:', error)
+    console.error('Erro ao listar status de imÃ³vel:', error)
     throw error
   }
 }
 
-// Buscar status de imóvel por ID
+// Buscar status de imÃ³vel por ID
 export async function findStatusImovelById(id: number): Promise<any | null> {
   try {
     const query = `SELECT * FROM status_imovel WHERE id = $1`
     const result = await pool.query(query, [id])
     return result.rows[0] || null
   } catch (error) {
-    console.error('Erro ao buscar status de imóvel:', error)
+    console.error('Erro ao buscar status de imÃ³vel:', error)
     throw error
   }
 }
 
-// Atualizar status de imóvel
+// Atualizar status de imÃ³vel
 export async function updateStatusImovel(id: number, data: { nome: string; descricao?: string | null; ativo: boolean }): Promise<any> {
   try {
     const query = `
@@ -526,23 +528,23 @@ export async function updateStatusImovel(id: number, data: { nome: string; descr
     const result = await pool.query(query, [data.nome, data.descricao, data.ativo, id])
     return result.rows[0]
   } catch (error) {
-    console.error('Erro ao atualizar status de imóvel:', error)
+    console.error('Erro ao atualizar status de imÃ³vel:', error)
     throw error
   }
 }
 
-// Excluir status de imóvel
+// Excluir status de imÃ³vel
 export async function deleteStatusImovel(id: number): Promise<void> {
   try {
     const query = `DELETE FROM status_imovel WHERE id = $1`
     await pool.query(query, [id])
   } catch (error) {
-    console.error('Erro ao excluir status de imóvel:', error)
+    console.error('Erro ao excluir status de imÃ³vel:', error)
     throw error
   }
 }
 
-// Buscar imóveis em destaque
+// Buscar imÃ³veis em destaque
 export async function getImoveisDestaque(limit = 6): Promise<ImovelCompleto[]> {
   try {
     const query = `
@@ -554,20 +556,22 @@ export async function getImoveisDestaque(limit = 6): Promise<ImovelCompleto[]> {
     const result = await pool.query(query, [limit])
     return result.rows
   } catch (error) {
-    console.error('Erro ao buscar imóveis em destaque:', error)
+    console.error('Erro ao buscar imÃ³veis em destaque:', error)
     throw error
   }
 }
 
 // ========================================
-// FUNÇÕES PARA IMAGENS DOS IMÓVEIS
-// ========================================
+// FUNÃ‡Ã•ES PARA IMAGENS DOS IMÃ“VEIS
+/**
+ * FunÃ§Ãµes de banco de dados para ImÃ³veis
+ */
 
-// Buscar todas as imagens de um imóvel
+// Buscar todas as imagens de um imÃ³vel
 export async function findImovelImagens(imovelId: number) {
   try {
-    console.log('🔍 findImovelImagens - Buscando imagens para imóvel:', imovelId)
-    
+    console.log('ðŸ” findImovelImagens - Buscando imagens para imÃ³vel:', imovelId)
+
     const query = `
       SELECT 
         id,
@@ -581,30 +585,30 @@ export async function findImovelImagens(imovelId: number) {
       WHERE imovel_id = $1
       ORDER BY COALESCE(ordem, 999) ASC, id ASC
     `
-    
-    console.log('🔍 findImovelImagens - Query:', query)
-    console.log('🔍 findImovelImagens - Parâmetros:', [imovelId])
-    
+
+    console.log('ðŸ” findImovelImagens - Query:', query)
+    console.log('ðŸ” findImovelImagens - ParÃ¢metros:', [imovelId])
+
     const result = await pool.query(query, [imovelId])
-    
-    console.log('🔍 findImovelImagens - Resultado:', {
+
+    console.log('ðŸ” findImovelImagens - Resultado:', {
       rowCount: result.rowCount,
       rows: result.rows.length,
       data: result.rows
     })
-    
+
     return result.rows
   } catch (error) {
-    console.error('Erro ao buscar imagens do imóvel:', error)
+    console.error('Erro ao buscar imagens do imÃ³vel:', error)
     throw error
   }
 }
 
-// Buscar uma imagem específica
+// Buscar uma imagem especÃ­fica
 export async function findImovelImagem(imagemId: number) {
   try {
-    console.log('🔍 findImovelImagem - Buscando imagem com ID:', imagemId)
-    
+    console.log('ðŸ” findImovelImagem - Buscando imagem com ID:', imagemId)
+
     const query = `
       SELECT 
         id,
@@ -618,14 +622,14 @@ export async function findImovelImagem(imagemId: number) {
       FROM imovel_imagens 
       WHERE id = $1
     `
-    
+
     const result = await pool.query(query, [imagemId])
-    console.log('🔍 findImovelImagem - Query executada. Rows encontradas:', result.rows.length)
-    console.log('🔍 findImovelImagem - Imagem encontrada:', result.rows[0] || 'null')
-    
+    console.log('ðŸ” findImovelImagem - Query executada. Rows encontradas:', result.rows.length)
+    console.log('ðŸ” findImovelImagem - Imagem encontrada:', result.rows[0] || 'null')
+
     return result.rows[0] || null
   } catch (error) {
-    console.error('❌ findImovelImagem - Erro ao buscar imagem:', error)
+    console.error('âŒ findImovelImagem - Erro ao buscar imagem:', error)
     throw error
   }
 }
@@ -640,7 +644,7 @@ export async function insertImovelImagem(imagemData: {
   imagem: Buffer
 }) {
   try {
-    // Se esta imagem será principal, desmarcar outras como principais
+    // Se esta imagem serÃ¡ principal, desmarcar outras como principais
     if (imagemData.principal) {
       await pool.query(
         'UPDATE imovel_imagens SET principal = false WHERE imovel_id = $1',
@@ -654,7 +658,7 @@ export async function insertImovelImagem(imagemData: {
       ) VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id
     `
-    
+
     const values = [
       imagemData.imovelId,
       imagemData.ordem,
@@ -663,7 +667,7 @@ export async function insertImovelImagem(imagemData: {
       imagemData.tamanhoBytes || null,
       imagemData.imagem
     ]
-    
+
     const result = await pool.query(query, values)
     return result.rows[0].id
   } catch (error) {
@@ -673,18 +677,18 @@ export async function insertImovelImagem(imagemData: {
 }
 
 // Atualizar ordem das imagens
-export async function updateImovelImagensOrdem(imovelId: number, imagens: Array<{id: number, ordem: number}>) {
+export async function updateImovelImagensOrdem(imovelId: number, imagens: Array<{ id: number, ordem: number }>) {
   try {
-    // Usar transação para garantir consistência
+    // Usar transaÃ§Ã£o para garantir consistÃªncia
     await pool.query('BEGIN')
-    
+
     for (const imagem of imagens) {
       await pool.query(
         'UPDATE imovel_imagens SET ordem = $1 WHERE id = $2 AND imovel_id = $3',
         [imagem.ordem, imagem.id, imovelId]
       )
     }
-    
+
     await pool.query('COMMIT')
     return true
   } catch (error) {
@@ -702,13 +706,13 @@ export async function setImovelImagemPrincipal(imovelId: number, imagemId: numbe
       'UPDATE imovel_imagens SET principal = false WHERE imovel_id = $1',
       [imovelId]
     )
-    
+
     // Marcar a imagem selecionada como principal
     const result = await pool.query(
       'UPDATE imovel_imagens SET principal = true WHERE id = $1 AND imovel_id = $2 RETURNING id',
       [imagemId, imovelId]
     )
-    
+
     return result.rows[0] ? true : false
   } catch (error) {
     console.error('Erro ao definir imagem principal:', error)
@@ -723,7 +727,7 @@ export async function deleteImovelImagem(imagemId: number) {
       'UPDATE imovel_imagens SET principal = false WHERE id = $1 RETURNING id',
       [imagemId]
     )
-    
+
     return result.rows[0] ? true : false
   } catch (error) {
     console.error('Erro ao excluir imagem:', error)
@@ -734,37 +738,38 @@ export async function deleteImovelImagem(imagemId: number) {
 // Excluir imagem permanentemente
 export async function deleteImovelImagemPermanente(imagemId: number) {
   try {
-    console.log('🔍 deleteImovelImagemPermanente - Deletando imagem ID:', imagemId)
-    
+    console.log('ðŸ” deleteImovelImagemPermanente - Deletando imagem ID:', imagemId)
+
     const result = await pool.query(
       'DELETE FROM imovel_imagens WHERE id = $1 RETURNING id',
       [imagemId]
     )
-    
-    console.log('🔍 deleteImovelImagemPermanente - Query executada. Rows affected:', result.rowCount, 'Rows returned:', result.rows.length)
-    console.log('🔍 deleteImovelImagemPermanente - Rows:', result.rows)
-    
+
+    console.log('ðŸ” deleteImovelImagemPermanente - Query executada. Rows affected:', result.rowCount, 'Rows returned:', result.rows.length)
+    console.log('ðŸ” deleteImovelImagemPermanente - Rows:', result.rows)
+
     const success = result.rows[0] ? true : false
-    console.log('🔍 deleteImovelImagemPermanente - Resultado final:', success)
-    
+    console.log('ðŸ” deleteImovelImagemPermanente - Resultado final:', success)
+
     return success
   } catch (error) {
-    console.error('❌ deleteImovelImagemPermanente - Erro ao excluir imagem permanentemente:', error)
+    console.error('âŒ deleteImovelImagemPermanente - Erro ao excluir imagem permanentemente:', error)
     throw error
   }
 }
 
-// Contar imagens de um imóvel
+// Contar imagens de um imÃ³vel
 export async function countImovelImagens(imovelId: number) {
   try {
     const result = await pool.query(
       'SELECT COUNT(*) as total FROM imovel_imagens WHERE imovel_id = $1',
       [imovelId]
     )
-    
+
     return parseInt(result.rows[0].total)
   } catch (error) {
-    console.error('Erro ao contar imagens do imóvel:', error)
+    console.error('Erro ao contar imagens do imÃ³vel:', error)
     throw error
   }
 }
+

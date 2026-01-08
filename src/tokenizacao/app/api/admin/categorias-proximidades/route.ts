@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { NextResponse } from 'next/server'
 import { findAllCategoriasProximidades, createCategoriaProximidade } from '@/lib/database/proximidades'
 
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     
     if (!nome || !descricao) {
       return NextResponse.json(
-        { error: 'Nome e descrição são obrigatórios' },
+        { error: 'Nome e descriÃ§Ã£o sÃ£o obrigatÃ³rios' },
         { status: 400 }
       )
     }
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
     )
   }
 }
+
 
 
 

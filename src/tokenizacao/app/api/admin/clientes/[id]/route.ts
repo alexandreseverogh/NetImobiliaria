@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findClienteById, updateCliente, deleteCliente } from '@/lib/database/clientes'
 

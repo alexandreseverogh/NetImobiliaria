@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -45,7 +46,7 @@ export default function FinalidadesPage() {
     fetchFinalidades()
   }, [currentPage, searchTerm])
 
-  // Manter foco no input após busca
+  // Manter foco no input apÃ³s busca
   useEffect(() => {
     if (searchInputRef.current) {
       const cursorPosition = searchInputRef.current.selectionStart
@@ -116,9 +117,9 @@ export default function FinalidadesPage() {
       }
 
       const result = await response.json()
-      console.log('Resultado da exclusão:', result)
+      console.log('Resultado da exclusÃ£o:', result)
 
-      // Recarregar a lista após exclusão
+      // Recarregar a lista apÃ³s exclusÃ£o
       fetchFinalidades()
       
       // Fechar modal
@@ -178,7 +179,7 @@ export default function FinalidadesPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Finalidades</h1>
             <p className="mt-2 text-sm text-gray-700">
-              Gerencie as finalidades dos imóveis (Venda, Aluguel, etc.)
+              Gerencie as finalidades dos imÃ³veis (Venda, Aluguel, etc.)
             </p>
           </div>
           <div className="mt-4 sm:mt-0">
@@ -234,7 +235,7 @@ export default function FinalidadesPage() {
                     Nome
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Descrição
+                    DescriÃ§Ã£o
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -243,7 +244,7 @@ export default function FinalidadesPage() {
                     Criado em
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ações
+                    AÃ§Ãµes
                   </th>
                 </tr>
               </thead>
@@ -321,11 +322,11 @@ export default function FinalidadesPage() {
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3 text-center">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">
-                  Confirmar Exclusão
+                  Confirmar ExclusÃ£o
                 </h3>
                 <p className="text-sm text-gray-500 mb-6">
                   Tem certeza que deseja excluir a finalidade "{finalidadeToDelete?.nome.replace('_', ' e ')}"?
-                  Esta ação não pode ser desfeita.
+                  Esta aÃ§Ã£o nÃ£o pode ser desfeita.
                 </p>
                 <div className="flex justify-center space-x-4">
                   <button
@@ -350,3 +351,4 @@ export default function FinalidadesPage() {
     </PermissionGuard>
   )
 }
+

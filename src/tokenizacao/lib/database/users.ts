@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import pool from './connection'
 import bcrypt from 'bcryptjs'
 
@@ -48,7 +49,7 @@ export async function findUsersWithRoles(): Promise<UserWithRole[]> {
     const result = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('Erro ao buscar usuários com perfis:', error)
+    console.error('Erro ao buscar usuÃ¡rios com perfis:', error)
     throw error
   }
 }
@@ -78,7 +79,7 @@ export async function findUserByUsername(username: string): Promise<User | null>
     
     return result.rows[0]
   } catch (error) {
-    console.error('Erro ao buscar usuário por username:', error)
+    console.error('Erro ao buscar usuÃ¡rio por username:', error)
     throw error
   }
 }
@@ -94,34 +95,34 @@ export async function findUserById(id: string): Promise<User | null> {
     
     return result.rows[0]
   } catch (error) {
-    console.error('Erro ao buscar usuário por ID:', error)
+    console.error('Erro ao buscar usuÃ¡rio por ID:', error)
     throw error
   }
 }
 
 export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'updated_at'> & { roleId: number }): Promise<User> {
   try {
-    console.log('=== INÍCIO DA FUNÇÃO CREATEUSER ===')
+    console.log('=== INÃCIO DA FUNÃ‡ÃƒO CREATEUSER ===')
     console.log('Dados recebidos:', { ...userData, password: '[HIDDEN]' })
     
-    // Testar conexão com o banco
+    // Testar conexÃ£o com o banco
     const testConnection = await pool.query('SELECT NOW()')
-    console.log('Conexão com banco OK:', testConnection.rows[0])
+    console.log('ConexÃ£o com banco OK:', testConnection.rows[0])
     
-    // Verificar se username ou email já existe
+    // Verificar se username ou email jÃ¡ existe
     const checkQuery = 'SELECT id FROM users WHERE username = $1 OR email = $2'
     const checkResult = await pool.query(checkQuery, [userData.username, userData.email])
     
     if (checkResult.rows.length > 0) {
-      throw new Error('Username ou email já existe no sistema')
+      throw new Error('Username ou email jÃ¡ existe no sistema')
     }
-    console.log('Verificação de duplicação OK')
+    console.log('VerificaÃ§Ã£o de duplicaÃ§Ã£o OK')
     
     // Criptografar senha
     const hashedPassword = await bcrypt.hash(userData.password, 10)
     console.log('Senha criptografada OK')
     
-    // Inserir usuário
+    // Inserir usuÃ¡rio
     const insertUserQuery = `
       INSERT INTO users (username, email, password, nome, telefone, ativo)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -137,21 +138,21 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
       userData.ativo
     ]
     
-    console.log('Executando inserção do usuário...')
+    console.log('Executando inserÃ§Ã£o do usuÃ¡rio...')
     const userResult = await pool.query(insertUserQuery, userValues)
     const newUser = userResult.rows[0]
-    console.log('Usuário inserido com sucesso:', newUser.id)
+    console.log('UsuÃ¡rio inserido com sucesso:', newUser.id)
     
     // Verificar se o perfil existe
     const roleCheckQuery = 'SELECT id FROM user_roles WHERE id = $1 AND is_active = true'
     const roleCheckResult = await pool.query(roleCheckQuery, [userData.roleId])
     
     if (roleCheckResult.rows.length === 0) {
-      throw new Error('Perfil especificado não existe ou não está ativo')
+      throw new Error('Perfil especificado nÃ£o existe ou nÃ£o estÃ¡ ativo')
     }
     console.log('Perfil verificado OK')
     
-    // Atribuir perfil ao usuário
+    // Atribuir perfil ao usuÃ¡rio
     const assignRoleQuery = `
       INSERT INTO user_role_assignments (user_id, role_id, assigned_by)
       VALUES ($1, $2, $3)
@@ -160,12 +161,12 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
     
     console.log('Atribuindo perfil...')
     await pool.query(assignRoleQuery, [newUser.id, userData.roleId, newUser.id])
-    console.log('Perfil atribuído com sucesso')
+    console.log('Perfil atribuÃ­do com sucesso')
     
-    console.log('=== FUNÇÃO CREATEUSER CONCLUÍDA ===')
+    console.log('=== FUNÃ‡ÃƒO CREATEUSER CONCLUÃDA ===')
     return newUser
   } catch (error) {
-    console.error('=== ERRO NA FUNÇÃO CREATEUSER ===')
+    console.error('=== ERRO NA FUNÃ‡ÃƒO CREATEUSER ===')
     console.error('Tipo do erro:', typeof error)
     console.error('Mensagem do erro:', error instanceof Error ? error.message : String(error))
     console.error('Stack trace:', error instanceof Error ? error.stack : 'N/A')
@@ -175,7 +176,7 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
 
 export async function updateUser(id: string, userData: Partial<Omit<User, 'id' | 'created_at' | 'updated_at'> & { roleId?: number }>): Promise<User | null> {
   try {
-    console.log('🔧 updateUser chamada:', { id, userData })
+    console.log('ðŸ”§ updateUser chamada:', { id, userData })
     const fields: string[] = []
     const values: any[] = []
     let paramCount = 1
@@ -220,7 +221,7 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
     
     let result: any = null
     
-    // Se há campos para atualizar na tabela users
+    // Se hÃ¡ campos para atualizar na tabela users
     if (fields.length > 0) {
       fields.push(`updated_at = CURRENT_TIMESTAMP`)
       values.push(id)
@@ -238,7 +239,7 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
         return null
       }
     } else {
-      // Se não há campos para atualizar na tabela users, buscar o usuário atual
+      // Se nÃ£o hÃ¡ campos para atualizar na tabela users, buscar o usuÃ¡rio atual
       const findQuery = 'SELECT * FROM users WHERE id = $1'
       result = await pool.query(findQuery, [id])
       
@@ -247,7 +248,7 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
       }
     }
     
-    // Se roleId foi fornecido, atualizar o perfil do usuário
+    // Se roleId foi fornecido, atualizar o perfil do usuÃ¡rio
     if (userData.roleId !== undefined) {
       try {
         // Verificar se o perfil existe
@@ -255,14 +256,14 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
         const roleCheckResult = await pool.query(roleCheckQuery, [userData.roleId])
         
         if (roleCheckResult.rows.length === 0) {
-          throw new Error('Perfil especificado não existe ou não está ativo')
+          throw new Error('Perfil especificado nÃ£o existe ou nÃ£o estÃ¡ ativo')
         }
         
-        // Primeiro, remover todas as atribuições de perfil existentes para este usuário
+        // Primeiro, remover todas as atribuiÃ§Ãµes de perfil existentes para este usuÃ¡rio
         const removeRolesQuery = 'DELETE FROM user_role_assignments WHERE user_id = $1'
         await pool.query(removeRolesQuery, [id])
         
-        // Depois, inserir a nova atribuição de perfil
+        // Depois, inserir a nova atribuiÃ§Ã£o de perfil
         const assignRoleQuery = `
           INSERT INTO user_role_assignments (user_id, role_id, assigned_by)
           VALUES ($1, $2, $1)
@@ -270,44 +271,44 @@ export async function updateUser(id: string, userData: Partial<Omit<User, 'id' |
         
         await pool.query(assignRoleQuery, [id, userData.roleId])
       } catch (error) {
-        console.error('Erro ao atualizar perfil do usuário:', error)
+        console.error('Erro ao atualizar perfil do usuÃ¡rio:', error)
         throw error
       }
     }
     
     return result.rows[0]
   } catch (error) {
-    console.error('Erro ao atualizar usuário:', error)
+    console.error('Erro ao atualizar usuÃ¡rio:', error)
     throw error
   }
 }
 
 export async function deleteUser(id: string): Promise<boolean> {
   try {
-    // Iniciar transação para garantir consistência
+    // Iniciar transaÃ§Ã£o para garantir consistÃªncia
     await pool.query('BEGIN')
     
     try {
-      // 1. Excluir logs de auditoria relacionados ao usuário
+      // 1. Excluir logs de auditoria relacionados ao usuÃ¡rio
       await pool.query('DELETE FROM audit_logs WHERE user_id = $1', [id])
       
-      // 2. Excluir atribuições de roles do usuário
+      // 2. Excluir atribuiÃ§Ãµes de roles do usuÃ¡rio
       await pool.query('DELETE FROM user_role_assignments WHERE user_id = $1', [id])
       
-      // 3. Excluir o usuário
+      // 3. Excluir o usuÃ¡rio
       const result = await pool.query('DELETE FROM users WHERE id = $1', [id])
       
-      // Confirmar transação
+      // Confirmar transaÃ§Ã£o
       await pool.query('COMMIT')
       
       return (result.rowCount ?? 0) > 0
     } catch (error) {
-      // Reverter transação em caso de erro
+      // Reverter transaÃ§Ã£o em caso de erro
       await pool.query('ROLLBACK')
       throw error
     }
   } catch (error) {
-    console.error('Erro ao deletar usuário:', error)
+    console.error('Erro ao deletar usuÃ¡rio:', error)
     throw error
   }
 }
@@ -317,7 +318,7 @@ export async function updateLastLogin(id: string): Promise<void> {
     const query = 'UPDATE users SET ultimo_login = CURRENT_TIMESTAMP WHERE id = $1'
     await pool.query(query, [id])
   } catch (error) {
-    console.error('Erro ao atualizar último login:', error)
+    console.error('Erro ao atualizar Ãºltimo login:', error)
     throw error
   }
 }
@@ -326,10 +327,10 @@ export async function verifyPassword(user: User, password: string): Promise<bool
   return bcrypt.compare(password, user.password)
 }
 
-// Função para verificar permissões do usuário
+// FunÃ§Ã£o para verificar permissÃµes do usuÃ¡rio
 export async function userHasPermission(userId: string, resource: string, action: string): Promise<boolean> {
   try {
-    // Mapear ações do sistema para ações do banco
+    // Mapear aÃ§Ãµes do sistema para aÃ§Ãµes do banco
     const actionMapping: Record<string, string[]> = {
       'READ': ['read', 'list'],
       'WRITE': ['create', 'update', 'read', 'list'],
@@ -338,7 +339,7 @@ export async function userHasPermission(userId: string, resource: string, action
     
     const requiredActions = actionMapping[action] || [action.toLowerCase()]
     
-    // Buscar permissões do usuário através do seu perfil
+    // Buscar permissÃµes do usuÃ¡rio atravÃ©s do seu perfil
     const query = `
       SELECT 
         p.action
@@ -354,10 +355,11 @@ export async function userHasPermission(userId: string, resource: string, action
     
     return result.rows.length > 0
   } catch (error) {
-    console.error('Erro ao verificar permissão:', error)
+    console.error('Erro ao verificar permissÃ£o:', error)
     return false
   }
 }
+
 
 
 

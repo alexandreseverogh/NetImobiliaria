@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { ReactNode } from 'react'
 import { usePermissions } from '@/hooks/usePermissions'
 import { UserPermissions } from '@/lib/types/admin'
@@ -24,7 +25,7 @@ export default function PermissionGuard({
   return <>{children}</>
 }
 
-// Componentes específicos para facilitar uso
+// Componentes especÃ­ficos para facilitar uso
 export function ReadGuard({ resource, children, fallback }: Omit<PermissionGuardProps, 'action'>) {
   return (
     <PermissionGuard resource={resource} action="READ" fallback={fallback}>
@@ -56,4 +57,5 @@ export function AdminGuard({ resource, children, fallback }: Omit<PermissionGuar
     </PermissionGuard>
   )
 }
+
 

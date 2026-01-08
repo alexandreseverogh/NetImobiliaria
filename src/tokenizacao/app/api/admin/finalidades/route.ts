@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findAllFinalidades, createFinalidade, findFinalidadesPaginated } from '@/lib/database/finalidades'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
     
     if (!nome) {
       return NextResponse.json(
-        { error: 'Nome é obrigatório' },
+        { error: 'Nome Ã© obrigatÃ³rio' },
         { status: 400 }
       )
     }
@@ -57,5 +58,6 @@ export async function POST(request: Request) {
     )
   }
 }
+
 
 

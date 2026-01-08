@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { DollarSign, Calendar, Download, TrendingUp } from 'lucide-react'
@@ -62,7 +63,7 @@ export default function DividendHistory() {
             <div>
               <p className="text-green-100 text-sm">Total Recebido</p>
               <p className="text-2xl font-bold">R$ {totalDividends.toLocaleString()}</p>
-              <p className="text-green-200 text-sm">Últimos 2 meses</p>
+              <p className="text-green-200 text-sm">Ãšltimos 2 meses</p>
             </div>
             <DollarSign className="h-8 w-8 text-green-200" />
           </div>
@@ -71,9 +72,9 @@ export default function DividendHistory() {
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-sm">Média Mensal</p>
+              <p className="text-blue-100 text-sm">MÃ©dia Mensal</p>
               <p className="text-2xl font-bold">R$ {monthlyAverage.toLocaleString()}</p>
-              <p className="text-blue-200 text-sm">Por mês</p>
+              <p className="text-blue-200 text-sm">Por mÃªs</p>
             </div>
             <TrendingUp className="h-8 w-8 text-blue-200" />
           </div>
@@ -82,7 +83,7 @@ export default function DividendHistory() {
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm">Próximo Pagamento</p>
+              <p className="text-purple-100 text-sm">PrÃ³ximo Pagamento</p>
               <p className="text-2xl font-bold">01/02</p>
               <p className="text-purple-200 text-sm">Janeiro 2024</p>
             </div>
@@ -102,16 +103,16 @@ export default function DividendHistory() {
             </select>
             
             <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-              <option value="all">Todo Período</option>
-              <option value="30">Últimos 30 dias</option>
-              <option value="90">Últimos 3 meses</option>
-              <option value="365">Último ano</option>
+              <option value="all">Todo PerÃ­odo</option>
+              <option value="30">Ãšltimos 30 dias</option>
+              <option value="90">Ãšltimos 3 meses</option>
+              <option value="365">Ãšltimo ano</option>
             </select>
           </div>
           
           <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
             <Download className="h-4 w-4" />
-            <span>Exportar Relatório</span>
+            <span>Exportar RelatÃ³rio</span>
           </button>
         </div>
       </div>
@@ -119,14 +120,14 @@ export default function DividendHistory() {
       {/* Lista de Dividendos */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-xl font-bold text-gray-900">Histórico de Dividendos</h3>
+          <h3 className="text-xl font-bold text-gray-900">HistÃ³rico de Dividendos</h3>
         </div>
         
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Período</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PerÃ­odo</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Propriedade</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tokens</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor por Token</th>
@@ -171,9 +172,9 @@ export default function DividendHistory() {
         </div>
       </div>
 
-      {/* Gráfico de Dividendos */}
+      {/* GrÃ¡fico de Dividendos */}
       <div className="bg-white rounded-xl p-6 border border-gray-100">
-        <h3 className="text-xl font-bold text-gray-900 mb-6">Evolução dos Dividendos</h3>
+        <h3 className="text-xl font-bold text-gray-900 mb-6">EvoluÃ§Ã£o dos Dividendos</h3>
         
         <div className="h-48 flex items-end justify-between space-x-2">
           {dividendData.slice(0, 4).reverse().map((dividend, index) => (
@@ -191,4 +192,5 @@ export default function DividendHistory() {
     </div>
   )
 }
+
 

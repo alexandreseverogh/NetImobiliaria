@@ -96,7 +96,8 @@ export async function POST(request: NextRequest) {
       cpf,
       creci,
       foto: buf,
-      foto_tipo_mime: file.type
+      foto_tipo_mime: file.type,
+      tipo_corretor: 'Externo'
     })
 
     // Auditoria em audit_logs (não crítico)

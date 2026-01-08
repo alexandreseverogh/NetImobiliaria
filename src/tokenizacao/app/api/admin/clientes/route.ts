@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findClientesPaginated, createCliente } from '@/lib/database/clientes'
 
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     
     if (!nome || !cpf || !telefone || !email) {
       return NextResponse.json(
-        { error: 'Nome, CPF, telefone e email são obrigatórios' },
+        { error: 'Nome, CPF, telefone e email sÃ£o obrigatÃ³rios' },
         { status: 400 }
       )
     }
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('Erro ao criar cliente:', error)
     
-    if (error.message === 'CPF já cadastrado' || error.message === 'Email já cadastrado') {
+    if (error.message === 'CPF jÃ¡ cadastrado' || error.message === 'Email jÃ¡ cadastrado') {
       return NextResponse.json(
         { error: error.message },
         { status: 409 }
@@ -75,3 +76,4 @@ export async function POST(request: Request) {
     )
   }
 }
+

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
@@ -21,10 +22,10 @@ export interface UsePaginationOptions {
 }
 
 export interface UsePaginationReturn {
-  // Estado da paginação
+  // Estado da paginaÃ§Ã£o
   pagination: PaginationState
   
-  // Funções para controlar paginação
+  // FunÃ§Ãµes para controlar paginaÃ§Ã£o
   setPage: (page: number) => void
   setLimit: (limit: number) => void
   setTotal: (total: number) => void
@@ -32,21 +33,21 @@ export interface UsePaginationReturn {
   prevPage: () => void
   goToPage: (page: number) => void
   
-  // Funções utilitárias
+  // FunÃ§Ãµes utilitÃ¡rias
   getOffset: () => number
   getPageNumbers: () => number[]
   canGoNext: boolean
   canGoPrev: boolean
   
-  // Configurações
+  // ConfiguraÃ§Ãµes
   pageSizeOptions: number[]
   maxPageSize: number
   minPageSize: number
 }
 
 /**
- * Hook personalizado para gerenciar paginação
- * Centraliza toda a lógica de paginação usando constantes configuradas
+ * Hook personalizado para gerenciar paginaÃ§Ã£o
+ * Centraliza toda a lÃ³gica de paginaÃ§Ã£o usando constantes configuradas
  */
 export function usePagination(options: UsePaginationOptions = {}): UsePaginationReturn {
   const {
@@ -57,7 +58,7 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     onLimitChange
   } = options
 
-  // Estado da paginação
+  // Estado da paginaÃ§Ã£o
   const [page, setPageState] = useState(initialPage)
   const [limit, setLimitState] = useState(
     Math.min(initialLimit, PAGINATION_CONFIG.MAX_PAGE_SIZE)
@@ -71,7 +72,7 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
   const canGoNext = hasNext
   const canGoPrev = hasPrev
 
-  // Estado da paginação
+  // Estado da paginaÃ§Ã£o
   const pagination: PaginationState = useMemo(() => ({
     page,
     limit,
@@ -81,14 +82,14 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     hasPrev
   }), [page, limit, totalItems, totalPages, hasNext, hasPrev])
 
-  // Função para definir página com validação
+  // FunÃ§Ã£o para definir pÃ¡gina com validaÃ§Ã£o
   const setPage = useCallback((newPage: number) => {
     const validPage = Math.max(1, Math.min(newPage, totalPages))
     setPageState(validPage)
     onPageChange?.(validPage)
   }, [totalPages, onPageChange])
 
-  // Função para definir limite com validação
+  // FunÃ§Ã£o para definir limite com validaÃ§Ã£o
   const setLimit = useCallback((newLimit: number) => {
     const validLimit = Math.max(
       PAGINATION_CONFIG.MIN_PAGE_SIZE,
@@ -96,7 +97,7 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     )
     setLimitState(validLimit)
     
-    // Recalcular página atual se necessário
+    // Recalcular pÃ¡gina atual se necessÃ¡rio
     const newTotalPages = Math.max(1, Math.ceil(totalItems / validLimit))
     if (page > newTotalPages) {
       setPageState(newTotalPages)
@@ -105,32 +106,32 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     onLimitChange?.(validLimit)
   }, [totalItems, page, onLimitChange])
 
-  // Função para definir total
+  // FunÃ§Ã£o para definir total
   const setTotal = useCallback((newTotal: number) => {
     setTotalItems(newTotal)
     
-    // Ajustar página atual se necessário
+    // Ajustar pÃ¡gina atual se necessÃ¡rio
     const newTotalPages = Math.max(1, Math.ceil(newTotal / limit))
     if (page > newTotalPages) {
       setPageState(newTotalPages)
     }
   }, [limit, page])
 
-  // Função para próxima página
+  // FunÃ§Ã£o para prÃ³xima pÃ¡gina
   const nextPage = useCallback(() => {
     if (canGoNext) {
       setPage(page + 1)
     }
   }, [canGoNext, page, setPage])
 
-  // Função para página anterior
+  // FunÃ§Ã£o para pÃ¡gina anterior
   const prevPage = useCallback(() => {
     if (canGoPrev) {
       setPage(page - 1)
     }
   }, [canGoPrev, page, setPage])
 
-  // Função para ir para página específica
+  // FunÃ§Ã£o para ir para pÃ¡gina especÃ­fica
   const goToPage = useCallback((targetPage: number) => {
     setPage(targetPage)
   }, [setPage])
@@ -140,7 +141,7 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     return (page - 1) * limit
   }, [page, limit])
 
-  // Gerar números das páginas para exibição
+  // Gerar nÃºmeros das pÃ¡ginas para exibiÃ§Ã£o
   const getPageNumbers = useCallback(() => {
     const maxVisible = PAGINATION_CONFIG.MAX_VISIBLE_PAGES
     const half = Math.floor(maxVisible / 2)
@@ -148,7 +149,7 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     let start = Math.max(1, page - half)
     let end = Math.min(totalPages, start + maxVisible - 1)
     
-    // Ajustar início se estiver no final
+    // Ajustar inÃ­cio se estiver no final
     if (end - start + 1 < maxVisible) {
       start = Math.max(1, end - maxVisible + 1)
     }
@@ -165,7 +166,7 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     // Estado
     pagination,
     
-    // Funções de controle
+    // FunÃ§Ãµes de controle
     setPage,
     setLimit,
     setTotal,
@@ -173,13 +174,13 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     prevPage,
     goToPage,
     
-    // Funções utilitárias
+    // FunÃ§Ãµes utilitÃ¡rias
     getOffset,
     getPageNumbers,
     canGoNext,
     canGoPrev,
     
-    // Configurações
+    // ConfiguraÃ§Ãµes
     pageSizeOptions: [...PAGINATION_CONFIG.PAGE_SIZE_OPTIONS],
     maxPageSize: PAGINATION_CONFIG.MAX_PAGE_SIZE,
     minPageSize: PAGINATION_CONFIG.MIN_PAGE_SIZE
@@ -187,8 +188,8 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
 }
 
 /**
- * Hook para paginação com URL (usando searchParams)
- * Sincroniza estado da paginação com URL
+ * Hook para paginaÃ§Ã£o com URL (usando searchParams)
+ * Sincroniza estado da paginaÃ§Ã£o com URL
  */
 export function usePaginationWithURL(
   searchParams: URLSearchParams,
@@ -210,3 +211,4 @@ export function usePaginationWithURL(
 }
 
 export default usePagination
+

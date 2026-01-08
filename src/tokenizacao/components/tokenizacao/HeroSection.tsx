@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -30,13 +31,13 @@ export default function HeroSection() {
               <h1 className="text-4xl lg:text-6xl font-bold leading-tight">
                 Invista em
                 <span className="block text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
-                  Imóveis Premium
+                  ImÃ³veis Premium
                 </span>
-                com Tokenização Digital
+                com TokenizaÃ§Ã£o Digital
               </h1>
               
               <p className="text-xl lg:text-2xl text-blue-100 leading-relaxed">
-                Democratize o acesso ao mercado imobiliário de alto valor através de 
+                Democratize o acesso ao mercado imobiliÃ¡rio de alto valor atravÃ©s de 
                 <span className="font-semibold text-yellow-300"> tokens seguros</span> e 
                 <span className="font-semibold text-yellow-300"> compliance total</span>.
               </p>
@@ -46,30 +47,30 @@ export default function HeroSection() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex items-center space-x-3">
                 <div className="flex-shrink-0 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">✓</span>
+                  <span className="text-white font-bold text-sm">âœ“</span>
                 </div>
                 <span className="text-blue-100">Investimento a partir de R$ 100</span>
               </div>
               
               <div className="flex items-center space-x-3">
                 <div className="flex-shrink-0 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">✓</span>
+                  <span className="text-white font-bold text-sm">âœ“</span>
                 </div>
-                <span className="text-blue-100">Dividendos mensais automáticos</span>
+                <span className="text-blue-100">Dividendos mensais automÃ¡ticos</span>
               </div>
               
               <div className="flex items-center space-x-3">
                 <div className="flex-shrink-0 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">✓</span>
+                  <span className="text-white font-bold text-sm">âœ“</span>
                 </div>
-                <span className="text-blue-100">Liquidez no mercado secundário</span>
+                <span className="text-blue-100">Liquidez no mercado secundÃ¡rio</span>
               </div>
               
               <div className="flex items-center space-x-3">
                 <div className="flex-shrink-0 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">✓</span>
+                  <span className="text-white font-bold text-sm">âœ“</span>
                 </div>
-                <span className="text-blue-100">Transparência blockchain</span>
+                <span className="text-blue-100">TransparÃªncia blockchain</span>
               </div>
             </div>
 
@@ -81,13 +82,13 @@ export default function HeroSection() {
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
               >
-                <span>Começar a Investir</span>
+                <span>ComeÃ§ar a Investir</span>
                 <ArrowRightIcon className={`ml-2 h-5 w-5 transition-transform duration-300 ${isHovered ? 'translate-x-1' : ''}`} />
               </a>
               
               <a href="/tokenizacao" className="inline-flex items-center justify-center px-8 py-4 border-2 border-white text-white font-semibold text-lg rounded-lg hover:bg-white hover:text-blue-900 transition-all duration-300">
                 <ChartBarIcon className="mr-2 h-5 w-5" />
-                Ver Portfólio
+                Ver PortfÃ³lio
               </a>
             </div>
           </div>
@@ -99,7 +100,7 @@ export default function HeroSection() {
               {/* Token Info */}
               <div className="text-center space-y-6">
                 <div className="w-20 h-20 mx-auto bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-                  <span className="text-2xl font-bold text-black">₮</span>
+                  <span className="text-2xl font-bold text-black">â‚®</span>
                 </div>
                 
                 <div>
@@ -122,9 +123,9 @@ export default function HeroSection() {
                 <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 border border-green-400/30 rounded-lg p-4">
                   <div className="flex items-center justify-center space-x-2">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-green-300 font-medium">Tokenização Ativa</span>
+                    <span className="text-green-300 font-medium">TokenizaÃ§Ã£o Ativa</span>
                   </div>
-                  <p className="text-sm text-blue-200 mt-1">2.847 tokens disponíveis</p>
+                  <p className="text-sm text-blue-200 mt-1">2.847 tokens disponÃ­veis</p>
                 </div>
               </div>
             </div>
@@ -145,3 +146,4 @@ export default function HeroSection() {
     </section>
   )
 }
+

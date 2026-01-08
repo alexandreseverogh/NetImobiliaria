@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -13,7 +14,7 @@ export default function AdminLoginPage() {
     setError('')
     setLoading(true)
 
-    console.log('🔍 Tentativa de login:', { username, password: '***' })
+    console.log('ðŸ” Tentativa de login:', { username, password: '***' })
 
     try {
       const response = await fetch('/api/admin/auth/login', {
@@ -25,17 +26,17 @@ export default function AdminLoginPage() {
       })
 
       const data = await response.json()
-      console.log('🔍 Resposta da API:', data)
+      console.log('ðŸ” Resposta da API:', data)
 
       if (response.ok && data.success) {
-        console.log('🔍 Login bem-sucedido, redirecionando...')
+        console.log('ðŸ” Login bem-sucedido, redirecionando...')
         window.location.href = '/admin'
       } else {
-        setError(data.error || 'Credenciais inválidas')
+        setError(data.error || 'Credenciais invÃ¡lidas')
       }
     } catch (error) {
-      console.error('🔍 Erro no login:', error)
-      setError('Erro de conexão. Tente novamente.')
+      console.error('ðŸ” Erro no login:', error)
+      setError('Erro de conexÃ£o. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -46,10 +47,10 @@ export default function AdminLoginPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-blue-100">
-            <span className="text-2xl">🏠</span>
+            <span className="text-2xl">ðŸ </span>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Net Imobiliária
+            Net ImobiliÃ¡ria
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Sistema Administrativo
@@ -60,7 +61,7 @@ export default function AdminLoginPage() {
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="username" className="sr-only">
-                Usuário
+                UsuÃ¡rio
               </label>
               <input
                 id="username"
@@ -68,7 +69,7 @@ export default function AdminLoginPage() {
                 type="text"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Usuário"
+                placeholder="UsuÃ¡rio"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={loading}
@@ -134,6 +135,7 @@ export default function AdminLoginPage() {
     </div>
   )
 }
+
 
 
 

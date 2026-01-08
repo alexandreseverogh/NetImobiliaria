@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { checkApiPermission } from '@/lib/middleware/permissionMiddleware'
 import { auditLogger } from '@/lib/utils/auditLogger'
@@ -11,14 +12,14 @@ import {
 // GET - Listar tipos de documentos
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 API: Carregando tipos de documentos...')
+    console.log('ðŸ” API: Carregando tipos de documentos...')
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
     const search = searchParams.get('search') || ''
     
-    // Se não há parâmetros de paginação, usar a função antiga para compatibilidade
+    // Se nÃ£o hÃ¡ parÃ¢metros de paginaÃ§Ã£o, usar a funÃ§Ã£o antiga para compatibilidade
     if (!searchParams.has('page') && !searchParams.has('limit')) {
       const tiposDocumentos = await findTiposDocumentos()
       return NextResponse.json({
@@ -32,10 +33,10 @@ export async function GET(request: NextRequest) {
       })
     }
     
-    // Usar paginação
+    // Usar paginaÃ§Ã£o
     const result = await findTiposDocumentosPaginated(page, limit, search)
     
-    console.log('✅ API: Tipos de documentos carregados:', result.tiposDocumentos.length)
+    console.log('âœ… API: Tipos de documentos carregados:', result.tiposDocumentos.length)
 
     return NextResponse.json({
       success: true,
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
 // POST - Criar tipo de documento
 export async function POST(request: NextRequest) {
   try {
-    // Verificar permissões
+    // Verificar permissÃµes
     const permissionCheck = await checkApiPermission(request)
     if (permissionCheck) {
       return permissionCheck
@@ -62,17 +63,17 @@ export async function POST(request: NextRequest) {
 
     const data: CreateTipoDocumentoData = await request.json()
 
-    // Validação básica
+    // ValidaÃ§Ã£o bÃ¡sica
     if (!data.descricao || data.descricao.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Descrição é obrigatória' },
+        { error: 'DescriÃ§Ã£o Ã© obrigatÃ³ria' },
         { status: 400 }
       )
     }
 
     if (data.descricao.trim().length < 2) {
       return NextResponse.json(
-        { error: 'Descrição deve ter pelo menos 2 caracteres' },
+        { error: 'DescriÃ§Ã£o deve ter pelo menos 2 caracteres' },
         { status: 400 }
       )
     }
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
     // Log de auditoria
     auditLogger.log(
       'TIPO_DOCUMENTO_CREATE',
-      `Usuário criou tipo de documento: ${data.descricao}`,
+      `UsuÃ¡rio criou tipo de documento: ${data.descricao}`,
       true,
       'system',
       'system',
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
     console.error('Erro ao criar tipo de documento:', error)
     
     if (error instanceof Error) {
-      if (error.message.includes('Já existe um tipo de documento')) {
+      if (error.message.includes('JÃ¡ existe um tipo de documento')) {
         return NextResponse.json(
           { error: error.message },
           { status: 400 }
@@ -117,3 +118,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

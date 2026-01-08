@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 
-// Forçar uso do Node.js runtime
+// ForÃ§ar uso do Node.js runtime
 export const runtime = 'nodejs'
 
 import { listImoveis, getImoveisStats, createImovel, findAllImoveis } from '@/lib/database/imoveis'
@@ -11,54 +12,54 @@ import { updateImovelProximidades } from '@/lib/database/proximidades'
 import { insertImovelImagem } from '@/lib/database/imoveis'
 import { saveImovelVideo } from '@/lib/database/imovel-video'
 
-// Função para extrair usuário logado
+// FunÃ§Ã£o para extrair usuÃ¡rio logado
 function getCurrentUser(request: NextRequest): string | null {
   try {
     const token = request.cookies.get('accessToken')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '')
     
     if (!token) {
-      console.log('🔍 Nenhum token encontrado')
+      console.log('ðŸ” Nenhum token encontrado')
       return null
     }
 
     const decoded = verifyTokenNode(token)
     if (!decoded) {
-      console.log('🔍 Token inválido ou expirado')
+      console.log('ðŸ” Token invÃ¡lido ou expirado')
       return null
     }
 
-    console.log('🔍 Usuário logado:', decoded.userId)
+    console.log('ðŸ” UsuÃ¡rio logado:', decoded.userId)
     return decoded.userId
   } catch (error) {
-    console.error('🔍 Erro ao extrair usuário:', error)
+    console.error('ðŸ” Erro ao extrair usuÃ¡rio:', error)
     return null
   }
 }
 
 export async function GET(request: NextRequest) {
-  console.log('🔍 API GET /api/admin/imoveis - INICIADA')
-  console.log('🔍 URL completa:', request.url)
+  console.log('ðŸ” API GET /api/admin/imoveis - INICIADA')
+  console.log('ðŸ” URL completa:', request.url)
   try {
-    // Extrair parâmetros da query
+    // Extrair parÃ¢metros da query
     const { searchParams } = new URL(request.url)
     const page = searchParams.get('page')
     const limit = searchParams.get('limit')
     
-    console.log('🔍 API - Parâmetros recebidos:', { page, limit })
-    console.log('🔍 API - Todos os searchParams:', Object.fromEntries(searchParams.entries()))
+    console.log('ðŸ” API - ParÃ¢metros recebidos:', { page, limit })
+    console.log('ðŸ” API - Todos os searchParams:', Object.fromEntries(searchParams.entries()))
     
     // Debug individual de cada filtro
-    console.log('🔍 API - Debug filtros individuais:')
-    console.log('  - codigo:', searchParams.get('codigo'), 'válido:', !!(searchParams.get('codigo') && searchParams.get('codigo') !== ''))
-    console.log('  - bairro:', searchParams.get('bairro'), 'válido:', !!(searchParams.get('bairro') && searchParams.get('bairro') !== ''))
-    console.log('  - estado:', searchParams.get('estado'), 'válido:', !!(searchParams.get('estado') && searchParams.get('estado') !== ''))
-    console.log('  - municipio:', searchParams.get('municipio'), 'válido:', !!(searchParams.get('municipio') && searchParams.get('municipio') !== ''))
-    console.log('  - tipo:', searchParams.get('tipo'), 'válido:', !!(searchParams.get('tipo') && searchParams.get('tipo') !== ''))
-    console.log('  - finalidade:', searchParams.get('finalidade'), 'válido:', !!(searchParams.get('finalidade') && searchParams.get('finalidade') !== ''))
-    console.log('  - status:', searchParams.get('status'), 'válido:', !!(searchParams.get('status') && searchParams.get('status') !== ''))
+    console.log('ðŸ” API - Debug filtros individuais:')
+    console.log('  - codigo:', searchParams.get('codigo'), 'vÃ¡lido:', !!(searchParams.get('codigo') && searchParams.get('codigo') !== ''))
+    console.log('  - bairro:', searchParams.get('bairro'), 'vÃ¡lido:', !!(searchParams.get('bairro') && searchParams.get('bairro') !== ''))
+    console.log('  - estado:', searchParams.get('estado'), 'vÃ¡lido:', !!(searchParams.get('estado') && searchParams.get('estado') !== ''))
+    console.log('  - municipio:', searchParams.get('municipio'), 'vÃ¡lido:', !!(searchParams.get('municipio') && searchParams.get('municipio') !== ''))
+    console.log('  - tipo:', searchParams.get('tipo'), 'vÃ¡lido:', !!(searchParams.get('tipo') && searchParams.get('tipo') !== ''))
+    console.log('  - finalidade:', searchParams.get('finalidade'), 'vÃ¡lido:', !!(searchParams.get('finalidade') && searchParams.get('finalidade') !== ''))
+    console.log('  - status:', searchParams.get('status'), 'vÃ¡lido:', !!(searchParams.get('status') && searchParams.get('status') !== ''))
     
-    // Verificar se há filtros com valores válidos (não vazios)
+    // Verificar se hÃ¡ filtros com valores vÃ¡lidos (nÃ£o vazios)
     const hasFilters = (searchParams.get('codigo') && searchParams.get('codigo') !== '') || 
                       (searchParams.get('bairro') && searchParams.get('bairro') !== '') || 
                       (searchParams.get('estado') && searchParams.get('estado') !== '') || 
@@ -67,21 +68,21 @@ export async function GET(request: NextRequest) {
                       (searchParams.get('finalidade') && searchParams.get('finalidade') !== '') || 
                       (searchParams.get('status') && searchParams.get('status') !== '')
 
-    console.log('🔍 API - hasFilters:', hasFilters)
-    console.log('🔍 API - page:', page, 'limit:', limit)
+    console.log('ðŸ” API - hasFilters:', hasFilters)
+    console.log('ðŸ” API - page:', page, 'limit:', limit)
     
-    // Se não houver parâmetros de paginação nem filtros, retornar todos os imóveis
+    // Se nÃ£o houver parÃ¢metros de paginaÃ§Ã£o nem filtros, retornar todos os imÃ³veis
     if (!page && !limit && !hasFilters) {
-      console.log('🔍 API - Buscando todos os imóveis...')
+      console.log('ðŸ” API - Buscando todos os imÃ³veis...')
       const imoveis = await findAllImoveis()
-      console.log('🔍 API - Imóveis encontrados:', imoveis.length)
+      console.log('ðŸ” API - ImÃ³veis encontrados:', imoveis.length)
       return NextResponse.json({
         success: true,
         data: imoveis
       })
     }
     
-    // Caso contrário, usar paginação
+    // Caso contrÃ¡rio, usar paginaÃ§Ã£o
     const pageNum = parseInt(page || '1')
     const limitNum = parseInt(limit || '20')
     const offset = (pageNum - 1) * limitNum
@@ -109,17 +110,17 @@ export async function GET(request: NextRequest) {
           24: 'MT', 25: 'GO', 26: 'DF'
         }
         filtros.estado_sigla = siglasEstados[estadoId] || null
-        console.log('🔍 Estado filtro - ID recebido:', estadoId, 'Sigla convertida:', filtros.estado_sigla)
-        console.log('🔍 Mapeamento completo:', siglasEstados)
+        console.log('ðŸ” Estado filtro - ID recebido:', estadoId, 'Sigla convertida:', filtros.estado_sigla)
+        console.log('ðŸ” Mapeamento completo:', siglasEstados)
       }
       
       if (searchParams.get('municipio')) {
         // Frontend envia ID da cidade, mas banco armazena nome
         // Vamos buscar o nome da cidade correspondente ao ID
         const cidadeId = parseInt(searchParams.get('municipio')!)
-        // Para isso funcionar, precisamos carregar os municípios do estado selecionado
+        // Para isso funcionar, precisamos carregar os municÃ­pios do estado selecionado
         // Por enquanto, vamos usar uma abordagem diferente
-        filtros.cidade_nome = searchParams.get('municipio') // Temporário - usar nome diretamente
+        filtros.cidade_nome = searchParams.get('municipio') // TemporÃ¡rio - usar nome diretamente
       }
       
       if (searchParams.get('tipo')) {
@@ -170,20 +171,20 @@ export async function GET(request: NextRequest) {
       filtros.destaque = searchParams.get('destaque') === 'true'
     }
 
-    console.log('🔍 API - Filtros processados:', filtros)
+    console.log('ðŸ” API - Filtros processados:', filtros)
 
-    // Buscar imóveis
+    // Buscar imÃ³veis
     const imoveis = await listImoveis(filtros, limitNum, offset)
     
-    // Para paginação simples, vamos retornar apenas os imóveis
-    // TODO: Implementar contagem total quando necessário
+    // Para paginaÃ§Ã£o simples, vamos retornar apenas os imÃ³veis
+    // TODO: Implementar contagem total quando necessÃ¡rio
     return NextResponse.json({
       success: true,
       data: imoveis
     })
 
   } catch (error) {
-    console.error('Erro ao listar imóveis:', error)
+    console.error('Erro ao listar imÃ³veis:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
@@ -196,18 +197,18 @@ export async function POST(request: NextRequest) {
     // Validar dados do corpo
     const body = await request.json()
     
-    console.log('🔍 Dados recebidos na API:', JSON.stringify(body, null, 2))
+    console.log('ðŸ” Dados recebidos na API:', JSON.stringify(body, null, 2))
     
     // Verificar dados dos Steps 3, 4 e 5
-    console.log('🔍 Amenidades recebidas:', body.amenidades)
-    console.log('🔍 Proximidades recebidas:', body.proximidades)
-    console.log('🔍 Imagens recebidas:', body.imagens)
-    console.log('🔍 Documentos recebidos:', body.documentos)
+    console.log('ðŸ” Amenidades recebidas:', body.amenidades)
+    console.log('ðŸ” Proximidades recebidas:', body.proximidades)
+    console.log('ðŸ” Imagens recebidas:', body.imagens)
+    console.log('ðŸ” Documentos recebidos:', body.documentos)
     
-    // Obter usuário logado
+    // Obter usuÃ¡rio logado
     const currentUserId = getCurrentUser(request)
-    console.log('🔍 Usuário atual:', currentUserId)
-    console.log('🔍 Campos específicos:', {
+    console.log('ðŸ” UsuÃ¡rio atual:', currentUserId)
+    console.log('ðŸ” Campos especÃ­ficos:', {
       codigo: body.codigo,
       titulo: body.titulo,
       tipo_fk: body.tipo_fk,
@@ -217,14 +218,14 @@ export async function POST(request: NextRequest) {
     })
     
     if (!body.codigo || !body.titulo || !body.tipo_fk || !body.finalidade_fk) {
-      console.log('❌ Validação falhou - campos obrigatórios:', {
+      console.log('âŒ ValidaÃ§Ã£o falhou - campos obrigatÃ³rios:', {
         codigo: !!body.codigo,
         titulo: !!body.titulo,
         tipo_fk: !!body.tipo_fk,
         finalidade_fk: !!body.finalidade_fk
       })
       return NextResponse.json(
-        { error: 'Campos obrigatórios: codigo, titulo, tipo_fk, finalidade_fk' },
+        { error: 'Campos obrigatÃ³rios: codigo, titulo, tipo_fk, finalidade_fk' },
         { status: 400 }
       )
     }
@@ -232,61 +233,61 @@ export async function POST(request: NextRequest) {
     // Sempre usar status_fk = 1 (Ativo)
     body.status_fk = 1
 
-    console.log('🔍 Código recebido para validação:', body.codigo)
-    console.log('🔍 Regex test result:', /^[A-Z0-9_]{3,50}$/.test(body.codigo))
+    console.log('ðŸ” CÃ³digo recebido para validaÃ§Ã£o:', body.codigo)
+    console.log('ðŸ” Regex test result:', /^[A-Z0-9_]{3,50}$/.test(body.codigo))
 
-    // Validar formato do código (permitindo underscore e mais caracteres)
+    // Validar formato do cÃ³digo (permitindo underscore e mais caracteres)
     if (!/^[A-Z0-9_]{3,50}$/.test(body.codigo)) {
-      console.log('❌ Código inválido:', body.codigo)
+      console.log('âŒ CÃ³digo invÃ¡lido:', body.codigo)
       return NextResponse.json(
-        { error: 'Código deve ter 3-50 caracteres alfanuméricos maiúsculos e underscore' },
+        { error: 'CÃ³digo deve ter 3-50 caracteres alfanumÃ©ricos maiÃºsculos e underscore' },
         { status: 400 }
       )
     }
 
-    // Validar preço se fornecido
+    // Validar preÃ§o se fornecido
     if (body.preco && (body.preco <= 0 || body.preco > 999999999.99)) {
       return NextResponse.json(
-        { error: 'Preço deve estar entre 0 e 999.999.999,99' },
+        { error: 'PreÃ§o deve estar entre 0 e 999.999.999,99' },
         { status: 400 }
       )
     }
 
-    // Validar área se fornecida
+    // Validar Ã¡rea se fornecida
     if (body.area_total && (body.area_total <= 0 || body.area_total > 99999.99)) {
       return NextResponse.json(
-        { error: 'Área total deve estar entre 0 e 99.999,99' },
+        { error: 'Ãrea total deve estar entre 0 e 99.999,99' },
         { status: 400 }
       )
     }
 
-    // Função para converter valores numéricos com vírgula para ponto
+    // FunÃ§Ã£o para converter valores numÃ©ricos com vÃ­rgula para ponto
     const converterValorNumerico = (valor: any): number | undefined => {
-      console.log('🔍 converterValorNumerico - valor recebido:', valor, typeof valor)
+      console.log('ðŸ” converterValorNumerico - valor recebido:', valor, typeof valor)
       
       if (valor === null || valor === undefined || valor === '') {
-        console.log('🔍 converterValorNumerico - valor vazio, retornando undefined')
+        console.log('ðŸ” converterValorNumerico - valor vazio, retornando undefined')
         return undefined
       }
       
       if (typeof valor === 'number') {
-        console.log('🔍 converterValorNumerico - já é número:', valor)
+        console.log('ðŸ” converterValorNumerico - jÃ¡ Ã© nÃºmero:', valor)
         return valor
       }
       
       if (typeof valor === 'string') {
-        // Converter vírgula para ponto e remover espaços
+        // Converter vÃ­rgula para ponto e remover espaÃ§os
         const valorLimpo = valor.replace(/\./g, '').replace(',', '.').trim()
         const numero = parseFloat(valorLimpo)
-        console.log('🔍 converterValorNumerico - string convertida:', valor, '->', valorLimpo, '->', numero)
+        console.log('ðŸ” converterValorNumerico - string convertida:', valor, '->', valorLimpo, '->', numero)
         return isNaN(numero) ? undefined : numero
       }
       
-      console.log('🔍 converterValorNumerico - tipo não suportado:', typeof valor)
+      console.log('ðŸ” converterValorNumerico - tipo nÃ£o suportado:', typeof valor)
       return undefined
     }
 
-    // Função para converter IDs de string para number
+    // FunÃ§Ã£o para converter IDs de string para number
     const converterId = (id: any): number | undefined => {
       if (id === null || id === undefined || id === '') return undefined
       if (typeof id === 'number') return id
@@ -294,11 +295,11 @@ export async function POST(request: NextRequest) {
       return isNaN(numero) ? undefined : numero
     }
 
-    // Processar dados de endereço se vier como objeto
+    // Processar dados de endereÃ§o se vier como objeto
     let dadosImovel = { ...body }
     
-    // Converter valores numéricos
-    console.log('🔍 Valores originais:', {
+    // Converter valores numÃ©ricos
+    console.log('ðŸ” Valores originais:', {
       preco: body.preco,
       preco_condominio: body.preco_condominio,
       preco_iptu: body.preco_iptu,
@@ -315,7 +316,7 @@ export async function POST(request: NextRequest) {
     dadosImovel.finalidade_fk = converterId(body.finalidade_fk)
     dadosImovel.status_fk = 1 // Sempre status_id = 1
     
-    // Converter valores numéricos (mapeando nomes do frontend para backend)
+    // Converter valores numÃ©ricos (mapeando nomes do frontend para backend)
     dadosImovel.preco = converterValorNumerico(body.preco)
     dadosImovel.preco_condominio = converterValorNumerico(body.precoCondominio)
     dadosImovel.preco_iptu = converterValorNumerico(body.precoIPTU)
@@ -326,16 +327,16 @@ export async function POST(request: NextRequest) {
     dadosImovel.varanda = converterValorNumerico(body.varanda)
     dadosImovel.total_andares = converterValorNumerico(body.totalAndares)
     
-    // Definir valores padrão para campos booleanos (mapeando nomes do frontend)
+    // Definir valores padrÃ£o para campos booleanos (mapeando nomes do frontend)
     dadosImovel.mobiliado = body.mobiliado === true
     dadosImovel.aceita_permuta = body.aceita_permuta === true
     dadosImovel.aceita_financiamento = body.aceita_financiamento === true
     
-    // Definir usuário logado
+    // Definir usuÃ¡rio logado
     dadosImovel.created_by = currentUserId
     dadosImovel.updated_by = currentUserId
     
-    console.log('🔍 IDs convertidos:', {
+    console.log('ðŸ” IDs convertidos:', {
       tipo_fk: dadosImovel.tipo_fk,
       finalidade_fk: dadosImovel.finalidade_fk,
       status_fk: dadosImovel.status_fk,
@@ -343,7 +344,7 @@ export async function POST(request: NextRequest) {
       updated_by: dadosImovel.updated_by
     })
     
-    console.log('🔍 Valores convertidos:', {
+    console.log('ðŸ” Valores convertidos:', {
       preco: dadosImovel.preco,
       preco_condominio: dadosImovel.preco_condominio,
       preco_iptu: dadosImovel.preco_iptu,
@@ -360,7 +361,7 @@ export async function POST(request: NextRequest) {
       updated_by: dadosImovel.updated_by
     })
     
-    console.log('🔍 Valores originais do body (frontend):', {
+    console.log('ðŸ” Valores originais do body (frontend):', {
       preco: body.preco,
       precoCondominio: body.precoCondominio,
       precoIPTU: body.precoIPTU,
@@ -384,7 +385,7 @@ export async function POST(request: NextRequest) {
       dadosImovel.estado_fk = body.endereco.estado || ''
       dadosImovel.cep = body.endereco.cep || ''
       
-      console.log('🔍 Campos de endereço extraídos:', {
+      console.log('ðŸ” Campos de endereÃ§o extraÃ­dos:', {
         endereco: dadosImovel.endereco,
         numero: dadosImovel.numero,
         complemento: dadosImovel.complemento,
@@ -395,15 +396,15 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Criar imóvel
-    // TODO: Implementar autenticação real e pegar o UUID do usuário logado
+    // Criar imÃ³vel
+    // TODO: Implementar autenticaÃ§Ã£o real e pegar o UUID do usuÃ¡rio logado
     // Por enquanto, vamos usar NULL para created_by
     const novoImovel = await createImovel(dadosImovel, currentUserId)
 
-    // Gerar código final com o ID real
+    // Gerar cÃ³digo final com o ID real
     if (novoImovel && novoImovel.id) {
       try {
-        // Buscar dados para gerar código diretamente do banco
+        // Buscar dados para gerar cÃ³digo diretamente do banco
         const pool = (await import('@/lib/database/connection')).default
         
         const [finalidadeResult, tipoResult, statusResult] = await Promise.all([
@@ -422,13 +423,13 @@ export async function POST(request: NextRequest) {
           const statusNome = status.nome || 'ATIVO'
           
           const codigoFinal = `${finalidadeNome}_${tipoNome}_${statusNome}_${novoImovel.id}`
-            .replace(/\s+/g, '') // Remover espaços
-            .replace(/[^A-Za-z0-9_]/g, '') // Manter letras (maiúsculas e minúsculas), números e underscore
+            .replace(/\s+/g, '') // Remover espaÃ§os
+            .replace(/[^A-Za-z0-9_]/g, '') // Manter letras (maiÃºsculas e minÃºsculas), nÃºmeros e underscore
             .toUpperCase()
           
-          console.log('🔍 Código final gerado:', codigoFinal)
+          console.log('ðŸ” CÃ³digo final gerado:', codigoFinal)
           
-          // Atualizar o código no banco
+          // Atualizar o cÃ³digo no banco
           const { updateImovel } = await import('@/lib/database/imoveis')
           await updateImovel(novoImovel.id, { codigo: codigoFinal }, currentUserId || 'system')
           
@@ -436,27 +437,27 @@ export async function POST(request: NextRequest) {
           novoImovel.codigo = codigoFinal
         }
       } catch (error) {
-        console.error('❌ Erro ao gerar código final:', error)
-        // Continuar mesmo com erro na geração do código
+        console.error('âŒ Erro ao gerar cÃ³digo final:', error)
+        // Continuar mesmo com erro na geraÃ§Ã£o do cÃ³digo
       }
     }
 
     // Salvar documentos se existirem
-    console.log('🔍 Verificando documentos - body.documentos:', body.documentos)
-    console.log('🔍 Tipo de body.documentos:', typeof body.documentos)
-    console.log('🔍 É array?', Array.isArray(body.documentos))
-    console.log('🔍 Length:', body.documentos?.length)
+    console.log('ðŸ” Verificando documentos - body.documentos:', body.documentos)
+    console.log('ðŸ” Tipo de body.documentos:', typeof body.documentos)
+    console.log('ðŸ” Ã‰ array?', Array.isArray(body.documentos))
+    console.log('ðŸ” Length:', body.documentos?.length)
     
     if (body.documentos && Array.isArray(body.documentos) && body.documentos.length > 0) {
       try {
-        console.log('🔍 Salvando documentos do imóvel:', body.documentos.length)
-        console.log('🔍 Documentos detalhados:', JSON.stringify(body.documentos, null, 2))
+        console.log('ðŸ” Salvando documentos do imÃ³vel:', body.documentos.length)
+        console.log('ðŸ” Documentos detalhados:', JSON.stringify(body.documentos, null, 2))
         
         // Converter arquivos para Buffer e preparar dados
-        console.log('🔍 Processando documentos individuais...')
+        console.log('ðŸ” Processando documentos individuais...')
         const documentosParaSalvar = await Promise.all(
           body.documentos.map(async (doc: any, index: number) => {
-            console.log(`🔍 Processando documento ${index + 1}:`, {
+            console.log(`ðŸ” Processando documento ${index + 1}:`, {
               tipoDocumentoId: doc.tipoDocumentoId,
               arquivo_tipo: typeof doc.arquivo,
               arquivo_isBuffer: Buffer.isBuffer(doc.arquivo),
@@ -465,9 +466,9 @@ export async function POST(request: NextRequest) {
               tamanhoBytes: doc.tamanhoBytes
             })
             
-            // Se o arquivo já é um Buffer, usar diretamente
+            // Se o arquivo jÃ¡ Ã© um Buffer, usar diretamente
             if (Buffer.isBuffer(doc.arquivo)) {
-              console.log(`🔍 Documento ${index + 1}: Usando Buffer existente`)
+              console.log(`ðŸ” Documento ${index + 1}: Usando Buffer existente`)
               return {
                 tipo_documento_id: doc.tipoDocumentoId,
                 arquivo: doc.arquivo,
@@ -477,9 +478,9 @@ export async function POST(request: NextRequest) {
               }
             }
             
-            // Se é um File, converter para Buffer
+            // Se Ã© um File, converter para Buffer
             if (doc.arquivo instanceof File) {
-              console.log(`🔍 Documento ${index + 1}: Convertendo File para Buffer`)
+              console.log(`ðŸ” Documento ${index + 1}: Convertendo File para Buffer`)
               const arrayBuffer = await doc.arquivo.arrayBuffer()
               return {
                 tipo_documento_id: doc.tipoDocumentoId,
@@ -490,15 +491,15 @@ export async function POST(request: NextRequest) {
               }
             }
             
-            // Se é um objeto vazio (File serializado), pular este documento
+            // Se Ã© um objeto vazio (File serializado), pular este documento
             if (typeof doc.arquivo === 'object' && Object.keys(doc.arquivo).length === 0) {
-              console.log(`🔍 Documento ${index + 1}: Arquivo vazio (File serializado), pulando...`)
+              console.log(`ðŸ” Documento ${index + 1}: Arquivo vazio (File serializado), pulando...`)
               return null // Retornar null para ser filtrado depois
             }
             
-            // Se é uma string base64, converter para Buffer
+            // Se Ã© uma string base64, converter para Buffer
             if (typeof doc.arquivo === 'string') {
-              console.log(`🔍 Documento ${index + 1}: Convertendo string base64 para Buffer`)
+              console.log(`ðŸ” Documento ${index + 1}: Convertendo string base64 para Buffer`)
               // Remover o prefixo data:...;base64, se existir
               const base64Data = doc.arquivo.includes(',') ? doc.arquivo.split(',')[1] : doc.arquivo
               return {
@@ -510,31 +511,31 @@ export async function POST(request: NextRequest) {
               }
             }
             
-            console.error(`🔍 Documento ${index + 1}: Formato não suportado:`, typeof doc.arquivo)
-            throw new Error('Formato de arquivo não suportado')
+            console.error(`ðŸ” Documento ${index + 1}: Formato nÃ£o suportado:`, typeof doc.arquivo)
+            throw new Error('Formato de arquivo nÃ£o suportado')
           })
         )
         
         // Filtrar documentos nulos (arquivos vazios)
         const documentosValidos = documentosParaSalvar.filter(doc => doc !== null)
-        console.log('🔍 Documentos processados para salvar:', documentosValidos.length)
-        console.log('🔍 Documentos válidos:', documentosValidos.length > 0 ? 'SIM' : 'NÃO')
+        console.log('ðŸ” Documentos processados para salvar:', documentosValidos.length)
+        console.log('ðŸ” Documentos vÃ¡lidos:', documentosValidos.length > 0 ? 'SIM' : 'NÃƒO')
         
         if (documentosValidos.length > 0) {
-          console.log('🔍 Chamando saveImovelDocumentos com:', {
+          console.log('ðŸ” Chamando saveImovelDocumentos com:', {
             imovelId: novoImovel.id,
             documentosCount: documentosValidos.length,
             primeiroDocumento: documentosValidos[0]
           })
           await saveImovelDocumentos(novoImovel.id!, documentosValidos)
-          console.log('✅ Documentos salvos com sucesso')
+          console.log('âœ… Documentos salvos com sucesso')
         } else {
-          console.log('⚠️ Nenhum documento válido para salvar')
+          console.log('âš ï¸ Nenhum documento vÃ¡lido para salvar')
         }
         
       } catch (docError) {
-        console.error('⚠️ Erro ao salvar documentos (não crítico):', docError)
-        // Não falhar a criação do imóvel por causa dos documentos
+        console.error('âš ï¸ Erro ao salvar documentos (nÃ£o crÃ­tico):', docError)
+        // NÃ£o falhar a criaÃ§Ã£o do imÃ³vel por causa dos documentos
       }
 
       // Salvar amenidades (sempre processar, mesmo se array vazio)
@@ -543,9 +544,9 @@ export async function POST(request: NextRequest) {
           ? body.amenidades.map((a: any) => a.id)
           : []
         await updateImovelAmenidades(novoImovel.id!, amenidadeIds)
-        console.log('✅ Amenidades salvas com sucesso:', amenidadeIds)
+        console.log('âœ… Amenidades salvas com sucesso:', amenidadeIds)
       } catch (amenError) {
-        console.error('⚠️ Erro ao salvar amenidades (não crítico):', amenError)
+        console.error('âš ï¸ Erro ao salvar amenidades (nÃ£o crÃ­tico):', amenError)
       }
 
       // Salvar proximidades (sempre processar, mesmo se array vazio)
@@ -559,9 +560,9 @@ export async function POST(request: NextRequest) {
             }))
           : []
         await updateImovelProximidades(novoImovel.id!, proximidadesFormatadas)
-        console.log('✅ Proximidades salvas com sucesso:', proximidadesFormatadas)
+        console.log('âœ… Proximidades salvas com sucesso:', proximidadesFormatadas)
       } catch (proxError) {
-        console.error('⚠️ Erro ao salvar proximidades (não crítico):', proxError)
+        console.error('âš ï¸ Erro ao salvar proximidades (nÃ£o crÃ­tico):', proxError)
       }
 
       // Salvar imagens
@@ -569,7 +570,7 @@ export async function POST(request: NextRequest) {
         try {
           for (let i = 0; i < body.imagens.length; i++) {
             const imagem = body.imagens[i]
-            console.log(`🔍 Processando imagem ${i + 1}:`, {
+            console.log(`ðŸ” Processando imagem ${i + 1}:`, {
               id: imagem.id,
               nome: imagem.nome,
               url_type: typeof imagem.url,
@@ -585,31 +586,31 @@ export async function POST(request: NextRequest) {
               const base64Data = imagem.url.includes(',') ? imagem.url.split(',')[1] : imagem.url
               imagemBuffer = Buffer.from(base64Data, 'base64')
             } else {
-              console.log(`⚠️ Imagem ${i + 1}: Formato não suportado, pulando...`)
+              console.log(`âš ï¸ Imagem ${i + 1}: Formato nÃ£o suportado, pulando...`)
               continue
             }
             
             await insertImovelImagem({
               imovelId: novoImovel.id!,
               ordem: imagem.ordem || i + 1,
-              principal: imagem.principal || (i === 0), // Primeira imagem é principal
-              tipoMime: 'image/jpeg', // Tipo padrão, pode ser melhorado
+              principal: imagem.principal || (i === 0), // Primeira imagem Ã© principal
+              tipoMime: 'image/jpeg', // Tipo padrÃ£o, pode ser melhorado
               tamanhoBytes: imagemBuffer.length,
               imagem: imagemBuffer
             })
           }
-          console.log('✅ Imagens salvas com sucesso:', body.imagens.length)
+          console.log('âœ… Imagens salvas com sucesso:', body.imagens.length)
         } catch (imgError) {
-          console.error('⚠️ Erro ao salvar imagens (não crítico):', imgError)
+          console.error('âš ï¸ Erro ao salvar imagens (nÃ£o crÃ­tico):', imgError)
         }
       }
     }
 
-    // Processar vídeo se presente
+    // Processar vÃ­deo se presente
     if (body.video && body.video.arquivo) {
       try {
-        console.log('🔍 Processando vídeo para imóvel:', novoImovel.id)
-        console.log('🔍 Dados do vídeo recebidos:', {
+        console.log('ðŸ” Processando vÃ­deo para imÃ³vel:', novoImovel.id)
+        console.log('ðŸ” Dados do vÃ­deo recebidos:', {
           nomeArquivo: body.video.nomeArquivo,
           tipoMime: body.video.tipoMime,
           tamanhoBytes: body.video.tamanhoBytes,
@@ -618,7 +619,7 @@ export async function POST(request: NextRequest) {
         })
         
         const videoFile = body.video.arquivo
-        console.log('🔍 Arquivo de vídeo:', {
+        console.log('ðŸ” Arquivo de vÃ­deo:', {
           name: videoFile.name,
           size: videoFile.size,
           type: videoFile.type
@@ -626,7 +627,7 @@ export async function POST(request: NextRequest) {
         
         const arrayBuffer = await videoFile.arrayBuffer()
         const videoBuffer = Buffer.from(arrayBuffer)
-        console.log('🔍 Buffer criado com tamanho:', videoBuffer.length)
+        console.log('ðŸ” Buffer criado com tamanho:', videoBuffer.length)
         
         const videoData = {
           video: videoBuffer,
@@ -638,7 +639,7 @@ export async function POST(request: NextRequest) {
           formato: body.video.formato || videoFile.name.split('.').pop()?.toLowerCase() || 'mp4'
         }
         
-        console.log('🔍 Chamando saveImovelVideo com dados:', {
+        console.log('ðŸ” Chamando saveImovelVideo com dados:', {
           imovelId: novoImovel.id,
           nome_arquivo: videoData.nome_arquivo,
           tipo_mime: videoData.tipo_mime,
@@ -648,39 +649,39 @@ export async function POST(request: NextRequest) {
         })
         
         const videoId = await saveImovelVideo(novoImovel.id!, videoData)
-        console.log('✅ Vídeo salvo com sucesso, ID:', videoId)
+        console.log('âœ… VÃ­deo salvo com sucesso, ID:', videoId)
       } catch (videoError) {
-        console.error('❌ Erro ao salvar vídeo:', videoError)
+        console.error('âŒ Erro ao salvar vÃ­deo:', videoError)
         if (videoError instanceof Error) {
-          console.error('❌ Stack trace:', videoError.stack)
+          console.error('âŒ Stack trace:', videoError.stack)
         }
       }
     } else {
-      console.log('🔍 Nenhum vídeo presente para processar')
+      console.log('ðŸ” Nenhum vÃ­deo presente para processar')
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Imóvel criado com sucesso',
+      message: 'ImÃ³vel criado com sucesso',
       data: novoImovel
     }, { status: 201 })
 
   } catch (error: any) {
-    console.error('❌ Erro ao criar imóvel:', error)
-    console.error('❌ Tipo do erro:', typeof error)
-    console.error('❌ Código do erro:', error.code)
-    console.error('❌ Mensagem do erro:', error.message)
-    console.error('❌ Stack trace:', error.stack)
+    console.error('âŒ Erro ao criar imÃ³vel:', error)
+    console.error('âŒ Tipo do erro:', typeof error)
+    console.error('âŒ CÃ³digo do erro:', error.code)
+    console.error('âŒ Mensagem do erro:', error.message)
+    console.error('âŒ Stack trace:', error.stack)
     
-    // Verificar se é erro de código duplicado
+    // Verificar se Ã© erro de cÃ³digo duplicado
     if (error.code === '23505' && error.constraint === 'imoveis_codigo_key') {
       return NextResponse.json(
-        { error: 'Código de imóvel já existe' },
+        { error: 'CÃ³digo de imÃ³vel jÃ¡ existe' },
         { status: 409 }
       )
     }
 
-    // Retornar erro mais específico para debug
+    // Retornar erro mais especÃ­fico para debug
     return NextResponse.json(
       { 
         error: 'Erro interno do servidor',
@@ -691,3 +692,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

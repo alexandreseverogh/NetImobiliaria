@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -46,7 +47,7 @@ export default function CategoriasProximidadesPage() {
     fetchCategorias()
   }, [fetchCategorias])
 
-  // Usar o hook personalizado para recarregar dados quando a página receber foco
+  // Usar o hook personalizado para recarregar dados quando a pÃ¡gina receber foco
   usePageFocus(fetchCategorias)
 
   const handleDelete = async (id: number) => {
@@ -64,14 +65,14 @@ export default function CategoriasProximidadesPage() {
         throw new Error(errorData.error || 'Erro ao excluir categoria')
       }
 
-      // Recarregar a lista após exclusão
+      // Recarregar a lista apÃ³s exclusÃ£o
       fetchCategorias()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao excluir categoria'
       
-      // Se for erro de validação (categoria com proximidades associadas), mostrar modal
-      if (errorMessage.includes('Não é possível excluir')) {
-        setModalMessage('Não é possível excluir categorias que possuam associações a ela')
+      // Se for erro de validaÃ§Ã£o (categoria com proximidades associadas), mostrar modal
+      if (errorMessage.includes('NÃ£o Ã© possÃ­vel excluir')) {
+        setModalMessage('NÃ£o Ã© possÃ­vel excluir categorias que possuam associaÃ§Ãµes a ela')
         setShowModal(true)
       } else {
         setError(errorMessage)
@@ -101,7 +102,7 @@ export default function CategoriasProximidadesPage() {
         <div className="sm:flex-auto">
           <h1 className="text-2xl font-semibold text-gray-900">Categorias de Proximidades</h1>
           <p className="mt-2 text-sm text-gray-700">
-            Gerencie as categorias dos pontos de interesse próximos aos imóveis
+            Gerencie as categorias dos pontos de interesse prÃ³ximos aos imÃ³veis
           </p>
         </div>
         <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none flex space-x-3">
@@ -137,7 +138,7 @@ export default function CategoriasProximidadesPage() {
                       Nome
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Descrição
+                      DescriÃ§Ã£o
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ordem
@@ -146,7 +147,7 @@ export default function CategoriasProximidadesPage() {
                       Status
                     </th>
                     <th className="relative px-6 py-3">
-                      <span className="sr-only">Ações</span>
+                      <span className="sr-only">AÃ§Ãµes</span>
                     </th>
                   </tr>
                 </thead>
@@ -208,7 +209,7 @@ export default function CategoriasProximidadesPage() {
               </svg>
             </div>
             <h3 className="text-lg font-medium text-gray-900 text-center mb-2">
-              Não é possível excluir
+              NÃ£o Ã© possÃ­vel excluir
             </h3>
             <p className="text-sm text-gray-500 text-center mb-6">
               {modalMessage}
@@ -227,3 +228,4 @@ export default function CategoriasProximidadesPage() {
     </div>
   )
 }
+

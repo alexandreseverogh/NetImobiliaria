@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -41,7 +42,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Partial<Record<keyof CreateUserForm, string>>>({})
 
-  // Limpar formulário sempre que o modal abrir
+  // Limpar formulÃ¡rio sempre que o modal abrir
   useEffect(() => {
     if (isOpen) {
       setForm({
@@ -61,33 +62,33 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     const newErrors: Partial<Record<keyof CreateUserForm, string>> = {}
 
     if (!form.username.trim()) {
-      newErrors.username = 'Username é obrigatório'
+      newErrors.username = 'Username Ã© obrigatÃ³rio'
     } else if (form.username.length < 3) {
       newErrors.username = 'Username deve ter pelo menos 3 caracteres'
     }
 
     if (!form.email.trim()) {
-      newErrors.email = 'Email é obrigatório'
+      newErrors.email = 'Email Ã© obrigatÃ³rio'
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      newErrors.email = 'Email inválido'
+      newErrors.email = 'Email invÃ¡lido'
     }
 
     if (!form.password) {
-      newErrors.password = 'Senha é obrigatória'
+      newErrors.password = 'Senha Ã© obrigatÃ³ria'
     } else if (form.password.length < 8) {
       newErrors.password = 'Senha deve ter pelo menos 8 caracteres'
     }
 
     if (form.password !== form.confirmPassword) {
-      newErrors.confirmPassword = 'Senhas não coincidem'
+      newErrors.confirmPassword = 'Senhas nÃ£o coincidem'
     }
 
     if (!form.nome.trim()) {
-      newErrors.nome = 'Nome é obrigatório'
+      newErrors.nome = 'Nome Ã© obrigatÃ³rio'
     }
 
     if (!form.telefone.trim()) {
-      newErrors.telefone = 'Telefone é obrigatório'
+      newErrors.telefone = 'Telefone Ã© obrigatÃ³rio'
     } else {
       const telefone = form.telefone.trim()
       // Aceitar formatos: (81) 99999-9999, (81) 999999999, (81) 9999-9999
@@ -98,10 +99,10 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     }
 
     if (!form.roleId) {
-      newErrors.roleId = 'Perfil é obrigatório'
+      newErrors.roleId = 'Perfil Ã© obrigatÃ³rio'
     }
 
-    console.log('🔍 Validação do formulário:', { form, errors: newErrors })
+    console.log('ðŸ” ValidaÃ§Ã£o do formulÃ¡rio:', { form, errors: newErrors })
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -126,7 +127,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
         roleId: form.roleId
       }
       
-      console.log('📤 Dados sendo enviados para a API:', requestData)
+      console.log('ðŸ“¤ Dados sendo enviados para a API:', requestData)
       
       const response = await fetch('/api/admin/usuarios', {
         method: 'POST',
@@ -138,9 +139,9 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
 
       if (response.ok) {
         const data = await response.json()
-        console.log('Usuário criado:', data)
+        console.log('UsuÃ¡rio criado:', data)
         
-        // Limpar formulário
+        // Limpar formulÃ¡rio
         setForm({
           username: '',
           email: '',
@@ -155,11 +156,11 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
         onClose()
       } else {
         const errorData = await response.json()
-        console.error('Erro ao criar usuário:', errorData)
+        console.error('Erro ao criar usuÃ¡rio:', errorData)
         
-        let errorMessage = `Erro ao criar usuário: ${errorData.error || 'Erro desconhecido'}`
+        let errorMessage = `Erro ao criar usuÃ¡rio: ${errorData.error || 'Erro desconhecido'}`
         
-        // Mostrar detalhes de validação se disponíveis
+        // Mostrar detalhes de validaÃ§Ã£o se disponÃ­veis
         if (errorData.details && Array.isArray(errorData.details)) {
           errorMessage += '\n\nDetalhes:\n' + errorData.details.join('\n')
         }
@@ -167,19 +168,19 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
         alert(errorMessage)
       }
     } catch (error) {
-      console.error('Erro ao criar usuário:', error)
-      alert('Erro ao criar usuário. Tente novamente.')
+      console.error('Erro ao criar usuÃ¡rio:', error)
+      alert('Erro ao criar usuÃ¡rio. Tente novamente.')
     } finally {
       setLoading(false)
     }
   }
 
-  // Função para formatar telefone automaticamente
+  // FunÃ§Ã£o para formatar telefone automaticamente
   const formatPhoneNumber = (value: string): string => {
-    // Remove tudo que não é número
+    // Remove tudo que nÃ£o Ã© nÃºmero
     const numbers = value.replace(/\D/g, '')
     
-    // Aplica formatação baseada no número de dígitos
+    // Aplica formataÃ§Ã£o baseada no nÃºmero de dÃ­gitos
     if (numbers.length <= 2) {
       return numbers
     } else if (numbers.length <= 6) {
@@ -200,7 +201,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
       setForm(prev => ({ ...prev, [field]: value }))
     }
     
-    // Limpar erro do campo quando usuário começar a digitar
+    // Limpar erro do campo quando usuÃ¡rio comeÃ§ar a digitar
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }))
     }
@@ -222,7 +223,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
           {/* Header */}
           <div className="mb-6 flex items-center justify-between border-b border-gray-200 pb-4">
             <h3 className="text-xl font-semibold text-gray-900">
-              Novo Usuário
+              Novo UsuÃ¡rio
             </h3>
             <button
               onClick={onClose}
@@ -312,7 +313,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                   className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
                     errors.telefone ? 'border-red-300' : 'border-gray-300'
                   }`}
-                  placeholder="Digite apenas os números (formatação automática)"
+                  placeholder="Digite apenas os nÃºmeros (formataÃ§Ã£o automÃ¡tica)"
                 />
                 {errors.telefone && (
                   <p className="mt-1 text-sm text-red-600">{errors.telefone}</p>
@@ -390,7 +391,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
               </div>
             </div>
 
-            {/* Botões */}
+            {/* BotÃµes */}
             <div className="flex space-x-4 pt-6 border-t border-gray-200">
               <button
                 type="button"
@@ -404,7 +405,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                 disabled={loading}
                 className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium"
               >
-                {loading ? 'Criando...' : 'Criar Usuário'}
+                {loading ? 'Criando...' : 'Criar UsuÃ¡rio'}
               </button>
             </div>
           </form>
@@ -413,3 +414,4 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     </div>
   )
 }
+

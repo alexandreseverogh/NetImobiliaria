@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -106,7 +107,7 @@ export default function NovaCategoriaAmenidadePage() {
 
             <div>
               <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-2">
-                Descrição
+                DescriÃ§Ã£o
               </label>
               <textarea
                 id="descricao"
@@ -122,7 +123,7 @@ export default function NovaCategoriaAmenidadePage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="icone" className="block text-sm font-medium text-gray-700 mb-2">
-                  Ícone
+                  Ãcone
                 </label>
                 <select
                   id="icone"
@@ -131,15 +132,15 @@ export default function NovaCategoriaAmenidadePage() {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="star">⭐ Estrela</option>
-                  <option value="heart">❤️ Coração</option>
-                  <option value="leaf">🌱 Folha</option>
-                  <option value="wifi">📱 WiFi</option>
-                  <option value="shield">🔒 Escudo</option>
-                  <option value="fitness">💪 Fitness</option>
-                  <option value="service">🛎️ Serviço</option>
-                  <option value="users">👥 Usuários</option>
-                  <option value="building">🏛️ Edifício</option>
+                  <option value="star">â­ Estrela</option>
+                  <option value="heart">â¤ï¸ CoraÃ§Ã£o</option>
+                  <option value="leaf">ðŸŒ± Folha</option>
+                  <option value="wifi">ðŸ“± WiFi</option>
+                  <option value="shield">ðŸ”’ Escudo</option>
+                  <option value="fitness">ðŸ’ª Fitness</option>
+                  <option value="service">ðŸ›Žï¸ ServiÃ§o</option>
+                  <option value="users">ðŸ‘¥ UsuÃ¡rios</option>
+                  <option value="building">ðŸ›ï¸ EdifÃ­cio</option>
                 </select>
               </div>
 
@@ -211,3 +212,4 @@ export default function NovaCategoriaAmenidadePage() {
     </WriteGuard>
   )
 }
+

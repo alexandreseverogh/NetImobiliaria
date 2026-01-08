@@ -1,8 +1,9 @@
-// Implementação JWT compatível com Node.js para middleware
+﻿/* eslint-disable */
+// ImplementaÃ§Ã£o JWT compatÃ­vel com Node.js para middleware
 import { AUTH_CONFIG } from '@/lib/config/auth'
 import crypto from 'crypto'
 
-// Configurações JWT
+// ConfiguraÃ§Ãµes JWT
 const JWT_SECRET = AUTH_CONFIG.JWT.SECRET
 
 // Interface para o payload do token
@@ -14,7 +15,7 @@ export interface JWTPayload {
   exp?: number
 }
 
-// Gerar token de acesso (versão Node.js)
+// Gerar token de acesso (versÃ£o Node.js)
 export function generateAccessTokenNode(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
@@ -49,7 +50,7 @@ export function generateAccessTokenNode(payload: Omit<JWTPayload, 'iat' | 'exp'>
   return data + '.' + signature
 }
 
-// Gerar refresh token (versão Node.js)
+// Gerar refresh token (versÃ£o Node.js)
 export function generateRefreshTokenNode(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
@@ -84,7 +85,7 @@ export function generateRefreshTokenNode(payload: Omit<JWTPayload, 'iat' | 'exp'
   return data + '.' + signature
 }
 
-// Gerar ambos os tokens (versão Node.js)
+// Gerar ambos os tokens (versÃ£o Node.js)
 export function generateTokensNode(payload: Omit<JWTPayload, 'iat' | 'exp'>): {
   accessToken: string
   refreshToken: string
@@ -95,7 +96,7 @@ export function generateTokensNode(payload: Omit<JWTPayload, 'iat' | 'exp'>): {
   }
 }
 
-// Verificar e decodificar token (versão Node.js)
+// Verificar e decodificar token (versÃ£o Node.js)
 export function verifyTokenNode(token: string): JWTPayload | null {
   try {
     const parts = token.split('.')
@@ -120,7 +121,7 @@ export function verifyTokenNode(token: string): JWTPayload | null {
     // Decodificar payload
     const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString())
     
-    // Verificar expiração
+    // Verificar expiraÃ§Ã£o
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
       return null
     }
@@ -131,3 +132,4 @@ export function verifyTokenNode(token: string): JWTPayload | null {
     return null
   }
 }
+

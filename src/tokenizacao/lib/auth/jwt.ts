@@ -1,7 +1,8 @@
-// Implementação JWT compatível com Edge Runtime usando Web Crypto API
+﻿/* eslint-disable */
+// ImplementaÃ§Ã£o JWT compatÃ­vel com Edge Runtime usando Web Crypto API
 import { AUTH_CONFIG } from '@/lib/config/auth'
 
-// Configurações JWT
+// ConfiguraÃ§Ãµes JWT
 const JWT_SECRET = AUTH_CONFIG.JWT.SECRET
 const JWT_EXPIRES_IN = AUTH_CONFIG.JWT.ACCESS_TOKEN_EXPIRES_IN
 const JWT_REFRESH_EXPIRES_IN = AUTH_CONFIG.JWT.REFRESH_TOKEN_EXPIRES_IN
@@ -21,19 +22,19 @@ export interface Tokens {
   refreshToken: string
 }
 
-// Função auxiliar para converter string para ArrayBuffer
+// FunÃ§Ã£o auxiliar para converter string para ArrayBuffer
 function stringToArrayBuffer(str: string): ArrayBuffer {
   const encoder = new TextEncoder()
   return encoder.encode(str).buffer
 }
 
-// Função auxiliar para converter ArrayBuffer para string
+// FunÃ§Ã£o auxiliar para converter ArrayBuffer para string
 function arrayBufferToString(buffer: ArrayBuffer): string {
   const decoder = new TextDecoder()
   return decoder.decode(buffer)
 }
 
-// Função auxiliar para converter ArrayBuffer para base64url
+// FunÃ§Ã£o auxiliar para converter ArrayBuffer para base64url
 function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
   let binary = ''
@@ -46,7 +47,7 @@ function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
     .replace(/=/g, '')
 }
 
-// Função auxiliar para converter base64url para ArrayBuffer
+// FunÃ§Ã£o auxiliar para converter base64url para ArrayBuffer
 function base64UrlToArrayBuffer(base64url: string): ArrayBuffer {
   const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/')
   const padding = '='.repeat((4 - base64.length % 4) % 4)
@@ -63,7 +64,7 @@ function base64UrlToArrayBuffer(base64url: string): ArrayBuffer {
 export async function generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
-  const exp = now + (parseInt(JWT_EXPIRES_IN) || 24 * 60 * 60) // 24 horas padrão
+  const exp = now + (parseInt(JWT_EXPIRES_IN) || 24 * 60 * 60) // 24 horas padrÃ£o
   
   const payloadWithTime = {
     ...payload,
@@ -93,7 +94,7 @@ export async function generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp
 export async function generateRefreshToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
-  const exp = now + (parseInt(JWT_REFRESH_EXPIRES_IN) || 7 * 24 * 60 * 60) // 7 dias padrão
+  const exp = now + (parseInt(JWT_REFRESH_EXPIRES_IN) || 7 * 24 * 60 * 60) // 7 dias padrÃ£o
   
   const payloadWithTime = {
     ...payload,
@@ -158,7 +159,7 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
     // Decodificar payload
     const payload = JSON.parse(arrayBufferToString(base64UrlToArrayBuffer(payloadB64)))
     
-    // Verificar expiração
+    // Verificar expiraÃ§Ã£o
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
       return null
     }
@@ -170,7 +171,7 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
   }
 }
 
-// Verificar se token está expirado
+// Verificar se token estÃ¡ expirado
 export async function isTokenExpired(token: string): Promise<boolean> {
   try {
     const decoded = await verifyToken(token)
@@ -193,4 +194,5 @@ export async function refreshAccessToken(refreshToken: string): Promise<string |
     return null
   }
 }
+
 

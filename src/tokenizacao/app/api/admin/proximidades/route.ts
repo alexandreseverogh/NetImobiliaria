@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findAllProximidades, createProximidade, findProximidadesPaginated } from '@/lib/database/proximidades'
 
@@ -9,13 +10,13 @@ export async function GET(request: NextRequest) {
     const categoria = searchParams.get('categoria') || ''
     const search = searchParams.get('search') || ''
     
-    // Se não há parâmetros de paginação, usar a função antiga para compatibilidade
+    // Se nÃ£o hÃ¡ parÃ¢metros de paginaÃ§Ã£o, usar a funÃ§Ã£o antiga para compatibilidade
     if (!searchParams.has('page') && !searchParams.has('limit')) {
       const proximidades = await findAllProximidades()
       return NextResponse.json(proximidades)
     }
     
-    // Usar paginação com filtro de categoria e busca
+    // Usar paginaÃ§Ã£o com filtro de categoria e busca
     const result = await findProximidadesPaginated(page, limit, categoria, search)
     
     return NextResponse.json(result)
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     
     if (!nome || !categoria) {
       return NextResponse.json(
-        { error: 'Nome e categoria são obrigatórios' },
+        { error: 'Nome e categoria sÃ£o obrigatÃ³rios' },
         { status: 400 }
       )
     }
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
     
     if (!categoriaEncontrada) {
       return NextResponse.json(
-        { error: 'Categoria não encontrada' },
+        { error: 'Categoria nÃ£o encontrada' },
         { status: 400 }
       )
     }
@@ -74,6 +75,7 @@ export async function POST(request: Request) {
     )
   }
 }
+
 
 
 

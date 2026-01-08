@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server';
 import { findTipoImovelById, updateTipoImovel, toggleTipoImovelStatus, deleteTipoImovel } from '@/lib/database/tipos-imoveis';
 

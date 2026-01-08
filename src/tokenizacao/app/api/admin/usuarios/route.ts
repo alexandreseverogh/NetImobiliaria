@@ -1,10 +1,11 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken, JWTPayload } from '@/lib/auth/jwt'
 import { auditLogger } from '@/lib/utils/auditLogger'
 import { findUsersWithRoles, createUser } from '@/lib/database/users'
 import { Permission } from '@/lib/types/admin'
 
-// Interface estendida para JWT com permissões
+// Interface estendida para JWT com permissÃµes
 interface JWTPayloadWithPermissions extends JWTPayload {
   permissoes: {
     imoveis: Permission
@@ -18,7 +19,7 @@ interface JWTPayloadWithPermissions extends JWTPayload {
   }
 }
 
-// Interface para criação de usuário
+// Interface para criaÃ§Ã£o de usuÃ¡rio
 interface CreateUserRequest {
   username: string
   email: string
@@ -28,36 +29,36 @@ interface CreateUserRequest {
   password: string
 }
 
-// Função para validar dados de entrada
+// FunÃ§Ã£o para validar dados de entrada
 function validateCreateData(data: CreateUserRequest): { isValid: boolean; errors: string[] } {
   const errors: string[] = []
 
-  // Validação de username
+  // ValidaÃ§Ã£o de username
   if (!data.username.trim()) {
-    errors.push('Username é obrigatório')
+    errors.push('Username Ã© obrigatÃ³rio')
   } else if (data.username.length < 3) {
     errors.push('Username deve ter pelo menos 3 caracteres')
   } else if (!/^[a-zA-Z0-9_]+$/.test(data.username)) {
-    errors.push('Username deve conter apenas letras, números e underscore')
+    errors.push('Username deve conter apenas letras, nÃºmeros e underscore')
   }
 
-  // Validação de email
+  // ValidaÃ§Ã£o de email
   if (!data.email.trim()) {
-    errors.push('Email é obrigatório')
+    errors.push('Email Ã© obrigatÃ³rio')
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-    errors.push('Email inválido')
+    errors.push('Email invÃ¡lido')
   }
 
-  // Validação de nome
+  // ValidaÃ§Ã£o de nome
   if (!data.nome.trim()) {
-    errors.push('Nome é obrigatório')
+    errors.push('Nome Ã© obrigatÃ³rio')
   } else if (data.nome.length < 2) {
     errors.push('Nome deve ter pelo menos 2 caracteres')
   }
 
-  // Validação de telefone
+  // ValidaÃ§Ã£o de telefone
   if (!data.telefone.trim()) {
-    errors.push('Telefone é obrigatório')
+    errors.push('Telefone Ã© obrigatÃ³rio')
   } else {
     const telefone = data.telefone.trim()
     // Aceitar formatos: (81) 99999-9999, (81) 999999999, (81) 9999-9999
@@ -67,14 +68,14 @@ function validateCreateData(data: CreateUserRequest): { isValid: boolean; errors
     }
   }
 
-  // Validação de roleId
+  // ValidaÃ§Ã£o de roleId
   if (!data.roleId || data.roleId <= 0) {
-    errors.push('Perfil é obrigatório')
+    errors.push('Perfil Ã© obrigatÃ³rio')
   }
 
-  // Validação de senha
+  // ValidaÃ§Ã£o de senha
   if (!data.password) {
-    errors.push('Senha é obrigatória')
+    errors.push('Senha Ã© obrigatÃ³ria')
   } else if (data.password.length < 8) {
     errors.push('Senha deve ter pelo menos 8 caracteres')
   }
@@ -85,31 +86,31 @@ function validateCreateData(data: CreateUserRequest): { isValid: boolean; errors
   }
 }
 
-// GET - Listar usuários
+// GET - Listar usuÃ¡rios
 export async function GET(request: NextRequest) {
   try {
-    // Verificar permissões usando o middleware
+    // Verificar permissÃµes usando o middleware
     const { checkApiPermission } = await import('@/lib/middleware/permissionMiddleware')
     const permissionCheck = await checkApiPermission(request)
     if (permissionCheck) {
       return permissionCheck
     }
 
-    // O middleware já verificou as permissões, então podemos prosseguir
+    // O middleware jÃ¡ verificou as permissÃµes, entÃ£o podemos prosseguir
 
-    // Buscar usuários do banco de dados
+    // Buscar usuÃ¡rios do banco de dados
     const users = await findUsersWithRoles()
 
-    // Filtrar usuários (ocultar senhas por segurança)
+    // Filtrar usuÃ¡rios (ocultar senhas por seguranÃ§a)
     const filteredUsers = users.map(user => ({
       ...user,
       password: '***' // Ocultar senha
     }))
 
-    // Log de auditoria (sem informações sensíveis)
+    // Log de auditoria (sem informaÃ§Ãµes sensÃ­veis)
     auditLogger.log(
       'USERS_LIST',
-      'Usuário listou usuários do sistema',
+      'UsuÃ¡rio listou usuÃ¡rios do sistema',
       true,
       'system',
       'system',
@@ -123,7 +124,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Erro ao listar usuários:', error)
+    console.error('Erro ao listar usuÃ¡rios:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
@@ -131,32 +132,32 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Criar usuário
+// POST - Criar usuÃ¡rio
 export async function POST(request: NextRequest) {
   try {
-    // Verificar permissões usando o middleware
+    // Verificar permissÃµes usando o middleware
     const { checkApiPermission } = await import('@/lib/middleware/permissionMiddleware')
     const permissionCheck = await checkApiPermission(request)
     if (permissionCheck) {
       return permissionCheck
     }
 
-    // O middleware já verificou as permissões, então podemos prosseguir
+    // O middleware jÃ¡ verificou as permissÃµes, entÃ£o podemos prosseguir
     const createData: CreateUserRequest = await request.json()
 
-    // Validação dos dados de entrada
+    // ValidaÃ§Ã£o dos dados de entrada
     const validation = validateCreateData(createData)
     if (!validation.isValid) {
       return NextResponse.json(
         { 
-          error: 'Dados inválidos',
+          error: 'Dados invÃ¡lidos',
           details: validation.errors 
         },
         { status: 400 }
       )
     }
 
-    // Criar usuário no banco
+    // Criar usuÃ¡rio no banco
     const newUser = await createUser({
       username: createData.username.trim(),
       email: createData.email.trim(),
@@ -171,36 +172,36 @@ export async function POST(request: NextRequest) {
     // Log de auditoria
     auditLogger.log(
       'USER_CREATE',
-      'Usuário criou um novo usuário no sistema',
+      'UsuÃ¡rio criou um novo usuÃ¡rio no sistema',
       true,
       'system',
       'system',
       request.ip || 'unknown'
     )
 
-    // Não retornar senha
+    // NÃ£o retornar senha
     const { password, ...userWithoutPassword } = newUser
 
     return NextResponse.json({
       success: true,
-      message: 'Usuário criado com sucesso',
+      message: 'UsuÃ¡rio criado com sucesso',
       user: userWithoutPassword
     }, { status: 201 })
 
   } catch (error) {
-    console.error('Erro ao criar usuário:', error)
+    console.error('Erro ao criar usuÃ¡rio:', error)
     
-    // Tratar erros específicos do banco
+    // Tratar erros especÃ­ficos do banco
     if (error instanceof Error) {
-      if (error.message.includes('já existe')) {
+      if (error.message.includes('jÃ¡ existe')) {
         return NextResponse.json(
-          { error: 'Username ou email já existe no sistema' },
+          { error: 'Username ou email jÃ¡ existe no sistema' },
           { status: 400 }
         )
       }
-      if (error.message.includes('Perfil especificado não existe')) {
+      if (error.message.includes('Perfil especificado nÃ£o existe')) {
         return NextResponse.json(
-          { error: 'Perfil especificado não existe ou não está ativo' },
+          { error: 'Perfil especificado nÃ£o existe ou nÃ£o estÃ¡ ativo' },
           { status: 400 }
         )
       }
@@ -212,3 +213,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

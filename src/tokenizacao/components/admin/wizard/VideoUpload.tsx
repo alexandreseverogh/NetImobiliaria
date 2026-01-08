@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import React, { useCallback, useState } from 'react'
@@ -11,19 +12,19 @@ interface VideoUploadProps {
   disabled?: boolean
 }
 
-// Validações de vídeo conforme planejamento
+// ValidaÃ§Ãµes de vÃ­deo conforme planejamento
 const VIDEO_VALIDATIONS = {
   FORMATOS_ACEITOS: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'],
   EXTENSOES_ACEITAS: ['.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv'],
   TAMANHO_MAXIMO: 50 * 1024 * 1024, // 50MB
-  DURACAO_MAXIMA: 66, // 60 segundos + 10% de tolerância
+  DURACAO_MAXIMA: 66, // 60 segundos + 10% de tolerÃ¢ncia
   RESOLUCAO_MAXIMA: { width: 1920, height: 1080 },
   TAMANHO_MINIMO: 1024, // 1KB - evitar arquivos vazios
 }
 
-// Função para estimar duração do vídeo baseada no tamanho e tipo
+// FunÃ§Ã£o para estimar duraÃ§Ã£o do vÃ­deo baseada no tamanho e tipo
 function estimateVideoDuration(fileSize: number, mimeType: string): number {
-  // Estimativas baseadas em bitrates típicos por tipo de vídeo
+  // Estimativas baseadas em bitrates tÃ­picos por tipo de vÃ­deo
   const bitrateEstimates: { [key: string]: number } = {
     'video/mp4': 2000000,    // 2 Mbps
     'video/webm': 1500000,   // 1.5 Mbps
@@ -50,7 +51,7 @@ export default function VideoUpload({
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Função para validar vídeo
+  // FunÃ§Ã£o para validar vÃ­deo
   const validateVideo = useCallback((file: File): { isValid: boolean; errors: string[] } => {
     const errors: string[] = []
     
@@ -62,28 +63,28 @@ export default function VideoUpload({
     
     // Validar nome do arquivo
     if (!file.name || file.name.trim().length === 0) {
-      errors.push('Nome do arquivo inválido')
+      errors.push('Nome do arquivo invÃ¡lido')
     }
     
-    // Validar tamanho mínimo
+    // Validar tamanho mÃ­nimo
     if (file.size < VIDEO_VALIDATIONS.TAMANHO_MINIMO) {
-      errors.push(`Arquivo muito pequeno. Mínimo: ${VIDEO_VALIDATIONS.TAMANHO_MINIMO} bytes`)
+      errors.push(`Arquivo muito pequeno. MÃ­nimo: ${VIDEO_VALIDATIONS.TAMANHO_MINIMO} bytes`)
     }
     
-    // Validar tamanho máximo
+    // Validar tamanho mÃ¡ximo
     if (file.size > VIDEO_VALIDATIONS.TAMANHO_MAXIMO) {
-      errors.push(`Arquivo muito grande. Máximo: ${VIDEO_VALIDATIONS.TAMANHO_MAXIMO / (1024 * 1024)}MB`)
+      errors.push(`Arquivo muito grande. MÃ¡ximo: ${VIDEO_VALIDATIONS.TAMANHO_MAXIMO / (1024 * 1024)}MB`)
     }
     
     // Validar tipo MIME
     if (!file.type || !VIDEO_VALIDATIONS.FORMATOS_ACEITOS.includes(file.type)) {
-      errors.push(`Formato não suportado. Use: ${VIDEO_VALIDATIONS.FORMATOS_ACEITOS.join(', ')}`)
+      errors.push(`Formato nÃ£o suportado. Use: ${VIDEO_VALIDATIONS.FORMATOS_ACEITOS.join(', ')}`)
     }
     
-    // Validar extensão
+    // Validar extensÃ£o
     const extension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'))
     if (!extension || !VIDEO_VALIDATIONS.EXTENSOES_ACEITAS.includes(extension)) {
-      errors.push(`Extensão não suportada. Use: ${VIDEO_VALIDATIONS.EXTENSOES_ACEITAS.join(', ')}`)
+      errors.push(`ExtensÃ£o nÃ£o suportada. Use: ${VIDEO_VALIDATIONS.EXTENSOES_ACEITAS.join(', ')}`)
     }
     
     // Validar nome do arquivo (evitar caracteres especiais)
@@ -92,10 +93,10 @@ export default function VideoUpload({
       errors.push('Nome do arquivo deve ter pelo menos 1 caractere')
     }
     
-    // Validar duração estimada (simulação - em produção usar ffprobe)
+    // Validar duraÃ§Ã£o estimada (simulaÃ§Ã£o - em produÃ§Ã£o usar ffprobe)
     const estimatedDuration = estimateVideoDuration(file.size, file.type)
     if (estimatedDuration > VIDEO_VALIDATIONS.DURACAO_MAXIMA) {
-      errors.push(`Vídeo muito longo. Máximo: ${VIDEO_VALIDATIONS.DURACAO_MAXIMA} segundos (estimado: ${estimatedDuration}s)`)
+      errors.push(`VÃ­deo muito longo. MÃ¡ximo: ${VIDEO_VALIDATIONS.DURACAO_MAXIMA} segundos (estimado: ${estimatedDuration}s)`)
     }
     
     return {
@@ -104,40 +105,40 @@ export default function VideoUpload({
     }
   }, [])
 
-  // Função para processar arquivo selecionado
+  // FunÃ§Ã£o para processar arquivo selecionado
   const processVideoFile = useCallback(async (file: File) => {
     setError(null)
     setIsUploading(true)
 
     try {
-      // Validar vídeo
+      // Validar vÃ­deo
       const validation = validateVideo(file)
       if (!validation.isValid) {
         setError(validation.errors.join(', '))
         return
       }
 
-      // Determinar formato e resolução (simulação)
+      // Determinar formato e resoluÃ§Ã£o (simulaÃ§Ã£o)
       const formato = file.name.split('.').pop()?.toLowerCase() || 'mp4'
-      const resolucao = '1920x1080' // Em produção, extrair do arquivo
+      const resolucao = '1920x1080' // Em produÃ§Ã£o, extrair do arquivo
 
-      // Criar objeto de dados do vídeo
+      // Criar objeto de dados do vÃ­deo
       const videoData: VideoUploadData = {
         arquivo: file,
         nomeArquivo: file.name,
         tipoMime: file.type,
         tamanhoBytes: file.size,
-        duracaoSegundos: 30, // Simulação - em produção usar ffprobe
+        duracaoSegundos: 30, // SimulaÃ§Ã£o - em produÃ§Ã£o usar ffprobe
         resolucao: resolucao,
         formato: formato
       }
 
-      // Chamar callback com dados do vídeo
+      // Chamar callback com dados do vÃ­deo
       onVideoSelect(videoData)
 
     } catch (error) {
-      console.error('❌ Erro ao processar vídeo:', error)
-      setError('Erro ao processar arquivo de vídeo')
+      console.error('âŒ Erro ao processar vÃ­deo:', error)
+      setError('Erro ao processar arquivo de vÃ­deo')
     } finally {
       setIsUploading(false)
     }
@@ -168,11 +169,11 @@ export default function VideoUpload({
     if (videoFile) {
       processVideoFile(videoFile)
     } else {
-      setError('Por favor, selecione um arquivo de vídeo válido')
+      setError('Por favor, selecione um arquivo de vÃ­deo vÃ¡lido')
     }
   }, [disabled, processVideoFile])
 
-  // Handler para seleção de arquivo
+  // Handler para seleÃ§Ã£o de arquivo
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -180,13 +181,13 @@ export default function VideoUpload({
     }
   }, [processVideoFile])
 
-  // Handler para remoção
+  // Handler para remoÃ§Ã£o
   const handleRemove = useCallback(() => {
     setError(null)
     onVideoRemove()
   }, [onVideoRemove])
 
-  // Renderizar área de upload
+  // Renderizar Ã¡rea de upload
   const renderUploadArea = () => (
     <div
       className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -208,13 +209,13 @@ export default function VideoUpload({
         
         <div>
           <p className="text-lg font-medium text-gray-900">
-            {isUploading ? 'Processando vídeo...' : 'Arraste um vídeo aqui'}
+            {isUploading ? 'Processando vÃ­deo...' : 'Arraste um vÃ­deo aqui'}
           </p>
           <p className="text-sm text-gray-500 mt-1">
             ou clique para selecionar
           </p>
           <p className="text-xs text-gray-400 mt-2">
-            Formatos aceitos: MP4, WebM, OGG • Máximo: 50MB • Duração: 60s
+            Formatos aceitos: MP4, WebM, OGG â€¢ MÃ¡ximo: 50MB â€¢ DuraÃ§Ã£o: 60s
           </p>
         </div>
       </div>
@@ -230,7 +231,7 @@ export default function VideoUpload({
     </div>
   )
 
-  // Renderizar vídeo existente
+  // Renderizar vÃ­deo existente
   const renderExistingVideo = () => (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="flex items-center justify-between">
@@ -243,7 +244,7 @@ export default function VideoUpload({
           <div>
             <p className="font-medium text-gray-900">{existingVideo.nome_arquivo}</p>
             <p className="text-sm text-gray-500">
-              {(existingVideo.tamanho_bytes / (1024 * 1024)).toFixed(2)} MB • {existingVideo.duracao_segundos}s
+              {(existingVideo.tamanho_bytes / (1024 * 1024)).toFixed(2)} MB â€¢ {existingVideo.duracao_segundos}s
             </p>
           </div>
         </div>
@@ -284,10 +285,11 @@ export default function VideoUpload({
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="flex items-center space-x-2">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-            <p className="text-sm text-blue-600">Processando vídeo...</p>
+            <p className="text-sm text-blue-600">Processando vÃ­deo...</p>
           </div>
         </div>
       )}
     </div>
   )
 }
+

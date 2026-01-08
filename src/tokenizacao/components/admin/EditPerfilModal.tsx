@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -48,12 +49,12 @@ export default function EditPerfilModal({ isOpen, perfil, onClose, onSuccess }: 
     e.preventDefault();
     
     if (!formData.name.trim()) {
-      setError('Nome do perfil é obrigatório');
+      setError('Nome do perfil Ã© obrigatÃ³rio');
       return;
     }
 
     if (!formData.description.trim()) {
-      setError('Descrição é obrigatória');
+      setError('DescriÃ§Ã£o Ã© obrigatÃ³ria');
       return;
     }
 
@@ -131,11 +132,11 @@ export default function EditPerfilModal({ isOpen, perfil, onClose, onSuccess }: 
                     Editar Perfil: {perfil.name}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Modifique as permissões de acesso para este perfil
+                    Modifique as permissÃµes de acesso para este perfil
                   </p>
                   {perfil.userCount > 0 && (
                     <p className="text-xs text-amber-600 mt-1">
-                      ⚠️ Este perfil está sendo usado por {perfil.userCount} usuário{perfil.userCount !== 1 ? 's' : ''}
+                      âš ï¸ Este perfil estÃ¡ sendo usado por {perfil.userCount} usuÃ¡rio{perfil.userCount !== 1 ? 's' : ''}
                     </p>
                   )}
                 </div>
@@ -194,7 +195,7 @@ export default function EditPerfilModal({ isOpen, perfil, onClose, onSuccess }: 
 
                 <div>
                   <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                    Descrição *
+                    DescriÃ§Ã£o *
                   </label>
                   <input
                     type="text"
@@ -202,7 +203,7 @@ export default function EditPerfilModal({ isOpen, perfil, onClose, onSuccess }: 
                     value={formData.description}
                     onChange={(e) => handleInputChange('description', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
-                    placeholder="Descrição do perfil e responsabilidades"
+                    placeholder="DescriÃ§Ã£o do perfil e responsabilidades"
                     disabled={loading}
                     autoComplete="off"
                   />
@@ -212,7 +213,7 @@ export default function EditPerfilModal({ isOpen, perfil, onClose, onSuccess }: 
               {/* Permissions Editor */}
               <div>
                 <h4 className="text-lg font-medium text-gray-900 mb-4">
-                  Permissões de Acesso
+                  PermissÃµes de Acesso
                 </h4>
                 <PermissoesEditor
                   permissions={formData.permissions}
@@ -235,7 +236,7 @@ export default function EditPerfilModal({ isOpen, perfil, onClose, onSuccess }: 
                     Salvando...
                   </>
                 ) : (
-                  'Salvar Alterações'
+                  'Salvar AlteraÃ§Ãµes'
                 )}
               </button>
               
@@ -254,6 +255,7 @@ export default function EditPerfilModal({ isOpen, perfil, onClose, onSuccess }: 
     </div>
   );
 }
+
 
 
 

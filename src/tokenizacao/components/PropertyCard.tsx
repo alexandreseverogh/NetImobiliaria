@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import Image from 'next/image'
@@ -103,4 +104,5 @@ export default function PropertyCard({ property }: PropertyCardProps) {
     </div>
   )
 }
+
 

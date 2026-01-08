@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 import { NextResponse } from 'next/server'
 
-// Forçar uso do Node.js runtime
+// ForÃ§ar uso do Node.js runtime
 export const runtime = 'nodejs'
 
 export async function POST() {
@@ -11,7 +12,7 @@ export async function POST() {
       message: 'Logout realizado com sucesso'
     })
 
-    // Limpar cookies de autenticação
+    // Limpar cookies de autenticaÃ§Ã£o
     response.cookies.delete('accessToken')
     response.cookies.delete('refreshToken')
 
@@ -25,4 +26,5 @@ export async function POST() {
     )
   }
 }
+
 

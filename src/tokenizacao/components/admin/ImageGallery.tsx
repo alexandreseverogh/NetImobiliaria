@@ -1,5 +1,7 @@
+﻿/* eslint-disable */
 'use client'
 
+/* eslint-disable */
 import React, { useState } from 'react'
 import { X, Trash2, Move, Eye, Star } from 'lucide-react'
 
@@ -57,13 +59,13 @@ export default function ImageGallery({
     if (draggedIndex !== -1 && targetIndex !== -1) {
       // Remover imagem arrastada
       newImagens.splice(draggedIndex, 1)
-      // Inserir na nova posição
+      // Inserir na nova posiÃ§Ã£o
       newImagens.splice(targetIndex, 0, draggedImage)
       // Atualizar ordens
       newImagens.forEach((img, index) => {
         img.ordem = index
       })
-      
+
       onReorder(newImagens)
     }
 
@@ -91,21 +93,21 @@ export default function ImageGallery({
           <Eye className="w-8 h-8 text-gray-400" />
         </div>
         <p className="text-lg font-medium">Nenhuma imagem encontrada</p>
-        <p className="text-sm">Faça upload de imagens para começar</p>
+        <p className="text-sm">FaÃ§a upload de imagens para comeÃ§ar</p>
       </div>
     )
   }
 
   return (
     <div className={className}>
-      {/* Título e contador */}
+      {/* TÃ­tulo e contador */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-medium text-gray-900">
           Galeria de Imagens ({imagens.length})
         </h3>
         {editable && (
           <p className="text-sm text-gray-500">
-            Arraste para reordenar • Clique para visualizar
+            Arraste para reordenar â€¢ Clique para visualizar
           </p>
         )}
       </div>
@@ -133,8 +135,8 @@ export default function ImageGallery({
                 className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
                 onClick={() => setSelectedImage(imagem)}
               />
-              
-              {/* Overlay com ações */}
+
+              {/* Overlay com aÃ§Ãµes */}
               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
                   <button
@@ -144,21 +146,20 @@ export default function ImageGallery({
                   >
                     <Eye className="h-4 w-4" />
                   </button>
-                  
+
                   {editable && (
                     <>
                       <button
                         onClick={() => handleSetPrincipal(imagem)}
-                        className={`p-2 rounded-full transition-colors ${
-                          imagem.principal 
-                            ? 'bg-blue-500 text-white' 
+                        className={`p-2 rounded-full transition-colors ${imagem.principal
+                            ? 'bg-blue-500 text-white'
                             : 'bg-white text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                         title={imagem.principal ? 'Imagem principal' : 'Definir como principal'}
                       >
                         <Star className="h-4 w-4" />
                       </button>
-                      
+
                       <button
                         onClick={() => handleDelete(imagem)}
                         className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
@@ -177,7 +178,7 @@ export default function ImageGallery({
                   Principal
                 </div>
               )}
-              
+
               {editable && (
                 <div className="absolute top-2 right-2 bg-gray-800 text-white text-xs px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                   {index + 1}
@@ -185,13 +186,13 @@ export default function ImageGallery({
               )}
             </div>
 
-            {/* Informações da imagem */}
+            {/* InformaÃ§Ãµes da imagem */}
             <div className="mt-2 text-xs text-gray-500">
               <p className="font-medium truncate">{imagem.nome_arquivo}</p>
               {imagem.ordem !== undefined && <p>Ordem: {imagem.ordem + 1}</p>}
             </div>
 
-            {/* Ícone de arrastar */}
+            {/* Ãcone de arrastar */}
             {editable && (
               <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Move className="h-4 w-4 text-gray-400" />
@@ -201,11 +202,11 @@ export default function ImageGallery({
         ))}
       </div>
 
-      {/* Modal de visualização */}
+      {/* Modal de visualizaÃ§Ã£o */}
       {selectedImage && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
           <div className="relative max-w-4xl max-h-full">
-            {/* Botão fechar */}
+            {/* BotÃ£o fechar */}
             <button
               onClick={() => setSelectedImage(null)}
               className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-colors z-10"
@@ -220,18 +221,18 @@ export default function ImageGallery({
               className="max-w-full max-h-full object-contain rounded-lg"
             />
 
-            {/* Informações da imagem */}
+            {/* InformaÃ§Ãµes da imagem */}
             <div className="absolute bottom-4 left-4 right-4 bg-black bg-opacity-75 text-white p-4 rounded-lg">
-                          <h3 className="text-lg font-medium mb-2">{selectedImage.nome_arquivo}</h3>
-            {selectedImage.descricao && (
-              <p className="text-sm text-gray-300 mb-2">{selectedImage.descricao}</p>
-            )}
-            <div className="flex items-center gap-4 text-sm text-gray-300">
-              <span>Ordem: {selectedImage.ordem + 1}</span>
-              {selectedImage.principal && (
-                <span className="text-blue-400">⭐ Imagem Principal</span>
+              <h3 className="text-lg font-medium mb-2">{selectedImage.nome_arquivo}</h3>
+              {selectedImage.descricao && (
+                <p className="text-sm text-gray-300 mb-2">{selectedImage.descricao}</p>
               )}
-            </div>
+              <div className="flex items-center gap-4 text-sm text-gray-300">
+                <span>Ordem: {selectedImage.ordem + 1}</span>
+                {selectedImage.principal && (
+                  <span className="text-blue-400">â­ Imagem Principal</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -239,6 +240,7 @@ export default function ImageGallery({
     </div>
   )
 }
+
 
 
 

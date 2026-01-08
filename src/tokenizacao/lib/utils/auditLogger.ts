@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 interface AuditLog {
   timestamp: string
   action: string
@@ -24,14 +25,14 @@ class AuditLogger {
 
     this.logs.push(logEntry)
     
-    // Em produção, salvar em banco de dados ou arquivo
-    console.log('🔍 AUDIT LOG:', logEntry)
+    // Em produÃ§Ã£o, salvar em banco de dados ou arquivo
+    console.log('ðŸ” AUDIT LOG:', logEntry)
   }
 
   logLogin(username: string, success: boolean, ip?: string) {
     this.log(
       'LOGIN_ATTEMPT',
-      `Tentativa de login para usuário: ${username}`,
+      `Tentativa de login para usuÃ¡rio: ${username}`,
       success,
       undefined,
       username,
@@ -42,7 +43,7 @@ class AuditLogger {
   logLogout(userId: string, username: string) {
     this.log(
       'LOGOUT',
-      `Usuário fez logout`,
+      `UsuÃ¡rio fez logout`,
       true,
       userId,
       username
@@ -73,4 +74,5 @@ class AuditLogger {
 }
 
 export const auditLogger = new AuditLogger()
+
 

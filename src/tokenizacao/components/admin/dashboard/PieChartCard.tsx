@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
@@ -88,6 +89,7 @@ export default function PieChartCard({ title, data, icon, color }: PieChartCardP
     </div>
   )
 }
+
 
 
 

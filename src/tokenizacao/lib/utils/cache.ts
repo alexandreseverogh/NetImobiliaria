@@ -1,5 +1,6 @@
-// Sistema de cache robusto e performático
-// Implementa cache em memória com TTL, limpeza automática e fallback
+﻿/* eslint-disable */
+// Sistema de cache robusto e performÃ¡tico
+// Implementa cache em memÃ³ria com TTL, limpeza automÃ¡tica e fallback
 
 interface CacheItem<T> {
   value: T
@@ -23,8 +24,8 @@ class CacheManager {
   private cleanupTimer?: NodeJS.Timeout
 
   constructor(options: CacheOptions = {}) {
-    this.defaultTTL = options.ttl || 5 * 60 * 1000 // 5 minutos padrão
-    this.maxSize = options.maxSize || 1000 // Máximo 1000 itens
+    this.defaultTTL = options.ttl || 5 * 60 * 1000 // 5 minutos padrÃ£o
+    this.maxSize = options.maxSize || 1000 // MÃ¡ximo 1000 itens
     this.cleanupInterval = options.cleanupInterval || 60 * 1000 // Limpeza a cada minuto
     
     this.startCleanupTimer()
@@ -67,7 +68,7 @@ class CacheManager {
       return null
     }
 
-    // Atualiza estatísticas de acesso
+    // Atualiza estatÃ­sticas de acesso
     item.accessCount++
     item.lastAccess = Date.now()
 
@@ -93,7 +94,7 @@ class CacheManager {
   }
 
   /**
-   * Remove um item específico do cache
+   * Remove um item especÃ­fico do cache
    */
   delete(key: string): boolean {
     return this.cache.delete(key)
@@ -107,7 +108,7 @@ class CacheManager {
   }
 
   /**
-   * Retorna estatísticas do cache
+   * Retorna estatÃ­sticas do cache
    */
   getStats() {
     const now = Date.now()
@@ -132,7 +133,7 @@ class CacheManager {
   }
 
   /**
-   * Força uma limpeza manual do cache
+   * ForÃ§a uma limpeza manual do cache
    */
   cleanup(): void {
     const now = Date.now()
@@ -152,7 +153,7 @@ class CacheManager {
   }
 
   /**
-   * Inicia o timer de limpeza automática
+   * Inicia o timer de limpeza automÃ¡tica
    */
   private startCleanupTimer(): void {
     this.cleanupTimer = setInterval(() => {
@@ -178,7 +179,7 @@ class CacheManager {
   }
 
   /**
-   * Remove o item menos usado quando o cache está cheio
+   * Remove o item menos usado quando o cache estÃ¡ cheio
    */
   private evictLeastUsed(): void {
     let leastUsedKey = ''
@@ -207,7 +208,7 @@ class CacheManager {
     try {
       return JSON.stringify(value).length
     } catch {
-      return 100 // Tamanho padrão se não conseguir serializar
+      return 100 // Tamanho padrÃ£o se nÃ£o conseguir serializar
     }
   }
 
@@ -215,12 +216,12 @@ class CacheManager {
    * Calcula a taxa de acerto do cache
    */
   private calculateHitRate(): number {
-    // Implementação simplificada - em produção seria mais robusta
+    // ImplementaÃ§Ã£o simplificada - em produÃ§Ã£o seria mais robusta
     return 0.85 // Placeholder
   }
 }
 
-// Instâncias de cache para diferentes propósitos
+// InstÃ¢ncias de cache para diferentes propÃ³sitos
 export const userPermissionsCache = new CacheManager({
   ttl: 10 * 60 * 1000, // 10 minutos
   maxSize: 100,
@@ -245,10 +246,10 @@ export const generalCache = new CacheManager({
   cleanupInterval: 60 * 1000 // 1 minuto
 })
 
-// Funções utilitárias para cache
+// FunÃ§Ãµes utilitÃ¡rias para cache
 export const cacheUtils = {
   /**
-   * Gera uma chave de cache baseada em parâmetros
+   * Gera uma chave de cache baseada em parÃ¢metros
    */
   generateKey(prefix: string, params: Record<string, any>): string {
     const sortedParams = Object.keys(params)
@@ -274,7 +275,7 @@ export const cacheUtils = {
       return cached
     }
 
-    // Se não estiver no cache, busca da API
+    // Se nÃ£o estiver no cache, busca da API
     try {
       const data = await fetchFn()
       cache.set(key, data, ttl)
@@ -286,7 +287,7 @@ export const cacheUtils = {
   },
 
   /**
-   * Invalida cache baseado em padrão de chave
+   * Invalida cache baseado em padrÃ£o de chave
    */
   invalidatePattern(cache: CacheManager, pattern: string): void {
     const keysToDelete: string[] = []
@@ -301,7 +302,7 @@ export const cacheUtils = {
   }
 }
 
-// Hooks para React (se necessário)
+// Hooks para React (se necessÃ¡rio)
 export const useCache = () => {
   return {
     userPermissionsCache,
@@ -311,3 +312,4 @@ export const useCache = () => {
     cacheUtils
   }
 }
+

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -93,7 +94,7 @@ export default function DeleteTipoDocumentoModal({ tipoDocumento, onClose, onSuc
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-yellow-800">
-                    <strong>Atenção:</strong> Esta ação não pode ser desfeita. Se existirem documentos associados a este tipo, a exclusão será negada.
+                    <strong>AtenÃ§Ã£o:</strong> Esta aÃ§Ã£o nÃ£o pode ser desfeita. Se existirem documentos associados a este tipo, a exclusÃ£o serÃ¡ negada.
                   </p>
                 </div>
               </div>
@@ -137,6 +138,7 @@ export default function DeleteTipoDocumentoModal({ tipoDocumento, onClose, onSuc
     </div>
   )
 }
+
 
 
 

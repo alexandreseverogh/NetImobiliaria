@@ -1,0 +1,86 @@
+[
+  {
+    "id": 1,
+    "name": "Painel do Sistema",
+    "order_index": 1,
+    "parent_id": null,
+    "resource": "system-panel"
+  },
+  {
+    "id": 52,
+    "name": "Parâmetros",
+    "order_index": 2,
+    "parent_id": null,
+    "resource": null
+  },
+  {
+    "id": 2,
+    "name": "Painel Administrativo",
+    "order_index": 3,
+    "parent_id": null,
+    "resource": "admin-panel"
+  },
+  {
+    "id": 3,
+    "name": "Amenidades - Atrativos",
+    "order_index": 4,
+    "parent_id": null,
+    "resource": "amenidades"
+  },
+  {
+    "id": 4,
+    "name": "Proximidades",
+    "order_index": 5,
+    "parent_id": null,
+    "resource": "proximidades"
+  },
+  {
+    "id": 5,
+    "name": "Imóveis",
+    "order_index": 6,
+    "parent_id": null,
+    "resource": "imoveis"
+  },
+  {
+    "id": 6,
+    "name": "Clientes",
+    "order_index": 7,
+    "parent_id": null,
+    "resource": "clientes"
+  },
+  {
+    "id": 7,
+    "name": "Proprietários",
+    "order_index": 8,
+    "parent_id": null,
+    "resource": "proprietarios"
+  },
+  {
+    "id": 33,
+    "name": "Cadastros",
+    "order_index": 9,
+    "parent_id": null,
+    "resource": null
+  },
+  {
+    "id": 8,
+    "name": "Dashboards",
+    "order_index": 10,
+    "parent_id": null,
+    "resource": "dashboards"
+  },
+  {
+    "id": 9,
+    "name": "Relatórios",
+    "order_index": 11,
+    "parent_id": null,
+    "resource": "relatorios"
+  },
+  {
+    "id": 46,
+    "name": "Parâmetros",
+    "order_index": 12,
+    "parent_id": null,
+    "resource": "parametros"
+  }
+]

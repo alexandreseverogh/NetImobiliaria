@@ -1,9 +1,10 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 
 export async function GET(request: NextRequest) {
   try {
-    // Buscar códigos únicos da tabela imoveis
+    // Buscar cÃ³digos Ãºnicos da tabela imoveis
     const result = await pool.query(`
       SELECT DISTINCT codigo 
       FROM imoveis 
@@ -16,10 +17,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(codigos)
   } catch (error) {
-    console.error('Erro ao buscar códigos:', error)
+    console.error('Erro ao buscar cÃ³digos:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }
 }
+

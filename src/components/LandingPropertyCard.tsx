@@ -32,7 +32,7 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
     <div className="card overflow-hidden group w-full">
       {/* Image Container */}
       <div className="relative h-64 overflow-hidden bg-gray-100">
-        {property.image.startsWith('data:') || property.image.startsWith('http') ? (
+        {property.image && (property.image.startsWith('data:') || property.image.startsWith('http') || property.image.startsWith('/')) ? (
           <Image
             src={property.image}
             alt={property.title}
@@ -48,16 +48,15 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
             <p className="text-gray-400 text-xs">Não disponível</p>
           </div>
         )}
-        
+
         {/* Favorite Button */}
         <button
           onClick={() => setIsFavorite(!isFavorite)}
           className="absolute top-4 right-4 p-2 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow duration-200"
         >
-          <Heart 
-            className={`w-5 h-5 ${
-              isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-600'
-            }`} 
+          <Heart
+            className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-600'
+              }`}
           />
         </button>
 
@@ -123,15 +122,15 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
 
         {/* Action Buttons */}
         <div className="mt-6 flex gap-2">
-          <Link 
-            href={`/imoveis/${property.id}`} 
-            target="_blank" 
+          <Link
+            href={`/imoveis/${property.id}`}
+            target="_blank"
             rel="noopener noreferrer"
             className="flex-1 text-center bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors duration-200 whitespace-nowrap text-sm"
           >
             Ver Detalhes
           </Link>
-          <button 
+          <button
             onClick={() => {
               console.log('🔍 [LANDING PROPERTY CARD] Botão Tenho Interesse clicado, imovelId:', property.id)
 
@@ -155,11 +154,11 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
                         }
                       })
                     )
-                  } catch {}
+                  } catch { }
                   return
                 }
-              } catch {}
-              
+              } catch { }
+
               // Verificar se o usuário já está logado como cliente
               const publicToken = localStorage.getItem('public-auth-token')
               const userData = localStorage.getItem('public-user-data')
@@ -178,7 +177,7 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
                   console.error('❌ [LANDING PROPERTY CARD] Erro ao processar dados do usuário:', error)
                 }
               }
-              
+
               // Regra do produto: sem cliente logado, NÃO abrir modal de preenchimento nem modal de cadastro/login aqui.
               // Apenas orientar o usuário a usar os botões do topo (Criar conta / Entrar).
               try {
@@ -193,7 +192,7 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
                     }
                   })
                 )
-              } catch {}
+              } catch { }
               return
             }}
             className="flex-1 bg-white hover:bg-gray-50 text-primary-600 font-semibold py-2.5 px-3 rounded-lg border border-primary-600 transition-colors duration-200 whitespace-nowrap text-sm text-center"
@@ -228,7 +227,7 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
             sessionStorage.setItem('pendingImovelId', property.id.toString())
             sessionStorage.setItem('pendingImovelTitulo', property.title)
             // Disparar evento para abrir modal de login (não cadastro)
-            window.dispatchEvent(new CustomEvent('open-auth-modal', { 
+            window.dispatchEvent(new CustomEvent('open-auth-modal', {
               detail: { mode: 'login', userType: 'cliente', imovelId: property.id }
             }))
           }

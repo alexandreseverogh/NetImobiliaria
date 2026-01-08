@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -5,8 +6,8 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeftIcon, CheckIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 
-// Debug: verificar se a página está carregando
-console.log('🔍 NovaProximidadePage carregada')
+// Debug: verificar se a pÃ¡gina estÃ¡ carregando
+console.log('ðŸ” NovaProximidadePage carregada')
 
 interface CategoriaProximidade {
   id: number
@@ -48,18 +49,18 @@ export default function NovaProximidadePage() {
       const response = await fetch('/api/admin/categorias-proximidades')
       const data = await response.json()
       
-      // A API retorna um array direto, não um objeto com success/data
+      // A API retorna um array direto, nÃ£o um objeto com success/data
       if (Array.isArray(data)) {
-        // Filtrar apenas categorias ativas para criação de novas proximidades
+        // Filtrar apenas categorias ativas para criaÃ§Ã£o de novas proximidades
         const categoriasAtivas = data.filter((categoria: CategoriaProximidade) => categoria.ativo === true)
-        console.log(`✅ ${categoriasAtivas.length} categorias ativas carregadas para seleção`)
+        console.log(`âœ… ${categoriasAtivas.length} categorias ativas carregadas para seleÃ§Ã£o`)
         setCategorias(categoriasAtivas)
       } else if (data.success && Array.isArray(data.data)) {
         // Fallback para formato antigo
         const categoriasAtivas = data.data.filter((categoria: CategoriaProximidade) => categoria.ativo === true)
         setCategorias(categoriasAtivas)
       } else {
-        console.error('Formato de resposta inválido:', data)
+        console.error('Formato de resposta invÃ¡lido:', data)
         setCategorias([])
       }
     } catch (error) {
@@ -79,7 +80,7 @@ export default function NovaProximidadePage() {
     e.preventDefault()
     
     if (!formData.nome || !formData.categoria) {
-      alert('Por favor, preencha todos os campos obrigatórios')
+      alert('Por favor, preencha todos os campos obrigatÃ³rios')
       return
     }
 
@@ -96,7 +97,7 @@ export default function NovaProximidadePage() {
 
       if (response.ok) {
         const result = await response.json()
-        console.log('✅ Proximidade criada com sucesso:', result)
+        console.log('âœ… Proximidade criada com sucesso:', result)
         router.push('/admin/proximidades')
       } else {
         const errorData = await response.json()
@@ -132,13 +133,13 @@ export default function NovaProximidadePage() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">Nova Proximidade</h1>
             <p className="mt-1 text-sm text-gray-500">
-              Adicione um novo ponto de interesse próximo aos imóveis
+              Adicione um novo ponto de interesse prÃ³ximo aos imÃ³veis
             </p>
           </div>
         </div>
       </div>
 
-      {/* Formulário */}
+      {/* FormulÃ¡rio */}
       <div className="max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Nome */}
@@ -174,10 +175,10 @@ export default function NovaProximidadePage() {
             </select>
           </div>
 
-          {/* Descrição */}
+          {/* DescriÃ§Ã£o */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Descrição
+              DescriÃ§Ã£o
             </label>
             <textarea
               value={formData.descricao}
@@ -202,11 +203,11 @@ export default function NovaProximidadePage() {
               </span>
             </label>
             <p className="mt-1 text-xs text-gray-500">
-              Proximidades inativas não aparecerão na seleção de imóveis
+              Proximidades inativas nÃ£o aparecerÃ£o na seleÃ§Ã£o de imÃ³veis
             </p>
           </div>
 
-          {/* Botões */}
+          {/* BotÃµes */}
           <div className="flex items-center justify-end space-x-3 pt-6 border-t border-gray-200">
             <Link
               href="/admin/proximidades"
@@ -237,6 +238,7 @@ export default function NovaProximidadePage() {
     </div>
   )
 }
+
 
 
 

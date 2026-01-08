@@ -192,7 +192,7 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
   if (filters.operation) {
     // INNER JOIN garante que apenas imóveis com finalidade válida sejam retornados
     joinFinalidades = 'INNER JOIN finalidades_imovel fi ON fi.id = i.finalidade_fk'
-    
+
     // Adicionar filtro baseado no tipo de operação
     if (filters.operation === 'DV') {
       // Para "Comprar": filtrar por vender_landpaging = true
@@ -202,7 +202,7 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
       where.push('fi.alugar_landpaging = true')
     }
   }
-  
+
   // Logs muito verbosos aqui podem aumentar latência percebida em dev (especialmente em Windows).
 
   const baseQuery = `
@@ -242,7 +242,7 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
 
   const result = await pool.query(dataQuery, [...params, limit, offset])
   const countResult = await pool.query(countQuery, params)
-  
+
   // (debug opcional removido)
 
   const ids = result.rows.map(row => row.id)
@@ -262,12 +262,10 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
 async function fetchImagensPrincipais(ids: number[]): Promise<Record<number, string>> {
   if (!ids.length) return {}
 
-  // Schema oficial: imagem é BYTEA + tipo_mime
   const query = `
     SELECT DISTINCT ON (imovel_id)
       imovel_id,
-      encode(imagem, 'base64') as imagem_base64,
-      tipo_mime
+      id
     FROM imovel_imagens
     WHERE imovel_id = ANY($1::int[])
       AND principal = true
@@ -275,7 +273,8 @@ async function fetchImagensPrincipais(ids: number[]): Promise<Record<number, str
   `
   const result = await pool.query(query, [ids])
   return result.rows.reduce<Record<number, string>>((acc, row) => {
-    acc[row.imovel_id] = `data:${row.tipo_mime || 'image/jpeg'};base64,${row.imagem_base64}`
+    // Retorna URL para streaming em vez de Base64 pesado
+    acc[row.imovel_id] = `/api/public/imagens/${row.id}`
     return acc
   }, {})
 }
@@ -323,7 +322,7 @@ export async function getPublicFiltersMetadata(
   const whereClauses: string[] = ['i.ativo = true']
   const statsParams: any[] = []
   let paramIndex = 1
-  
+
   // Filtrar por tipo_destaque (DV = Comprar, DA = Alugar) usando finalidades_imovel
   if (tipoDestaque) {
     joinClause = 'INNER JOIN finalidades_imovel fi ON fi.id = i.finalidade_fk'
@@ -333,27 +332,27 @@ export async function getPublicFiltersMetadata(
       whereClauses.push('fi.alugar_landpaging = true')
     }
   }
-  
+
   if (tipoId) {
     whereClauses.push(`i.${tipoCol} = $${paramIndex}`)
     statsParams.push(tipoId)
     paramIndex++
   }
-  
+
   if (estado) {
     // Performance: evitar funções na coluna
     whereClauses.push(`i.${estadoCol} = $${paramIndex}`)
     statsParams.push(estado.trim().toUpperCase())
     paramIndex++
   }
-  
+
   if (cidade) {
     // Performance: cidade normalmente vem exata -> igualdade (usa índice)
     whereClauses.push(`i.${cidadeCol} = $${paramIndex}`)
     statsParams.push(cidade.trim())
     paramIndex++
   }
-  
+
   // Adicionar filtros aplicados para recalcular metadados baseados nos imóveis filtrados
   if (filtrosAplicados) {
     if (filtrosAplicados.precoMin !== undefined) {
@@ -422,7 +421,7 @@ export async function getPublicFiltersMetadata(
       paramIndex++
     }
   }
-  
+
   const statsQuery = `
     SELECT
       COALESCE(MIN(i.preco), 0) AS min_preco,
@@ -461,16 +460,16 @@ export async function getPublicFiltersMetadata(
   const stats = statsResult.rows[0] || {}
   const minPreco = Number(stats.min_preco) || 0
   const maxPrecoRaw = Number(stats.max_preco) || 0
-  
+
   // Quando há apenas 1 imóvel, min e max devem ser iguais
   // Quando há múltiplos imóveis, garantir diferença mínima apenas se necessário
   const maxPreco = minPreco === maxPrecoRaw
     ? maxPrecoRaw // Manter iguais quando há apenas 1 imóvel
     : Math.max(maxPrecoRaw, minPreco + 1000) // Garantir diferença mínima para múltiplos imóveis
-  
+
   const minArea = Number(stats.min_area) || 0
   const maxAreaRaw = Number(stats.max_area) || 0
-  
+
   // Quando há apenas 1 imóvel, min e max devem ser iguais
   const maxArea = minArea === maxAreaRaw
     ? maxAreaRaw // Manter iguais quando há apenas 1 imóvel

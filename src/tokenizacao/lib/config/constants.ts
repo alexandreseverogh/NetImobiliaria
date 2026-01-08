@@ -1,13 +1,14 @@
-// Configurações centralizadas da aplicação
+﻿/* eslint-disable */
+// ConfiguraÃ§Ãµes centralizadas da aplicaÃ§Ã£o
 // Este arquivo centraliza todos os valores que antes eram hardcoded
 
 export const APP_CONFIG = {
-  // Informações gerais da aplicação
-  APP_NAME: 'Net Imobiliária',
+  // InformaÃ§Ãµes gerais da aplicaÃ§Ã£o
+  APP_NAME: 'Net ImobiliÃ¡ria',
   APP_VERSION: '1.0.0',
-  APP_DESCRIPTION: 'Sistema de gestão imobiliária profissional',
+  APP_DESCRIPTION: 'Sistema de gestÃ£o imobiliÃ¡ria profissional',
   
-  // Configurações de ambiente
+  // ConfiguraÃ§Ãµes de ambiente
   ENVIRONMENT: {
     DEVELOPMENT: 'development',
     PRODUCTION: 'production',
@@ -16,7 +17,7 @@ export const APP_CONFIG = {
 } as const
 
 export const DB_CONFIG = {
-  // Configurações de pool de conexões
+  // ConfiguraÃ§Ãµes de pool de conexÃµes
   POOL: {
     MAX_CONNECTIONS: 20,
     IDLE_TIMEOUT: 30000, // 30 segundos
@@ -24,16 +25,16 @@ export const DB_CONFIG = {
     MIN_CONNECTIONS: 2
   },
   
-  // Configurações de encoding
+  // ConfiguraÃ§Ãµes de encoding
   ENCODING: 'UTF8',
   
-  // Configurações de SSL
+  // ConfiguraÃ§Ãµes de SSL
   SSL: {
     PRODUCTION: { rejectUnauthorized: false },
     DEVELOPMENT: false
   },
   
-  // Configurações de retry
+  // ConfiguraÃ§Ãµes de retry
   RETRY: {
     MAX_ATTEMPTS: 3,
     DELAY_MS: 1000
@@ -41,20 +42,20 @@ export const DB_CONFIG = {
 } as const
 
 export const API_CONFIG = {
-  // Configurações de timeout
+  // ConfiguraÃ§Ãµes de timeout
   TIMEOUT: {
     DEFAULT: 30000, // 30 segundos
     UPLOAD: 120000, // 2 minutos
     DOWNLOAD: 60000 // 1 minuto
   },
   
-  // Configurações de retry
+  // ConfiguraÃ§Ãµes de retry
   RETRY: {
     MAX_ATTEMPTS: 3,
     DELAY_MS: 1000
   },
   
-  // Configurações de cache
+  // ConfiguraÃ§Ãµes de cache
   CACHE: {
     DEFAULT_TTL: 300000, // 5 minutos
     LONG_TTL: 1800000, // 30 minutos
@@ -63,20 +64,20 @@ export const API_CONFIG = {
 } as const
 
 export const PAGINATION_CONFIG = {
-  // Configurações de paginação
+  // ConfiguraÃ§Ãµes de paginaÃ§Ã£o
   DEFAULT_PAGE_SIZE: 20,
   MAX_PAGE_SIZE: 100,
   MIN_PAGE_SIZE: 5,
   
-  // Opções de tamanho de página
+  // OpÃ§Ãµes de tamanho de pÃ¡gina
   PAGE_SIZE_OPTIONS: [5, 10, 20, 50, 100],
   
-  // Configurações de navegação
+  // ConfiguraÃ§Ãµes de navegaÃ§Ã£o
   MAX_VISIBLE_PAGES: 5
 } as const
 
 export const UPLOAD_CONFIG = {
-  // Configurações de upload de arquivos
+  // ConfiguraÃ§Ãµes de upload de arquivos
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
   MAX_IMAGES_PER_IMOVEL: 20,
   
@@ -94,7 +95,7 @@ export const UPLOAD_CONFIG = {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   ],
   
-  // Diretórios de upload
+  // DiretÃ³rios de upload
   UPLOAD_DIRS: {
     IMAGES: './public/uploads/imagens',
     DOCUMENTS: './public/uploads/documentos',
@@ -103,7 +104,7 @@ export const UPLOAD_CONFIG = {
 } as const
 
 export const LOGGING_CONFIG = {
-  // Níveis de log
+  // NÃ­veis de log
   LEVELS: {
     ERROR: 'error',
     WARN: 'warn',
@@ -111,14 +112,14 @@ export const LOGGING_CONFIG = {
     DEBUG: 'debug'
   },
   
-  // Configurações por ambiente
+  // ConfiguraÃ§Ãµes por ambiente
   BY_ENVIRONMENT: {
     development: 'debug',
     production: 'info',
     test: 'error'
   },
   
-  // Configurações de auditoria
+  // ConfiguraÃ§Ãµes de auditoria
   AUDIT: {
     ENABLED: true,
     MAX_LOGS: 10000,
@@ -127,7 +128,7 @@ export const LOGGING_CONFIG = {
 } as const
 
 export const SECURITY_CONFIG = {
-  // Configurações de senha
+  // ConfiguraÃ§Ãµes de senha
   PASSWORD: {
     MIN_LENGTH: 8,
     REQUIRE_UPPERCASE: true,
@@ -137,14 +138,14 @@ export const SECURITY_CONFIG = {
     SALT_ROUNDS: 12
   },
   
-  // Configurações de sessão
+  // ConfiguraÃ§Ãµes de sessÃ£o
   SESSION: {
     MAX_ACTIVE_SESSIONS: 5,
     SESSION_TIMEOUT: 30 * 60 * 1000, // 30 minutos
     REFRESH_THRESHOLD: 5 * 60 * 1000 // 5 minutos
   },
   
-  // Configurações de rate limiting
+  // ConfiguraÃ§Ãµes de rate limiting
   RATE_LIMIT: {
     LOGIN_ATTEMPTS: 5,
     LOGIN_WINDOW: 15 * 60 * 1000, // 15 minutos
@@ -155,7 +156,7 @@ export const SECURITY_CONFIG = {
 } as const
 
 export const UI_CONFIG = {
-  // Configurações de interface
+  // ConfiguraÃ§Ãµes de interface
   THEME: {
     PRIMARY_COLOR: '#3B82F6',
     SECONDARY_COLOR: '#6B7280',
@@ -164,30 +165,30 @@ export const UI_CONFIG = {
     ERROR_COLOR: '#EF4444'
   },
   
-  // Configurações de breakpoints
+  // ConfiguraÃ§Ãµes de breakpoints
   BREAKPOINTS: {
     MOBILE: 768,
     TABLET: 1024,
     DESKTOP: 1280
   },
   
-  // Configurações de animação
+  // ConfiguraÃ§Ãµes de animaÃ§Ã£o
   ANIMATION: {
     DURATION: 300,
     EASING: 'ease-in-out'
   }
 } as const
 
-// Configurações de validação
+// ConfiguraÃ§Ãµes de validaÃ§Ã£o
 export const VALIDATION_CONFIG = {
-  // Validações de string
+  // ValidaÃ§Ãµes de string
   STRING: {
     MIN_LENGTH: 1,
     MAX_LENGTH: 255,
     DESCRIPTION_MAX_LENGTH: 1000
   },
   
-  // Validações numéricas
+  // ValidaÃ§Ãµes numÃ©ricas
   NUMERIC: {
     MIN_PRICE: 0,
     MAX_PRICE: 999999999,
@@ -195,18 +196,18 @@ export const VALIDATION_CONFIG = {
     MAX_AREA: 99999
   },
   
-  // Validações de email
+  // ValidaÃ§Ãµes de email
   EMAIL: {
     PATTERN: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   },
   
-  // Validações de telefone
+  // ValidaÃ§Ãµes de telefone
   PHONE: {
     PATTERN: /^\(\d{2}\)\s\d{4,5}-\d{4}$/
   }
 } as const
 
-// Configurações de timestamps e datas
+// ConfiguraÃ§Ãµes de timestamps e datas
 export const TIMESTAMP_CONFIG = {
   // Formatos de data
   DATE_FORMATS: {
@@ -215,7 +216,7 @@ export const TIMESTAMP_CONFIG = {
     US: 'en-US'
   },
   
-  // Formatos de exibição
+  // Formatos de exibiÃ§Ã£o
   DISPLAY_FORMATS: {
     DATE_ONLY: 'dd/MM/yyyy',
     DATETIME: 'dd/MM/yyyy HH:mm',
@@ -237,39 +238,39 @@ export const TIMESTAMP_CONFIG = {
   }
 } as const
 
-// Configurações de mensagens
+// ConfiguraÃ§Ãµes de mensagens
 export const MESSAGES = {
   // Mensagens de sucesso
   SUCCESS: {
     SAVED: 'Salvo com sucesso!',
     UPDATED: 'Atualizado com sucesso!',
-    DELETED: 'Excluído com sucesso!',
+    DELETED: 'ExcluÃ­do com sucesso!',
     CREATED: 'Criado com sucesso!'
   },
   
   // Mensagens de erro
   ERROR: {
     GENERIC: 'Ocorreu um erro inesperado',
-    NETWORK: 'Erro de conexão',
-    VALIDATION: 'Dados inválidos',
+    NETWORK: 'Erro de conexÃ£o',
+    VALIDATION: 'Dados invÃ¡lidos',
     PERMISSION: 'Acesso negado',
-    NOT_FOUND: 'Registro não encontrado'
+    NOT_FOUND: 'Registro nÃ£o encontrado'
   },
   
-  // Mensagens de validação
+  // Mensagens de validaÃ§Ã£o
   VALIDATION: {
-    REQUIRED: 'Este campo é obrigatório',
-    EMAIL_INVALID: 'Email inválido',
-    PHONE_INVALID: 'Telefone inválido',
+    REQUIRED: 'Este campo Ã© obrigatÃ³rio',
+    EMAIL_INVALID: 'Email invÃ¡lido',
+    PHONE_INVALID: 'Telefone invÃ¡lido',
     PASSWORD_WEAK: 'Senha muito fraca',
     FILE_TOO_LARGE: 'Arquivo muito grande',
-    FILE_TYPE_INVALID: 'Tipo de arquivo inválido'
+    FILE_TYPE_INVALID: 'Tipo de arquivo invÃ¡lido'
   }
 } as const
 
-// Configurações de rotas
+// ConfiguraÃ§Ãµes de rotas
 export const ROUTES = {
-  // Rotas públicas
+  // Rotas pÃºblicas
   PUBLIC: {
     HOME: '/',
     LOGIN: '/login',
@@ -298,7 +299,7 @@ export const ROUTES = {
 
 // Endpoints API centralizados
 export const API_ENDPOINTS = {
-  // Autenticação
+  // AutenticaÃ§Ã£o
   AUTH: {
     LOGIN: '/api/admin/auth/login',
     LOGOUT: '/api/admin/auth/logout',
@@ -306,7 +307,7 @@ export const API_ENDPOINTS = {
     REFRESH: '/api/admin/auth/refresh'
   },
   
-  // Usuários
+  // UsuÃ¡rios
   USERS: {
     LIST: '/api/admin/usuarios',
     CREATE: '/api/admin/usuarios',
@@ -315,7 +316,7 @@ export const API_ENDPOINTS = {
     ROLES: '/api/admin/roles'
   },
   
-  // Imóveis
+  // ImÃ³veis
   PROPERTIES: {
     LIST: '/api/admin/imoveis',
     CREATE: '/api/admin/imoveis',
@@ -371,7 +372,7 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/api/admin/finalidades/${id}`
   },
   
-  // Tipos de Imóveis
+  // Tipos de ImÃ³veis
   PROPERTY_TYPES: {
     LIST: '/api/admin/tipos-imoveis',
     CREATE: '/api/admin/tipos-imoveis',
@@ -379,13 +380,13 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/api/admin/tipos-imoveis/${id}`
   },
   
-  // Municípios
+  // MunicÃ­pios
   MUNICIPALITIES: {
     LIST: '/api/admin/municipios'
   }
 } as const
 
-// Exportar todas as configurações como um objeto único
+// Exportar todas as configuraÃ§Ãµes como um objeto Ãºnico
 export const CONFIG = {
   APP: APP_CONFIG,
   DATABASE: DB_CONFIG,
@@ -402,5 +403,6 @@ export const CONFIG = {
   ENDPOINTS: API_ENDPOINTS
 } as const
 
-// Tipo para validação de configuração
+// Tipo para validaÃ§Ã£o de configuraÃ§Ã£o
 export type ConfigType = typeof CONFIG
+

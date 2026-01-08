@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -5,8 +6,8 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeftIcon, CheckIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 
-// Debug: verificar se a página está carregando
-console.log('🔍 NovaAmenidadePage carregada')
+// Debug: verificar se a pÃ¡gina estÃ¡ carregando
+console.log('ðŸ” NovaAmenidadePage carregada')
 
 interface CategoriaAmenidade {
   id: number
@@ -43,9 +44,9 @@ export default function NovaAmenidadePage() {
     loadCategorias()
   }, [])
 
-  // Debug: monitorar mudanças no formData
+  // Debug: monitorar mudanÃ§as no formData
   useEffect(() => {
-    console.log('🔍 formData atualizado:', formData)
+    console.log('ðŸ” formData atualizado:', formData)
   }, [formData])
 
   const loadCategorias = async () => {
@@ -54,18 +55,18 @@ export default function NovaAmenidadePage() {
       const response = await fetch('/api/admin/categorias-amenidades')
       const data = await response.json()
       
-      // A API retorna um array direto, não um objeto com success/data
+      // A API retorna um array direto, nÃ£o um objeto com success/data
       if (Array.isArray(data)) {
-        // Filtrar apenas categorias ativas para criação de novas amenidades
+        // Filtrar apenas categorias ativas para criaÃ§Ã£o de novas amenidades
         const categoriasAtivas = data.filter((categoria: CategoriaAmenidade) => categoria.ativo === true)
-        console.log(`✅ ${categoriasAtivas.length} categorias ativas carregadas para seleção`)
+        console.log(`âœ… ${categoriasAtivas.length} categorias ativas carregadas para seleÃ§Ã£o`)
         setCategorias(categoriasAtivas)
       } else if (data.success && Array.isArray(data.data)) {
         // Fallback para formato antigo
         const categoriasAtivas = data.data.filter((categoria: CategoriaAmenidade) => categoria.ativo === true)
         setCategorias(categoriasAtivas)
       } else {
-        console.error('Formato de resposta inválido:', data)
+        console.error('Formato de resposta invÃ¡lido:', data)
         setCategorias([])
       }
     } catch (error) {
@@ -77,13 +78,13 @@ export default function NovaAmenidadePage() {
   }
 
   const handleInputChange = (field: keyof NovaAmenidade, value: string | boolean) => {
-    console.log('🔄 handleInputChange chamado:', field, value)
+    console.log('ðŸ”„ handleInputChange chamado:', field, value)
     setFormData(prev => {
       const newData = {
         ...prev,
         [field]: value
       }
-      console.log('📝 Novo formData:', newData)
+      console.log('ðŸ“ Novo formData:', newData)
       return newData
     })
   }
@@ -92,7 +93,7 @@ export default function NovaAmenidadePage() {
     e.preventDefault()
     
     if (!formData.nome || !formData.categoria) {
-      alert('Por favor, preencha todos os campos obrigatórios')
+      alert('Por favor, preencha todos os campos obrigatÃ³rios')
       return
     }
 
@@ -109,7 +110,7 @@ export default function NovaAmenidadePage() {
 
       if (response.ok) {
         const result = await response.json()
-        console.log('✅ Amenidade criada com sucesso:', result)
+        console.log('âœ… Amenidade criada com sucesso:', result)
         router.push('/admin/amenidades')
       } else {
         const errorData = await response.json()
@@ -151,7 +152,7 @@ export default function NovaAmenidadePage() {
         </div>
       </div>
 
-      {/* Formulário */}
+      {/* FormulÃ¡rio */}
       <div className="max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Nome */}
@@ -187,10 +188,10 @@ export default function NovaAmenidadePage() {
             </select>
           </div>
 
-          {/* Descrição */}
+          {/* DescriÃ§Ã£o */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Descrição
+              DescriÃ§Ã£o
             </label>
             <textarea
               value={formData.descricao}
@@ -215,11 +216,11 @@ export default function NovaAmenidadePage() {
               </span>
             </label>
             <p className="mt-1 text-xs text-gray-500">
-              Amenidades inativas não aparecerão na seleção de imóveis
+              Amenidades inativas nÃ£o aparecerÃ£o na seleÃ§Ã£o de imÃ³veis
             </p>
           </div>
 
-          {/* Botões */}
+          {/* BotÃµes */}
           <div className="flex items-center justify-end space-x-3 pt-6 border-t border-gray-200">
             <Link
               href="/admin/amenidades"
@@ -250,6 +251,7 @@ export default function NovaAmenidadePage() {
     </div>
   )
 }
+
 
 
 

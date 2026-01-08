@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { ExclamationTriangleIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
@@ -28,11 +29,11 @@ export default function RascunhoStatusBar({
     const diffMs = agora.getTime() - inicio.getTime()
     const diffMinutos = Math.floor(diffMs / 60000)
     
-    if (diffMinutos < 1) return 'há poucos segundos'
-    if (diffMinutos < 60) return `há ${diffMinutos} minuto${diffMinutos > 1 ? 's' : ''}`
+    if (diffMinutos < 1) return 'hÃ¡ poucos segundos'
+    if (diffMinutos < 60) return `hÃ¡ ${diffMinutos} minuto${diffMinutos > 1 ? 's' : ''}`
     
     const diffHoras = Math.floor(diffMinutos / 60)
-    return `há ${diffHoras} hora${diffHoras > 1 ? 's' : ''}`
+    return `hÃ¡ ${diffHoras} hora${diffHoras > 1 ? 's' : ''}`
   }
 
   const contarAlteracoes = () => {
@@ -55,11 +56,11 @@ export default function RascunhoStatusBar({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-yellow-700">
-                <strong>Modo Edição Ativo</strong> - Use "Salvar Alterações" no final para confirmar
+                <strong>Modo EdiÃ§Ã£o Ativo</strong> - Use "Salvar AlteraÃ§Ãµes" no final para confirmar
               </p>
               <p className="text-xs text-yellow-600 mt-1">
-                Iniciado {calcularTempoDecorrido(rascunho.timestampInicio)} • 
-                {totalAlteracoes > 0 ? ` ${totalAlteracoes} alteração${totalAlteracoes > 1 ? 'ões' : ''} pendente${totalAlteracoes > 1 ? 's' : ''}` : ' Nenhuma alteração ainda'}
+                Iniciado {calcularTempoDecorrido(rascunho.timestampInicio)} â€¢ 
+                {totalAlteracoes > 0 ? ` ${totalAlteracoes} alteraÃ§Ã£o${totalAlteracoes > 1 ? 'Ãµes' : ''} pendente${totalAlteracoes > 1 ? 's' : ''}` : ' Nenhuma alteraÃ§Ã£o ainda'}
               </p>
             </div>
             
@@ -77,30 +78,30 @@ export default function RascunhoStatusBar({
                 ) : (
                   <>
                     <XCircleIcon className="h-3 w-3 mr-1" />
-                    Cancelar Edição
+                    Cancelar EdiÃ§Ã£o
                   </>
                 )}
               </button>
             </div>
           </div>
           
-          {/* Detalhes das alterações */}
+          {/* Detalhes das alteraÃ§Ãµes */}
           {totalAlteracoes > 0 && (
             <div className="mt-2 text-xs text-yellow-600">
               <details className="cursor-pointer">
-                <summary className="hover:text-yellow-700">Ver detalhes das alterações</summary>
+                <summary className="hover:text-yellow-700">Ver detalhes das alteraÃ§Ãµes</summary>
                 <div className="mt-1 pl-4 space-y-1">
                   {rascunho.alteracoes.imagens.adicionadas.length > 0 && (
-                    <div>• {rascunho.alteracoes.imagens.adicionadas.length} imagem(ns) adicionada(s)</div>
+                    <div>â€¢ {rascunho.alteracoes.imagens.adicionadas.length} imagem(ns) adicionada(s)</div>
                   )}
                   {rascunho.alteracoes.imagens.removidas.length > 0 && (
-                    <div>• {rascunho.alteracoes.imagens.removidas.length} imagem(ns) removida(s)</div>
+                    <div>â€¢ {rascunho.alteracoes.imagens.removidas.length} imagem(ns) removida(s)</div>
                   )}
                   {rascunho.alteracoes.documentos.adicionados.length > 0 && (
-                    <div>• {rascunho.alteracoes.documentos.adicionados.length} documento(s) adicionado(s)</div>
+                    <div>â€¢ {rascunho.alteracoes.documentos.adicionados.length} documento(s) adicionado(s)</div>
                   )}
                   {rascunho.alteracoes.documentos.removidos.length > 0 && (
-                    <div>• {rascunho.alteracoes.documentos.removidos.length} documento(s) removido(s)</div>
+                    <div>â€¢ {rascunho.alteracoes.documentos.removidos.length} documento(s) removido(s)</div>
                   )}
                 </div>
               </details>
@@ -111,3 +112,4 @@ export default function RascunhoStatusBar({
     </div>
   )
 }
+

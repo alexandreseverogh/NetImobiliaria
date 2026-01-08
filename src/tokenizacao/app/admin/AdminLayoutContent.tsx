@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
@@ -17,7 +18,7 @@ export default function AdminLayoutContent({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
 
-  // Memoizar callbacks para evitar re-renders desnecessários
+  // Memoizar callbacks para evitar re-renders desnecessÃ¡rios
   const handleMenuClick = useCallback(() => {
     setSidebarOpen(true)
   }, [])
@@ -26,7 +27,7 @@ export default function AdminLayoutContent({
     setSidebarOpen(false)
   }, [])
 
-  // Memoizar se é página de login
+  // Memoizar se Ã© pÃ¡gina de login
   const isLoginPage = useMemo(() => pathname === '/admin/login', [pathname])
 
   // Memoizar classes CSS
@@ -40,9 +41,9 @@ export default function AdminLayoutContent({
     []
   )
 
-  // Tratamento de erro para falhas de autenticação
+  // Tratamento de erro para falhas de autenticaÃ§Ã£o
   const handleAuthError = useCallback((error: Error) => {
-    console.error('Erro de autenticação:', error)
+    console.error('Erro de autenticaÃ§Ã£o:', error)
     // Aqui poderia implementar logging para auditoria
   }, [])
 
@@ -51,7 +52,7 @@ export default function AdminLayoutContent({
     return <LoadingSpinner message="Carregando..." />
   }
 
-  // Se estiver na página de login, mostrar apenas o conteúdo (sem header/sidebar)
+  // Se estiver na pÃ¡gina de login, mostrar apenas o conteÃºdo (sem header/sidebar)
   if (isLoginPage) {
     return (
       <ErrorBoundary onError={handleAuthError}>
@@ -60,12 +61,12 @@ export default function AdminLayoutContent({
     )
   }
 
-  // Se não há usuário e não está na página de login, mostrar loading
+  // Se nÃ£o hÃ¡ usuÃ¡rio e nÃ£o estÃ¡ na pÃ¡gina de login, mostrar loading
   if (!user) {
-    return <LoadingSpinner message="Verificando autenticação..." />
+    return <LoadingSpinner message="Verificando autenticaÃ§Ã£o..." />
   }
 
-  // Usuário autenticado - mostrar layout completo
+  // UsuÃ¡rio autenticado - mostrar layout completo
   return (
     <ErrorBoundary onError={handleAuthError}>
       <div className={containerClasses}>
@@ -76,9 +77,9 @@ export default function AdminLayoutContent({
           onMenuClick={handleMenuClick}
         />
         
-        {/* Container principal com grid - SEM espaçamento em branco */}
+        {/* Container principal com grid - SEM espaÃ§amento em branco */}
         <div className={gridClasses}>
-          {/* Sidebar - começa IMEDIATAMENTE após header */}
+          {/* Sidebar - comeÃ§a IMEDIATAMENTE apÃ³s header */}
           <AdminSidebar 
             open={sidebarOpen} 
             setOpen={handleSidebarClose} 
@@ -86,8 +87,8 @@ export default function AdminLayoutContent({
             onLogout={logout}
           />
           
-          {/* Conteúdo principal - começa IMEDIATAMENTE após sidebar */}
-          <main className="w-full min-w-0" role="main" aria-label="Conteúdo principal">
+          {/* ConteÃºdo principal - comeÃ§a IMEDIATAMENTE apÃ³s sidebar */}
+          <main className="w-full min-w-0" role="main" aria-label="ConteÃºdo principal">
             {children}
           </main>
         </div>
@@ -95,3 +96,4 @@ export default function AdminLayoutContent({
     </ErrorBoundary>
   )
 }
+

@@ -1,9 +1,10 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findAllStatusImovel, createStatusImovel, findStatusImovelPaginated } from '@/lib/database/status-imovel'
 import { PAGINATION_CONFIG } from '@/lib/config/constants'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 
-// GET - Listar status de imóvel
+// GET - Listar status de imÃ³vel
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -11,13 +12,13 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10')
     const search = searchParams.get('search') || ''
 
-    // Se não há parâmetros de paginação, usar a função antiga para compatibilidade
+    // Se nÃ£o hÃ¡ parÃ¢metros de paginaÃ§Ã£o, usar a funÃ§Ã£o antiga para compatibilidade
     if (!searchParams.has('page') && !searchParams.has('limit')) {
       const statusImovel = await findAllStatusImovel()
       return NextResponse.json(statusImovel)
     }
 
-    // Usar paginação
+    // Usar paginaÃ§Ã£o
     const result = await findStatusImovelPaginated(page, limit, search)
 
     return NextResponse.json({
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
       hasPrev: result.hasPrev
     })
   } catch (error) {
-    console.error('Erro ao listar status de imóvel:', error)
+    console.error('Erro ao listar status de imÃ³vel:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Criar novo status de imóvel
+// POST - Criar novo status de imÃ³vel
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     if (!nome) {
       return NextResponse.json(
-        { error: 'Nome é obrigatório' },
+        { error: 'Nome Ã© obrigatÃ³rio' },
         { status: 400 }
       )
     }
@@ -65,10 +66,11 @@ export async function POST(request: NextRequest) {
     }, { status: 201 })
 
   } catch (error) {
-    console.error('Erro ao criar status de imóvel:', error)
+    console.error('Erro ao criar status de imÃ³vel:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }
 }
+

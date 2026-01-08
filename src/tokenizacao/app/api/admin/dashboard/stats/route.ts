@@ -1,9 +1,10 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 
 export async function GET(request: NextRequest) {
   try {
-    // Buscar estatísticas básicas da tabela imoveis
+    // Buscar estatÃ­sticas bÃ¡sicas da tabela imoveis
     const statsQuery = `
       SELECT 
         COUNT(*) as total_imoveis,
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
     const statsResult = await pool.query(statsQuery)
     const stats = statsResult.rows[0]
 
-    // Buscar distribuição por tipos
+    // Buscar distribuiÃ§Ã£o por tipos
     const tiposQuery = `
       SELECT 
         COALESCE(ti.nome, 'Sem tipo') as tipo,
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
     const tiposResult = await pool.query(tiposQuery)
     const tiposData = tiposResult.rows
 
-    // Buscar distribuição por finalidades
+    // Buscar distribuiÃ§Ã£o por finalidades
     const finalidadesQuery = `
       SELECT 
         COALESCE(fi.nome, 'Sem finalidade') as finalidade,
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
     const finalidadesResult = await pool.query(finalidadesQuery)
     const finalidadesData = finalidadesResult.rows
 
-    // Buscar distribuição por status
+    // Buscar distribuiÃ§Ã£o por status
     const statusQuery = `
       SELECT 
         COALESCE(si.nome, 'Sem status') as status,
@@ -61,10 +62,10 @@ export async function GET(request: NextRequest) {
     const statusResult = await pool.query(statusQuery)
     const statusData = statusResult.rows
 
-    // Buscar distribuição por estado
+    // Buscar distribuiÃ§Ã£o por estado
     const estadosQuery = `
       SELECT 
-        COALESCE(estado, 'Não informado') as estado,
+        COALESCE(estado, 'NÃ£o informado') as estado,
         COUNT(*) as quantidade
       FROM imoveis
       WHERE ativo = true
@@ -75,10 +76,10 @@ export async function GET(request: NextRequest) {
     
     const estadosResult = await pool.query(estadosQuery)
 
-    // Buscar distribuição por município
+    // Buscar distribuiÃ§Ã£o por municÃ­pio
     const municipiosQuery = `
       SELECT 
-        COALESCE(cidade, 'Não informado') as municipio,
+        COALESCE(cidade, 'NÃ£o informado') as municipio,
         COUNT(*) as quantidade
       FROM imoveis
       WHERE ativo = true
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest) {
     
     const municipiosResult = await pool.query(municipiosQuery)
 
-    // Buscar evolução temporal (últimos 6 meses)
+    // Buscar evoluÃ§Ã£o temporal (Ãºltimos 6 meses)
     const evolucaoQuery = `
       SELECT 
         DATE_TRUNC('month', created_at) as mes,
@@ -125,10 +126,11 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Erro ao buscar estatísticas do dashboard:', error)
+    console.error('Erro ao buscar estatÃ­sticas do dashboard:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }
 }
+

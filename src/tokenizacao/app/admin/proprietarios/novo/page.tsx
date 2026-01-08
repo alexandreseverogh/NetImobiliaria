@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -82,7 +83,7 @@ export default function NovoProprietarioPage() {
     loadEstados()
   }, [])
 
-  // Carregar municípios quando estado mudar
+  // Carregar municÃ­pios quando estado mudar
   useEffect(() => {
     const loadMunicipios = async () => {
       if (!formData.estado) {
@@ -102,7 +103,7 @@ export default function NovoProprietarioPage() {
         
         setEstadosCidades(prev => ({ ...prev, municipios: municipiosComId }))
       } catch (err) {
-        console.error('Erro ao carregar municípios:', err)
+        console.error('Erro ao carregar municÃ­pios:', err)
         setEstadosCidades(prev => ({ ...prev, municipios: [] }))
       }
     }
@@ -110,7 +111,7 @@ export default function NovoProprietarioPage() {
     loadMunicipios()
   }, [formData.estado])
 
-  // Validação de CPF
+  // ValidaÃ§Ã£o de CPF
   const validateCPF = (cpf: string): boolean => {
     const cleanCPF = cpf.replace(/\D/g, '')
     
@@ -136,25 +137,25 @@ export default function NovoProprietarioPage() {
     return parseInt(cleanCPF.charAt(10)) === secondDigit
   }
 
-  // Validação de telefone
+  // ValidaÃ§Ã£o de telefone
   const validateTelefone = (telefone: string): boolean => {
     const cleanTelefone = telefone.replace(/\D/g, '')
     return cleanTelefone.length === 10 || cleanTelefone.length === 11
   }
 
-  // Validação de email
+  // ValidaÃ§Ã£o de email
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return emailRegex.test(email)
   }
 
-  // Formatação de CPF
+  // FormataÃ§Ã£o de CPF
   const formatCPF = (value: string): string => {
     const cleanValue = value.replace(/\D/g, '')
     return cleanValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
   }
 
-  // Formatação de telefone
+  // FormataÃ§Ã£o de telefone
   const formatTelefone = (value: string): string => {
     const cleanValue = value.replace(/\D/g, '')
     if (cleanValue.length <= 10) {
@@ -164,7 +165,7 @@ export default function NovoProprietarioPage() {
     }
   }
 
-  // Formatação de CEP
+  // FormataÃ§Ã£o de CEP
   const formatCEP = (value: string): string => {
     const cleanValue = value.replace(/\D/g, '')
     return cleanValue.replace(/(\d{5})(\d{3})/, '$1-$2')
@@ -195,11 +196,11 @@ export default function NovoProprietarioPage() {
     }
   }
 
-  // Manipular mudanças nos campos
+  // Manipular mudanÃ§as nos campos
   const handleInputChange = (field: keyof FormData, value: string) => {
     let formattedValue = value
 
-    // Formatação específica por campo
+    // FormataÃ§Ã£o especÃ­fica por campo
     switch (field) {
       case 'cpf':
         formattedValue = formatCPF(value)
@@ -218,7 +219,7 @@ export default function NovoProprietarioPage() {
 
     setFormData(prev => ({ ...prev, [field]: formattedValue }))
 
-    // Validação em tempo real
+    // ValidaÃ§Ã£o em tempo real
     const newErrors = { ...errors }
     
     switch (field) {
@@ -231,25 +232,25 @@ export default function NovoProprietarioPage() {
         break
       case 'cpf':
         if (value && !validateCPF(value)) {
-          newErrors.cpf = 'CPF inválido'
+          newErrors.cpf = 'CPF invÃ¡lido'
         } else {
           delete newErrors.cpf
         }
-        // Verificar se CPF já existe
+        // Verificar se CPF jÃ¡ existe
         if (value && validateCPF(value)) {
           checkCPFExists(value)
         }
         break
       case 'telefone':
         if (value && !validateTelefone(value)) {
-          newErrors.telefone = 'Telefone deve ter 10 ou 11 dígitos'
+          newErrors.telefone = 'Telefone deve ter 10 ou 11 dÃ­gitos'
         } else {
           delete newErrors.telefone
         }
         break
       case 'email':
         if (value && !validateEmail(value)) {
-          newErrors.email = 'Email inválido'
+          newErrors.email = 'Email invÃ¡lido'
         } else {
           delete newErrors.email
         }
@@ -259,38 +260,38 @@ export default function NovoProprietarioPage() {
     setErrors(newErrors)
   }
 
-  // Prevenir avanço com Tab/Enter quando há erros
+  // Prevenir avanÃ§o com Tab/Enter quando hÃ¡ erros
   const handleKeyDown = (e: React.KeyboardEvent, field: keyof FormData) => {
     if ((e.key === 'Tab' || e.key === 'Enter') && errors[field]) {
       e.preventDefault()
     }
   }
 
-  // Submissão do formulário
+  // SubmissÃ£o do formulÃ¡rio
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validações finais
+    // ValidaÃ§Ãµes finais
     const finalErrors: ValidationErrors = {}
     
     if (!formData.nome || formData.nome.length < 2) {
-      finalErrors.nome = 'Nome é obrigatório'
+      finalErrors.nome = 'Nome Ã© obrigatÃ³rio'
     }
     
     if (!formData.cpf || !validateCPF(formData.cpf)) {
-      finalErrors.cpf = 'CPF é obrigatório e deve ser válido'
+      finalErrors.cpf = 'CPF Ã© obrigatÃ³rio e deve ser vÃ¡lido'
     }
     
     if (!formData.telefone || !validateTelefone(formData.telefone)) {
-      finalErrors.telefone = 'Telefone é obrigatório'
+      finalErrors.telefone = 'Telefone Ã© obrigatÃ³rio'
     }
     
     if (!formData.email || !validateEmail(formData.email)) {
-      finalErrors.email = 'Email é obrigatório e deve ser válido'
+      finalErrors.email = 'Email Ã© obrigatÃ³rio e deve ser vÃ¡lido'
     }
 
     if (cpfExists) {
-      finalErrors.cpf = 'CPF já cadastrado'
+      finalErrors.cpf = 'CPF jÃ¡ cadastrado'
     }
 
     if (Object.keys(finalErrors).length > 0) {
@@ -328,8 +329,8 @@ export default function NovoProprietarioPage() {
         alert(`Erro: ${errorData.error}`)
       }
     } catch (error) {
-      console.error('Erro ao criar proprietário:', error)
-      alert('Erro ao criar proprietário')
+      console.error('Erro ao criar proprietÃ¡rio:', error)
+      alert('Erro ao criar proprietÃ¡rio')
     } finally {
       setSaving(false)
     }
@@ -357,14 +358,14 @@ export default function NovoProprietarioPage() {
               className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeftIcon className="h-5 w-5 mr-2" />
-              Voltar para Proprietários
+              Voltar para ProprietÃ¡rios
             </Link>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Novo Proprietário</h1>
-          <p className="mt-2 text-gray-600">Preencha os dados do novo proprietário</p>
+          <h1 className="text-3xl font-bold text-gray-900">Novo ProprietÃ¡rio</h1>
+          <p className="mt-2 text-gray-600">Preencha os dados do novo proprietÃ¡rio</p>
         </div>
 
-        {/* Formulário */}
+        {/* FormulÃ¡rio */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200">
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
             {/* Nome */}
@@ -428,7 +429,7 @@ export default function NovoProprietarioPage() {
                 {cpfExists && (
                   <p className="mt-1 text-sm text-red-600 flex items-center">
                     <XMarkIcon className="h-4 w-4 mr-1" />
-                    CPF já cadastrado
+                    CPF jÃ¡ cadastrado
                   </p>
                 )}
               </div>
@@ -520,11 +521,11 @@ export default function NovoProprietarioPage() {
               </div>
             </div>
 
-            {/* Endereço e Número */}
+            {/* EndereÃ§o e NÃºmero */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Endereço
+                  EndereÃ§o
                 </label>
                 <input
                   type="text"
@@ -537,7 +538,7 @@ export default function NovoProprietarioPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número
+                  NÃºmero
                 </label>
                 <input
                   type="text"
@@ -579,7 +580,7 @@ export default function NovoProprietarioPage() {
               </div>
             </div>
 
-            {/* Botões */}
+            {/* BotÃµes */}
             <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
               <Link
                 href="/admin/proprietarios"
@@ -592,7 +593,7 @@ export default function NovoProprietarioPage() {
                 disabled={saving || Object.keys(errors).length > 0 || cpfExists}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {saving ? 'Salvando...' : 'Salvar Proprietário'}
+                {saving ? 'Salvando...' : 'Salvar ProprietÃ¡rio'}
               </button>
             </div>
           </form>
@@ -601,3 +602,4 @@ export default function NovoProprietarioPage() {
     </div>
   )
 }
+

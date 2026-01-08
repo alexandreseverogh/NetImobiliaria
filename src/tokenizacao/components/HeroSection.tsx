@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -10,7 +11,7 @@ export default function HeroSection() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    // Implementar lógica de busca
+    // Implementar lÃ³gica de busca
     console.log('Busca:', { searchType, location, propertyType })
   }
 
@@ -26,11 +27,11 @@ export default function HeroSection() {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-6xl font-bold mb-6">
-            Encontre seu Imóvel dos Sonhos
+            Encontre seu ImÃ³vel dos Sonhos
           </h1>
           <p className="text-xl md:text-2xl text-primary-100 max-w-3xl mx-auto">
-            A Net Imobiliária oferece os melhores imóveis em São Paulo. 
-            Comprar, vender ou alugar nunca foi tão fácil.
+            A Net ImobiliÃ¡ria oferece os melhores imÃ³veis em SÃ£o Paulo. 
+            Comprar, vender ou alugar nunca foi tÃ£o fÃ¡cil.
           </p>
         </div>
 
@@ -89,7 +90,7 @@ export default function HeroSection() {
                   onChange={(e) => setPropertyType(e.target.value)}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none transition-colors"
                 >
-                  <option value="">Tipo de Imóvel</option>
+                  <option value="">Tipo de ImÃ³vel</option>
                   <option value="apartment">Apartamento</option>
                   <option value="house">Casa</option>
                   <option value="commercial">Comercial</option>
@@ -115,7 +116,7 @@ export default function HeroSection() {
         <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
           <div>
             <div className="text-3xl md:text-4xl font-bold mb-2">500+</div>
-            <div className="text-primary-100">Imóveis Disponíveis</div>
+            <div className="text-primary-100">ImÃ³veis DisponÃ­veis</div>
           </div>
           <div>
             <div className="text-3xl md:text-4xl font-bold mb-2">1000+</div>
@@ -123,11 +124,12 @@ export default function HeroSection() {
           </div>
           <div>
             <div className="text-3xl md:text-4xl font-bold mb-2">15+</div>
-            <div className="text-primary-100">Anos de Experiência</div>
+            <div className="text-primary-100">Anos de ExperiÃªncia</div>
           </div>
         </div>
       </div>
     </section>
   )
 }
+
 

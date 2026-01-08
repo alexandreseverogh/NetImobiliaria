@@ -68,7 +68,7 @@ export interface FiltroImovel {
   tipo_fk?: number      // Chave estrangeira para tipo
   finalidade_fk?: number // Chave estrangeira para finalidade
   status_fk?: number    // Chave estrangeira para status
-  
+
   // Filtros legados (manter compatibilidade)
   codigo?: string
   estado?: string
@@ -119,10 +119,10 @@ export async function findImovelByCodigo(codigo: string): Promise<ImovelCompleto
   try {
     // Verificar se o valor é numérico (ID) ou texto (código)
     const isNumeric = /^\d+$/.test(codigo)
-    
+
     let query: string
     let params: any[]
-    
+
     // Query customizada para incluir tipo_destaque da finalidade
     if (isNumeric) {
       // Buscar por ID
@@ -147,7 +147,7 @@ export async function findImovelByCodigo(codigo: string): Promise<ImovelCompleto
       `
       params = [codigo]
     }
-    
+
     const result = await pool.query(query, params)
     return result.rows[0] || null
   } catch (error) {
@@ -194,7 +194,7 @@ export async function findAllImoveis(): Promise<ImovelCompleto[]> {
 export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset = 0): Promise<ImovelCompleto[]> {
   try {
     console.log('🔍 listImoveis - Filtros recebidos:', filtros)
-    
+
     let query = `
       SELECT 
         ic.*,
@@ -362,17 +362,11 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
     query += ` ORDER BY ic.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`
     params.push(limit, offset)
 
-    console.log('🔍 listImoveis - Query final:', query)
-    console.log('🔍 listImoveis - Parâmetros:', params)
-
     try {
       const result = await pool.query(query, params)
-      console.log('🔍 listImoveis - Resultados encontrados:', result.rows.length)
       return result.rows
     } catch (queryError) {
       console.error('❌ Erro na execução da query SQL:', queryError)
-      console.error('❌ Query que falhou:', query)
-      console.error('❌ Parâmetros que falharam:', params)
       throw queryError
     }
   } catch (error) {
@@ -387,7 +381,7 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
   try {
     console.log('🔍 Dados recebidos para criar imóvel:', JSON.stringify(imovel, null, 2))
     console.log('🔍 UserId recebido:', userId)
-    
+
     let proprietarioUuid: string | null = null
 
     const proprietarioIdentificador = imovel.proprietario_uuid
@@ -410,15 +404,15 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
         'SELECT id, nome, ativo FROM status_imovel WHERE id = $1',
         [imovel.status_fk]
       )
-      
+
       if (statusCheck.rows.length === 0) {
         throw new Error(`Status ${imovel.status_fk} não encontrado na tabela status_imovel`)
       }
-      
+
       if (!statusCheck.rows[0].ativo) {
         throw new Error(`Status ${imovel.status_fk} (${statusCheck.rows[0].nome}) está inativo`)
       }
-      
+
       console.log('✅ Status validado:', {
         id: statusCheck.rows[0].id,
         nome: statusCheck.rows[0].nome,
@@ -439,7 +433,7 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
         $31, $32, $33, $34, $35, $36, $37
       ) RETURNING *
     `
-    
+
     const values = [
       imovel.codigo, imovel.titulo, imovel.descricao, imovel.tipo_fk, imovel.finalidade_fk, imovel.status_fk,
       proprietarioUuid,
@@ -448,16 +442,16 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
       imovel.vagas_garagem, imovel.varanda, imovel.endereco, imovel.numero, imovel.complemento, imovel.bairro, imovel.cidade_fk,
       imovel.estado_fk, imovel.cep, imovel.latitude, imovel.longitude,
       imovel.ano_construcao, imovel.andar, imovel.total_andares, imovel.mobiliado,
-      imovel.aceita_permuta, imovel.aceita_financiamento, imovel.destaque, 
+      imovel.aceita_permuta, imovel.aceita_financiamento, imovel.destaque,
       imovel.origem_cadastro || 'Admin', userId, imovel.corretor_fk ?? null
     ]
-    
+
     console.log('🔍 Query SQL:', query)
     console.log('🔍 Valores a serem inseridos:', JSON.stringify(values, null, 2))
 
     const result = await pool.query(query, values)
     const novoImovel = result.rows[0]
-    
+
     console.log('✅ Imóvel criado com sucesso:', JSON.stringify(novoImovel, null, 2))
 
     // Log de auditoria (apenas se userId não for null)
@@ -537,7 +531,7 @@ export async function updateImovel(id: number, imovel: Partial<Imovel>, userId: 
     fields.push(`updated_at = CURRENT_TIMESTAMP`)
     const query = `UPDATE imoveis SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`
     values.push(id)
-    
+
     const result = await pool.query(query, values)
     const imovelAtualizadoResult = result.rows[0]
 
@@ -568,9 +562,9 @@ export async function deactivateImovel(id: number, userId: string): Promise<bool
       SET ativo = false, updated_by = $1, updated_at = CURRENT_TIMESTAMP 
       WHERE id = $2
     `
-    
+
     const result = await pool.query(query, [userId, id])
-    
+
     if (result.rowCount && result.rowCount > 0) {
       // Log de auditoria
       await logAuditEvent({
@@ -583,7 +577,7 @@ export async function deactivateImovel(id: number, userId: string): Promise<bool
       })
       return true
     }
-    
+
     return false
   } catch (error) {
     console.error('Erro ao desativar imóvel:', error)
@@ -720,8 +714,6 @@ export async function getImoveisDestaque(limit = 6): Promise<ImovelCompleto[]> {
 // Buscar todas as imagens de um imóvel
 export async function findImovelImagens(imovelId: number) {
   try {
-    console.log('🔍 findImovelImagens - Buscando imagens para imóvel:', imovelId)
-    
     const query = `
       SELECT 
         id,
@@ -730,23 +722,14 @@ export async function findImovelImagens(imovelId: number) {
         tipo_mime,
         tamanho_bytes,
         NULL::text AS nome_arquivo,
-        encode(imagem, 'base64') as imagem_base64,
         created_at
       FROM imovel_imagens 
       WHERE imovel_id = $1
       ORDER BY COALESCE(ordem, 999) ASC, id ASC
     `
-    
-    console.log('🔍 findImovelImagens - Query:', query)
-    console.log('🔍 findImovelImagens - Parâmetros:', [imovelId])
-    
+
     const result = await pool.query(query, [imovelId])
-    
-    console.log('🔍 findImovelImagens - Resultado:', {
-      rowCount: result.rowCount,
-      rows: result.rows.length
-    })
-    
+
     // Converter para formato com URL e is_principal
     const imagens = result.rows.map(row => ({
       id: row.id,
@@ -754,19 +737,13 @@ export async function findImovelImagens(imovelId: number) {
       is_principal: row.principal, // Mapear 'principal' para 'is_principal'
       tipo_mime: row.tipo_mime,
       tamanho_bytes: row.tamanho_bytes,
-      url: row.imagem_base64 ? `data:${row.tipo_mime || 'image/jpeg'};base64,${row.imagem_base64}` : null, // Converter base64 para URL
+      // URL apontando para a nova API de streaming
+      url: `/api/public/imagens/${row.id}`,
       descricao: null,
       nome_arquivo: row.nome_arquivo ?? null,
       created_at: row.created_at
     }))
-    
-    console.log('✅ findImovelImagens - Imagens processadas:', imagens.map(img => ({
-      id: img.id,
-      is_principal: img.is_principal,
-      has_url: !!img.url,
-      url_length: img.url?.length
-    })))
-    
+
     return imagens
   } catch (error) {
     console.error('Erro ao buscar imagens do imóvel:', error)
@@ -778,9 +755,9 @@ export async function findImovelImagens(imovelId: number) {
 export async function getImagesByImovelId(imovelId: number): Promise<string[]> {
   try {
     console.log('🔍 getImagesByImovelId - Buscando nomes das imagens para imóvel:', imovelId)
-    
+
     const imagens = await findImovelImagens(imovelId)
-    
+
     // Retorna array com todos os nomes dos arquivos sem extensão
     const nomesImagens = imagens.map(img => {
       // Se não houver nome_arquivo, usar o ID como nome
@@ -788,9 +765,9 @@ export async function getImagesByImovelId(imovelId: number): Promise<string[]> {
       // Remove a extensão do arquivo
       return nomeArquivo.split('.')[0]
     })
-    
+
     console.log('🔍 getImagesByImovelId - Nomes das imagens encontrados:', nomesImagens)
-    
+
     return nomesImagens
   } catch (error) {
     console.error('Erro ao buscar nomes das imagens do imóvel:', error)
@@ -802,7 +779,7 @@ export async function getImagesByImovelId(imovelId: number): Promise<string[]> {
 export async function findImovelImagem(imagemId: number) {
   try {
     console.log('🔍 findImovelImagem - Buscando imagem com ID:', imagemId)
-    
+
     const query = `
       SELECT 
         id,
@@ -816,11 +793,11 @@ export async function findImovelImagem(imagemId: number) {
       FROM imovel_imagens 
       WHERE id = $1
     `
-    
+
     const result = await pool.query(query, [imagemId])
     console.log('🔍 findImovelImagem - Query executada. Rows encontradas:', result.rows.length)
     console.log('🔍 findImovelImagem - Imagem encontrada:', result.rows[0] || 'null')
-    
+
     return result.rows[0] || null
   } catch (error) {
     console.error('❌ findImovelImagem - Erro ao buscar imagem:', error)
@@ -852,7 +829,7 @@ export async function insertImovelImagem(imagemData: {
       ) VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id
     `
-    
+
     const values = [
       imagemData.imovelId,
       imagemData.ordem,
@@ -861,7 +838,7 @@ export async function insertImovelImagem(imagemData: {
       imagemData.tamanhoBytes || null,
       imagemData.imagem
     ]
-    
+
     const result = await pool.query(query, values)
     return result.rows[0].id
   } catch (error) {
@@ -871,18 +848,18 @@ export async function insertImovelImagem(imagemData: {
 }
 
 // Atualizar ordem das imagens
-export async function updateImovelImagensOrdem(imovelId: number, imagens: Array<{id: number, ordem: number}>) {
+export async function updateImovelImagensOrdem(imovelId: number, imagens: Array<{ id: number, ordem: number }>) {
   try {
     // Usar transação para garantir consistência
     await pool.query('BEGIN')
-    
+
     for (const imagem of imagens) {
       await pool.query(
         'UPDATE imovel_imagens SET ordem = $1 WHERE id = $2 AND imovel_id = $3',
         [imagem.ordem, imagem.id, imovelId]
       )
     }
-    
+
     await pool.query('COMMIT')
     return true
   } catch (error) {
@@ -900,13 +877,13 @@ export async function setImovelImagemPrincipal(imovelId: number, imagemId: numbe
       'UPDATE imovel_imagens SET principal = false WHERE imovel_id = $1',
       [imovelId]
     )
-    
+
     // Marcar a imagem selecionada como principal
     const result = await pool.query(
       'UPDATE imovel_imagens SET principal = true WHERE id = $1 AND imovel_id = $2 RETURNING id',
       [imagemId, imovelId]
     )
-    
+
     return result.rows[0] ? true : false
   } catch (error) {
     console.error('Erro ao definir imagem principal:', error)
@@ -921,7 +898,7 @@ export async function deleteImovelImagem(imagemId: number) {
       'UPDATE imovel_imagens SET principal = false WHERE id = $1 RETURNING id',
       [imagemId]
     )
-    
+
     return result.rows[0] ? true : false
   } catch (error) {
     console.error('Erro ao excluir imagem:', error)
@@ -933,18 +910,18 @@ export async function deleteImovelImagem(imagemId: number) {
 export async function deleteImovelImagemPermanente(imagemId: number) {
   try {
     console.log('🔍 deleteImovelImagemPermanente - Deletando imagem ID:', imagemId)
-    
+
     const result = await pool.query(
       'DELETE FROM imovel_imagens WHERE id = $1 RETURNING id',
       [imagemId]
     )
-    
+
     console.log('🔍 deleteImovelImagemPermanente - Query executada. Rows affected:', result.rowCount, 'Rows returned:', result.rows.length)
     console.log('🔍 deleteImovelImagemPermanente - Rows:', result.rows)
-    
+
     const success = result.rows[0] ? true : false
     console.log('🔍 deleteImovelImagemPermanente - Resultado final:', success)
-    
+
     return success
   } catch (error) {
     console.error('❌ deleteImovelImagemPermanente - Erro ao excluir imagem permanentemente:', error)
@@ -959,7 +936,7 @@ export async function countImovelImagens(imovelId: number) {
       'SELECT COUNT(*) as total FROM imovel_imagens WHERE imovel_id = $1',
       [imovelId]
     )
-    
+
     return parseInt(result.rows[0].total)
   } catch (error) {
     console.error('Erro ao contar imagens do imóvel:', error)

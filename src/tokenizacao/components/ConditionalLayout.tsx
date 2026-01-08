@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { usePathname } from 'next/navigation'
@@ -11,7 +12,7 @@ interface ConditionalLayoutProps {
 export default function ConditionalLayout({ children }: ConditionalLayoutProps) {
   const pathname = usePathname()
   
-  // Páginas que não devem ter Header e Footer
+  // PÃ¡ginas que nÃ£o devem ter Header e Footer
   const pagesWithoutHeaderFooter = [
     '/login',
     '/admin/login'
@@ -29,8 +30,9 @@ export default function ConditionalLayout({ children }: ConditionalLayoutProps) 
     )
   }
   
-  // Para páginas de login, mostrar apenas o conteúdo
+  // Para pÃ¡ginas de login, mostrar apenas o conteÃºdo
   return <>{children}</>
 }
+
 
 

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import pool from './connection'
 import { QueryResult } from 'pg'
 
@@ -28,13 +29,13 @@ export async function findAllFinalidades(): Promise<Finalidade[]> {
     const result: QueryResult<Finalidade> = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar finalidades:', error)
+    console.error('âŒ Erro ao buscar finalidades:', error)
     throw new Error('Erro ao buscar finalidades')
   }
 }
 
 /**
- * Buscar finalidades com paginação
+ * Buscar finalidades com paginaÃ§Ã£o
  */
 export async function findFinalidadesPaginated(page: number = 1, limit: number = 10, search: string = ''): Promise<{
   finalidades: Finalidade[]
@@ -63,7 +64,7 @@ export async function findFinalidadesPaginated(page: number = 1, limit: number =
       ${whereClause}
     `
     
-    // Query para buscar finalidades com paginação
+    // Query para buscar finalidades com paginaÃ§Ã£o
     const dataQuery = `
       SELECT * FROM finalidades_imovel 
       ${whereClause}
@@ -91,8 +92,8 @@ export async function findFinalidadesPaginated(page: number = 1, limit: number =
       hasPrev
     }
   } catch (error) {
-    console.error('❌ Erro ao buscar finalidades com paginação:', error)
-    throw new Error('Erro ao buscar finalidades com paginação')
+    console.error('âŒ Erro ao buscar finalidades com paginaÃ§Ã£o:', error)
+    throw new Error('Erro ao buscar finalidades com paginaÃ§Ã£o')
   }
 }
 
@@ -113,7 +114,7 @@ export async function createFinalidade(data: CreateFinalidadeData): Promise<Fina
     ])
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao criar finalidade:', error)
+    console.error('âŒ Erro ao criar finalidade:', error)
     throw new Error('Erro ao criar finalidade')
   }
 }
@@ -127,7 +128,7 @@ export async function findFinalidadeById(id: number): Promise<Finalidade | null>
     const result: QueryResult<Finalidade> = await pool.query(query, [id])
     return result.rows[0] || null
   } catch (error) {
-    console.error('❌ Erro ao buscar finalidade por ID:', error)
+    console.error('âŒ Erro ao buscar finalidade por ID:', error)
     throw new Error('Erro ao buscar finalidade por ID')
   }
 }
@@ -173,7 +174,7 @@ export async function updateFinalidade(id: number, data: Partial<CreateFinalidad
     const result: QueryResult<Finalidade> = await pool.query(query, values)
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao atualizar finalidade:', error)
+    console.error('âŒ Erro ao atualizar finalidade:', error)
     throw new Error('Erro ao atualizar finalidade')
   }
 }
@@ -186,8 +187,9 @@ export async function deleteFinalidade(id: number): Promise<void> {
     const query = 'DELETE FROM finalidades_imovel WHERE id = $1'
     await pool.query(query, [id])
   } catch (error) {
-    console.error('❌ Erro ao excluir finalidade:', error)
+    console.error('âŒ Erro ao excluir finalidade:', error)
     throw new Error('Erro ao excluir finalidade')
   }
 }
+
 

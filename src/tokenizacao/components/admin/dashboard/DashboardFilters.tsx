@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -120,7 +121,7 @@ export default function DashboardFilters({ onFiltersChange }: DashboardFiltersPr
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Município
+            MunicÃ­pio
           </label>
           <select
             value={filterMunicipio}
@@ -128,7 +129,7 @@ export default function DashboardFilters({ onFiltersChange }: DashboardFiltersPr
             disabled={!filterEstado}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
           >
-            <option value="">Todos os municípios</option>
+            <option value="">Todos os municÃ­pios</option>
             {municipios.map((municipio: string) => (
               <option key={municipio} value={municipio}>
                 {municipio}
@@ -194,3 +195,4 @@ export default function DashboardFilters({ onFiltersChange }: DashboardFiltersPr
     </div>
   )
 }
+

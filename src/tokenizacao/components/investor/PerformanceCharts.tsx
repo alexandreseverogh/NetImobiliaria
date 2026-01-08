@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { TrendingUp, TrendingDown, DollarSign, Calendar } from 'lucide-react'
@@ -35,7 +36,7 @@ export default function PerformanceCharts() {
             <div>
               <p className="text-blue-100 text-sm">Dividendos Totais</p>
               <p className="text-2xl font-bold">R$ {totalDividends.toLocaleString()}</p>
-              <p className="text-blue-200 text-sm">Últimos 6 meses</p>
+              <p className="text-blue-200 text-sm">Ãšltimos 6 meses</p>
             </div>
             <DollarSign className="h-8 w-8 text-blue-200" />
           </div>
@@ -44,18 +45,18 @@ export default function PerformanceCharts() {
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm">Rendimento Médio</p>
+              <p className="text-purple-100 text-sm">Rendimento MÃ©dio</p>
               <p className="text-2xl font-bold">{(totalDividends / performanceData.length).toFixed(0)}</p>
-              <p className="text-purple-200 text-sm">R$ por mês</p>
+              <p className="text-purple-200 text-sm">R$ por mÃªs</p>
             </div>
             <Calendar className="h-8 w-8 text-purple-200" />
           </div>
         </div>
       </div>
 
-      {/* Gráfico de Performance */}
+      {/* GrÃ¡fico de Performance */}
       <div className="bg-white rounded-xl p-6 border border-gray-100">
-        <h3 className="text-xl font-bold text-gray-900 mb-6">Evolução do Portfólio</h3>
+        <h3 className="text-xl font-bold text-gray-900 mb-6">EvoluÃ§Ã£o do PortfÃ³lio</h3>
         
         <div className="h-64 flex items-end justify-between space-x-2">
           {performanceData.map((data, index) => (
@@ -81,9 +82,9 @@ export default function PerformanceCharts() {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mês</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor do Portfólio</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Variação</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">MÃªs</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor do PortfÃ³lio</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">VariaÃ§Ã£o</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dividendos</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Retorno</th>
               </tr>
@@ -130,4 +131,5 @@ export default function PerformanceCharts() {
     </div>
   )
 }
+
 

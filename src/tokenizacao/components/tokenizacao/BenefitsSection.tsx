@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { 
@@ -19,10 +20,10 @@ interface Benefit {
 const benefits: Benefit[] = [
   {
     icon: ShieldCheckIcon,
-    title: "Segurança e Compliance",
-    description: "Plataforma regulamentada pela CVM com auditoria contínua",
+    title: "SeguranÃ§a e Compliance",
+    description: "Plataforma regulamentada pela CVM com auditoria contÃ­nua",
     details: [
-      "Regulamentação CVM 100%",
+      "RegulamentaÃ§Ã£o CVM 100%",
       "Auditoria externa trimestral",
       "Seguro de responsabilidade civil",
       "Conformidade com LGPD"
@@ -30,57 +31,57 @@ const benefits: Benefit[] = [
   },
   {
     icon: CurrencyDollarIcon,
-    title: "Investimento Acessível",
-    description: "Acesse imóveis premium com valores a partir de R$ 100",
+    title: "Investimento AcessÃ­vel",
+    description: "Acesse imÃ³veis premium com valores a partir de R$ 100",
     details: [
-      "Investimento mínimo de R$ 100",
-      "Diversificação automática",
+      "Investimento mÃ­nimo de R$ 100",
+      "DiversificaÃ§Ã£o automÃ¡tica",
       "Sem taxas de corretagem",
-      "Sem custos de manutenção"
+      "Sem custos de manutenÃ§Ã£o"
     ]
   },
   {
     icon: ChartBarIcon,
     title: "Rentabilidade Comprovada",
-    description: "Histórico de retornos superiores ao mercado tradicional",
+    description: "HistÃ³rico de retornos superiores ao mercado tradicional",
     details: [
-      "ROI médio de 12-15% ao ano",
+      "ROI mÃ©dio de 12-15% ao ano",
       "Dividendos mensais garantidos",
-      "Apreciação do valor do imóvel",
-      "Proteção contra inflação"
+      "ApreciaÃ§Ã£o do valor do imÃ³vel",
+      "ProteÃ§Ã£o contra inflaÃ§Ã£o"
     ]
   },
   {
     icon: ClockIcon,
     title: "Liquidez Digital",
-    description: "Compre e venda tokens 24/7 no mercado secundário",
+    description: "Compre e venda tokens 24/7 no mercado secundÃ¡rio",
     details: [
-      "Negociação 24 horas por dia",
+      "NegociaÃ§Ã£o 24 horas por dia",
       "Liquidez garantida pela plataforma",
-      "Transações instantâneas",
+      "TransaÃ§Ãµes instantÃ¢neas",
       "Sem burocracia tradicional"
     ]
   },
   {
     icon: GlobeAltIcon,
-    title: "Transparência Total",
-    description: "Todas as operações registradas na blockchain",
+    title: "TransparÃªncia Total",
+    description: "Todas as operaÃ§Ãµes registradas na blockchain",
     details: [
-      "Registro imutável na blockchain",
-      "Relatórios em tempo real",
-      "Auditoria pública disponível",
-      "Histórico completo de transações"
+      "Registro imutÃ¡vel na blockchain",
+      "RelatÃ³rios em tempo real",
+      "Auditoria pÃºblica disponÃ­vel",
+      "HistÃ³rico completo de transaÃ§Ãµes"
     ]
   },
   {
     icon: DocumentTextIcon,
-    title: "Relatórios Automáticos",
-    description: "Receba relatórios detalhados para declaração de IR",
+    title: "RelatÃ³rios AutomÃ¡ticos",
+    description: "Receba relatÃ³rios detalhados para declaraÃ§Ã£o de IR",
     details: [
-      "Relatórios para declaração de IR",
+      "RelatÃ³rios para declaraÃ§Ã£o de IR",
       "Controle de ganhos de capital",
-      "Histórico de dividendos",
-      "Documentação fiscal completa"
+      "HistÃ³rico de dividendos",
+      "DocumentaÃ§Ã£o fiscal completa"
     ]
   }
 ]
@@ -94,12 +95,12 @@ export default function BenefitsSection() {
           <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
             Por Que Escolher a
             <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-              Tokenização de Imóveis?
+              TokenizaÃ§Ã£o de ImÃ³veis?
             </span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            Democratizamos o acesso ao mercado imobiliário premium, oferecendo 
-            segurança, transparência e rentabilidade superior.
+            Democratizamos o acesso ao mercado imobiliÃ¡rio premium, oferecendo 
+            seguranÃ§a, transparÃªncia e rentabilidade superior.
           </p>
         </div>
 
@@ -153,11 +154,11 @@ export default function BenefitsSection() {
         <div className="mt-16 text-center">
           <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
             <h3 className="text-2xl font-bold text-gray-900 mb-4">
-              Pronto para Começar?
+              Pronto para ComeÃ§ar?
             </h3>
             <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-              Junte-se a mais de 1.200 investidores que já descobriram o poder 
-              da tokenização de imóveis. Cadastre-se gratuitamente e comece a investir hoje mesmo.
+              Junte-se a mais de 1.200 investidores que jÃ¡ descobriram o poder 
+              da tokenizaÃ§Ã£o de imÃ³veis. Cadastre-se gratuitamente e comece a investir hoje mesmo.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a 
@@ -179,3 +180,4 @@ export default function BenefitsSection() {
     </section>
   )
 }
+

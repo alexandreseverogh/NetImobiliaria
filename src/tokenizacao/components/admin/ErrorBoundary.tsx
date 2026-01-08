@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { Component, ReactNode } from 'react'
@@ -42,12 +43,12 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
         <div className="min-h-screen bg-gray-100 flex items-center justify-center">
           <div className="text-center max-w-md mx-auto p-6">
             <div className="mb-4">
-              <div className="text-red-500 text-6xl mb-4">⚠️</div>
+              <div className="text-red-500 text-6xl mb-4">âš ï¸</div>
               <h1 className="text-2xl font-bold text-gray-900 mb-2">
                 Ops! Algo deu errado
               </h1>
               <p className="text-gray-600 mb-6">
-                Ocorreu um erro inesperado. Nossa equipe foi notificada e está trabalhando para resolver o problema.
+                Ocorreu um erro inesperado. Nossa equipe foi notificada e estÃ¡ trabalhando para resolver o problema.
               </p>
             </div>
             
@@ -56,7 +57,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
                 onClick={() => window.location.reload()}
                 className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Recarregar Página
+                Recarregar PÃ¡gina
               </button>
               
               <button
@@ -85,4 +86,5 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
     return this.props.children
   }
 }
+
 

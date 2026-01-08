@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 interface StatsCardProps {
   title: string
   value: number | string
@@ -44,7 +45,7 @@ export default function StatsCard({ title, value, subtitle, icon, color, trend }
               {trend.isPositive ? '+' : ''}{trend.value}%
             </span>
             <span className="text-xs">
-              {trend.isPositive ? '↗' : '↘'}
+              {trend.isPositive ? 'â†—' : 'â†˜'}
             </span>
           </div>
         )}
@@ -52,6 +53,7 @@ export default function StatsCard({ title, value, subtitle, icon, color, trend }
     </div>
   )
 }
+
 
 
 

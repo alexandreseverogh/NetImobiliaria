@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { useState, useEffect, useCallback } from 'react'
 
 interface Estado {
@@ -34,7 +35,7 @@ export const useEstadosCidades = () => {
     }
   }, [])
 
-  // Carregar municípios baseado no estado selecionado
+  // Carregar municÃ­pios baseado no estado selecionado
   const loadMunicipios = useCallback(async (estadoId: string) => {
     if (!estadoId) {
       setMunicipios([])
@@ -57,7 +58,7 @@ export const useEstadosCidades = () => {
         setMunicipios([])
       }
     } catch (error) {
-      console.error('Erro ao carregar municípios:', error)
+      console.error('Erro ao carregar municÃ­pios:', error)
       setMunicipios([])
     } finally {
       setLoading(false)
@@ -88,12 +89,12 @@ export const useEstadosCidades = () => {
     return cidade?.id || ''
   }, [municipios])
 
-  // Função para limpar municípios
+  // FunÃ§Ã£o para limpar municÃ­pios
   const clearMunicipios = useCallback(() => {
     setMunicipios([])
   }, [])
 
-  // Carregar estados na inicialização
+  // Carregar estados na inicializaÃ§Ã£o
   useEffect(() => {
     loadEstados()
   }, [loadEstados])

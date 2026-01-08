@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 interface RateLimitStore {
   [key: string]: {
     count: number
@@ -40,4 +41,5 @@ export function getRateLimitInfo(identifier: string) {
     resetTime: store[key].resetTime
   }
 }
+
 

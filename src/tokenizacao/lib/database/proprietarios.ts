@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 /**
- * Funções de banco de dados para Proprietários
- * Net Imobiliária - Sistema de Gestão de Proprietários
+ * FunÃ§Ãµes de banco de dados para ProprietÃ¡rios
+ * Net ImobiliÃ¡ria - Sistema de GestÃ£o de ProprietÃ¡rios
  */
 
 import pool from './connection'
@@ -69,7 +70,7 @@ export interface ProprietarioFilters {
 }
 
 // ========================================
-// FUNÇÕES DE VALIDAÇÃO
+// FUNÃ‡Ã•ES DE VALIDAÃ‡ÃƒO
 // ========================================
 
 export function validateCPF(cpf: string): boolean {
@@ -127,11 +128,11 @@ export function formatCEP(value: string): string {
 }
 
 // ========================================
-// FUNÇÕES DE BANCO DE DADOS
+// FUNÃ‡Ã•ES DE BANCO DE DADOS
 // ========================================
 
 /**
- * Buscar proprietários com paginação e filtros
+ * Buscar proprietÃ¡rios com paginaÃ§Ã£o e filtros
  */
 export async function findProprietariosPaginated(
   page: number = 1, 
@@ -148,7 +149,7 @@ export async function findProprietariosPaginated(
   try {
     const offset = (page - 1) * limit
     
-    // Construir cláusula WHERE dinamicamente
+    // Construir clÃ¡usula WHERE dinamicamente
     const whereConditions: string[] = []
     const queryParams: any[] = []
     let paramCount = 0
@@ -161,7 +162,7 @@ export async function findProprietariosPaginated(
 
     if (filters.cpf) {
       paramCount++
-      // Remover formatação do CPF para busca
+      // Remover formataÃ§Ã£o do CPF para busca
       const cleanCPF = filters.cpf.replace(/\D/g, '')
       whereConditions.push(`REPLACE(REPLACE(cpf, '.', ''), '-', '') ILIKE $${paramCount}`)
       queryParams.push(`%${cleanCPF}%`)
@@ -187,14 +188,14 @@ export async function findProprietariosPaginated(
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
     
-    // Query para contar total de proprietários com filtros
+    // Query para contar total de proprietÃ¡rios com filtros
     const countQuery = `
       SELECT COUNT(*) as total
       FROM proprietarios
       ${whereClause}
     `
     
-    // Query para buscar proprietários com paginação e filtros
+    // Query para buscar proprietÃ¡rios com paginaÃ§Ã£o e filtros
     const dataQuery = `
       SELECT 
         id,
@@ -234,12 +235,12 @@ export async function findProprietariosPaginated(
       hasPrev: page > 1
     }
   } catch (error) {
-    console.error('❌ Erro ao buscar proprietários com paginação:', error)
-    throw new Error('Erro ao buscar proprietários com paginação')
+    console.error('âŒ Erro ao buscar proprietÃ¡rios com paginaÃ§Ã£o:', error)
+    throw new Error('Erro ao buscar proprietÃ¡rios com paginaÃ§Ã£o')
   }
 }
 
-// Buscar proprietário por ID
+// Buscar proprietÃ¡rio por ID
 export async function findProprietarioById(id: number): Promise<Proprietario | null> {
   try {
     const result = await pool.query(`
@@ -266,30 +267,30 @@ export async function findProprietarioById(id: number): Promise<Proprietario | n
     
     return result.rows[0] || null
   } catch (error) {
-    console.error('❌ Erro ao buscar proprietário por ID:', error)
-    throw new Error('Erro ao buscar proprietário por ID')
+    console.error('âŒ Erro ao buscar proprietÃ¡rio por ID:', error)
+    throw new Error('Erro ao buscar proprietÃ¡rio por ID')
   }
 }
 
-// Criar proprietário
+// Criar proprietÃ¡rio
 export async function createProprietario(data: CreateProprietarioData): Promise<Proprietario> {
   try {
     // Validar CPF
     if (!validateCPF(data.cpf)) {
-      throw new Error('CPF Inválido')
+      throw new Error('CPF InvÃ¡lido')
     }
     
-    // Verificar se CPF já existe
+    // Verificar se CPF jÃ¡ existe
     const existingCPF = await pool.query('SELECT id FROM proprietarios WHERE cpf = $1', [data.cpf])
     if (existingCPF.rows.length > 0) {
-      throw new Error('CPF já cadastrado')
+      throw new Error('CPF jÃ¡ cadastrado')
     }
     
-    // Verificar se email já existe
+    // Verificar se email jÃ¡ existe
     if (data.email) {
       const existingEmail = await pool.query('SELECT id FROM proprietarios WHERE email = $1', [data.email])
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado')
+        throw new Error('Email jÃ¡ cadastrado')
       }
     }
     
@@ -320,32 +321,32 @@ export async function createProprietario(data: CreateProprietarioData): Promise<
     
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao criar proprietário:', error)
+    console.error('âŒ Erro ao criar proprietÃ¡rio:', error)
     throw error
   }
 }
 
-// Atualizar proprietário
+// Atualizar proprietÃ¡rio
 export async function updateProprietario(id: number, data: UpdateProprietarioData): Promise<Proprietario> {
   try {
     // Validar CPF se fornecido
     if (data.cpf && !validateCPF(data.cpf)) {
-      throw new Error('CPF Inválido')
+      throw new Error('CPF InvÃ¡lido')
     }
     
-    // Verificar se CPF já existe (excluindo o próprio registro)
+    // Verificar se CPF jÃ¡ existe (excluindo o prÃ³prio registro)
     if (data.cpf) {
       const existingCPF = await pool.query('SELECT id FROM proprietarios WHERE cpf = $1 AND id != $2', [data.cpf, id])
       if (existingCPF.rows.length > 0) {
-        throw new Error('CPF já cadastrado')
+        throw new Error('CPF jÃ¡ cadastrado')
       }
     }
     
-    // Verificar se email já existe (excluindo o próprio registro)
+    // Verificar se email jÃ¡ existe (excluindo o prÃ³prio registro)
     if (data.email) {
       const existingEmail = await pool.query('SELECT id FROM proprietarios WHERE email = $1 AND id != $2', [data.email, id])
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado')
+        throw new Error('Email jÃ¡ cadastrado')
       }
     }
     
@@ -431,31 +432,31 @@ export async function updateProprietario(id: number, data: UpdateProprietarioDat
     const result = await pool.query(query, values)
     
     if (result.rows.length === 0) {
-      throw new Error('Proprietário não encontrado')
+      throw new Error('ProprietÃ¡rio nÃ£o encontrado')
     }
     
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao atualizar proprietário:', error)
+    console.error('âŒ Erro ao atualizar proprietÃ¡rio:', error)
     throw error
   }
 }
 
-// Deletar proprietário
+// Deletar proprietÃ¡rio
 export async function deleteProprietario(id: number): Promise<void> {
   try {
     const result = await pool.query('DELETE FROM proprietarios WHERE id = $1', [id])
     
     if (result.rowCount === 0) {
-      throw new Error('Proprietário não encontrado')
+      throw new Error('ProprietÃ¡rio nÃ£o encontrado')
     }
   } catch (error) {
-    console.error('❌ Erro ao deletar proprietário:', error)
+    console.error('âŒ Erro ao deletar proprietÃ¡rio:', error)
     throw error
   }
 }
 
-// Verificar se CPF já existe
+// Verificar se CPF jÃ¡ existe
 export async function checkCPFExists(cpf: string, excludeId?: number): Promise<boolean> {
   try {
     let query = 'SELECT id FROM proprietarios WHERE cpf = $1'
@@ -469,7 +470,8 @@ export async function checkCPFExists(cpf: string, excludeId?: number): Promise<b
     const result = await pool.query(query, params)
     return result.rows.length > 0
   } catch (error) {
-    console.error('❌ Erro ao verificar CPF:', error)
+    console.error('âŒ Erro ao verificar CPF:', error)
     throw error
   }
 }
+

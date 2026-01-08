@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { StarIcon, MapPinIcon } from '@heroicons/react/24/outline'
 
 interface AmenidadesProximidadesProps {
@@ -21,7 +22,7 @@ export default function AmenidadesProximidades({
     return <SkeletonAmenidadesProximidades />
   }
 
-  // Verificações de segurança para evitar erros de undefined
+  // VerificaÃ§Ãµes de seguranÃ§a para evitar erros de undefined
   const amenidadesData = amenidades?.por_categoria || {}
   const proximidadesData = proximidades?.por_categoria || {}
 
@@ -74,7 +75,7 @@ export default function AmenidadesProximidades({
             <StarIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">Nenhuma amenidade cadastrada</p>
             <p className="text-gray-400 text-sm mt-2">
-              Este imóvel ainda não possui amenidades cadastradas
+              Este imÃ³vel ainda nÃ£o possui amenidades cadastradas
             </p>
           </div>
         )}
@@ -126,7 +127,7 @@ export default function AmenidadesProximidades({
                         )}
                         {item.tempo_caminhada && (
                           <p className="text-xs text-gray-500">
-                            {item.tempo_caminhada}min a pé
+                            {item.tempo_caminhada}min a pÃ©
                           </p>
                         )}
                         {item.popular && (
@@ -146,7 +147,7 @@ export default function AmenidadesProximidades({
             <MapPinIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">Nenhuma proximidade cadastrada</p>
             <p className="text-gray-400 text-sm mt-2">
-              Este imóvel ainda não possui proximidades cadastradas
+              Este imÃ³vel ainda nÃ£o possui proximidades cadastradas
             </p>
           </div>
         )}
@@ -219,4 +220,5 @@ function SkeletonAmenidadesProximidades() {
     </div>
   )
 }
+
 

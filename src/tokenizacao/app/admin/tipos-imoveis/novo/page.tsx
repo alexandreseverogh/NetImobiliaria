@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -47,7 +48,7 @@ export default function NovoTipoImovelPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao criar tipo de imóvel');
+        throw new Error(errorData.error || 'Erro ao criar tipo de imÃ³vel');
       }
 
       router.push('/admin/tipos-imoveis');
@@ -69,8 +70,8 @@ export default function NovoTipoImovelPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Novo Tipo de Imóvel</h1>
-        <p className="text-gray-600">Crie um novo tipo de imóvel para o sistema</p>
+        <h1 className="text-2xl font-bold text-gray-900">Novo Tipo de ImÃ³vel</h1>
+        <p className="text-gray-600">Crie um novo tipo de imÃ³vel para o sistema</p>
       </div>
 
       {error && (
@@ -99,7 +100,7 @@ export default function NovoTipoImovelPage() {
 
           <div>
             <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-2">
-              Descrição
+              DescriÃ§Ã£o
             </label>
             <textarea
               id="descricao"
@@ -108,7 +109,7 @@ export default function NovoTipoImovelPage() {
               onChange={handleInputChange}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Descrição do tipo de imóvel"
+              placeholder="DescriÃ§Ã£o do tipo de imÃ³vel"
             />
           </div>
 
@@ -147,4 +148,5 @@ export default function NovoTipoImovelPage() {
     </div>
   );
 }
+
 

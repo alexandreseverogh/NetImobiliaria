@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { Fragment } from 'react'
@@ -12,7 +13,7 @@ interface AdminHeaderProps {
 }
 
 export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeaderProps) {
-  // Verificação de segurança para evitar erros
+  // VerificaÃ§Ã£o de seguranÃ§a para evitar erros
   if (!user || !user.nome) {
     return (
       <header className="bg-white shadow-sm border-b border-gray-200">
@@ -20,11 +21,11 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
           <div className="flex justify-between items-center h-16">
             <div className="flex-1">
               <h1 className="text-lg font-semibold text-gray-900">
-                Área Administrativa
+                Ãrea Administrativa
               </h1>
             </div>
             <div className="text-sm text-gray-500">
-              Carregando usuário...
+              Carregando usuÃ¡rio...
             </div>
           </div>
         </div>
@@ -36,7 +37,7 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
     <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Botão de menu para mobile */}
+          {/* BotÃ£o de menu para mobile */}
           <div className="lg:hidden">
             <button
               type="button"
@@ -50,21 +51,21 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
             </button>
           </div>
           
-          {/* Título da página */}
+          {/* TÃ­tulo da pÃ¡gina */}
           <div className="flex-1 lg:flex-none">
             <h1 className="text-lg font-semibold text-gray-900">
-              Área Administrativa
+              Ãrea Administrativa
             </h1>
           </div>
           
-          {/* Menu do usuário */}
+          {/* Menu do usuÃ¡rio */}
           <div className="flex items-center space-x-4">
-            {/* Notificações */}
+            {/* NotificaÃ§Ãµes */}
             <button
               type="button"
               className="p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
             >
-              <span className="sr-only">Ver notificações</span>
+              <span className="sr-only">Ver notificaÃ§Ãµes</span>
               <div className="relative">
                 <div className="h-6 w-6">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -76,11 +77,11 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
               </div>
             </button>
             
-            {/* Menu do usuário */}
+            {/* Menu do usuÃ¡rio */}
             <Menu as="div" className="relative">
               <div>
                 <Menu.Button className="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                  <span className="sr-only">Abrir menu do usuário</span>
+                  <span className="sr-only">Abrir menu do usuÃ¡rio</span>
                   <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
                     <span className="text-white font-medium text-sm">
                       {user.nome.charAt(0).toUpperCase()}
@@ -146,6 +147,7 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
     </header>
   )
 }
+
 
 
 

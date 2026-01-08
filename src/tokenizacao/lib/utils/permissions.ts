@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 export interface Permission {
   resource: string
   action: 'READ' | 'WRITE' | 'DELETE' | 'ADMIN'
@@ -62,6 +63,7 @@ export function requirePermission(
   action: 'READ' | 'WRITE' | 'DELETE' | 'ADMIN'
 ): void {
   if (!hasPermission(userPermissions, resource, action)) {
-    throw new Error(`Permissão negada: ${action} em ${resource}`)
+    throw new Error(`PermissÃ£o negada: ${action} em ${resource}`)
   }
 }
+

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCenter } from '@dnd-kit/core'
+import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCorners } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useSidebarItems, type MenuItem } from '@/hooks/useSidebarItems'
 import { DraggableMenuItem } from './DraggableMenuItem'
@@ -68,7 +68,7 @@ export function MenuTreeManager({ onMenuSelect }: MenuTreeManagerProps) {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
-    
+
     if (!over || active.id === over.id) {
       setActiveId(null)
       return
@@ -82,18 +82,31 @@ export function MenuTreeManager({ onMenuSelect }: MenuTreeManagerProps) {
       return
     }
 
+    // PROTEÇÃO: Se estiver arrastando um item Raiz (Pai) sobre um item Filho,
+    // redirecionar o alvo para o Pai do Filho.
+    // Isso evita que um Menu Pai entre acidentalmente dentro de outro Menu Pai
+    // quando o usuário tenta apenas reordenar os Pais.
+    let targetOverItem = overItem
+
+    if (activeItem.parent_id === null && overItem.parent_id !== null) {
+      const parentItem = findItemById(overItem.parent_id)
+      if (parentItem) {
+        targetOverItem = parentItem
+      }
+    }
+
     // Se está movendo para um pai diferente
-    if (activeItem.parent_id !== overItem.parent_id) {
+    if (activeItem.parent_id !== targetOverItem.parent_id) {
       await updateItem(activeItem.id, {
         ...activeItem,
-        parent_id: overItem.parent_id,
-        order_index: overItem.order_index
+        parent_id: targetOverItem.parent_id,
+        order_index: targetOverItem.order_index
       })
     } else {
       // Se está reordenando no mesmo pai
       const siblings = getSiblings(activeItem.parent_id)
       const oldIndex = siblings.findIndex(item => item.id === activeItem.id)
-      const newIndex = siblings.findIndex(item => item.id === overItem.id)
+      const newIndex = siblings.findIndex(item => item.id === targetOverItem.id)
 
       if (oldIndex !== newIndex) {
         // Reordenar todos os itens
@@ -131,7 +144,7 @@ export function MenuTreeManager({ onMenuSelect }: MenuTreeManagerProps) {
     if (parentId === null) {
       return menus.filter(menu => menu.parent_id === null)
     }
-    
+
     const parent = menus.find(menu => menu.id === parentId)
     return parent?.children || []
   }
@@ -210,7 +223,7 @@ export function MenuTreeManager({ onMenuSelect }: MenuTreeManagerProps) {
 
       {/* Drag and Drop Context */}
       <DndContext
-        collisionDetection={closestCenter}
+        collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >

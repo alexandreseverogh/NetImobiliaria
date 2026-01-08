@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 /**
- * Funções de banco de dados para Amenidades
- * Net Imobiliária - Sistema de Gestão de Amenidades
+ * FunÃ§Ãµes de banco de dados para Amenidades
+ * Net ImobiliÃ¡ria - Sistema de GestÃ£o de Amenidades
  */
 
 import pool from './connection'
@@ -56,35 +57,35 @@ export interface ImovelAmenidade {
 }
 
 // ========================================
-// FUNÇÕES PARA CATEGORIAS DE AMENIDADES
+// FUNÃ‡Ã•ES PARA CATEGORIAS DE AMENIDADES
 // ========================================
 
 /**
- * Buscar todas as categorias de amenidades (ativas e inativas para seleção)
+ * Buscar todas as categorias de amenidades (ativas e inativas para seleÃ§Ã£o)
  */
 export async function findAllCategoriasAmenidades(): Promise<CategoriaAmenidade[]> {
   try {
-    console.log('🔄 DB: Executando query para buscar categorias de amenidades...')
+    console.log('ðŸ”„ DB: Executando query para buscar categorias de amenidades...')
     
     const query = `
       SELECT id, nome, descricao, icone, cor, ordem, ativo, created_at, updated_at
       FROM categorias_amenidades
       ORDER BY ordem, nome
     `
-    console.log('📝 DB: Query:', query)
+    console.log('ðŸ“ DB: Query:', query)
     
     const result: QueryResult<CategoriaAmenidade> = await pool.query(query)
-    console.log(`✅ DB: ${result.rows.length} categorias retornadas do banco`)
+    console.log(`âœ… DB: ${result.rows.length} categorias retornadas do banco`)
     
     return result.rows
   } catch (error) {
-    console.error('❌ DB: Erro ao buscar categorias de amenidades:', error)
+    console.error('âŒ DB: Erro ao buscar categorias de amenidades:', error)
     throw new Error('Erro ao buscar categorias de amenidades')
   }
 }
 
 /**
- * Buscar apenas categorias de amenidades ativas (para exibição nas listagens)
+ * Buscar apenas categorias de amenidades ativas (para exibiÃ§Ã£o nas listagens)
  */
 export async function findAllCategoriasAmenidadesAtivas(): Promise<CategoriaAmenidade[]> {
   try {
@@ -97,7 +98,7 @@ export async function findAllCategoriasAmenidadesAtivas(): Promise<CategoriaAmen
     const result: QueryResult<CategoriaAmenidade> = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar categorias de amenidades ativas:', error)
+    console.error('âŒ Erro ao buscar categorias de amenidades ativas:', error)
     throw new Error('Erro ao buscar categorias de amenidades ativas')
   }
 }
@@ -115,7 +116,7 @@ export async function findCategoriaAmenidadeById(id: number): Promise<CategoriaA
     const result: QueryResult<CategoriaAmenidade> = await pool.query(query, [id])
     return result.rows[0] || null
   } catch (error) {
-    console.error('❌ Erro ao buscar categoria de amenidade:', error)
+    console.error('âŒ Erro ao buscar categoria de amenidade:', error)
     throw new Error('Erro ao buscar categoria de amenidade')
   }
 }
@@ -139,7 +140,7 @@ export async function createCategoriaAmenidade(data: Omit<CategoriaAmenidade, 'i
     
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao criar categoria de amenidade:', error)
+    console.error('âŒ Erro ao criar categoria de amenidade:', error)
     throw new Error('Erro ao criar categoria de amenidade')
   }
 }
@@ -195,18 +196,18 @@ export async function updateCategoriaAmenidade(id: number, data: Partial<Omit<Ca
     const result: QueryResult<CategoriaAmenidade> = await pool.query(query, values)
     
     if (!result.rows[0]) {
-      throw new Error('Categoria não encontrada')
+      throw new Error('Categoria nÃ£o encontrada')
     }
     
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao atualizar categoria de amenidade:', error)
+    console.error('âŒ Erro ao atualizar categoria de amenidade:', error)
     throw new Error('Erro ao atualizar categoria de amenidade')
   }
 }
 
 /**
- * Excluir categoria de amenidade (exclusão física)
+ * Excluir categoria de amenidade (exclusÃ£o fÃ­sica)
  */
 export async function deleteCategoriaAmenidade(id: number): Promise<void> {
   try {
@@ -218,10 +219,10 @@ export async function deleteCategoriaAmenidade(id: number): Promise<void> {
     const amenidadesCount = parseInt(checkResult.rows[0].count)
     
     if (amenidadesCount > 0) {
-      throw new Error(`Não é possível excluir esta categoria. Existem ${amenidadesCount} amenidade(s) associada(s).`)
+      throw new Error(`NÃ£o Ã© possÃ­vel excluir esta categoria. Existem ${amenidadesCount} amenidade(s) associada(s).`)
     }
     
-    // Fazer exclusão física
+    // Fazer exclusÃ£o fÃ­sica
     const query = `
       DELETE FROM categorias_amenidades 
       WHERE id = $1
@@ -230,19 +231,19 @@ export async function deleteCategoriaAmenidade(id: number): Promise<void> {
     const result = await pool.query(query, [id])
     
     if (result.rowCount === 0) {
-      throw new Error('Categoria não encontrada')
+      throw new Error('Categoria nÃ£o encontrada')
     }
     
-    console.log(`✅ Categoria de amenidade com ID ${id} excluída fisicamente`)
+    console.log(`âœ… Categoria de amenidade com ID ${id} excluÃ­da fisicamente`)
   } catch (error) {
-    console.error('❌ Erro ao excluir categoria de amenidade:', error)
-    // Re-lançar o erro original para preservar a mensagem específica
+    console.error('âŒ Erro ao excluir categoria de amenidade:', error)
+    // Re-lanÃ§ar o erro original para preservar a mensagem especÃ­fica
     throw error
   }
 }
 
 // ========================================
-// FUNÇÕES PARA AMENIDADES
+// FUNÃ‡Ã•ES PARA AMENIDADES
 // ========================================
 
 /**
@@ -280,13 +281,13 @@ export async function findAllAmenidades(): Promise<Amenidade[]> {
       status: amenidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidades:', error)
+    console.error('âŒ Erro ao buscar amenidades:', error)
     throw new Error('Erro ao buscar amenidades')
   }
 }
 
 /**
- * Buscar amenidades com paginação
+ * Buscar amenidades com paginaÃ§Ã£o
  */
 export async function findAmenidadesPaginated(page: number = 1, limit: number = 10, categoria: string = '', search: string = ''): Promise<{
   amenidades: Amenidade[]
@@ -322,7 +323,7 @@ export async function findAmenidadesPaginated(page: number = 1, limit: number = 
       ${whereClause}
     `
     
-    // Query para buscar amenidades com paginação
+    // Query para buscar amenidades com paginaÃ§Ã£o
     const dataQuery = `
       SELECT 
         a.id,
@@ -372,13 +373,13 @@ export async function findAmenidadesPaginated(page: number = 1, limit: number = 
       hasPrev
     }
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidades com paginação:', error)
-    throw new Error('Erro ao buscar amenidades com paginação')
+    console.error('âŒ Erro ao buscar amenidades com paginaÃ§Ã£o:', error)
+    throw new Error('Erro ao buscar amenidades com paginaÃ§Ã£o')
   }
 }
 
 /**
- * Buscar todas as amenidades (para edição - inclui categorias inativas)
+ * Buscar todas as amenidades (para ediÃ§Ã£o - inclui categorias inativas)
  */
 export async function findAllAmenidadesForEdit(): Promise<Amenidade[]> {
   try {
@@ -411,14 +412,14 @@ export async function findAllAmenidadesForEdit(): Promise<Amenidade[]> {
       status: amenidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidades para edição:', error)
-    throw new Error('Erro ao buscar amenidades para edição')
+    console.error('âŒ Erro ao buscar amenidades para ediÃ§Ã£o:', error)
+    throw new Error('Erro ao buscar amenidades para ediÃ§Ã£o')
   }
 }
 
 /**
  * Buscar amenidades com cache (para alta performance)
- * Esta função pode ser usada quando precisar de máxima performance
+ * Esta funÃ§Ã£o pode ser usada quando precisar de mÃ¡xima performance
  */
 export async function findAllAmenidadesCached(): Promise<Amenidade[]> {
   try {
@@ -440,7 +441,7 @@ export async function findAllAmenidadesCached(): Promise<Amenidade[]> {
       status: amenidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidades (cached):', error)
+    console.error('âŒ Erro ao buscar amenidades (cached):', error)
     throw new Error('Erro ao buscar amenidades')
   }
 }
@@ -469,7 +470,7 @@ export async function findAmenidadesByCategoria(categoriaId: number): Promise<Am
       status: amenidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidades por categoria:', error)
+    console.error('âŒ Erro ao buscar amenidades por categoria:', error)
     throw new Error('Erro ao buscar amenidades por categoria')
   }
 }
@@ -498,7 +499,7 @@ export async function findAmenidadesPopulares(): Promise<Amenidade[]> {
       status: amenidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidades populares:', error)
+    console.error('âŒ Erro ao buscar amenidades populares:', error)
     throw new Error('Erro ao buscar amenidades populares')
   }
 }
@@ -530,13 +531,13 @@ export async function findAmenidadeById(id: number): Promise<Amenidade | null> {
     
     return null
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidade por ID:', error)
+    console.error('âŒ Erro ao buscar amenidade por ID:', error)
     throw new Error('Erro ao buscar amenidade por ID')
   }
 }
 
 /**
- * Buscar amenidade por slug (para edição - retorna todas)
+ * Buscar amenidade por slug (para ediÃ§Ã£o - retorna todas)
  */
 export async function findAmenidadeBySlug(slug: string): Promise<Amenidade | null> {
   try {
@@ -562,7 +563,7 @@ export async function findAmenidadeBySlug(slug: string): Promise<Amenidade | nul
     
     return null
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidade por slug:', error)
+    console.error('âŒ Erro ao buscar amenidade por slug:', error)
     throw new Error('Erro ao buscar amenidade por slug')
   }
 }
@@ -586,7 +587,7 @@ export async function findAmenidadeAtivaBySlug(slug: string): Promise<Amenidade 
     const result = await pool.query(query, [slug])
     return result.rows[0] || null
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidade ativa por slug:', error)
+    console.error('âŒ Erro ao buscar amenidade ativa por slug:', error)
     throw new Error('Erro ao buscar amenidade ativa por slug')
   }
 }
@@ -601,19 +602,19 @@ export async function updateAmenidadeBySlug(slug: string, data: Partial<Omit<Ame
     // Primeiro, buscar a amenidade pelo slug para obter o ID
     const amenidade = await findAmenidadeBySlug(slug)
     if (!amenidade) {
-      throw new Error('Amenidade não encontrada')
+      throw new Error('Amenidade nÃ£o encontrada')
     }
 
     // Gerar novo slug se o nome foi alterado
     let newSlug = slug
     if (data.nome && data.nome !== amenidade.nome) {
       newSlug = data.nome.toLowerCase()
-        .replace(/[áàâãä]/g, 'a')
-        .replace(/[éèêë]/g, 'e')
-        .replace(/[íìîï]/g, 'i')
-        .replace(/[óòôõö]/g, 'o')
-        .replace(/[úùûü]/g, 'u')
-        .replace(/[ç]/g, 'c')
+        .replace(/[Ã¡Ã Ã¢Ã£Ã¤]/g, 'a')
+        .replace(/[Ã©Ã¨ÃªÃ«]/g, 'e')
+        .replace(/[Ã­Ã¬Ã®Ã¯]/g, 'i')
+        .replace(/[Ã³Ã²Ã´ÃµÃ¶]/g, 'o')
+        .replace(/[ÃºÃ¹Ã»Ã¼]/g, 'u')
+        .replace(/[Ã§]/g, 'c')
         .replace(/[^a-z0-9\s-]/g, '')
         .replace(/\s+/g, '-')
         .replace(/-+/g, '-')
@@ -650,7 +651,7 @@ export async function updateAmenidadeBySlug(slug: string, data: Partial<Omit<Ame
     // Retornar a amenidade atualizada com dados completos
     return await findAmenidadeBySlug(newSlug) as Amenidade
   } catch (error) {
-    console.error('❌ Erro ao atualizar amenidade por slug:', error)
+    console.error('âŒ Erro ao atualizar amenidade por slug:', error)
     throw new Error('Erro ao atualizar amenidade por slug')
   } finally {
     client.release()
@@ -658,47 +659,47 @@ export async function updateAmenidadeBySlug(slug: string, data: Partial<Omit<Ame
 }
 
 /**
- * Excluir amenidade por slug (exclusão física)
+ * Excluir amenidade por slug (exclusÃ£o fÃ­sica)
  */
 export async function deleteAmenidadeBySlug(slug: string): Promise<void> {
   const client = await pool.connect()
   
   try {
-    console.log('🗑️ DB: Iniciando exclusão da amenidade com slug:', slug)
+    console.log('ðŸ—‘ï¸ DB: Iniciando exclusÃ£o da amenidade com slug:', slug)
     
-    // Verificar se o slug é um ID numérico
+    // Verificar se o slug Ã© um ID numÃ©rico
     let amenidade = null
     if (/^\d+$/.test(slug)) {
-      console.log('🔍 DB: Slug é um ID numérico, buscando por ID')
+      console.log('ðŸ” DB: Slug Ã© um ID numÃ©rico, buscando por ID')
       amenidade = await findAmenidadeById(parseInt(slug))
     } else {
-      console.log('🔍 DB: Slug é string, buscando por slug')
+      console.log('ðŸ” DB: Slug Ã© string, buscando por slug')
       amenidade = await findAmenidadeBySlug(slug)
     }
     
     if (!amenidade) {
-      console.log('❌ DB: Amenidade não encontrada com slug:', slug)
-      throw new Error('Amenidade não encontrada')
+      console.log('âŒ DB: Amenidade nÃ£o encontrada com slug:', slug)
+      throw new Error('Amenidade nÃ£o encontrada')
     }
     
-    console.log('🔍 DB: Amenidade encontrada:', amenidade.id, amenidade.nome)
+    console.log('ðŸ” DB: Amenidade encontrada:', amenidade.id, amenidade.nome)
 
-    // Verificar se existem imóveis usando esta amenidade
+    // Verificar se existem imÃ³veis usando esta amenidade
     const checkQuery = `
       SELECT COUNT(*) FROM imovel_amenidades WHERE amenidade_id = $1
     `
     const checkResult = await client.query(checkQuery, [amenidade.id])
     const imoveisCount = parseInt(checkResult.rows[0].count)
     
-    console.log('🔍 DB: Verificação de dependências - imóveis associados:', imoveisCount)
+    console.log('ðŸ” DB: VerificaÃ§Ã£o de dependÃªncias - imÃ³veis associados:', imoveisCount)
     
     if (imoveisCount > 0) {
-      console.log('❌ DB: Não é possível excluir - existem imóveis associados')
-      throw new Error(`Não é possível excluir esta amenidade. Existem ${imoveisCount} imóvel(is) associado(s).`)
+      console.log('âŒ DB: NÃ£o Ã© possÃ­vel excluir - existem imÃ³veis associados')
+      throw new Error(`NÃ£o Ã© possÃ­vel excluir esta amenidade. Existem ${imoveisCount} imÃ³vel(is) associado(s).`)
     }
 
-    // Fazer exclusão física
-    console.log('🗑️ DB: Executando DELETE da amenidade ID:', amenidade.id)
+    // Fazer exclusÃ£o fÃ­sica
+    console.log('ðŸ—‘ï¸ DB: Executando DELETE da amenidade ID:', amenidade.id)
     const query = `
       DELETE FROM amenidades 
       WHERE id = $1
@@ -707,13 +708,13 @@ export async function deleteAmenidadeBySlug(slug: string): Promise<void> {
     const result = await client.query(query, [amenidade.id])
     
     if (result.rowCount === 0) {
-      console.log('❌ DB: DELETE não afetou nenhuma linha')
-      throw new Error('Amenidade não encontrada')
+      console.log('âŒ DB: DELETE nÃ£o afetou nenhuma linha')
+      throw new Error('Amenidade nÃ£o encontrada')
     }
     
-    console.log(`✅ DB: Amenidade com slug "${slug}" excluída fisicamente. Linhas afetadas:`, result.rowCount)
+    console.log(`âœ… DB: Amenidade com slug "${slug}" excluÃ­da fisicamente. Linhas afetadas:`, result.rowCount)
   } catch (error) {
-    console.error('❌ DB: Erro ao excluir amenidade por slug:', error)
+    console.error('âŒ DB: Erro ao excluir amenidade por slug:', error)
     throw new Error('Erro ao excluir amenidade por slug')
   } finally {
     client.release()
@@ -727,12 +728,12 @@ export async function createAmenidade(data: Omit<Amenidade, 'id' | 'created_at' 
   try {
     // Gerar slug baseado no nome
     const slug = data.nome.toLowerCase()
-      .replace(/[áàâãä]/g, 'a')
-      .replace(/[éèêë]/g, 'e')
-      .replace(/[íìîï]/g, 'i')
-      .replace(/[óòôõö]/g, 'o')
-      .replace(/[úùûü]/g, 'u')
-      .replace(/[ç]/g, 'c')
+      .replace(/[Ã¡Ã Ã¢Ã£Ã¤]/g, 'a')
+      .replace(/[Ã©Ã¨ÃªÃ«]/g, 'e')
+      .replace(/[Ã­Ã¬Ã®Ã¯]/g, 'i')
+      .replace(/[Ã³Ã²Ã´ÃµÃ¶]/g, 'o')
+      .replace(/[ÃºÃ¹Ã»Ã¼]/g, 'u')
+      .replace(/[Ã§]/g, 'c')
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
@@ -754,21 +755,21 @@ export async function createAmenidade(data: Omit<Amenidade, 'id' | 'created_at' 
     // Retornar a amenidade criada com dados completos
     return await findAmenidadeBySlug(slug) as Amenidade
   } catch (error) {
-    console.error('❌ Erro ao criar amenidade:', error)
+    console.error('âŒ Erro ao criar amenidade:', error)
     throw new Error('Erro ao criar amenidade')
   }
 }
 
 // ========================================
-// FUNÇÕES PARA RELACIONAMENTO IMÓVEL-AMENIDADES
+// FUNÃ‡Ã•ES PARA RELACIONAMENTO IMÃ“VEL-AMENIDADES
 // ========================================
 
 /**
- * Buscar amenidades de um imóvel
+ * Buscar amenidades de um imÃ³vel
  */
 export async function findAmenidadesByImovel(imovelId: number): Promise<ImovelAmenidade[]> {
   try {
-    console.log('🔍 findAmenidadesByImovel - Buscando amenidades para imóvel:', imovelId)
+    console.log('ðŸ” findAmenidadesByImovel - Buscando amenidades para imÃ³vel:', imovelId)
     
     // Query corrigida: usar LEFT JOIN e remover filtro de ativo para buscar todas as amenidades associadas
     const query = `
@@ -792,12 +793,12 @@ export async function findAmenidadesByImovel(imovelId: number): Promise<ImovelAm
       ORDER BY COALESCE(ca.ordem, 999), COALESCE(a.ordem, 999), a.nome
     `
     
-    console.log('🔍 findAmenidadesByImovel - Query:', query)
-    console.log('🔍 findAmenidadesByImovel - Parâmetros:', [imovelId])
+    console.log('ðŸ” findAmenidadesByImovel - Query:', query)
+    console.log('ðŸ” findAmenidadesByImovel - ParÃ¢metros:', [imovelId])
     
     const result: QueryResult<ImovelAmenidade> = await pool.query(query, [imovelId])
     
-    console.log('🔍 findAmenidadesByImovel - Resultado:', {
+    console.log('ðŸ” findAmenidadesByImovel - Resultado:', {
       rowCount: result.rowCount,
       rows: result.rows.length,
       data: result.rows
@@ -805,13 +806,13 @@ export async function findAmenidadesByImovel(imovelId: number): Promise<ImovelAm
     
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidades do imóvel:', error)
-    throw new Error('Erro ao buscar amenidades do imóvel')
+    console.error('âŒ Erro ao buscar amenidades do imÃ³vel:', error)
+    throw new Error('Erro ao buscar amenidades do imÃ³vel')
   }
 }
 
 /**
- * Adicionar amenidade a um imóvel
+ * Adicionar amenidade a um imÃ³vel
  */
 export async function addAmenidadeToImovel(
   imovelId: number, 
@@ -829,18 +830,18 @@ export async function addAmenidadeToImovel(
     const result: QueryResult<{id: number}> = await pool.query(query, values)
     
     if (result.rows.length === 0) {
-      throw new Error('Amenidade já está associada ao imóvel')
+      throw new Error('Amenidade jÃ¡ estÃ¡ associada ao imÃ³vel')
     }
     
     return result.rows[0].id
   } catch (error) {
-    console.error('❌ Erro ao adicionar amenidade ao imóvel:', error)
-    throw new Error('Erro ao adicionar amenidade ao imóvel')
+    console.error('âŒ Erro ao adicionar amenidade ao imÃ³vel:', error)
+    throw new Error('Erro ao adicionar amenidade ao imÃ³vel')
   }
 }
 
 /**
- * Remover amenidade de um imóvel
+ * Remover amenidade de um imÃ³vel
  */
 export async function removeAmenidadeFromImovel(imovelId: number, amenidadeId: number): Promise<boolean> {
   try {
@@ -851,13 +852,13 @@ export async function removeAmenidadeFromImovel(imovelId: number, amenidadeId: n
     const result = await pool.query(query, [imovelId, amenidadeId])
     return (result.rowCount ?? 0) > 0
   } catch (error) {
-    console.error('❌ Erro ao remover amenidade do imóvel:', error)
-    throw new Error('Erro ao remover amenidade do imóvel')
+    console.error('âŒ Erro ao remover amenidade do imÃ³vel:', error)
+    throw new Error('Erro ao remover amenidade do imÃ³vel')
   }
 }
 
 /**
- * Atualizar amenidades de um imóvel (substitui todas)
+ * Atualizar amenidades de um imÃ³vel (substitui todas)
  */
 export async function updateImovelAmenidades(
   imovelId: number, 
@@ -889,15 +890,15 @@ export async function updateImovelAmenidades(
     return true
   } catch (error) {
     await client.query('ROLLBACK')
-    console.error('❌ Erro ao atualizar amenidades do imóvel:', error)
-    throw new Error('Erro ao atualizar amenidades do imóvel')
+    console.error('âŒ Erro ao atualizar amenidades do imÃ³vel:', error)
+    throw new Error('Erro ao atualizar amenidades do imÃ³vel')
   } finally {
     client.release()
   }
 }
 
 /**
- * Contar imóveis por amenidade
+ * Contar imÃ³veis por amenidade
  */
 export async function countImoveisByAmenidade(): Promise<Array<{amenidade_id: number, amenidade_nome: string, total_imoveis: number}>> {
   try {
@@ -915,13 +916,13 @@ export async function countImoveisByAmenidade(): Promise<Array<{amenidade_id: nu
     const result = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao contar imóveis por amenidade:', error)
-    throw new Error('Erro ao contar imóveis por amenidade')
+    console.error('âŒ Erro ao contar imÃ³veis por amenidade:', error)
+    throw new Error('Erro ao contar imÃ³veis por amenidade')
   }
 }
 
 // ========================================
-// FUNÇÕES UTILITÁRIAS
+// FUNÃ‡Ã•ES UTILITÃRIAS
 // ========================================
 
 /**
@@ -933,7 +934,7 @@ export async function amenidadeExists(id: number): Promise<boolean> {
     const result = await pool.query(query, [id])
     return result.rows.length > 0
   } catch (error) {
-    console.error('❌ Erro ao verificar existência da amenidade:', error)
+    console.error('âŒ Erro ao verificar existÃªncia da amenidade:', error)
     return false
   }
 }
@@ -963,9 +964,10 @@ export async function searchAmenidades(searchTerm: string): Promise<Amenidade[]>
       status: amenidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar amenidades:', error)
+    console.error('âŒ Erro ao buscar amenidades:', error)
     throw new Error('Erro ao buscar amenidades')
   }
 }
+
 
 

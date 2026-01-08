@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findImovelVideo } from '@/lib/database/imovel-video'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'

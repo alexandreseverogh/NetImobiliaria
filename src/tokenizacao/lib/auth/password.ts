@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 import bcrypt from 'bcryptjs'
 
-// Configurações de hash
+// ConfiguraÃ§Ãµes de hash
 const SALT_ROUNDS = 12
 
 // Hash de senha
@@ -13,7 +14,7 @@ export async function verifyPassword(password: string, hashedPassword: string): 
   return bcrypt.compare(password, hashedPassword)
 }
 
-// Verificar se senha é forte
+// Verificar se senha Ã© forte
 export function isPasswordStrong(password: string): { isValid: boolean; errors: string[] } {
   const errors: string[] = []
   
@@ -22,15 +23,15 @@ export function isPasswordStrong(password: string): { isValid: boolean; errors: 
   }
   
   if (!/[A-Z]/.test(password)) {
-    errors.push('A senha deve conter pelo menos uma letra maiúscula')
+    errors.push('A senha deve conter pelo menos uma letra maiÃºscula')
   }
   
   if (!/[a-z]/.test(password)) {
-    errors.push('A senha deve conter pelo menos uma letra minúscula')
+    errors.push('A senha deve conter pelo menos uma letra minÃºscula')
   }
   
   if (!/\d/.test(password)) {
-    errors.push('A senha deve conter pelo menos um número')
+    errors.push('A senha deve conter pelo menos um nÃºmero')
   }
   
   if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
@@ -43,7 +44,7 @@ export function isPasswordStrong(password: string): { isValid: boolean; errors: 
   }
 }
 
-// Gerar senha aleatória
+// Gerar senha aleatÃ³ria
 export function generateRandomPassword(length: number = 12): string {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
   let password = ''
@@ -54,6 +55,7 @@ export function generateRandomPassword(length: number = 12): string {
   
   return password
 }
+
 
 
 

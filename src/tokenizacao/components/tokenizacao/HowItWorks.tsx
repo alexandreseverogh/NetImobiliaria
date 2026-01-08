@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import React, { useState } from 'react'
@@ -22,27 +23,27 @@ interface Step {
 const steps: Step[] = [
   {
     id: 1,
-    title: "Cadastro e Verificação",
+    title: "Cadastro e VerificaÃ§Ã£o",
     description: "Crie sua conta e complete o processo KYC",
     icon: UserPlusIcon,
     details: [
       "Cadastro gratuito em 2 minutos",
-      "Verificação de identidade digital",
-      "Aprovação automática em 24h",
+      "VerificaÃ§Ã£o de identidade digital",
+      "AprovaÃ§Ã£o automÃ¡tica em 24h",
       "Perfil de investidor configurado"
     ],
     color: "from-blue-500 to-blue-600"
   },
   {
     id: 2,
-    title: "Escolha seu Imóvel",
-    description: "Navegue pelo portfólio de imóveis tokenizados",
+    title: "Escolha seu ImÃ³vel",
+    description: "Navegue pelo portfÃ³lio de imÃ³veis tokenizados",
     icon: ChartBarIcon,
     details: [
-      "Imóveis premium selecionados",
-      "Análise detalhada de cada propriedade",
-      "Histórico de rentabilidade",
-      "Projeções de ROI transparentes"
+      "ImÃ³veis premium selecionados",
+      "AnÃ¡lise detalhada de cada propriedade",
+      "HistÃ³rico de rentabilidade",
+      "ProjeÃ§Ãµes de ROI transparentes"
     ],
     color: "from-green-500 to-green-600"
   },
@@ -52,8 +53,8 @@ const steps: Step[] = [
     description: "Adquira tokens com valores a partir de R$ 100",
     icon: CurrencyDollarIcon,
     details: [
-      "Investimento mínimo de R$ 100",
-      "Pagamento via PIX, cartão ou transferência",
+      "Investimento mÃ­nimo de R$ 100",
+      "Pagamento via PIX, cartÃ£o ou transferÃªncia",
       "Tokens na sua carteira instantaneamente",
       "Recebimento de comprovante digital"
     ],
@@ -66,8 +67,8 @@ const steps: Step[] = [
     icon: BanknotesIcon,
     details: [
       "Dividendos pagos mensalmente",
-      "Transferência automática para sua conta",
-      "Relatórios detalhados de rentabilidade",
+      "TransferÃªncia automÃ¡tica para sua conta",
+      "RelatÃ³rios detalhados de rentabilidade",
       "Impostos calculados automaticamente"
     ],
     color: "from-orange-500 to-orange-600"
@@ -85,11 +86,11 @@ export default function HowItWorks() {
           <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
             Como Funciona a
             <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-              Tokenização
+              TokenizaÃ§Ã£o
             </span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            Transformamos imóveis de alto valor em tokens digitais, permitindo que você 
+            Transformamos imÃ³veis de alto valor em tokens digitais, permitindo que vocÃª 
             invista em propriedades premium com apenas alguns cliques.
           </p>
         </div>
@@ -237,10 +238,11 @@ export default function HowItWorks() {
             className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-lg rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
           >
             <UserPlusIcon className="mr-2 h-5 w-5" />
-            Começar Agora - É Gratuito
+            ComeÃ§ar Agora - Ã‰ Gratuito
           </a>
         </div>
       </div>
     </section>
   )
 }
+

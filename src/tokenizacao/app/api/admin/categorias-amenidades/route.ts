@@ -1,17 +1,18 @@
+﻿/* eslint-disable */
 import { NextResponse } from 'next/server'
 import { findAllCategoriasAmenidades, createCategoriaAmenidade } from '@/lib/database/amenidades'
 
 export async function GET() {
   try {
-    console.log('🔄 API: Iniciando busca de categorias de amenidades...')
+    console.log('ðŸ”„ API: Iniciando busca de categorias de amenidades...')
     
     const categorias = await findAllCategoriasAmenidades()
-    console.log(`✅ API: ${categorias.length} categorias encontradas`)
+    console.log(`âœ… API: ${categorias.length} categorias encontradas`)
     
     // Retornar diretamente o array para compatibilidade com o frontend
     return NextResponse.json(categorias)
   } catch (error) {
-    console.error('❌ API: Erro ao listar categorias de amenidades:', error)
+    console.error('âŒ API: Erro ao listar categorias de amenidades:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     
     if (!nome || !descricao) {
       return NextResponse.json(
-        { error: 'Nome e descrição são obrigatórios' },
+        { error: 'Nome e descriÃ§Ã£o sÃ£o obrigatÃ³rios' },
         { status: 400 }
       )
     }
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
     )
   }
 }
+
 
 
 

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -81,10 +82,10 @@ export default function TransactionHistory() {
               onChange={(e) => setFilterPeriod(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">Todo Período</option>
-              <option value="30">Últimos 30 dias</option>
-              <option value="90">Últimos 3 meses</option>
-              <option value="365">Último ano</option>
+              <option value="all">Todo PerÃ­odo</option>
+              <option value="30">Ãšltimos 30 dias</option>
+              <option value="90">Ãšltimos 3 meses</option>
+              <option value="365">Ãšltimo ano</option>
             </select>
           </div>
           
@@ -95,7 +96,7 @@ export default function TransactionHistory() {
         </div>
       </div>
 
-      {/* Lista de Transações */}
+      {/* Lista de TransaÃ§Ãµes */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -163,4 +164,5 @@ export default function TransactionHistory() {
     </div>
   )
 }
+
 

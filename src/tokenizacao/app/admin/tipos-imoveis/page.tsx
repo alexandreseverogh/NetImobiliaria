@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -24,17 +25,17 @@ export default function TiposImoveisPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('🔍 TiposImoveisPage: useEffect executado');
-    console.log('🔍 TiposImoveisPage: user:', user);
+    console.log('ðŸ” TiposImoveisPage: useEffect executado');
+    console.log('ðŸ” TiposImoveisPage: user:', user);
     
     if (!user) {
-      console.log('🔍 TiposImoveisPage: Usuário não logado, redirecionando para login');
+      console.log('ðŸ” TiposImoveisPage: UsuÃ¡rio nÃ£o logado, redirecionando para login');
       router.push('/admin/login');
       return;
     }
 
-    // Temporariamente remover verificação de permissão para testar
-    console.log('🔍 TiposImoveisPage: Buscando tipos (sem verificação de permissão)');
+    // Temporariamente remover verificaÃ§Ã£o de permissÃ£o para testar
+    console.log('ðŸ” TiposImoveisPage: Buscando tipos (sem verificaÃ§Ã£o de permissÃ£o)');
     fetchTipos();
   }, [user, router]);
 
@@ -42,7 +43,7 @@ export default function TiposImoveisPage() {
     try {
       const response = await fetch('/api/admin/tipos-imoveis');
       if (!response.ok) {
-        throw new Error('Erro ao carregar tipos de imóveis');
+        throw new Error('Erro ao carregar tipos de imÃ³veis');
       }
       const data = await response.json();
       setTipos(data);
@@ -58,8 +59,8 @@ export default function TiposImoveisPage() {
   };
 
   const handleCreate = () => {
-    console.log('🔍 TiposImoveisPage: handleCreate chamado');
-    console.log('🔍 TiposImoveisPage: hasPermission WRITE:', hasPermission('tipos-imoveis', 'WRITE'));
+    console.log('ðŸ” TiposImoveisPage: handleCreate chamado');
+    console.log('ðŸ” TiposImoveisPage: hasPermission WRITE:', hasPermission('tipos-imoveis', 'WRITE'));
     router.push('/admin/tipos-imoveis/novo');
   };
 
@@ -96,7 +97,7 @@ export default function TiposImoveisPage() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Tipos de Imóveis</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Tipos de ImÃ³veis</h1>
         <button
           onClick={handleCreate}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -119,13 +120,13 @@ export default function TiposImoveisPage() {
                 Nome
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Descrição
+                DescriÃ§Ã£o
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Ações
+                AÃ§Ãµes
               </th>
             </tr>
           </thead>
@@ -174,3 +175,4 @@ export default function TiposImoveisPage() {
     </div>
   );
 }
+

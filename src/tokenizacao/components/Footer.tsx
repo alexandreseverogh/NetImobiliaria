@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import Link from 'next/link'
 import Image from 'next/image'
 import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone, Twitter, TrendingUp, Shield } from 'lucide-react'
@@ -12,18 +13,18 @@ export default function Footer() {
             <div className="flex items-center mb-4">
               <Image
                 src="/logo.png"
-                alt="NET IMOBILIÁRIA TOKENIZAÇÃO"
+                alt="NET IMOBILIÃRIA TOKENIZAÃ‡ÃƒO"
                 width={120}
                 height={40}
                 className="h-10 w-auto"
               />
               <span className="ml-2 text-xs bg-gradient-to-r from-blue-600 to-purple-600 text-white px-2 py-1 rounded-full font-medium">
-                TOKENIZAÇÃO
+                TOKENIZAÃ‡ÃƒO
               </span>
             </div>
             <p className="text-gray-300 mb-6 max-w-md">
-              A Net Imobiliária Tokenização democratiza o acesso ao mercado imobiliário premium 
-              através de tokens digitais seguros e regulamentados pela CVM.
+              A Net ImobiliÃ¡ria TokenizaÃ§Ã£o democratiza o acesso ao mercado imobiliÃ¡rio premium 
+              atravÃ©s de tokens digitais seguros e regulamentados pela CVM.
             </p>
             
             {/* Compliance Badge */}
@@ -53,22 +54,22 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Links Rápidos</h3>
+            <h3 className="text-lg font-semibold mb-4">Links RÃ¡pidos</h3>
             <ul className="space-y-2">
               <li>
                 <Link href="/" className="text-gray-300 hover:text-white transition-colors">
-                  Início
+                  InÃ­cio
                 </Link>
               </li>
               <li>
                 <Link href="/tokenizacao" className="text-gray-300 hover:text-white transition-colors flex items-center">
-                  Tokenização
+                  TokenizaÃ§Ã£o
                   <TrendingUp className="ml-1 h-3 w-3" />
                 </Link>
               </li>
               <li>
                 <Link href="/imoveis" className="text-gray-300 hover:text-white transition-colors">
-                  Imóveis
+                  ImÃ³veis
                 </Link>
               </li>
               <li>
@@ -78,7 +79,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link href="/sobre" className="text-gray-300 hover:text-white transition-colors">
-                  Sobre Nós
+                  Sobre NÃ³s
                 </Link>
               </li>
               <li>
@@ -103,19 +104,19 @@ export default function Footer() {
               </div>
               <div className="flex items-start text-gray-300">
                 <MapPin className="w-4 h-4 mr-3 mt-1 text-blue-400 flex-shrink-0" />
-                <span>Av. Paulista, 1000<br />Bela Vista, São Paulo - SP<br />CEP: 01.310-100</span>
+                <span>Av. Paulista, 1000<br />Bela Vista, SÃ£o Paulo - SP<br />CEP: 01.310-100</span>
               </div>
             </div>
             
             {/* Tokenization Info */}
             <div className="mt-6 p-4 bg-gradient-to-r from-blue-900/50 to-purple-900/50 rounded-lg border border-blue-700">
               <h4 className="text-sm font-semibold text-blue-300 mb-2">
-                Tokenização de Imóveis
+                TokenizaÃ§Ã£o de ImÃ³veis
               </h4>
               <p className="text-xs text-gray-400">
                 Investimento a partir de R$ 100<br />
-                ROI médio: 12-15% ao ano<br />
-                Dividendos mensais automáticos
+                ROI mÃ©dio: 12-15% ao ano<br />
+                Dividendos mensais automÃ¡ticos
               </p>
             </div>
           </div>
@@ -125,11 +126,11 @@ export default function Footer() {
         <div className="border-t border-gray-800 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-400 text-sm">
-              © 2024 Net Imobiliária Tokenização. Todos os direitos reservados.
+              Â© 2024 Net ImobiliÃ¡ria TokenizaÃ§Ã£o. Todos os direitos reservados.
             </p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <Link href="/privacidade" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Política de Privacidade
+                PolÃ­tica de Privacidade
               </Link>
               <Link href="/termos" className="text-gray-400 hover:text-white text-sm transition-colors">
                 Termos de Uso

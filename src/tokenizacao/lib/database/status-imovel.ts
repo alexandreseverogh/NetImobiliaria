@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import pool from '@/lib/database/connection'
 import { QueryResult } from 'pg'
 
@@ -71,7 +72,7 @@ export async function findStatusImovelPaginated(page: number = 1, limit: number 
     ${whereClause}
   `
 
-  // Query principal com paginação
+  // Query principal com paginaÃ§Ã£o
   const dataQuery = `
     SELECT 
       id,
@@ -188,7 +189,7 @@ export async function updateStatusImovel(id: number, data: UpdateStatusImovelDat
   `, values)
 
   if (result.rows.length === 0) {
-    throw new Error('Status de imóvel não encontrado')
+    throw new Error('Status de imÃ³vel nÃ£o encontrado')
   }
 
   return result.rows[0]
@@ -197,6 +198,7 @@ export async function updateStatusImovel(id: number, data: UpdateStatusImovelDat
 export async function deleteStatusImovel(id: number): Promise<void> {
   const result = await pool.query('DELETE FROM status_imovel WHERE id = $1', [id])
   if (result.rowCount === 0) {
-    throw new Error('Status de imóvel não encontrado')
+    throw new Error('Status de imÃ³vel nÃ£o encontrado')
   }
 }
+

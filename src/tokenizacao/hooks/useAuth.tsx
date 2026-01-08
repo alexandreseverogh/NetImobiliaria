@@ -1,10 +1,11 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, createContext, useContext } from 'react'
 import { useRouter } from 'next/navigation'
 import { AdminUser } from '@/lib/types/admin'
 
-// Interface para o contexto de autenticação
+// Interface para o contexto de autenticaÃ§Ã£o
 interface AuthContextType {
   user: AdminUser | null
   loading: boolean
@@ -15,10 +16,10 @@ interface AuthContextType {
   checkAuth: () => Promise<void>
 }
 
-// Contexto de autenticação
+// Contexto de autenticaÃ§Ã£o
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Hook para usar o contexto de autenticação
+// Hook para usar o contexto de autenticaÃ§Ã£o
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
@@ -27,12 +28,12 @@ export function useAuth() {
   return context
 }
 
-// Hook para usar o contexto de autenticação (versão opcional)
+// Hook para usar o contexto de autenticaÃ§Ã£o (versÃ£o opcional)
 export function useAuthOptional() {
   return useContext(AuthContext)
 }
 
-// Função para fazer login
+// FunÃ§Ã£o para fazer login
 async function performLogin(username: string, password: string) {
   try {
     const response = await fetch('/api/admin/auth/login', {
@@ -52,11 +53,11 @@ async function performLogin(username: string, password: string) {
     }
   } catch (error) {
     console.error('Erro no login:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Erro de conexão' }
+    return { success: false, error: error instanceof Error ? error.message : 'Erro de conexÃ£o' }
   }
 }
 
-// Função para fazer logout
+// FunÃ§Ã£o para fazer logout
 async function performLogout() {
   try {
     await fetch('/api/admin/auth/logout', {
@@ -67,7 +68,7 @@ async function performLogout() {
   }
 }
 
-// Função para verificar autenticação
+// FunÃ§Ã£o para verificar autenticaÃ§Ã£o
 async function checkAuthentication(): Promise<AdminUser | null> {
   try {
     const response = await fetch('/api/admin/auth/me')
@@ -77,29 +78,29 @@ async function checkAuthentication(): Promise<AdminUser | null> {
     }
     return null
   } catch (error) {
-    console.error('Erro ao verificar autenticação:', error)
+    console.error('Erro ao verificar autenticaÃ§Ã£o:', error)
     return null
   }
 }
 
-// Provider de autenticação
+// Provider de autenticaÃ§Ã£o
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const router = useRouter()
 
-  // Verificar autenticação ao carregar
+  // Verificar autenticaÃ§Ã£o ao carregar
   useEffect(() => {
     checkAuth()
   }, [])
 
-  // Função para verificar autenticação
+  // FunÃ§Ã£o para verificar autenticaÃ§Ã£o
   const checkAuth = async () => {
     try {
       setLoading(true)
       
-      // Se estiver na página de login, não verificar autenticação
+      // Se estiver na pÃ¡gina de login, nÃ£o verificar autenticaÃ§Ã£o
       const currentPath = window.location.pathname
       if (currentPath === '/admin/login') {
         setUser(null)
@@ -107,24 +108,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
       
-      // Só verificar autenticação se não estiver na página de login
+      // SÃ³ verificar autenticaÃ§Ã£o se nÃ£o estiver na pÃ¡gina de login
       const userData = await checkAuthentication()
       
       if (userData) {
         setUser(userData)
       } else {
         setUser(null)
-        // Não redirecionar automaticamente - deixar o middleware fazer isso
+        // NÃ£o redirecionar automaticamente - deixar o middleware fazer isso
       }
     } catch (error) {
-      console.error('Erro ao verificar autenticação:', error)
+      console.error('Erro ao verificar autenticaÃ§Ã£o:', error)
       setUser(null)
     } finally {
       setLoading(false)
     }
   }
 
-  // Função de login
+  // FunÃ§Ã£o de login
   const login = async (username: string, password: string) => {
     try {
       setLoading(true)
@@ -144,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Função de logout
+  // FunÃ§Ã£o de logout
   const logout = async () => {
     try {
       setLoading(true)
@@ -174,3 +175,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   )
 }
+

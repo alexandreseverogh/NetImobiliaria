@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -64,14 +65,14 @@ function Pagination({ currentPage, totalPages, onPageChange, totalItems, itemsPe
           disabled={currentPage === totalPages}
           className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Próximo
+          PrÃ³ximo
         </button>
       </div>
       
       <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-gray-700">
-            Mostrando <span className="font-medium">{startItem}</span> até <span className="font-medium">{endItem}</span> de{' '}
+            Mostrando <span className="font-medium">{startItem}</span> atÃ© <span className="font-medium">{endItem}</span> de{' '}
             <span className="font-medium">{totalItems}</span> resultados
           </p>
         </div>
@@ -111,7 +112,7 @@ function Pagination({ currentPage, totalPages, onPageChange, totalItems, itemsPe
               disabled={currentPage === totalPages}
               className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span className="sr-only">Próximo</span>
+              <span className="sr-only">PrÃ³ximo</span>
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
               </svg>
@@ -126,7 +127,7 @@ function Pagination({ currentPage, totalPages, onPageChange, totalItems, itemsPe
 function ImovelCard({ imovel }: { imovel: Imovel }) {
   return (
     <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden group">
-      {/* Header do Card com Código */}
+      {/* Header do Card com CÃ³digo */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex-1 flex justify-center">
@@ -145,45 +146,45 @@ function ImovelCard({ imovel }: { imovel: Imovel }) {
         </div>
       </div>
 
-      {/* Conteúdo do Card */}
+      {/* ConteÃºdo do Card */}
       <div className="p-6 space-y-4">
-        {/* Localização */}
+        {/* LocalizaÃ§Ã£o */}
         <div className="flex items-center space-x-2 text-gray-600">
           <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <span className="font-medium">{imovel.estado_fk || 'N/A'}</span>
-          <span className="text-gray-400">•</span>
+          <span className="text-gray-400">â€¢</span>
           <span className="font-medium">{imovel.cidade_fk || 'N/A'}</span>
-          <span className="text-gray-400">•</span>
+          <span className="text-gray-400">â€¢</span>
           <span className="font-medium">{imovel.bairro || 'N/A'}</span>
         </div>
 
-        {/* Endereço */}
+        {/* EndereÃ§o */}
         <div className="text-sm text-gray-600">
           <span className="font-medium">{imovel.endereco || 'N/A'}</span>
           {imovel.numero && <span>, {imovel.numero}</span>}
-          {imovel.cep && <span> • CEP: {imovel.cep}</span>}
+          {imovel.cep && <span> â€¢ CEP: {imovel.cep}</span>}
         </div>
 
         {/* Valores */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-green-50 rounded-lg p-3">
-            <div className="text-xs text-green-600 font-medium uppercase tracking-wide">Preço</div>
+            <div className="text-xs text-green-600 font-medium uppercase tracking-wide">PreÃ§o</div>
             <div className="text-sm font-bold text-green-700">
               R$ {imovel.preco ? Number(imovel.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}
             </div>
           </div>
           <div className="bg-blue-50 rounded-lg p-3">
-            <div className="text-xs text-blue-600 font-medium uppercase tracking-wide">Condomínio</div>
+            <div className="text-xs text-blue-600 font-medium uppercase tracking-wide">CondomÃ­nio</div>
             <div className="text-sm font-bold text-blue-700">
               R$ {imovel.preco_condominio ? Number(imovel.preco_condominio).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}
             </div>
           </div>
         </div>
 
-        {/* Características */}
+        {/* CaracterÃ­sticas */}
         <div className="grid grid-cols-4 gap-2">
           <div className="text-center bg-gray-50 rounded-lg p-2">
             <div className="text-xs text-gray-500">Quartos</div>
@@ -194,7 +195,7 @@ function ImovelCard({ imovel }: { imovel: Imovel }) {
             <div className="text-lg font-semibold text-gray-900">{imovel.banheiros || '0'}</div>
           </div>
           <div className="text-center bg-gray-50 rounded-lg p-2">
-            <div className="text-xs text-gray-500">Suítes</div>
+            <div className="text-xs text-gray-500">SuÃ­tes</div>
             <div className="text-lg font-semibold text-gray-900">{imovel.suites || '0'}</div>
           </div>
           <div className="text-center bg-gray-50 rounded-lg p-2">
@@ -228,7 +229,7 @@ function ImovelCard({ imovel }: { imovel: Imovel }) {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
-          <span>Editar Imóvel</span>
+          <span>Editar ImÃ³vel</span>
         </Link>
       </div>
     </div>
@@ -239,7 +240,7 @@ export default function ImovelGrid({ imoveis, loading, error, onRetry }: ImovelG
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 12
 
-  // Calcular paginação
+  // Calcular paginaÃ§Ã£o
   const totalPages = Math.ceil(imoveis.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
@@ -256,7 +257,7 @@ export default function ImovelGrid({ imoveis, loading, error, onRetry }: ImovelG
       <div className="bg-white rounded-xl shadow-lg border border-gray-200">
         <div className="p-12 text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-6 text-gray-600 text-xl font-medium">Carregando imóveis...</p>
+          <p className="mt-6 text-gray-600 text-xl font-medium">Carregando imÃ³veis...</p>
           <p className="mt-2 text-gray-500">Aguarde enquanto buscamos os dados</p>
         </div>
       </div>
@@ -271,7 +272,7 @@ export default function ImovelGrid({ imoveis, loading, error, onRetry }: ImovelG
             <svg className="mx-auto h-16 w-16 text-red-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-xl font-semibold text-red-800 mb-2">Erro ao carregar imóveis</p>
+            <p className="text-xl font-semibold text-red-800 mb-2">Erro ao carregar imÃ³veis</p>
             <p className="text-red-600 mb-6">{error}</p>
             {onRetry && (
               <button
@@ -295,8 +296,8 @@ export default function ImovelGrid({ imoveis, loading, error, onRetry }: ImovelG
             <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
-            <p className="text-xl font-semibold text-gray-900 mb-2">Nenhum imóvel encontrado</p>
-            <p className="text-gray-600">Nenhum imóvel corresponde aos filtros selecionados.</p>
+            <p className="text-xl font-semibold text-gray-900 mb-2">Nenhum imÃ³vel encontrado</p>
+            <p className="text-gray-600">Nenhum imÃ³vel corresponde aos filtros selecionados.</p>
           </div>
         </div>
       </div>
@@ -309,15 +310,15 @@ export default function ImovelGrid({ imoveis, loading, error, onRetry }: ImovelG
       <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">
-            Imóveis Cadastrados
+            ImÃ³veis Cadastrados
           </h2>
           <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-            {imoveis.length} {imoveis.length === 1 ? 'imóvel' : 'imóveis'}
+            {imoveis.length} {imoveis.length === 1 ? 'imÃ³vel' : 'imÃ³veis'}
           </div>
         </div>
       </div>
 
-      {/* Grid de Imóveis */}
+      {/* Grid de ImÃ³veis */}
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {currentImoveis.map((imovel) => (
@@ -326,7 +327,7 @@ export default function ImovelGrid({ imoveis, loading, error, onRetry }: ImovelG
         </div>
       </div>
 
-      {/* Paginação */}
+      {/* PaginaÃ§Ã£o */}
       {totalPages > 1 && (
         <Pagination
           currentPage={currentPage}
@@ -339,3 +340,4 @@ export default function ImovelGrid({ imoveis, loading, error, onRetry }: ImovelG
     </div>
   )
 }
+

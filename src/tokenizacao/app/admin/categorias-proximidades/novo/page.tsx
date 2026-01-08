@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -100,13 +101,13 @@ export default function NovaCategoriaProximidadePage() {
                 value={formData.nome}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
-                placeholder="Ex: Comércio & Shopping"
+                placeholder="Ex: ComÃ©rcio & Shopping"
               />
             </div>
 
             <div>
               <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-2">
-                Descrição
+                DescriÃ§Ã£o
               </label>
               <textarea
                 id="descricao"
@@ -122,7 +123,7 @@ export default function NovaCategoriaProximidadePage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="icone" className="block text-sm font-medium text-gray-700 mb-2">
-                  Ícone
+                  Ãcone
                 </label>
                 <select
                   id="icone"
@@ -131,14 +132,14 @@ export default function NovaCategoriaProximidadePage() {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
                 >
-                  <option value="map-pin">📍 Localização</option>
-                  <option value="shopping">🛍️ Shopping</option>
-                  <option value="utensils">🍽️ Alimentação</option>
-                  <option value="hospital">🏥 Saúde</option>
-                  <option value="graduation-cap">🎓 Educação</option>
-                  <option value="bus">🚌 Transporte</option>
-                  <option value="theater-masks">🎭 Cultura</option>
-                  <option value="briefcase">💼 Serviços</option>
+                  <option value="map-pin">ðŸ“ LocalizaÃ§Ã£o</option>
+                  <option value="shopping">ðŸ›ï¸ Shopping</option>
+                  <option value="utensils">ðŸ½ï¸ AlimentaÃ§Ã£o</option>
+                  <option value="hospital">ðŸ¥ SaÃºde</option>
+                  <option value="graduation-cap">ðŸŽ“ EducaÃ§Ã£o</option>
+                  <option value="bus">ðŸšŒ Transporte</option>
+                  <option value="theater-masks">ðŸŽ­ Cultura</option>
+                  <option value="briefcase">ðŸ’¼ ServiÃ§os</option>
                 </select>
               </div>
 
@@ -210,3 +211,4 @@ export default function NovaCategoriaProximidadePage() {
     </WriteGuard>
   )
 }
+

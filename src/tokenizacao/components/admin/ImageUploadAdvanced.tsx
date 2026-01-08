@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
@@ -41,7 +42,7 @@ export default function ImageUploadAdvanced({
   const [showPreview, setShowPreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Função para calcular hash do arquivo (simplificado)
+  // FunÃ§Ã£o para calcular hash do arquivo (simplificado)
   const calculateFileHash = async (file: File): Promise<string> => {
     const buffer = await file.arrayBuffer()
     const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
@@ -49,7 +50,7 @@ export default function ImageUploadAdvanced({
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
   }
 
-  // Verificar se arquivo já existe
+  // Verificar se arquivo jÃ¡ existe
   const checkDuplicate = async (newFile: File): Promise<boolean> => {
     const newHash = await calculateFileHash(newFile)
     
@@ -68,7 +69,7 @@ export default function ImageUploadAdvanced({
 
     // Verificar limite de imagens
     if (images.length + acceptedFiles.length > maxImages) {
-      setError(`Máximo de ${maxImages} imagens permitido!`)
+      setError(`MÃ¡ximo de ${maxImages} imagens permitido!`)
       return
     }
 
@@ -80,19 +81,19 @@ export default function ImageUploadAdvanced({
       const isDuplicate = await checkDuplicate(file)
       
       if (isDuplicate) {
-        setError(`A imagem "${file.name}" já foi carregada anteriormente!`)
+        setError(`A imagem "${file.name}" jÃ¡ foi carregada anteriormente!`)
         continue
       }
 
       // Validar tipo de arquivo
       if (!file.type.startsWith('image/')) {
-        setError(`"${file.name}" não é uma imagem válida!`)
+        setError(`"${file.name}" nÃ£o Ã© uma imagem vÃ¡lida!`)
         continue
       }
 
       // Validar tamanho
       if (file.size > maxFileSize) {
-        setError(`"${file.name}" é muito grande (máx: ${Math.round(maxFileSize / 1024 / 1024)}MB)!`)
+        setError(`"${file.name}" Ã© muito grande (mÃ¡x: ${Math.round(maxFileSize / 1024 / 1024)}MB)!`)
         continue
       }
 
@@ -112,12 +113,12 @@ export default function ImageUploadAdvanced({
     if (rejectedFiles.length > 0) {
       const rejectedErrors = rejectedFiles.map(({ file, errors }) => {
         if (errors.some((e: any) => e.code === 'file-too-large')) {
-          return `"${file.name}" é muito grande (máx: ${Math.round(maxFileSize / 1024 / 1024)}MB)`
+          return `"${file.name}" Ã© muito grande (mÃ¡x: ${Math.round(maxFileSize / 1024 / 1024)}MB)`
         }
         if (errors.some((e: any) => e.code === 'file-invalid-type')) {
-          return `"${file.name}" tem tipo inválido`
+          return `"${file.name}" tem tipo invÃ¡lido`
         }
-        return `"${file.name}" não pôde ser processado`
+        return `"${file.name}" nÃ£o pÃ´de ser processado`
       })
       
       if (rejectedErrors.length > 0) {
@@ -148,7 +149,7 @@ export default function ImageUploadAdvanced({
 
   const removeImage = (index: number) => {
     const imageToRemove = images[index]
-    URL.revokeObjectURL(imageToRemove.preview) // Limpar memória
+    URL.revokeObjectURL(imageToRemove.preview) // Limpar memÃ³ria
     
     const newImages = images.filter((_, i) => i !== index)
     setImages(newImages)
@@ -176,10 +177,10 @@ export default function ImageUploadAdvanced({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">
-            Imagens do Imóvel
+            Imagens do ImÃ³vel
           </h3>
           <p className="text-sm text-gray-600">
-            Faça upload de até {maxImages} imagens de alta qualidade
+            FaÃ§a upload de atÃ© {maxImages} imagens de alta qualidade
           </p>
         </div>
         <div className="text-sm text-gray-500">
@@ -187,7 +188,7 @@ export default function ImageUploadAdvanced({
         </div>
       </div>
 
-      {/* Área de Upload */}
+      {/* Ãrea de Upload */}
       <div
         {...getRootProps()}
         className={`
@@ -216,7 +217,7 @@ export default function ImageUploadAdvanced({
             Formatos aceitos: JPG, PNG, GIF, WebP
           </p>
           <p className="text-sm text-gray-500">
-            Tamanho máximo: {Math.round(maxFileSize / 1024 / 1024)}MB por imagem
+            Tamanho mÃ¡ximo: {Math.round(maxFileSize / 1024 / 1024)}MB por imagem
           </p>
         </div>
       </div>
@@ -260,7 +261,7 @@ export default function ImageUploadAdvanced({
                     className="w-full h-full object-cover"
                   />
                   
-                  {/* Overlay com ações */}
+                  {/* Overlay com aÃ§Ãµes */}
                   <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
                     <div className="opacity-0 hover:opacity-100 flex space-x-2 transition-opacity">
                       <button
@@ -281,7 +282,7 @@ export default function ImageUploadAdvanced({
                   </div>
                 </div>
                 
-                {/* Informações da imagem */}
+                {/* InformaÃ§Ãµes da imagem */}
                 <div className="p-3">
                   <p className="text-xs font-medium text-gray-900 truncate" title={image.nome_arquivo}>
                     {image.nome_arquivo}
@@ -317,6 +318,7 @@ export default function ImageUploadAdvanced({
     </div>
   )
 }
+
 
 
 

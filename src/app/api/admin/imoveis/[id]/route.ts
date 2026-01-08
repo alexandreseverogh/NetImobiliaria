@@ -25,12 +25,12 @@ function getCurrentUser(request: NextRequest): string | null {
     // Tentar pegar do header Authorization primeiro (Bearer token)
     const authHeader = request.headers.get('authorization')
     let token = authHeader?.replace('Bearer ', '') || null
-    
+
     // Se não encontrou no header, tentar pegar do cookie
     if (!token) {
       token = request.cookies.get('accessToken')?.value || null
     }
-    
+
     if (!token) {
       console.log('🔍 Nenhum token encontrado')
       return null
@@ -91,7 +91,7 @@ export async function GET(
 ) {
   console.log('🔍 API GET /api/admin/imoveis/[id] - INICIADA')
   console.log('🔍 API - Parâmetros recebidos:', params)
-  
+
   try {
     const isNumeric = /^\d+$/.test(params.id)
     const imovelId = parseInt(params.id)
@@ -106,7 +106,7 @@ export async function GET(
     console.log('🔍 API: Chamando findImovelByIdentifier:', params.id)
     const imovel = await findImovelByIdentifier(isNumeric ? imovelId : params.id)
     console.log('🔍 API: Resultado findImovelById:', imovel ? 'Encontrado' : 'Não encontrado')
-    
+
     if (!imovel) {
       console.log('❌ API: Imóvel não encontrado')
       return NextResponse.json(
@@ -114,7 +114,7 @@ export async function GET(
         { status: 404 }
       )
     }
-    
+
     console.log('🔍 API: Dados básicos do imóvel:', {
       id: imovel.id,
       codigo: imovel.codigo,
@@ -187,13 +187,13 @@ export async function GET(
         video
       }
     }
-    
+
     console.log('🔍 API - Resposta completa:', {
       id: responseData.data.id,
       codigo: responseData.data.codigo,
       titulo: responseData.data.titulo
     })
-    
+
     console.log('🔍 API - Vídeo na resposta:', {
       videoExists: !!responseData.data.video,
       videoId: responseData.data.video?.id,
@@ -209,7 +209,7 @@ export async function GET(
       videoBufferType: typeof responseData.data.video?.video,
       videoBufferLength: responseData.data.video?.video ? responseData.data.video.video.length : 0
     })
-    
+
     return NextResponse.json(responseData)
 
   } catch (error) {
@@ -227,11 +227,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   console.log('🔍 API PUT /api/admin/imoveis/[id] - INICIADA')
-  
+
   try {
     const imovelId = parseInt(params.id)
     console.log('🔍 API PUT - imovelId:', imovelId)
-    
+
     if (isNaN(imovelId)) {
       return NextResponse.json(
         { error: 'ID do imóvel inválido' },
@@ -242,7 +242,7 @@ export async function PUT(
     // Processar JSON (mesma abordagem do NOVO IMÓVEL)
     console.log('🔍 API PUT - Processando JSON')
     const data = await request.json()
-    
+
     console.log('🔍 API PUT - Salvando imóvel ID:', imovelId)
     console.log('🔍 API PUT - DADOS COMPLETOS RECEBIDOS:', JSON.stringify(data, null, 2))
     console.log('🔍 API PUT - Object.keys(data):', Object.keys(data))
@@ -257,69 +257,69 @@ export async function PUT(
 
     // CASO ESPECIAL: Se enviar APENAS destaque ou destaque_nacional (mudança simples)
     const dataKeys = Object.keys(data)
-    const isSimpleUpdate = (dataKeys.length === 1 && dataKeys[0] === 'destaque') || 
-                           (dataKeys.length === 1 && dataKeys[0] === 'destaque_nacional') ||
-                           (dataKeys.length === 2 && dataKeys.includes('destaque') && dataKeys.includes('destaque_nacional'))
-    
+    const isSimpleUpdate = (dataKeys.length === 1 && dataKeys[0] === 'destaque') ||
+      (dataKeys.length === 1 && dataKeys[0] === 'destaque_nacional') ||
+      (dataKeys.length === 2 && dataKeys.includes('destaque') && dataKeys.includes('destaque_nacional'))
+
     if (isSimpleUpdate) {
       console.log('🔍 API PUT - Atualização SIMPLES: destaque e/ou destaque_nacional')
-      
+
       // 1. Buscar o destaque atual para comparar
       const imovelAtual = await pool.query('SELECT destaque, destaque_nacional, codigo, titulo FROM imoveis WHERE id = $1', [imovelId])
       const destaqueAtual = imovelAtual.rows[0]?.destaque
       const destaqueNacionalAtual = imovelAtual.rows[0]?.destaque_nacional
       const imovelCodigo = imovelAtual.rows[0]?.codigo
       const imovelTitulo = imovelAtual.rows[0]?.titulo
-      
+
       console.log('🔍 Destaque atual:', destaqueAtual)
       console.log('🔍 Destaque nacional atual:', destaqueNacionalAtual)
       console.log('🔍 Novo destaque:', data.destaque)
       console.log('🔍 Novo destaque nacional:', data.destaque_nacional)
-      
+
       // 2. Preparar campos para atualização
       const updateFields: string[] = []
       const updateValues: any[] = []
       let paramIndex = 1
-      
+
       if ('destaque' in data) {
         updateFields.push(`destaque = $${paramIndex}`)
         updateValues.push(data.destaque)
         paramIndex++
       }
-      
+
       if ('destaque_nacional' in data) {
         updateFields.push(`destaque_nacional = $${paramIndex}`)
         updateValues.push(data.destaque_nacional)
         paramIndex++
       }
-      
+
       updateFields.push(`updated_at = NOW()`)
       updateValues.push(imovelId)
-      
+
       // 3. Atualizar destaque e/ou destaque_nacional na tabela imoveis
       await pool.query(
         `UPDATE imoveis SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
         updateValues
       )
       console.log('✅ Destaque(s) atualizado(s) na tabela imoveis')
-      
+
       // 3. Registrar log de auditoria SE o destaque ou destaque_nacional mudou
       const destaqueMudou = 'destaque' in data && destaqueAtual !== data.destaque
       const destaqueNacionalMudou = 'destaque_nacional' in data && destaqueNacionalAtual !== data.destaque_nacional
-      
+
       if (destaqueMudou || destaqueNacionalMudou) {
         const currentUserId = getCurrentUser(request)
         console.log('🔍 User ID para auditoria:', currentUserId)
-        
+
         if (currentUserId) {
           try {
             const userInfo = await pool.query(
               'SELECT username, nome FROM users WHERE id = $1',
               [currentUserId]
             )
-            
+
             const userName = userInfo.rows[0]?.nome || userInfo.rows[0]?.username || 'Desconhecido'
-            
+
             // Construir descrição baseada nas mudanças
             const actions: string[] = []
             if (destaqueMudou) {
@@ -329,7 +329,7 @@ export async function PUT(
               actions.push(data.destaque_nacional ? 'destacou nacionalmente' : 'removeu destaque nacional do')
             }
             const actionDescription = actions.join(' e ')
-            
+
             const auditQuery = `
               INSERT INTO audit_logs (
                 user_id,
@@ -341,7 +341,7 @@ export async function PUT(
                 user_agent
               ) VALUES ($1, $2, $3, $4, $5, $6, $7)
             `
-            
+
             const details = {
               description: `${actionDescription.charAt(0).toUpperCase() + actionDescription.slice(1)} imóvel ${imovelCodigo} (${imovelTitulo})`,
               imovel_codigo: imovelCodigo,
@@ -355,7 +355,7 @@ export async function PUT(
               changed_by_name: userName,
               timestamp: new Date().toISOString()
             }
-            
+
             await pool.query(auditQuery, [
               currentUserId,
               'UPDATE',
@@ -365,54 +365,54 @@ export async function PUT(
               request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
               request.headers.get('user-agent') || 'unknown'
             ])
-            
+
             console.log('✅ Log de auditoria registrado para destacar/remover destaque')
           } catch (auditError) {
             console.error('⚠️ Erro ao registrar log de auditoria (não crítico):', auditError)
           }
         }
       }
-      
+
       return NextResponse.json({
         success: true,
         message: 'Destaque atualizado com sucesso'
       })
     }
-    
+
     // CASO ESPECIAL: Se enviar APENAS status_fk (mudança de status)
     if (dataKeys.length === 1 && dataKeys[0] === 'status_fk') {
       console.log('🔍 API PUT - Atualização SIMPLES: apenas status_fk')
-      
+
       // 1. Buscar o status atual para comparar
       const imovelAtual = await pool.query('SELECT status_fk FROM imoveis WHERE id = $1', [imovelId])
       const statusAtual = imovelAtual.rows[0]?.status_fk
-      
+
       console.log('🔍 Status atual:', statusAtual)
       console.log('🔍 Novo status:', data.status_fk)
       console.log('🔍 Status vai mudar?', statusAtual !== data.status_fk)
-      
+
       // 2. Atualizar status na tabela imoveis
       await pool.query(
         'UPDATE imoveis SET status_fk = $1, updated_at = NOW() WHERE id = $2',
         [data.status_fk, imovelId]
       )
       console.log('✅ Status atualizado na tabela imoveis')
-      
+
       // 3. Inserir no histórico SE o status mudou
       if (statusAtual !== data.status_fk) {
         const currentUserId = getCurrentUser(request)
         console.log('🔍 User ID para histórico:', currentUserId)
-        
+
         const historicoQuery = `
           INSERT INTO imovel_status (imovel_fk, status_fk, created_by, created_at)
           VALUES ($1, $2, $3, NOW())
           RETURNING *
         `
-        
+
         try {
           const resultHistorico = await pool.query(historicoQuery, [imovelId, data.status_fk, currentUserId])
           console.log('✅ Histórico de status inserido:', resultHistorico.rows[0])
-          
+
           // 4. Registrar log de auditoria
           if (currentUserId) {
             try {
@@ -421,28 +421,28 @@ export async function PUT(
                 'SELECT codigo, titulo FROM imoveis WHERE id = $1',
                 [imovelId]
               )
-              
+
               const statusAntigoInfo = await pool.query(
                 'SELECT nome FROM status_imovel WHERE id = $1',
                 [statusAtual]
               )
-              
+
               const statusNovoInfo = await pool.query(
                 'SELECT nome FROM status_imovel WHERE id = $1',
                 [data.status_fk]
               )
-              
+
               const userInfo = await pool.query(
                 'SELECT username, nome FROM users WHERE id = $1',
                 [currentUserId]
               )
-              
+
               const imovelCodigo = imovelInfo.rows[0]?.codigo || 'Desconhecido'
               const imovelTitulo = imovelInfo.rows[0]?.titulo || 'Desconhecido'
               const statusAntigoNome = statusAntigoInfo.rows[0]?.nome || 'Desconhecido'
               const statusNovoNome = statusNovoInfo.rows[0]?.nome || 'Desconhecido'
               const userName = userInfo.rows[0]?.nome || userInfo.rows[0]?.username || 'Desconhecido'
-              
+
               const auditQuery = `
                 INSERT INTO audit_logs (
                   user_id,
@@ -454,7 +454,7 @@ export async function PUT(
                   user_agent
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
               `
-              
+
               const details = {
                 description: `Mudou status do imóvel ${imovelCodigo} (${imovelTitulo}) de "${statusAntigoNome}" para "${statusNovoNome}"`,
                 imovel_codigo: imovelCodigo,
@@ -467,7 +467,7 @@ export async function PUT(
                 changed_by_name: userName,
                 timestamp: new Date().toISOString()
               }
-              
+
               await pool.query(auditQuery, [
                 currentUserId,
                 'UPDATE',
@@ -477,7 +477,7 @@ export async function PUT(
                 request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
                 request.headers.get('user-agent') || 'unknown'
               ])
-              
+
               console.log('✅ Log de auditoria registrado para mudança de status')
             } catch (auditError) {
               console.error('⚠️ Erro ao registrar log de auditoria (não crítico):', auditError)
@@ -488,16 +488,16 @@ export async function PUT(
           console.error('❌ Detalhes:', insertError instanceof Error ? insertError.message : insertError)
         }
       }
-      
+
       return NextResponse.json({
         success: true,
         message: 'Status atualizado com sucesso'
       })
     }
-    
+
     // CASO COMPLETO: Atualização de múltiplos campos (edição completa)
     console.log('🔍 API PUT - Atualização COMPLETA: múltiplos campos')
-    
+
     // Buscar dados atuais do imóvel (para merge e geocoding)
     const imovelAtualResult = await pool.query('SELECT * FROM imoveis WHERE id = $1', [imovelId])
     if (imovelAtualResult.rows.length === 0) {
@@ -507,7 +507,7 @@ export async function PUT(
       )
     }
     const imovelAtual = imovelAtualResult.rows[0]
-    
+
     let proprietarioUuidNormalizado: string | null = imovelAtual.proprietario_uuid ?? null
 
     if ('proprietario_uuid' in data || 'proprietario_fk' in data) {
@@ -531,37 +531,48 @@ export async function PUT(
           )
         }
 
-        const proprietario = await findProprietarioByUuid(identificadorLimpo)
-        if (!proprietario) {
+        try {
+          const proprietario = await findProprietarioByUuid(identificadorLimpo)
+          if (!proprietario) {
+            return NextResponse.json(
+              { error: 'Proprietário informado não foi encontrado' },
+              { status: 404 }
+            )
+          }
+          proprietarioUuidNormalizado = proprietario.uuid
+        } catch (error) {
+          console.error('❌ Erro ao buscar proprietário:', error)
           return NextResponse.json(
-            { error: 'Proprietário informado não foi encontrado' },
-            { status: 404 }
+            {
+              error: 'Erro ao buscar proprietário. Verifique se o UUID está correto.',
+              details: error instanceof Error ? error.message : 'Erro desconhecido'
+            },
+            { status: 400 }
           )
         }
-        proprietarioUuidNormalizado = proprietario.uuid
       }
     }
 
     data.proprietario_uuid = proprietarioUuidNormalizado
     delete data.proprietario_fk
-    
+
     // Buscar coordenadas geográficas se endereço foi alterado
     let latitude = null
     let longitude = null
-    
+
     const cepAtual = imovelAtual.cep
     const numeroAtual = imovelAtual.numero
     const latitudeAtual = imovelAtual.latitude
     const longitudeAtual = imovelAtual.longitude
     const destaqueAtual = imovelAtual.destaque
-    
+
     // Verificar se o CEP ou NÚMERO foram alterados, ou se não há coordenadas atuais
     const cepNovo = data.endereco?.cep
     const numeroNovo = data.endereco?.numero
     const cepAlterado = cepAtual !== cepNovo
     const numeroAlterado = numeroAtual !== numeroNovo
     const semCoordenadas = !latitudeAtual || !longitudeAtual
-    
+
     console.log('🔍 ========== VERIFICAÇÃO DE COORDENADAS ==========')
     console.log('🔍 CEP Atual (banco):', cepAtual)
     console.log('🔍 CEP Novo (requisição):', cepNovo)
@@ -573,11 +584,11 @@ export async function PUT(
     console.log('🔍 Longitude Atual:', longitudeAtual)
     console.log('🔍 Sem Coordenadas?:', semCoordenadas)
     console.log('🔍 Endereço completo:', data.endereco)
-    
+
     // VALIDAÇÃO RIGOROSA: NÚMERO É SEMPRE OBRIGATÓRIO (independente se CEP mudou)
     // IMPORTANTE: Verificar se numero existe e não é vazio
     const numeroVazio = !data.endereco?.numero || data.endereco.numero.trim() === ''
-    
+
     if (data.endereco && numeroVazio) {
       console.error('❌ ERRO CRÍTICO: Número do imóvel é obrigatório!')
       console.error('❌ Dados COMPLETOS de endereço recebidos:', JSON.stringify(data.endereco, null, 2))
@@ -587,9 +598,9 @@ export async function PUT(
       console.error('❌ Numero é null?', data.endereco.numero === null)
       console.error('❌ Numero é string vazia?', data.endereco.numero === '')
       console.error('❌ TODOS OS DADOS RECEBIDOS:', JSON.stringify(data, null, 2))
-      
+
       return NextResponse.json(
-        { 
+        {
           error: 'O número do imóvel é obrigatório',
           field: 'numero',
           details: {
@@ -601,7 +612,7 @@ export async function PUT(
         { status: 400 }
       )
     }
-    
+
     // Buscar novas coordenadas se: CEP mudou OU Número mudou OU não há coordenadas
     if ((cepAlterado || numeroAlterado || semCoordenadas) && cepNovo && data.endereco?.numero) {
       try {
@@ -620,7 +631,7 @@ export async function PUT(
           estado: data.endereco.estado,
           cep: cepNovo
         })
-        
+
         // IMPORTANTE: Buscar coordenadas com ENDEREÇO COMPLETO incluindo NÚMERO
         // Isso garante precisão máxima na localização do imóvel
         // Coordenadas são recalculadas se CEP OU NÚMERO mudaram
@@ -656,24 +667,24 @@ export async function PUT(
       longitude = longitudeAtual
       console.log('ℹ️ CEP e Número não foram alterados - mantendo coordenadas atuais')
     }
-    
+
     console.log('🔍 COORDENADAS FINAIS QUE SERÃO SALVAS:', { lat: latitude, lon: longitude })
     console.log('🔍 ===============================================')
 
     // Função para converter valores numéricos com vírgula para ponto (formato brasileiro para banco)
     const converterValorNumerico = (valor: any): number | undefined => {
       console.log('🔍 converterValorNumerico - valor recebido:', valor, typeof valor)
-      
+
       if (valor === null || valor === undefined || valor === '') {
         console.log('🔍 converterValorNumerico - valor vazio, retornando undefined')
         return undefined
       }
-      
+
       if (typeof valor === 'number') {
         console.log('🔍 converterValorNumerico - já é número:', valor)
         return valor
       }
-      
+
       if (typeof valor === 'string') {
         // Converter formato brasileiro para banco: "1.256,00" -> 1256.00
         const valorLimpo = valor.replace(/\./g, '').replace(',', '.').trim()
@@ -681,14 +692,14 @@ export async function PUT(
         console.log('🔍 converterValorNumerico - string convertida:', valor, '->', valorLimpo, '->', numero)
         return isNaN(numero) ? undefined : numero
       }
-      
+
       console.log('🔍 converterValorNumerico - tipo não suportado:', typeof valor)
       return undefined
     }
 
     // Verificar se é uma atualização apenas de status
     const isStatusUpdateOnly = Object.keys(data).length === 1 && data.status_fk !== undefined
-    
+
     console.log('🔍 ========== VERIFICAÇÃO isStatusUpdateOnly ==========')
     console.log('🔍 isStatusUpdateOnly:', isStatusUpdateOnly)
     console.log('🔍 Condições:')
@@ -701,34 +712,34 @@ export async function PUT(
       console.log('🔍 ========== ATUALIZAÇÃO DE STATUS ==========')
       console.log('🔍 Imóvel ID:', imovelId)
       console.log('🔍 Novo status_fk recebido:', data.status_fk)
-      
+
       // 1. Buscar o status atual para comparar
       const imovel = await pool.query('SELECT status_fk FROM imoveis WHERE id = $1', [imovelId])
       const statusAtual = imovel.rows[0]?.status_fk
       console.log('🔍 Status atual no banco:', statusAtual)
       console.log('🔍 Status vai mudar?', statusAtual !== data.status_fk)
-      
+
       // 2. Atualizar o status_fk na tabela imoveis
       const updateStatusQuery = `UPDATE imoveis SET status_fk = $1 WHERE id = $2`
       await pool.query(updateStatusQuery, [data.status_fk, imovelId])
       console.log('✅ Status atualizado na tabela imoveis')
-      
+
       // 3. Adicionar ao histórico SE o status mudou
       if (statusAtual !== data.status_fk) {
         // Pegar o usuário logado
         const currentUserId = getCurrentUser(request)
         console.log('🔍 User ID para histórico:', currentUserId)
         console.log('🔍 Tipo de currentUserId:', typeof currentUserId)
-        
+
         const historicoQuery = `
           INSERT INTO imovel_status (imovel_fk, status_fk, created_by, created_at)
           VALUES ($1, $2, $3, NOW())
           RETURNING *
         `
-        
+
         console.log('🔍 Executando INSERT em imovel_status...')
         console.log('🔍 Parâmetros:', { imovelId, statusFk: data.status_fk, userId: currentUserId })
-        
+
         try {
           const resultHistorico = await pool.query(historicoQuery, [imovelId, data.status_fk, currentUserId])
           console.log('✅ Histórico de status inserido:', resultHistorico.rows[0])
@@ -739,7 +750,7 @@ export async function PUT(
           console.error('❌ Stack trace:', insertError instanceof Error ? insertError.stack : 'N/A')
           throw insertError
         }
-        
+
         // 4. Registrar log de auditoria
         if (currentUserId) {
           try {
@@ -748,24 +759,24 @@ export async function PUT(
               'SELECT codigo, titulo FROM imoveis WHERE id = $1',
               [imovelId]
             )
-            
+
             // Buscar nome do status para o log
             const statusInfo = await pool.query(
               'SELECT nome FROM status_imovel WHERE id = $1',
               [data.status_fk]
             )
-            
+
             // Buscar nome do usuário
             const userInfo = await pool.query(
               'SELECT username, nome FROM users WHERE id = $1',
               [currentUserId]
             )
-            
+
             const imovelCodigo = imovelInfo.rows[0]?.codigo || 'Desconhecido'
             const imovelTitulo = imovelInfo.rows[0]?.titulo || 'Desconhecido'
             const statusNome = statusInfo.rows[0]?.nome || 'Desconhecido'
             const userName = userInfo.rows[0]?.nome || userInfo.rows[0]?.username || 'Desconhecido'
-            
+
             const auditQuery = `
               INSERT INTO audit_logs (
                 user_id,
@@ -777,7 +788,7 @@ export async function PUT(
                 user_agent
               ) VALUES ($1, $2, $3, $4, $5, $6, $7)
             `
-            
+
             const details = {
               description: `Adicionou novo status "${statusNome}" ao imóvel ${imovelCodigo} (${imovelTitulo})`,
               imovel_codigo: imovelCodigo,
@@ -789,7 +800,7 @@ export async function PUT(
               created_by_name: userName,
               timestamp: new Date().toISOString()
             }
-            
+
             await pool.query(auditQuery, [
               currentUserId,
               'UPDATE',
@@ -799,7 +810,7 @@ export async function PUT(
               request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
               request.headers.get('user-agent') || 'unknown'
             ])
-            
+
             console.log('✅ Log de auditoria registrado para mudança de status')
           } catch (auditError) {
             // Não falhar o processo se o log de auditoria falhar
@@ -811,7 +822,7 @@ export async function PUT(
         console.log('ℹ️ statusAtual:', statusAtual, 'tipo:', typeof statusAtual)
         console.log('ℹ️ data.status_fk:', data.status_fk, 'tipo:', typeof data.status_fk)
       }
-      
+
       console.log('🔍 ==========================================')
       return NextResponse.json({ success: true, message: 'Status atualizado com sucesso' })
     }
@@ -865,7 +876,7 @@ export async function PUT(
     console.log('🔍 Longitude que será salva ($11):', longitude)
     console.log('🔍 Tipo de latitude:', typeof latitude)
     console.log('🔍 Tipo de longitude:', typeof longitude)
-    
+
     const values = [
       data.titulo,
       data.descricao,
@@ -905,12 +916,12 @@ export async function PUT(
 
     // Executar todas as operações em paralelo para melhor performance
     const operations = []
-    
+
     // 1. Atualizar dados básicos do imóvel
     console.log('🔍 Executando UPDATE no banco de dados...')
     const updateOperation = pool.query(updateQuery, values)
     operations.push(updateOperation)
-    
+
     // 2. Preparar amenidades
     console.log('🔍 API - Dados recebidos para amenidades:', data.amenidades)
     console.log('🔍 API - Tipo de data.amenidades:', typeof data.amenidades)
@@ -919,72 +930,72 @@ export async function PUT(
       console.log('🔍 API - Estrutura do primeiro item:', data.amenidades[0])
       console.log('🔍 API - Propriedades disponíveis:', Object.keys(data.amenidades[0] || {}))
     }
-    
-    const amenidadeIds = data.amenidades && Array.isArray(data.amenidades) 
+
+    const amenidadeIds = data.amenidades && Array.isArray(data.amenidades)
       ? data.amenidades
-          .map((a: any) => {
-            console.log('🔍 API - Processando amenidade:', a)
-            const rawId = a?.amenidadeId ?? a?.amenidade_id ?? a?.id
+        .map((a: any) => {
+          console.log('🔍 API - Processando amenidade:', a)
+          const rawId = a?.amenidadeId ?? a?.amenidade_id ?? a?.id
 
-            if (rawId === undefined || rawId === null) {
-              console.warn('⚠️ API - Amenidade sem ID válido será ignorada:', a)
-              return null
-            }
+          if (rawId === undefined || rawId === null) {
+            console.warn('⚠️ API - Amenidade sem ID válido será ignorada:', a)
+            return null
+          }
 
-            const parsedId = typeof rawId === 'number' ? rawId : parseInt(rawId, 10)
+          const parsedId = typeof rawId === 'number' ? rawId : parseInt(rawId, 10)
 
-            if (Number.isNaN(parsedId)) {
-              console.warn('⚠️ API - Amenidade com ID não numérico será ignorada:', rawId, a)
-              return null
-            }
+          if (Number.isNaN(parsedId)) {
+            console.warn('⚠️ API - Amenidade com ID não numérico será ignorada:', rawId, a)
+            return null
+          }
 
-            return parsedId
-          })
-          .filter((id: number | null): id is number => id !== null)
-          .filter((id: number, index: number, array: number[]) => array.indexOf(id) === index)
+          return parsedId
+        })
+        .filter((id: number | null): id is number => id !== null)
+        .filter((id: number, index: number, array: number[]) => array.indexOf(id) === index)
       : []
-    
+
     console.log('🔍 API - amenidadeIds finais:', amenidadeIds)
-    
+
     // 3. Preparar proximidades
     console.log('🔍 API - Dados recebidos para proximidades:', data.proximidades)
     console.log('🔍 API - Tipo de data.proximidades:', typeof data.proximidades)
     console.log('🔍 API - É array?', Array.isArray(data.proximidades))
-    
+
     const proximidadesFormatadas = data.proximidades && Array.isArray(data.proximidades)
       ? data.proximidades.map((p: any) => {
-          console.log('🔍 API - Processando proximidade:', p)
-          console.log('🔍 API - p.id:', p.id ?? p.proximidade_id)
-          console.log('🔍 API - p.distancia (raw):', p.distancia, 'tipo:', typeof p.distancia)
-          console.log('🔍 API - p.distancia_metros (raw):', p.distancia_metros, 'tipo:', typeof p.distancia_metros)
-          console.log('🔍 API - p.tempo_caminhada (raw):', p.tempo_caminhada, 'tipo:', typeof p.tempo_caminhada)
-          console.log('🔍 API - p.observacoes:', p.observacoes)
+        console.log('🔍 API - Processando proximidade:', p)
+        console.log('🔍 API - p.id:', p.id ?? p.proximidade_id)
+        console.log('🔍 API - p.distancia (raw):', p.distancia, 'tipo:', typeof p.distancia)
+        console.log('🔍 API - p.distancia_metros (raw):', p.distancia_metros, 'tipo:', typeof p.distancia_metros)
+        console.log('🔍 API - p.tempo_caminhada (raw):', p.tempo_caminhada, 'tipo:', typeof p.tempo_caminhada)
+        console.log('🔍 API - p.observacoes:', p.observacoes)
 
-          const distanciaMetros = parseDistanceValue(p.distancia_metros ?? p.distancia)
+        const distanciaMetros = parseDistanceValue(p.distancia_metros ?? p.distancia)
 
-          let tempoCaminhada = null
-          if (p.tempo_caminhada !== null && p.tempo_caminhada !== undefined && p.tempo_caminhada !== '') {
-            if (typeof p.tempo_caminhada === 'number') {
-              tempoCaminhada = p.tempo_caminhada
-            } else if (typeof p.tempo_caminhada === 'string') {
-              const parsed = parseInt(p.tempo_caminhada.replace(/[^0-9]/g, ''), 10)
-              tempoCaminhada = Number.isNaN(parsed) ? null : parsed
-            }
+        let tempoCaminhada = null
+        if (p.tempo_caminhada !== null && p.tempo_caminhada !== undefined && p.tempo_caminhada !== '') {
+          if (typeof p.tempo_caminhada === 'number') {
+            tempoCaminhada = p.tempo_caminhada
+          } else if (typeof p.tempo_caminhada === 'string') {
+            const parsed = parseInt(p.tempo_caminhada.replace(/[^0-9]/g, ''), 10)
+            tempoCaminhada = Number.isNaN(parsed) ? null : parsed
           }
+        }
 
-          console.log('🔍 API - Valores processados:', { distanciaMetros, tempoCaminhada })
+        console.log('🔍 API - Valores processados:', { distanciaMetros, tempoCaminhada })
 
-          return {
-            proximidade_id: p.id ?? p.proximidade_id,
-            distancia_metros: distanciaMetros,
-            tempo_caminhada: tempoCaminhada,
-            observacoes: p.observacoes || null
-          }
-        })
+        return {
+          proximidade_id: p.id ?? p.proximidade_id,
+          distancia_metros: distanciaMetros,
+          tempo_caminhada: tempoCaminhada,
+          observacoes: p.observacoes || null
+        }
+      })
       : []
-    
+
     console.log('🔍 API - proximidadesFormatadas:', proximidadesFormatadas)
-    
+
     // Executar operações em paralelo
     await Promise.all([
       ...operations,
@@ -999,10 +1010,10 @@ export async function PUT(
           console.log('🔍 API - Iniciando updateImovelProximidades')
           console.log('🔍 API - imovelId:', imovelId)
           console.log('🔍 API - proximidadesFormatadas:', JSON.stringify(proximidadesFormatadas, null, 2))
-          
+
           const { updateImovelProximidades } = await import('@/lib/database/proximidades')
           await updateImovelProximidades(imovelId, proximidadesFormatadas)
-          
+
           console.log('✅ API - updateImovelProximidades concluído')
         } catch (err) {
           console.error('❌ API - Erro em updateImovelProximidades:', err)
@@ -1011,11 +1022,11 @@ export async function PUT(
         }
       })()
     ])
-    
+
     console.log('🔍 ========== RESULTADO DO UPDATE ==========')
     console.log('🔍 UPDATE executado com sucesso!')
     console.log('🔍 Linhas afetadas:', operations[0])
-    
+
     // Verificar se as coordenadas foram realmente salvas no banco
     const verificacao = await pool.query(
       'SELECT id, cep, latitude, longitude FROM imoveis WHERE id = $1',
@@ -1023,7 +1034,7 @@ export async function PUT(
     )
     console.log('🔍 VERIFICAÇÃO PÓS-UPDATE no banco:', verificacao.rows[0])
     console.log('🔍 ==========================================')
-    
+
     console.log('✅ Imóvel, amenidades e proximidades atualizados')
 
     // Processar vídeo se presente (mesma lógica do NOVO IMÓVEL)
@@ -1035,7 +1046,7 @@ export async function PUT(
     console.log('🔍 API PUT - data.video.arquivo é string?', typeof data.video?.arquivo === 'string')
     console.log('🔍 API PUT - data.video.arquivo é File?', data.video?.arquivo instanceof File)
     console.log('🔍 API PUT - data.video.arquivo é Buffer?', Buffer.isBuffer(data.video?.arquivo))
-    
+
     if (data.video && data.video.arquivo) {
       try {
         console.log('🔍 API PUT - Processando vídeo...')
@@ -1048,7 +1059,7 @@ export async function PUT(
           resolucao: data.video.resolucao,
           formato: data.video.formato
         }
-        
+
         console.log('🔍 API PUT - VideoData criado com:', {
           nomeArquivo: videoData.nomeArquivo,
           tipoMime: videoData.tipoMime,
@@ -1059,7 +1070,7 @@ export async function PUT(
           arquivoLength: typeof videoData.arquivo === 'string' ? videoData.arquivo.length : 'N/A'
         })
         console.log('🔍 API PUT - Chamando processAndSaveVideo...')
-        
+
         const videoId = await processAndSaveVideo(imovelId, videoData)
         console.log('✅ API PUT - Vídeo salvo com sucesso, ID:', videoId)
       } catch (videoError) {
@@ -1077,26 +1088,26 @@ export async function PUT(
     // ========================================
     try {
       console.log('🔍 ========== INICIANDO AUDITORIA ==========')
-      
+
       const userId = extractUserIdFromToken(request)
       const { ipAddress, userAgent } = extractRequestData(request)
-      
+
       console.log('🔍 AUDITORIA - userId:', userId)
       console.log('🔍 AUDITORIA - imovelAtual disponível:', !!imovelAtualResult?.rows?.[0])
-      
+
       if (userId && imovelAtualResult?.rows?.[0]) {
         // Buscar amenidades e proximidades ANTES para comparar
         const amenidadesAntes = await findAmenidadesByImovel(imovelId).catch(() => [])
         const proximidadesAntes = await findProximidadesByImovel(imovelId).catch(() => [])
         const imagensAntes = await findImovelImagens(imovelId).catch(() => [])
         const documentosAntes = await findDocumentosByImovel(imovelId).catch(() => [])
-        
+
         // COMPARAÇÃO MANUAL DIRETA - Não usar helper
         // Helper requer objetos completos, aqui fazemos comparação precisa campo a campo
-        
+
         const changes: any = {}
         const temValor = (val: any) => val !== undefined && val !== null && val !== ''
-        
+
         // Comparar titulo
         if (temValor(data.titulo) && data.titulo !== imovelAtualResult.rows[0].titulo) {
           changes.titulo = {
@@ -1104,7 +1115,7 @@ export async function PUT(
             after: data.titulo
           }
         }
-        
+
         // Comparar descricao
         if (temValor(data.descricao) && data.descricao !== imovelAtualResult.rows[0].descricao) {
           changes.descricao = {
@@ -1112,7 +1123,7 @@ export async function PUT(
             after: data.descricao
           }
         }
-        
+
         // Comparar campos de endereço (se enviados)
         if (data.endereco) {
           if (temValor(data.endereco.endereco) && data.endereco.endereco !== imovelAtualResult.rows[0].endereco) {
@@ -1158,7 +1169,7 @@ export async function PUT(
             }
           }
         }
-        
+
         // Coordenadas - só se realmente mudaram
         if (latitude !== latitudeAtual && temValor(latitude)) {
           changes.latitude = {
@@ -1172,7 +1183,7 @@ export async function PUT(
             after: longitude
           }
         }
-        
+
         // Valores monetários - comparar NÚMEROS (converter ambos)
         if (temValor(data.preco)) {
           const valorNovo = converterValorNumerico(data.preco)
@@ -1234,7 +1245,7 @@ export async function PUT(
             }
           }
         }
-        
+
         // Outros numéricos - comparar NÚMEROS (converter ambos)
         if (temValor(data.quartos)) {
           const valorNovo = converterValorNumerico(data.quartos)
@@ -1306,7 +1317,7 @@ export async function PUT(
             }
           }
         }
-        
+
         // Booleanos - comparar se enviados
         if (data.mobiliado !== undefined && data.mobiliado !== null && data.mobiliado !== imovelAtualResult.rows[0].mobiliado) {
           changes.mobiliado = {
@@ -1332,7 +1343,7 @@ export async function PUT(
             after: data.destaque
           }
         }
-        
+
         // FKs - comparar se enviados
         if (temValor(data.tipo_fk) && data.tipo_fk !== imovelAtualResult.rows[0].tipo_fk) {
           changes.tipo_fk = {
@@ -1361,16 +1372,16 @@ export async function PUT(
             after: data.proprietario_uuid
           }
         }
-        
+
         // Arrays - comparar IDs
         if (data.amenidades !== undefined && data.amenidades !== null) {
           const amenidadesIds = data.amenidades.map((a: any) => a.amenidade_id || a.id).sort()
           const amenidadesAntesIds = amenidadesAntes.map((a: any) => a.amenidade_id || a.id).sort()
-          
+
           if (JSON.stringify(amenidadesIds) !== JSON.stringify(amenidadesAntesIds)) {
             const added = amenidadesIds.filter((id: number) => !amenidadesAntesIds.includes(id))
             const removed = amenidadesAntesIds.filter((id: number) => !amenidadesIds.includes(id))
-            
+
             changes.amenidades = {
               before: amenidadesAntesIds,
               after: amenidadesIds
@@ -1379,15 +1390,15 @@ export async function PUT(
             if (removed.length > 0) changes.amenidades.removed = removed
           }
         }
-        
+
         if (data.proximidades !== undefined && data.proximidades !== null) {
           const proximidadesIds = data.proximidades.map((p: any) => p.proximidade_id || p.id).sort()
           const proximidadesAntesIds = proximidadesAntes.map((p: any) => p.proximidade_id || p.id).sort()
-          
+
           if (JSON.stringify(proximidadesIds) !== JSON.stringify(proximidadesAntesIds)) {
             const added = proximidadesIds.filter((id: number) => !proximidadesAntesIds.includes(id))
             const removed = proximidadesAntesIds.filter((id: number) => !proximidadesIds.includes(id))
-            
+
             changes.proximidades = {
               before: proximidadesAntesIds,
               after: proximidadesIds
@@ -1396,7 +1407,7 @@ export async function PUT(
             if (removed.length > 0) changes.proximidades.removed = removed
           }
         }
-        
+
         if (data.imagens !== undefined && data.imagens !== null) {
           const imagensCountNovo = data.imagens.length
           if (imagensCountNovo !== imagensAntes.length) {
@@ -1407,7 +1418,7 @@ export async function PUT(
             }
           }
         }
-        
+
         if (data.documentos !== undefined && data.documentos !== null) {
           const documentosCountNovo = data.documentos.length
           if (documentosCountNovo !== documentosAntes.length) {
@@ -1418,10 +1429,10 @@ export async function PUT(
             }
           }
         }
-        
+
         console.log('🔍 AUDITORIA - Mudanças detectadas:', JSON.stringify(changes, null, 2))
         console.log('🔍 AUDITORIA - Total de mudanças:', Object.keys(changes).length)
-        
+
         // Só registrar se houver mudanças
         if (Object.keys(changes).length > 0) {
           // Buscar nome do usuário para incluir no log
@@ -1436,7 +1447,7 @@ export async function PUT(
               console.error('⚠️ Erro ao buscar nome do usuário (não crítico):', userError)
             }
           }
-          
+
           await logAuditEvent({
             userId,
             action: 'UPDATE',
@@ -1455,7 +1466,7 @@ export async function PUT(
             ipAddress,
             userAgent
           })
-          
+
           console.log('✅ AUDITORIA - Log registrado com sucesso')
         } else {
           console.log('ℹ️ AUDITORIA - Nenhuma mudança detectada, log não registrado')

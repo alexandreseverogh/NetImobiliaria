@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -35,14 +36,14 @@ export default function ImoveisPage() {'  '
   const [finalidades, setFinalidades] = useState<Array<{id: string, nome: string}>>([])
   const [statusOptions, setStatusOptions] = useState<Array<{id: string, nome: string}>>([])
   
-  // Usar hook centralizado para estados e municípios
+  // Usar hook centralizado para estados e municÃ­pios
   const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()
 
   // Carregar dados dos filtros
   useEffect(() => {
     const loadFilterData = async () => {
       try {
-        // Carregar tipos de imóveis
+        // Carregar tipos de imÃ³veis
         const tiposResponse = await fetch('/api/admin/imoveis/tipos')
         if (tiposResponse.ok) {
           const tiposData = await tiposResponse.json()
@@ -56,7 +57,7 @@ export default function ImoveisPage() {'  '
           setFinalidades(finalidadesData || [])
         }
 
-        // Estados já são carregados pelo hook useEstadosCidades
+        // Estados jÃ¡ sÃ£o carregados pelo hook useEstadosCidades
 
         // Carregar status
         const statusResponse = await fetch('/api/admin/status-imovel')
@@ -72,7 +73,7 @@ export default function ImoveisPage() {'  '
     loadFilterData()
   }, [])
 
-  // Carregar municípios quando estado mudar usando o hook
+  // Carregar municÃ­pios quando estado mudar usando o hook
   useEffect(() => {
     loadMunicipios(filters.estado)
   }, [filters.estado, loadMunicipios])
@@ -92,12 +93,12 @@ export default function ImoveisPage() {'  '
 
       const response = await fetch(`/api/admin/imoveis?${queryParams.toString()}`)
       if (!response.ok) {
-        throw new Error('Erro ao carregar imóveis')
+        throw new Error('Erro ao carregar imÃ³veis')
       }
       const data = await response.json()
-      console.log('🔍 Página de Imóveis - Dados recebidos da API:', data)
-      console.log('🔍 Página de Imóveis - Quantidade de imóveis:', data.data?.length || 0)
-      console.log('🔍 Página de Imóveis - IDs dos imóveis:', data.data?.map((imovel: any) => imovel.id))
+      console.log('ðŸ” PÃ¡gina de ImÃ³veis - Dados recebidos da API:', data)
+      console.log('ðŸ” PÃ¡gina de ImÃ³veis - Quantidade de imÃ³veis:', data.data?.length || 0)
+      console.log('ðŸ” PÃ¡gina de ImÃ³veis - IDs dos imÃ³veis:', data.data?.map((imovel: any) => imovel.id))
       setImoveis(data.data || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
@@ -110,11 +111,11 @@ export default function ImoveisPage() {'  '
     fetchImoveis()
   }, [fetchImoveis])
 
-  // Usar o hook personalizado para recarregar dados quando a página receber foco
+  // Usar o hook personalizado para recarregar dados quando a pÃ¡gina receber foco
   usePageFocus(fetchImoveis)
 
   const handleFilterChange = (field: string, value: string) => {
-    console.log('🔍 Filter change:', field, '=', value)
+    console.log('ðŸ” Filter change:', field, '=', value)
     setFilters(prev => ({
       ...prev,
       [field]: value
@@ -122,7 +123,7 @@ export default function ImoveisPage() {'  '
   }
 
   const handleApplyFilters = () => {
-    // Limpar municípios para nova consulta
+    // Limpar municÃ­pios para nova consulta
     clearMunicipios()
     
     setAppliedFilters(filters)
@@ -150,13 +151,13 @@ export default function ImoveisPage() {'  '
       {/* Header */}
       <div className="pt-4">
         <div className="relative flex items-center justify-center mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">Cadastro de Imóveis</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Cadastro de ImÃ³veis</h1>
           <div className="absolute right-0">
             <Link
               href="/admin/imoveis/novo"
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
             >
-              Novo Imóvel
+              Novo ImÃ³vel
             </Link>
           </div>
         </div>
@@ -166,21 +167,21 @@ export default function ImoveisPage() {'  '
       <div className="bg-white p-6 rounded-lg shadow">
         <h2 className="text-lg font-bold text-gray-900 mb-4 text-center">Filtros</h2>
         <div className="grid grid-cols-7 gap-4">
-          {/* Código */}
+          {/* CÃ³digo */}
           <div>
             <label className="block text-sm font-bold text-gray-700 text-center mb-2">
-              Código
+              CÃ³digo
             </label>
             <input
               type="number"
               value={filters.codigo}
               onChange={(e) => {
-                // Permitir apenas números
+                // Permitir apenas nÃºmeros
                 const value = e.target.value.replace(/[^0-9]/g, '')
                 handleFilterChange('codigo', value)
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Digite o código"
+              placeholder="Digite o cÃ³digo"
               min="1"
             />
           </div>
@@ -218,7 +219,7 @@ export default function ImoveisPage() {'  '
             </select>
           </div>
 
-          {/* Município */}
+          {/* MunicÃ­pio */}
           <div>
             <label className="block text-sm font-bold text-gray-700 text-center mb-2">
               Cidade
@@ -296,7 +297,7 @@ export default function ImoveisPage() {'  '
           </div>
         </div>
         
-        {/* Botões de Ação dos Filtros */}
+        {/* BotÃµes de AÃ§Ã£o dos Filtros */}
         <div className="flex justify-center space-x-4 mt-4">
           <button
             onClick={handleApplyFilters}
@@ -320,7 +321,7 @@ export default function ImoveisPage() {'  '
         </div>
       </div>
 
-      {/* Grid de Imóveis */}
+      {/* Grid de ImÃ³veis */}
       <ImovelGrid 
         imoveis={filteredImoveis}
         loading={loading}

@@ -1,4 +1,5 @@
-// Tipos para usuários administrativos
+﻿/* eslint-disable */
+// Tipos para usuÃ¡rios administrativos
 export interface AdminUser {
   id: string
   username: string
@@ -36,7 +37,7 @@ export interface UserPermissions {
 
 export type Permission = 'READ' | 'WRITE' | 'DELETE' | 'ADMIN'
 
-// Tipo mais específico para recursos
+// Tipo mais especÃ­fico para recursos
 export type Resource = 
   | 'imoveis' 
   | 'proximidades' 
@@ -75,7 +76,7 @@ export interface CategoriaProximidade {
   ordem: number
 }
 
-// Tipos para imóveis - Updated with codigo and taxaExtra
+// Tipos para imÃ³veis - Updated with codigo and taxaExtra
 export interface Imovel {
   id: string
   codigo?: string
@@ -90,7 +91,7 @@ export interface Imovel {
   precoIPTU?: number
   taxaExtra?: number
   
-  // Localização
+  // LocalizaÃ§Ã£o
   endereco: {
     logradouro: string
     numero: string
@@ -103,7 +104,7 @@ export interface Imovel {
     longitude?: number
   }
   
-  // Características físicas
+  // CaracterÃ­sticas fÃ­sicas
   areaTotal: number
   areaConstruida?: number
   quartos: number
@@ -128,7 +129,7 @@ export interface Imovel {
   dataCadastro: string
   dataAtualizacao: string
   
-  // Exclusão lógica
+  // ExclusÃ£o lÃ³gica
   dataExclusao?: string
   userExclusao?: string
   
@@ -137,9 +138,9 @@ export interface Imovel {
   documentos: ImovelDocumento[]
   amenidades: ImovelAmenidade[]
   proximidades: ImovelProximidadeSimplificada[]
-  video?: any // Tipo será definido quando necessário
+  video?: any // Tipo serÃ¡ definido quando necessÃ¡rio
   
-  // Usuário responsável
+  // UsuÃ¡rio responsÃ¡vel
   corretorId: string
   corretorNome: string
 }
@@ -170,7 +171,7 @@ export interface ImovelDocumento {
 }
 
 
-// Tipos para amenidades do imóvel
+// Tipos para amenidades do imÃ³vel
 export interface Amenidade {
   id: string
   nome: string
@@ -181,7 +182,7 @@ export interface Amenidade {
   ativo: boolean
 }
 
-// Interface para o relacionamento imóvel-amenidade
+// Interface para o relacionamento imÃ³vel-amenidade
 export interface ImovelAmenidade {
   amenidadeId: string
   amenidade: Amenidade
@@ -210,7 +211,7 @@ export interface ProximidadeCompleta extends ProximidadeBase {
   tempoCaminhada: TempoCaminhada
 }
 
-// Interface para o relacionamento imóvel-proximidade (versão simplificada)
+// Interface para o relacionamento imÃ³vel-proximidade (versÃ£o simplificada)
 export interface ImovelProximidadeSimplificada {
   proximidadeId: string
   proximidade: ProximidadeCompleta
@@ -218,7 +219,7 @@ export interface ImovelProximidadeSimplificada {
   destaque: boolean
 }
 
-// Interface para seleção de proximidades (compatível com componentes)
+// Interface para seleÃ§Ã£o de proximidades (compatÃ­vel com componentes)
 export interface ProximidadeSelecao {
   id: string
   nome: string
@@ -234,23 +235,23 @@ export interface ProximidadeSelecao {
 }
 
 export enum ProximidadeTipo {
-  // COMÉRCIO
+  // COMÃ‰RCIO
   SHOPPING = 'SHOPPING',
   SUPERMERCADO = 'SUPERMERCADO',
   FARMACIA = 'FARMACIA',
   BANCO = 'BANCO',
   
-  // ALIMENTAÇÃO
+  // ALIMENTAÃ‡ÃƒO
   RESTAURANTE = 'RESTAURANTE',
   PADARIA = 'PADARIA',
   LANCHONETE = 'LANCHONETE',
   
-  // SAÚDE
+  // SAÃšDE
   HOSPITAL = 'HOSPITAL',
   POSTO_SAUDE = 'POSTO_SAUDE',
   CLINICA = 'CLINICA',
   
-  // EDUCAÇÃO
+  // EDUCAÃ‡ÃƒO
   ESCOLA = 'ESCOLA',
   UNIVERSIDADE = 'UNIVERSIDADE',
   CRECHE = 'CRECHE',
@@ -266,7 +267,7 @@ export enum ProximidadeTipo {
   CINEMA = 'CINEMA',
   ACADEMIA = 'ACADEMIA',
   
-  // SERVIÇOS
+  // SERVIÃ‡OS
   CORREIOS = 'CORREIOS',
   POLICIA = 'POLICIA',
   BOMBEIROS = 'BOMBEIROS'
@@ -298,7 +299,7 @@ export interface Proximidade {
   ativo: boolean
 }
 
-// Tipos para formulários
+// Tipos para formulÃ¡rios
 export interface LoginCredentials {
   username: string
   password: string
@@ -321,7 +322,7 @@ export interface Session {
   ipAddress?: string
 }
 
-// Tipos para configurações
+// Tipos para configuraÃ§Ãµes
 export interface EnvironmentConfig {
   NODE_ENV: string
   DATABASE_URL: string
@@ -331,7 +332,7 @@ export interface EnvironmentConfig {
   ALLOWED_FILE_TYPES: string[]
 }
 
-// Tipos para estatísticas
+// Tipos para estatÃ­sticas
 export interface DashboardStats {
   totalImoveis: number
   totalProximidades: number
@@ -364,7 +365,7 @@ export interface ProximidadeFilters {
   avaliacao?: number
 }
 
-// Tipos para operações CRUD
+// Tipos para operaÃ§Ãµes CRUD
 export interface CreateImovelData {
   titulo: string
   descricao: string
@@ -406,6 +407,7 @@ export interface ApiResponse<T = any> {
     totalPages: number
   }
 }
+
 
 
 

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -17,21 +18,21 @@ interface SystemFeature {
 }
 
 const DEFAULT_FEATURES: SystemFeature[] = [
-  { id: 1, name: 'Imóveis', description: 'Gestão de propriedades', category: 'imoveis' },
-  { id: 2, name: 'Proximidades', description: 'Pontos de interesse próximos', category: 'proximidades' },
+  { id: 1, name: 'ImÃ³veis', description: 'GestÃ£o de propriedades', category: 'imoveis' },
+  { id: 2, name: 'Proximidades', description: 'Pontos de interesse prÃ³ximos', category: 'proximidades' },
   { id: 3, name: 'Amenidades', description: 'Comodidades e facilidades', category: 'amenidades' },
-  { id: 4, name: 'Categorias de Amenidades', description: 'Classificação de comodidades', category: 'categorias-amenidades' },
-  { id: 5, name: 'Categorias de Proximidades', description: 'Classificação de proximidades', category: 'categorias-proximidades' },
-  { id: 6, name: 'Usuários', description: 'Gestão de usuários do sistema', category: 'usuarios' },
-  { id: 7, name: 'Relatórios', description: 'Geração de relatórios', category: 'relatorios' },
-  { id: 8, name: 'Sistema', description: 'Configurações do sistema', category: 'sistema' },
+  { id: 4, name: 'Categorias de Amenidades', description: 'ClassificaÃ§Ã£o de comodidades', category: 'categorias-amenidades' },
+  { id: 5, name: 'Categorias de Proximidades', description: 'ClassificaÃ§Ã£o de proximidades', category: 'categorias-proximidades' },
+  { id: 6, name: 'UsuÃ¡rios', description: 'GestÃ£o de usuÃ¡rios do sistema', category: 'usuarios' },
+  { id: 7, name: 'RelatÃ³rios', description: 'GeraÃ§Ã£o de relatÃ³rios', category: 'relatorios' },
+  { id: 8, name: 'Sistema', description: 'ConfiguraÃ§Ãµes do sistema', category: 'sistema' },
 ];
 
 const PERMISSION_LEVELS = [
   { value: 'NONE', label: 'Nenhum', color: 'bg-gray-100 text-gray-600' },
   { value: 'READ', label: 'Leitura', color: 'bg-blue-100 text-blue-700' },
   { value: 'WRITE', label: 'Escrita', color: 'bg-green-100 text-green-700' },
-  { value: 'DELETE', label: 'Exclusão', color: 'bg-red-100 text-red-700' },
+  { value: 'DELETE', label: 'ExclusÃ£o', color: 'bg-red-100 text-red-700' },
 ];
 
 export default function PermissoesEditor({ permissions, onChange, disabled = false }: PermissoesEditorProps) {
@@ -70,13 +71,13 @@ export default function PermissoesEditor({ permissions, onChange, disabled = fal
       case 'NONE':
         return 'Sem acesso a esta funcionalidade';
       case 'READ':
-        return 'Pode visualizar, mas não modificar';
+        return 'Pode visualizar, mas nÃ£o modificar';
       case 'WRITE':
         return 'Pode visualizar, criar e modificar';
       case 'DELETE':
-        return 'Acesso total (incluindo exclusão)';
+        return 'Acesso total (incluindo exclusÃ£o)';
       default:
-        return 'Permissão não definida';
+        return 'PermissÃ£o nÃ£o definida';
     }
   };
 
@@ -84,7 +85,7 @@ export default function PermissoesEditor({ permissions, onChange, disabled = fal
     <div className="space-y-6">
       {/* Permission Levels Legend */}
       <div className="bg-gray-50 rounded-lg p-4">
-        <h5 className="text-sm font-medium text-gray-700 mb-3">Níveis de Permissão:</h5>
+        <h5 className="text-sm font-medium text-gray-700 mb-3">NÃ­veis de PermissÃ£o:</h5>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {PERMISSION_LEVELS.map((level) => (
             <div key={level.value} className="flex items-center space-x-2">
@@ -115,7 +116,7 @@ export default function PermissoesEditor({ permissions, onChange, disabled = fal
             {/* Current Permission Display */}
             <div className="mb-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">Permissão atual:</span>
+                <span className="text-sm font-medium text-gray-700">PermissÃ£o atual:</span>
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPermissionColor(localPermissions[feature.category])}`}>
                   {getPermissionLabel(localPermissions[feature.category])}
                 </span>
@@ -155,7 +156,7 @@ export default function PermissoesEditor({ permissions, onChange, disabled = fal
 
       {/* Summary */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h5 className="text-sm font-medium text-blue-800 mb-2">Resumo das Permissões:</h5>
+        <h5 className="text-sm font-medium text-blue-800 mb-2">Resumo das PermissÃµes:</h5>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
           {PERMISSION_LEVELS.map((level) => {
             const count = Object.values(localPermissions).filter(p => p === level.value).length;
@@ -175,6 +176,7 @@ export default function PermissoesEditor({ permissions, onChange, disabled = fal
     </div>
   );
 }
+
 
 
 

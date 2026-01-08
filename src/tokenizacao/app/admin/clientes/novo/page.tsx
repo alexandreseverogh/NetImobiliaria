@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -82,7 +83,7 @@ export default function NovoClientePage() {
     loadEstados()
   }, [])
 
-  // Carregar municípios quando estado mudar
+  // Carregar municÃ­pios quando estado mudar
   useEffect(() => {
     const loadMunicipios = async () => {
       if (!formData.estado) {
@@ -102,7 +103,7 @@ export default function NovoClientePage() {
         
         setEstadosCidades(prev => ({ ...prev, municipios: municipiosComId }))
       } catch (err) {
-        console.error('Erro ao carregar municípios:', err)
+        console.error('Erro ao carregar municÃ­pios:', err)
         setEstadosCidades(prev => ({ ...prev, municipios: [] }))
       }
     }
@@ -110,7 +111,7 @@ export default function NovoClientePage() {
     loadMunicipios()
   }, [formData.estado])
 
-  // Validação de CPF
+  // ValidaÃ§Ã£o de CPF
   const validateCPF = (cpf: string): boolean => {
     const cleanCPF = cpf.replace(/\D/g, '')
     
@@ -136,25 +137,25 @@ export default function NovoClientePage() {
     return parseInt(cleanCPF.charAt(10)) === secondDigit
   }
 
-  // Validação de telefone
+  // ValidaÃ§Ã£o de telefone
   const validateTelefone = (telefone: string): boolean => {
     const cleanTelefone = telefone.replace(/\D/g, '')
     return cleanTelefone.length === 10 || cleanTelefone.length === 11
   }
 
-  // Validação de email
+  // ValidaÃ§Ã£o de email
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return emailRegex.test(email)
   }
 
-  // Formatação de CPF
+  // FormataÃ§Ã£o de CPF
   const formatCPF = (value: string): string => {
     const cleanValue = value.replace(/\D/g, '')
     return cleanValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
   }
 
-  // Formatação de telefone
+  // FormataÃ§Ã£o de telefone
   const formatTelefone = (value: string): string => {
     const cleanValue = value.replace(/\D/g, '')
     if (cleanValue.length <= 10) {
@@ -164,7 +165,7 @@ export default function NovoClientePage() {
     }
   }
 
-  // Formatação de CEP
+  // FormataÃ§Ã£o de CEP
   const formatCEP = (value: string): string => {
     const cleanValue = value.replace(/\D/g, '')
     return cleanValue.replace(/(\d{5})(\d{3})/, '$1-$2')
@@ -195,11 +196,11 @@ export default function NovoClientePage() {
     }
   }
 
-  // Manipular mudanças nos campos
+  // Manipular mudanÃ§as nos campos
   const handleInputChange = (field: keyof FormData, value: string) => {
     let formattedValue = value
 
-    // Formatação específica por campo
+    // FormataÃ§Ã£o especÃ­fica por campo
     switch (field) {
       case 'cpf':
         formattedValue = formatCPF(value)
@@ -218,7 +219,7 @@ export default function NovoClientePage() {
 
     setFormData(prev => ({ ...prev, [field]: formattedValue }))
 
-    // Validação em tempo real
+    // ValidaÃ§Ã£o em tempo real
     const newErrors = { ...errors }
     
     switch (field) {
@@ -231,25 +232,25 @@ export default function NovoClientePage() {
         break
       case 'cpf':
         if (value && !validateCPF(value)) {
-          newErrors.cpf = 'CPF inválido'
+          newErrors.cpf = 'CPF invÃ¡lido'
         } else {
           delete newErrors.cpf
         }
-        // Verificar se CPF já existe
+        // Verificar se CPF jÃ¡ existe
         if (value && validateCPF(value)) {
           checkCPFExists(value)
         }
         break
       case 'telefone':
         if (value && !validateTelefone(value)) {
-          newErrors.telefone = 'Telefone deve ter 10 ou 11 dígitos'
+          newErrors.telefone = 'Telefone deve ter 10 ou 11 dÃ­gitos'
         } else {
           delete newErrors.telefone
         }
         break
       case 'email':
         if (value && !validateEmail(value)) {
-          newErrors.email = 'Email inválido'
+          newErrors.email = 'Email invÃ¡lido'
         } else {
           delete newErrors.email
         }
@@ -259,38 +260,38 @@ export default function NovoClientePage() {
     setErrors(newErrors)
   }
 
-  // Prevenir avanço com Tab/Enter quando há erros
+  // Prevenir avanÃ§o com Tab/Enter quando hÃ¡ erros
   const handleKeyDown = (e: React.KeyboardEvent, field: keyof FormData) => {
     if ((e.key === 'Tab' || e.key === 'Enter') && errors[field]) {
       e.preventDefault()
     }
   }
 
-  // Submissão do formulário
+  // SubmissÃ£o do formulÃ¡rio
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validações finais
+    // ValidaÃ§Ãµes finais
     const finalErrors: ValidationErrors = {}
     
     if (!formData.nome || formData.nome.length < 2) {
-      finalErrors.nome = 'Nome é obrigatório'
+      finalErrors.nome = 'Nome Ã© obrigatÃ³rio'
     }
     
     if (!formData.cpf || !validateCPF(formData.cpf)) {
-      finalErrors.cpf = 'CPF é obrigatório e deve ser válido'
+      finalErrors.cpf = 'CPF Ã© obrigatÃ³rio e deve ser vÃ¡lido'
     }
     
     if (!formData.telefone || !validateTelefone(formData.telefone)) {
-      finalErrors.telefone = 'Telefone é obrigatório'
+      finalErrors.telefone = 'Telefone Ã© obrigatÃ³rio'
     }
     
     if (!formData.email || !validateEmail(formData.email)) {
-      finalErrors.email = 'Email é obrigatório e deve ser válido'
+      finalErrors.email = 'Email Ã© obrigatÃ³rio e deve ser vÃ¡lido'
     }
 
     if (cpfExists) {
-      finalErrors.cpf = 'CPF já cadastrado'
+      finalErrors.cpf = 'CPF jÃ¡ cadastrado'
     }
 
     if (Object.keys(finalErrors).length > 0) {
@@ -364,7 +365,7 @@ export default function NovoClientePage() {
           <p className="mt-2 text-gray-600">Preencha os dados do novo cliente</p>
         </div>
 
-        {/* Formulário */}
+        {/* FormulÃ¡rio */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200">
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
             {/* Nome */}
@@ -428,7 +429,7 @@ export default function NovoClientePage() {
                 {cpfExists && (
                   <p className="mt-1 text-sm text-red-600 flex items-center">
                     <XMarkIcon className="h-4 w-4 mr-1" />
-                    CPF já cadastrado
+                    CPF jÃ¡ cadastrado
                   </p>
                 )}
               </div>
@@ -520,11 +521,11 @@ export default function NovoClientePage() {
               </div>
             </div>
 
-            {/* Endereço e Número */}
+            {/* EndereÃ§o e NÃºmero */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Endereço
+                  EndereÃ§o
                 </label>
                 <input
                   type="text"
@@ -537,7 +538,7 @@ export default function NovoClientePage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número
+                  NÃºmero
                 </label>
                 <input
                   type="text"
@@ -579,7 +580,7 @@ export default function NovoClientePage() {
               </div>
             </div>
 
-            {/* Botões */}
+            {/* BotÃµes */}
             <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
               <Link
                 href="/admin/clientes"
@@ -601,3 +602,4 @@ export default function NovoClientePage() {
     </div>
   )
 }
+

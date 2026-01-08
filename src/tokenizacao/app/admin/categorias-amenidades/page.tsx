@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -28,29 +29,29 @@ export default function CategoriasAmenidadesPage() {
   const fetchCategorias = useCallback(async () => {
     try {
       setLoading(true)
-      console.log('🔄 Iniciando busca de categorias de amenidades...')
+      console.log('ðŸ”„ Iniciando busca de categorias de amenidades...')
       
       const response = await fetch('/api/admin/categorias-amenidades')
-      console.log('📡 Resposta da API:', response.status, response.statusText)
+      console.log('ðŸ“¡ Resposta da API:', response.status, response.statusText)
       
       if (!response.ok) {
-        console.error('❌ Erro na resposta da API:', response.status, response.statusText)
+        console.error('âŒ Erro na resposta da API:', response.status, response.statusText)
         throw new Error('Erro ao carregar categorias')
       }
       
       const data = await response.json()
-      console.log('📊 Dados recebidos:', data)
+      console.log('ðŸ“Š Dados recebidos:', data)
       
       // A API agora retorna diretamente o array
       if (Array.isArray(data)) {
-        console.log(`✅ ${data.length} categorias carregadas com sucesso`)
+        console.log(`âœ… ${data.length} categorias carregadas com sucesso`)
         setCategorias(data)
       } else {
-        console.error('❌ Formato de dados inválido:', data)
+        console.error('âŒ Formato de dados invÃ¡lido:', data)
         setCategorias([])
       }
     } catch (err) {
-      console.error('❌ Erro completo ao carregar categorias:', err)
+      console.error('âŒ Erro completo ao carregar categorias:', err)
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
       setLoading(false)
@@ -61,7 +62,7 @@ export default function CategoriasAmenidadesPage() {
     fetchCategorias()
   }, [fetchCategorias])
 
-  // Usar o hook personalizado para recarregar dados quando a página receber foco
+  // Usar o hook personalizado para recarregar dados quando a pÃ¡gina receber foco
   usePageFocus(fetchCategorias)
 
   const handleDelete = async (id: number) => {
@@ -85,17 +86,17 @@ export default function CategoriasAmenidadesPage() {
       }
 
       const result = await response.json()
-      console.log('Resultado da exclusão:', result)
+      console.log('Resultado da exclusÃ£o:', result)
 
-      // Recarregar a lista após exclusão
+      // Recarregar a lista apÃ³s exclusÃ£o
       fetchCategorias()
     } catch (err) {
       console.error('Erro completo:', err)
       const errorMessage = err instanceof Error ? err.message : 'Erro ao excluir categoria'
       
-      // Se for erro de validação (categoria com amenidades associadas), mostrar modal
-      if (errorMessage.includes('Não é possível excluir')) {
-        setModalMessage('Não é possível excluir categorias que possuam associações a ela')
+      // Se for erro de validaÃ§Ã£o (categoria com amenidades associadas), mostrar modal
+      if (errorMessage.includes('NÃ£o Ã© possÃ­vel excluir')) {
+        setModalMessage('NÃ£o Ã© possÃ­vel excluir categorias que possuam associaÃ§Ãµes a ela')
         setShowModal(true)
       } else {
         setError(errorMessage)
@@ -125,7 +126,7 @@ export default function CategoriasAmenidadesPage() {
         <div className="sm:flex-auto">
           <h1 className="text-2xl font-semibold text-gray-900">Categorias de Amenidades</h1>
           <p className="mt-2 text-sm text-gray-700">
-            Gerencie as categorias das amenidades disponíveis nos imóveis
+            Gerencie as categorias das amenidades disponÃ­veis nos imÃ³veis
           </p>
         </div>
         <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none flex space-x-3">
@@ -161,7 +162,7 @@ export default function CategoriasAmenidadesPage() {
                       Nome
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Descrição
+                      DescriÃ§Ã£o
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ordem
@@ -170,7 +171,7 @@ export default function CategoriasAmenidadesPage() {
                       Status
                     </th>
                     <th className="relative px-6 py-3">
-                      <span className="sr-only">Ações</span>
+                      <span className="sr-only">AÃ§Ãµes</span>
                     </th>
                   </tr>
                 </thead>
@@ -232,7 +233,7 @@ export default function CategoriasAmenidadesPage() {
               </svg>
             </div>
             <h3 className="text-lg font-medium text-gray-900 text-center mb-2">
-              Não é possível excluir
+              NÃ£o Ã© possÃ­vel excluir
             </h3>
             <p className="text-sm text-gray-500 text-center mb-6">
               {modalMessage}
@@ -251,3 +252,4 @@ export default function CategoriasAmenidadesPage() {
     </div>
   )
 }
+

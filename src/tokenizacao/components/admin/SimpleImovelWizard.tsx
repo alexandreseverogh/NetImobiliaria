@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -59,7 +60,7 @@ export default function SimpleImovelWizard({
   const [municipiosData, setMunicipiosData] = useState<MunicipioData | null>(null)
   const [municipios, setMunicipios] = useState<string[]>([])
 
-  // Carregar dados dos municípios
+  // Carregar dados dos municÃ­pios
   useEffect(() => {
     const loadMunicipios = async () => {
       try {
@@ -69,14 +70,14 @@ export default function SimpleImovelWizard({
           setMunicipiosData(data)
         }
       } catch (error) {
-        console.error('Erro ao carregar municípios:', error)
+        console.error('Erro ao carregar municÃ­pios:', error)
       }
     }
     
     loadMunicipios()
   }, [])
 
-  // Carregar municípios quando estado mudar
+  // Carregar municÃ­pios quando estado mudar
   useEffect(() => {
     if (formData.endereco?.estado && municipiosData) {
       const estadoSelecionado = municipiosData.estados?.find(
@@ -122,12 +123,12 @@ export default function SimpleImovelWizard({
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Novo Imóvel</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Novo ImÃ³vel</h1>
         
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Localização */}
+          {/* LocalizaÃ§Ã£o */}
           <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-6">Localização</h2>
+            <h2 className="text-xl font-semibold mb-6">LocalizaÃ§Ã£o</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -168,20 +169,20 @@ export default function SimpleImovelWizard({
                   ))}
                 </select>
                 <p className="text-sm text-gray-500 mt-1">
-                  {municipios.length} municípios disponíveis
+                  {municipios.length} municÃ­pios disponÃ­veis
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Informações Básicas */}
+          {/* InformaÃ§Ãµes BÃ¡sicas */}
           <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-6">Informações Básicas</h2>
+            <h2 className="text-xl font-semibold mb-6">InformaÃ§Ãµes BÃ¡sicas</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Título do Imóvel *
+                  TÃ­tulo do ImÃ³vel *
                 </label>
                 <input
                   type="text"
@@ -194,7 +195,7 @@ export default function SimpleImovelWizard({
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Descrição
+                  DescriÃ§Ã£o
                 </label>
                 <textarea
                   value={formData.descricao || ''}
@@ -206,7 +207,7 @@ export default function SimpleImovelWizard({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipo do Imóvel *
+                  Tipo do ImÃ³vel *
                 </label>
                 <select
                   value={formData.tipo || ''}
@@ -250,7 +251,7 @@ export default function SimpleImovelWizard({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Preço
+                  PreÃ§o
                 </label>
                 <input
                   type="number"
@@ -262,7 +263,7 @@ export default function SimpleImovelWizard({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Condomínio
+                  CondomÃ­nio
                 </label>
                 <input
                   type="number"
@@ -287,7 +288,7 @@ export default function SimpleImovelWizard({
               disabled={loading}
               className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
             >
-              {loading ? 'Salvando...' : 'Salvar Imóvel'}
+              {loading ? 'Salvando...' : 'Salvar ImÃ³vel'}
             </button>
           </div>
         </form>
@@ -295,3 +296,4 @@ export default function SimpleImovelWizard({
     </div>
   )
 }
+

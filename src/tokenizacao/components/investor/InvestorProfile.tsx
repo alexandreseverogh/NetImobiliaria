@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -24,14 +25,14 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
     name: investorData.name,
     email: investorData.email,
     phone: '(11) 99999-9999',
-    address: 'São Paulo, SP',
+    address: 'SÃ£o Paulo, SP',
     riskProfile: investorData.riskProfile,
-    investmentGoals: 'Diversificação de portfólio e renda passiva',
-    experience: 'Intermediário'
+    investmentGoals: 'DiversificaÃ§Ã£o de portfÃ³lio e renda passiva',
+    experience: 'IntermediÃ¡rio'
   })
 
   const handleSave = () => {
-    // Aqui você salvaria os dados
+    // Aqui vocÃª salvaria os dados
     setIsEditing(false)
   }
 
@@ -40,10 +41,10 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
       name: investorData.name,
       email: investorData.email,
       phone: '(11) 99999-9999',
-      address: 'São Paulo, SP',
+      address: 'SÃ£o Paulo, SP',
       riskProfile: investorData.riskProfile,
-      investmentGoals: 'Diversificação de portfólio e renda passiva',
-      experience: 'Intermediário'
+      investmentGoals: 'DiversificaÃ§Ã£o de portfÃ³lio e renda passiva',
+      experience: 'IntermediÃ¡rio'
     })
     setIsEditing(false)
   }
@@ -98,9 +99,9 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
         </div>
       </div>
 
-      {/* Informações Pessoais */}
+      {/* InformaÃ§Ãµes Pessoais */}
       <div className="bg-white rounded-xl p-6 border border-gray-100">
-        <h3 className="text-xl font-bold text-gray-900 mb-6">Informações Pessoais</h3>
+        <h3 className="text-xl font-bold text-gray-900 mb-6">InformaÃ§Ãµes Pessoais</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -146,7 +147,7 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Endereço</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">EndereÃ§o</label>
             {isEditing ? (
               <input
                 type="text"
@@ -161,7 +162,7 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
         </div>
       </div>
 
-      {/* Informações de Investimento */}
+      {/* InformaÃ§Ãµes de Investimento */}
       <div className="bg-white rounded-xl p-6 border border-gray-100">
         <h3 className="text-xl font-bold text-gray-900 mb-6">Perfil de Investidor</h3>
         
@@ -184,7 +185,7 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Experiência</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">ExperiÃªncia</label>
             {isEditing ? (
               <select
                 value={formData.experience}
@@ -192,8 +193,8 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="iniciante">Iniciante</option>
-                <option value="intermediario">Intermediário</option>
-                <option value="avancado">Avançado</option>
+                <option value="intermediario">IntermediÃ¡rio</option>
+                <option value="avancado">AvanÃ§ado</option>
               </select>
             ) : (
               <p className="text-gray-900 capitalize">{formData.experience}</p>
@@ -218,14 +219,14 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
 
       {/* Status KYC */}
       <div className="bg-white rounded-xl p-6 border border-gray-100">
-        <h3 className="text-xl font-bold text-gray-900 mb-6">Status de Verificação</h3>
+        <h3 className="text-xl font-bold text-gray-900 mb-6">Status de VerificaÃ§Ã£o</h3>
         
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
             <div className="flex items-center space-x-3">
               <Shield className="h-6 w-6 text-green-600" />
               <div>
-                <p className="font-semibold text-green-800">Verificação de Identidade</p>
+                <p className="font-semibold text-green-800">VerificaÃ§Ã£o de Identidade</p>
                 <p className="text-sm text-green-600">Documentos aprovados e verificados</p>
               </div>
             </div>
@@ -238,8 +239,8 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
             <div className="flex items-center space-x-3">
               <Shield className="h-6 w-6 text-green-600" />
               <div>
-                <p className="font-semibold text-green-800">Verificação de Endereço</p>
-                <p className="text-sm text-green-600">Comprovante de residência validado</p>
+                <p className="font-semibold text-green-800">VerificaÃ§Ã£o de EndereÃ§o</p>
+                <p className="text-sm text-green-600">Comprovante de residÃªncia validado</p>
               </div>
             </div>
             <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
@@ -251,7 +252,7 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
             <div className="flex items-center space-x-3">
               <Shield className="h-6 w-6 text-green-600" />
               <div>
-                <p className="font-semibold text-green-800">Verificação de Renda</p>
+                <p className="font-semibold text-green-800">VerificaÃ§Ã£o de Renda</p>
                 <p className="text-sm text-green-600">Comprovantes de renda verificados</p>
               </div>
             </div>
@@ -262,9 +263,9 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
         </div>
       </div>
 
-      {/* Estatísticas do Investidor */}
+      {/* EstatÃ­sticas do Investidor */}
       <div className="bg-white rounded-xl p-6 border border-gray-100">
-        <h3 className="text-xl font-bold text-gray-900 mb-6">Suas Estatísticas</h3>
+        <h3 className="text-xl font-bold text-gray-900 mb-6">Suas EstatÃ­sticas</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="text-center p-4 bg-blue-50 rounded-lg">
@@ -276,7 +277,7 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
           <div className="text-center p-4 bg-green-50 rounded-lg">
             <p className="text-2xl font-bold text-green-600">+{investorData.returnPercentage}%</p>
             <p className="text-sm text-gray-600">Retorno Total</p>
-            <p className="text-xs text-gray-500">Desde o início</p>
+            <p className="text-xs text-gray-500">Desde o inÃ­cio</p>
           </div>
           
           <div className="text-center p-4 bg-purple-50 rounded-lg">
@@ -295,4 +296,5 @@ export default function InvestorProfile({ investorData }: InvestorProfileProps) 
     </div>
   )
 }
+
 

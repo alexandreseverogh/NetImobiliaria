@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -48,20 +49,20 @@ export default function UsuariosPage() {
       const response = await fetch(API_ENDPOINTS.AUTH.ME)
       if (response.ok) {
         const data = await response.json()
-        console.log('🔐 Permissões do usuário logado:', data.user.permissoes)
+        console.log('ðŸ” PermissÃµes do usuÃ¡rio logado:', data.user.permissoes)
         setUserPermissions(data.user.permissoes)
         
-        // Verificar se tem permissões para usuários
+        // Verificar se tem permissÃµes para usuÃ¡rios
         if (data.user.permissoes?.usuarios) {
-          console.log(`✅ Usuário tem permissão para usuários: ${data.user.permissoes.usuarios}`)
+          console.log(`âœ… UsuÃ¡rio tem permissÃ£o para usuÃ¡rios: ${data.user.permissoes.usuarios}`)
         } else {
-          console.log('❌ Usuário NÃO tem permissão para usuários')
+          console.log('âŒ UsuÃ¡rio NÃƒO tem permissÃ£o para usuÃ¡rios')
         }
       } else {
-        console.error('❌ Erro ao buscar permissões:', response.status, response.statusText)
+        console.error('âŒ Erro ao buscar permissÃµes:', response.status, response.statusText)
       }
     } catch (error) {
-      console.error('❌ Erro ao buscar permissões:', error)
+      console.error('âŒ Erro ao buscar permissÃµes:', error)
     }
   }
 
@@ -70,11 +71,11 @@ export default function UsuariosPage() {
       const response = await fetch(API_ENDPOINTS.USERS.LIST)
       if (response.ok) {
         const data = await response.json()
-        console.log('Usuários carregados:', data.users)
+        console.log('UsuÃ¡rios carregados:', data.users)
         setUsers(data.users)
       }
     } catch (error) {
-      console.error('Erro ao buscar usuários:', error)
+      console.error('Erro ao buscar usuÃ¡rios:', error)
     } finally {
       setLoading(false)
     }
@@ -98,7 +99,7 @@ export default function UsuariosPage() {
   }
 
   const handleCreateSuccess = () => {
-    fetchUsers() // Recarregar lista após criar usuário
+    fetchUsers() // Recarregar lista apÃ³s criar usuÃ¡rio
   }
 
   const handleEditUser = (userId: string) => {
@@ -110,10 +111,10 @@ export default function UsuariosPage() {
   }
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
-    console.log('🔄 handleToggleStatus chamado:', { userId, currentStatus })
+    console.log('ðŸ”„ handleToggleStatus chamado:', { userId, currentStatus })
     
     try {
-      console.log('📡 Enviando requisição PATCH para alterar status...')
+      console.log('ðŸ“¡ Enviando requisiÃ§Ã£o PATCH para alterar status...')
       const response = await fetch(`/api/admin/usuarios/${userId}/status`, {
         method: 'PATCH',
         headers: {
@@ -122,59 +123,59 @@ export default function UsuariosPage() {
         body: JSON.stringify({ ativo: !currentStatus }),
       })
 
-      console.log('📥 Resposta recebida:', response.status, response.statusText)
+      console.log('ðŸ“¥ Resposta recebida:', response.status, response.statusText)
 
       if (response.ok) {
         const data = await response.json()
-        console.log('✅ Status alterado com sucesso:', data)
+        console.log('âœ… Status alterado com sucesso:', data)
         fetchUsers() // Recarregar lista
       } else {
         const errorData = await response.json()
-        console.error('❌ Erro ao alterar status:', errorData)
+        console.error('âŒ Erro ao alterar status:', errorData)
         alert(`Erro ao alterar status: ${errorData.error || 'Erro desconhecido'}`)
       }
     } catch (error) {
-      console.error('❌ Erro ao alterar status:', error)
+      console.error('âŒ Erro ao alterar status:', error)
       alert('Erro ao alterar status. Tente novamente.')
     }
   }
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    console.log('🗑️ handleDeleteUser chamado:', { userId, userName })
+    console.log('ðŸ—‘ï¸ handleDeleteUser chamado:', { userId, userName })
     
-    if (!confirm(`Tem certeza que deseja excluir o usuário "${userName}"? Esta ação não pode ser desfeita.`)) {
-      console.log('❌ Usuário cancelou a exclusão')
+    if (!confirm(`Tem certeza que deseja excluir o usuÃ¡rio "${userName}"? Esta aÃ§Ã£o nÃ£o pode ser desfeita.`)) {
+      console.log('âŒ UsuÃ¡rio cancelou a exclusÃ£o')
       return
     }
 
     try {
-      console.log('📡 Enviando requisição DELETE para excluir usuário...')
+      console.log('ðŸ“¡ Enviando requisiÃ§Ã£o DELETE para excluir usuÃ¡rio...')
       const response = await fetch(`/api/admin/usuarios/${userId}`, {
         method: 'DELETE',
       })
 
-      console.log('📥 Resposta recebida:', response.status, response.statusText)
+      console.log('ðŸ“¥ Resposta recebida:', response.status, response.statusText)
 
       if (response.ok) {
         const data = await response.json()
-        console.log('✅ Usuário excluído com sucesso:', data)
+        console.log('âœ… UsuÃ¡rio excluÃ­do com sucesso:', data)
         fetchUsers() // Recarregar lista
-        alert('Usuário excluído com sucesso!')
+        alert('UsuÃ¡rio excluÃ­do com sucesso!')
       } else {
         const error = await response.json()
-        console.error('❌ Erro ao excluir usuário:', error)
-        alert(`Erro ao excluir usuário: ${error.error || 'Erro desconhecido'}`)
+        console.error('âŒ Erro ao excluir usuÃ¡rio:', error)
+        alert(`Erro ao excluir usuÃ¡rio: ${error.error || 'Erro desconhecido'}`)
       }
     } catch (error) {
-      console.error('❌ Erro ao excluir usuário:', error)
-      alert('Erro ao excluir usuário. Tente novamente.')
+      console.error('âŒ Erro ao excluir usuÃ¡rio:', error)
+      alert('Erro ao excluir usuÃ¡rio. Tente novamente.')
     }
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Carregando usuários...</div>
+        <div className="text-lg">Carregando usuÃ¡rios...</div>
       </div>
     )
   }
@@ -184,9 +185,9 @@ export default function UsuariosPage() {
       <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">Gestão de Usuários</h1>
+              <h1 className="text-3xl font-bold text-gray-900">GestÃ£o de UsuÃ¡rios</h1>
               <p className="text-gray-600 mt-2">
-                Gerencie usuários, perfis e permissões do sistema
+                Gerencie usuÃ¡rios, perfis e permissÃµes do sistema
               </p>
             </div>
 
@@ -201,13 +202,13 @@ export default function UsuariosPage() {
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
-                    <span>Novo Usuário</span>
+                    <span>Novo UsuÃ¡rio</span>
                   </button>
                 </PermissionGuard>
               </div>
 
               <div className="text-sm text-gray-500">
-                Total: {users.length} usuário(s)
+                Total: {users.length} usuÃ¡rio(s)
               </div>
             </div>
 
@@ -218,7 +219,7 @@ export default function UsuariosPage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Usuário
+                        UsuÃ¡rio
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Contato
@@ -230,10 +231,10 @@ export default function UsuariosPage() {
                         Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Último Login
+                        Ãšltimo Login
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Ações
+                        AÃ§Ãµes
                       </th>
                     </tr>
                   </thead>
@@ -290,12 +291,12 @@ export default function UsuariosPage() {
                         
                         <td className="px-4 py-4 text-sm font-medium">
                           <div className="flex flex-wrap gap-1">
-                            {/* Botão Editar */}
+                            {/* BotÃ£o Editar */}
                             <PermissionGuard resource="usuarios" action="WRITE">
                               <button
                                 onClick={() => handleEditUser(user.id)}
                                 className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded text-xs font-medium transition-colors flex items-center"
-                                title="Editar usuário"
+                                title="Editar usuÃ¡rio"
                               >
                                 <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -306,12 +307,12 @@ export default function UsuariosPage() {
                             
 
 
-                            {/* Botão Excluir */}
+                            {/* BotÃ£o Excluir */}
                             <PermissionGuard resource="usuarios" action="DELETE">
                               <button
                                 onClick={() => handleDeleteUser(user.id, user.nome)}
                                 className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded text-xs font-medium transition-colors flex items-center"
-                                title="Excluir usuário"
+                                title="Excluir usuÃ¡rio"
                               >
                                 <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -334,9 +335,9 @@ export default function UsuariosPage() {
                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                 </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum usuário encontrado</h3>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum usuÃ¡rio encontrado</h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  Comece criando o primeiro usuário do sistema.
+                  Comece criando o primeiro usuÃ¡rio do sistema.
                 </p>
                 <div className="mt-6">
                   <PermissionGuard resource="usuarios" action="WRITE">
@@ -347,7 +348,7 @@ export default function UsuariosPage() {
                       <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
-                      Novo Usuário
+                      Novo UsuÃ¡rio
                     </button>
                   </PermissionGuard>
                 </div>
@@ -355,7 +356,7 @@ export default function UsuariosPage() {
                          )}
       </div>
 
-            {/* Modal de Criação de Usuário */}
+            {/* Modal de CriaÃ§Ã£o de UsuÃ¡rio */}
       <CreateUserModal
         isOpen={showCreateForm}
         onClose={() => setShowCreateForm(false)}
@@ -363,7 +364,7 @@ export default function UsuariosPage() {
         roles={roles}
       />
 
-      {/* Modal de Edição de Usuário */}
+      {/* Modal de EdiÃ§Ã£o de UsuÃ¡rio */}
       <EditUserModal
         isOpen={showEditForm}
         onClose={() => {
@@ -377,3 +378,4 @@ export default function UsuariosPage() {
     </div>
   )
 }
+

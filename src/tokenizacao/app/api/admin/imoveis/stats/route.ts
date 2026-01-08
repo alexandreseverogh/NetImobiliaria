@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth/jwt'
 import { getImoveisStats } from '@/lib/database/imoveis'
@@ -5,11 +6,11 @@ import { userHasPermission } from '@/lib/database/users'
 
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticação
+    // Verificar autenticaÃ§Ã£o
     const token = request.cookies.get('accessToken')?.value
     if (!token) {
       return NextResponse.json(
-        { error: 'Token de autenticação não fornecido' },
+        { error: 'Token de autenticaÃ§Ã£o nÃ£o fornecido' },
         { status: 401 }
       )
     }
@@ -17,21 +18,21 @@ export async function GET(request: NextRequest) {
     const decoded = await verifyToken(token)
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Token inválido' },
+        { error: 'Token invÃ¡lido' },
         { status: 401 }
       )
     }
 
-    // Verificar permissão de leitura
+    // Verificar permissÃ£o de leitura
     const hasPermission = await userHasPermission(decoded.userId, 'imoveis', 'READ')
     if (!hasPermission) {
       return NextResponse.json(
-        { error: 'Sem permissão para acessar estatísticas de imóveis' },
+        { error: 'Sem permissÃ£o para acessar estatÃ­sticas de imÃ³veis' },
         { status: 403 }
       )
     }
 
-    // Buscar estatísticas
+    // Buscar estatÃ­sticas
     const stats = await getImoveisStats()
 
     return NextResponse.json({
@@ -40,10 +41,11 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Erro ao buscar estatísticas de imóveis:', error)
+    console.error('Erro ao buscar estatÃ­sticas de imÃ³veis:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }
 }
+

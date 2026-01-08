@@ -1,3 +1,5 @@
+'use client'
+
 import HeroSection from '@/components/HeroSection'
 import PropertyCard from '@/components/PropertyCard'
 import SearchForm from '@/components/SearchForm'
@@ -42,7 +44,7 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       <HeroSection />
-      
+
       <section className="py-16 px-4 max-w-7xl mx-auto">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -52,14 +54,14 @@ export default function Home() {
             Descubra as melhores oportunidades do mercado imobiliário
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {featuredProperties.map((property) => (
             <PropertyCard key={property.id} property={property} />
           ))}
         </div>
       </section>
-      
+
       <section className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
@@ -70,7 +72,12 @@ export default function Home() {
               Use nossa busca avançada para encontrar exatamente o que procura
             </p>
           </div>
-          <SearchForm />
+          <SearchForm
+            onSearch={() => { }}
+            onClear={() => { }}
+            isSearching={false}
+            hasActiveFilters={false}
+          />
         </div>
       </section>
     </div>

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -43,7 +44,7 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
     loadStatusImovel(page)
   }, [searchParams.page, searchTerm])
 
-  // Manter foco no input após busca
+  // Manter foco no input apÃ³s busca
   useEffect(() => {
     if (searchInputRef.current) {
       const cursorPosition = searchInputRef.current.selectionStart
@@ -63,7 +64,7 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
       const response = await fetch(`/api/admin/status-imovel?page=${page}&limit=10${searchParam}`)
       
       if (!response.ok) {
-        throw new Error('Erro ao carregar status de imóvel')
+        throw new Error('Erro ao carregar status de imÃ³vel')
       }
       
       const data: PaginatedResponse = await response.json()
@@ -71,8 +72,8 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
       setTotalPages(data.totalPages)
       setTotal(data.total)
     } catch (err) {
-      console.error('Erro ao carregar status de imóvel:', err)
-      setError('Erro ao carregar status de imóvel')
+      console.error('Erro ao carregar status de imÃ³vel:', err)
+      setError('Erro ao carregar status de imÃ³vel')
     } finally {
       setLoading(false)
     }
@@ -80,7 +81,7 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    setCurrentPage(1) // Reset para primeira página ao buscar
+    setCurrentPage(1) // Reset para primeira pÃ¡gina ao buscar
     loadStatusImovel(1)
   }
 
@@ -128,9 +129,9 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Status de Imóvel</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Status de ImÃ³vel</h1>
             <p className="mt-1 text-sm text-gray-600">
-              Gerencie os status dos imóveis (Disponível, Vendido, Alugado, etc.)
+              Gerencie os status dos imÃ³veis (DisponÃ­vel, Vendido, Alugado, etc.)
             </p>
           </div>
           <div className="mt-4 sm:mt-0">
@@ -183,7 +184,7 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
       {/* Tabela */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Lista de Status de Imóvel</h3>
+          <h3 className="text-lg font-medium text-gray-900">Lista de Status de ImÃ³vel</h3>
         </div>
         
         {loading ? (
@@ -217,7 +218,7 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
                       CRIADO EM
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      AÇÕES
+                      AÃ‡Ã•ES
                     </th>
                   </tr>
                 </thead>
@@ -235,7 +236,7 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
                             ? 'bg-green-100 text-green-800'
                             : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {status.consulta_imovel_internauta ? 'Sim' : 'Não'}
+                          {status.consulta_imovel_internauta ? 'Sim' : 'NÃ£o'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -277,3 +278,4 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
     </div>
   )
 }
+

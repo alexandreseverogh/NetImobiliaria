@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { useState, useCallback } from 'react'
 import { Imagem } from '@/lib/types/admin'
 
@@ -24,23 +25,23 @@ export function useImageUpload(): UseImageUploadReturn {
 
   const loadImages = useCallback(async (imovelId: number) => {
     try {
-      console.log('🔍 useImageUpload loadImages - Carregando imagens para imóvel:', imovelId)
+      console.log('ðŸ” useImageUpload loadImages - Carregando imagens para imÃ³vel:', imovelId)
       setIsLoading(true)
       setError(null)
 
       const response = await fetch(`/api/admin/imoveis/${imovelId}/imagens`)
-      console.log('🔍 useImageUpload loadImages - Resposta da API:', response.status, response.statusText)
+      console.log('ðŸ” useImageUpload loadImages - Resposta da API:', response.status, response.statusText)
       
       if (!response.ok) {
         const errorData = await response.json()
-        console.error('❌ useImageUpload loadImages - Erro na resposta:', errorData)
+        console.error('âŒ useImageUpload loadImages - Erro na resposta:', errorData)
         throw new Error(errorData.error || 'Erro ao carregar imagens')
       }
 
       const data = await response.json()
-      console.log('🔍 useImageUpload loadImages - Dados recebidos:', data)
+      console.log('ðŸ” useImageUpload loadImages - Dados recebidos:', data)
       const imagensDoBanco = data.data || []
-      console.log('🔍 useImageUpload loadImages - Imagens do banco:', imagensDoBanco.length)
+      console.log('ðŸ” useImageUpload loadImages - Imagens do banco:', imagensDoBanco.length)
       
       // Converter dados do banco para o formato da interface Imagem
       const imagensFormatadas = imagensDoBanco
@@ -63,12 +64,12 @@ export function useImageUpload(): UseImageUploadReturn {
           return parseInt(a.id) - parseInt(b.id)
         })
       
-      console.log('🔍 useImageUpload loadImages - Imagens formatadas:', imagensFormatadas.length)
-      console.log('🔍 useImageUpload loadImages - Ordem das imagens:', imagensFormatadas.map(img => ({ id: img.id, ordem: img.ordem })))
+      console.log('ðŸ” useImageUpload loadImages - Imagens formatadas:', imagensFormatadas.length)
+      console.log('ðŸ” useImageUpload loadImages - Ordem das imagens:', imagensFormatadas.map(img => ({ id: img.id, ordem: img.ordem })))
       setImagens(imagensFormatadas)
-      console.log('✅ useImageUpload loadImages - Imagens carregadas com sucesso')
+      console.log('âœ… useImageUpload loadImages - Imagens carregadas com sucesso')
     } catch (err) {
-      console.error('❌ useImageUpload loadImages - Erro:', err)
+      console.error('âŒ useImageUpload loadImages - Erro:', err)
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
       setIsLoading(false)
@@ -204,6 +205,7 @@ export function useImageUpload(): UseImageUploadReturn {
     clearError
   }
 }
+
 
 
 

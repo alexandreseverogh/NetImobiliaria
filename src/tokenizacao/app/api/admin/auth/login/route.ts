@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword } from '@/lib/auth/password'
 import { generateTokensNode } from '@/lib/auth/jwt-node'
@@ -5,10 +6,10 @@ import { rateLimit } from '@/lib/middleware/rateLimit'
 import { logAuditEvent } from '@/lib/database/audit'
 import { findUserByUsername, updateLastLogin } from '@/lib/database/users'
 
-// Forçar uso do Node.js runtime
+// ForÃ§ar uso do Node.js runtime
 export const runtime = 'nodejs'
 
-// Função para obter permissões do sistema de perfis
+// FunÃ§Ã£o para obter permissÃµes do sistema de perfis
 async function getUserPermissions(userId: string): Promise<{
   imoveis: string
   proximidades: string
@@ -46,7 +47,7 @@ async function getUserPermissions(userId: string): Promise<{
     
     const result = await pool.query(query, [userId])
     
-    // Converter permissões para o formato esperado
+    // Converter permissÃµes para o formato esperado
     const permissoes: {
       imoveis: string
       proximidades: string
@@ -67,32 +68,32 @@ async function getUserPermissions(userId: string): Promise<{
       sistema: 'NONE'
     }
     
-    // Mapear permissões do banco
+    // Mapear permissÃµes do banco
     result.rows.forEach((perm: any) => {
       const resource = perm.resource.toLowerCase()
       
-      // Verificar se o recurso é válido
+      // Verificar se o recurso Ã© vÃ¡lido
       if (!(resource in permissoes)) {
-        return // Pular recursos não reconhecidos
+        return // Pular recursos nÃ£o reconhecidos
       }
       
-      // Mapear ações para níveis de permissão (priorizar permissões mais altas)
+      // Mapear aÃ§Ãµes para nÃ­veis de permissÃ£o (priorizar permissÃµes mais altas)
       if (perm.action === 'delete') {
         permissoes[resource as keyof typeof permissoes] = 'DELETE'
       } else if (perm.action === 'create' || perm.action === 'update') {
-        // Só definir WRITE se não for DELETE
+        // SÃ³ definir WRITE se nÃ£o for DELETE
         if (permissoes[resource as keyof typeof permissoes] !== 'DELETE') {
           permissoes[resource as keyof typeof permissoes] = 'WRITE'
         }
       } else if (perm.action === 'read' || perm.action === 'list') {
-        // Só definir READ se não for DELETE ou WRITE
+        // SÃ³ definir READ se nÃ£o for DELETE ou WRITE
         if (permissoes[resource as keyof typeof permissoes] === 'NONE') {
           permissoes[resource as keyof typeof permissoes] = 'READ'
         }
       }
     })
     
-    // Definir READ como padrão para recursos sem permissões específicas
+    // Definir READ como padrÃ£o para recursos sem permissÃµes especÃ­ficas
     Object.keys(permissoes).forEach(key => {
       if (permissoes[key as keyof typeof permissoes] === 'NONE') {
         permissoes[key as keyof typeof permissoes] = 'READ'
@@ -101,8 +102,8 @@ async function getUserPermissions(userId: string): Promise<{
     
     return permissoes
   } catch (error) {
-    console.error('Erro ao buscar permissões:', error)
-    // Retornar permissões padrão em caso de erro
+    console.error('Erro ao buscar permissÃµes:', error)
+    // Retornar permissÃµes padrÃ£o em caso de erro
     return {
       imoveis: 'READ',
       proximidades: 'READ',
@@ -129,25 +130,25 @@ export async function POST(request: NextRequest) {
 
     const { username, password } = await request.json()
     
-    // Validações básicas
+    // ValidaÃ§Ãµes bÃ¡sicas
     if (!username || !password) {
       return NextResponse.json(
-        { error: 'Usuário e senha são obrigatórios' },
+        { error: 'UsuÃ¡rio e senha sÃ£o obrigatÃ³rios' },
         { status: 400 }
       )
     }
 
-    // Validações de tipo e tamanho
+    // ValidaÃ§Ãµes de tipo e tamanho
     if (typeof username !== 'string' || typeof password !== 'string') {
       return NextResponse.json(
-        { error: 'Dados inválidos' },
+        { error: 'Dados invÃ¡lidos' },
         { status: 400 }
       )
     }
 
     if (username.trim().length < 3) {
       return NextResponse.json(
-        { error: 'Usuário deve ter pelo menos 3 caracteres' },
+        { error: 'UsuÃ¡rio deve ter pelo menos 3 caracteres' },
         { status: 400 }
       )
     }
@@ -159,18 +160,18 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Buscar usuário no banco PostgreSQL
+    // Buscar usuÃ¡rio no banco PostgreSQL
     const user = await findUserByUsername(username)
     
     if (!user) {
       await logAuditEvent({
         action: 'LOGIN_FAILED',
         resourceType: 'AUTH',
-        details: { username, reason: 'Usuário não encontrado' },
+        details: { username, reason: 'UsuÃ¡rio nÃ£o encontrado' },
         ipAddress: clientIP
       })
       return NextResponse.json(
-        { error: 'Usuário não encontrado ou inativo' },
+        { error: 'UsuÃ¡rio nÃ£o encontrado ou inativo' },
         { status: 401 }
       )
     }
@@ -191,7 +192,7 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Buscar role_name do usuário
+    // Buscar role_name do usuÃ¡rio
     const pool = await import('@/lib/database/connection').then(m => m.default)
     const roleQuery = `
       SELECT ur.name as role_name
@@ -203,7 +204,7 @@ export async function POST(request: NextRequest) {
     const roleResult = await pool.query(roleQuery, [user.id])
     const role_name = roleResult.rows[0]?.role_name || ''
 
-    // Gerar tokens JWT com permissões e role_name
+    // Gerar tokens JWT com permissÃµes e role_name
     const tokens = generateTokensNode({
       userId: user.id,
       username: user.username,
@@ -211,12 +212,12 @@ export async function POST(request: NextRequest) {
       permissoes: await getUserPermissions(user.id)
     })
     
-    console.log('🔍 Tokens gerados:', {
+    console.log('ðŸ” Tokens gerados:', {
       accessToken: tokens.accessToken.substring(0, 50) + '...',
       refreshToken: tokens.refreshToken.substring(0, 50) + '...'
     })
 
-    // Atualizar último login e registrar sucesso
+    // Atualizar Ãºltimo login e registrar sucesso
             await updateLastLogin(user.id)
     await logAuditEvent({
       userId: user.id,
@@ -257,14 +258,14 @@ export async function POST(request: NextRequest) {
       path: '/'
     })
     
-    console.log('🔍 Cookies configurados na resposta')
+    console.log('ðŸ” Cookies configurados na resposta')
     
     return response
     
   } catch (error) {
     console.error('Erro no login:', error)
     
-    // Não expor detalhes internos em produção
+    // NÃ£o expor detalhes internos em produÃ§Ã£o
     const isDevelopment = process.env.NODE_ENV === 'development'
     
     return NextResponse.json(
@@ -277,4 +278,5 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
 

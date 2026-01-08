@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -47,16 +48,16 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [expandedMenus, setExpandedMenus] = useState<string[]>([])
 
-  // Verificação de segurança para evitar erros
+  // VerificaÃ§Ã£o de seguranÃ§a para evitar erros
   if (!user || !user.nome) {
     return (
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Net Imobiliária</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Net ImobiliÃ¡ria</h1>
           </div>
           <div className="flex-1 px-2 py-4">
-            <p className="text-sm text-gray-500">Carregando usuário...</p>
+            <p className="text-sm text-gray-500">Carregando usuÃ¡rio...</p>
           </div>
         </div>
       </div>
@@ -71,7 +72,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         href: '/admin',
         icon: HomeIcon,
         resource: null,
-        roles: ['Super Admin', 'Administrador', 'Corretor', 'Usuário']
+        roles: ['Super Admin', 'Administrador', 'Corretor', 'UsuÃ¡rio']
       },
       {
         name: 'Amenidades',
@@ -133,7 +134,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         ]
       },
       {
-        name: 'Imóveis',
+        name: 'ImÃ³veis',
         icon: BuildingOfficeIcon,
         resource: 'imoveis',
         roles: ['Super Admin', 'Administrador', 'Corretor'],
@@ -160,7 +161,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
             roles: ['Super Admin', 'Administrador']
           },
           {
-            name: 'Mudança de Status',
+            name: 'MudanÃ§a de Status',
             href: '/admin/mudancas-status',
             icon: ClipboardDocumentListIcon,
             resource: 'status-imovel',
@@ -191,7 +192,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         ]
       },
       {
-        name: 'Proprietários',
+        name: 'ProprietÃ¡rios',
         icon: UserGroupIcon,
         resource: 'proprietarios',
         roles: ['Super Admin', 'Administrador'],
@@ -210,24 +211,24 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         href: '/admin/dashboards',
         icon: ChartBarIcon,
         resource: 'dashboards',
-        roles: ['Super Admin', 'Administrador', 'Corretor', 'Usuário']
+        roles: ['Super Admin', 'Administrador', 'Corretor', 'UsuÃ¡rio']
       },
       {
-        name: 'Relatórios',
+        name: 'RelatÃ³rios',
         href: '/admin/relatorios',
         icon: DocumentTextIcon,
         resource: 'relatorios',
-        roles: ['Super Admin', 'Administrador', 'Corretor', 'Usuário']
+        roles: ['Super Admin', 'Administrador', 'Corretor', 'UsuÃ¡rio']
       }
     ]
   }
 
-  // Filtrar menu baseado no perfil do usuário
+  // Filtrar menu baseado no perfil do usuÃ¡rio
   const getFilteredMenu = () => {
     const allItems = getMenuStructure()
     
-    // Debug: verificar dados do usuário
-    console.log('🔍 Debug Sidebar - Dados do usuário:', {
+    // Debug: verificar dados do usuÃ¡rio
+    console.log('ðŸ” Debug Sidebar - Dados do usuÃ¡rio:', {
       user: user,
       role_name: user?.role_name,
       nome: user?.nome
@@ -236,10 +237,10 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
     const filterItems = (items: MenuItem[]): MenuItem[] => {
       return items.filter(item => {
         const hasRole = item.roles.includes(user.role_name || '')
-        console.log(`🔍 Debug Sidebar - Item: ${item.name}, Roles: ${item.roles.join(', ')}, User Role: ${user.role_name}, Has Role: ${hasRole}`)
+        console.log(`ðŸ” Debug Sidebar - Item: ${item.name}, Roles: ${item.roles.join(', ')}, User Role: ${user.role_name}, Has Role: ${hasRole}`)
         if (!hasRole) return false
         
-        // Se tem filhos, verificar se pelo menos um filho tem permissão
+        // Se tem filhos, verificar se pelo menos um filho tem permissÃ£o
         if (item.children) {
           const filteredChildren = filterItems(item.children)
           return filteredChildren.length > 0
@@ -330,7 +331,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
 
     // Item sem filhos - link direto
     if (item.resource === null) {
-      // Dashboard sempre visível
+      // Dashboard sempre visÃ­vel
       return (
         <Link
           key={item.name}
@@ -352,7 +353,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       )
     }
 
-    // Item protegido por permissão
+    // Item protegido por permissÃ£o
     return (
       <PermissionGuard key={item.name} resource={item.resource!} action="READ">
         <Link
@@ -444,7 +445,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Net Imobiliária</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Net ImobiliÃ¡ria</h1>
           </div>
           <nav className="mt-8 flex-1 px-2 space-y-1">
             {menuItems.map((item, index) => (

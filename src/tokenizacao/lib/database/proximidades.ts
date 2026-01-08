@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 /**
- * Funções de banco de dados para Proximidades
- * Net Imobiliária - Sistema de Gestão de Proximidades
+ * FunÃ§Ãµes de banco de dados para Proximidades
+ * Net ImobiliÃ¡ria - Sistema de GestÃ£o de Proximidades
  */
 
 import pool from './connection'
@@ -57,11 +58,11 @@ export interface ImovelProximidade {
 }
 
 // ========================================
-// FUNÇÕES PARA CATEGORIAS DE PROXIMIDADES
+// FUNÃ‡Ã•ES PARA CATEGORIAS DE PROXIMIDADES
 // ========================================
 
 /**
- * Buscar todas as categorias de proximidades (ativas e inativas para seleção)
+ * Buscar todas as categorias de proximidades (ativas e inativas para seleÃ§Ã£o)
  */
 export async function findAllCategoriasProximidades(): Promise<CategoriaProximidade[]> {
   try {
@@ -73,13 +74,13 @@ export async function findAllCategoriasProximidades(): Promise<CategoriaProximid
     const result: QueryResult<CategoriaProximidade> = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar categorias de proximidades:', error)
+    console.error('âŒ Erro ao buscar categorias de proximidades:', error)
     throw new Error('Erro ao buscar categorias de proximidades')
   }
 }
 
 /**
- * Buscar apenas categorias de proximidades ativas (para exibição nas listagens)
+ * Buscar apenas categorias de proximidades ativas (para exibiÃ§Ã£o nas listagens)
  */
 export async function findAllCategoriasProximidadesAtivas(): Promise<CategoriaProximidade[]> {
   try {
@@ -92,7 +93,7 @@ export async function findAllCategoriasProximidadesAtivas(): Promise<CategoriaPr
     const result: QueryResult<CategoriaProximidade> = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar categorias de proximidades ativas:', error)
+    console.error('âŒ Erro ao buscar categorias de proximidades ativas:', error)
     throw new Error('Erro ao buscar categorias de proximidades ativas')
   }
 }
@@ -110,7 +111,7 @@ export async function findCategoriaProximidadeById(id: number): Promise<Categori
     const result: QueryResult<CategoriaProximidade> = await pool.query(query, [id])
     return result.rows[0] || null
   } catch (error) {
-    console.error('❌ Erro ao buscar categoria de proximidade:', error)
+    console.error('âŒ Erro ao buscar categoria de proximidade:', error)
     throw new Error('Erro ao buscar categoria de proximidade')
   }
 }
@@ -134,7 +135,7 @@ export async function createCategoriaProximidade(data: Omit<CategoriaProximidade
     
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao criar categoria de proximidade:', error)
+    console.error('âŒ Erro ao criar categoria de proximidade:', error)
     throw new Error('Erro ao criar categoria de proximidade')
   }
 }
@@ -190,18 +191,18 @@ export async function updateCategoriaProximidade(id: number, data: Partial<Omit<
     const result: QueryResult<CategoriaProximidade> = await pool.query(query, values)
     
     if (!result.rows[0]) {
-      throw new Error('Categoria não encontrada')
+      throw new Error('Categoria nÃ£o encontrada')
     }
     
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao atualizar categoria de proximidade:', error)
+    console.error('âŒ Erro ao atualizar categoria de proximidade:', error)
     throw new Error('Erro ao atualizar categoria de proximidade')
   }
 }
 
 /**
- * Excluir categoria de proximidade (exclusão física)
+ * Excluir categoria de proximidade (exclusÃ£o fÃ­sica)
  */
 export async function deleteCategoriaProximidade(id: number): Promise<void> {
   try {
@@ -213,10 +214,10 @@ export async function deleteCategoriaProximidade(id: number): Promise<void> {
     const proximidadesCount = parseInt(checkResult.rows[0].count)
     
     if (proximidadesCount > 0) {
-      throw new Error(`Não é possível excluir esta categoria. Existem ${proximidadesCount} proximidade(s) associada(s).`)
+      throw new Error(`NÃ£o Ã© possÃ­vel excluir esta categoria. Existem ${proximidadesCount} proximidade(s) associada(s).`)
     }
     
-    // Fazer exclusão física
+    // Fazer exclusÃ£o fÃ­sica
     const query = `
       DELETE FROM categorias_proximidades 
       WHERE id = $1
@@ -225,19 +226,19 @@ export async function deleteCategoriaProximidade(id: number): Promise<void> {
     const result = await pool.query(query, [id])
     
     if (result.rowCount === 0) {
-      throw new Error('Categoria não encontrada')
+      throw new Error('Categoria nÃ£o encontrada')
     }
     
-    console.log(`✅ Categoria de proximidade com ID ${id} excluída fisicamente`)
+    console.log(`âœ… Categoria de proximidade com ID ${id} excluÃ­da fisicamente`)
   } catch (error) {
-    console.error('❌ Erro ao excluir categoria de proximidade:', error)
-    // Re-lançar o erro original para preservar a mensagem específica
+    console.error('âŒ Erro ao excluir categoria de proximidade:', error)
+    // Re-lanÃ§ar o erro original para preservar a mensagem especÃ­fica
     throw error
   }
 }
 
 // ========================================
-// FUNÇÕES PARA PROXIMIDADES
+// FUNÃ‡Ã•ES PARA PROXIMIDADES
 // ========================================
 
 /**
@@ -275,13 +276,13 @@ export async function findAllProximidades(): Promise<Proximidade[]> {
       status: proximidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidades:', error)
+    console.error('âŒ Erro ao buscar proximidades:', error)
     throw new Error('Erro ao buscar proximidades')
   }
 }
 
 /**
- * Buscar proximidades com paginação
+ * Buscar proximidades com paginaÃ§Ã£o
  */
 export async function findProximidadesPaginated(page: number = 1, limit: number = 10, categoria: string = '', search: string = ''): Promise<{
   proximidades: Proximidade[]
@@ -317,7 +318,7 @@ export async function findProximidadesPaginated(page: number = 1, limit: number 
       ${whereClause}
     `
     
-    // Query para buscar proximidades com paginação
+    // Query para buscar proximidades com paginaÃ§Ã£o
     const dataQuery = `
       SELECT 
         p.id,
@@ -367,8 +368,8 @@ export async function findProximidadesPaginated(page: number = 1, limit: number 
       hasPrev
     }
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidades com paginação:', error)
-    throw new Error('Erro ao buscar proximidades com paginação')
+    console.error('âŒ Erro ao buscar proximidades com paginaÃ§Ã£o:', error)
+    throw new Error('Erro ao buscar proximidades com paginaÃ§Ã£o')
   }
 }
 
@@ -396,7 +397,7 @@ export async function findProximidadesByCategoria(categoriaId: number): Promise<
       status: proximidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidades por categoria:', error)
+    console.error('âŒ Erro ao buscar proximidades por categoria:', error)
     throw new Error('Erro ao buscar proximidades por categoria')
   }
 }
@@ -425,7 +426,7 @@ export async function findProximidadesPopulares(): Promise<Proximidade[]> {
       status: proximidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidades populares:', error)
+    console.error('âŒ Erro ao buscar proximidades populares:', error)
     throw new Error('Erro ao buscar proximidades populares')
   }
 }
@@ -457,13 +458,13 @@ export async function findProximidadeById(id: number): Promise<Proximidade | nul
     
     return null
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidade:', error)
+    console.error('âŒ Erro ao buscar proximidade:', error)
     throw new Error('Erro ao buscar proximidade')
   }
 }
 
 /**
- * Buscar proximidade por slug (para edição - retorna todas)
+ * Buscar proximidade por slug (para ediÃ§Ã£o - retorna todas)
  */
 export async function findProximidadeBySlug(slug: string): Promise<Proximidade | null> {
   try {
@@ -489,7 +490,7 @@ export async function findProximidadeBySlug(slug: string): Promise<Proximidade |
     
     return null
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidade por slug:', error)
+    console.error('âŒ Erro ao buscar proximidade por slug:', error)
     throw new Error('Erro ao buscar proximidade por slug')
   }
 }
@@ -513,7 +514,7 @@ export async function findProximidadeAtivaBySlug(slug: string): Promise<Proximid
     const result = await pool.query(query, [slug])
     return result.rows[0] || null
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidade ativa por slug:', error)
+    console.error('âŒ Erro ao buscar proximidade ativa por slug:', error)
     throw new Error('Erro ao buscar proximidade ativa por slug')
   }
 }
@@ -528,19 +529,19 @@ export async function updateProximidadeBySlug(slug: string, data: Partial<Omit<P
     // Primeiro, buscar a proximidade pelo slug para obter o ID
     const proximidade = await findProximidadeBySlug(slug)
     if (!proximidade) {
-      throw new Error('Proximidade não encontrada')
+      throw new Error('Proximidade nÃ£o encontrada')
     }
 
     // Gerar novo slug se o nome foi alterado
     let newSlug = slug
     if (data.nome && data.nome !== proximidade.nome) {
       newSlug = data.nome.toLowerCase()
-        .replace(/[áàâãä]/g, 'a')
-        .replace(/[éèêë]/g, 'e')
-        .replace(/[íìîï]/g, 'i')
-        .replace(/[óòôõö]/g, 'o')
-        .replace(/[úùûü]/g, 'u')
-        .replace(/[ç]/g, 'c')
+        .replace(/[Ã¡Ã Ã¢Ã£Ã¤]/g, 'a')
+        .replace(/[Ã©Ã¨ÃªÃ«]/g, 'e')
+        .replace(/[Ã­Ã¬Ã®Ã¯]/g, 'i')
+        .replace(/[Ã³Ã²Ã´ÃµÃ¶]/g, 'o')
+        .replace(/[ÃºÃ¹Ã»Ã¼]/g, 'u')
+        .replace(/[Ã§]/g, 'c')
         .replace(/[^a-z0-9\s-]/g, '')
         .replace(/\s+/g, '-')
         .replace(/-+/g, '-')
@@ -577,7 +578,7 @@ export async function updateProximidadeBySlug(slug: string, data: Partial<Omit<P
     // Retornar a proximidade atualizada com dados completos
     return await findProximidadeBySlug(newSlug) as Proximidade
   } catch (error) {
-    console.error('❌ Erro ao atualizar proximidade por slug:', error)
+    console.error('âŒ Erro ao atualizar proximidade por slug:', error)
     throw new Error('Erro ao atualizar proximidade por slug')
   } finally {
     client.release()
@@ -591,12 +592,12 @@ export async function createProximidade(data: Omit<Proximidade, 'id' | 'created_
   try {
     // Gerar slug baseado no nome
     const slug = data.nome.toLowerCase()
-      .replace(/[áàâãä]/g, 'a')
-      .replace(/[éèêë]/g, 'e')
-      .replace(/[íìîï]/g, 'i')
-      .replace(/[óòôõö]/g, 'o')
-      .replace(/[úùûü]/g, 'u')
-      .replace(/[ç]/g, 'c')
+      .replace(/[Ã¡Ã Ã¢Ã£Ã¤]/g, 'a')
+      .replace(/[Ã©Ã¨ÃªÃ«]/g, 'e')
+      .replace(/[Ã­Ã¬Ã®Ã¯]/g, 'i')
+      .replace(/[Ã³Ã²Ã´ÃµÃ¶]/g, 'o')
+      .replace(/[ÃºÃ¹Ã»Ã¼]/g, 'u')
+      .replace(/[Ã§]/g, 'c')
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
@@ -618,52 +619,52 @@ export async function createProximidade(data: Omit<Proximidade, 'id' | 'created_
     // Retornar a proximidade criada com dados completos
     return await findProximidadeBySlug(slug) as Proximidade
   } catch (error) {
-    console.error('❌ Erro ao criar proximidade:', error)
+    console.error('âŒ Erro ao criar proximidade:', error)
     throw new Error('Erro ao criar proximidade')
   }
 }
 
 /**
- * Excluir proximidade por slug (exclusão física)
+ * Excluir proximidade por slug (exclusÃ£o fÃ­sica)
  */
 export async function deleteProximidadeBySlug(slug: string): Promise<void> {
-  console.log(`🚨 INICIANDO deleteProximidadeBySlug com slug: "${slug}"`)
+  console.log(`ðŸš¨ INICIANDO deleteProximidadeBySlug com slug: "${slug}"`)
   
   const client = await pool.connect()
   
   try {
-    console.log(`🔍 Tentando excluir proximidade com slug: "${slug}"`)
+    console.log(`ðŸ” Tentando excluir proximidade com slug: "${slug}"`)
     
-    // Verificar se o slug é apenas um número (ID)
+    // Verificar se o slug Ã© apenas um nÃºmero (ID)
     let proximidade
     if (/^\d+$/.test(slug)) {
-      console.log(`🔍 Slug é um ID numérico: "${slug}"`)
+      console.log(`ðŸ” Slug Ã© um ID numÃ©rico: "${slug}"`)
       // Buscar por ID
       proximidade = await findProximidadeById(parseInt(slug))
     } else {
-      console.log(`🔍 Slug é um texto: "${slug}"`)
+      console.log(`ðŸ” Slug Ã© um texto: "${slug}"`)
       // Buscar por slug
       proximidade = await findProximidadeBySlug(slug)
     }
     
-    console.log(`🔍 Proximidade encontrada:`, proximidade ? `ID ${proximidade.id}` : 'NÃO ENCONTRADA')
+    console.log(`ðŸ” Proximidade encontrada:`, proximidade ? `ID ${proximidade.id}` : 'NÃƒO ENCONTRADA')
     
     if (!proximidade) {
-      console.log(`❌ Proximidade com slug "${slug}" não encontrada`)
+      console.log(`âŒ Proximidade com slug "${slug}" nÃ£o encontrada`)
       
-      // Listar todas as proximidades disponíveis para debug
+      // Listar todas as proximidades disponÃ­veis para debug
       try {
         const todasProximidades = await listAllProximidadesWithSlugs()
-        console.log(`🔍 Proximidades disponíveis:`, todasProximidades.map(p => `"${p.slug}" (${p.nome})`))
+        console.log(`ðŸ” Proximidades disponÃ­veis:`, todasProximidades.map(p => `"${p.slug}" (${p.nome})`))
       } catch (listError) {
         console.log('Erro ao listar proximidades para debug:', listError)
       }
       
-      console.log(`🚨 LANÇANDO ERRO: Proximidade não encontrada`)
-      throw new Error('Proximidade não encontrada')
+      console.log(`ðŸš¨ LANÃ‡ANDO ERRO: Proximidade nÃ£o encontrada`)
+      throw new Error('Proximidade nÃ£o encontrada')
     }
 
-    // Verificar se existem imóveis usando esta proximidade
+    // Verificar se existem imÃ³veis usando esta proximidade
     const checkQuery = `
       SELECT COUNT(*) FROM imovel_proximidades WHERE proximidade_id = $1
     `
@@ -671,10 +672,10 @@ export async function deleteProximidadeBySlug(slug: string): Promise<void> {
     const imoveisCount = parseInt(checkResult.rows[0].count)
     
     if (imoveisCount > 0) {
-      throw new Error(`Não é possível excluir esta proximidade. Existem ${imoveisCount} imóvel(is) associado(s).`)
+      throw new Error(`NÃ£o Ã© possÃ­vel excluir esta proximidade. Existem ${imoveisCount} imÃ³vel(is) associado(s).`)
     }
 
-    // Fazer exclusão física
+    // Fazer exclusÃ£o fÃ­sica
     const query = `
       DELETE FROM proximidades 
       WHERE id = $1
@@ -683,12 +684,12 @@ export async function deleteProximidadeBySlug(slug: string): Promise<void> {
     const result = await client.query(query, [proximidade.id])
     
     if (result.rowCount === 0) {
-      throw new Error('Proximidade não encontrada')
+      throw new Error('Proximidade nÃ£o encontrada')
     }
     
-    console.log(`✅ Proximidade com slug "${slug}" excluída fisicamente`)
+    console.log(`âœ… Proximidade com slug "${slug}" excluÃ­da fisicamente`)
   } catch (error) {
-    console.error('❌ Erro ao excluir proximidade por slug:', error)
+    console.error('âŒ Erro ao excluir proximidade por slug:', error)
     throw new Error('Erro ao excluir proximidade por slug')
   } finally {
     client.release()
@@ -696,7 +697,7 @@ export async function deleteProximidadeBySlug(slug: string): Promise<void> {
 }
 
 /**
- * Buscar todas as proximidades (para edição - inclui categorias inativas)
+ * Buscar todas as proximidades (para ediÃ§Ã£o - inclui categorias inativas)
  */
 export async function findAllProximidadesForEdit(): Promise<Proximidade[]> {
   try {
@@ -729,21 +730,21 @@ export async function findAllProximidadesForEdit(): Promise<Proximidade[]> {
       status: proximidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidades para edição:', error)
-    throw new Error('Erro ao buscar proximidades para edição')
+    console.error('âŒ Erro ao buscar proximidades para ediÃ§Ã£o:', error)
+    throw new Error('Erro ao buscar proximidades para ediÃ§Ã£o')
   }
 }
 
 // ========================================
-// FUNÇÕES PARA RELACIONAMENTO IMÓVEL-PROXIMIDADES
+// FUNÃ‡Ã•ES PARA RELACIONAMENTO IMÃ“VEL-PROXIMIDADES
 // ========================================
 
 /**
- * Buscar proximidades de um imóvel
+ * Buscar proximidades de um imÃ³vel
  */
 export async function findProximidadesByImovel(imovelId: number): Promise<ImovelProximidade[]> {
   try {
-    console.log('🔍 findProximidadesByImovel - Buscando proximidades para imóvel:', imovelId)
+    console.log('ðŸ” findProximidadesByImovel - Buscando proximidades para imÃ³vel:', imovelId)
     
     // Query corrigida: usar LEFT JOIN e remover filtro de ativo para buscar todas as proximidades associadas
     const query = `
@@ -769,12 +770,12 @@ export async function findProximidadesByImovel(imovelId: number): Promise<Imovel
       ORDER BY COALESCE(cp.ordem, 999), COALESCE(p.ordem, 999), p.nome
     `
     
-    console.log('🔍 findProximidadesByImovel - Query:', query)
-    console.log('🔍 findProximidadesByImovel - Parâmetros:', [imovelId])
+    console.log('ðŸ” findProximidadesByImovel - Query:', query)
+    console.log('ðŸ” findProximidadesByImovel - ParÃ¢metros:', [imovelId])
     
     const result: QueryResult<ImovelProximidade> = await pool.query(query, [imovelId])
     
-    console.log('🔍 findProximidadesByImovel - Resultado:', {
+    console.log('ðŸ” findProximidadesByImovel - Resultado:', {
       rowCount: result.rowCount,
       rows: result.rows.length,
       data: result.rows
@@ -782,13 +783,13 @@ export async function findProximidadesByImovel(imovelId: number): Promise<Imovel
     
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidades do imóvel:', error)
-    throw new Error('Erro ao buscar proximidades do imóvel')
+    console.error('âŒ Erro ao buscar proximidades do imÃ³vel:', error)
+    throw new Error('Erro ao buscar proximidades do imÃ³vel')
   }
 }
 
 /**
- * Adicionar proximidade a um imóvel
+ * Adicionar proximidade a um imÃ³vel
  */
 export async function addProximidadeToImovel(
   imovelId: number, 
@@ -812,13 +813,13 @@ export async function addProximidadeToImovel(
     
     return result.rows[0].id
   } catch (error) {
-    console.error('❌ Erro ao adicionar proximidade ao imóvel:', error)
-    throw new Error('Erro ao adicionar proximidade ao imóvel')
+    console.error('âŒ Erro ao adicionar proximidade ao imÃ³vel:', error)
+    throw new Error('Erro ao adicionar proximidade ao imÃ³vel')
   }
 }
 
 /**
- * Remover proximidade de um imóvel
+ * Remover proximidade de um imÃ³vel
  */
 export async function removeProximidadeFromImovel(imovelId: number, proximidadeId: number): Promise<boolean> {
   try {
@@ -829,13 +830,13 @@ export async function removeProximidadeFromImovel(imovelId: number, proximidadeI
     const result = await pool.query(query, [imovelId, proximidadeId])
     return (result.rowCount ?? 0) > 0
   } catch (error) {
-    console.error('❌ Erro ao remover proximidade do imóvel:', error)
-    throw new Error('Erro ao remover proximidade do imóvel')
+    console.error('âŒ Erro ao remover proximidade do imÃ³vel:', error)
+    throw new Error('Erro ao remover proximidade do imÃ³vel')
   }
 }
 
 /**
- * Atualizar proximidades de um imóvel (substitui todas)
+ * Atualizar proximidades de um imÃ³vel (substitui todas)
  */
 export async function updateImovelProximidades(
   imovelId: number, 
@@ -882,15 +883,15 @@ export async function updateImovelProximidades(
     return true
   } catch (error) {
     await client.query('ROLLBACK')
-    console.error('❌ Erro ao atualizar proximidades do imóvel:', error)
-    throw new Error('Erro ao atualizar proximidades do imóvel')
+    console.error('âŒ Erro ao atualizar proximidades do imÃ³vel:', error)
+    throw new Error('Erro ao atualizar proximidades do imÃ³vel')
   } finally {
     client.release()
   }
 }
 
 /**
- * Contar imóveis por proximidade
+ * Contar imÃ³veis por proximidade
  */
 export async function countImoveisByProximidade(): Promise<Array<{proximidade_id: number, proximidade_nome: string, total_imoveis: number}>> {
   try {
@@ -908,13 +909,13 @@ export async function countImoveisByProximidade(): Promise<Array<{proximidade_id
     const result = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao contar imóveis por proximidade:', error)
-    throw new Error('Erro ao contar imóveis por proximidade')
+    console.error('âŒ Erro ao contar imÃ³veis por proximidade:', error)
+    throw new Error('Erro ao contar imÃ³veis por proximidade')
   }
 }
 
 // ========================================
-// FUNÇÕES UTILITÁRIAS
+// FUNÃ‡Ã•ES UTILITÃRIAS
 // ========================================
 
 /**
@@ -926,7 +927,7 @@ export async function proximidadeExists(id: number): Promise<boolean> {
     const result = await pool.query(query, [id])
     return result.rows.length > 0
   } catch (error) {
-    console.error('❌ Erro ao verificar existência da proximidade:', error)
+    console.error('âŒ Erro ao verificar existÃªncia da proximidade:', error)
     return false
   }
 }
@@ -956,7 +957,7 @@ export async function searchProximidades(searchTerm: string): Promise<Proximidad
       status: proximidade.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidades:', error)
+    console.error('âŒ Erro ao buscar proximidades:', error)
     throw new Error('Erro ao buscar proximidades')
   }
 }
@@ -974,13 +975,13 @@ export async function listAllProximidadesWithSlugs(): Promise<Array<{id: number,
     const result = await pool.query(query)
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao listar proximidades:', error)
+    console.error('âŒ Erro ao listar proximidades:', error)
     throw new Error('Erro ao listar proximidades')
   }
 }
 
 /**
- * Buscar proximidades por distância máxima
+ * Buscar proximidades por distÃ¢ncia mÃ¡xima
  */
 export async function findProximidadesByDistancia(
   imovelId: number, 
@@ -1011,9 +1012,10 @@ export async function findProximidadesByDistancia(
     const result: QueryResult<ImovelProximidade> = await pool.query(query, [imovelId, distanciaMaxima])
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar proximidades por distância:', error)
-    throw new Error('Erro ao buscar proximidades por distância')
+    console.error('âŒ Erro ao buscar proximidades por distÃ¢ncia:', error)
+    throw new Error('Erro ao buscar proximidades por distÃ¢ncia')
   }
 }
+
 
 

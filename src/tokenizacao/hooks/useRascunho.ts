@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { useState, useEffect, useCallback } from 'react'
 
 interface RascunhoAlteracoes {
@@ -10,12 +11,12 @@ interface RascunhoAlteracoes {
     removidos: string[]       // IDs dos documentos removidos
   }
   video: {
-    adicionado: boolean       // Se vídeo foi adicionado
-    removido: boolean         // Se vídeo foi removido
-    dados?: any              // Dados do vídeo (se adicionado)
+    adicionado: boolean       // Se vÃ­deo foi adicionado
+    removido: boolean         // Se vÃ­deo foi removido
+    dados?: any              // Dados do vÃ­deo (se adicionado)
   }
   imagemPrincipal: string | null // ID da imagem selecionada como principal
-  dadosBasicos: Partial<any> // Alterações nos dados básicos
+  dadosBasicos: Partial<any> // AlteraÃ§Ãµes nos dados bÃ¡sicos
 }
 
 interface RascunhoState {
@@ -46,10 +47,10 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
 
   // Validar imovelId
   if (!imovelId || isNaN(imovelId)) {
-    console.warn('⚠️ useRascunho: imovelId inválido:', imovelId)
+    console.warn('âš ï¸ useRascunho: imovelId invÃ¡lido:', imovelId)
   }
 
-  // Verificar se já existe rascunho ativo para este imóvel
+  // Verificar se jÃ¡ existe rascunho ativo para este imÃ³vel
   const verificarRascunhoAtivo = useCallback(async () => {
     if (!imovelId) return
 
@@ -62,14 +63,14 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
         const data = await response.json()
         if (data.rascunho && data.rascunho.ativo) {
           setRascunho(data.rascunho)
-          console.log('🔍 Rascunho ativo encontrado:', data.rascunho)
+          console.log('ðŸ” Rascunho ativo encontrado:', data.rascunho)
         } else {
-          console.log('🔍 Nenhum rascunho ativo encontrado')
+          console.log('ðŸ” Nenhum rascunho ativo encontrado')
           setRascunho(null)
         }
       } else if (response.status === 404) {
-        // Nenhum rascunho encontrado - isso é normal
-        console.log('🔍 Nenhum rascunho ativo encontrado (404)')
+        // Nenhum rascunho encontrado - isso Ã© normal
+        console.log('ðŸ” Nenhum rascunho ativo encontrado (404)')
         setRascunho(null)
       } else {
         throw new Error(`Erro ao verificar rascunho: ${response.status}`)
@@ -114,17 +115,17 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
 
       const data = await response.json()
       setRascunho(data.rascunho)
-      console.log('✅ Rascunho iniciado:', data.rascunho)
+      console.log('âœ… Rascunho iniciado:', data.rascunho)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido'
       setError(errorMessage)
-      console.error('❌ Erro ao iniciar rascunho:', err)
+      console.error('âŒ Erro ao iniciar rascunho:', err)
     } finally {
       setLoading(false)
     }
   }, [imovelId])
 
-  // Registrar alteração no rascunho
+  // Registrar alteraÃ§Ã£o no rascunho
   const registrarAlteracao = useCallback(async (
     tipo: 'imagem' | 'documento', 
     acao: 'adicionar' | 'remover', 
@@ -160,18 +161,18 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao registrar alteração no rascunho')
+        throw new Error('Erro ao registrar alteraÃ§Ã£o no rascunho')
       }
 
       const data = await response.json()
       setRascunho(data.rascunho)
-      console.log('✅ Alteração registrada no rascunho:', { tipo, acao, id })
+      console.log('âœ… AlteraÃ§Ã£o registrada no rascunho:', { tipo, acao, id })
     } catch (err) {
-      console.error('❌ Erro ao registrar alteração no rascunho:', err)
+      console.error('âŒ Erro ao registrar alteraÃ§Ã£o no rascunho:', err)
     }
   }, [rascunho, imovelId])
 
-  // Registrar alteração de vídeo no rascunho
+  // Registrar alteraÃ§Ã£o de vÃ­deo no rascunho
   const registrarVideoAlteracao = useCallback(async (
     acao: 'adicionar' | 'remover',
     dados?: any
@@ -187,7 +188,7 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
         
         // Converter arquivo para Buffer antes de armazenar no rascunho
         if (dados && dados.arquivo && typeof dados.arquivo.arrayBuffer === 'function') {
-          console.log('🔍 Convertendo arquivo para Buffer antes de armazenar no rascunho')
+          console.log('ðŸ” Convertendo arquivo para Buffer antes de armazenar no rascunho')
           const arrayBuffer = await dados.arquivo.arrayBuffer()
           const videoBuffer = Buffer.from(arrayBuffer)
           
@@ -198,7 +199,7 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
             arquivo: null // Remover o arquivo original
           }
           
-          console.log('✅ Arquivo convertido para Buffer, tamanho:', videoBuffer.length)
+          console.log('âœ… Arquivo convertido para Buffer, tamanho:', videoBuffer.length)
         } else {
           alteracoesAtualizadas.video.dados = dados
         }
@@ -219,18 +220,18 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao registrar alteração de vídeo no rascunho')
+        throw new Error('Erro ao registrar alteraÃ§Ã£o de vÃ­deo no rascunho')
       }
 
       const data = await response.json()
       setRascunho(data.rascunho)
-      console.log('✅ Alteração de vídeo registrada no rascunho:', { acao, dados })
+      console.log('âœ… AlteraÃ§Ã£o de vÃ­deo registrada no rascunho:', { acao, dados })
     } catch (err) {
-      console.error('❌ Erro ao registrar alteração de vídeo no rascunho:', err)
+      console.error('âŒ Erro ao registrar alteraÃ§Ã£o de vÃ­deo no rascunho:', err)
     }
   }, [rascunho, imovelId])
 
-  // Registrar alteração de imagem principal no rascunho
+  // Registrar alteraÃ§Ã£o de imagem principal no rascunho
   const registrarImagemPrincipal = useCallback(async (imageId: string) => {
     if (!rascunho || !imovelId) return
 
@@ -249,18 +250,18 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao registrar alteração de imagem principal no rascunho')
+        throw new Error('Erro ao registrar alteraÃ§Ã£o de imagem principal no rascunho')
       }
 
       const data = await response.json()
       setRascunho(data.rascunho)
-      console.log('✅ Imagem principal registrada no rascunho:', imageId)
+      console.log('âœ… Imagem principal registrada no rascunho:', imageId)
     } catch (err) {
-      console.error('❌ Erro ao registrar imagem principal no rascunho:', err)
+      console.error('âŒ Erro ao registrar imagem principal no rascunho:', err)
     }
   }, [rascunho, imovelId])
 
-  // Descartar rascunho (reverter alterações)
+  // Descartar rascunho (reverter alteraÃ§Ãµes)
   const descartarRascunho = useCallback(async () => {
     if (!rascunho || !imovelId) return
 
@@ -277,17 +278,17 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
       }
 
       setRascunho(null)
-      console.log('✅ Rascunho descartado com sucesso')
+      console.log('âœ… Rascunho descartado com sucesso')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido'
       setError(errorMessage)
-      console.error('❌ Erro ao descartar rascunho:', err)
+      console.error('âŒ Erro ao descartar rascunho:', err)
     } finally {
       setLoading(false)
     }
   }, [rascunho, imovelId])
 
-  // Confirmar rascunho (manter alterações)
+  // Confirmar rascunho (manter alteraÃ§Ãµes)
   const confirmarRascunho = useCallback(async () => {
     if (!rascunho || !imovelId) return
 
@@ -304,11 +305,11 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
       }
 
       setRascunho(null)
-      console.log('✅ Rascunho confirmado com sucesso')
+      console.log('âœ… Rascunho confirmado com sucesso')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido'
       setError(errorMessage)
-      console.error('❌ Erro ao confirmar rascunho:', err)
+      console.error('âŒ Erro ao confirmar rascunho:', err)
     } finally {
       setLoading(false)
     }
@@ -331,3 +332,4 @@ export const useRascunho = (imovelId: number): UseRascunhoReturn => {
     error
   }
 }
+

@@ -102,14 +102,14 @@ export default function LandingPage() {
   const [pendingImovelTitulo, setPendingImovelTitulo] = useState<string | null>(null)
   const [noResultsModalOpen, setNoResultsModalOpen] = useState(false)
   const [progressBarWidth, setProgressBarWidth] = useState(0)
-  
+
   // Estados para geolocalização
   const [geolocationModalOpen, setGeolocationModalOpen] = useState(false)
   const [detectedCity, setDetectedCity] = useState<string | null>(null)
   const [detectedRegion, setDetectedRegion] = useState<string | null>(null)
   const [detectedCountry, setDetectedCountry] = useState<string | null>(null)
   const [geolocationLoading, setGeolocationLoading] = useState(false)
-  
+
   // Estados para preencher filtros do SearchForm
   const [searchFormEstado, setSearchFormEstado] = useState<string | undefined>(undefined)
   const [searchFormCidade, setSearchFormCidade] = useState<string | undefined>(undefined)
@@ -141,7 +141,7 @@ export default function LandingPage() {
       const raw = sessionStorage.getItem('corretor_success_user')
       if (raw) {
         const parsed = JSON.parse(raw)
-        
+
         // Tentar sincronizar isencao do localStorage caso esteja stale no sessionStorage
         try {
           const localRaw = localStorage.getItem('user-data')
@@ -151,7 +151,7 @@ export default function LandingPage() {
               parsed.isencao = !!localUser.isencao
             }
           }
-        } catch {}
+        } catch { }
 
         if (parsed?.nome && parsed?.email) {
           corretorHomeOpenRef.current = true
@@ -163,10 +163,10 @@ export default function LandingPage() {
             const url = new URL(window.location.href)
             url.searchParams.delete('corretor_home')
             router.replace(url.pathname + (url.search ? url.search : ''))
-          } catch {}
+          } catch { }
         }
       }
-    } catch {}
+    } catch { }
   }, [searchParams, router])
 
   // Abrir painel do corretor sem redirecionar (login via header na própria landpaging).
@@ -184,7 +184,7 @@ export default function LandingPage() {
           setCorretorHomeUser(payload)
           setCorretorHomeSuccessOpen(true)
         }
-      } catch {}
+      } catch { }
     }
     window.addEventListener('open-corretor-home-modal', handler as EventListener)
     return () => window.removeEventListener('open-corretor-home-modal', handler as EventListener)
@@ -252,12 +252,12 @@ export default function LandingPage() {
           setUsadoFallbackNacional(false)
         }
       }
-    } catch {}
+    } catch { }
     // Marcar hidratação como concluída (com ou sem restauração)
     setInitialHydrated(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  
+
   // Atualizar ref quando modal abre/fecha
   useEffect(() => {
     geolocationModalOpenRef.current = geolocationModalOpen
@@ -273,29 +273,29 @@ export default function LandingPage() {
       typeof window !== 'undefined' && sessionStorage.getItem(SUPPRESS_GEOLOCATION_MODAL_KEY) === 'true'
     const shouldShowModalNow =
       shouldShowModal && !suppressedBySession && !suppressGeolocationModalOnceRef.current && !corretorPopupOpenRef.current
-    
+
     if (!shouldShowModal) {
       console.log('ℹ️ [LANDING PAGE] Usuário pediu para não mostrar o modal novamente (mas vamos detectar em background)')
     }
-    
+
     // Verificar se já foi executado nesta sessão
     if (geolocationExecutedRef.current) {
       console.log('ℹ️ [LANDING PAGE] Detecção de localização já foi executada nesta sessão')
       return
     }
-    
+
     // Verificar se já está em progresso para evitar múltiplas chamadas simultâneas
     if (geolocationRequestInProgressRef.current) {
       console.log('ℹ️ [LANDING PAGE] Detecção de localização já em andamento, aguardando...')
       return
     }
-    
+
     // Verificar se modal já está aberto (usando ref para valor atualizado)
     if (geolocationModalOpenRef.current) {
       console.log('ℹ️ [LANDING PAGE] Modal de geolocalização já está aberto')
       return
     }
-    
+
     geolocationRequestInProgressRef.current = true
     setGeolocationLoading(true)
 
@@ -310,7 +310,7 @@ export default function LandingPage() {
         setDetectedRegion(cachedRegion || null)
         setDetectedCountry(cachedCountry || null)
       }
-    } catch {}
+    } catch { }
 
     // Abrir o modal imediatamente (melhora UX: não “trava” esperando a API)
     // Apenas se o usuário não tiver dispensado permanentemente.
@@ -318,10 +318,10 @@ export default function LandingPage() {
       geolocationModalOpenRef.current = true
       setGeolocationModalOpen(true)
     }
-    
+
     try {
       console.log(`🔍 [LANDING PAGE] Detectando localização do usuário... (tentativa ${retryCount + 1})`)
-      
+
       // Fetch sem AbortController: em alguns navegadores/ambientes, AbortController pode disparar AbortError
       // indevidamente e gerar falso-negativo de geolocalização. Preferimos manter o modal em "Detectando..."
       // (sem bloquear a página) até a resposta chegar.
@@ -329,48 +329,48 @@ export default function LandingPage() {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-store' }
       })
-      
+
       console.log('🔍 [LANDING PAGE] Status da resposta:', response.status)
-      
+
       if (!response.ok) {
         console.warn('⚠️ [LANDING PAGE] Resposta não OK:', response.status, response.statusText)
         const errorData = await response.json().catch(() => ({}))
         console.warn('⚠️ [LANDING PAGE] Dados do erro:', errorData)
-        
+
         // Não insistir em retries automáticos: não queremos atrasar nem reabrir modal ao voltar
         return
       }
-      
+
       const data = await response.json()
       console.log('🔍 [LANDING PAGE] Dados recebidos da API:', JSON.stringify(data, null, 2))
-      
+
       // Verificar se temos cidade (pode estar em data.data.city ou data.city)
       const city = data.data?.city || data.city || null
-      
+
       if (data.success && city) {
-        console.log('✅ [LANDING PAGE] Localização detectada:', { 
-          city, 
-          region: data.data?.region || data.region, 
-          country: data.data?.country || data.country 
+        console.log('✅ [LANDING PAGE] Localização detectada:', {
+          city,
+          region: data.data?.region || data.region,
+          country: data.data?.country || data.country
         })
         setDetectedCity(city)
         setDetectedRegion(data.data?.region || data.region || null)
         setDetectedCountry(data.data?.country || data.country || null)
-        
+
         // Marcar como executado ANTES de abrir o modal
         geolocationExecutedRef.current = true
 
         // Se suprimimos o modal nesta visita, consumir o flag para não "travar" para sempre
         try {
           sessionStorage.removeItem(SUPPRESS_GEOLOCATION_MODAL_KEY)
-        } catch {}
-        
+        } catch { }
+
         // Só abrir modal se não estiver já aberto (usando ref para valor atualizado)
         if (shouldShowModalNow && !geolocationModalOpenRef.current) {
           geolocationModalOpenRef.current = true
           setGeolocationModalOpen(true)
         }
-        
+
         // Não salvar 'geolocation-modal-shown' para permitir exibição a cada recarregamento
         localStorage.setItem('geolocation-city', city)
         if (data.data?.region || data.region) {
@@ -385,21 +385,21 @@ export default function LandingPage() {
         setDetectedCity(city)
         setDetectedRegion(data.data?.region || data.region || null)
         setDetectedCountry(data.data?.country || data.country || null)
-        
+
         // Marcar como executado ANTES de abrir o modal
         geolocationExecutedRef.current = true
 
         // Se suprimimos o modal nesta visita, consumir o flag para não "travar" para sempre
         try {
           sessionStorage.removeItem(SUPPRESS_GEOLOCATION_MODAL_KEY)
-        } catch {}
-        
+        } catch { }
+
         // Só abrir modal se não estiver já aberto (usando ref para valor atualizado)
         if (shouldShowModalNow && !geolocationModalOpenRef.current) {
           geolocationModalOpenRef.current = true
           setGeolocationModalOpen(true)
         }
-        
+
         // Não salvar 'geolocation-modal-shown' para permitir exibição a cada recarregamento
         localStorage.setItem('geolocation-city', city)
         if (data.data?.region || data.region) {
@@ -418,7 +418,7 @@ export default function LandingPage() {
       if (error instanceof Error) {
         console.error('❌ [LANDING PAGE] Mensagem de erro:', error.message)
         console.error('❌ [LANDING PAGE] Stack:', error.stack)
-        
+
         // Sem retries automáticos (UX mais rápida e evita executar de novo ao retornar)
       }
       // Não exibir modal em caso de erro (não bloqueia experiência)
@@ -457,7 +457,7 @@ export default function LandingPage() {
         console.log('ℹ️ [LANDING PAGE] Geolocalização suprimida (1x) no pós-login do corretor.')
         return
       }
-    } catch {}
+    } catch { }
 
     const timer = setTimeout(() => {
       console.log('🔍 [LANDING PAGE] Iniciando detecção de localização (sem esperar window.load)...')
@@ -506,7 +506,7 @@ export default function LandingPage() {
     const handleOpenAuthModal = (event: any) => {
       console.log('🔍 [LANDING PAGE] Evento open-auth-modal recebido:', event.detail)
       const { mode, userType, imovelId } = event.detail || {}
-      
+
       if (imovelId) {
         console.log('🔍 [LANDING PAGE] Armazenando imovelId pendente:', imovelId)
         setPendingImovelId(imovelId)
@@ -520,7 +520,7 @@ export default function LandingPage() {
           setPendingImovelId(parseInt(storedImovelId, 10))
         }
       }
-      
+
       if (mode && userType) {
         console.log('🔍 [LANDING PAGE] Abrindo modal de autenticação:', { mode, userType })
         setAuthModalMode(mode)
@@ -550,7 +550,7 @@ export default function LandingPage() {
 
       const data = await response.json()
       console.log('🔍 [LANDING PAGE] Resposta da API:', { status: response.status, data })
-      
+
       if (data.success) {
         console.log('✅ Interesse registrado com sucesso:', data.data)
         setPendingImovelId(null)
@@ -559,7 +559,7 @@ export default function LandingPage() {
           window.dispatchEvent(
             new CustomEvent('ui-toast', { detail: { type: 'success', message: 'Interesse registrado com sucesso!' } })
           )
-        } catch {}
+        } catch { }
       } else {
         console.warn('⚠️ Erro ao registrar interesse:', data.message, data.details)
         try {
@@ -571,7 +571,7 @@ export default function LandingPage() {
               }
             })
           )
-        } catch {}
+        } catch { }
       }
     } catch (error: any) {
       console.error('❌ Erro ao registrar interesse:', error)
@@ -581,7 +581,7 @@ export default function LandingPage() {
             detail: { type: 'error', message: 'Erro de conexão ao registrar interesse. Tente novamente.' }
           })
         )
-      } catch {}
+      } catch { }
     }
   }
 
@@ -602,8 +602,8 @@ export default function LandingPage() {
           console.log('ℹ️ [LANDING PAGE] Bloqueando abertura do modal de interesse: usuário ativo não é cliente')
           return
         }
-      } catch {}
-      
+      } catch { }
+
       // Tentar recuperar imovelId do estado ou sessionStorage
       let imovelIdToUse = pendingImovelId
       if (!imovelIdToUse) {
@@ -613,7 +613,7 @@ export default function LandingPage() {
           console.log('🔍 [LANDING PAGE] Usando imovelId do sessionStorage:', imovelIdToUse)
         }
       }
-      
+
       if (imovelIdToUse) {
         const publicToken = localStorage.getItem('public-auth-token')
         const userData = localStorage.getItem('public-user-data')
@@ -674,10 +674,10 @@ export default function LandingPage() {
               }
             })
           )
-        } catch {}
+        } catch { }
         return
       }
-    } catch {}
+    } catch { }
 
     // Verificar se o usuário já está logado como cliente
     const publicToken = localStorage.getItem('public-auth-token')
@@ -713,7 +713,7 @@ export default function LandingPage() {
           }
         })
       )
-    } catch {}
+    } catch { }
     return
   }
 
@@ -729,28 +729,28 @@ export default function LandingPage() {
 
   // Ref para rastrear se estamos em modo destaque nacional
   const mostrarDestaquesNacionalRef = useRef(mostrarDestaquesNacional)
-  
+
   // Ref para rastrear tipoDestaque para evitar condições de corrida
   const tipoDestaqueRef = useRef(tipoDestaque)
-  
+
   // Ref para rastrear se estamos carregando para evitar múltiplas chamadas simultâneas
   const carregandoRef = useRef(false)
 
   // Se alguma mudança acontecer enquanto um carregamento está em andamento,
   // marcamos para rodar novamente assim que o carregamento atual finalizar.
   const pendingReloadRef = useRef(false)
-  
+
   // Refs para rastrear os últimos valores que causaram um carregamento
   // Forçar o primeiro carregamento sempre (evita cenário "nunca carregou, mas nada mudou")
   const ultimoMostrarDestaquesNacionalCarregado = useRef<boolean | null>(null)
   const ultimoTipoDestaqueCarregado = useRef<'DV' | 'DA' | null>(null)
-  
+
   // Atualizar refs sempre que os valores mudarem
   useEffect(() => {
     mostrarDestaquesNacionalRef.current = mostrarDestaquesNacional
     console.log('🔍 [REF UPDATE] mostrarDestaquesNacional atualizado:', mostrarDestaquesNacional)
   }, [mostrarDestaquesNacional])
-  
+
   useEffect(() => {
     tipoDestaqueRef.current = tipoDestaque
     console.log('🔍 [REF UPDATE] tipoDestaque atualizado:', tipoDestaque)
@@ -769,22 +769,22 @@ export default function LandingPage() {
         console.log('⚠️ [LANDING PAGE] Já está carregando - marcando recarregamento pendente')
         return
       }
-      
+
       try {
         // Usar refs para garantir valores atualizados mesmo durante atualizações assíncronas
         const tipoDestaqueAtual = tipoDestaqueRef.current
-        
+
         // REGRA DEFINITIVA: mostrarDestaquesNacional tem prioridade absoluta
         // Se é true, sempre modo nacional (mesmo que ainda tenhamos estado/cidade temporariamente)
         // Se é false, verificar se temos localização para determinar modo local ou nacional
         const estadoAtual = searchFormEstado || lastFilters?.estado || null
         const cidadeAtual = searchFormCidade || lastFilters?.cidade || null
         const temEstadoOuCidade = !!(estadoAtual || cidadeAtual)
-        
+
         // PRIORIDADE ABSOLUTA: Se mostrarDestaquesNacional é true, SEMPRE modo nacional
         // Isso garante que quando não há destaque local e ativamos nacional, funcione imediatamente
         const isDestaqueNacional = mostrarDestaquesNacional === true ? true : !temEstadoOuCidade
-        
+
         console.log('🔍 [LANDING PAGE] Determinação de isDestaqueNacional:', {
           temEstadoOuCidade,
           estadoAtual,
@@ -798,7 +798,7 @@ export default function LandingPage() {
           isDestaqueNacionalFinal: isDestaqueNacional,
           '⚠️ DECISÃO': temEstadoOuCidade ? 'FORÇANDO DESTAQUE LOCAL' : 'USANDO mostrarDestaquesNacional'
         })
-        
+
         // IMPORTANTE: Se mostrarDestaquesNacional está ativo, ignorar mudanças em searchFormEstado/searchFormCidade
         // para evitar múltiplas chamadas desnecessárias quando os filtros são limpos
         // Só recarregar se mostrarDestaquesNacional ou tipoDestaque realmente mudaram
@@ -808,7 +808,7 @@ export default function LandingPage() {
             : mostrarDestaquesNacional !== ultimoMostrarDestaquesNacionalCarregado.current
         const tipoDestaqueMudou =
           ultimoTipoDestaqueCarregado.current === null ? true : tipoDestaque !== ultimoTipoDestaqueCarregado.current
-        
+
         if (isDestaqueNacional) {
           // Se mostrarDestaquesNacional foi ATIVADO (mudou de false para true), sempre recarregar
           // Isso garante que quando não há destaque local, o grid nacional seja exibido
@@ -834,21 +834,21 @@ export default function LandingPage() {
             // Não retornar aqui - permitir que recarregue, mas garantir que não está em modo destaque nacional
           }
         }
-        
+
         carregandoRef.current = true
         setLoadingFeatured(true)
-        
+
         // Construir URL com parâmetros de estado e cidade se disponíveis
         const urlParams = new URLSearchParams()
         urlParams.append('tipo_destaque', tipoDestaqueAtual)
-        
+
         // VERIFICAÇÃO CRÍTICA: Se temos estado/cidade, SEMPRE usar modo destaque local
         // Esta verificação deve ser feita ANTES de qualquer outra lógica
         // Usar múltiplas fontes para garantir que capturamos o valor correto
         const estadoParaBusca = searchFormEstado || lastFilters?.estado || null
         const cidadeParaBusca = searchFormCidade || lastFilters?.cidade || null
         const temEstadoOuCidadeParaBusca = !!(estadoParaBusca || cidadeParaBusca)
-        
+
         // REGRA DEFINITIVA E ABSOLUTA: mostrarDestaquesNacional tem PRIORIDADE ABSOLUTA
         // Se mostrarDestaquesNacional é true, SEMPRE buscar destaque nacional, mesmo que tenhamos estado/cidade
         if (mostrarDestaquesNacional) {
@@ -870,7 +870,7 @@ export default function LandingPage() {
           if (cidadeParaBusca) {
             urlParams.append('cidade', cidadeParaBusca)
           }
-          
+
           console.log('✅✅✅ [LANDING PAGE] MODO DESTAQUE LOCAL FORÇADO - temos localização:', {
             estado: estadoParaBusca,
             cidade: cidadeParaBusca,
@@ -897,7 +897,7 @@ export default function LandingPage() {
 
         // Performance: o grid pagina em 20 — não precisa buscar 50 itens
         urlParams.set('limit', '20')
-        
+
         const urlFinal = urlParams.toString()
         console.log('🔍 [LANDING PAGE] URL FINAL construída:', {
           urlParams: urlFinal,
@@ -908,13 +908,13 @@ export default function LandingPage() {
           '⚠️ DECISÃO FINAL': temEstadoOuCidadeParaBusca ? '✅ DESTAQUE LOCAL' : '🔍 DESTAQUE NACIONAL',
           '⚠️ URL COMPLETA': `/api/public/imoveis/destaque?${urlFinal}`
         })
-        
+
         const url = `/api/public/imoveis/destaque?${urlParams.toString()}`
         console.log('🔍 [LANDING PAGE] URL completa para fetch:', url)
         console.log('🔍 [LANDING PAGE] URL contém destaque_nacional_only?', url.includes('destaque_nacional_only'))
         console.log('🔍 [LANDING PAGE] URL contém estado?', url.includes('estado='))
         console.log('🔍 [LANDING PAGE] URL contém cidade?', url.includes('cidade='))
-        
+
         // Cache: se a chave é a mesma e está fresca, reaproveitar (principalmente ao voltar de fluxos sem mudar filtros/localidade)
         // Só ignoramos cache quando o usuário explicitamente pediu recarregar (forceFeaturedFetchRef=true).
         const cacheKey = `${FEATURED_CACHE_PREFIX}${urlFinal}`
@@ -937,7 +937,7 @@ export default function LandingPage() {
                 return
               }
             }
-          } catch {}
+          } catch { }
         }
 
         const response = await fetch(url)
@@ -954,7 +954,7 @@ export default function LandingPage() {
         // Isso evita condições de corrida quando o botão é clicado rapidamente
         const aindaEhDestaqueNacional = mostrarDestaquesNacionalRef.current
         const aindaEhMesmoTipoDestaque = tipoDestaqueRef.current === tipoDestaqueAtual
-        
+
         // IMPORTANTE: Se estávamos buscando destaque nacional mas o estado mudou, ignorar resposta
         if (isDestaqueNacional && (!aindaEhDestaqueNacional || !aindaEhMesmoTipoDestaque)) {
           console.log('⚠️ [LANDING PAGE] Estado mudou durante carregamento - ignorando resposta')
@@ -969,7 +969,7 @@ export default function LandingPage() {
           setLoadingFeatured(false)
           return
         }
-        
+
         // IMPORTANTE: Se NÃO estávamos buscando destaque nacional mas o estado mudou para ativo, ignorar resposta
         // Isso evita que quando o botão é clicado rapidamente, resultados de destaque local sejam exibidos
         if (!isDestaqueNacional && aindaEhDestaqueNacional) {
@@ -1028,7 +1028,7 @@ export default function LandingPage() {
               setMostrarDestaquesNacional(false)
             }
           }
-          
+
           // Validação adicional: se estávamos buscando destaque nacional, garantir que todos os resultados têm destaque_nacional = true
           if (isDestaqueNacional) {
             const imoveisInvalidos = data.imoveis.filter((imovel: any) => !imovel.destaque_nacional)
@@ -1040,26 +1040,26 @@ export default function LandingPage() {
               console.log('🔍 [LANDING PAGE] Imóveis válidos após filtro:', data.imoveis.length)
             }
           }
-          
+
           // Verificar se não há resultados e estamos em modo destaque local (sem fallback)
           if (data.imoveis.length === 0 && !isDestaqueNacional && !data.usadoFallbackNacional) {
             const estadoParaBusca = searchFormEstado || lastFilters?.estado || null
             const cidadeParaBusca = searchFormCidade || lastFilters?.cidade || null
-          const operationLabel = tipoDestaqueAtual === 'DA' ? 'Alugar' : 'Comprar'
-            
+            const operationLabel = tipoDestaqueAtual === 'DA' ? 'Alugar' : 'Comprar'
+
             console.log('⚠️ [LANDING PAGE] Nenhum imóvel encontrado para destaque local:', {
               tipoDestaque: tipoDestaqueAtual,
               estado: estadoParaBusca,
               cidade: cidadeParaBusca,
               usadoFallbackNacional: data.usadoFallbackNacional
             })
-            
+
             // Cancelar qualquer timeout pendente antes de criar um novo
             if (timeoutRef.current) {
               clearTimeout(timeoutRef.current)
               timeoutRef.current = null
             }
-            
+
             // Sem local e sem fallback (provável ausência total) -> informar e limpar
             setMensagemSemResultados(`Nenhum imóvel em destaque encontrado para ${operationLabel} no momento.`)
             timeoutRef.current = setTimeout(() => {
@@ -1070,7 +1070,7 @@ export default function LandingPage() {
             setFeaturedData([])
             return
           }
-          
+
           // Se encontrou resultados, limpar mensagem e atualizar dados
           // IMPORTANTE: Cancelar qualquer timeout pendente que possa reverter o tipo
           if (timeoutRef.current) {
@@ -1078,44 +1078,44 @@ export default function LandingPage() {
             clearTimeout(timeoutRef.current)
             timeoutRef.current = null
           }
-          
+
           setMensagemSemResultados(null)
-          
+
           setFeaturedData(data.imoveis)
 
           // Persistir cache (melhora performance ao voltar de rotas/modais sem mudar localidade/filtros)
           try {
             sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), imoveis: data.imoveis }))
-          } catch {}
-          
+          } catch { }
+
           // Atualizar refs dos últimos valores carregados
           ultimoMostrarDestaquesNacionalCarregado.current = isDestaqueNacional
           ultimoTipoDestaqueCarregado.current = tipoDestaqueAtual
-          
+
           // Atualizar tipo anterior para o tipo atual (já que encontrou resultados)
           setTipoDestaqueAnterior(tipoDestaqueAtual)
         } else {
           console.warn('⚠️ [LANDING PAGE] Nenhum imóvel retornado ou erro na resposta')
-          
+
           // Se não é destaque nacional e não há resultados, exibir mensagem e reverter
           if (!isDestaqueNacional) {
             const estadoParaBusca = searchFormEstado || lastFilters?.estado || null
             const cidadeParaBusca = searchFormCidade || lastFilters?.cidade || null
             const operationLabel = tipoDestaqueAtual === 'DA' ? 'Alugar' : 'Comprar'
-            
+
             setMensagemSemResultados(`Não existem imóveis em destaque para essa localidade para ${operationLabel}`)
-            
+
             // Reverter ao tipo anterior após 3 segundos
             setTimeout(() => {
               console.log('🔄 [LANDING PAGE] Revertendo tipoDestaque ao anterior (erro):', tipoDestaqueAnterior)
               setTipoDestaque(tipoDestaqueAnterior)
               setMensagemSemResultados(null)
             }, 3000)
-            
+
             // Não limpar featuredData para manter o grid anterior
             return
           }
-          
+
           setFeaturedData([])
           setUsadoFallbackNacional(false)
         }
@@ -1146,9 +1146,9 @@ export default function LandingPage() {
 
     const precoFormatado = imovel.preco
       ? `R$ ${Number(imovel.preco).toLocaleString('pt-BR', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        })}`
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })}`
       : 'Preço sob consulta'
 
     const localizacao = [imovel.bairro, imovel.cidade_fk, estadoNome].filter(Boolean).join(', ')
@@ -1198,7 +1198,7 @@ export default function LandingPage() {
   const buildFilterConcatenation = () => {
     if (!lastFilters) return ''
     const parts: string[] = []
-    
+
     // Estado
     if (lastFilters.estado) {
       const estado = estados.find(e => e.sigla === lastFilters.estado || e.nome === lastFilters.estado)
@@ -1208,7 +1208,7 @@ export default function LandingPage() {
         parts.push(lastFilters.estado)
       }
     }
-    
+
     // Cidade
     if (lastFilters.cidade) {
       const cidade = municipios.find(m => m.nome === lastFilters.cidade)
@@ -1218,7 +1218,7 @@ export default function LandingPage() {
         parts.push(lastFilters.cidade)
       }
     }
-    
+
     return parts.length > 0 ? ` - ${parts.join(' - ')}` : ''
   }
 
@@ -1235,33 +1235,33 @@ export default function LandingPage() {
 
     const operationLabel = tipoDestaque === 'DA' ? 'Alugar' : 'Comprar'
     const quantidade = featuredProperties.length
-    
+
     // Obter estado e cidade dos filtros ou dos imóveis exibidos
     const estadoSigla = searchFormEstado || lastFilters?.estado
     const cidadeNome = searchFormCidade || lastFilters?.cidade
-    
+
     // Se não há filtros de localização, tentar obter dos imóveis exibidos
     let estadoNome = ''
     let cidadeFinal = ''
-    
+
     if (estadoSigla) {
       const estado = estados.find(e => e.sigla === estadoSigla || e.nome === estadoSigla)
       estadoNome = estado?.nome || estadoSigla
     }
-    
+
     if (cidadeNome) {
       cidadeFinal = cidadeNome
     }
-    
+
     // Construir título: "Imóveis em Destaque - Comprar/Alugar"
     let titulo = `${TITULO_DESTAQUE} - ${operationLabel}`
-    
+
     if (cidadeFinal && estadoNome) {
       titulo += ` - ${cidadeFinal}, ${estadoNome}`
     } else if (estadoNome) {
       titulo += ` - ${estadoNome}`
     }
-    
+
     return titulo
   }, [mostrarDestaquesNacional, usadoFallbackNacional, tipoDestaque, featuredProperties.length, searchFormEstado, searchFormCidade, lastFilters?.estado, lastFilters?.cidade, estados])
 
@@ -1281,31 +1281,31 @@ export default function LandingPage() {
       })
       return tituloCompleto
     }
-    
+
     // Se não é destaque nacional, usar título de destaque local baseado em estado/cidade
     const temEstadoOuCidade = !!(searchFormEstado || searchFormCidade || lastFilters?.estado || lastFilters?.cidade)
-    
+
     if (temEstadoOuCidade) {
       // Modo destaque local - usar título local
       const operationLabel = tipoDestaque === 'DA' ? 'Alugar' : 'Comprar'
-      
+
       // Construir título local manualmente
       const estadoSigla = searchFormEstado || lastFilters?.estado || null
       const cidadeNome = searchFormCidade || lastFilters?.cidade || null
-      
+
       let estadoNome = ''
       if (estadoSigla) {
         const estado = estados.find(e => e.sigla === estadoSigla || e.nome === estadoSigla)
         estadoNome = estado?.nome || estadoSigla
       }
-      
+
       let tituloLocal = `${TITULO_DESTAQUE} - ${operationLabel}`
       if (cidadeNome && estadoNome) {
         tituloLocal += ` - ${cidadeNome}, ${estadoNome}`
       } else if (estadoNome) {
         tituloLocal += ` - ${estadoNome}`
       }
-      
+
       console.log('✅ [BUILD TITLE] Modo destaque local - retornando título local:', {
         tituloLocal,
         operationLabel,
@@ -1314,7 +1314,7 @@ export default function LandingPage() {
       })
       return tituloLocal
     }
-    
+
     // Se não é destaque nacional nem tem localização, retornar título padrão
     const tituloPadrao = TITULO_DESTAQUE
     console.log('🔍 [BUILD TITLE] Retornando título padrão', {
@@ -1328,7 +1328,7 @@ export default function LandingPage() {
   // Função para construir URL do mapa baseado no contexto atual
   const construirUrlMapa = useCallback((tipo: 'nacional' | 'local' | 'filtros') => {
     const params = new URLSearchParams({ tipo })
-    
+
     if (tipo === 'nacional') {
       params.append('tipo_destaque', tipoDestaque)
     } else if (tipo === 'local') {
@@ -1346,14 +1346,14 @@ export default function LandingPage() {
       if (lastFilters?.tipoId) params.append('tipoId', lastFilters.tipoId.toString())
       if (lastFilters?.bairro) params.append('bairro', lastFilters.bairro)
     }
-    
+
     // Permite que o botão "Voltar" do mapa retorne para a tela correta (ex.: landpaging)
     try {
       if (typeof window !== 'undefined') {
         const returnTo = window.location.pathname + window.location.search
         params.append('return_to', returnTo)
       }
-    } catch {}
+    } catch { }
 
     return `/mapa-imoveis?${params.toString()}`
   }, [tipoDestaque, searchFormEstado, searchFormCidade, lastFilters])
@@ -1367,7 +1367,7 @@ export default function LandingPage() {
       })
       return 'Descubra as melhores oportunidades do mercado imobiliário em todo o Brasil'
     }
-    
+
     // Se não é destaque nacional nem fallback, calcular subtítulo dinâmico
     if (mostrarDestaquesNacional === false) {
       // Se não é destaque nacional, calcular subtítulo dinâmico
@@ -1375,18 +1375,18 @@ export default function LandingPage() {
         state: mostrarDestaquesNacional,
         ref: mostrarDestaquesNacionalRef.current
       })
-      
+
       const filtroEstado = searchFormEstado || lastFilters?.estado
       const filtroCidade = searchFormCidade || lastFilters?.cidade
       const temFiltroEstado = !!filtroEstado
       const temFiltroCidade = !!filtroCidade
-      
+
       // Se não há filtros de localização, retornar subtítulo padrão (não "Nacional")
       // para evitar confusão visual quando o botão "Destaques Nacional" é desativado
       if (!temFiltroEstado && !temFiltroCidade) {
         return 'Descubra as melhores oportunidades do mercado imobiliário'
       }
-      
+
       if (featuredProperties.length > 0 && (temFiltroEstado || temFiltroCidade)) {
         const cidadesEstados = new Set<string>()
         featuredData.forEach((imovel) => {
@@ -1397,37 +1397,37 @@ export default function LandingPage() {
             cidadesEstados.add(`${cidadeNome} - ${estadoNome}`)
           }
         })
-        
+
         if (cidadesEstados.size > 1) {
           return 'Nacional'
         }
-        
+
         const localizacoes = Array.from(cidadesEstados)
         if (localizacoes.length > 0) {
           const localizacaoUnica = localizacoes[0]
-          
+
           if (temFiltroEstado) {
             const estadoFiltrado = estados.find(e => e.sigla === filtroEstado || e.nome === filtroEstado)
             const estadoFiltradoNome = estadoFiltrado?.nome || filtroEstado
-            
+
             if (!localizacaoUnica.includes(estadoFiltradoNome)) {
               return 'Nacional'
             }
-            
+
             if (temFiltroCidade && filtroCidade) {
               if (!localizacaoUnica.toLowerCase().includes(filtroCidade.toLowerCase())) {
                 return 'Nacional'
               }
             }
           }
-          
+
           return localizacaoUnica
         }
       }
-      
+
       return 'Descubra as melhores oportunidades do mercado imobiliário'
     }
-    
+
     // Se mostrarDestaquesNacional é true, sempre retornar o padrão correto
     // Não usar o ref aqui porque quando o state é true, já é suficiente
     if (mostrarDestaquesNacional === true) {
@@ -1437,7 +1437,7 @@ export default function LandingPage() {
       })
       return 'Descubra as melhores oportunidades do mercado imobiliário em todo o Brasil'
     }
-    
+
     // Fallback (não deveria chegar aqui, mas por segurança)
     console.log('🔍 [BUILD SUBTITLE] Fallback - retornando subtítulo padrão', {
       state: mostrarDestaquesNacional,
@@ -1486,13 +1486,13 @@ export default function LandingPage() {
       // Se não encontrou resultados filtrados, exibir modal e fazer fallback para destaque nacional
       if (data.data.length === 0 && data.pagination.total === 0) {
         console.log('🔍 [LANDING PAGE] Nenhum resultado filtrado encontrado - exibindo modal e fazendo fallback para destaque nacional')
-        
+
         // Resetar barra de progresso
         setProgressBarWidth(0)
-        
+
         // Exibir modal
         setNoResultsModalOpen(true)
-        
+
         // Animar barra de progresso de 0% a 100% em 6 segundos
         const progressInterval = setInterval(() => {
           setProgressBarWidth((prev) => {
@@ -1503,24 +1503,24 @@ export default function LandingPage() {
             return prev + 1
           })
         }, 60) // Atualizar a cada 60ms (6 segundos / 100 = 60ms por 1%)
-        
+
         // Após 6 segundos, fazer fallback para destaque nacional
         setTimeout(async () => {
           clearInterval(progressInterval)
           setNoResultsModalOpen(false)
           setProgressBarWidth(0)
-          
+
           // Buscar imóveis em destaque nacional com a operação correta
           const operation = filters.operation || tipoDestaque
           const destaqueResponse = await fetch(`/api/public/imoveis/destaque?tipo_destaque=${operation}&destaque_nacional_only=true`)
           const destaqueData = await destaqueResponse.json()
-          
+
           if (destaqueResponse.ok && destaqueData.success && destaqueData.imoveis && destaqueData.imoveis.length > 0) {
             console.log('✅ [LANDING PAGE] Fallback para destaque nacional: encontrados', destaqueData.imoveis.length, 'imóveis')
-            
+
             // Converter para PropertyCard
             const imoveisNacional = destaqueData.imoveis.map(mapToPropertyCard)
-            
+
             setFilteredResults(imoveisNacional)
             setFilteredPagination({
               page: 1,
@@ -1533,7 +1533,7 @@ export default function LandingPage() {
             setMostrarDestaquesNacional(true) // Ativar flag para exibir título correto
           }
         }, 6000) // 6 segundos
-        
+
         return
       }
 
@@ -1560,10 +1560,10 @@ export default function LandingPage() {
     // IMPORTANTE: Quando filtros são aplicados, desativar destaque nacional APENAS se não vamos fazer fallback
     // O fallback será determinado dentro de fetchFilteredImoveis
     // Por isso, não resetamos mostrarDestaquesNacional aqui - será gerenciado pelo fetchFilteredImoveis
-    
+
     // Resetar flag de fallback antes de buscar (será setada novamente se houver fallback)
     setUsadoFallbackNacional(false)
-    
+
     // Atualizar tipoDestaque quando os filtros são aplicados
     // Isso garante que quando "Destaques Nacional" for acionado novamente,
     // o título reflita corretamente a operação (Comprar/Alugar) usada nos filtros
@@ -1659,7 +1659,7 @@ export default function LandingPage() {
           const res = await fetch('/api/public/feed/status', {
             cache: 'no-store'
           });
-          
+
           if (res.ok) {
             const data = await res.json();
             if (data.success) {
@@ -1674,7 +1674,7 @@ export default function LandingPage() {
           console.warn('⚠️ [FeedSection] Erro ao verificar status do feed:', err);
         }
       }
-      
+
       checkFeedStatus();
       // Verificar status a cada 5 minutos
       const interval = setInterval(checkFeedStatus, 5 * 60 * 1000);
@@ -1688,7 +1688,7 @@ export default function LandingPage() {
           const res = await fetch('/api/public/feed/status', {
             cache: 'no-store'
           });
-          
+
           if (res.ok) {
             const data = await res.json();
             if (data.success) {
@@ -1703,7 +1703,7 @@ export default function LandingPage() {
           console.warn('⚠️ [FeedSection] Erro ao verificar status do feed:', err);
         }
       }
-      
+
       checkFeedStatus();
       // Verificar status a cada 5 minutos
       const interval = setInterval(checkFeedStatus, 5 * 60 * 1000);
@@ -1720,22 +1720,22 @@ export default function LandingPage() {
               'Content-Type': 'application/json',
             }
           });
-          
+
           console.log('🔍 [FeedSection] Status da resposta:', res.status);
-          
+
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
             console.error('❌ [FeedSection] Erro na resposta:', errorData);
             throw new Error(errorData.error || `HTTP ${res.status}`);
           }
-          
+
           const data = await res.json();
           console.log('🔍 [FeedSection] Dados recebidos:', data);
           console.log('🔍 [FeedSection] Tipo de data:', typeof data);
           console.log('🔍 [FeedSection] data.success:', data.success);
           console.log('🔍 [FeedSection] data.data:', data.data);
           console.log('🔍 [FeedSection] Array.isArray(data.data):', Array.isArray(data.data));
-          
+
           if (data.success && Array.isArray(data.data)) {
             console.log('✅ [FeedSection] Posts recebidos:', data.data.length);
             setPosts(data.data);
@@ -1752,7 +1752,7 @@ export default function LandingPage() {
           setLoading(false);
         }
       }
-      
+
       fetchFeed();
     }, []);
 
@@ -1764,13 +1764,13 @@ export default function LandingPage() {
       console.log('⏳ [FeedSection] Ainda carregando...');
       return null;
     }
-    
+
     // Não renderizar se houver erro (mas mostrar no console)
     if (error) {
       console.warn('⚠️ [FeedSection] Erro ao carregar feed:', error);
       return null;
     }
-    
+
     // Renderizar mensagem se não houver posts (para debug)
     if (!posts || posts.length === 0) {
       console.warn('⚠️ [FeedSection] Nenhum post encontrado');
@@ -1851,10 +1851,10 @@ export default function LandingPage() {
           {/* Grid de Posts (Desktop: 2 linhas de 4 colunas, Mobile: Scroll Horizontal) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 overflow-x-auto pb-4 lg:pb-0 lg:overflow-visible snap-x snap-mandatory scrollbar-hide">
             {posts.map((post) => (
-              <Link 
-                key={post.id} 
-                href={post.url_original} 
-                target="_blank" 
+              <Link
+                key={post.id}
+                href={post.url_original}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="snap-center shrink-0 w-[85vw] sm:w-auto group flex flex-col bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-300 h-full"
               >
@@ -1873,10 +1873,10 @@ export default function LandingPage() {
                       <IconRenderer iconName={post.categoria_icone || 'NewspaperIcon'} className="w-16 h-16" />
                     </div>
                   )}
-                  
+
                   {/* Badge Categoria */}
                   <div className="absolute top-3 left-3 z-10">
-                    <span 
+                    <span
                       className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm"
                       style={{ color: post.categoria_cor || '#3B82F6' }}
                     >
@@ -1976,7 +1976,7 @@ export default function LandingPage() {
                 estadoAtual: mostrarDestaquesNacional,
                 novoEstado
               })
-              
+
               // Ação explícita do usuário: ao ATIVAR o Destaque Nacional, devemos recarregar o grid
               // (ao desativar, a exibição volta ao padrão local/não-local e o cache pode ser reaproveitado)
               if (novoEstado === true) {
@@ -1991,7 +1991,7 @@ export default function LandingPage() {
                 flushSync(() => {
                   setMostrarDestaquesNacional(true)
                 })
-                
+
                 // Depois limpar filtros (agora mostrarDestaquesNacional já está true)
                 setFiltersActive(false)
                 setFilteredResults([])
@@ -2006,7 +2006,7 @@ export default function LandingPage() {
                 flushSync(() => {
                   setMostrarDestaquesNacional(false)
                 })
-                
+
                 // Depois limpar filtros (agora mostrarDestaquesNacional já está false)
                 setFiltersActive(false)
                 setFilteredResults([])
@@ -2016,14 +2016,13 @@ export default function LandingPage() {
                 setSearchFormCidade(undefined)
                 setUsadoFallbackNacional(false) // Resetar flag de fallback ao desativar destaque nacional
               }
-              
+
               setCurrentPage(1) // Reset página ao trocar
             }}
-            className={`w-[280px] h-[72px] px-6 py-4 text-white font-bold text-base rounded-2xl transition-colors duration-200 flex items-center justify-center gap-2 shadow-lg shadow-black/20 whitespace-nowrap ${
-              mostrarDestaquesNacional
+            className={`w-[280px] h-[72px] px-6 py-4 text-white font-bold text-base rounded-2xl transition-colors duration-200 flex items-center justify-center gap-2 shadow-lg shadow-black/20 whitespace-nowrap ${mostrarDestaquesNacional
                 ? 'bg-purple-600 hover:bg-purple-700'
                 : 'bg-purple-500 hover:bg-purple-600'
-            }`}
+              }`}
           >
             <StarIcon className="w-6 h-6 flex-shrink-0" />
             {TITULO_DESTAQUE_NACIONAL}
@@ -2087,19 +2086,19 @@ export default function LandingPage() {
                 return
               }
             }
-          } catch {}
+          } catch { }
 
           // Fluxo padrão: abrir popup do corretor
           suppressGeolocationModalOnceRef.current = true
           try {
             sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
-          } catch {}
+          } catch { }
           geolocationModalOpenRef.current = false
           setGeolocationModalOpen(false)
           setCorretorPopupOpen(true)
         }}
       />
-      
+
       <section className="pt-8 pb-16 px-4 sm:px-6">
         <div className="w-full mx-auto">
           {/* Header com botões em card compacto - Visível quando:
@@ -2113,412 +2112,410 @@ export default function LandingPage() {
               <div className="inline-block">
                 <div className="bg-white rounded-2xl shadow-2xl p-4 border border-gray-400">
                   <div className="flex items-center gap-3">
-                  {/* Botões Esquerda: Comprar e Alugar (FUNCIONAIS) */}
-                  <div className="flex rounded-lg border-2 border-gray-200 overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const estadoAtual = searchFormEstado || lastFilters?.estado || null
-                        const cidadeAtual = searchFormCidade || lastFilters?.cidade || null
-                        const estaEmModoDestaqueLocal = !!(estadoAtual || cidadeAtual)
-                        
-                        console.log('🔍 [BOTÃO COMPRAR] Clicado', {
-                          mostrarDestaquesNacional,
-                          tipoDestaqueAtual: tipoDestaque,
-                          novoTipoDestaque: 'DV',
-                          estadoAtual,
-                          cidadeAtual,
-                          estaEmModoDestaqueLocal,
-                          '⚠️ TÍTULO ATUAL': buildTitle
-                        })
-                        
-                        // IMPORTANTE: Se estamos em modo destaque local, garantir que está configurado corretamente
-                        if (estaEmModoDestaqueLocal) {
-                          console.log('✅ [BOTÃO COMPRAR] Modo destaque local detectado - garantindo configuração correta')
-                          // Garantir que está em modo destaque local ANTES de mudar tipoDestaque
-                          setMostrarDestaquesNacional(false)
-                          setUsadoFallbackNacional(false)
-                          
-                          // Aguardar um tick para garantir que o estado foi atualizado
-                          await new Promise(resolve => setTimeout(resolve, 0))
-                        }
-                        
-                        // Armazenar tipo anterior antes de mudar
-                        setTipoDestaqueAnterior(tipoDestaque)
-                        // Alterar tipoDestaque para Comprar
-                        setTipoDestaque('DV')
-                        setCurrentPage(1) // Reset página ao trocar
-                        setMensagemSemResultados(null) // Limpar mensagem anterior
-                      }}
-                      className="px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-                    >
-                      <Home className="w-4 h-4 inline mr-2" />
-                      Comprar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const estadoAtual = searchFormEstado || lastFilters?.estado || null
-                        const cidadeAtual = searchFormCidade || lastFilters?.cidade || null
-                        const estaEmModoDestaqueLocal = !!(estadoAtual || cidadeAtual)
-                        
-                        console.log('🔍 [BOTÃO ALUGAR] Clicado', {
-                          mostrarDestaquesNacional,
-                          tipoDestaqueAtual: tipoDestaque,
-                          novoTipoDestaque: 'DA',
-                          estadoAtual,
-                          cidadeAtual,
-                          estaEmModoDestaqueLocal,
-                          '⚠️ TÍTULO ATUAL': buildTitle
-                        })
-                        
-                        // IMPORTANTE: Se estamos em modo destaque local, garantir que está configurado corretamente
-                        if (estaEmModoDestaqueLocal) {
-                          console.log('✅ [BOTÃO ALUGAR] Modo destaque local detectado - garantindo configuração correta')
-                          // Garantir que está em modo destaque local ANTES de mudar tipoDestaque
-                          setMostrarDestaquesNacional(false)
-                          setUsadoFallbackNacional(false)
-                          
-                          // Aguardar um tick para garantir que o estado foi atualizado
-                          await new Promise(resolve => setTimeout(resolve, 0))
-                        }
-                        
-                        // Armazenar tipo anterior antes de mudar
-                        setTipoDestaqueAnterior(tipoDestaque)
-                        // Alterar tipoDestaque para Alugar
-                        setTipoDestaque('DA')
-                        setCurrentPage(1) // Reset página ao trocar
-                        setMensagemSemResultados(null) // Limpar mensagem anterior
-                      }}
-                      className="px-4 py-3 text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition-colors"
-                    >
-                      <Building className="w-4 h-4 inline mr-2" />
-                      Alugar
-                    </button>
-                  </div>
-                  
-                  {/* Texto Central */}
-                  <div className="text-center px-6 flex-1">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                      {buildTitle}
-                    </h2>
-                    <p className="text-sm text-gray-600">
-                      {buildSubtitle}
-                    </p>
+                    {/* Botões Esquerda: Comprar e Alugar (FUNCIONAIS) */}
+                    <div className="flex rounded-lg border-2 border-gray-200 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const estadoAtual = searchFormEstado || lastFilters?.estado || null
+                          const cidadeAtual = searchFormCidade || lastFilters?.cidade || null
+                          const estaEmModoDestaqueLocal = !!(estadoAtual || cidadeAtual)
+
+                          console.log('🔍 [BOTÃO COMPRAR] Clicado', {
+                            mostrarDestaquesNacional,
+                            tipoDestaqueAtual: tipoDestaque,
+                            novoTipoDestaque: 'DV',
+                            estadoAtual,
+                            cidadeAtual,
+                            estaEmModoDestaqueLocal,
+                            '⚠️ TÍTULO ATUAL': buildTitle
+                          })
+
+                          // IMPORTANTE: Se estamos em modo destaque local, garantir que está configurado corretamente
+                          if (estaEmModoDestaqueLocal) {
+                            console.log('✅ [BOTÃO COMPRAR] Modo destaque local detectado - garantindo configuração correta')
+                            // Garantir que está em modo destaque local ANTES de mudar tipoDestaque
+                            setMostrarDestaquesNacional(false)
+                            setUsadoFallbackNacional(false)
+
+                            // Aguardar um tick para garantir que o estado foi atualizado
+                            await new Promise(resolve => setTimeout(resolve, 0))
+                          }
+
+                          // Armazenar tipo anterior antes de mudar
+                          setTipoDestaqueAnterior(tipoDestaque)
+                          // Alterar tipoDestaque para Comprar
+                          setTipoDestaque('DV')
+                          setCurrentPage(1) // Reset página ao trocar
+                          setMensagemSemResultados(null) // Limpar mensagem anterior
+                        }}
+                        className="px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+                      >
+                        <Home className="w-4 h-4 inline mr-2" />
+                        Comprar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const estadoAtual = searchFormEstado || lastFilters?.estado || null
+                          const cidadeAtual = searchFormCidade || lastFilters?.cidade || null
+                          const estaEmModoDestaqueLocal = !!(estadoAtual || cidadeAtual)
+
+                          console.log('🔍 [BOTÃO ALUGAR] Clicado', {
+                            mostrarDestaquesNacional,
+                            tipoDestaqueAtual: tipoDestaque,
+                            novoTipoDestaque: 'DA',
+                            estadoAtual,
+                            cidadeAtual,
+                            estaEmModoDestaqueLocal,
+                            '⚠️ TÍTULO ATUAL': buildTitle
+                          })
+
+                          // IMPORTANTE: Se estamos em modo destaque local, garantir que está configurado corretamente
+                          if (estaEmModoDestaqueLocal) {
+                            console.log('✅ [BOTÃO ALUGAR] Modo destaque local detectado - garantindo configuração correta')
+                            // Garantir que está em modo destaque local ANTES de mudar tipoDestaque
+                            setMostrarDestaquesNacional(false)
+                            setUsadoFallbackNacional(false)
+
+                            // Aguardar um tick para garantir que o estado foi atualizado
+                            await new Promise(resolve => setTimeout(resolve, 0))
+                          }
+
+                          // Armazenar tipo anterior antes de mudar
+                          setTipoDestaqueAnterior(tipoDestaque)
+                          // Alterar tipoDestaque para Alugar
+                          setTipoDestaque('DA')
+                          setCurrentPage(1) // Reset página ao trocar
+                          setMensagemSemResultados(null) // Limpar mensagem anterior
+                        }}
+                        className="px-4 py-3 text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition-colors"
+                      >
+                        <Building className="w-4 h-4 inline mr-2" />
+                        Alugar
+                      </button>
+                    </div>
+
+                    {/* Texto Central */}
+                    <div className="text-center px-6 flex-1">
+                      <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                        {buildTitle}
+                      </h2>
+                      <p className="text-sm text-gray-600">
+                        {buildSubtitle}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-              </div>
             </div>
           )}
-          
+
           <div className="relative min-h-[400px] bg-white overflow-x-visible -mx-4 sm:-mx-6">
             {filtersActive && (
               <div className="absolute inset-0 z-10">
                 <div className="absolute -inset-1 bg-white rounded-3xl"></div>
                 <div className="absolute inset-0 bg-white border border-blue-100 shadow-2xl rounded-3xl overflow-hidden">
                   <div className="relative h-full p-6 overflow-y-auto overflow-x-visible">
-                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
-                    <div className="flex-1">
-                      <h3 className="text-2xl font-bold text-gray-900">
-                        {(() => {
-                          // Se foi usado fallback nacional, SEMPRE mostrar título de destaque nacional
-                          if (usadoFallbackNacional) {
-                            const operation = lastFilters?.operation || tipoDestaque
-                            const operationLabel = operation === 'DA' ? 'Alugar' : 'Comprar'
-                            console.log('🔍 [TÍTULO FILTRADO] Usando título de destaque nacional (fallback)', {
-                              usadoFallbackNacional,
-                              operation,
-                              operationLabel
-                            })
-                            return `${TITULO_DESTAQUE} - Nacionais - ${operationLabel}`
-                          }
-                          
-                          // Caso contrário, mostrar título normal de resultados filtrados
-                          const operation = lastFilters?.operation || tipoDestaque
-                          const operationLabel = operation === 'DA' 
-                            ? 'Imóveis para Alugar' 
-                            : 'Imóveis para Comprar'
-                          return `${operationLabel} - ${filteredPagination.total} imóveis encontrados${buildFilterConcatenation()}`
-                        })()}
-                      </h3>
-                      <p className="text-sm text-gray-600 mt-2">
-                        {usadoFallbackNacional 
-                          ? 'Descubra as melhores oportunidades do mercado imobiliário em todo o Brasil'
-                          : buildFilterSummary()
-                        }
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        onClick={() => window.open(construirUrlMapa('filtros'), '_blank', 'noopener,noreferrer')}
-                        className="px-5 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-2 shadow-lg"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        Visualizar no Mapa
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleClearFilters}
-                        className="px-5 py-3 border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:border-gray-500 transition-colors"
-                      >
-                        Voltar para Destaques
-                      </button>
-                    </div>
-                  </div>
+                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
+                      <div className="flex-1">
+                        <h3 className="text-2xl font-bold text-gray-900">
+                          {(() => {
+                            // Se foi usado fallback nacional, SEMPRE mostrar título de destaque nacional
+                            if (usadoFallbackNacional) {
+                              const operation = lastFilters?.operation || tipoDestaque
+                              const operationLabel = operation === 'DA' ? 'Alugar' : 'Comprar'
+                              console.log('🔍 [TÍTULO FILTRADO] Usando título de destaque nacional (fallback)', {
+                                usadoFallbackNacional,
+                                operation,
+                                operationLabel
+                              })
+                              return `${TITULO_DESTAQUE} - Nacionais - ${operationLabel}`
+                            }
 
-                  {filtersLoading ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-                    {Array.from({ length: 8 }).map((_, index) => (
-                      <div key={index} className="animate-pulse bg-gray-100 rounded-2xl h-64" />
-                    ))}
-                  </div>
-                ) : filtersError ? (
-                  <div className="text-center py-12 text-red-600 font-semibold">{filtersError}</div>
-                ) : filteredResults.length === 0 ? (
-                  <div className="text-center py-12 text-gray-600">
-                    Nenhum imóvel encontrado com os filtros selecionados.
-                  </div>
-                ) : (
-                  <>
-                    <div className="w-full">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start">
-                        {filteredResults.map((property) => (
-                          <LandingPropertyCard 
-                            key={property.id} 
-                            property={property}
-                            onTenhoInteresseClick={handleTenhoInteresseClick}
-                          />
+                            // Caso contrário, mostrar título normal de resultados filtrados
+                            const operation = lastFilters?.operation || tipoDestaque
+                            const operationLabel = operation === 'DA'
+                              ? 'Imóveis para Alugar'
+                              : 'Imóveis para Comprar'
+                            return `${operationLabel} - ${filteredPagination.total} imóveis encontrados${buildFilterConcatenation()}`
+                          })()}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-2">
+                          {usadoFallbackNacional
+                            ? 'Descubra as melhores oportunidades do mercado imobiliário em todo o Brasil'
+                            : buildFilterSummary()
+                          }
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          onClick={() => window.open(construirUrlMapa('filtros'), '_blank', 'noopener,noreferrer')}
+                          className="px-5 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-2 shadow-lg"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          Visualizar no Mapa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearFilters}
+                          className="px-5 py-3 border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:border-gray-500 transition-colors"
+                        >
+                          Voltar para Destaques
+                        </button>
+                      </div>
+                    </div>
+
+                    {filtersLoading ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                        {Array.from({ length: 8 }).map((_, index) => (
+                          <div key={index} className="animate-pulse bg-gray-100 rounded-2xl h-64" />
                         ))}
                       </div>
-                    </div>
-                    {/* Paginação - Padrão igual ao grid de destaque */}
-                    {filteredPagination.totalPages > 1 && (
-                      <div className="bg-gray-50 px-6 py-5 border-t-2 border-gray-200 rounded-lg mt-8">
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                          <div className="order-2 sm:order-1">
-                            <p className="text-sm font-medium text-gray-700">
-                              Mostrando <span className="font-bold text-blue-600">{filteredStartIndex + 1}</span> até <span className="font-bold text-blue-600">{filteredEndIndex}</span> de{' '}
-                              {(() => {
-                              const operation = lastFilters?.operation || tipoDestaque
-                              const operationLabel = operation === 'DA' 
-                                ? 'Imóveis para Alugar' 
-                                : 'Imóveis para Comprar'
-                              return (
-                                <>
-                                  <span className="font-bold text-blue-600">{operationLabel} - {filteredPagination.total}</span> imóveis encontrados
-                                </>
-                              )
-                            })()}
-                            </p>
-                          </div>
-                          
-                          <div className="order-1 sm:order-2">
-                            <nav className="relative z-0 inline-flex rounded-md shadow-sm">
-                              <button
-                                onClick={() => handleFilterPageChange(filteredPagination.page - 1)}
-                                disabled={filteredPagination.page === 1 || filtersLoading}
-                                className="relative inline-flex items-center px-4 py-2 rounded-l-md border-2 border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                              >
-                                <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                                Anterior
-                              </button>
-                              
-                              <div className="flex -space-x-px">
-                                {Array.from({ length: filteredPagination.totalPages }, (_, i) => i + 1).map((page) => (
-                                  <button
-                                    key={page}
-                                    onClick={() => handleFilterPageChange(page)}
-                                    disabled={filtersLoading}
-                                    className={`relative inline-flex items-center px-5 py-2 border-2 text-base font-bold transition-all ${
-                                      page === filteredPagination.page
-                                        ? 'z-10 bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
-                                        : 'border-gray-300 bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:scale-105'
-                                    } ${filtersLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                  >
-                                    {page}
-                                  </button>
-                                ))}
-                              </div>
-                              
-                              <button
-                                onClick={() => handleFilterPageChange(filteredPagination.page + 1)}
-                                disabled={
-                                  filteredPagination.page === filteredPagination.totalPages || filtersLoading
-                                }
-                                className="relative inline-flex items-center px-4 py-2 rounded-r-md border-2 border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                              >
-                                Próximo
-                                <svg className="h-5 w-5 ml-2" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                </svg>
-                              </button>
-                            </nav>
+                    ) : filtersError ? (
+                      <div className="text-center py-12 text-red-600 font-semibold">{filtersError}</div>
+                    ) : filteredResults.length === 0 ? (
+                      <div className="text-center py-12 text-gray-600">
+                        Nenhum imóvel encontrado com os filtros selecionados.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="w-full">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start">
+                            {filteredResults.map((property) => (
+                              <LandingPropertyCard
+                                key={property.id}
+                                property={property}
+                                onTenhoInteresseClick={handleTenhoInteresseClick}
+                              />
+                            ))}
                           </div>
                         </div>
-                      </div>
+                        {/* Paginação - Padrão igual ao grid de destaque */}
+                        {filteredPagination.totalPages > 1 && (
+                          <div className="bg-gray-50 px-6 py-5 border-t-2 border-gray-200 rounded-lg mt-8">
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                              <div className="order-2 sm:order-1">
+                                <p className="text-sm font-medium text-gray-700">
+                                  Mostrando <span className="font-bold text-blue-600">{filteredStartIndex + 1}</span> até <span className="font-bold text-blue-600">{filteredEndIndex}</span> de{' '}
+                                  {(() => {
+                                    const operation = lastFilters?.operation || tipoDestaque
+                                    const operationLabel = operation === 'DA'
+                                      ? 'Imóveis para Alugar'
+                                      : 'Imóveis para Comprar'
+                                    return (
+                                      <>
+                                        <span className="font-bold text-blue-600">{operationLabel} - {filteredPagination.total}</span> imóveis encontrados
+                                      </>
+                                    )
+                                  })()}
+                                </p>
+                              </div>
+
+                              <div className="order-1 sm:order-2">
+                                <nav className="relative z-0 inline-flex rounded-md shadow-sm">
+                                  <button
+                                    onClick={() => handleFilterPageChange(filteredPagination.page - 1)}
+                                    disabled={filteredPagination.page === 1 || filtersLoading}
+                                    className="relative inline-flex items-center px-4 py-2 rounded-l-md border-2 border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                  >
+                                    <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                    Anterior
+                                  </button>
+
+                                  <div className="flex -space-x-px">
+                                    {Array.from({ length: filteredPagination.totalPages }, (_, i) => i + 1).map((page) => (
+                                      <button
+                                        key={page}
+                                        onClick={() => handleFilterPageChange(page)}
+                                        disabled={filtersLoading}
+                                        className={`relative inline-flex items-center px-5 py-2 border-2 text-base font-bold transition-all ${page === filteredPagination.page
+                                            ? 'z-10 bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
+                                            : 'border-gray-300 bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:scale-105'
+                                          } ${filtersLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                      >
+                                        {page}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  <button
+                                    onClick={() => handleFilterPageChange(filteredPagination.page + 1)}
+                                    disabled={
+                                      filteredPagination.page === filteredPagination.totalPages || filtersLoading
+                                    }
+                                    className="relative inline-flex items-center px-4 py-2 rounded-r-md border-2 border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                  >
+                                    Próximo
+                                    <svg className="h-5 w-5 ml-2" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  </button>
+                                </nav>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
                   </div>
                 </div>
               </div>
             )}
 
             {loadingFeatured ? (
-            <div className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                  <div key={i} className="animate-pulse">
-                    <div className="h-64 bg-gray-200 rounded-lg mb-4"></div>
-                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            ) : featuredProperties.length > 0 ? (
-            <>
-              {/* Mensagem quando não há resultados para o tipo selecionado */}
-              {mensagemSemResultados && (
-                <div className="px-6 pt-6 pb-4">
-                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                    <p className="text-yellow-800 font-semibold">{mensagemSemResultados}</p>
-                  </div>
-                </div>
-              )}
-              
-              {/* Título do grid de destaque nacional */}
-              {mostrarDestaquesNacional && buildTitle && (
-                <div className="px-6 pt-6 pb-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-2xl font-bold text-gray-900">
-                      {buildTitle}
-                    </h3>
-                    <p className="text-sm text-gray-600 italic mt-1">
-                      Para consultar outras opções de imóveis preencha suas opções de escolha em "Encontre o imóvel da sua preferência".
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => window.open(construirUrlMapa('nacional'), '_blank', 'noopener,noreferrer')}
-                    className="px-5 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-2 shadow-lg"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Visualizar no Mapa
-                  </button>
-                </div>
-              )}
-              
-              {/* Título do grid de destaque local */}
-              {buildFeaturedLocalTitle && (
-                <div className="px-6 pt-6 pb-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-2xl font-bold text-gray-900">
-                      {buildFeaturedLocalTitle}
-                    </h3>
-                    <p className="text-sm text-gray-600 italic mt-1">
-                      Para consultar outras opções de imóveis preencha suas opções de escolha em "Encontre o imóvel da sua preferência".
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => window.open(construirUrlMapa('local'), '_blank', 'noopener,noreferrer')}
-                    className="px-5 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-2 shadow-lg"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Visualizar no Mapa
-                  </button>
-                </div>
-              )}
               <div className="p-6">
-                <div className="w-full">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start">
-                    {currentProperties.map((property) => (
-                      <LandingPropertyCard 
-                        key={property.id} 
-                        property={property}
-                        onTenhoInteresseClick={handleTenhoInteresseClick}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Paginação */}
-              <div className="bg-gray-50 px-6 py-5 border-t-2 border-gray-200 rounded-lg mt-8">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="order-2 sm:order-1">
-                    <p className="text-sm font-medium text-gray-700">
-                      Mostrando <span className="font-bold text-blue-600">{startIndex + 1}</span> até <span className="font-bold text-blue-600">{Math.min(endIndex, featuredProperties.length)}</span> de{' '}
-                      <span className="font-bold text-blue-600">{featuredProperties.length}</span> imóveis em destaque
-                    </p>
-                  </div>
-                  
-                  {totalPages > 1 && (
-                    <div className="order-1 sm:order-2">
-                      <nav className="relative z-0 inline-flex rounded-md shadow-sm">
-                        <button
-                          onClick={() => handlePageChange(currentPage - 1)}
-                          disabled={currentPage === 1}
-                          className="relative inline-flex items-center px-4 py-2 rounded-l-md border-2 border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                        >
-                          <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                          Anterior
-                        </button>
-                        
-                        <div className="flex -space-x-px">
-                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                            <button
-                              key={page}
-                              onClick={() => handlePageChange(page)}
-                              className={`relative inline-flex items-center px-5 py-2 border-2 text-base font-bold transition-all ${
-                                page === currentPage
-                                  ? 'z-10 bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
-                                  : 'border-gray-300 bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:scale-105'
-                              }`}
-                            >
-                              {page}
-                            </button>
-                          ))}
-                        </div>
-                        
-                        <button
-                          onClick={() => handlePageChange(currentPage + 1)}
-                          disabled={currentPage === totalPages}
-                          className="relative inline-flex items-center px-4 py-2 rounded-r-md border-2 border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                        >
-                          Próximo
-                          <svg className="h-5 w-5 ml-2" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      </nav>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-64 bg-gray-200 rounded-lg mb-4"></div>
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
-            </>
+            ) : featuredProperties.length > 0 ? (
+              <>
+                {/* Mensagem quando não há resultados para o tipo selecionado */}
+                {mensagemSemResultados && (
+                  <div className="px-6 pt-6 pb-4">
+                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                      <p className="text-yellow-800 font-semibold">{mensagemSemResultados}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Título do grid de destaque nacional */}
+                {mostrarDestaquesNacional && buildTitle && (
+                  <div className="px-6 pt-6 pb-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900">
+                        {buildTitle}
+                      </h3>
+                      <p className="text-sm text-gray-600 italic mt-1">
+                        Para consultar outras opções de imóveis preencha suas opções de escolha em &quot;Encontre o imóvel da sua preferência&quot;.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => window.open(construirUrlMapa('nacional'), '_blank', 'noopener,noreferrer')}
+                      className="px-5 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-2 shadow-lg"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Visualizar no Mapa
+                    </button>
+                  </div>
+                )}
+
+                {/* Título do grid de destaque local */}
+                {buildFeaturedLocalTitle && (
+                  <div className="px-6 pt-6 pb-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900">
+                        {buildFeaturedLocalTitle}
+                      </h3>
+                      <p className="text-sm text-gray-600 italic mt-1">
+                        Para consultar outras opções de imóveis preencha suas opções de escolha em &quot;Encontre o imóvel da sua preferência&quot;.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => window.open(construirUrlMapa('local'), '_blank', 'noopener,noreferrer')}
+                      className="px-5 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-2 shadow-lg"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Visualizar no Mapa
+                    </button>
+                  </div>
+                )}
+                <div className="p-6">
+                  <div className="w-full">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start">
+                      {currentProperties.map((property) => (
+                        <LandingPropertyCard
+                          key={property.id}
+                          property={property}
+                          onTenhoInteresseClick={handleTenhoInteresseClick}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Paginação */}
+                <div className="bg-gray-50 px-6 py-5 border-t-2 border-gray-200 rounded-lg mt-8">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="order-2 sm:order-1">
+                      <p className="text-sm font-medium text-gray-700">
+                        Mostrando <span className="font-bold text-blue-600">{startIndex + 1}</span> até <span className="font-bold text-blue-600">{Math.min(endIndex, featuredProperties.length)}</span> de{' '}
+                        <span className="font-bold text-blue-600">{featuredProperties.length}</span> imóveis em destaque
+                      </p>
+                    </div>
+
+                    {totalPages > 1 && (
+                      <div className="order-1 sm:order-2">
+                        <nav className="relative z-0 inline-flex rounded-md shadow-sm">
+                          <button
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1}
+                            className="relative inline-flex items-center px-4 py-2 rounded-l-md border-2 border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                          >
+                            <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            Anterior
+                          </button>
+
+                          <div className="flex -space-x-px">
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                              <button
+                                key={page}
+                                onClick={() => handlePageChange(page)}
+                                className={`relative inline-flex items-center px-5 py-2 border-2 text-base font-bold transition-all ${page === currentPage
+                                    ? 'z-10 bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
+                                    : 'border-gray-300 bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:scale-105'
+                                  }`}
+                              >
+                                {page}
+                              </button>
+                            ))}
+                          </div>
+
+                          <button
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalPages}
+                            className="relative inline-flex items-center px-4 py-2 rounded-r-md border-2 border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                          >
+                            Próximo
+                            <svg className="h-5 w-5 ml-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        </nav>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
             ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-600">Nenhum imóvel em destaque no momento</p>
-            </div>
+              <div className="text-center py-12">
+                <p className="text-gray-600">Nenhum imóvel em destaque no momento</p>
+              </div>
             )}
           </div>
         </div>
       </section>
-      
+
       {/* Seção de Feed de Conteúdo - Fique por Dentro do Mercado */}
       <FeedSectionClient />
 
@@ -2538,20 +2535,20 @@ export default function LandingPage() {
           suppressGeolocationModalOnceRef.current = true
           try {
             sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
-          } catch {}
+          } catch { }
           setCorretorPopupOpen(false)
         }}
         onCadastrarClick={() => {
           try {
             sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
-          } catch {}
+          } catch { }
           setCorretorPopupOpen(false)
           router.push('/corretor/cadastro')
         }}
         onLoginClick={() => {
           try {
             sessionStorage.setItem(SUPPRESS_GEOLOCATION_MODAL_KEY, 'true')
-          } catch {}
+          } catch { }
           setCorretorPopupOpen(false)
           setCorretorLoginModalOpen(true)
         }}
@@ -2631,7 +2628,7 @@ export default function LandingPage() {
         onClose={async () => {
           console.log('🔍 [LANDING PAGE] onClose chamado, locationConfirmedRef:', locationConfirmedRef.current)
           console.log('🔍 [LANDING PAGE] Valores atuais:', { searchFormEstado, searchFormCidade })
-          
+
           // Se a localização foi confirmada, não limpar os valores
           if (locationConfirmedRef.current) {
             console.log('✅ [LANDING PAGE] Modal fechado após confirmação de localização, mantendo valores:', {
@@ -2645,7 +2642,7 @@ export default function LandingPage() {
             }, 100)
             return
           }
-          
+
           console.log('🔍 [LANDING PAGE] Modal de geolocalização fechado sem escolha de localização')
           // REGRA 1: Se usuário não escolheu localização, exibir grid de destaque nacional
           setSearchFormEstado(undefined)
@@ -2676,21 +2673,21 @@ export default function LandingPage() {
           // não reutilizar cache de destaques (pode estar stale e “esconder” imóveis novos).
           // Isso explica o cenário onde só aparece após "Aplicar filtros".
           forceFeaturedFetchRef.current = true
-          
+
           // REGRA 2: Verificar se existem imóveis com destaque local para essa localização
           // Verificar TANTO para Comprar (DV) quanto para Alugar (DA)
           try {
             setLoadingFeatured(true)
-            
+
             // Verificar para Comprar (DV) primeiro (padrão)
             // Performance: verificação leve (1 item, sem imagens) — evita baixar base64 desnecessário
             const urlVender = `/api/public/imoveis/destaque?tipo_destaque=DV&estado=${estadoSigla}&cidade=${cidadeNome}&limit=1&include_images=false`
             console.log('🔍 [LANDING PAGE] Verificando destaque local para Comprar:', urlVender)
-            
+
             // Verificar também para Alugar (DA)
             const urlAlugar = `/api/public/imoveis/destaque?tipo_destaque=DA&estado=${estadoSigla}&cidade=${cidadeNome}&limit=1&include_images=false`
             console.log('🔍 [LANDING PAGE] Verificando destaque local para Alugar:', urlAlugar)
-            
+
             // Performance: buscar DV e DA em paralelo (reduz latência percebida)
             const [responseVender, responseAlugar] = await Promise.all([
               fetch(urlVender),
@@ -2700,10 +2697,10 @@ export default function LandingPage() {
               responseVender.json(),
               responseAlugar.json()
             ])
-            
+
             const temDestaqueLocalVender = responseVender.ok && dataVender.success && dataVender.imoveis && dataVender.imoveis.length > 0 && !dataVender.usadoFallbackNacional
             const temDestaqueLocalAlugar = responseAlugar.ok && dataAlugar.success && dataAlugar.imoveis && dataAlugar.imoveis.length > 0 && !dataAlugar.usadoFallbackNacional
-            
+
             console.log('🔍 [LANDING PAGE] Verificação de destaque local:', {
               temDestaqueLocalVender,
               temDestaqueLocalAlugar,
@@ -2712,7 +2709,7 @@ export default function LandingPage() {
               usadoFallbackVender: dataVender.usadoFallbackNacional,
               usadoFallbackAlugar: dataAlugar.usadoFallbackNacional
             })
-            
+
             if (temDestaqueLocalVender || temDestaqueLocalAlugar) {
               // Existem imóveis com destaque local (para Comprar OU Alugar) - exibir grid de destaque local
               console.log('✅ [LANDING PAGE] Existem imóveis com destaque local - exibindo grid de destaque local')
@@ -2744,7 +2741,7 @@ export default function LandingPage() {
           } finally {
             setLoadingFeatured(false)
           }
-          
+
           // Disparar evento para atualizar Header
           window.dispatchEvent(new CustomEvent('geolocation-confirmed', {
             detail: { cidade: cidadeNome, estado: estadoSigla }
@@ -2754,8 +2751,8 @@ export default function LandingPage() {
           try {
             localStorage.setItem(LAST_GEOLOCATION_ESTADO_KEY, estadoSigla)
             localStorage.setItem(LAST_GEOLOCATION_CIDADE_KEY, cidadeNome)
-          } catch {}
-          
+          } catch { }
+
           console.log('✅ [LANDING PAGE] Valores setados, locationConfirmedRef:', locationConfirmedRef.current)
         }}
         onSelectOtherLocation={async (estadoSigla, cidadeNome) => {
@@ -2765,21 +2762,21 @@ export default function LandingPage() {
 
           // Mesma regra: seleção manual deve ignorar cache 1x para refletir o estado atual do catálogo
           forceFeaturedFetchRef.current = true
-          
+
           // REGRA 2: Verificar se existem imóveis com destaque local para essa localização
           // Verificar TANTO para Comprar (DV) quanto para Alugar (DA)
           try {
             setLoadingFeatured(true)
-            
+
             // Verificar para Comprar (DV) primeiro (padrão)
             // Performance: verificação leve (1 item, sem imagens)
             const urlVender = `/api/public/imoveis/destaque?tipo_destaque=DV&estado=${estadoSigla}&cidade=${cidadeNome}&limit=1&include_images=false`
             console.log('🔍 [LANDING PAGE] Verificando destaque local para Comprar:', urlVender)
-            
+
             // Verificar também para Alugar (DA)
             const urlAlugar = `/api/public/imoveis/destaque?tipo_destaque=DA&estado=${estadoSigla}&cidade=${cidadeNome}&limit=1&include_images=false`
             console.log('🔍 [LANDING PAGE] Verificando destaque local para Alugar:', urlAlugar)
-            
+
             // Performance: buscar DV e DA em paralelo (reduz latência percebida)
             const [responseVender, responseAlugar] = await Promise.all([
               fetch(urlVender),
@@ -2789,10 +2786,10 @@ export default function LandingPage() {
               responseVender.json(),
               responseAlugar.json()
             ])
-            
+
             const temDestaqueLocalVender = responseVender.ok && dataVender.success && dataVender.imoveis && dataVender.imoveis.length > 0 && !dataVender.usadoFallbackNacional
             const temDestaqueLocalAlugar = responseAlugar.ok && dataAlugar.success && dataAlugar.imoveis && dataAlugar.imoveis.length > 0 && !dataAlugar.usadoFallbackNacional
-            
+
             console.log('🔍 [LANDING PAGE] Verificação de destaque local:', {
               temDestaqueLocalVender,
               temDestaqueLocalAlugar,
@@ -2801,7 +2798,7 @@ export default function LandingPage() {
               usadoFallbackVender: dataVender.usadoFallbackNacional,
               usadoFallbackAlugar: dataAlugar.usadoFallbackNacional
             })
-            
+
             if (temDestaqueLocalVender || temDestaqueLocalAlugar) {
               // Existem imóveis com destaque local (para Comprar OU Alugar) - exibir grid de destaque local
               console.log('✅ [LANDING PAGE] Existem imóveis com destaque local - exibindo grid de destaque local')
@@ -2839,7 +2836,7 @@ export default function LandingPage() {
           } finally {
             setLoadingFeatured(false)
           }
-          
+
           // Disparar evento para atualizar Header
           window.dispatchEvent(new CustomEvent('geolocation-confirmed', {
             detail: { cidade: cidadeNome, estado: estadoSigla }
@@ -2849,8 +2846,8 @@ export default function LandingPage() {
           try {
             localStorage.setItem(LAST_GEOLOCATION_ESTADO_KEY, estadoSigla)
             localStorage.setItem(LAST_GEOLOCATION_CIDADE_KEY, cidadeNome)
-          } catch {}
-          
+          } catch { }
+
           console.log('✅ [LANDING PAGE] Valores setados após seleção manual')
         }}
       />
@@ -2870,7 +2867,7 @@ export default function LandingPage() {
                 Não existem imóveis para essas opções de escolha
               </p>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-4 overflow-hidden">
-                <div 
+                <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-100 ease-linear"
                   style={{ width: `${progressBarWidth}%` }}
                 />

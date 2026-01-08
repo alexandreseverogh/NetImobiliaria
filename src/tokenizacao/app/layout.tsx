@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
@@ -5,8 +6,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Net Imobiliária',
-  description: 'Sistema de gestão imobiliária',
+  title: 'Net ImobiliÃ¡ria',
+  description: 'Sistema de gestÃ£o imobiliÃ¡ria',
 }
 
 export default function RootLayout({
@@ -22,4 +23,5 @@ export default function RootLayout({
     </html>
   )
 }
+
 

@@ -5,9 +5,9 @@ import pool from '@/lib/database/connection'
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('accessToken')?.value || 
-                  request.headers.get('authorization')?.replace('Bearer ', '')
-    
+    const token = request.cookies.get('accessToken')?.value ||
+      request.headers.get('authorization')?.replace('Bearer ', '')
+
     if (!token) {
       return NextResponse.json(
         { error: 'Token de autenticação não fornecido' },
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     // Verificar token usando verifyTokenNode (correto para Base64URL)
     const decoded = verifyTokenNode(token)
-    
+
     if (!decoded || !decoded.userId) {
       return NextResponse.json(
         { error: 'Token de autenticação inválido ou expirado' },
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar usuário com permissões do banco de dados (SISTEMA ROBUSTO)
     const userWithPermissions = await getUserWithPermissions(decoded.userId)
-    
+
     if (!userWithPermissions) {
       return NextResponse.json(
         { error: 'Usuário não encontrado ou inativo' },
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
       foto: fotoBase64,
       foto_tipo_mime: rawFotoMime
     }
-    
+
     return NextResponse.json({
       success: true,
       user: userResponse

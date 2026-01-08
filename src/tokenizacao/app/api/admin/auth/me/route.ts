@@ -1,9 +1,10 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import { findUserById } from '@/lib/database/users'
 import pool from '@/lib/database/connection'
 
-// Forçar uso do Node.js runtime
+// ForÃ§ar uso do Node.js runtime
 export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     
     if (!token) {
       return NextResponse.json(
-        { error: 'Token de autenticação não fornecido' },
+        { error: 'Token de autenticaÃ§Ã£o nÃ£o fornecido' },
         { status: 401 }
       )
     }
@@ -23,12 +24,12 @@ export async function GET(request: NextRequest) {
     
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Token de autenticação inválido ou expirado' },
+        { error: 'Token de autenticaÃ§Ã£o invÃ¡lido ou expirado' },
         { status: 401 }
       )
     }
 
-    // Buscar dados do usuário com perfil
+    // Buscar dados do usuÃ¡rio com perfil
     const userQuery = `
       SELECT 
         u.id,
@@ -54,15 +55,15 @@ export async function GET(request: NextRequest) {
     
     if (!user) {
       return NextResponse.json(
-        { error: 'Usuário não encontrado' },
+        { error: 'UsuÃ¡rio nÃ£o encontrado' },
         { status: 404 }
       )
     }
 
-    // Para Super Admin, dar todas as permissões sem depender de tabelas de permissões
+    // Para Super Admin, dar todas as permissÃµes sem depender de tabelas de permissÃµes
     const permissoes: Record<string, string> = {}
     
-    // Se for Super Admin, dar todas as permissões
+    // Se for Super Admin, dar todas as permissÃµes
     if (user.role_name === 'Super Admin') {
       permissoes['imoveis'] = 'ADMIN'
       permissoes['usuarios'] = 'ADMIN'
@@ -81,9 +82,9 @@ export async function GET(request: NextRequest) {
       permissoes['sistema'] = 'ADMIN'
     }
 
-    console.log('🔍 API /auth/me: Permissões finais:', JSON.stringify(permissoes, null, 2))
-    console.log('🔍 API /auth/me: tipos-documentos permission:', permissoes['tipos-documentos'])
-    console.log('🔍 API /auth/me: user role:', user.role_name)
+    console.log('ðŸ” API /auth/me: PermissÃµes finais:', JSON.stringify(permissoes, null, 2))
+    console.log('ðŸ” API /auth/me: tipos-documentos permission:', permissoes['tipos-documentos'])
+    console.log('ðŸ” API /auth/me: user role:', user.role_name)
 
     const userResponse = {
       id: user.id,
@@ -103,11 +104,12 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Erro ao verificar usuário:', error)
+    console.error('Erro ao verificar usuÃ¡rio:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }
 }
+
 

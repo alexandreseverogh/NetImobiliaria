@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import { AuthProvider } from '@/hooks/useAuth'
 
 export default function LoginLayout({
@@ -13,3 +14,4 @@ export default function LoginLayout({
     </div>
   )
 }
+

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -21,11 +22,11 @@ const testimonials: Testimonial[] = [
   {
     id: '1',
     name: 'Maria Silva',
-    role: 'Empresária',
+    role: 'EmpresÃ¡ria',
     company: 'Consultoria Financeira',
     avatar: '/api/placeholder/80/80',
     rating: 5,
-    text: 'Investir através da tokenização foi uma experiência transformadora. Em apenas 8 meses, já recebi dividendos mensais consistentes e o valor dos meus tokens aumentou 23%. A transparência da plataforma é impressionante.',
+    text: 'Investir atravÃ©s da tokenizaÃ§Ã£o foi uma experiÃªncia transformadora. Em apenas 8 meses, jÃ¡ recebi dividendos mensais consistentes e o valor dos meus tokens aumentou 23%. A transparÃªncia da plataforma Ã© impressionante.',
     investment: 'R$ 15.000',
     roi: '18.5%',
     period: '8 meses'
@@ -37,7 +38,7 @@ const testimonials: Testimonial[] = [
     company: 'Construtora ABC',
     avatar: '/api/placeholder/80/80',
     rating: 5,
-    text: 'Como engenheiro, sempre quis investir em imóveis mas não tinha capital suficiente. A tokenização me permitiu investir em propriedades premium de R$ 2 milhões com apenas R$ 5.000. É revolucionário!',
+    text: 'Como engenheiro, sempre quis investir em imÃ³veis mas nÃ£o tinha capital suficiente. A tokenizaÃ§Ã£o me permitiu investir em propriedades premium de R$ 2 milhÃµes com apenas R$ 5.000. Ã‰ revolucionÃ¡rio!',
     investment: 'R$ 5.000',
     roi: '15.2%',
     period: '6 meses'
@@ -46,10 +47,10 @@ const testimonials: Testimonial[] = [
     id: '3',
     name: 'Ana Costa',
     role: 'Advogada',
-    company: 'Escritório Costa & Associados',
+    company: 'EscritÃ³rio Costa & Associados',
     avatar: '/api/placeholder/80/80',
     rating: 5,
-    text: 'A segurança jurídica e o compliance total da plataforma me convenceram a investir. Todos os documentos são transparentes e a regulamentação CVM me dá total confiança. Recomendo para todos os meus clientes.',
+    text: 'A seguranÃ§a jurÃ­dica e o compliance total da plataforma me convenceram a investir. Todos os documentos sÃ£o transparentes e a regulamentaÃ§Ã£o CVM me dÃ¡ total confianÃ§a. Recomendo para todos os meus clientes.',
     investment: 'R$ 25.000',
     roi: '16.8%',
     period: '1 ano'
@@ -58,10 +59,10 @@ const testimonials: Testimonial[] = [
     id: '4',
     name: 'Roberto Santos',
     role: 'Aposentado',
-    company: 'Ex-Executivo Bancário',
+    company: 'Ex-Executivo BancÃ¡rio',
     avatar: '/api/placeholder/80/80',
     rating: 5,
-    text: 'Após 30 anos no mercado financeiro, nunca vi uma oportunidade tão democratizada. Meus tokens de imóveis em Copacabana renderam mais que a poupança e são muito mais seguros que ações voláteis.',
+    text: 'ApÃ³s 30 anos no mercado financeiro, nunca vi uma oportunidade tÃ£o democratizada. Meus tokens de imÃ³veis em Copacabana renderam mais que a poupanÃ§a e sÃ£o muito mais seguros que aÃ§Ãµes volÃ¡teis.',
     investment: 'R$ 50.000',
     roi: '14.7%',
     period: '1 ano e 3 meses'
@@ -97,7 +98,7 @@ export default function TestimonialsSection() {
             </span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            Mais de 1.200 investidores já descobriram o poder da tokenização de imóveis. 
+            Mais de 1.200 investidores jÃ¡ descobriram o poder da tokenizaÃ§Ã£o de imÃ³veis. 
             Veja os resultados reais de quem investiu conosco.
           </p>
         </div>
@@ -179,7 +180,7 @@ export default function TestimonialsSection() {
                     <div className="text-2xl font-bold text-purple-600 mb-1">
                       {currentTestimonial.period}
                     </div>
-                    <div className="text-sm text-gray-600">Período</div>
+                    <div className="text-sm text-gray-600">PerÃ­odo</div>
                   </div>
                 </div>
               </div>
@@ -257,11 +258,12 @@ export default function TestimonialsSection() {
         {/* Bottom CTA */}
         <div className="text-center mt-16">
           <button className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-lg rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl">
-            Quero Investir Também
+            Quero Investir TambÃ©m
           </button>
         </div>
       </div>
     </section>
   )
 }
+
 

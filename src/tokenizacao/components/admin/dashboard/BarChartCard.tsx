@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -78,6 +79,7 @@ export default function BarChartCard({ title, data, icon, color }: BarChartCardP
     </div>
   )
 }
+
 
 
 

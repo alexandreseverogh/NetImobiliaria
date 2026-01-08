@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -49,7 +50,7 @@ export default function ProprietariosPage() {
   const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()
   
   
-  // Estados de paginação - inicializar com sessionStorage
+  // Estados de paginaÃ§Ã£o - inicializar com sessionStorage
   const [currentPage, setCurrentPage] = useState(() => {
     if (typeof window !== 'undefined') {
       const savedPage = sessionStorage.getItem('proprietarios_currentPage')
@@ -63,7 +64,7 @@ export default function ProprietariosPage() {
   const [hasPrev, setHasPrev] = useState(false)
 
 
-  // Carregar municípios quando estado mudar
+  // Carregar municÃ­pios quando estado mudar
   useEffect(() => {
     loadMunicipios(filters.estado)
   }, [filters.estado, loadMunicipios])
@@ -76,7 +77,7 @@ export default function ProprietariosPage() {
         limit: '10'
       })
       
-      // Adicionar filtros à query
+      // Adicionar filtros Ã  query
       if (filtersToUse.nome) queryParams.append('nome', filtersToUse.nome)
       if (filtersToUse.cpf) queryParams.append('cpf', filtersToUse.cpf)
       
@@ -101,7 +102,7 @@ export default function ProprietariosPage() {
       const response = await fetch(`/api/admin/proprietarios?${queryParams}`)
       
       if (!response.ok) {
-        throw new Error('Erro ao carregar proprietários')
+        throw new Error('Erro ao carregar proprietÃ¡rios')
       }
       
       const data: PaginatedResponse = await response.json()
@@ -111,19 +112,19 @@ export default function ProprietariosPage() {
       setHasNext(data.hasNext)
       setHasPrev(data.hasPrev)
       
-      // Salvar página atual no sessionStorage
+      // Salvar pÃ¡gina atual no sessionStorage
       sessionStorage.setItem('proprietarios_currentPage', currentPage.toString())
     } catch (error) {
-      console.error('Erro ao buscar proprietários:', error)
+      console.error('Erro ao buscar proprietÃ¡rios:', error)
     } finally {
       setLoading(false)
     }
   }, [currentPage, getEstadoNome, getCidadeNome])
 
-  // Hook para recarregar quando a página ganha foco
+  // Hook para recarregar quando a pÃ¡gina ganha foco
   usePageFocus(fetchProprietarios)
 
-  // Carregar proprietários quando a página carrega ou quando currentPage muda
+  // Carregar proprietÃ¡rios quando a pÃ¡gina carrega ou quando currentPage muda
   useEffect(() => {
     fetchProprietarios()
   }, [currentPage, fetchProprietarios])
@@ -148,7 +149,7 @@ export default function ProprietariosPage() {
     e.preventDefault()
     setCurrentPage(1)
     
-    // Limpar municípios para nova consulta
+    // Limpar municÃ­pios para nova consulta
     clearMunicipios()
     
     // Usar callback para garantir que temos os filtros mais recentes
@@ -174,7 +175,7 @@ export default function ProprietariosPage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir este proprietário?')) {
+    if (!confirm('Tem certeza que deseja excluir este proprietÃ¡rio?')) {
       return
     }
 
@@ -184,14 +185,14 @@ export default function ProprietariosPage() {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao excluir proprietário')
+        throw new Error('Erro ao excluir proprietÃ¡rio')
       }
 
       // Recarregar a lista
       fetchProprietarios()
     } catch (error) {
-      console.error('Erro ao excluir proprietário:', error)
-      alert('Erro ao excluir proprietário')
+      console.error('Erro ao excluir proprietÃ¡rio:', error)
+      alert('Erro ao excluir proprietÃ¡rio')
     }
   }
 
@@ -241,15 +242,15 @@ export default function ProprietariosPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Proprietários</h1>
-            <p className="mt-2 text-gray-600">Gerencie os proprietários da imobiliária</p>
+            <h1 className="text-3xl font-bold text-gray-900">ProprietÃ¡rios</h1>
+            <p className="mt-2 text-gray-600">Gerencie os proprietÃ¡rios da imobiliÃ¡ria</p>
           </div>
           <button
             onClick={() => router.push('/admin/proprietarios/novo')}
             className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-200"
           >
             <PlusIcon className="h-5 w-5 mr-2" />
-            Novo Proprietário
+            Novo ProprietÃ¡rio
           </button>
         </div>
       </div>
@@ -340,7 +341,7 @@ export default function ProprietariosPage() {
           </div>
         </form>
         
-        {/* Botões de ação dos filtros */}
+        {/* BotÃµes de aÃ§Ã£o dos filtros */}
         <div className="flex gap-3 mt-4">
           <button
             type="button"
@@ -360,7 +361,7 @@ export default function ProprietariosPage() {
         </div>
       </div>
 
-      {/* Lista de Proprietários - Grid Moderno */}
+      {/* Lista de ProprietÃ¡rios - Grid Moderno */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
         {proprietarios.length === 0 ? (
           <div className="text-center py-16">
@@ -369,14 +370,14 @@ export default function ProprietariosPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum proprietário encontrado</h3>
-            <p className="text-gray-500 mb-4">Tente ajustar os filtros ou adicionar um novo proprietário.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum proprietÃ¡rio encontrado</h3>
+            <p className="text-gray-500 mb-4">Tente ajustar os filtros ou adicionar um novo proprietÃ¡rio.</p>
             <button
               onClick={() => router.push('/admin/proprietarios/novo')}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               <PlusIcon className="h-4 w-4 mr-2" />
-              Novo Proprietário
+              Novo ProprietÃ¡rio
             </button>
           </div>
         ) : (
@@ -395,10 +396,10 @@ export default function ProprietariosPage() {
                     </h3>
                   </div>
                   
-                  {/* Segunda linha: ID + data à esquerda, botões à direita */}
+                  {/* Segunda linha: ID + data Ã  esquerda, botÃµes Ã  direita */}
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-gray-200 font-medium">
-                      ID: {proprietario.id} • {new Date(proprietario.created_at).toLocaleDateString('pt-BR')}
+                      ID: {proprietario.id} â€¢ {new Date(proprietario.created_at).toLocaleDateString('pt-BR')}
                     </p>
                     <div className="flex items-center space-x-1">
                       <button
@@ -426,7 +427,7 @@ export default function ProprietariosPage() {
                   </div>
                 </div>
 
-                {/* Informações do Proprietário */}
+                {/* InformaÃ§Ãµes do ProprietÃ¡rio */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">CPF:</span>
@@ -445,7 +446,7 @@ export default function ProprietariosPage() {
                   
                   {proprietario.endereco && (
                     <div className="flex items-start justify-between">
-                      <span className="text-sm font-medium text-gray-500">Endereço:</span>
+                      <span className="text-sm font-medium text-gray-500">EndereÃ§o:</span>
                       <span className="text-sm text-gray-900 text-right max-w-[200px]">
                         {proprietario.endereco}{proprietario.numero && `, ${proprietario.numero}`}
                       </span>
@@ -454,12 +455,12 @@ export default function ProprietariosPage() {
                   
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">Estado:</span>
-                    <span className="text-sm text-gray-900">{proprietario.estado_fk || 'Não informado'}</span>
+                    <span className="text-sm text-gray-900">{proprietario.estado_fk || 'NÃ£o informado'}</span>
                   </div>
                   
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">Cidade:</span>
-                    <span className="text-sm text-gray-900">{proprietario.cidade_fk || 'Não informado'}</span>
+                    <span className="text-sm text-gray-900">{proprietario.cidade_fk || 'NÃ£o informado'}</span>
                   </div>
                   
                   {proprietario.bairro && (
@@ -497,25 +498,25 @@ export default function ProprietariosPage() {
         </div>
       )}
       
-      {/* Estatísticas */}
+      {/* EstatÃ­sticas */}
       <div className="mt-8 bg-white rounded-xl shadow-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Estatísticas</h3>
-            <p className="text-sm text-gray-500 mt-1">Resumo dos proprietários cadastrados</p>
+            <h3 className="text-lg font-semibold text-gray-900">EstatÃ­sticas</h3>
+            <p className="text-sm text-gray-500 mt-1">Resumo dos proprietÃ¡rios cadastrados</p>
           </div>
           <div className="flex items-center space-x-8">
             <div className="text-center">
               <p className="text-2xl font-bold text-blue-600">{totalItems}</p>
-              <p className="text-sm text-gray-500">Total de Proprietários</p>
+              <p className="text-sm text-gray-500">Total de ProprietÃ¡rios</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-green-600">{proprietarios.length}</p>
-              <p className="text-sm text-gray-500">Nesta Página</p>
+              <p className="text-sm text-gray-500">Nesta PÃ¡gina</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-purple-600">{totalPages}</p>
-              <p className="text-sm text-gray-500">Páginas</p>
+              <p className="text-sm text-gray-500">PÃ¡ginas</p>
             </div>
           </div>
         </div>

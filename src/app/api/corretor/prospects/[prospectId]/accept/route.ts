@@ -38,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: { prospec
         AND corretor_fk = $2::uuid
         AND status = 'atribuido'
         AND (expira_em IS NULL OR expira_em > NOW())
-      RETURNING id, prospect_id, status, aceito_em
+      RETURNING id, prospect_id, status, aceito_em, created_at
     `
     const res = await pool.query(q, [prospectId, userId])
     if (res.rows.length === 0) {
@@ -46,6 +46,22 @@ export async function POST(request: NextRequest, { params }: { params: { prospec
         { success: false, error: 'Lead não encontrado, já aceito ou SLA expirado' },
         { status: 400 }
       )
+    }
+
+    // Gamification: Registrar Aceite
+    try {
+      const { GamificationService } = await import('@/lib/gamification/gamificationService')
+      const row = res.rows[0]
+      const ca = new Date(row.created_at)
+      const aa = new Date(row.aceito_em)
+      const diffSeconds = Math.floor((aa.getTime() - ca.getTime()) / 1000)
+
+      // Executar em background (sem await) para não travar resposta
+      GamificationService.recordLeadAcceptance(userId, diffSeconds).catch(err => {
+        console.error('Erro ao registrar XP de gamificação:', err)
+      })
+    } catch (gError) {
+      console.error('Erro ao carregar serviço de gamificação:', gError)
     }
 
     return NextResponse.json({ success: true, data: res.rows[0] })

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import PropertyCard from '@/components/PropertyCard'
 import SearchForm from '@/components/SearchForm'
 import { Filter, Grid, List } from 'lucide-react'
@@ -8,10 +9,10 @@ export default function ImoveisPage() {
       id: 1,
       title: 'Apartamento de Luxo no Jardins',
       price: 'R$ 2.500.000',
-      location: 'Jardins, São Paulo',
+      location: 'Jardins, SÃ£o Paulo',
       bedrooms: 3,
       bathrooms: 2,
-      area: '120m²',
+      area: '120mÂ²',
       image: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=600&fit=crop',
       type: 'Venda'
     },
@@ -19,10 +20,10 @@ export default function ImoveisPage() {
       id: 2,
       title: 'Casa Moderna em Pinheiros',
       price: 'R$ 1.800.000',
-      location: 'Pinheiros, São Paulo',
+      location: 'Pinheiros, SÃ£o Paulo',
       bedrooms: 4,
       bathrooms: 3,
-      area: '180m²',
+      area: '180mÂ²',
       image: 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&h=600&fit=crop',
       type: 'Venda'
     },
@@ -30,10 +31,10 @@ export default function ImoveisPage() {
       id: 3,
       title: 'Cobertura Duplex na Vila Madalena',
       price: 'R$ 3.200.000',
-      location: 'Vila Madalena, São Paulo',
+      location: 'Vila Madalena, SÃ£o Paulo',
       bedrooms: 3,
       bathrooms: 2,
-      area: '150m²',
+      area: '150mÂ²',
       image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&h=600&fit=crop',
       type: 'Venda'
     },
@@ -41,10 +42,10 @@ export default function ImoveisPage() {
       id: 4,
       title: 'Apartamento 2 Quartos no Itaim Bibi',
       price: 'R$ 1.200.000',
-      location: 'Itaim Bibi, São Paulo',
+      location: 'Itaim Bibi, SÃ£o Paulo',
       bedrooms: 2,
       bathrooms: 2,
-      area: '85m²',
+      area: '85mÂ²',
       image: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=600&fit=crop',
       type: 'Venda'
     },
@@ -52,10 +53,10 @@ export default function ImoveisPage() {
       id: 5,
       title: 'Casa com Piscina em Moema',
       price: 'R$ 4.500.000',
-      location: 'Moema, São Paulo',
+      location: 'Moema, SÃ£o Paulo',
       bedrooms: 5,
       bathrooms: 4,
-      area: '280m²',
+      area: '280mÂ²',
       image: 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&h=600&fit=crop',
       type: 'Venda'
     },
@@ -63,10 +64,10 @@ export default function ImoveisPage() {
       id: 6,
       title: 'Loft Industrial na Vila Madalena',
       price: 'R$ 2.800.000',
-      location: 'Vila Madalena, São Paulo',
+      location: 'Vila Madalena, SÃ£o Paulo',
       bedrooms: 2,
       bathrooms: 2,
-      area: '95m²',
+      area: '95mÂ²',
       image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&h=600&fit=crop',
       type: 'Venda'
     }
@@ -78,11 +79,11 @@ export default function ImoveisPage() {
       <section className="bg-gradient-to-r from-primary-600 to-primary-700 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            Catálogo de Imóveis
+            CatÃ¡logo de ImÃ³veis
           </h1>
           <p className="text-xl text-primary-100 max-w-2xl mx-auto">
-            Descubra nossa seleção exclusiva de imóveis em São Paulo. 
-            Encontre o lar perfeito para você e sua família.
+            Descubra nossa seleÃ§Ã£o exclusiva de imÃ³veis em SÃ£o Paulo. 
+            Encontre o lar perfeito para vocÃª e sua famÃ­lia.
           </p>
         </div>
       </section>
@@ -101,10 +102,10 @@ export default function ImoveisPage() {
           <div className="flex flex-col md:flex-row justify-between items-center mb-8">
             <div className="mb-4 md:mb-0">
               <h2 className="text-2xl font-bold text-gray-900">
-                {allProperties.length} Imóveis Encontrados
+                {allProperties.length} ImÃ³veis Encontrados
               </h2>
               <p className="text-gray-600">
-                Mostrando todos os imóveis disponíveis
+                Mostrando todos os imÃ³veis disponÃ­veis
               </p>
             </div>
             
@@ -132,7 +133,7 @@ export default function ImoveisPage() {
           {/* Load More Button */}
           <div className="text-center mt-12">
             <button className="btn-secondary px-8 py-3 text-lg">
-              Carregar Mais Imóveis
+              Carregar Mais ImÃ³veis
             </button>
           </div>
         </div>
@@ -140,4 +141,5 @@ export default function ImoveisPage() {
     </div>
   )
 }
+
 

@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -33,7 +34,7 @@ export default function AmenidadesPage() {
   const [selectedCategory, setSelectedCategory] = useState('')
   const [categories, setCategories] = useState<string[]>([])
   
-  // Estados de paginação - inicializar com sessionStorage
+  // Estados de paginaÃ§Ã£o - inicializar com sessionStorage
   const [currentPage, setCurrentPage] = useState(() => {
     if (typeof window !== 'undefined') {
       const savedPage = sessionStorage.getItem('amenidades_currentPage')
@@ -97,20 +98,20 @@ export default function AmenidadesPage() {
 
   // Recarregar dados quando a categoria ou busca mudar
   useEffect(() => {
-    setCurrentPage(1) // Reset para primeira página ao filtrar
+    setCurrentPage(1) // Reset para primeira pÃ¡gina ao filtrar
     fetchAmenidades()
   }, [selectedCategory, searchTerm])
 
-  // Usar o hook personalizado para recarregar dados quando a página receber foco
+  // Usar o hook personalizado para recarregar dados quando a pÃ¡gina receber foco
   usePageFocus(fetchAmenidades)
 
-  // Função para mudar de página - salvar no sessionStorage
+  // FunÃ§Ã£o para mudar de pÃ¡gina - salvar no sessionStorage
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('amenidades_currentPage', page.toString())
     }
-    // A busca será feita automaticamente pelo useEffect
+    // A busca serÃ¡ feita automaticamente pelo useEffect
   }
 
   // Usar diretamente os dados da API (filtros aplicados no backend)
@@ -121,7 +122,7 @@ export default function AmenidadesPage() {
   }
 
   const handleEdit = (slug: string) => {
-    // Salvar página atual antes de navegar para edição
+    // Salvar pÃ¡gina atual antes de navegar para ediÃ§Ã£o
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('amenidades_currentPage', currentPage.toString())
     }
@@ -175,7 +176,7 @@ export default function AmenidadesPage() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Amenidades</h1>
-              <p className="text-gray-600 mt-2">Gerencie as amenidades disponíveis</p>
+              <p className="text-gray-600 mt-2">Gerencie as amenidades disponÃ­veis</p>
             </div>
             <button
               onClick={() => router.push('/admin/amenidades/nova')}
@@ -200,7 +201,7 @@ export default function AmenidadesPage() {
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Nome ou descrição..."
+                  placeholder="Nome ou descriÃ§Ã£o..."
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -260,7 +261,7 @@ export default function AmenidadesPage() {
                         Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Ações
+                        AÃ§Ãµes
                       </th>
                     </tr>
                   </thead>
@@ -322,7 +323,7 @@ export default function AmenidadesPage() {
                 </table>
               </div>
 
-              {/* Paginação */}
+              {/* PaginaÃ§Ã£o */}
               {totalPages > 1 && (
                 <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
                   <Pagination

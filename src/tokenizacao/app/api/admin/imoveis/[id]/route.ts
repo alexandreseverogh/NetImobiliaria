@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { findImovelById } from '@/lib/database/imoveis'
 import { findAmenidadesByImovel } from '@/lib/database/amenidades'

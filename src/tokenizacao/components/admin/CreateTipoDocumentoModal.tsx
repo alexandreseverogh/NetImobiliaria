@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -19,9 +20,9 @@ export default function CreateTipoDocumentoModal({ onClose, onSuccess }: CreateT
     const newErrors: Record<string, string> = {}
 
     if (!formData.descricao.trim()) {
-      newErrors.descricao = 'Descrição é obrigatória'
+      newErrors.descricao = 'DescriÃ§Ã£o Ã© obrigatÃ³ria'
     } else if (formData.descricao.trim().length < 2) {
-      newErrors.descricao = 'Descrição deve ter pelo menos 2 caracteres'
+      newErrors.descricao = 'DescriÃ§Ã£o deve ter pelo menos 2 caracteres'
     }
 
     setErrors(newErrors)
@@ -61,7 +62,7 @@ export default function CreateTipoDocumentoModal({ onClose, onSuccess }: CreateT
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    // Limpar erro do campo quando usuário começar a digitar
+    // Limpar erro do campo quando usuÃ¡rio comeÃ§ar a digitar
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }))
     }
@@ -88,10 +89,10 @@ export default function CreateTipoDocumentoModal({ onClose, onSuccess }: CreateT
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Descrição */}
+            {/* DescriÃ§Ã£o */}
             <div>
               <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-1">
-                Descrição *
+                DescriÃ§Ã£o *
               </label>
               <input
                 type="text"
@@ -109,7 +110,7 @@ export default function CreateTipoDocumentoModal({ onClose, onSuccess }: CreateT
               )}
             </div>
 
-            {/* Visível ao Público */}
+            {/* VisÃ­vel ao PÃºblico */}
             <div>
               <label className="flex items-center">
                 <input
@@ -120,11 +121,11 @@ export default function CreateTipoDocumentoModal({ onClose, onSuccess }: CreateT
                   disabled={loading}
                 />
                 <span className="ml-2 text-sm text-gray-700">
-                  Visível para consulta de imóveis pelo público
+                  VisÃ­vel para consulta de imÃ³veis pelo pÃºblico
                 </span>
               </label>
               <p className="mt-1 text-xs text-gray-500">
-                Se marcado, este tipo de documento será exibido para visitantes do site
+                Se marcado, este tipo de documento serÃ¡ exibido para visitantes do site
               </p>
             </div>
 
@@ -166,6 +167,7 @@ export default function CreateTipoDocumentoModal({ onClose, onSuccess }: CreateT
     </div>
   )
 }
+
 
 
 

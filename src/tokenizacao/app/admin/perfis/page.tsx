@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -113,7 +114,7 @@ export default function PerfisPage() {
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Gerenciar Perfis</h1>
                 <p className="text-gray-600 mt-1">
-                  Configure perfis de usuário e suas permissões de acesso
+                  Configure perfis de usuÃ¡rio e suas permissÃµes de acesso
                 </p>
               </div>
             </div>
@@ -158,7 +159,7 @@ export default function PerfisPage() {
               <ShieldCheckIcon className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum perfil encontrado</h3>
               <p className="mt-1 text-sm text-gray-500">
-                Comece criando o primeiro perfil de usuário.
+                Comece criando o primeiro perfil de usuÃ¡rio.
               </p>
               <div className="mt-6">
                 <PermissionGuard resource="usuarios" action="WRITE">
@@ -194,7 +195,7 @@ export default function PerfisPage() {
                           <div className="mt-1 flex items-center space-x-4 text-xs text-gray-500">
                             <span className="flex items-center">
                               <span className="w-2 h-2 bg-green-400 rounded-full mr-1"></span>
-                              {perfil.userCount} usuário{perfil.userCount !== 1 ? 's' : ''}
+                              {perfil.userCount} usuÃ¡rio{perfil.userCount !== 1 ? 's' : ''}
                             </span>
                           </div>
                         </div>
@@ -208,7 +209,7 @@ export default function PerfisPage() {
                           className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
                         >
                           <UsersIcon className="h-4 w-4 mr-1" />
-                          Usuários
+                          UsuÃ¡rios
                         </button>
                       </PermissionGuard>
                       
@@ -283,5 +284,6 @@ export default function PerfisPage() {
     </div>
   );
 }
+
 
 

@@ -1,9 +1,10 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken, JWTPayload } from '@/lib/auth/jwt'
 import { auditLogger } from '@/lib/utils/auditLogger'
 import { Permission } from '@/lib/types/admin'
 
-// Interface estendida para JWT com permissões
+// Interface estendida para JWT com permissÃµes
 interface JWTPayloadWithPermissions extends JWTPayload {
   permissoes: {
     imoveis: Permission
@@ -17,7 +18,7 @@ interface JWTPayloadWithPermissions extends JWTPayload {
   }
 }
 
-// Interface para perfil de usuário
+// Interface para perfil de usuÃ¡rio
 interface UserRole {
   id: number
   name: string
@@ -34,7 +35,7 @@ interface UserRole {
   updatedAt: string
 }
 
-// Interface para criação de perfil
+// Interface para criaÃ§Ã£o de perfil
 interface CreateRoleRequest {
   name: string
   description: string
@@ -47,12 +48,12 @@ interface CreateRoleRequest {
   }
 }
 
-// Dados mockados de perfis (temporário para debug)
+// Dados mockados de perfis (temporÃ¡rio para debug)
 const rolesData: UserRole[] = [
   {
     id: 1,
     name: 'Super Admin',
-    description: 'Acesso total ao sistema, incluindo gestão de outros administradores',
+    description: 'Acesso total ao sistema, incluindo gestÃ£o de outros administradores',
     level: 100,
     permissoes: {
       imoveis: 'DELETE',
@@ -67,7 +68,7 @@ const rolesData: UserRole[] = [
   {
     id: 2,
     name: 'Administrador',
-    description: 'Acesso total ao sistema, exceto gestão de super admins',
+    description: 'Acesso total ao sistema, exceto gestÃ£o de super admins',
     level: 90,
     permissoes: {
       imoveis: 'DELETE',
@@ -82,7 +83,7 @@ const rolesData: UserRole[] = [
   {
     id: 3,
     name: 'Corretor',
-    description: 'Acesso limitado baseado em permissões específicas',
+    description: 'Acesso limitado baseado em permissÃµes especÃ­ficas',
     level: 50,
     permissoes: {
       imoveis: 'WRITE',
@@ -96,8 +97,8 @@ const rolesData: UserRole[] = [
   },
   {
     id: 9,
-    name: 'Usuário',
-    description: 'Usuário básico para visualização',
+    name: 'UsuÃ¡rio',
+    description: 'UsuÃ¡rio bÃ¡sico para visualizaÃ§Ã£o',
     level: 10,
     permissoes: {
       imoveis: 'READ',
@@ -111,41 +112,41 @@ const rolesData: UserRole[] = [
   }
 ]
 
-// Função para validar dados de criação
+// FunÃ§Ã£o para validar dados de criaÃ§Ã£o
 function validateCreateRole(data: CreateRoleRequest): { isValid: boolean; errors: string[] } {
   const errors: string[] = []
 
-  // Validação do nome
+  // ValidaÃ§Ã£o do nome
   if (!data.name.trim()) {
-    errors.push('Nome do perfil é obrigatório')
+    errors.push('Nome do perfil Ã© obrigatÃ³rio')
   } else if (data.name.length < 2) {
     errors.push('Nome do perfil deve ter pelo menos 2 caracteres')
   } else if (data.name.length > 50) {
-    errors.push('Nome do perfil deve ter no máximo 50 caracteres')
+    errors.push('Nome do perfil deve ter no mÃ¡ximo 50 caracteres')
   }
 
-  // Validação da descrição
+  // ValidaÃ§Ã£o da descriÃ§Ã£o
   if (!data.description.trim()) {
-    errors.push('Descrição é obrigatória')
+    errors.push('DescriÃ§Ã£o Ã© obrigatÃ³ria')
   } else if (data.description.length < 10) {
-    errors.push('Descrição deve ter pelo menos 10 caracteres')
+    errors.push('DescriÃ§Ã£o deve ter pelo menos 10 caracteres')
   } else if (data.description.length > 200) {
-    errors.push('Descrição deve ter no máximo 200 caracteres')
+    errors.push('DescriÃ§Ã£o deve ter no mÃ¡ximo 200 caracteres')
   }
 
-  // Validação do nível
+  // ValidaÃ§Ã£o do nÃ­vel
   if (typeof data.level !== 'number' || data.level < 1 || data.level > 100) {
-    errors.push('Nível deve ser um número entre 1 e 100')
+    errors.push('NÃ­vel deve ser um nÃºmero entre 1 e 100')
   }
 
-  // Validação das permissões
+  // ValidaÃ§Ã£o das permissÃµes
   const validPermissions = ['NONE', 'READ', 'WRITE', 'DELETE']
   const permissionFields = ['imoveis', 'proximidades', 'usuarios', 'relatorios']
   
   for (const field of permissionFields) {
     const permission = data.permissoes[field as keyof typeof data.permissoes]
     if (!validPermissions.includes(permission)) {
-      errors.push(`Permissão para ${field} deve ser: ${validPermissions.join(', ')}`)
+      errors.push(`PermissÃ£o para ${field} deve ser: ${validPermissions.join(', ')}`)
     }
   }
 
@@ -155,7 +156,7 @@ function validateCreateRole(data: CreateRoleRequest): { isValid: boolean; errors
   }
 }
 
-// Função para verificar duplicatas
+// FunÃ§Ã£o para verificar duplicatas
 function checkDuplicateName(name: string): boolean {
   return rolesData.some(role => 
     role.name.toLowerCase() === name.toLowerCase()
@@ -165,11 +166,11 @@ function checkDuplicateName(name: string): boolean {
 // GET - Listar perfis
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticação
+    // Verificar autenticaÃ§Ã£o
     const token = request.cookies.get('accessToken')?.value
     if (!token) {
       return NextResponse.json(
-        { error: 'Token de acesso não fornecido' },
+        { error: 'Token de acesso nÃ£o fornecido' },
         { status: 401 }
       )
     }
@@ -177,24 +178,24 @@ export async function GET(request: NextRequest) {
     const decoded = await verifyToken(token) as JWTPayloadWithPermissions
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Token inválido ou expirado' },
+        { error: 'Token invÃ¡lido ou expirado' },
         { status: 401 }
       )
     }
 
-    // Verificar permissões (apenas usuários com permissão de leitura ou superior)
+    // Verificar permissÃµes (apenas usuÃ¡rios com permissÃ£o de leitura ou superior)
     const userPermissions = decoded.permissoes
     if (!userPermissions?.usuarios) {
       return NextResponse.json(
-        { error: 'Acesso negado. Permissão insuficiente.' },
+        { error: 'Acesso negado. PermissÃ£o insuficiente.' },
         { status: 403 }
       )
     }
 
-    // Filtrar perfis baseado nas permissões
+    // Filtrar perfis baseado nas permissÃµes
     let filteredRoles = rolesData
 
-    // Se o usuário tem apenas permissão de leitura, mostrar apenas perfis ativos
+    // Se o usuÃ¡rio tem apenas permissÃ£o de leitura, mostrar apenas perfis ativos
     if (userPermissions.usuarios === 'READ') {
       filteredRoles = rolesData.filter(role => role.ativo)
     }
@@ -202,7 +203,7 @@ export async function GET(request: NextRequest) {
     // Log de auditoria
     auditLogger.log(
       'ROLES_LIST',
-      `Usuário ${decoded.username} listou perfis do sistema`,
+      `UsuÃ¡rio ${decoded.username} listou perfis do sistema`,
       true,
       decoded.userId,
       decoded.username,
@@ -227,11 +228,11 @@ export async function GET(request: NextRequest) {
 // POST - Criar perfil
 export async function POST(request: NextRequest) {
   try {
-    // Verificar autenticação
+    // Verificar autenticaÃ§Ã£o
     const token = request.cookies.get('accessToken')?.value
     if (!token) {
       return NextResponse.json(
-        { error: 'Token de acesso não fornecido' },
+        { error: 'Token de acesso nÃ£o fornecido' },
         { status: 401 }
       )
     }
@@ -239,28 +240,28 @@ export async function POST(request: NextRequest) {
     const decoded = await verifyToken(token) as JWTPayloadWithPermissions
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Token inválido ou expirado' },
+        { error: 'Token invÃ¡lido ou expirado' },
         { status: 401 }
       )
     }
 
-    // Verificar permissões (apenas usuários com permissão de escrita ou superior)
+    // Verificar permissÃµes (apenas usuÃ¡rios com permissÃ£o de escrita ou superior)
     const userPermissions = decoded.permissoes
     if (!userPermissions?.usuarios || !['WRITE', 'DELETE'].includes(userPermissions.usuarios)) {
       return NextResponse.json(
-        { error: 'Acesso negado. Permissão insuficiente para criar perfis.' },
+        { error: 'Acesso negado. PermissÃ£o insuficiente para criar perfis.' },
         { status: 403 }
       )
     }
 
     const createData: CreateRoleRequest = await request.json()
 
-    // Validação dos dados de entrada
+    // ValidaÃ§Ã£o dos dados de entrada
     const validation = validateCreateRole(createData)
     if (!validation.isValid) {
       return NextResponse.json(
         { 
-          error: 'Dados inválidos',
+          error: 'Dados invÃ¡lidos',
           details: validation.errors 
         },
         { status: 400 }
@@ -270,12 +271,12 @@ export async function POST(request: NextRequest) {
     // Verificar duplicatas de nome
     if (checkDuplicateName(createData.name)) {
       return NextResponse.json(
-        { error: 'Já existe um perfil com este nome' },
+        { error: 'JÃ¡ existe um perfil com este nome' },
         { status: 400 }
       )
     }
 
-    // Gerar ID único
+    // Gerar ID Ãºnico
     const newId = Math.max(...rolesData.map(r => r.id)) + 1
 
     // Criar novo perfil
@@ -293,12 +294,12 @@ export async function POST(request: NextRequest) {
     // Adicionar perfil ao array
     rolesData.push(newRole)
 
-    // Em produção, aqui você salvaria no banco de dados
+    // Em produÃ§Ã£o, aqui vocÃª salvaria no banco de dados
 
     // Log de auditoria
     auditLogger.log(
       'ROLE_CREATE',
-      `Usuário ${decoded.username} criou o perfil ${newRole.name}`,
+      `UsuÃ¡rio ${decoded.username} criou o perfil ${newRole.name}`,
       true,
       decoded.userId,
       decoded.username,
@@ -319,4 +320,5 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
 

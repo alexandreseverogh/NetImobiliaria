@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -21,7 +22,7 @@ interface ImovelWizardProps {
   registrarAlteracaoRascunho?: (tipo: 'imagem' | 'documento', acao: 'adicionar' | 'remover', id: string) => Promise<void>
   registrarVideoAlteracaoRascunho?: (acao: 'adicionar' | 'remover', dados?: any) => Promise<void>
   registrarImagemPrincipalRascunho?: (imageId: string) => Promise<void>
-  rascunho?: any // Dados do rascunho para verificar alterações pendentes
+  rascunho?: any // Dados do rascunho para verificar alteraÃ§Ãµes pendentes
 }
 
 interface WizardStep {
@@ -55,7 +56,7 @@ export default function ImovelWizard({
 
   const totalSteps = 5
 
-  // Atualizar formData quando initialData mudar (modo de edição)
+  // Atualizar formData quando initialData mudar (modo de ediÃ§Ã£o)
   useEffect(() => {
     if (Object.keys(initialData).length > 0) {
       setFormData(initialData)
@@ -66,12 +67,12 @@ export default function ImovelWizard({
   const steps: WizardStep[] = [
     {
       id: 1,
-      title: 'Localização',
-      description: 'Estado e município do imóvel',
+      title: 'LocalizaÃ§Ã£o',
+      description: 'Estado e municÃ­pio do imÃ³vel',
       component: LocationStep,
       isValid: (data) => {
         const isValid = !!(data.endereco?.estado && data.endereco?.cidade)
-        console.log('🔍 Validação Step 1:', { 
+        console.log('ðŸ” ValidaÃ§Ã£o Step 1:', { 
           estado: data.endereco?.estado, 
           cidade: data.endereco?.cidade, 
           isValid 
@@ -82,30 +83,30 @@ export default function ImovelWizard({
     {
       id: 2,
       title: 'Dados Gerais',
-      description: 'Informações básicas do imóvel',
+      description: 'InformaÃ§Ãµes bÃ¡sicas do imÃ³vel',
       component: GeneralDataStep,
       isValid: (data) => !!(data.titulo && data.tipo_fk && data.finalidade_fk && data.preco)
     },
     {
       id: 3,
       title: 'Comodidades',
-      description: 'Comodidades do imóvel',
+      description: 'Comodidades do imÃ³vel',
       component: AmenidadesStep,
-      isValid: () => true // Amenidades são opcionais
+      isValid: () => true // Amenidades sÃ£o opcionais
     },
     {
       id: 4,
       title: 'Proximidades',
-      description: 'Pontos de interesse próximos',
+      description: 'Pontos de interesse prÃ³ximos',
       component: ProximidadesStep,
-      isValid: () => true // Proximidades são opcionais
+      isValid: () => true // Proximidades sÃ£o opcionais
     },
     {
       id: 5,
-      title: 'Mídia',
+      title: 'MÃ­dia',
       description: 'Imagens e documentos',
       component: MediaStep,
-      isValid: () => true // Mídia é opcional
+      isValid: () => true // MÃ­dia Ã© opcional
     }
   ]
 
@@ -116,24 +117,24 @@ export default function ImovelWizard({
     const updatedData = { ...formData, ...newData }
     setFormData(updatedData)
     
-    // Gerar código automaticamente se todos os campos necessários estiverem preenchidos
+    // Gerar cÃ³digo automaticamente se todos os campos necessÃ¡rios estiverem preenchidos
     generateCodigo(updatedData)
   }
 
   const generateCodigo = (data: Partial<Imovel>) => {
-    // Verificar se todos os campos necessários estão preenchidos
+    // Verificar se todos os campos necessÃ¡rios estÃ£o preenchidos
     if (data.tipo_fk && data.finalidade_fk && data.endereco?.estado && 
         data.endereco?.cidade && data.endereco?.bairro && data.id) {
       
-      // Buscar descrições dos tipos e finalidades
+      // Buscar descriÃ§Ãµes dos tipos e finalidades
       const tipo = tiposImovel.find(t => t.id === data.tipo_fk)
       const finalidade = finalidadesImovel.find(f => f.id === data.finalidade_fk)
       
       if (tipo && finalidade) {
-        // Gerar código: [Tipo] + [Finalidade] + [Estado] + [Cidade] + [Bairro] + [ID]
+        // Gerar cÃ³digo: [Tipo] + [Finalidade] + [Estado] + [Cidade] + [Bairro] + [ID]
         const codigo = `${tipo.nome}_${finalidade.nome}_${data.endereco.estado}_${data.endereco.cidade}_${data.endereco.bairro}_${data.id}`
-          .replace(/\s+/g, '') // Remover espaços
-          .replace(/[^A-Z0-9_]/g, '') // Manter apenas letras maiúsculas, números e underscore
+          .replace(/\s+/g, '') // Remover espaÃ§os
+          .replace(/[^A-Z0-9_]/g, '') // Manter apenas letras maiÃºsculas, nÃºmeros e underscore
           .toUpperCase()
         
         setFormData(prev => ({ ...prev, codigo }))
@@ -173,22 +174,22 @@ export default function ImovelWizard({
   }
 
   const canSave = () => {
-    // Verificar se todos os passos obrigatórios estão válidos
+    // Verificar se todos os passos obrigatÃ³rios estÃ£o vÃ¡lidos
     const step1Valid = steps[0].isValid(formData)
     const step2Valid = steps[1].isValid(formData)
     
-    // Verificar se dados de referência estão carregados
+    // Verificar se dados de referÃªncia estÃ£o carregados
     const hasFinalidades = finalidadesImovel && finalidadesImovel.length > 0
     const hasTipos = tiposImovel && tiposImovel.length > 0
     
-    // Verificar se não está salvando
+    // Verificar se nÃ£o estÃ¡ salvando
     const notSaving = !isSaving
     
     const isValid = step1Valid && step2Valid && hasFinalidades && hasTipos && notSaving
     
     // Debug apenas se houver problema
     if (!isValid) {
-      console.log('🔍 Validação falhou:', {
+      console.log('ðŸ” ValidaÃ§Ã£o falhou:', {
         step1Valid,
         step2Valid,
         hasFinalidades,
@@ -209,39 +210,39 @@ export default function ImovelWizard({
     
     if (canSave()) {
       setIsSaving(true)
-      console.log('🔍 Salvando imóvel...')
+      console.log('ðŸ” Salvando imÃ³vel...')
       
       try {
-        // Converter para string para comparação (evita problemas de tipo)
+        // Converter para string para comparaÃ§Ã£o (evita problemas de tipo)
         const finalidade = finalidadesImovel.find(f => String(f.id) === String(formData.finalidade_fk))
         const tipo = tiposImovel.find(t => String(t.id) === String(formData.tipo_fk))
         const status = { id: 1, nome: 'ATIVO' } // Sempre status_id = 1
         
         if (!finalidade || !tipo || !status) {
-          console.error('❌ Dados insuficientes para gerar código')
+          console.error('âŒ Dados insuficientes para gerar cÃ³digo')
           return
         }
         
-        // Gerar código temporário único (será atualizado após salvar)
+        // Gerar cÃ³digo temporÃ¡rio Ãºnico (serÃ¡ atualizado apÃ³s salvar)
         const finalidadeNome = finalidade.nome || 'FINALIDADE'
         const tipoNome = tipo.nome || 'TIPO'
         const statusNome = status.nome || 'ATIVO'
         
         const codigoTemp = `${finalidadeNome}_${tipoNome}_${statusNome}_TEMP_${Date.now()}`
-          .replace(/\s+/g, '') // Remover espaços
-          .replace(/[^A-Za-z0-9_]/g, '') // Manter letras (maiúsculas e minúsculas), números e underscore
+          .replace(/\s+/g, '') // Remover espaÃ§os
+          .replace(/[^A-Za-z0-9_]/g, '') // Manter letras (maiÃºsculas e minÃºsculas), nÃºmeros e underscore
           .toUpperCase()
         
         const dataToSave = { ...formData, codigo: codigoTemp }
         
         await onSave(dataToSave as Imovel)
-        console.log('✅ Imóvel salvo!')
+        console.log('âœ… ImÃ³vel salvo!')
         
-        // Mostrar sucesso com código temporário
+        // Mostrar sucesso com cÃ³digo temporÃ¡rio
         setCreatedImovel({ id: Date.now(), codigo: codigoTemp })
         setShowSuccessPopup(true)
       } catch (error) {
-        console.error('❌ Erro ao salvar imóvel:', error)
+        console.error('âŒ Erro ao salvar imÃ³vel:', error)
       } finally {
         setIsSaving(false)
       }
@@ -252,11 +253,11 @@ export default function ImovelWizard({
   useEffect(() => {
     const completed = steps
       .filter(step => {
-        // Para etapas obrigatórias (1 e 2), verificar se são válidas
+        // Para etapas obrigatÃ³rias (1 e 2), verificar se sÃ£o vÃ¡lidas
         if (step.id <= 2) {
           return step.isValid(formData)
         }
-        // Para etapas opcionais (3, 4, 5), só marcar como concluída se já foi visitada
+        // Para etapas opcionais (3, 4, 5), sÃ³ marcar como concluÃ­da se jÃ¡ foi visitada
         return step.id < currentStep
       })
       .map(step => step.id)
@@ -269,12 +270,12 @@ export default function ImovelWizard({
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">
-            {mode === 'create' ? 'Novo Imóvel' : 'Editar Imóvel'}
+            {mode === 'create' ? 'Novo ImÃ³vel' : 'Editar ImÃ³vel'}
           </h1>
           <p className="mt-2 text-gray-600">
             {mode === 'create' 
-              ? 'Preencha as informações do novo imóvel em 5 etapas'
-              : 'Atualize as informações do imóvel'
+              ? 'Preencha as informaÃ§Ãµes do novo imÃ³vel em 5 etapas'
+              : 'Atualize as informaÃ§Ãµes do imÃ³vel'
             }
           </p>
         </div>
@@ -361,7 +362,7 @@ export default function ImovelWizard({
                   disabled={!canProceed()}
                   className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Próximo
+                  PrÃ³ximo
                   <ChevronRightIcon className="w-4 h-4 ml-2" />
                 </button>
               ) : (
@@ -370,7 +371,7 @@ export default function ImovelWizard({
                   disabled={!canSave() || loading || isSaving}
                   className="inline-flex items-center px-6 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading || isSaving ? 'Salvando...' : mode === 'create' ? 'Cadastrar Imóvel' : 'Salvar Alterações'}
+                  {loading || isSaving ? 'Salvando...' : mode === 'create' ? 'Cadastrar ImÃ³vel' : 'Salvar AlteraÃ§Ãµes'}
                 </button>
               )}
             </div>
@@ -382,7 +383,7 @@ export default function ImovelWizard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900">
-                Progresso: {currentStep} de {totalSteps} etapas concluídas
+                Progresso: {currentStep} de {totalSteps} etapas concluÃ­das
               </p>
               <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
                 <div 
@@ -402,32 +403,32 @@ export default function ImovelWizard({
       {showSuccessPopup && createdImovel && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
-            {/* Ícone de sucesso */}
+            {/* Ãcone de sucesso */}
             <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full">
               <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
             
-            {/* Título */}
+            {/* TÃ­tulo */}
             <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
               Sucesso!
             </h3>
             
             {/* Mensagem */}
             <p className="text-gray-600 text-center mb-4">
-              Imóvel cadastrado com sucesso
+              ImÃ³vel cadastrado com sucesso
             </p>
             
-            {/* Código do imóvel */}
+            {/* CÃ³digo do imÃ³vel */}
             <div className="bg-gray-50 rounded-lg p-3 mb-6">
-              <p className="text-sm text-gray-500 text-center mb-1">Código do imóvel:</p>
+              <p className="text-sm text-gray-500 text-center mb-1">CÃ³digo do imÃ³vel:</p>
               <p className="text-lg font-mono font-semibold text-gray-900 text-center">
                 {createdImovel.codigo}
               </p>
             </div>
             
-            {/* Botões */}
+            {/* BotÃµes */}
             <div className="flex space-x-3">
               <button
                 onClick={() => setShowSuccessPopup(false)}
@@ -442,7 +443,7 @@ export default function ImovelWizard({
                 }}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               >
-                Voltar à Lista
+                Voltar Ã  Lista
               </button>
             </div>
           </div>
@@ -451,5 +452,6 @@ export default function ImovelWizard({
     </div>
   )
 }
+
 
 

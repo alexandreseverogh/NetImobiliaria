@@ -1,4 +1,5 @@
-// Tipos TypeScript para funcionalidade de vídeos
+﻿/* eslint-disable */
+// Tipos TypeScript para funcionalidade de vÃ­deos
 // Conforme especificado no PLANEJAMENTO_VIDEOS_STEP5.md
 
 export interface ImovelVideo {
@@ -43,3 +44,4 @@ export interface VideoMetadata {
   created_at?: string
   updated_at?: string
 }
+

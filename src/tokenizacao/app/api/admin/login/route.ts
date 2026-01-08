@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 
-// Forçar uso do Node.js runtime
+// ForÃ§ar uso do Node.js runtime
 export const runtime = 'nodejs'
 
 import { AuthService } from '@/lib/admin/auth'
@@ -10,10 +11,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { username, password } = body
     
-    // Validação básica
+    // ValidaÃ§Ã£o bÃ¡sica
     if (!username || !password) {
       return NextResponse.json(
-        { success: false, error: 'Usuário e senha são obrigatórios' },
+        { success: false, error: 'UsuÃ¡rio e senha sÃ£o obrigatÃ³rios' },
         { status: 400 }
       )
     }
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
 
 
 

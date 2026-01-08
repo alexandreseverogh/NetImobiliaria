@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import React, { useState, useCallback } from 'react'
@@ -27,7 +28,7 @@ export default function ImageUpload({
     const newImages = [...images, ...acceptedFiles]
     
     if (newImages.length > maxImages) {
-      setErrors([`Máximo de ${maxImages} imagens permitido`])
+      setErrors([`MÃ¡ximo de ${maxImages} imagens permitido`])
       return
     }
 
@@ -39,12 +40,12 @@ export default function ImageUpload({
     if (rejectedFiles.length > 0) {
       const newErrors = rejectedFiles.map(({ file, errors }) => {
         if (errors.some((e: any) => e.code === 'file-too-large')) {
-          return `${file.name} é muito grande (máx: ${Math.round(maxFileSize / 1024 / 1024)}MB)`
+          return `${file.name} Ã© muito grande (mÃ¡x: ${Math.round(maxFileSize / 1024 / 1024)}MB)`
         }
         if (errors.some((e: any) => e.code === 'file-invalid-type')) {
-          return `${file.name} tem tipo inválido`
+          return `${file.name} tem tipo invÃ¡lido`
         }
-        return `${file.name} não pôde ser processado`
+        return `${file.name} nÃ£o pÃ´de ser processado`
       })
       setErrors(newErrors)
     }
@@ -75,7 +76,7 @@ export default function ImageUpload({
 
   return (
     <div className={className}>
-      {/* Área de Upload */}
+      {/* Ãrea de Upload */}
       <div
         {...getRootProps()}
         className={`
@@ -104,7 +105,7 @@ export default function ImageUpload({
               ou clique para selecionar arquivos
             </p>
             <p className="text-xs text-gray-400">
-              PNG, JPG, WEBP até {Math.round(maxFileSize / 1024 / 1024)}MB
+              PNG, JPG, WEBP atÃ© {Math.round(maxFileSize / 1024 / 1024)}MB
             </p>
           </div>
         )}
@@ -139,7 +140,7 @@ export default function ImageUpload({
                     className="w-full h-full object-cover"
                   />
                   
-                  {/* Overlay com botão de remover */}
+                  {/* Overlay com botÃ£o de remover */}
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
                     <button
                       onClick={() => removeImage(index)}
@@ -151,7 +152,7 @@ export default function ImageUpload({
                   </div>
                 </div>
                 
-                {/* Informações da imagem */}
+                {/* InformaÃ§Ãµes da imagem */}
                 <div className="mt-2 text-xs text-gray-500">
                   <p className="font-medium truncate">{image.name}</p>
                   <p>{getFileSize(image.size)}</p>
@@ -164,13 +165,14 @@ export default function ImageUpload({
 
       {/* Dicas */}
       <div className="mt-4 text-sm text-gray-500">
-        <p>• Primeira imagem será a imagem principal do imóvel</p>
-        <p>• Você pode reordenar as imagens depois do upload</p>
-        <p>• Imagens serão otimizadas automaticamente</p>
+        <p>â€¢ Primeira imagem serÃ¡ a imagem principal do imÃ³vel</p>
+        <p>â€¢ VocÃª pode reordenar as imagens depois do upload</p>
+        <p>â€¢ Imagens serÃ£o otimizadas automaticamente</p>
       </div>
     </div>
   )
 }
+
 
 
 

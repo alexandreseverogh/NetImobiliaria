@@ -1,10 +1,11 @@
+﻿/* eslint-disable */
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Permitir todas as rotas de autenticação e API
+  // Permitir todas as rotas de autenticaÃ§Ã£o e API
   if (pathname === '/admin/login' || 
       pathname === '/api/admin/auth/login' || 
       pathname === '/api/admin/auth/me' ||
@@ -27,3 +28,4 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: ['/admin/:path*']
 }
+

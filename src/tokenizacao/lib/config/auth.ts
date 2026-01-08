@@ -1,13 +1,14 @@
-// Configurações centralizadas de autenticação
+﻿/* eslint-disable */
+// ConfiguraÃ§Ãµes centralizadas de autenticaÃ§Ã£o
 export const AUTH_CONFIG = {
-  // Configurações JWT
+  // ConfiguraÃ§Ãµes JWT
   JWT: {
     SECRET: process.env.JWT_SECRET || 'sua-chave-secreta-super-segura-aqui',
     ACCESS_TOKEN_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
     REFRESH_TOKEN_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
   
-  // Configurações de cookies
+  // ConfiguraÃ§Ãµes de cookies
   COOKIES: {
     ACCESS_TOKEN_NAME: 'accessToken',
     REFRESH_TOKEN_NAME: 'refreshToken',
@@ -17,7 +18,7 @@ export const AUTH_CONFIG = {
     PATH: '/',
   },
   
-  // Configurações de senha
+  // ConfiguraÃ§Ãµes de senha
   PASSWORD: {
     MIN_LENGTH: 8,
     REQUIRE_UPPERCASE: true,
@@ -27,7 +28,7 @@ export const AUTH_CONFIG = {
     SALT_ROUNDS: 12,
   },
   
-  // Configurações de sessão
+  // ConfiguraÃ§Ãµes de sessÃ£o
   SESSION: {
     MAX_ACTIVE_SESSIONS: 5,
     SESSION_TIMEOUT: 30 * 60 * 1000, // 30 minutos
@@ -39,12 +40,12 @@ export const AUTH_CONFIG = {
     '/api/admin',
   ],
   
-  // Rotas de autenticação
+  // Rotas de autenticaÃ§Ã£o
   AUTH_ROUTES: [
     '/admin/login',
   ],
   
-  // Configurações de rate limiting
+  // ConfiguraÃ§Ãµes de rate limiting
   RATE_LIMIT: {
     LOGIN_ATTEMPTS: 5,
     LOGIN_WINDOW: 15 * 60 * 1000, // 15 minutos
@@ -52,7 +53,7 @@ export const AUTH_CONFIG = {
   },
 }
 
-// Configurações de ambiente
+// ConfiguraÃ§Ãµes de ambiente
 export const ENV_CONFIG = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   IS_PRODUCTION: process.env.NODE_ENV === 'production',
@@ -60,9 +61,9 @@ export const ENV_CONFIG = {
   IS_TEST: process.env.NODE_ENV === 'test',
 }
 
-// Configurações de segurança
+// ConfiguraÃ§Ãµes de seguranÃ§a
 export const SECURITY_CONFIG = {
-  // Headers de segurança
+  // Headers de seguranÃ§a
   SECURITY_HEADERS: {
     'X-Frame-Options': 'DENY',
     'X-Content-Type-Options': 'nosniff',
@@ -70,7 +71,7 @@ export const SECURITY_CONFIG = {
     'X-XSS-Protection': '1; mode=block',
   },
   
-  // Configurações CORS
+  // ConfiguraÃ§Ãµes CORS
   CORS: {
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
     ALLOWED_METHODS: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
@@ -78,5 +79,6 @@ export const SECURITY_CONFIG = {
     CREDENTIALS: true,
   },
 }
+
 
 

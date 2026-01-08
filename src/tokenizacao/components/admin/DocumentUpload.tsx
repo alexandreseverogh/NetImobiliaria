@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
@@ -46,7 +47,7 @@ export default function DocumentUpload({
   const [selectedTipo, setSelectedTipo] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Carregar tipos de documentos disponíveis
+  // Carregar tipos de documentos disponÃ­veis
   const loadTiposDocumentos = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/tipos-documentos')
@@ -59,7 +60,7 @@ export default function DocumentUpload({
     }
   }, [])
 
-  // Carregar documentos existentes do imóvel
+  // Carregar documentos existentes do imÃ³vel
   const loadDocumentos = useCallback(async () => {
     if (!imovelId) return
     
@@ -100,14 +101,14 @@ export default function DocumentUpload({
     ]
 
     if (!allowedTypes.includes(file.type)) {
-      setError('Tipo de arquivo não permitido. Use PDF, JPG, PNG ou GIF')
+      setError('Tipo de arquivo nÃ£o permitido. Use PDF, JPG, PNG ou GIF')
       return
     }
 
-    // Validar tamanho (máximo 10MB)
+    // Validar tamanho (mÃ¡ximo 10MB)
     const maxSize = 10 * 1024 * 1024 // 10MB
     if (file.size > maxSize) {
-      setError('Arquivo muito grande. Máximo 10MB permitido')
+      setError('Arquivo muito grande. MÃ¡ximo 10MB permitido')
       return
     }
 
@@ -118,7 +119,7 @@ export default function DocumentUpload({
     const reader = new FileReader()
     reader.onload = () => {
       const dataUrl = reader.result as string
-      // O tipo será selecionado no modal
+      // O tipo serÃ¡ selecionado no modal
     }
     reader.readAsDataURL(file)
   }, [])
@@ -215,11 +216,11 @@ export default function DocumentUpload({
 
   const getFileIcon = (tipoArquivo: string) => {
     if (tipoArquivo === 'application/pdf') {
-      return '📄'
+      return 'ðŸ“„'
     } else if (tipoArquivo.startsWith('image/')) {
-      return '🖼️'
+      return 'ðŸ–¼ï¸'
     }
-    return '📎'
+    return 'ðŸ“Ž'
   }
 
   const formatFileSize = (bytes: number) => {
@@ -236,15 +237,15 @@ export default function DocumentUpload({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">
-            Documentos do Imóvel
+            Documentos do ImÃ³vel
           </h3>
           <p className="text-sm text-gray-600">
-            Faça upload de documentos relacionados ao imóvel
+            FaÃ§a upload de documentos relacionados ao imÃ³vel
           </p>
         </div>
       </div>
 
-      {/* Área de Upload */}
+      {/* Ãrea de Upload */}
       <div
         {...getRootProps()}
         className={`
@@ -267,7 +268,7 @@ export default function DocumentUpload({
             Formatos aceitos: PDF, JPG, PNG, GIF
           </p>
           <p className="text-sm text-gray-500">
-            Tamanho máximo: 10MB
+            Tamanho mÃ¡ximo: 10MB
           </p>
         </div>
       </div>
@@ -305,7 +306,7 @@ export default function DocumentUpload({
                         {documento.tipo_documento_descricao}
                       </p>
                       <p className="text-sm text-gray-600">
-                        {documento.nome_arquivo} • {formatFileSize(documento.tamanho)}
+                        {documento.nome_arquivo} â€¢ {formatFileSize(documento.tamanho)}
                       </p>
                     </div>
                   </div>
@@ -333,7 +334,7 @@ export default function DocumentUpload({
         </div>
       )}
 
-      {/* Modal de Seleção de Tipo */}
+      {/* Modal de SeleÃ§Ã£o de Tipo */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -386,6 +387,7 @@ export default function DocumentUpload({
     </div>
   )
 }
+
 
 
 

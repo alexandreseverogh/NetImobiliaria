@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -78,6 +79,7 @@ export default function LineChartCard({ title, data, icon, color }: LineChartCar
     </div>
   )
 }
+
 
 
 

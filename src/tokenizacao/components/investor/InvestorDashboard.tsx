@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -26,7 +27,7 @@ export default function InvestorDashboard() {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: PieChart },
     { id: 'portfolio', label: 'Carteira', icon: Wallet },
-    { id: 'transactions', label: 'Transações', icon: BarChart3 },
+    { id: 'transactions', label: 'TransaÃ§Ãµes', icon: BarChart3 },
     { id: 'dividends', label: 'Dividendos', icon: DollarSign },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'profile', label: 'Perfil', icon: User },
@@ -34,7 +35,7 @@ export default function InvestorDashboard() {
 
   // Dados mockados do investidor
   const investorData = {
-    name: 'João Silva',
+    name: 'JoÃ£o Silva',
     email: 'joao.silva@email.com',
     totalInvested: 15000,
     currentValue: 17250,
@@ -75,7 +76,7 @@ export default function InvestorDashboard() {
               Bem-vindo, {investorData.name}!
             </h1>
             <p className="text-blue-100">
-              Gerencie seus investimentos em tokenização de imóveis
+              Gerencie seus investimentos em tokenizaÃ§Ã£o de imÃ³veis
             </p>
           </div>
           
@@ -86,13 +87,13 @@ export default function InvestorDashboard() {
               <span className="text-sm font-medium">KYC Aprovado</span>
             </div>
             
-            {/* Notificações */}
+            {/* NotificaÃ§Ãµes */}
             <button className="relative p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
               <Bell className="h-5 w-5" />
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
             </button>
             
-            {/* Configurações */}
+            {/* ConfiguraÃ§Ãµes */}
             <button className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
               <Settings className="h-5 w-5" />
             </button>
@@ -203,4 +204,5 @@ export default function InvestorDashboard() {
     </div>
   )
 }
+
 

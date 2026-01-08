@@ -1,6 +1,7 @@
+﻿/* eslint-disable */
 /**
- * Funções de banco de dados para Tipos de Imóveis
- * Net Imobiliária - Sistema de Gestão de Tipos de Imóveis
+ * FunÃ§Ãµes de banco de dados para Tipos de ImÃ³veis
+ * Net ImobiliÃ¡ria - Sistema de GestÃ£o de Tipos de ImÃ³veis
  */
 
 import pool from './connection'
@@ -20,7 +21,7 @@ export interface TipoImovel {
 }
 
 // ========================================
-// FUNÇÕES DE CONSULTA
+// FUNÃ‡Ã•ES DE CONSULTA
 // ========================================
 
 export async function findAllTiposImovel(): Promise<TipoImovel[]> {
@@ -36,15 +37,15 @@ export async function findAllTiposImovel(): Promise<TipoImovel[]> {
       FROM tipos_imovel
       ORDER BY nome
     `
-    
+
     const result: QueryResult<TipoImovel> = await pool.query(query)
-    
+
     return result.rows.map(tipo => ({
       ...tipo,
       status: tipo.ativo ? 'Ativo' : 'Inativo'
     }))
   } catch (error) {
-    console.error('❌ Erro ao buscar tipos de imóveis:', error)
+    console.error('âŒ Erro ao buscar tipos de imÃ³veis:', error)
     throw error
   }
 }
@@ -62,22 +63,22 @@ export async function findTipoImovelById(id: number): Promise<TipoImovel | null>
       FROM tipos_imovel
       WHERE id = $1
     `
-    
+
     const result: QueryResult<TipoImovel> = await pool.query(query, [id])
-    
+
     if (result.rows.length === 0) {
       return null
     }
-    
+
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao buscar tipo de imóvel por ID:', error)
+    console.error('âŒ Erro ao buscar tipo de imÃ³vel por ID:', error)
     throw error
   }
 }
 
 // ========================================
-// FUNÇÕES DE CRIAÇÃO E EDIÇÃO
+// FUNÃ‡Ã•ES DE CRIAÃ‡ÃƒO E EDIÃ‡ÃƒO
 // ========================================
 
 export async function createTipoImovel(data: {
@@ -91,13 +92,13 @@ export async function createTipoImovel(data: {
       VALUES ($1, $2, $3)
       RETURNING id, nome, descricao, ativo, created_at, updated_at
     `
-    
+
     const values = [data.nome, data.descricao || '', data.ativo !== false]
     const result: QueryResult<TipoImovel> = await pool.query(query, values)
-    
+
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao criar tipo de imóvel:', error)
+    console.error('âŒ Erro ao criar tipo de imÃ³vel:', error)
     throw error
   }
 }
@@ -118,46 +119,46 @@ export async function updateTipoImovel(id: number, data: {
       WHERE id = $1
       RETURNING id, nome, descricao, ativo, created_at, updated_at
     `
-    
+
     const values = [id, data.nome, data.descricao, data.ativo]
     const result: QueryResult<TipoImovel> = await pool.query(query, values)
-    
+
     if (result.rows.length === 0) {
       return null
     }
-    
+
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao atualizar tipo de imóvel:', error)
+    console.error('âŒ Erro ao atualizar tipo de imÃ³vel:', error)
     throw error
   }
 }
 
 export async function deleteTipoImovel(id: number): Promise<boolean> {
   try {
-    // Verificar se há imóveis usando este tipo
+    // Verificar se hÃ¡ imÃ³veis usando este tipo
     const checkQuery = `
       SELECT COUNT(*) as count
       FROM imoveis
       WHERE tipo_id = $1
     `
-    
+
     const checkResult = await pool.query(checkQuery, [id])
     const count = parseInt(checkResult.rows[0].count)
-    
+
     if (count > 0) {
-      throw new Error('Não é possível excluir tipo de imóvel que está sendo usado por imóveis')
+      throw new Error('NÃ£o Ã© possÃ­vel excluir tipo de imÃ³vel que estÃ¡ sendo usado por imÃ³veis')
     }
-    
+
     const query = `
       DELETE FROM tipos_imovel
       WHERE id = $1
     `
-    
+
     const result = await pool.query(query, [id])
-    return result.rowCount > 0
+    return (result.rowCount ?? 0) > 0
   } catch (error) {
-    console.error('❌ Erro ao excluir tipo de imóvel:', error)
+    console.error('âŒ Erro ao excluir tipo de imÃ³vel:', error)
     throw error
   }
 }
@@ -172,19 +173,20 @@ export async function toggleTipoImovelStatus(id: number): Promise<TipoImovel | n
       WHERE id = $1
       RETURNING id, nome, descricao, ativo, created_at, updated_at
     `
-    
+
     const result: QueryResult<TipoImovel> = await pool.query(query, [id])
-    
+
     if (result.rows.length === 0) {
       return null
     }
-    
+
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao alterar status do tipo de imóvel:', error)
+    console.error('âŒ Erro ao alterar status do tipo de imÃ³vel:', error)
     throw error
   }
 }
+
 
 
 

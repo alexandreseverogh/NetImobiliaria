@@ -1,13 +1,14 @@
-// Funções para gerenciar vídeos dos imóveis
+﻿/* eslint-disable */
+// FunÃ§Ãµes para gerenciar vÃ­deos dos imÃ³veis
 // Conforme especificado no PLANEJAMENTO_VIDEOS_STEP5.md
 
 import pool from './connection'
 import { ImovelVideo, VideoMetadata } from '@/lib/types/video'
 
-// Buscar vídeo de um imóvel
+// Buscar vÃ­deo de um imÃ³vel
 export async function findImovelVideo(imovelId: number): Promise<ImovelVideo | null> {
   try {
-    console.log('🔍 findImovelVideo - Buscando vídeo para imóvel:', imovelId)
+    console.log('ðŸ” findImovelVideo - Buscando vÃ­deo para imÃ³vel:', imovelId)
     
     const query = `
       SELECT 
@@ -30,11 +31,11 @@ export async function findImovelVideo(imovelId: number): Promise<ImovelVideo | n
     const result = await pool.query(query, [imovelId])
     
     if (result.rows.length === 0) {
-      console.log('🔍 findImovelVideo - Nenhum vídeo encontrado para imóvel:', imovelId)
+      console.log('ðŸ” findImovelVideo - Nenhum vÃ­deo encontrado para imÃ³vel:', imovelId)
       return null
     }
     
-    console.log('🔍 findImovelVideo - Vídeo encontrado:', {
+    console.log('ðŸ” findImovelVideo - VÃ­deo encontrado:', {
       id: result.rows[0].id,
       nome_arquivo: result.rows[0].nome_arquivo,
       tamanho_bytes: result.rows[0].tamanho_bytes,
@@ -43,15 +44,15 @@ export async function findImovelVideo(imovelId: number): Promise<ImovelVideo | n
     
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao buscar vídeo do imóvel:', error)
-    throw new Error('Erro ao buscar vídeo do imóvel')
+    console.error('âŒ Erro ao buscar vÃ­deo do imÃ³vel:', error)
+    throw new Error('Erro ao buscar vÃ­deo do imÃ³vel')
   }
 }
 
-// Buscar metadados do vídeo (sem o conteúdo binário)
+// Buscar metadados do vÃ­deo (sem o conteÃºdo binÃ¡rio)
 export async function findImovelVideoMetadata(imovelId: number): Promise<VideoMetadata | null> {
   try {
-    console.log('🔍 findImovelVideoMetadata - Buscando metadados para imóvel:', imovelId)
+    console.log('ðŸ” findImovelVideoMetadata - Buscando metadados para imÃ³vel:', imovelId)
     
     const query = `
       SELECT 
@@ -77,12 +78,12 @@ export async function findImovelVideoMetadata(imovelId: number): Promise<VideoMe
     
     return result.rows[0]
   } catch (error) {
-    console.error('❌ Erro ao buscar metadados do vídeo:', error)
-    throw new Error('Erro ao buscar metadados do vídeo')
+    console.error('âŒ Erro ao buscar metadados do vÃ­deo:', error)
+    throw new Error('Erro ao buscar metadados do vÃ­deo')
   }
 }
 
-// Criar novo vídeo para imóvel
+// Criar novo vÃ­deo para imÃ³vel
 export async function createImovelVideo(data: {
   imovel_id: number
   video: Buffer
@@ -94,7 +95,7 @@ export async function createImovelVideo(data: {
   formato: string
 }): Promise<number> {
   try {
-    console.log('🔍 createImovelVideo - Criando vídeo para imóvel:', data.imovel_id)
+    console.log('ðŸ” createImovelVideo - Criando vÃ­deo para imÃ³vel:', data.imovel_id)
     
     const query = `
       INSERT INTO imovel_video (
@@ -125,16 +126,16 @@ export async function createImovelVideo(data: {
     ])
     
     const videoId = result.rows[0].id
-    console.log('🔍 createImovelVideo - Vídeo criado com ID:', videoId)
+    console.log('ðŸ” createImovelVideo - VÃ­deo criado com ID:', videoId)
     
     return videoId
   } catch (error) {
-    console.error('❌ Erro ao criar vídeo do imóvel:', error)
-    throw new Error('Erro ao criar vídeo do imóvel')
+    console.error('âŒ Erro ao criar vÃ­deo do imÃ³vel:', error)
+    throw new Error('Erro ao criar vÃ­deo do imÃ³vel')
   }
 }
 
-// Atualizar vídeo existente
+// Atualizar vÃ­deo existente
 export async function updateImovelVideo(videoId: number, data: Partial<{
   video: Buffer
   nome_arquivo: string
@@ -145,7 +146,7 @@ export async function updateImovelVideo(videoId: number, data: Partial<{
   formato: string
 }>): Promise<boolean> {
   try {
-    console.log('🔍 updateImovelVideo - Atualizando vídeo:', videoId)
+    console.log('ðŸ” updateImovelVideo - Atualizando vÃ­deo:', videoId)
     
     const fields = []
     const values = []
@@ -191,18 +192,18 @@ export async function updateImovelVideo(videoId: number, data: Partial<{
     
     const result = await pool.query(query, values)
     
-    console.log('🔍 updateImovelVideo - Vídeo atualizado:', result.rowCount > 0)
+    console.log('ðŸ” updateImovelVideo - VÃ­deo atualizado:', result.rowCount > 0)
     return result.rowCount > 0
   } catch (error) {
-    console.error('❌ Erro ao atualizar vídeo do imóvel:', error)
-    throw new Error('Erro ao atualizar vídeo do imóvel')
+    console.error('âŒ Erro ao atualizar vÃ­deo do imÃ³vel:', error)
+    throw new Error('Erro ao atualizar vÃ­deo do imÃ³vel')
   }
 }
 
-// Remover vídeo (soft delete)
+// Remover vÃ­deo (soft delete)
 export async function deleteImovelVideo(videoId: number): Promise<boolean> {
   try {
-    console.log('🔍 deleteImovelVideo - Removendo vídeo:', videoId)
+    console.log('ðŸ” deleteImovelVideo - Removendo vÃ­deo:', videoId)
     
     const query = `
       UPDATE imovel_video 
@@ -212,18 +213,18 @@ export async function deleteImovelVideo(videoId: number): Promise<boolean> {
     
     const result = await pool.query(query, [videoId])
     
-    console.log('🔍 deleteImovelVideo - Vídeo removido:', result.rowCount > 0)
+    console.log('ðŸ” deleteImovelVideo - VÃ­deo removido:', result.rowCount > 0)
     return result.rowCount > 0
   } catch (error) {
-    console.error('❌ Erro ao remover vídeo do imóvel:', error)
-    throw new Error('Erro ao remover vídeo do imóvel')
+    console.error('âŒ Erro ao remover vÃ­deo do imÃ³vel:', error)
+    throw new Error('Erro ao remover vÃ­deo do imÃ³vel')
   }
 }
 
-// Remover vídeo por imóvel (soft delete)
+// Remover vÃ­deo por imÃ³vel (soft delete)
 export async function deleteImovelVideoByImovel(imovelId: number): Promise<boolean> {
   try {
-    console.log('🔍 deleteImovelVideoByImovel - Removendo vídeo do imóvel:', imovelId)
+    console.log('ðŸ” deleteImovelVideoByImovel - Removendo vÃ­deo do imÃ³vel:', imovelId)
     
     const query = `
       UPDATE imovel_video 
@@ -233,15 +234,15 @@ export async function deleteImovelVideoByImovel(imovelId: number): Promise<boole
     
     const result = await pool.query(query, [imovelId])
     
-    console.log('🔍 deleteImovelVideoByImovel - Vídeo removido:', result.rowCount > 0)
+    console.log('ðŸ” deleteImovelVideoByImovel - VÃ­deo removido:', result.rowCount > 0)
     return result.rowCount > 0
   } catch (error) {
-    console.error('❌ Erro ao remover vídeo do imóvel:', error)
-    throw new Error('Erro ao remover vídeo do imóvel')
+    console.error('âŒ Erro ao remover vÃ­deo do imÃ³vel:', error)
+    throw new Error('Erro ao remover vÃ­deo do imÃ³vel')
   }
 }
 
-// Salvar/atualizar vídeo de um imóvel (substitui vídeo existente)
+// Salvar/atualizar vÃ­deo de um imÃ³vel (substitui vÃ­deo existente)
 export async function saveImovelVideo(
   imovelId: number, 
   videoData: {
@@ -254,22 +255,22 @@ export async function saveImovelVideo(
     formato: string
   }
 ): Promise<number> {
-  console.log('🔍 saveImovelVideo - Salvando vídeo para imóvel:', imovelId)
+  console.log('ðŸ” saveImovelVideo - Salvando vÃ­deo para imÃ³vel:', imovelId)
   
   const client = await pool.connect()
   
   try {
     await client.query('BEGIN')
-    console.log('🔍 saveImovelVideo - Transação iniciada')
+    console.log('ðŸ” saveImovelVideo - TransaÃ§Ã£o iniciada')
     
-    // Primeiro, remover vídeo existente do imóvel (soft delete)
+    // Primeiro, remover vÃ­deo existente do imÃ³vel (soft delete)
     const deleteResult = await client.query(
       'UPDATE imovel_video SET ativo = false, updated_at = CURRENT_TIMESTAMP WHERE imovel_id = $1 AND ativo = true',
       [imovelId]
     )
-    console.log('🔍 saveImovelVideo - Vídeo existente removido:', deleteResult.rowCount)
+    console.log('ðŸ” saveImovelVideo - VÃ­deo existente removido:', deleteResult.rowCount)
     
-    // Inserir novo vídeo
+    // Inserir novo vÃ­deo
     const insertQuery = `
       INSERT INTO imovel_video (
         imovel_id,
@@ -299,17 +300,18 @@ export async function saveImovelVideo(
     ])
     
     const videoId = insertResult.rows[0].id
-    console.log('🔍 saveImovelVideo - Novo vídeo inserido com ID:', videoId)
+    console.log('ðŸ” saveImovelVideo - Novo vÃ­deo inserido com ID:', videoId)
     
     await client.query('COMMIT')
-    console.log('🔍 saveImovelVideo - Transação commitada com sucesso')
+    console.log('ðŸ” saveImovelVideo - TransaÃ§Ã£o commitada com sucesso')
     
     return videoId
   } catch (error) {
     await client.query('ROLLBACK')
-    console.error('❌ saveImovelVideo - Erro na transação, rollback executado:', error)
-    throw new Error('Erro ao salvar vídeo do imóvel')
+    console.error('âŒ saveImovelVideo - Erro na transaÃ§Ã£o, rollback executado:', error)
+    throw new Error('Erro ao salvar vÃ­deo do imÃ³vel')
   } finally {
     client.release()
   }
 }
+

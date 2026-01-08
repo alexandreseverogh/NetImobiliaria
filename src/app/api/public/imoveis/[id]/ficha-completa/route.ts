@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     console.log('🔍 API GET - Iniciando busca do imóvel ID:', params.id)
-    
+
     const imovelId = parseInt(params.id)
     if (isNaN(imovelId)) {
       console.log('❌ ID inválido:', params.id)
@@ -68,8 +68,7 @@ export async function GET(
         
         
         -- Imagem principal
-        img.imagem as imagem_principal_data,
-        img.tipo_mime as imagem_principal_tipo_mime,
+        img.id as imagem_principal_id,
         
         -- Contadores
         (SELECT COUNT(*) FROM imovel_imagens WHERE imovel_id = i.id AND principal = false) as total_imagens,
@@ -87,7 +86,7 @@ export async function GET(
     `
 
     const result = await pool.query(query, [imovelId])
-    
+
     if (result.rows.length === 0) {
       console.log('❌ Imóvel não encontrado:', imovelId)
       return NextResponse.json(
@@ -136,7 +135,7 @@ export async function GET(
       consulta_imovel_internauta: imovel.consulta_imovel_internauta,
       created_at: imovel.created_at,
       updated_at: imovel.updated_at,
-      
+
       // Relacionamentos
       tipo_fk: imovel.tipo_fk,
       finalidade_fk: imovel.finalidade_fk,
@@ -145,11 +144,11 @@ export async function GET(
       finalidade_nome: imovel.finalidade_nome,
       status_nome: imovel.status_nome,
       status_cor: imovel.status_cor,
-      
-      
+
+
       // Imagem e contadores
-      imagem_principal: imovel.imagem_principal_data ? {
-        url: `data:${imovel.imagem_principal_tipo_mime || 'image/jpeg'};base64,${Buffer.from(imovel.imagem_principal_data).toString('base64')}`,
+      imagem_principal: imovel.imagem_principal_id ? {
+        url: `/api/public/imagens/${imovel.imagem_principal_id}`,
         alt: imovel.titulo
       } : null,
       total_imagens: parseInt(imovel.total_imagens),
@@ -171,7 +170,7 @@ export async function GET(
     // Se for nível detalhado, buscar amenidades e proximidades
     if (nivel === 'detalhado') {
       console.log('🔍 Carregando dados detalhados...')
-      
+
       // Buscar amenidades
       const amenidadesQuery = `
         SELECT 
@@ -186,7 +185,7 @@ export async function GET(
         WHERE ia.imovel_id = $1
         ORDER BY ca.nome, a.nome
       `
-      
+
       const amenidadesResult = await pool.query(amenidadesQuery, [imovelId])
       const amenidades = amenidadesResult.rows.reduce((acc, row) => {
         if (!acc.por_categoria[row.categoria_nome]) {
@@ -226,7 +225,7 @@ export async function GET(
         WHERE ip.imovel_id = $1
         ORDER BY cp.nome, p.nome
       `
-      
+
       const proximidadesResult = await pool.query(proximidadesQuery, [imovelId])
       const proximidades = proximidadesResult.rows.reduce((acc, row) => {
         if (!acc.por_categoria[row.categoria_nome]) {
@@ -269,7 +268,7 @@ export async function GET(
     // Se for nível completo, buscar imagens, vídeos e documentos
     if (nivel === 'completo') {
       console.log('🔍 Carregando dados completos...')
-      
+
       // Buscar imagens
       const imagensQuery = `
         SELECT 
@@ -277,8 +276,7 @@ export async function GET(
           ordem,
           principal,
           tipo_mime,
-          tamanho_bytes,
-          imagem
+          tamanho_bytes
         FROM imovel_imagens
         WHERE imovel_id = $1
         ORDER BY principal DESC, ordem ASC
@@ -286,7 +284,8 @@ export async function GET(
       const imagensResult = await pool.query(imagensQuery, [imovelId])
       const imagens = imagensResult.rows.map(row => ({
         id: row.id,
-        url: `data:${row.tipo_mime};base64,${Buffer.from(row.imagem).toString('base64')}`,
+        id: row.id,
+        url: `/api/public/imagens/${row.id}`,
         alt: `Imagem ${row.ordem || row.id}`,
         ordem: row.ordem,
         principal: row.principal,
@@ -337,7 +336,7 @@ export async function GET(
       `
       const documentosResult = await pool.query(documentosQuery, [imovelId])
       console.log('🔍 Documentos encontrados:', documentosResult.rows.length)
-      
+
       const documentos = documentosResult.rows.map((row, index) => {
         console.log(`🔍 Documento ${index + 1}:`, {
           id: row.id,
@@ -346,16 +345,16 @@ export async function GET(
           tamanho_bytes: row.tamanho_bytes,
           tem_documento: !!row.documento
         })
-        
+
         // Converter para base64 diretamente
         const base64Content = Buffer.from(row.documento).toString('base64')
         const url = `data:${row.tipo_mime};base64,${base64Content}`
-        
+
         console.log(`🔍 URL criada para ${row.nome_arquivo}:`, {
           url_length: url.length,
           url_preview: url.substring(0, 100) + '...'
         })
-        
+
         return {
           id: row.id,
           nome_arquivo: row.nome_arquivo,

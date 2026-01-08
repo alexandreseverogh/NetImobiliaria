@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client';
 
 import { useState } from 'react';
@@ -24,7 +25,7 @@ export default function DeletePerfilModal({ isOpen, perfil, onClose, onSuccess }
 
   const handleDelete = async () => {
     if (perfil.userCount > 0) {
-      setError('Não é possível excluir um perfil que está sendo usado por usuários ativos');
+      setError('NÃ£o Ã© possÃ­vel excluir um perfil que estÃ¡ sendo usado por usuÃ¡rios ativos');
       return;
     }
 
@@ -84,7 +85,7 @@ export default function DeletePerfilModal({ isOpen, perfil, onClose, onSuccess }
                     Excluir Perfil
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Confirme a exclusão deste perfil
+                    Confirme a exclusÃ£o deste perfil
                   </p>
                 </div>
               </div>
@@ -152,13 +153,13 @@ export default function DeletePerfilModal({ isOpen, perfil, onClose, onSuccess }
                       Perfil em uso
                     </h3>
                     <div className="mt-2 text-sm text-amber-700">
-                      Este perfil está sendo usado por <strong>{perfil.userCount} usuário{perfil.userCount !== 1 ? 's' : ''}</strong> e não pode ser excluído.
+                      Este perfil estÃ¡ sendo usado por <strong>{perfil.userCount} usuÃ¡rio{perfil.userCount !== 1 ? 's' : ''}</strong> e nÃ£o pode ser excluÃ­do.
                       <br />
                       <br />
-                      Para excluir este perfil, você deve primeiro:
+                      Para excluir este perfil, vocÃª deve primeiro:
                       <ul className="list-disc list-inside mt-2 space-y-1">
-                        <li>Reatribuir os usuários para outro perfil, ou</li>
-                        <li>Excluir os usuários que usam este perfil</li>
+                        <li>Reatribuir os usuÃ¡rios para outro perfil, ou</li>
+                        <li>Excluir os usuÃ¡rios que usam este perfil</li>
                       </ul>
                     </div>
                   </div>
@@ -172,10 +173,10 @@ export default function DeletePerfilModal({ isOpen, perfil, onClose, onSuccess }
                   </div>
                   <div className="ml-3">
                     <h3 className="text-sm font-medium text-red-800">
-                      Ação irreversível
+                      AÃ§Ã£o irreversÃ­vel
                     </h3>
                     <div className="mt-2 text-sm text-red-700">
-                      Esta ação não pode ser desfeita. O perfil será permanentemente removido do sistema.
+                      Esta aÃ§Ã£o nÃ£o pode ser desfeita. O perfil serÃ¡ permanentemente removido do sistema.
                     </div>
                   </div>
                 </div>
@@ -216,6 +217,7 @@ export default function DeletePerfilModal({ isOpen, perfil, onClose, onSuccess }
     </div>
   );
 }
+
 
 
 

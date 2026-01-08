@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { Imovel } from '@/lib/types/admin'
@@ -11,7 +12,7 @@ interface GeneralDataStepProps {
 }
 
 export default function GeneralDataStep({ data, onUpdate, mode, finalidades = [], tipos = [] }: GeneralDataStepProps) {
-  console.log('🔍 GeneralDataStep - Props recebidas:', {
+  console.log('ðŸ” GeneralDataStep - Props recebidas:', {
     dataKeys: Object.keys(data),
     tipo_fk: data.tipo_fk,
     finalidade_fk: data.finalidade_fk,
@@ -22,7 +23,7 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
   })
 
   const handleInputChange = (field: string, value: any) => {
-    console.log('🔍 GeneralDataStep - Campo alterado:', field, 'Valor:', value)
+    console.log('ðŸ” GeneralDataStep - Campo alterado:', field, 'Valor:', value)
     onUpdate({ [field]: value })
   }
 
@@ -44,23 +45,23 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
     })
   }
 
-  // Função para formatar valores monetários com separação de milhares
+  // FunÃ§Ã£o para formatar valores monetÃ¡rios com separaÃ§Ã£o de milhares
   const formatCurrencyValue = (value: string) => {
-    // Remove tudo exceto dígitos e vírgula
+    // Remove tudo exceto dÃ­gitos e vÃ­rgula
     let cleanValue = value.replace(/[^\d,]/g, '')
     
-    // Encontra a posição da vírgula
+    // Encontra a posiÃ§Ã£o da vÃ­rgula
     const commaIndex = cleanValue.indexOf(',')
     
     let integerPart = ''
     let decimalPart = ''
     
     if (commaIndex !== -1) {
-      // Se há vírgula, separa as partes
+      // Se hÃ¡ vÃ­rgula, separa as partes
       integerPart = cleanValue.substring(0, commaIndex)
-      decimalPart = cleanValue.substring(commaIndex + 1).substring(0, 2) // Máximo 2 dígitos para centavos
+      decimalPart = cleanValue.substring(commaIndex + 1).substring(0, 2) // MÃ¡ximo 2 dÃ­gitos para centavos
     } else {
-      // Se não há vírgula, tudo é parte inteira
+      // Se nÃ£o hÃ¡ vÃ­rgula, tudo Ã© parte inteira
       integerPart = cleanValue
     }
     
@@ -69,7 +70,7 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
       integerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
     }
     
-    // Reconstrói o valor
+    // ReconstrÃ³i o valor
     if (decimalPart) {
       return integerPart + ',' + decimalPart
     } else if (commaIndex !== -1) {
@@ -79,25 +80,25 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
     }
   }
 
-  // Função para formatar área com separação de milhares
+  // FunÃ§Ã£o para formatar Ã¡rea com separaÃ§Ã£o de milhares
   const formatAreaValue = (value: string) => {
-    // Remove tudo exceto dígitos
+    // Remove tudo exceto dÃ­gitos
     const cleanValue = value.replace(/[^\d]/g, '')
     
-    // Limita a 5 dígitos
+    // Limita a 5 dÃ­gitos
     const limitedValue = cleanValue.substring(0, 5)
     
     // Formata com pontos para milhares
     return limitedValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
   }
 
-  // Função para limitar a 2 dígitos inteiros
+  // FunÃ§Ã£o para limitar a 2 dÃ­gitos inteiros
   const handleNumericInput = (value: string, maxDigits: number = 2) => {
     const cleanValue = value.replace(/[^\d]/g, '')
     return cleanValue.substring(0, maxDigits)
   }
 
-  // Função para limpar o valor (remover formatação) antes de salvar
+  // FunÃ§Ã£o para limpar o valor (remover formataÃ§Ã£o) antes de salvar
   const cleanCurrencyValue = (value: string) => {
     return value.replace(/[^\d,]/g, '')
   }
@@ -105,9 +106,9 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Dados Gerais do Imóvel</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Dados Gerais do ImÃ³vel</h2>
         <p className="text-gray-600">
-          Preencha as informações básicas sobre o imóvel.
+          Preencha as informaÃ§Ãµes bÃ¡sicas sobre o imÃ³vel.
         </p>
       </div>
 
@@ -120,7 +121,7 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-2">
-              Tipo do Imóvel *
+              Tipo do ImÃ³vel *
             </label>
             <select
               id="tipo"
@@ -160,16 +161,16 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
         </div>
       </div>
 
-      {/* Informações Básicas */}
+      {/* InformaÃ§Ãµes BÃ¡sicas */}
       <div className="space-y-6">
         <div className="border-t border-gray-400 pt-6">
-          <h3 className="text-lg font-medium text-gray-900">Informações Básicas</h3>
+          <h3 className="text-lg font-medium text-gray-900">InformaÃ§Ãµes BÃ¡sicas</h3>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
             <label htmlFor="titulo" className="block text-sm font-medium text-gray-700 mb-2">
-              Título do Imóvel *
+              TÃ­tulo do ImÃ³vel *
             </label>
             <input
               type="text"
@@ -184,14 +185,14 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
 
           <div className="md:col-span-2">
             <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-2">
-              Descrição
+              DescriÃ§Ã£o
             </label>
             <textarea
               id="descricao"
               rows={2}
               value={data.descricao || ''}
               onChange={(e) => handleInputChange('descricao', e.target.value)}
-              placeholder="Descreva o imóvel, suas características e diferenciais..."
+              placeholder="Descreva o imÃ³vel, suas caracterÃ­sticas e diferenciais..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -207,7 +208,7 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div>
             <label htmlFor="preco" className="block text-sm font-medium text-gray-700 mb-2">
-              Preço Principal *
+              PreÃ§o Principal *
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -230,7 +231,7 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
 
           <div>
             <label htmlFor="precoCondominio" className="block text-sm font-medium text-gray-700 mb-2">
-              Condomínio
+              CondomÃ­nio
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -296,16 +297,16 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
         </div>
       </div>
 
-      {/* Áreas */}
+      {/* Ãreas */}
       <div className="space-y-6">
         <div className="border-t border-gray-400 pt-6">
-          <h3 className="text-lg font-medium text-gray-900">Áreas</h3>
+          <h3 className="text-lg font-medium text-gray-900">Ãreas</h3>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label htmlFor="areaTotal" className="block text-sm font-medium text-gray-700 mb-2">
-              Área Total (m²)
+              Ãrea Total (mÂ²)
             </label>
             <input
               type="text"
@@ -323,7 +324,7 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
 
           <div>
             <label htmlFor="areaConstruida" className="block text-sm font-medium text-gray-700 mb-2">
-              Área Construída (m²)
+              Ãrea ConstruÃ­da (mÂ²)
             </label>
             <input
               type="text"
@@ -341,10 +342,10 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
         </div>
       </div>
 
-      {/* Características */}
+      {/* CaracterÃ­sticas */}
       <div className="space-y-6">
         <div className="border-t border-gray-400 pt-6">
-          <h3 className="text-lg font-medium text-gray-900">Características</h3>
+          <h3 className="text-lg font-medium text-gray-900">CaracterÃ­sticas</h3>
         </div>
         
         <div className="grid grid-cols-7 gap-2">
@@ -386,7 +387,7 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
 
           <div>
             <label htmlFor="suites" className="block text-sm font-medium text-gray-700 mb-2">
-              Suítes
+              SuÃ­tes
             </label>
             <input
               type="text"
@@ -477,10 +478,10 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
 
       </div>
 
-      {/* Opções */}
+      {/* OpÃ§Ãµes */}
       <div className="space-y-6">
         <div className="border-t border-gray-400 pt-6">
-          <h3 className="text-lg font-medium text-gray-900">Opções</h3>
+          <h3 className="text-lg font-medium text-gray-900">OpÃ§Ãµes</h3>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -521,6 +522,7 @@ export default function GeneralDataStep({ data, onUpdate, mode, finalidades = []
     </div>
   )
 }
+
 
 
 

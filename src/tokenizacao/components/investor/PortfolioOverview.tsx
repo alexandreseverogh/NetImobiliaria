@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { 
@@ -26,7 +27,7 @@ interface PortfolioOverviewProps {
 }
 
 export default function PortfolioOverview({ investorData }: PortfolioOverviewProps) {
-  // Dados mockados do portfólio
+  // Dados mockados do portfÃ³lio
   const portfolioData = {
     totalTokens: 12,
     properties: [
@@ -113,22 +114,22 @@ export default function PortfolioOverview({ investorData }: PortfolioOverviewPro
       case 'dividend':
         return 'Dividendo'
       default:
-        return 'Transação'
+        return 'TransaÃ§Ã£o'
     }
   }
 
   return (
     <div className="space-y-8">
-      {/* Resumo do Portfólio */}
+      {/* Resumo do PortfÃ³lio */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Gráfico de Performance */}
+        {/* GrÃ¡fico de Performance */}
         <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-100">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-900">Performance do Portfólio</h3>
+            <h3 className="text-xl font-bold text-gray-900">Performance do PortfÃ³lio</h3>
             <PieChart className="h-6 w-6 text-blue-600" />
           </div>
           
-          {/* Gráfico Simples */}
+          {/* GrÃ¡fico Simples */}
           <div className="h-48 flex items-end justify-between space-x-2">
             {portfolioData.performanceData.map((data, index) => (
               <div key={index} className="flex flex-col items-center space-y-2">
@@ -142,16 +143,16 @@ export default function PortfolioOverview({ investorData }: PortfolioOverviewPro
           </div>
           
           <div className="mt-4 flex items-center justify-between">
-            <span className="text-sm text-gray-600">Valor do Portfólio</span>
+            <span className="text-sm text-gray-600">Valor do PortfÃ³lio</span>
             <span className="text-lg font-bold text-green-600">
               +{investorData.returnPercentage}%
             </span>
           </div>
         </div>
 
-        {/* Distribuição por Propriedade */}
+        {/* DistribuiÃ§Ã£o por Propriedade */}
         <div className="bg-white rounded-xl p-6 border border-gray-100">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">Distribuição por Propriedade</h3>
+          <h3 className="text-xl font-bold text-gray-900 mb-6">DistribuiÃ§Ã£o por Propriedade</h3>
           
           <div className="space-y-4">
             {portfolioData.properties.map((property) => (
@@ -187,7 +188,7 @@ export default function PortfolioOverview({ investorData }: PortfolioOverviewPro
                 <Building className="h-16 w-16 text-blue-400" />
               </div>
               
-              {/* Conteúdo */}
+              {/* ConteÃºdo */}
               <div className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -231,9 +232,9 @@ export default function PortfolioOverview({ investorData }: PortfolioOverviewPro
         </div>
       </div>
 
-      {/* Transações Recentes */}
+      {/* TransaÃ§Ãµes Recentes */}
       <div>
-        <h3 className="text-xl font-bold text-gray-900 mb-6">Transações Recentes</h3>
+        <h3 className="text-xl font-bold text-gray-900 mb-6">TransaÃ§Ãµes Recentes</h3>
         
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
@@ -241,7 +242,7 @@ export default function PortfolioOverview({ investorData }: PortfolioOverviewPro
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Transação
+                    TransaÃ§Ã£o
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Propriedade
@@ -308,4 +309,5 @@ export default function PortfolioOverview({ investorData }: PortfolioOverviewPro
     </div>
   )
 }
+
 

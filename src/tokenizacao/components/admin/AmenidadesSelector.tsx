@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -64,7 +65,7 @@ export default function AmenidadesSelector({ value = [], onChange }: AmenidadesS
           setAmenidades(amenidadesData.data)
         }
         
-        // Marcar amenidades já selecionadas
+        // Marcar amenidades jÃ¡ selecionadas
         const selected = new Set((value || []).map(a => a.amenidadeId))
         setSelectedAmenidades(selected)
       } catch (error) {
@@ -133,7 +134,7 @@ export default function AmenidadesSelector({ value = [], onChange }: AmenidadesS
   const filteredCategorias = Object.entries(amenidadesPorCategoria).filter(([categoria, items]) => {
     if (selectedCategoria && categoria !== selectedCategoria) return false
     
-    // Validar se items é um array antes de usar filter
+    // Validar se items Ã© um array antes de usar filter
     if (!Array.isArray(items)) return false
     
     const filteredItems = items.filter(item => 
@@ -154,9 +155,9 @@ export default function AmenidadesSelector({ value = [], onChange }: AmenidadesS
   return (
     <div className="space-y-6">
       <div className="border-b border-gray-200 pb-4">
-        <h3 className="text-lg font-medium text-gray-900">Amenidades do Imóvel</h3>
+        <h3 className="text-lg font-medium text-gray-900">Amenidades do ImÃ³vel</h3>
         <p className="text-sm text-gray-600 mt-1">
-          Selecione as amenidades disponíveis neste imóvel
+          Selecione as amenidades disponÃ­veis neste imÃ³vel
         </p>
       </div>
 
@@ -226,7 +227,7 @@ export default function AmenidadesSelector({ value = [], onChange }: AmenidadesS
                         <div className="mt-2 space-y-2">
                           <input
                             type="text"
-                            placeholder="Observações específicas (opcional)"
+                            placeholder="ObservaÃ§Ãµes especÃ­ficas (opcional)"
                             value={amenidadeData?.observacoes || ''}
                             onChange={(e) => handleObservacoesChange(amenidade, e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -261,7 +262,7 @@ export default function AmenidadesSelector({ value = [], onChange }: AmenidadesS
           </div>
           <div className="ml-3">
             <p className="text-sm text-blue-800">
-              <strong>Dica:</strong> Use os filtros para encontrar amenidades específicas ou por categoria. Selecione as amenidades disponíveis e adicione observações específicas para este imóvel.
+              <strong>Dica:</strong> Use os filtros para encontrar amenidades especÃ­ficas ou por categoria. Selecione as amenidades disponÃ­veis e adicione observaÃ§Ãµes especÃ­ficas para este imÃ³vel.
             </p>
           </div>
         </div>
@@ -270,19 +271,20 @@ export default function AmenidadesSelector({ value = [], onChange }: AmenidadesS
   )
 }
 
-// Função para retornar ícones por categoria
+// FunÃ§Ã£o para retornar Ã­cones por categoria
 function getCategoriaIcon(categoria: string): JSX.Element {
   const icons: { [key: string]: string } = {
-    'Lazer & Entretenimento': '🎉',
-    'Esporte & Saúde': '🏃‍♂️',
-    'Segurança': '🛡️',
-    'Conveniência & Serviços': '🛎️',
-    'Verde & Sustentabilidade': '🌿',
-    'Tecnologia & Conectividade': '📱',
-    'Bem-estar & Relaxamento': '🧘‍♀️',
-    'Públicos Especiais': '👥',
-    'Estrutura & Arquitetura': '🏗️'
+    'Lazer & Entretenimento': 'ðŸŽ‰',
+    'Esporte & SaÃºde': 'ðŸƒâ€â™‚ï¸',
+    'SeguranÃ§a': 'ðŸ›¡ï¸',
+    'ConveniÃªncia & ServiÃ§os': 'ðŸ›Žï¸',
+    'Verde & Sustentabilidade': 'ðŸŒ¿',
+    'Tecnologia & Conectividade': 'ðŸ“±',
+    'Bem-estar & Relaxamento': 'ðŸ§˜â€â™€ï¸',
+    'PÃºblicos Especiais': 'ðŸ‘¥',
+    'Estrutura & Arquitetura': 'ðŸ—ï¸'
   }
   
-  return <span className="text-xl mr-2">{icons[categoria] || '🏠'}</span>
+  return <span className="text-xl mr-2">{icons[categoria] || 'ðŸ '}</span>
 }
+

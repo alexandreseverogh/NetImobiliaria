@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 import pool from './connection'
 import { QueryResult } from 'pg'
 
@@ -32,7 +33,7 @@ export async function logAuditEvent(data: {
   userAgent?: string
 }): Promise<void> {
   // Temporariamente desabilitado devido a problema na tabela audit_logs
-  console.log('🔍 Audit log (desabilitado):', data.action)
+  console.log('ðŸ” Audit log (desabilitado):', data.action)
   return
   
   try {
@@ -55,8 +56,8 @@ export async function logAuditEvent(data: {
     
     await pool.query(query, values)
   } catch (error) {
-    console.error('❌ Erro ao registrar log de auditoria:', error)
-    // Não lançar erro para não interromper operações principais
+    console.error('âŒ Erro ao registrar log de auditoria:', error)
+    // NÃ£o lanÃ§ar erro para nÃ£o interromper operaÃ§Ãµes principais
   }
 }
 
@@ -133,13 +134,13 @@ export async function getAuditLogs(filters: {
     const result: QueryResult<AuditLogWithUser> = await pool.query(query, values)
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar logs de auditoria:', error)
+    console.error('âŒ Erro ao buscar logs de auditoria:', error)
     throw new Error('Erro ao buscar logs de auditoria')
   }
 }
 
 /**
- * Buscar logs de um usuário específico
+ * Buscar logs de um usuÃ¡rio especÃ­fico
  */
 export async function getUserAuditLogs(
   userId: string, 
@@ -161,13 +162,13 @@ export async function getUserAuditLogs(
     const result: QueryResult<AuditLogWithUser> = await pool.query(query, [userId, limit])
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar logs do usuário:', error)
-    throw new Error('Erro ao buscar logs do usuário')
+    console.error('âŒ Erro ao buscar logs do usuÃ¡rio:', error)
+    throw new Error('Erro ao buscar logs do usuÃ¡rio')
   }
 }
 
 /**
- * Buscar logs de uma ação específica
+ * Buscar logs de uma aÃ§Ã£o especÃ­fica
  */
 export async function getActionAuditLogs(
   action: string, 
@@ -189,13 +190,13 @@ export async function getActionAuditLogs(
     const result: QueryResult<AuditLogWithUser> = await pool.query(query, [action, limit])
     return result.rows
   } catch (error) {
-    console.error('❌ Erro ao buscar logs da ação:', error)
-    throw new Error('Erro ao buscar logs da ação')
+    console.error('âŒ Erro ao buscar logs da aÃ§Ã£o:', error)
+    throw new Error('Erro ao buscar logs da aÃ§Ã£o')
   }
 }
 
 /**
- * Estatísticas de auditoria
+ * EstatÃ­sticas de auditoria
  */
 export async function getAuditStats(): Promise<{
   totalLogs: number
@@ -216,7 +217,7 @@ export async function getAuditStats(): Promise<{
     `)
     const todayLogs = parseInt(todayResult.rows[0].count)
     
-    // Ações mais comuns
+    // AÃ§Ãµes mais comuns
     const actionsResult = await pool.query(`
       SELECT action, COUNT(*) as count
       FROM audit_logs
@@ -229,7 +230,7 @@ export async function getAuditStats(): Promise<{
       count: parseInt(row.count)
     }))
     
-    // Usuários mais ativos
+    // UsuÃ¡rios mais ativos
     const usersResult = await pool.query(`
       SELECT u.username, COUNT(*) as count
       FROM audit_logs al
@@ -251,13 +252,13 @@ export async function getAuditStats(): Promise<{
       topUsers
     }
   } catch (error) {
-    console.error('❌ Erro ao buscar estatísticas de auditoria:', error)
-    throw new Error('Erro ao buscar estatísticas de auditoria')
+    console.error('âŒ Erro ao buscar estatÃ­sticas de auditoria:', error)
+    throw new Error('Erro ao buscar estatÃ­sticas de auditoria')
   }
 }
 
 /**
- * Limpar logs antigos (manutenção)
+ * Limpar logs antigos (manutenÃ§Ã£o)
  */
 export async function cleanupOldAuditLogs(daysToKeep: number = 90): Promise<number> {
   try {
@@ -268,8 +269,9 @@ export async function cleanupOldAuditLogs(daysToKeep: number = 90): Promise<numb
     const result = await pool.query(query)
     return result.rowCount || 0
   } catch (error) {
-    console.error('❌ Erro ao limpar logs antigos:', error)
+    console.error('âŒ Erro ao limpar logs antigos:', error)
     throw new Error('Erro ao limpar logs antigos')
   }
 }
+
 

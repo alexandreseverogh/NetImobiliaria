@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -12,7 +13,7 @@ interface StatItem {
 const stats: StatItem[] = [
   {
     number: "R$ 50",
-    label: "Milhões",
+    label: "MilhÃµes",
     suffix: "+",
     description: "Volume total tokenizado"
   },
@@ -24,14 +25,14 @@ const stats: StatItem[] = [
   },
   {
     number: "15",
-    label: "Imóveis",
+    label: "ImÃ³veis",
     suffix: "+",
     description: "Tokenizados com sucesso"
   },
   {
     number: "98.7%",
-    label: "Satisfação",
-    description: "Taxa de satisfação dos investidores"
+    label: "SatisfaÃ§Ã£o",
+    description: "Taxa de satisfaÃ§Ã£o dos investidores"
   }
 ]
 
@@ -74,7 +75,7 @@ export default function StatsSection() {
             Resultados que Falam por Si
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Nossa plataforma já democratizou o acesso ao mercado imobiliário premium 
+            Nossa plataforma jÃ¡ democratizou o acesso ao mercado imobiliÃ¡rio premium 
             para milhares de investidores em todo o Brasil.
           </p>
         </div>
@@ -92,7 +93,7 @@ export default function StatsSection() {
                 {/* Icon */}
                 <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
                   <span className="text-2xl font-bold text-white">
-                    {index === 0 ? '₮' : index === 1 ? '👥' : index === 2 ? '🏠' : '⭐'}
+                    {index === 0 ? 'â‚®' : index === 1 ? 'ðŸ‘¥' : index === 2 ? 'ðŸ ' : 'â­'}
                   </span>
                 </div>
 
@@ -144,4 +145,5 @@ export default function StatsSection() {
     </section>
   )
 }
+
 

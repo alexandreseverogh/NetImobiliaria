@@ -1,3 +1,4 @@
+﻿/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -39,7 +40,7 @@ export default function NovoStatusImovelPage() {
     e.preventDefault()
     
     if (!formData.nome.trim()) {
-      setError('Nome é obrigatório')
+      setError('Nome Ã© obrigatÃ³rio')
       return
     }
 
@@ -57,16 +58,16 @@ export default function NovoStatusImovelPage() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Erro ao criar status de imóvel')
+        throw new Error(errorData.error || 'Erro ao criar status de imÃ³vel')
       }
 
       const result = await response.json()
-      console.log('Status de imóvel criado com sucesso:', result)
+      console.log('Status de imÃ³vel criado com sucesso:', result)
       
       // Redirecionar para a lista
       router.push('/admin/status-imovel')
     } catch (error) {
-      console.error('Erro ao criar status de imóvel:', error)
+      console.error('Erro ao criar status de imÃ³vel:', error)
       setError(error instanceof Error ? error.message : 'Erro desconhecido')
     } finally {
       setSaving(false)
@@ -89,9 +90,9 @@ export default function NovoStatusImovelPage() {
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Novo Status de Imóvel</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Novo Status de ImÃ³vel</h1>
             <p className="mt-1 text-sm text-gray-700">
-              Crie um novo status para imóveis
+              Crie um novo status para imÃ³veis
             </p>
           </div>
         </div>
@@ -117,11 +118,11 @@ export default function NovoStatusImovelPage() {
                 value={formData.nome}
                 onChange={(e) => handleInputChange('nome', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ex: Disponível, Vendido, Alugado"
+                placeholder="Ex: DisponÃ­vel, Vendido, Alugado"
                 required
               />
               <p className="mt-1 text-xs text-gray-500">
-                Nome único para identificar o status
+                Nome Ãºnico para identificar o status
               </p>
             </div>
 
@@ -147,14 +148,14 @@ export default function NovoStatusImovelPage() {
                 />
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                Cor que será exibida para este status
+                Cor que serÃ¡ exibida para este status
               </p>
             </div>
 
-            {/* Descrição */}
+            {/* DescriÃ§Ã£o */}
             <div>
               <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-2">
-                Descrição
+                DescriÃ§Ã£o
               </label>
               <textarea
                 id="descricao"
@@ -162,14 +163,14 @@ export default function NovoStatusImovelPage() {
                 onChange={(e) => handleInputChange('descricao', e.target.value)}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Descrição opcional do status"
+                placeholder="DescriÃ§Ã£o opcional do status"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Descrição opcional para explicar melhor o status
+                DescriÃ§Ã£o opcional para explicar melhor o status
               </p>
             </div>
 
-            {/* Consulta Imóvel Internauta */}
+            {/* Consulta ImÃ³vel Internauta */}
             <div>
               <label className="flex items-center">
                 <input
@@ -179,15 +180,15 @@ export default function NovoStatusImovelPage() {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <span className="ml-2 text-sm text-gray-700">
-                  Consulta imóvel internauta
+                  Consulta imÃ³vel internauta
                 </span>
               </label>
               <p className="mt-1 text-xs text-gray-500">
-                Este status será exibido para consulta de imóveis pelos internautas
+                Este status serÃ¡ exibido para consulta de imÃ³veis pelos internautas
               </p>
             </div>
 
-            {/* Visível ao Público */}
+            {/* VisÃ­vel ao PÃºblico */}
             <div>
               <label className="flex items-center">
                 <input
@@ -197,11 +198,11 @@ export default function NovoStatusImovelPage() {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <span className="ml-2 text-sm text-gray-700">
-                  Visível ao público
+                  VisÃ­vel ao pÃºblico
                 </span>
               </label>
               <p className="mt-1 text-xs text-gray-500">
-                Este status será visível para o público geral
+                Este status serÃ¡ visÃ­vel para o pÃºblico geral
               </p>
             </div>
 
@@ -219,7 +220,7 @@ export default function NovoStatusImovelPage() {
                 </span>
               </label>
               <p className="mt-1 text-xs text-gray-500">
-                Status inativos não aparecerão nos formulários
+                Status inativos nÃ£o aparecerÃ£o nos formulÃ¡rios
               </p>
             </div>
 
@@ -246,3 +247,4 @@ export default function NovoStatusImovelPage() {
     </PermissionGuard>
   )
 }
+

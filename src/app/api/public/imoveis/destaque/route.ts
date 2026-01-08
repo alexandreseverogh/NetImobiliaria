@@ -14,11 +14,8 @@ function parseLimit(raw: string | null, fallback: number): number {
 }
 
 async function fetchImagemPrincipal(imovelId: number): Promise<string | null> {
-  // Schema oficial: imagem é BYTEA + tipo_mime
   const imagemQuery = `
-    SELECT 
-      encode(imagem, 'base64') as imagem_base64,
-      tipo_mime
+    SELECT id
     FROM imovel_imagens
     WHERE imovel_id = $1 AND principal = true
     ORDER BY created_at DESC
@@ -27,18 +24,17 @@ async function fetchImagemPrincipal(imovelId: number): Promise<string | null> {
   const imagemResult = await pool.query(imagemQuery, [imovelId])
   if (imagemResult.rows.length === 0) return null
   const row = imagemResult.rows[0]
-  return `data:${row.tipo_mime || 'image/jpeg'};base64,${row.imagem_base64}`
+  // Retorna URL para streaming
+  return `/api/public/imagens/${row.id}`
 }
 
 async function fetchImagensPrincipais(ids: number[]): Promise<Record<number, string>> {
   if (!ids.length) return {}
 
-  // Schema oficial: imagem é BYTEA + tipo_mime
   const query = `
     SELECT DISTINCT ON (imovel_id)
       imovel_id,
-      encode(imagem, 'base64') as imagem_base64,
-      tipo_mime
+      id
     FROM imovel_imagens
     WHERE imovel_id = ANY($1::int[])
       AND principal = true
@@ -46,7 +42,8 @@ async function fetchImagensPrincipais(ids: number[]): Promise<Record<number, str
   `
   const result = await pool.query(query, [ids])
   return result.rows.reduce<Record<number, string>>((acc, row) => {
-    acc[row.imovel_id] = `data:${row.tipo_mime || 'image/jpeg'};base64,${row.imagem_base64}`
+    // Retorna URL para streaming
+    acc[row.imovel_id] = `/api/public/imagens/${row.id}`
     return acc
   }, {})
 }
