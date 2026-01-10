@@ -5,6 +5,7 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import twoFactorAuthService from '../../../../../services/twoFactorAuthService';
 import { User } from '../../../../../lib/database/users';
 import { logLoginAttempt as logSecurityLoginAttempt, logSuspiciousActivity } from '../../../../../lib/monitoring/securityMonitor';
+import { AUTH_CONFIG } from '@/lib/config/auth';
 
 // Configuração do pool de conexão
 const pool = new Pool({
@@ -139,13 +140,20 @@ export async function POST(request: NextRequest) {
       ipAddress = clientIp;
     } else {
       // Fallback para IP de conexão direta
-      ipAddress = request.ip || 'unknown';
+      ipAddress = request.ip || '127.0.0.1';
     }
 
-    // Se for IP local, tentar obter IP real do ambiente
-    if (ipAddress === '::1' || ipAddress === '127.0.0.1' || ipAddress === 'localhost') {
-      // Em desenvolvimento, usar IP da máquina local
-      ipAddress = process.env.LOCAL_IP || '192.168.1.100';
+    // Se for IP local ou desconhecido/inválido para inet
+    if (ipAddress === '::1' || ipAddress === 'unknown' || !ipAddress) {
+      ipAddress = '127.0.0.1';
+    } else if (ipAddress === 'localhost') {
+      ipAddress = '127.0.0.1';
+    }
+
+    // Validar formato básico de IP (se não for ipv4/ipv6, fallback)
+    // Regex simples ou apenas confiar no fallback anterior
+    if (!ipAddress.includes('.') && !ipAddress.includes(':')) {
+      ipAddress = '127.0.0.1';
     }
 
     console.log('🔍 DEBUG IP - Headers capturados:', {
@@ -169,6 +177,8 @@ export async function POST(request: NextRequest) {
       LEFT JOIN user_role_assignments ura ON u.id = ura.user_id
       LEFT JOIN user_roles ur ON ura.role_id = ur.id
       WHERE u.username = $1 OR u.email = $1
+      ORDER BY ur.level DESC NULLS LAST
+      LIMIT 1
     `;
 
     const userResult = await pool.query(userQuery, [username]);
@@ -415,10 +425,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 8. Gerar JWT com permissões
-    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
+    // USAR CONFIGURAÇÃO CENTRALIZADA para garantir consistência com o verifyToken
+    const jwtSecret = AUTH_CONFIG.JWT.SECRET;
 
     console.log('🔍 DEBUG LOGIN - Finalizando login com sucesso');
-    console.log('🔍 DEBUG LOGIN - Token será gerado:', jwtSecret ? 'SIM' : 'NÃO');
+
     const jwtPayload = {
       userId: user.id,
       username: user.username,
@@ -428,6 +439,8 @@ export async function POST(request: NextRequest) {
       is2FAEnabled: is2FAEnabled,
       permissoes: permissionsMap
     };
+
+    console.log('🔍 DEBUG LOGIN - Token Payload:', JSON.stringify(jwtPayload, null, 2));
 
     const token = jwt.sign(jwtPayload, jwtSecret, {
       expiresIn: '1h'
@@ -503,7 +516,9 @@ export async function POST(request: NextRequest) {
           isencao: (user as any).isencao === true || (user as any).isencao === 't',
           foto: fotoBase64,
           foto_tipo_mime: rawFotoMime,
-          is2FAEnabled
+          is2FAEnabled,
+          role_name: user.role_name, // EXPOSED FOR DEBUG
+          role_level: user.role_level
         }
       }
     });

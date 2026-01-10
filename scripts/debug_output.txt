@@ -1,0 +1,39 @@
+Listing columns of imovel_prospect_atribuicoes...
+Columns: [
+  {
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "prospect_id",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "corretor_fk",
+    "data_type": "uuid"
+  },
+  {
+    "column_name": "status",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "motivo",
+    "data_type": "jsonb"
+  },
+  {
+    "column_name": "expira_em",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "data_aceite",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  }
+]

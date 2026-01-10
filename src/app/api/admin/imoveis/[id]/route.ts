@@ -510,12 +510,23 @@ export async function PUT(
 
     let proprietarioUuidNormalizado: string | null = imovelAtual.proprietario_uuid ?? null
 
+    console.log('🔍 ========== VALIDAÇÃO DE PROPRIETÁRIO ==========')
+    console.log('🔍 Proprietário UUID atual no banco:', imovelAtual.proprietario_uuid)
+    console.log('🔍 Dados recebidos contêm proprietario_uuid?', 'proprietario_uuid' in data)
+    console.log('🔍 Dados recebidos contêm proprietario_fk?', 'proprietario_fk' in data)
+    console.log('🔍 Valor de data.proprietario_uuid:', data.proprietario_uuid)
+    console.log('🔍 Valor de data.proprietario_fk:', data.proprietario_fk)
+
     if ('proprietario_uuid' in data || 'proprietario_fk' in data) {
       const identificadorBruto =
         data.proprietario_uuid !== undefined
           ? data.proprietario_uuid
           : data.proprietario_fk
 
+      console.log('🔍 Identificador bruto recebido:', identificadorBruto)
+      console.log('🔍 Tipo do identificador:', typeof identificadorBruto)
+
+      // Tratar valores vazios, null, undefined ou strings vazias
       if (
         identificadorBruto === undefined ||
         identificadorBruto === null ||
@@ -524,9 +535,12 @@ export async function PUT(
         proprietarioUuidNormalizado = null
       } else {
         const identificadorLimpo = `${identificadorBruto}`.trim()
+
+        // Validar formato UUID antes de consultar o banco
         if (!isUuid(identificadorLimpo)) {
+          console.error('❌ UUID inválido recebido:', identificadorLimpo)
           return NextResponse.json(
-            { error: 'Identificador de proprietário inválido. Utilize o UUID.' },
+            { error: 'Identificador de proprietário inválido. Utilize um UUID válido.' },
             { status: 400 }
           )
         }

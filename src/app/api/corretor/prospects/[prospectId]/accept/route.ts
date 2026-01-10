@@ -33,12 +33,12 @@ export async function POST(request: NextRequest, { params }: { params: { prospec
     const q = `
       UPDATE public.imovel_prospect_atribuicoes
       SET status = 'aceito',
-          aceito_em = NOW()
+          data_aceite = NOW()
       WHERE prospect_id = $1
         AND corretor_fk = $2::uuid
         AND status = 'atribuido'
         AND (expira_em IS NULL OR expira_em > NOW())
-      RETURNING id, prospect_id, status, aceito_em, created_at
+      RETURNING id, prospect_id, status, data_aceite as aceito_em, created_at
     `
     const res = await pool.query(q, [prospectId, userId])
     if (res.rows.length === 0) {

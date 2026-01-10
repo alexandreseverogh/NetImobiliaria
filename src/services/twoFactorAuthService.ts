@@ -126,32 +126,32 @@ class TwoFactorAuthService {
       const code = this.generateCode();
       const expiresAt = new Date(Date.now() + envConfig.TWO_FACTOR.CODE_EXPIRATION);
 
-      // Salvar código no banco
+      // Salvar código no banco (expiration handled by DB)
       await this.saveCode(userId, code, 'email', expiresAt, ipAddress, userAgent);
 
       // Enviar email usando sistema dinâmico (corrigido)
       console.log('📧 DEBUG - Tentando enviar email 2FA para:', email);
       console.log('📧 DEBUG - Código gerado:', code);
-      
+
       try {
         // Usar sistema dinâmico (corrigido)
         const success = await emailService.sendTemplateEmail('2fa-code', email, { code });
-        
+
         console.log('📧 DEBUG - Email enviado com sucesso:', success);
-        
+
         if (success) {
           // Log de auditoria
           await this.log2FAActivity(userId, 'code_sent', 'email', { email, ip_address: ipAddress });
-          
+
           // Log de login para 2FA
           const username = await this.getUsernameById(userId);
           if (username) {
             await this.log2FAAttempt(userId, username, '2fa_required', ipAddress || 'unknown', userAgent || 'unknown', true);
           }
-          
+
           return true;
         }
-        
+
         return false;
       } catch (emailError) {
         console.error('❌ DEBUG - Erro ao enviar email:', emailError);
@@ -169,19 +169,19 @@ class TwoFactorAuthService {
    * Salva código 2FA no banco de dados
    */
   private async saveCode(
-    userId: string, 
-    code: string, 
-    method: string, 
-    expiresAt: Date, 
-    ipAddress?: string, 
+    userId: string,
+    code: string,
+    method: string,
+    expiresAt: Date,
+    ipAddress?: string,
     userAgent?: string
   ): Promise<void> {
     const query = `
       INSERT INTO user_2fa_codes (user_id, code, method, expires_at, ip_address, user_agent, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      VALUES ($1, $2, $3, NOW() + INTERVAL '10 minutes', $4, $5, NOW())
     `;
-    
-    await pool.query(query, [userId, code, method, expiresAt, ipAddress, userAgent]);
+
+    await pool.query(query, [userId, code, method, ipAddress, userAgent]);
   }
 
   /**
@@ -205,22 +205,45 @@ class TwoFactorAuthService {
         ORDER BY created_at DESC 
         LIMIT 1
       `;
-      
+
       const codeResult = await pool.query(codeQuery, [userId, code, method]);
-      
+
+      console.log('🔍 DEBUG 2FA VALIDATION:', {
+        userId,
+        code,
+        method,
+        rowsFound: codeResult.rows.length
+      });
+
       if (codeResult.rows.length === 0) {
+        // Debug failed reason
+        const checkQuery = `SELECT * FROM user_2fa_codes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 3`;
+        const checkRes = await pool.query(checkQuery, [userId]);
+        console.log('🔍 DEBUG 2FA - Recent codes for user:', checkRes.rows.map(r => ({
+          id: r.id,
+          code: r.code,
+          used: r.used,
+          expires: r.expires_at,
+          now_db: new Date(), /* JS Time */
+          created: r.created_at
+        })));
+
+        // Check DB time
+        const timeRes = await pool.query('SELECT NOW()::text as db_time');
+        console.log('🔍 DEBUG 2FA - DB Time:', timeRes.rows[0].db_time);
+
         // Log tentativa inválida
-        await this.log2FAActivity(userId, 'code_validation_failed', method, { 
-          code, 
-          reason: 'invalid_or_expired' 
+        await this.log2FAActivity(userId, 'code_validation_failed', method, {
+          code,
+          reason: 'invalid_or_expired'
         });
-        
+
         // Log de login para 2FA
         const username = await this.getUsernameById(userId);
         if (username) {
           await this.log2FAAttempt(userId, username, '2fa_failed', 'unknown', 'unknown', false, 'Código inválido ou expirado');
         }
-        
+
         return {
           valid: false,
           message: 'Código inválido ou expirado'
@@ -236,8 +259,8 @@ class TwoFactorAuthService {
       );
 
       // Log sucesso
-      await this.log2FAActivity(userId, 'code_validation_success', method, { 
-        code_id: codeRecord.id 
+      await this.log2FAActivity(userId, 'code_validation_success', method, {
+        code_id: codeRecord.id
       });
 
       // Log de login para 2FA
@@ -253,10 +276,10 @@ class TwoFactorAuthService {
 
     } catch (error) {
       console.error('❌ Erro ao validar código 2FA:', error);
-      await this.log2FAActivity(userId, 'code_validation_error', method, { 
+      await this.log2FAActivity(userId, 'code_validation_error', method, {
         error: error instanceof Error ? error.message : String(error)
       });
-      
+
       return {
         valid: false,
         message: 'Erro interno do servidor'
@@ -277,28 +300,28 @@ class TwoFactorAuthService {
         JOIN user_roles ur ON ura.role_id = ur.id
         WHERE u.id = $1
       `;
-      
+
       const roleResult = await pool.query(roleQuery, [userId]);
-      
+
       if (roleResult.rows.length > 0) {
         const roleRequires2FA = roleResult.rows[0].requires_2fa;
-        
+
         // Se o perfil requer 2FA, verificar se usuário já configurou
         if (roleRequires2FA) {
           console.log('🔐 Perfil requer 2FA para usuário:', userId);
-          
+
           // Verificar se usuário já configurou 2FA
           const usersQuery = `
             SELECT two_fa_enabled 
             FROM users 
             WHERE id = $1
           `;
-          
+
           const usersResult = await pool.query(usersQuery, [userId]);
-          
+
           if (usersResult.rows.length > 0) {
             const two_fa_enabled = usersResult.rows[0].two_fa_enabled;
-            
+
             if (two_fa_enabled) {
               console.log('🔐 2FA já configurado pelo usuário:', userId);
               return true;
@@ -310,35 +333,35 @@ class TwoFactorAuthService {
           }
         }
       }
-      
+
       // 2. Verificar campo two_fa_enabled na tabela users (para usuários que habilitaram manualmente)
       const usersQuery = `
         SELECT two_fa_enabled 
         FROM users 
         WHERE id = $1
       `;
-      
+
       const usersResult = await pool.query(usersQuery, [userId]);
-      
+
       if (usersResult.rows.length > 0) {
         const two_fa_enabled = usersResult.rows[0].two_fa_enabled;
-        
+
         if (two_fa_enabled) {
           console.log('🔐 2FA habilitado manualmente na tabela users para usuário:', userId);
           return true;
         }
       }
-      
+
       // 3. Verificar na tabela user_2fa_config (método legado)
       const configQuery = `
         SELECT is_enabled 
         FROM user_2fa_config 
         WHERE user_id = $1 AND method = 'email'
       `;
-      
+
       const configResult = await pool.query(configQuery, [userId]);
       const isEnabled = configResult.rows.length > 0 && configResult.rows[0].is_enabled;
-      
+
       console.log('🔐 2FA status para usuário', userId, ':', isEnabled);
       return isEnabled;
     } catch (error) {
@@ -358,7 +381,7 @@ class TwoFactorAuthService {
     try {
       // Gerar códigos de backup
       const backupCodes = this.generateBackupCodes();
-      const hashedBackupCodes = backupCodes.map(code => 
+      const hashedBackupCodes = backupCodes.map(code =>
         crypto.createHash('sha256').update(code).digest('hex')
       );
 
@@ -387,10 +410,10 @@ class TwoFactorAuthService {
 
     } catch (error) {
       console.error('❌ Erro ao habilitar 2FA:', error);
-      await this.log2FAActivity(userId, '2fa_enable_failed', 'email', { 
+      await this.log2FAActivity(userId, '2fa_enable_failed', 'email', {
         error: error instanceof Error ? error.message : String(error)
       });
-      
+
       return {
         success: false,
         message: 'Erro ao habilitar 2FA'
@@ -428,10 +451,10 @@ class TwoFactorAuthService {
 
     } catch (error) {
       console.error('❌ Erro ao desabilitar 2FA:', error);
-      await this.log2FAActivity(userId, '2fa_disable_failed', 'email', { 
+      await this.log2FAActivity(userId, '2fa_disable_failed', 'email', {
         error: error instanceof Error ? error.message : String(error)
       });
-      
+
       return {
         success: false,
         message: 'Erro ao desabilitar 2FA'
@@ -447,7 +470,7 @@ class TwoFactorAuthService {
       const result = await pool.query(
         'DELETE FROM user_2fa_codes WHERE expires_at < NOW()'
       );
-      
+
       if (result.rowCount && result.rowCount > 0) {
         console.log(`🧹 Limpeza: ${result.rowCount} códigos 2FA expirados removidos`);
       }
@@ -460,9 +483,9 @@ class TwoFactorAuthService {
    * Log de atividades 2FA para auditoria
    */
   private async log2FAActivity(
-    userId: string, 
-    action: string, 
-    method: string, 
+    userId: string,
+    action: string,
+    method: string,
     details: any
   ): Promise<void> {
     try {
@@ -470,7 +493,7 @@ class TwoFactorAuthService {
         INSERT INTO audit_2fa_logs (user_id, action, method, metadata, created_at)
         VALUES ($1, $2, $3, $4, NOW())
       `;
-      
+
       await pool.query(query, [userId, action, method, JSON.stringify(details)]);
     } catch (error) {
       console.error('❌ Erro ao registrar log de auditoria 2FA:', error);

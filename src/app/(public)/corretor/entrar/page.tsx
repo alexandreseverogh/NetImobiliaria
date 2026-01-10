@@ -10,7 +10,7 @@ export default function CorretorEntrarPage() {
   const nextParam = useMemo(() => {
     const raw = searchParams?.get('next') || ''
     // segurança: permitir apenas caminhos internos
-    if (!raw || !raw.startsWith('/')) return '/corretor/leads'
+    if (!raw || !raw.startsWith('/')) return '/landpaging?corretor_home=true'
     return raw
   }, [searchParams])
 
@@ -29,7 +29,7 @@ export default function CorretorEntrarPage() {
           return
         }
       }
-    } catch {}
+    } catch { }
     setReady(true)
   }, [nextParam])
 

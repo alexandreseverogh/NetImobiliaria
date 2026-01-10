@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     const token = authHeader.substring(7);
     const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
-    
+
     let decoded: any;
     try {
       decoded = jwt.verify(token, jwtSecret);
@@ -73,9 +73,9 @@ export async function POST(request: NextRequest) {
     const realIp = request.headers.get('x-real-ip');
     const cfConnectingIp = request.headers.get('cf-connecting-ip');
     const clientIp = request.headers.get('x-client-ip');
-    
+
     let ipAddress = 'unknown';
-    
+
     if (forwardedFor) {
       // X-Forwarded-For pode conter múltiplos IPs separados por vírgula
       ipAddress = forwardedFor.split(',')[0].trim();
@@ -89,13 +89,13 @@ export async function POST(request: NextRequest) {
       // Fallback para IP de conexão direta
       ipAddress = request.ip || 'unknown';
     }
-    
+
     // Se for IP local, tentar obter IP real do ambiente (MESMA LÓGICA DO LOGIN)
     if (ipAddress === '::1' || ipAddress === '127.0.0.1' || ipAddress === 'localhost') {
       // Em desenvolvimento, usar IP da máquina local
       ipAddress = process.env.LOCAL_IP || '192.168.1.100';
     }
-    
+
     console.log('🔍 DEBUG IP LOGOUT - Headers capturados:', {
       'x-forwarded-for': forwardedFor,
       'x-real-ip': realIp,
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       'is_local': ipAddress === '::1' || ipAddress === '127.0.0.1',
       'username': decoded.username
     });
-    
+
     const userAgent = request.headers.get('user-agent') || 'unknown';
 
     // Invalidar sessão no banco
@@ -154,14 +154,21 @@ export async function POST(request: NextRequest) {
 
     await pool.end();
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Logout realizado com sucesso'
     });
 
+    // 🗑️ LIMPEZA DE COOKIES: Garantir que o token "zumbi" seja removido do navegador
+    response.cookies.delete('accessToken')
+    response.cookies.delete('adminAccessToken') // Caso exista variante
+    response.cookies.delete('refreshToken')
+
+    return response;
+
   } catch (error) {
     console.error('❌ Erro no logout:', error);
-    
+
     return NextResponse.json(
       { success: false, message: 'Erro interno do servidor' },
       { status: 500 }

@@ -50,7 +50,11 @@ export default function AuthModal({
     // Entrar: ir para a página pública de login do corretor (mesma do fluxo "Já sou corretor - Entrar na plataforma")
     if (mode === 'login') {
       onClose()
-      router.push('/corretor/entrar?next=/landpaging?corretor_home=true')
+      if (onCorretorLoginClick) {
+        onCorretorLoginClick()
+      } else {
+        router.push('/corretor/entrar?next=/landpaging?corretor_home=true')
+      }
       return
     }
 

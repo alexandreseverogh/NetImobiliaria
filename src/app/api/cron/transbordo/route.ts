@@ -56,18 +56,34 @@ export async function GET(request: Request) {
                     [item.id]
                 );
 
-                // B. Notificar Corretor que Perdeu (Tentar template 'lead-expirado' ou email simples)
-                if (item.corretor_email) {
+                // B. Notificar Corretor que Perdeu e Aplicar Penalidade
+                if (item.corretor_fk) {
+                    // 1. Penalidade de XP (Gamificação)
                     try {
-                        await emailService.sendTemplateEmail('lead-expirado', item.corretor_email, {
-                            nome_corretor: item.corretor_nome,
-                            codigo_imovel: item.imovel_codigo || 'N/A'
-                        });
-                    } catch (emailErr) {
-                        console.warn(`[Transbordo] Falha ao enviar email de perda para ${item.corretor_email}:`, emailErr);
-                        // Fallback simples se template falhar (opcional, ou apenas logar)
+                        console.log(`[Transbordo] Aplicando penalidade ao corretor ${item.corretor_fk} por perder lead ${item.prospect_id}`);
+                        // Import dinâmico para garantir que GamificationService está disponível
+                        const { GamificationService } = await import('@/lib/gamification/gamificationService');
+                        await GamificationService.penalizeSLA(item.corretor_fk);
+                    } catch (gErr) {
+                        console.error(`[Transbordo] Falha ao aplicar penalidade:`, gErr);
+                    }
+
+                    // 2. Email de Perda (existente)
+                    if (item.corretor_email) {
+                        try {
+                            await emailService.sendTemplateEmail('lead-expirado', item.corretor_email, {
+                                nome_corretor: item.corretor_nome,
+                                codigo_imovel: item.imovel_codigo || 'N/A'
+                            });
+                        } catch (emailErr) {
+                            console.warn(`[Transbordo] Falha ao enviar email de perda para ${item.corretor_email}:`, emailErr);
+                        }
                     }
                 }
+
+                // COMMIT para garantir que o UPDATE seja visível para routeProspectAndNotify
+                await client.query('COMMIT');
+                await client.query('BEGIN');
 
                 // C. Buscar histórico de tentativas para este propspect
                 //    Isso inclui o que acabamos de expirar
@@ -123,13 +139,21 @@ export async function GET(request: Request) {
                 // Se ele selecionar alguém que NÃO é plantonista e attempts >= limit, isso seria "errado".
                 // Mas vamos deixar fluir por enquanto para não bloquear. O transbordo está funcionando (não repete corretor).
 
-                const result = await routeProspectAndNotify(item.prospect_id, distinctBrokers);
+                // D. Decidir Roteamento (Smart Fallback)
+                // Se tentativas >= limite, FORÇA o fallback para plantonista (pula area)
+                const forceFallback = attemptsCount >= limitAttempts;
+                console.log(`[Transbordo] Roteando prospect ${item.prospect_id}. Tentativas: ${attemptsCount}/${limitAttempts}. ForceFallback: ${forceFallback}`);
+
+                const result = await routeProspectAndNotify(item.prospect_id, distinctBrokers, { forceFallback });
+
+                console.log(`[Transbordo] Resultado do roteamento:`, JSON.stringify(result));
 
                 if (result.success) {
                     summary.reassigned++;
+                    console.log(`[Transbordo] ✅ Prospect ${item.prospect_id} redistribuído com sucesso`);
                 } else {
                     summary.errors++;
-                    console.error(`[Transbordo] Falha ao re-rotear prospect ${item.prospect_id}: ${result.reason}`);
+                    console.error(`[Transbordo] ❌ Falha ao re-rotear prospect ${item.prospect_id}: ${result.reason}`);
                 }
 
             } catch (err) {

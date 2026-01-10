@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth/jwt'
+import jwt from 'jsonwebtoken'
+import { AUTH_CONFIG } from '@/lib/config/auth'
 import { findProprietariosPaginated } from '@/lib/database/proprietarios'
 
 export async function GET(request: NextRequest) {
@@ -15,16 +17,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Autenticação necessária' }, { status: 401 })
     }
 
-    const decoded: any = await verifyToken(token)
+    let decoded: any = null
+    try {
+      // Usar jsonwebtoken diretamente para garantir compatibilidade com o login
+      decoded = jwt.verify(token, AUTH_CONFIG.JWT.SECRET)
+    } catch (err) {
+      console.error('❌ Erro na verificação do token (jwt.verify):', err)
+      // Fallback para a implementação customizada (apenas por segurança)
+      decoded = await verifyToken(token)
+    }
+
     const userId = decoded?.userId || null
     const roleName = String(decoded?.role_name || decoded?.cargo || '').toLowerCase()
 
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'Token inválido ou expirado' }, { status: 401 })
-    }
+    console.log('🔍 /mine Debug:', { userId, roleName, hasCorretor: roleName.includes('corretor') })
 
     if (!roleName.includes('corretor')) {
-      return NextResponse.json({ success: false, error: 'Acesso negado' }, { status: 403 })
+      return NextResponse.json({
+        success: false,
+        error: 'Acesso negado',
+        debug: {
+          userId,
+          roleName,
+          decoded,
+          message: 'Role "corretor" não encontrada no token'
+        }
+      }, { status: 403 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -52,5 +70,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Erro interno do servidor' }, { status: 500 })
   }
 }
-
 

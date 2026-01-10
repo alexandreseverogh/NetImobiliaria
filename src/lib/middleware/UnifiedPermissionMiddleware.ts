@@ -55,26 +55,26 @@ interface RouteConfig {
 class RouteConfigCache {
   private cache = new Map<string, { config: RouteConfig | null; timestamp: number }>()
   private TTL = 5 * 60 * 1000 // 5 minutos
-  
+
   get(key: string): RouteConfig | null | undefined {
     const cached = this.cache.get(key)
     if (!cached) return undefined
-    
+
     if (Date.now() - cached.timestamp > this.TTL) {
       this.cache.delete(key)
       return undefined
     }
-    
+
     return cached.config
   }
-  
+
   set(key: string, config: RouteConfig | null): void {
     this.cache.set(key, {
       config,
       timestamp: Date.now()
     })
   }
-  
+
   clear(): void {
     this.cache.clear()
   }
@@ -94,54 +94,68 @@ export async function unifiedPermissionMiddleware(
 ): Promise<NextResponse | null> {
   const { pathname } = request.nextUrl
   const method = request.method
-  
+
   try {
     // 1. Buscar configuração da rota no banco (com cache)
     const routeConfig = await getRouteConfig(pathname, method)
-    
+
     // Rota não configurada = não protegida (pública)
     if (!routeConfig) {
       return null
     }
-    
+
     // Rota configurada mas não requer autenticação
     if (!routeConfig.requires_auth) {
       return null
     }
-    
+
     // 2. Verificar autenticação (extrair token)
     const token = extractToken(request)
-    
+
     if (!token) {
       return NextResponse.json(
-        { 
+        {
           error: 'Autenticação necessária',
           code: 'AUTH_REQUIRED'
         },
         { status: 401 }
       )
     }
-    
+
     // 3. Verificar se token é válido
     const decoded = await verifyToken(token)
-    
+
     if (!decoded) {
       return NextResponse.json(
-        { 
+        {
           error: 'Token inválido ou expirado',
           code: 'INVALID_TOKEN'
         },
         { status: 401 }
       )
     }
-    
+
+    // 🆕 VALIDAÇÃO CRÍTICA: Verificar se o usuário ainda existe e está ativo no banco
+    // Isso evita o "token fantasma" onde um usuário deletado continua logado
+    const userExists = await checkUserExists(decoded.userId)
+    if (!userExists) {
+      console.warn('👻 Token fantasma detectado: Usuário não existe mais no banco:', decoded.userId)
+      return NextResponse.json(
+        {
+          error: 'Usuário inválido ou inativo',
+          code: 'USER_NOT_FOUND' // Código específico que pode gatilhar logout
+        },
+        { status: 401 } // 401 força logout no client
+      )
+    }
+
     // 4. Verificar permissão usando sistema centralizado
     const hasPermission = await checkUserPermission(
       decoded.userId,
       routeConfig.feature_slug,
       routeConfig.default_action
     )
-    
+
     if (!hasPermission) {
       // Log de tentativa de acesso negado
       console.warn('🔒 Acesso negado:', {
@@ -152,9 +166,9 @@ export async function unifiedPermissionMiddleware(
         action: routeConfig.default_action,
         timestamp: new Date().toISOString()
       })
-      
+
       return NextResponse.json(
-        { 
+        {
           error: 'Permissão insuficiente',
           code: 'PERMISSION_DENIED',
           details: {
@@ -165,27 +179,27 @@ export async function unifiedPermissionMiddleware(
         { status: 403 }
       )
     }
-    
+
     // 5. Verificar 2FA se necessário
     if (routeConfig.requires_2fa && !decoded.twoFAVerified) {
       return NextResponse.json(
-        { 
+        {
           error: 'Verificação 2FA necessária para esta operação',
           code: 'TWO_FA_REQUIRED'
         },
         { status: 403 }
       )
     }
-    
+
     // ✅ Tudo OK - permitir acesso
     return null
-    
+
   } catch (error) {
     console.error('❌ Erro no middleware de permissões:', error)
-    
+
     // Fail-safe: em caso de erro, negar acesso
     return NextResponse.json(
-      { 
+      {
         error: 'Erro interno ao verificar permissões',
         code: 'INTERNAL_ERROR'
       },
@@ -204,17 +218,17 @@ export async function unifiedPermissionMiddleware(
  * - Match com regex: /admin/imoveis/[id] → /admin/imoveis/123
  */
 async function getRouteConfig(
-  pathname: string, 
+  pathname: string,
   method: string
 ): Promise<RouteConfig | null> {
   const cacheKey = `${pathname}:${method}`
-  
+
   // Verificar cache
   const cached = routeCache.get(cacheKey)
   if (cached !== undefined) {
     return cached
   }
-  
+
   try {
     // Query com suporte a rotas dinâmicas
     const query = `
@@ -227,9 +241,9 @@ async function getRouteConfig(
         rpc.requires_auth,
         rpc.requires_2fa
       FROM route_permissions_config rpc
-      JOIN system_features sf ON rpc.feature_id = sf.id
+      LEFT JOIN system_features sf ON rpc.feature_id = sf.id
       WHERE rpc.is_active = true
-        AND sf.is_active = true
+        AND (sf.id IS NULL OR sf.is_active = true)
         AND rpc.method = $1
         AND (
           -- Match exato
@@ -243,18 +257,36 @@ async function getRouteConfig(
         LENGTH(rpc.route_pattern) DESC  -- Depois, rota mais específica
       LIMIT 1
     `
-    
+
     const result = await pool.query(query, [method, pathname])
-    
+
     const config = result.rows.length > 0 ? result.rows[0] as RouteConfig : null
-    
+
     // Salvar no cache
     routeCache.set(cacheKey, config)
-    
+
     return config
   } catch (error) {
     console.error('❌ Erro ao buscar configuração de rota:', error)
     return null
+  }
+}
+
+/**
+ * ============================================================
+ * Verificar se Usuário Existe e Está Ativo
+ * ============================================================
+ */
+async function checkUserExists(userId: string): Promise<boolean> {
+  try {
+    const result = await pool.query(
+      'SELECT 1 FROM users WHERE id = $1 AND ativo = true LIMIT 1',
+      [userId]
+    )
+    return result.rows.length > 0
+  } catch (error) {
+    console.error('❌ Erro ao verificar existência do usuário:', error)
+    return false
   }
 }
 
@@ -273,13 +305,13 @@ function extractToken(request: NextRequest): string | null {
   if (authHeader?.startsWith('Bearer ')) {
     return authHeader.replace('Bearer ', '')
   }
-  
+
   // Tentar cookie
   const cookie = request.cookies.get('accessToken')
   if (cookie?.value) {
     return cookie.value
   }
-  
+
   return null
 }
 

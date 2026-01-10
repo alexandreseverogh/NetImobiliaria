@@ -29,11 +29,11 @@ interface UserSuccessModalProps {
   redirectTo?: string
 }
 
-export default function UserSuccessModal({ 
-  isOpen, 
-  onClose, 
+export default function UserSuccessModal({
+  isOpen,
+  onClose,
   userData,
-  redirectTo 
+  redirectTo
 }: UserSuccessModalProps) {
   const router = useRouter()
   const { get, post } = useAuthenticatedFetch()
@@ -64,7 +64,7 @@ export default function UserSuccessModal({
         if (parsed.id) return parsed.id
         if (parsed.uuid) return parsed.uuid
       }
-      
+
       const publicStored = localStorage.getItem('public-user-data')
       if (publicStored) {
         const parsed = JSON.parse(publicStored)
@@ -84,7 +84,7 @@ export default function UserSuccessModal({
     // UX: manter consistente com o fluxo de retorno (não disparar geolocalização novamente na landing)
     try {
       sessionStorage.setItem('suppress-geolocation-modal-once', 'true')
-    } catch {}
+    } catch { }
     onClose()
     // Abrir tela pública de cadastro em modo edição
     router.push('/corretor/cadastro?edit=true')
@@ -153,36 +153,36 @@ export default function UserSuccessModal({
     // Pré-carregar categorias e KPIs assim que o modal abrir.
     loadLeads()
 
-    ;(async () => {
-      try {
-        const resp = await get('/api/corretor/lead-config')
-        const data = await resp.json()
-        if (resp.ok && data?.success) {
-          const n = Number(data?.data?.sla_minutos_aceite_lead)
-          if (Number.isFinite(n) && n > 0) setSlaMinutos(n)
-        }
-      } catch {}
-    })()
+      ; (async () => {
+        try {
+          const resp = await get('/api/corretor/lead-config')
+          const data = await resp.json()
+          if (resp.ok && data?.success) {
+            const n = Number(data?.data?.sla_minutos_aceite_lead)
+            if (Number.isFinite(n) && n > 0) setSlaMinutos(n)
+          }
+        } catch { }
+      })()
 
-    ;(async () => {
-      try {
-        const resp = await get('/api/corretor/lead-stats')
-        const data = await resp.json()
-        if (resp.ok && data?.success) {
-          setLeadStats({
-            recebidos: Number(data?.data?.leads_recebidos_total) || 0,
-            perdidosSla: Number(data?.data?.leads_perdidos_sla_total) || 0,
-            // Nunca aceitar NaN/undefined no KPI: se vier inválido, vira 0.00
-            aceiteNoSlaPercent: (() => {
-              const n = Number(data?.data?.aceite_no_sla_percent)
-              return Number.isFinite(n) ? n : 0
-            })(),
-            aceiteNoSlaAceitos: Number(data?.data?.aceite_no_sla_aceitos) || 0,
-            aceiteNoSlaAvaliados: Number(data?.data?.aceite_no_sla_avaliados) || 0
-          })
-        }
-      } catch {}
-    })()
+      ; (async () => {
+        try {
+          const resp = await get('/api/corretor/lead-stats')
+          const data = await resp.json()
+          if (resp.ok && data?.success) {
+            setLeadStats({
+              recebidos: Number(data?.data?.leads_recebidos_total) || 0,
+              perdidosSla: Number(data?.data?.leads_perdidos_sla_total) || 0,
+              // Nunca aceitar NaN/undefined no KPI: se vier inválido, vira 0.00
+              aceiteNoSlaPercent: (() => {
+                const n = Number(data?.data?.aceite_no_sla_percent)
+                return Number.isFinite(n) ? n : 0
+              })(),
+              aceiteNoSlaAceitos: Number(data?.data?.aceite_no_sla_aceitos) || 0,
+              aceiteNoSlaAvaliados: Number(data?.data?.aceite_no_sla_avaliados) || 0
+            })
+          }
+        } catch { }
+      })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userData.userType])
 
@@ -378,7 +378,7 @@ export default function UserSuccessModal({
 
       const response = await fetch(`/api/admin/usuarios/${userId}`, {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth-token')}`
         },
         body: formData
@@ -396,9 +396,9 @@ export default function UserSuccessModal({
         const storedUserData = localStorage.getItem('user-data')
         if (storedUserData) {
           const user = JSON.parse(storedUserData)
-          const updatedUser = { 
-            ...user, 
-            nome: editForm.nome, 
+          const updatedUser = {
+            ...user,
+            nome: editForm.nome,
             email: editForm.email,
             telefone: editForm.telefone,
             cpf: editForm.cpf,
@@ -414,9 +414,9 @@ export default function UserSuccessModal({
         const storedPublicUser = localStorage.getItem('public-user-data')
         if (storedPublicUser) {
           const user = JSON.parse(storedPublicUser)
-          const updatedUser = { 
-            ...user, 
-            nome: editForm.nome, 
+          const updatedUser = {
+            ...user,
+            nome: editForm.nome,
             email: editForm.email,
             telefone: editForm.telefone,
             cpf: editForm.cpf,
@@ -445,11 +445,11 @@ export default function UserSuccessModal({
               }
               sessionStorage.setItem('corretor_success_user', JSON.stringify(updated))
             }
-          } catch {}
+          } catch { }
         }
 
         setIsEditing(false)
-        
+
         // Pequena gambiarra para atualizar a UI sem recarregar (opcional)
         userData.nome = editForm.nome
         userData.email = editForm.email
@@ -478,7 +478,7 @@ export default function UserSuccessModal({
       try {
         // Salvar de onde o corretor veio (para voltar ao mesmo modal/contexto após cadastrar proprietário)
         sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
-      } catch {}
+      } catch { }
       window.location.href = '/admin/proprietarios/novo?from_corretor=true'
     }, 100)
   }
@@ -490,14 +490,14 @@ export default function UserSuccessModal({
       try {
         // Salvar de onde o corretor veio (para voltar ao mesmo modal/contexto após visualizar/fechar)
         sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
-      } catch {}
+      } catch { }
       window.location.href = '/admin/proprietarios?mine_corretor=true'
     }, 100)
   }
 
   const handleCadastrarImovelComoCorretor = () => {
     // Regra: não permitir cadastrar imóvel se o corretor ainda não tem nenhum proprietário associado.
-    ;(async () => {
+    ; (async () => {
       try {
         const resp = await get('/api/admin/proprietarios/mine?limit=1&page=1')
         const data = await resp.json().catch(() => null)
@@ -526,7 +526,7 @@ export default function UserSuccessModal({
                 }
               })
             )
-          } catch {}
+          } catch { }
           return
         }
 
@@ -536,7 +536,7 @@ export default function UserSuccessModal({
           try {
             // Salvar de onde o corretor veio (para voltar ao mesmo modal/contexto após cadastrar imóvel)
             sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
-          } catch {}
+          } catch { }
           const finalidadeEscolhida =
             typeof window !== 'undefined' ? sessionStorage.getItem('finalidadeEscolhida') : null
           const url = finalidadeEscolhida
@@ -553,7 +553,7 @@ export default function UserSuccessModal({
               detail: { type: 'error', position: 'center', durationMs: 0, message: msg }
             })
           )
-        } catch {}
+        } catch { }
       }
     })()
   }
@@ -564,7 +564,7 @@ export default function UserSuccessModal({
       try {
         // Salvar de onde o corretor veio (para voltar ao mesmo modal/contexto após fechar a listagem)
         sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
-      } catch {}
+      } catch { }
       window.location.href = '/corretor/imoveis'
     }, 100)
   }
@@ -573,7 +573,7 @@ export default function UserSuccessModal({
     // UX: abrir em nova aba para não sobrepor o modal do corretor
     try {
       sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
-    } catch {}
+    } catch { }
     window.open('/corretor/areas-atuacao', '_blank', 'noopener,noreferrer')
   }
 
@@ -581,7 +581,7 @@ export default function UserSuccessModal({
     // UX: abrir em nova aba para não sobrepor o modal do corretor
     try {
       sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
-    } catch {}
+    } catch { }
     window.open('/corretor/pagamentos/qrcode', '_blank', 'noopener,noreferrer')
   }
 
@@ -590,7 +590,7 @@ export default function UserSuccessModal({
     setTimeout(() => {
       // Ler finalidade escolhida do sessionStorage
       const finalidadeEscolhida = typeof window !== 'undefined' ? sessionStorage.getItem('finalidadeEscolhida') : null
-      const url = finalidadeEscolhida 
+      const url = finalidadeEscolhida
         ? `/admin/imoveis/novo?noSidebar=true&finalidade=${finalidadeEscolhida}`
         : '/admin/imoveis/novo?noSidebar=true'
       window.location.href = url
@@ -606,13 +606,13 @@ export default function UserSuccessModal({
         window.dispatchEvent(new Event('public-auth-changed'))
       }
     }
-    
+
     // Redirecionar após fechar modal
     setTimeout(() => {
       // Se houver redirectTo específico (ex: para proprietários), usar ele
       if (redirectTo) {
         window.location.href = redirectTo
-      } 
+      }
       // Se for cliente ou proprietário, abrir modal de perfil ao invés de redirecionar
       else if (userData.userType === 'cliente' || userData.userType === 'proprietario') {
         // Disparar evento para abrir modal de perfil
@@ -626,9 +626,8 @@ export default function UserSuccessModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div
-        className={`relative w-full ${
-          userData.userType === 'corretor' ? 'max-w-7xl' : 'max-w-lg'
-        } bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-hidden`}
+        className={`relative w-full ${userData.userType === 'corretor' ? 'max-w-7xl' : 'max-w-lg'
+          } bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-hidden`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
@@ -666,7 +665,7 @@ export default function UserSuccessModal({
                       className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl transition-all group-hover:brightness-90"
                     />
                     {isEditing && (
-                      <label 
+                      <label
                         htmlFor="foto-upload"
                         className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
                       >
@@ -706,9 +705,8 @@ export default function UserSuccessModal({
                       ) : (
                         <button
                           onClick={handleEditToggle}
-                          className={`text-[10px] font-bold uppercase transition-all ${
-                            isEditing ? 'text-red-500 hover:text-red-600' : 'text-blue-500 hover:text-blue-600'
-                          }`}
+                          className={`text-[10px] font-bold uppercase transition-all ${isEditing ? 'text-red-500 hover:text-red-600' : 'text-blue-500 hover:text-blue-600'
+                            }`}
                         >
                           {isEditing ? 'Cancelar' : 'Editar'}
                         </button>
@@ -797,224 +795,223 @@ export default function UserSuccessModal({
 
               {/* 2) Leads (mais “deitados” / horizontais) */}
               <div className="md:col-span-6 space-y-5">
-                  {/* HUB premium de Leads */}
-                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
-                    <div className="flex flex-col gap-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <Bell className="w-5 h-5 text-amber-600" />
-                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em]">Leads</h4>
-                          </div>
-                          <div className="mt-1 text-sm text-slate-600">
-                            {leadsResumo.pendentes > 0 ? (
-                              <>
-                                Você tem <strong className="text-rose-700">{leadsResumo.pendentes} pendente(s)</strong> para aceite.
-                              </>
-                            ) : (
-                              <>
-                                Sem pendências de aceite agora. Confira seus leads atribuídos e aceitos.
-                              </>
-                            )}
-                          </div>
-                        </div>
-
+                {/* HUB premium de Leads */}
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => loadLeads()}
-                            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-white text-xs font-black hover:bg-slate-800"
-                          >
-                            <RefreshCcw className="w-4 h-4" />
-                            Atualizar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openLeadsPanel(leadsResumo.pendentes > 0 ? 'pendentes' : 'atribuido')}
-                            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black shadow-sm hover:shadow-md transition-all ${
-                              leadsResumo.pendentes > 0
-                                ? 'bg-rose-600 text-white hover:bg-rose-700'
-                                : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                            }`}
-                          >
-                            {leadsResumo.pendentes > 0 ? (
-                              <>
-                                <Clock className="w-4 h-4" />
-                                Ver pendentes ({leadsResumo.pendentes})
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle2 className="w-4 h-4" />
-                                Ver atribuídos
-                              </>
-                            )}
-                          </button>
+                          <Bell className="w-5 h-5 text-amber-600" />
+                          <h4 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em]">Leads</h4>
                         </div>
-                      </div>
-
-                      {/* Tabs */}
-                      <div className="flex flex-wrap gap-2">
-                        {leadTabs.map((t) => {
-                          const isActive = activeLeadTab === t.id
-                          const disabled = (t as any).disabled === true
-                          const base =
-                            'inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-[11px] font-black transition-all'
-                          const active =
-                            'bg-slate-900 text-white shadow-md'
-                          const inactive =
-                            'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                          const dis =
-                            'bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed'
-                          const badgeTone =
-                            t.tone === 'danger'
-                              ? 'bg-rose-600 text-white'
-                              : t.tone === 'success'
-                              ? 'bg-emerald-600 text-white'
-                              : t.tone === 'primary'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-slate-200 text-slate-700'
-
-                          return (
-                            <button
-                              key={t.id}
-                              type="button"
-                              disabled={disabled}
-                              onClick={() => !disabled && setActiveLeadTab(t.id)}
-                              className={`${base} ${disabled ? dis : isActive ? active : inactive}`}
-                              title={disabled ? 'Em breve' : undefined}
-                            >
-                              <span>{t.label}</span>
-                              <span className={`inline-flex items-center justify-center min-w-[22px] h-[22px] px-2 rounded-full text-[10px] ${badgeTone}`}>
-                                {t.count}
-                              </span>
-                              {disabled && <span className="text-[10px] font-black">(em breve)</span>}
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      {leadsError && (
-                        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800 text-sm font-semibold">
-                          {leadsError}
-                        </div>
-                      )}
-
-                      {/* Preview */}
-                      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
-                          <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Resumo</div>
-                          <button
-                            type="button"
-                            onClick={() => openLeadsPanel(activeLeadTab)}
-                            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-white text-[11px] font-black hover:bg-slate-800"
-                          >
-                            <ArrowUpRight className="w-4 h-4" />
-                            Ver todos
-                          </button>
-                        </div>
-
-                        <div className="p-3">
-                          {leadsLoading ? (
-                            <div className="text-slate-600 text-sm">Carregando leads...</div>
-                          ) : getTabLeads(activeLeadTab).length === 0 ? (
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-                              <div className="text-slate-900 font-black">
-                                {activeLeadTab === 'fechado'
-                                  ? 'Em breve: leads fechados.'
-                                  : 'Nenhum lead nesta categoria.'}
-                              </div>
-                              <div className="text-slate-600 text-sm mt-1">
-                                {activeLeadTab === 'pendentes'
-                                  ? 'Quando houver lead com SLA para aceite, ele aparecerá aqui.'
-                                  : 'Assim que houver novos leads, eles serão listados automaticamente.'}
-                              </div>
-                            </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          {leadsResumo.pendentes > 0 ? (
+                            <>
+                              Você tem <strong className="text-rose-700">{leadsResumo.pendentes} pendente(s)</strong> para aceite.
+                            </>
                           ) : (
-                            <div className="space-y-2">
-                              {getTabLeads(activeLeadTab)
-                                .slice(0, 3)
-                                .map((l: any) => (
-                                  <div
-                                    key={l.prospect_id}
-                                    className="rounded-2xl border border-slate-200 p-3 hover:shadow-sm transition-shadow"
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                          Código <span className="text-slate-700">{l.codigo || '-'}</span>
-                                        </div>
-                                        <div className="mt-0.5 text-sm font-black text-slate-900">{formatMoney(l.preco)}</div>
-                                        <div className="mt-0.5 text-[11px] text-slate-600 font-bold">
-                                          <span className="text-slate-500 font-black">Data:</span>{' '}
-                                          {formatDateTime(l.data_interesse || l.atribuido_em)}
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        {activeLeadTab === 'pendentes' && (
-                                          <span className="inline-flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-amber-900 text-[11px] font-black">
-                                            <Clock className="w-4 h-4" />
-                                            SLA{slaMinutos ? `: ${slaMinutos} min` : ''}
-                                          </span>
-                                        )}
-                                        <button
-                                          type="button"
-                                          onClick={() => openLeadDetailsPage(l.prospect_id)}
-                                          className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-slate-900 text-[11px] font-black hover:bg-slate-50"
-                                        >
-                                          <ArrowUpRight className="w-4 h-4" />
-                                          Ver detalhes
-                                        </button>
-                                      </div>
-                                    </div>
-
-                                    <div className="mt-2 text-[12px] text-slate-700 leading-snug">
-                                      <span className="font-black text-slate-900">Cliente:</span> {l.cliente_nome || '-'}
-                                      <span className="text-slate-300 font-black"> • </span>
-                                      <span className="font-black text-slate-900">Tel:</span> {l.cliente_telefone || '-'}
-                                      <span className="text-slate-300 font-black"> • </span>
-                                      <span className="font-black text-slate-900">E-mail:</span>{' '}
-                                      <span className="break-all">{l.cliente_email || '-'}</span>
-                                    </div>
-                                    <div className="mt-1 text-[12px] text-slate-700 leading-snug">
-                                      <span className="font-black text-slate-900">Preferência:</span> {l.preferencia_contato || 'Não informado'}
-                                      <span className="text-slate-300 font-black"> • </span>
-                                      <span className="font-black text-slate-900">Msg:</span>{' '}
-                                      <span className="italic line-clamp-1">{l.mensagem ? String(l.mensagem) : 'Sem mensagem.'}</span>
-                                    </div>
-
-                                    {activeLeadTab === 'pendentes' && (
-                                      <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => acceptLead(l.prospect_id)}
-                                          disabled={acceptingProspectId === l.prospect_id}
-                                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white text-xs font-black hover:bg-blue-700 disabled:opacity-60"
-                                        >
-                                          <CheckCircle2 className="w-4 h-4" />
-                                          {acceptingProspectId === l.prospect_id ? 'Aceitando...' : 'Aceitar agora'}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => openImovelPublic(l.imovel_id)}
-                                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white text-xs font-black hover:bg-slate-800"
-                                        >
-                                          <ArrowUpRight className="w-4 h-4" />
-                                          Ver imóvel
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                            </div>
+                            <>
+                              Sem pendências de aceite agora. Confira seus leads atribuídos e aceitos.
+                            </>
                           )}
                         </div>
                       </div>
 
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => loadLeads()}
+                          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-white text-xs font-black hover:bg-blue-700"
+                        >
+                          <RefreshCcw className="w-4 h-4" />
+                          Atualizar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openLeadsPanel(leadsResumo.pendentes > 0 ? 'pendentes' : 'atribuido')}
+                          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black shadow-sm hover:shadow-md transition-all ${leadsResumo.pendentes > 0
+                              ? 'bg-rose-600 text-white hover:bg-rose-700'
+                              : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            }`}
+                        >
+                          {leadsResumo.pendentes > 0 ? (
+                            <>
+                              <Clock className="w-4 h-4" />
+                              Ver pendentes ({leadsResumo.pendentes})
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-4 h-4" />
+                              Ver atribuídos
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Tabs */}
+                    <div className="flex flex-wrap gap-2">
+                      {leadTabs.map((t) => {
+                        const isActive = activeLeadTab === t.id
+                        const disabled = (t as any).disabled === true
+                        const base =
+                          'inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-[11px] font-black transition-all'
+                        const active =
+                          'bg-blue-600 text-white shadow-md'
+                        const inactive =
+                          'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                        const dis =
+                          'bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed'
+                        const badgeTone =
+                          t.tone === 'danger'
+                            ? 'bg-rose-600 text-white'
+                            : t.tone === 'success'
+                              ? 'bg-emerald-600 text-white'
+                              : t.tone === 'primary'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-slate-200 text-slate-700'
+
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => !disabled && setActiveLeadTab(t.id)}
+                            className={`${base} ${disabled ? dis : isActive ? active : inactive}`}
+                            title={disabled ? 'Em breve' : undefined}
+                          >
+                            <span>{t.label}</span>
+                            <span className={`inline-flex items-center justify-center min-w-[22px] h-[22px] px-2 rounded-full text-[10px] ${badgeTone}`}>
+                              {t.count}
+                            </span>
+                            {disabled && <span className="text-[10px] font-black">(em breve)</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {leadsError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800 text-sm font-semibold">
+                        {leadsError}
+                      </div>
+                    )}
+
+                    {/* Preview */}
+                    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
+                        <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Resumo</div>
+                        <button
+                          type="button"
+                          onClick={() => openLeadsPanel(activeLeadTab)}
+                          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-white text-[11px] font-black hover:bg-blue-700"
+                        >
+                          <ArrowUpRight className="w-4 h-4" />
+                          Ver todos
+                        </button>
+                      </div>
+
+                      <div className="p-3">
+                        {leadsLoading ? (
+                          <div className="text-slate-600 text-sm">Carregando leads...</div>
+                        ) : getTabLeads(activeLeadTab).length === 0 ? (
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
+                            <div className="text-slate-900 font-black">
+                              {activeLeadTab === 'fechado'
+                                ? 'Em breve: leads fechados.'
+                                : 'Nenhum lead nesta categoria.'}
+                            </div>
+                            <div className="text-slate-600 text-sm mt-1">
+                              {activeLeadTab === 'pendentes'
+                                ? 'Quando houver lead com SLA para aceite, ele aparecerá aqui.'
+                                : 'Assim que houver novos leads, eles serão listados automaticamente.'}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {getTabLeads(activeLeadTab)
+                              .slice(0, 3)
+                              .map((l: any) => (
+                                <div
+                                  key={l.prospect_id}
+                                  className="rounded-2xl border border-slate-200 p-3 hover:shadow-sm transition-shadow"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        Código <span className="text-slate-700">{l.codigo || '-'}</span>
+                                      </div>
+                                      <div className="mt-0.5 text-sm font-black text-slate-900">{formatMoney(l.preco)}</div>
+                                      <div className="mt-0.5 text-[11px] text-slate-600 font-bold">
+                                        <span className="text-slate-500 font-black">Data:</span>{' '}
+                                        {formatDateTime(l.data_interesse || l.atribuido_em)}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {activeLeadTab === 'pendentes' && (
+                                        <span className="inline-flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-amber-900 text-[11px] font-black">
+                                          <Clock className="w-4 h-4" />
+                                          SLA{slaMinutos ? `: ${slaMinutos} min` : ''}
+                                        </span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => openLeadDetailsPage(l.prospect_id)}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-slate-900 text-[11px] font-black hover:bg-slate-50"
+                                      >
+                                        <ArrowUpRight className="w-4 h-4" />
+                                        Ver detalhes
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-2 text-[12px] text-slate-700 leading-snug">
+                                    <span className="font-black text-slate-900">Cliente:</span> {l.cliente_nome || '-'}
+                                    <span className="text-slate-300 font-black"> • </span>
+                                    <span className="font-black text-slate-900">Tel:</span> {l.cliente_telefone || '-'}
+                                    <span className="text-slate-300 font-black"> • </span>
+                                    <span className="font-black text-slate-900">E-mail:</span>{' '}
+                                    <span className="break-all">{l.cliente_email || '-'}</span>
+                                  </div>
+                                  <div className="mt-1 text-[12px] text-slate-700 leading-snug">
+                                    <span className="font-black text-slate-900">Preferência:</span> {l.preferencia_contato || 'Não informado'}
+                                    <span className="text-slate-300 font-black"> • </span>
+                                    <span className="font-black text-slate-900">Msg:</span>{' '}
+                                    <span className="italic line-clamp-1">{l.mensagem ? String(l.mensagem) : 'Sem mensagem.'}</span>
+                                  </div>
+
+                                  {activeLeadTab === 'pendentes' && (
+                                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => acceptLead(l.prospect_id)}
+                                        disabled={acceptingProspectId === l.prospect_id}
+                                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white text-xs font-black hover:bg-blue-700 disabled:opacity-60"
+                                      >
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        {acceptingProspectId === l.prospect_id ? 'Aceitando...' : 'Aceitar agora'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => openImovelPublic(l.imovel_id)}
+                                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white text-xs font-black hover:bg-slate-800"
+                                      >
+                                        <ArrowUpRight className="w-4 h-4" />
+                                        Ver imóvel
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                   </div>
+                </div>
 
               </div>
-              
+
               {/* 3) Operacionais */}
               <div className="md:col-span-3 space-y-4">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1101,9 +1098,8 @@ export default function UserSuccessModal({
               {/* Tipo de Usuário */}
               <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border border-blue-100">
                 <div
-                  className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg ${
-                    userData.userType === 'cliente' ? 'bg-blue-100' : 'bg-green-100'
-                  }`}
+                  className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg ${userData.userType === 'cliente' ? 'bg-blue-100' : 'bg-green-100'
+                    }`}
                 >
                   <User className={`w-5 h-5 ${userData.userType === 'cliente' ? 'text-blue-600' : 'text-green-600'}`} />
                 </div>

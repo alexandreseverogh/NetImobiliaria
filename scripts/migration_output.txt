@@ -1,0 +1,7 @@
+Starting migration 037 force apply...
+Config host: localhost
+Config port: 5432
+Connected.
+Reading SQL from: C:\NetImobiliária\net-imobiliaria\database\migrations\037_create_imovel_prospect_atribuicoes.sql
+Executing SQL...
+Migration 037 applied successfully!

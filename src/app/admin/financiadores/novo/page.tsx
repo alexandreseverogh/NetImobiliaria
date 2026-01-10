@@ -31,33 +31,20 @@ export default function NovoFinanciadorPage() {
   const [error, setError] = useState<string | null>(null)
 
   const formatMoneyBRInput = (raw: string, finalize: boolean): string => {
-    const s = String(raw || '')
-      .replace(/[^\d,]/g, '') // mantém só dígitos e vírgula
-    const commaIndex = s.indexOf(',')
-    const hasComma = commaIndex >= 0
-    const intRaw = hasComma ? s.slice(0, commaIndex) : s
-    const decRaw = hasComma ? s.slice(commaIndex + 1) : ''
+    const s = String(raw || '').replace(/[^\d,]/g, '')
+    if (!s) return ''
 
-    let intDigits = intRaw.replace(/\D/g, '')
-    let decDigits = decRaw.replace(/\D/g, '').slice(0, 2)
+    const parts = s.split(',')
+    const intPart = parts[0] || ''
+    const decPart = parts[1] ? parts[1].slice(0, 2) : ''
 
-    // Remove zeros à esquerda (mantém um único 0 quando apropriado)
-    intDigits = intDigits.replace(/^0+(?=\d)/, '')
+    const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 
-    const intFmt = intDigits ? intDigits.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''
-
-    if (!hasComma && !finalize) {
-      return intFmt
-    }
-
-    // finalize: sempre fecha com 2 casas
     if (finalize) {
-      if (!decDigits) decDigits = '00'
-      if (decDigits.length === 1) decDigits = `${decDigits}0`
+      return `${intFormatted || '0'},${decPart.padEnd(2, '0')}`
     }
 
-    // Se o usuário digitou vírgula, respeita (mesmo com dec vazio)
-    return `${intFmt || '0'},${decDigits}`
+    return parts.length > 1 ? `${intFormatted},${decPart}` : intFormatted
   }
 
   const parseMoneyBR = (value: string): number => {

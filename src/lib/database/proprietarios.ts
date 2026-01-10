@@ -83,26 +83,26 @@ export interface ProprietarioFilters {
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '')
-  
+
   if (cleanCPF.length !== 11) return false
   if (/^(\d)\1{10}$/.test(cleanCPF)) return false
-  
+
   let sum = 0
   for (let i = 0; i < 9; i++) {
     sum += parseInt(cleanCPF.charAt(i)) * (10 - i)
   }
   let remainder = sum % 11
   let firstDigit = remainder < 2 ? 0 : 11 - remainder
-  
+
   if (parseInt(cleanCPF.charAt(9)) !== firstDigit) return false
-  
+
   sum = 0
   for (let i = 0; i < 10; i++) {
     sum += parseInt(cleanCPF.charAt(i)) * (11 - i)
   }
   remainder = sum % 11
   let secondDigit = remainder < 2 ? 0 : 11 - remainder
-  
+
   return parseInt(cleanCPF.charAt(10)) === secondDigit
 }
 
@@ -143,8 +143,8 @@ export function formatCEP(value: string): string {
  * Buscar proprietários com paginação e filtros
  */
 export async function findProprietariosPaginated(
-  page: number = 1, 
-  limit: number = 10, 
+  page: number = 1,
+  limit: number = 10,
   filters: ProprietarioFilters = {}
 ): Promise<{
   proprietarios: Proprietario[]
@@ -156,7 +156,7 @@ export async function findProprietariosPaginated(
 }> {
   try {
     const offset = (page - 1) * limit
-    
+
     // Construir cláusula WHERE dinamicamente
     const whereConditions: string[] = []
     const queryParams: any[] = []
@@ -201,14 +201,14 @@ export async function findProprietariosPaginated(
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
-    
+
     // Query para contar total de proprietários com filtros
     const countQuery = `
       SELECT COUNT(*) as total
       FROM proprietarios p
       ${whereClause}
     `
-    
+
     // Query para buscar proprietários com paginação e filtros
     const dataQuery = `
       SELECT 
@@ -237,13 +237,13 @@ export async function findProprietariosPaginated(
       ORDER BY p.nome
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `
-    
+
     const countResult = await pool.query(countQuery, queryParams)
     const total = parseInt(countResult.rows[0].total)
     const totalPages = Math.ceil(total / limit)
-    
+
     const dataResult = await pool.query(dataQuery, [...queryParams, limit, offset])
-    
+
     return {
       proprietarios: dataResult.rows,
       total,
@@ -294,7 +294,10 @@ export async function findProprietarioByUuid(uuid: string): Promise<Proprietario
     return result.rows[0] || null
   } catch (error) {
     console.error('❌ Erro ao buscar proprietário por UUID:', error)
-    throw new Error('Erro ao buscar proprietário por UUID')
+    if (error instanceof Error) {
+      throw new Error(`Erro ao buscar proprietário por UUID: ${error.message}`)
+    }
+    throw new Error('Erro ao buscar proprietário por UUID: Erro desconhecido')
   }
 }
 
@@ -305,13 +308,13 @@ export async function createProprietario(data: CreateProprietarioData): Promise<
     if (!validateCPF(data.cpf)) {
       throw new Error('CPF Inválido')
     }
-    
+
     // Verificar se CPF já existe
     const existingCPF = await pool.query('SELECT 1 FROM proprietarios WHERE cpf = $1', [data.cpf])
     if (existingCPF.rows.length > 0) {
       throw new Error('CPF já cadastrado')
     }
-    
+
     // Verificar se email já existe
     if (data.email) {
       const existingEmail = await pool.query('SELECT 1 FROM proprietarios WHERE email = $1', [data.email])
@@ -319,10 +322,10 @@ export async function createProprietario(data: CreateProprietarioData): Promise<
         throw new Error('Email já cadastrado')
       }
     }
-    
+
     // Hash da senha
     const hashedPassword = await bcrypt.hash(data.password || 'Net123456', 10)
-    
+
     const result = await pool.query(`
       INSERT INTO proprietarios (
         nome, cpf, telefone, endereco, numero, bairro, complemento,
@@ -347,7 +350,7 @@ export async function createProprietario(data: CreateProprietarioData): Promise<
       data.created_by || 'system',
       data.corretor_fk || null
     ])
-    
+
     return result.rows[0]
   } catch (error) {
     console.error('❌ Erro ao criar proprietário:', error)
@@ -362,7 +365,7 @@ export async function updateProprietarioByUuid(uuid: string, data: UpdateProprie
     if (data.cpf && !validateCPF(data.cpf)) {
       throw new Error('CPF Inválido')
     }
-    
+
     // Verificar se CPF já existe (excluindo o próprio registro)
     if (data.cpf) {
       const cpfQuery = 'SELECT 1 FROM proprietarios WHERE cpf = $1 AND uuid != $2::uuid'
@@ -371,7 +374,7 @@ export async function updateProprietarioByUuid(uuid: string, data: UpdateProprie
         throw new Error('CPF já cadastrado')
       }
     }
-    
+
     // Verificar se email já existe (excluindo o próprio registro)
     if (data.email) {
       const emailQuery = 'SELECT 1 FROM proprietarios WHERE LOWER(email) = LOWER($1) AND uuid != $2::uuid'
@@ -380,97 +383,97 @@ export async function updateProprietarioByUuid(uuid: string, data: UpdateProprie
         throw new Error('Email já cadastrado')
       }
     }
-    
+
     // Construir query dinamicamente
     const fields: string[] = []
     const values: any[] = []
     let paramCount = 0
-    
+
     if (data.nome !== undefined) {
       fields.push(`nome = $${++paramCount}`)
       values.push(data.nome)
     }
-    
+
     if (data.cpf !== undefined) {
       fields.push(`cpf = $${++paramCount}`)
       values.push(data.cpf)
     }
-    
+
     if (data.telefone !== undefined) {
       fields.push(`telefone = $${++paramCount}`)
       values.push(data.telefone)
     }
-    
+
     if (data.endereco !== undefined) {
       fields.push(`endereco = $${++paramCount}`)
       values.push(data.endereco)
     }
-    
+
     if (data.numero !== undefined) {
       fields.push(`numero = $${++paramCount}`)
       values.push(data.numero)
     }
-    
+
     if (data.bairro !== undefined) {
       fields.push(`bairro = $${++paramCount}`)
       values.push(data.bairro)
     }
-    
+
     if (data.complemento !== undefined) {
       fields.push(`complemento = $${++paramCount}`)
       values.push(data.complemento || null)
     }
-    
+
     if (data.email !== undefined) {
       fields.push(`email = $${++paramCount}`)
       values.push(data.email)
     }
-    
+
     if (data.estado_fk !== undefined) {
       fields.push(`estado_fk = $${++paramCount}`)
       values.push(data.estado_fk || null)
     }
-    
+
     if (data.cidade_fk !== undefined) {
       fields.push(`cidade_fk = $${++paramCount}`)
       values.push(data.cidade_fk || null)
     }
-    
+
     if (data.cep !== undefined) {
       fields.push(`cep = $${++paramCount}`)
       values.push(data.cep)
     }
-    
+
     if (data.password !== undefined) {
       const hashedPassword = await bcrypt.hash(data.password, 10)
       fields.push(`password = $${++paramCount}`)
       values.push(hashedPassword)
     }
-    
+
     if (data.updated_by !== undefined) {
       fields.push(`updated_by = $${++paramCount}`)
       values.push(data.updated_by)
     }
-    
+
     if (fields.length === 0) {
       throw new Error('Nenhum campo para atualizar')
     }
-    
+
     const query = `
       UPDATE proprietarios 
       SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
       WHERE uuid = $${paramCount + 1}::uuid
       RETURNING *
     `
-    
+
     values.push(uuid)
-    
+
     const result = await pool.query(query, values)
-    
+
     if (result.rows.length === 0) {
       throw new Error('Proprietário não encontrado')
     }
-    
+
     return result.rows[0]
   } catch (error) {
     console.error('❌ Erro ao atualizar proprietário:', error)
@@ -482,7 +485,7 @@ export async function updateProprietarioByUuid(uuid: string, data: UpdateProprie
 export async function deleteProprietarioByUuid(uuid: string): Promise<void> {
   try {
     const result = await pool.query('DELETE FROM proprietarios WHERE uuid = $1::uuid', [uuid])
-    
+
     if (result.rowCount === 0) {
       throw new Error('Proprietário não encontrado')
     }

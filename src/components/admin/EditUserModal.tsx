@@ -15,6 +15,7 @@ interface User {
   is_plantonista?: boolean
   role_name?: string
   role_id?: number
+  foto?: string | null // Base64 or URL
 }
 
 interface UserRole {
@@ -46,6 +47,10 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     confirmPassword: '',
     roleId: null as number | null
   })
+  const [foto, setFoto] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const fotoInputId = 'edit-user-foto-input'
+
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -65,6 +70,26 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
         roleId: user.role_id || null
       })
       setErrors({})
+      setFoto(null)
+      setPreviewUrl(null)
+
+      // Buscar detalhes completos do usuário (incluindo foto)
+      const fetchUserDetails = async () => {
+        try {
+          const res = await fetch(`/api/admin/usuarios/${user.id}`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data.success && data.user) {
+              if (data.user.foto) {
+                setPreviewUrl(`data:${data.user.foto_tipo_mime || 'image/jpeg'};base64,${data.user.foto}`)
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Erro ao buscar foto do usuário:', err)
+        }
+      }
+      fetchUserDetails()
     }
   }, [user])
 
@@ -115,7 +140,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) return
 
     setLoading(true)
@@ -126,23 +151,23 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       if (formData.username.trim()) {
         updateData.username = formData.username.trim()
       }
-      
+
       if (formData.email.trim()) {
         updateData.email = formData.email.trim()
       }
-      
+
       if (formData.nome.trim()) {
         updateData.nome = formData.nome.trim()
       }
-      
+
       if (formData.telefone.trim()) {
         updateData.telefone = formData.telefone.trim()
       }
-      
+
       updateData.ativo = formData.ativo
       updateData.isencao = formData.isencao
       updateData.is_plantonista = formData.is_plantonista
-      
+
       if (formData.roleId) {
         updateData.roleId = formData.roleId
       }
@@ -152,10 +177,49 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
         updateData.password = formData.password
       }
 
-      console.log('📤 Dados sendo enviados para atualização:', updateData)
-      console.log('🆔 ID do usuário:', user?.id)
-      
-      const response = await put(`/api/admin/usuarios/${user?.id}`, updateData)
+      console.log('📤 Dados sendo enviados para atualização (FormData)')
+
+      const fd = new FormData()
+      // Só incluir campos que têm valores válidos ou alterados
+      if (formData.username.trim()) fd.append('username', formData.username.trim())
+      if (formData.email.trim()) fd.append('email', formData.email.trim())
+      if (formData.nome.trim()) fd.append('nome', formData.nome.trim())
+      if (formData.telefone.trim()) fd.append('telefone', formData.telefone.trim())
+
+      fd.append('ativo', String(formData.ativo))
+      fd.append('isencao', String(formData.isencao))
+      fd.append('is_plantonista', String(formData.is_plantonista))
+
+      if (formData.roleId) fd.append('roleId', formData.roleId.toString())
+
+      if (formData.password.trim()) {
+        fd.append('password', formData.password)
+      }
+
+      if (foto) {
+        fd.append('foto', foto)
+      }
+
+      // Recuperar token para autenticação
+      let token = localStorage.getItem('auth-token')
+      if (!token) {
+        const cookies = document.cookie.split(';')
+        const tokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken='))
+        if (tokenCookie) {
+          token = tokenCookie.split('=')[1]
+        }
+      }
+
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`/api/admin/usuarios/${user?.id}`, {
+        method: 'PUT',
+        headers,
+        body: fd
+      })
 
       if (response.ok) {
         onSuccess()
@@ -164,12 +228,12 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       } else {
         const error = await response.json()
         let errorMessage = `Erro ao atualizar usuário: ${error.error || 'Erro desconhecido'}`
-        
+
         // Mostrar detalhes de validação se disponíveis
         if (error.details && Array.isArray(error.details)) {
           errorMessage += '\n\nDetalhes:\n' + error.details.join('\n')
         }
-        
+
         alert(errorMessage)
       }
     } catch (error) {
@@ -184,7 +248,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     if (!user) return
 
     const confirmMessage = `Tem certeza que deseja excluir o usuário "${user.username}"?\n\nEsta ação não pode ser desfeita e o usuário será removido permanentemente do sistema.`
-    
+
     if (!confirm(confirmMessage)) {
       return
     }
@@ -213,7 +277,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
   const formatPhoneNumber = (value: string): string => {
     // Remove tudo que não é número
     const numbers = value.replace(/\D/g, '')
-    
+
     // Aplica formatação baseada no número de dígitos
     if (numbers.length <= 2) {
       return numbers
@@ -234,14 +298,16 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     } else {
       setFormData(prev => ({ ...prev, [field]: value }))
     }
-    
+
     // Limpar erro do campo quando usuário começar a digitar
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }))
     }
   }
 
-  if (!isOpen || !user) return null
+  if (!isOpen || !user) {
+    return null
+  }
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -260,6 +326,61 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Foto (Topo) */}
+            <div className="flex justify-center mb-6">
+              <div className="w-full flex flex-col items-center">
+                <div className="relative mb-4">
+                  <div className={`w-32 h-32 rounded-full border-4 flex items-center justify-center overflow-hidden bg-white shadow-sm ${previewUrl ? 'border-blue-100' : 'border-gray-100'
+                    }`}>
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    )}
+                  </div>
+                  <label
+                    htmlFor={fotoInputId}
+                    className="absolute bottom-1 right-1 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 cursor-pointer shadow-md transition-colors"
+                    title="Alterar foto"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </label>
+                </div>
+
+                <input
+                  id={fotoInputId}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null
+                    setFoto(file)
+                    if (file) {
+                      const url = URL.createObjectURL(file)
+                      setPreviewUrl(url)
+                    } else {
+                      // Se cancelar, manter a foto anterior (se houver) ou limpar?
+                      // Melhor manter a que veio do banco se não escolheu nova
+                      // Mas se setFoto(null), vai enviar null.
+                      // Se setPreviewUrl(null), vai mostrar vazio.
+                      // Vamos apenas não mudar o preview se cancelar (ou o browser handle limpa?)
+                    }
+                  }}
+                />
+                <p className="text-xs text-gray-500">
+                  {foto ? foto.name : 'Clique no ícone para alterar a foto'}
+                </p>
+              </div>
+            </div>
+
             {/* Primeira linha: Username e Email */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Username */}
@@ -271,9 +392,8 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                   type="text"
                   value={formData.username}
                   onChange={(e) => handleInputChange('username', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.username ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.username ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Digite o username"
                 />
                 {errors.username && (
@@ -290,9 +410,8 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.email ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.email ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Digite o e-mail"
                 />
                 {errors.email && (
@@ -312,9 +431,8 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                   type="text"
                   value={formData.nome}
                   onChange={(e) => handleInputChange('nome', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.nome ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.nome ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Digite o nome completo"
                 />
                 {errors.nome && (
@@ -366,59 +484,51 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
             </div>
 
             {/* Quarta linha: Status e Isenção */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Status */}
-              <div className="flex items-center justify-center">
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg w-full">
-                  <input
-                    type="checkbox"
-                    id="ativo"
-                    checked={formData.ativo}
-                    onChange={(e) => handleInputChange('ativo', e.target.checked)}
-                    className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-all"
-                  />
-                  <label htmlFor="ativo" className="block text-sm font-medium text-gray-900">
-                    Usuário ativo
-                  </label>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="ativo"
+                  checked={formData.ativo}
+                  onChange={(e) => handleInputChange('ativo', e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="ativo" className="text-sm font-medium text-gray-700">
+                  Usuário ativo
+                </label>
               </div>
 
-              {/* Isenção (Apenas para Corretor) */}
               {roles.find(r => r.id === formData.roleId)?.name === 'Corretor' && (
-                <div className="flex items-center justify-center">
-                  <div className="flex items-center space-x-3 p-3 bg-amber-50 rounded-lg w-full border border-amber-100">
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3 px-3 py-2 bg-amber-50 rounded-lg border border-amber-100">
                     <input
                       type="checkbox"
                       id="isencao"
                       checked={formData.isencao}
                       onChange={(e) => handleInputChange('isencao', e.target.checked)}
-                      className="h-5 w-5 text-amber-600 focus:ring-amber-500 border-amber-300 rounded transition-all"
+                      className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-amber-300 rounded"
                     />
-                    <label htmlFor="isencao" className="block text-sm font-medium text-amber-900">
+                    <label htmlFor="isencao" className="text-sm font-medium text-amber-900">
                       Isenção de Mensalidade
                     </label>
                   </div>
-                </div>
-              )}
 
-              {/* Plantonista (Fallback) - Apenas para Corretor */}
-              {roles.find(r => r.id === formData.roleId)?.name === 'Corretor' && (
-                <div className="flex items-center justify-center">
-                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg w-full border border-slate-200">
+                  <div className="flex items-center space-x-3 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
                     <input
                       type="checkbox"
                       id="is_plantonista"
                       checked={formData.is_plantonista}
                       onChange={(e) => handleInputChange('is_plantonista', e.target.checked)}
-                      className="h-5 w-5 text-slate-700 focus:ring-slate-500 border-slate-300 rounded transition-all"
+                      className="h-4 w-4 text-slate-700 focus:ring-slate-500 border-slate-300 rounded"
                     />
-                    <label htmlFor="is_plantonista" className="block text-sm font-medium text-slate-900">
+                    <label htmlFor="is_plantonista" className="text-sm font-medium text-slate-900">
                       Corretor plantonista (fallback)
                     </label>
                   </div>
                 </div>
               )}
             </div>
+
 
             {/* Quarta linha: Nova Senha e Confirmar Senha */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -431,9 +541,8 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                   type="password"
                   value={formData.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.password ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.password ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Digite a nova senha"
                 />
                 {errors.password && (
@@ -450,9 +559,8 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                   type="password"
                   value={formData.confirmPassword}
                   onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Confirme a nova senha"
                 />
                 {errors.confirmPassword && (
@@ -470,7 +578,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
               >
                 Cancelar
               </button>
-              
+
               <PermissionGuard resource="usuarios" action="DELETE">
                 <button
                   type="button"
@@ -481,7 +589,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                   {deleting ? 'Excluindo...' : 'Excluir'}
                 </button>
               </PermissionGuard>
-              
+
               <button
                 type="submit"
                 disabled={loading || deleting}
@@ -490,7 +598,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                 {loading ? 'Salvando...' : 'Salvar Alterações'}
               </button>
             </div>
-          </form>
+          </form >
         </div>
       </div>
     </div>

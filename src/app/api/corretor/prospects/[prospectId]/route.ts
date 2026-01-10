@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, ctx: { params: { prospectId: str
         a.status,
         a.created_at as atribuido_em,
         a.expira_em,
-        a.aceito_em,
+        a.data_aceite as aceito_em,
         COALESCE(a.motivo->>'type','') as motivo_type,
         (a.expira_em IS NOT NULL AND a.status = 'atribuido') as requires_aceite,
         ip.created_at as data_interesse,

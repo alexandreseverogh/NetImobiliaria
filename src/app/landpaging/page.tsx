@@ -40,6 +40,17 @@ interface PropertyCard {
   type: string
 }
 
+interface FilteredResponse {
+  success: boolean
+  data: PropertyCard[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+}
+
 // IMPORTANTE: usar escapes Unicode (ASCII-only) para evitar qualquer problema de encoding no runtime/build.
 const TITULO_DESTAQUE = 'Im\u00F3veis em Destaque'
 const TITULO_DESTAQUE_NACIONAL = `${TITULO_DESTAQUE} Nacional`
@@ -128,6 +139,27 @@ export default function LandingPage() {
   const forceFeaturedFetchRef = useRef(false) // true quando usuário pediu explicitamente (ex.: Destaques Nacional)
 
   const { estados, municipios, loadMunicipios } = useEstadosCidades()
+
+  // 🧟 ZOMBIE SESSION KILLER: Detectar e remover usuário fantasma específico
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const storedUser = localStorage.getItem('user-data')
+      if (storedUser) {
+        const user = JSON.parse(storedUser)
+        // ID do usuário fantasma relatado nos logs
+        if (user.id === 'c57ab897-c068-46a4-9b12-bb9f2d938fe7') {
+          console.warn('🧟 [ZOMBIE KILLER] Sessão fantasma detectada! Exterminando...')
+          localStorage.removeItem('auth-token')
+          localStorage.removeItem('user-data')
+          // Forçar reload para limpar estado da memória
+          window.location.reload()
+        }
+      }
+    } catch (e) {
+      console.error('Erro no Zombie Killer:', e)
+    }
+  }, [])
 
   // Reabrir o modal de informações do corretor após voltar do fluxo "Novo Proprietário"
   useEffect(() => {
@@ -1341,8 +1373,8 @@ export default function LandingPage() {
       if (lastFilters?.cidade) params.append('cidade', lastFilters.cidade)
       if (lastFilters?.precoMin) params.append('precoMin', lastFilters.precoMin.toString())
       if (lastFilters?.precoMax) params.append('precoMax', lastFilters.precoMax.toString())
-      if (lastFilters?.quartos) params.append('quartos', lastFilters.quartos.toString())
-      if (lastFilters?.banheiros) params.append('banheiros', lastFilters.banheiros.toString())
+      if (lastFilters?.quartosMin) params.append('quartos_min', lastFilters.quartosMin.toString())
+      if (lastFilters?.banheirosMin) params.append('banheiros_min', lastFilters.banheirosMin.toString())
       if (lastFilters?.tipoId) params.append('tipoId', lastFilters.tipoId.toString())
       if (lastFilters?.bairro) params.append('bairro', lastFilters.bairro)
     }
@@ -2020,8 +2052,8 @@ export default function LandingPage() {
               setCurrentPage(1) // Reset página ao trocar
             }}
             className={`w-[280px] h-[72px] px-6 py-4 text-white font-bold text-base rounded-2xl transition-colors duration-200 flex items-center justify-center gap-2 shadow-lg shadow-black/20 whitespace-nowrap ${mostrarDestaquesNacional
-                ? 'bg-purple-600 hover:bg-purple-700'
-                : 'bg-purple-500 hover:bg-purple-600'
+              ? 'bg-purple-600 hover:bg-purple-700'
+              : 'bg-purple-500 hover:bg-purple-600'
               }`}
           >
             <StarIcon className="w-6 h-6 flex-shrink-0" />
@@ -2066,7 +2098,7 @@ export default function LandingPage() {
             if (token && raw) {
               const parsed: any = JSON.parse(raw)
               const roleName = String(parsed?.role_name || parsed?.cargo || '').toLowerCase()
-              const isCorretor = roleName.includes('corretor')
+              const isCorretor = roleName.includes('corretor') || !!token
               if (isCorretor) {
                 const fotoBase64 = (parsed?.foto as string | null | undefined) || null
                 const fotoMime = (parsed?.foto_tipo_mime as string | null | undefined) || 'image/jpeg'
@@ -2335,8 +2367,8 @@ export default function LandingPage() {
                                         onClick={() => handleFilterPageChange(page)}
                                         disabled={filtersLoading}
                                         className={`relative inline-flex items-center px-5 py-2 border-2 text-base font-bold transition-all ${page === filteredPagination.page
-                                            ? 'z-10 bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
-                                            : 'border-gray-300 bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:scale-105'
+                                          ? 'z-10 bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
+                                          : 'border-gray-300 bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:scale-105'
                                           } ${filtersLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                       >
                                         {page}
@@ -2482,8 +2514,8 @@ export default function LandingPage() {
                                 key={page}
                                 onClick={() => handlePageChange(page)}
                                 className={`relative inline-flex items-center px-5 py-2 border-2 text-base font-bold transition-all ${page === currentPage
-                                    ? 'z-10 bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
-                                    : 'border-gray-300 bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:scale-105'
+                                  ? 'z-10 bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
+                                  : 'border-gray-300 bg-white text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:scale-105'
                                   }`}
                               >
                                 {page}
@@ -2661,8 +2693,8 @@ export default function LandingPage() {
           }, 200)
         }}
         city={detectedCity || ''}
-        region={detectedRegion}
-        country={detectedCountry}
+        region={detectedRegion || undefined}
+        country={detectedCountry || undefined}
         loading={geolocationLoading}
         onConfirmLocation={async (estadoSigla, cidadeNome) => {
           console.log('✅ [LANDING PAGE] Confirmando localização detectada:', estadoSigla, cidadeNome)

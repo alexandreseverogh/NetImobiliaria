@@ -54,9 +54,9 @@ export async function GET(request: NextRequest) {
       SELECT
         COUNT(*) FILTER (
           WHERE status = 'aceito'
-            AND aceito_em IS NOT NULL
+            AND data_aceite IS NOT NULL
             AND expira_em IS NOT NULL
-            AND aceito_em <= expira_em
+            AND data_aceite <= expira_em
         )::int AS aceitos_no_sla,
         COUNT(*) FILTER (WHERE status IN ('aceito','expirado'))::int AS avaliados_sla
       FROM public.imovel_prospect_atribuicoes

@@ -33,28 +33,38 @@ function buildCorretorPainelUrl(prospectId: number): string {
 }
 
 async function pickBrokerByArea(estado: string, cidade: string, excludeIds: string[] = []): Promise<RoutedBroker | null> {
-  // Regra de escolha:
-  // 1) menor carga de leads recebidos (COUNT atribuições)
-  // 2) em empate, maior tempo sem receber leads (MAX created_at mais antigo; NULL primeiro)
-  // Observação: exclui plantonista do match normal (plantonista é fallback).
+  // Regra de escolha (Smart Routing):
+  // 1) Maior Nível (Gamificação)
+  // 2) Maior XP Total (Gamificação)
+  // 3) Menor carga de leads recebidos
+  // 4) Tempo sem receber (Round Robin implícito)
   const q = `
     SELECT
       u.id, u.nome, u.email,
+      COALESCE(cs.nivel, 0) as nivel,
+      COALESCE(cs.xp_total, 0) as xp,
       COUNT(a.id) AS total_recebidos,
       MAX(a.created_at) AS ultimo_recebimento
     FROM public.users u
     INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
     INNER JOIN public.user_roles ur ON ura.role_id = ur.id
     INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
+    LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
     LEFT JOIN public.imovel_prospect_atribuicoes a ON a.corretor_fk = u.id
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = false
+      AND COALESCE(u.tipo_corretor, 'Externo') = 'Externo'
       AND caa.estado_fk = $1
       AND caa.cidade_fk = $2
       AND (CASE WHEN array_length($3::uuid[], 1) > 0 THEN u.id != ALL($3::uuid[]) ELSE true END)
-    GROUP BY u.id, u.nome, u.email
-    ORDER BY COUNT(a.id) ASC, MAX(a.created_at) ASC NULLS FIRST, u.created_at ASC
+    GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
+    ORDER BY 
+      COALESCE(cs.nivel, 0) DESC,
+      COALESCE(cs.xp_total, 0) DESC,
+      COUNT(a.id) ASC, 
+      MAX(a.created_at) ASC NULLS FIRST, 
+      u.created_at ASC
     LIMIT 1
   `
   const r = await pool.query(q, [estado, cidade, excludeIds || []])
@@ -64,7 +74,7 @@ async function pickBrokerByArea(estado: string, cidade: string, excludeIds: stri
     id: row.id,
     nome: row.nome,
     email: row.email,
-    motivo: { type: 'area_match', estado_fk: estado, cidade_fk: cidade }
+    motivo: { type: 'area_match', estado_fk: estado, cidade_fk: cidade, debug: `Lvl:${row.nivel} XP:${row.xp}` }
   }
 }
 
@@ -91,22 +101,31 @@ async function pickBrokerById(corretorFk: string): Promise<RoutedBroker | null> 
 }
 
 async function pickPlantonistaBroker(excludeIds: string[] = []): Promise<RoutedBroker | null> {
-  // Plantonista também segue menor carga e maior tempo sem receber, para evitar concentrar em 1 só.
+  // Plantonista também segue mérito, mas dentro do pool de plantonistas
   const q = `
     SELECT
       u.id, u.nome, u.email,
+      COALESCE(cs.nivel, 0) as nivel,
+      COALESCE(cs.xp_total, 0) as xp,
       COUNT(a.id) AS total_recebidos,
       MAX(a.created_at) AS ultimo_recebimento
     FROM public.users u
     INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
     INNER JOIN public.user_roles ur ON ura.role_id = ur.id
+    LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
     LEFT JOIN public.imovel_prospect_atribuicoes a ON a.corretor_fk = u.id
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = true
+      AND COALESCE(u.tipo_corretor, 'Interno') = 'Interno'
       AND (CASE WHEN array_length($1::uuid[], 1) > 0 THEN u.id != ALL($1::uuid[]) ELSE true END)
-    GROUP BY u.id, u.nome, u.email
-    ORDER BY COUNT(a.id) ASC, MAX(a.created_at) ASC NULLS FIRST, u.created_at ASC
+    GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
+    ORDER BY 
+      COALESCE(cs.nivel, 0) DESC,
+      COALESCE(cs.xp_total, 0) DESC,
+      COUNT(a.id) ASC, 
+      MAX(a.created_at) ASC NULLS FIRST, 
+      u.created_at ASC
     LIMIT 1
   `
   const r = await pool.query(q, [excludeIds || []])
@@ -116,11 +135,15 @@ async function pickPlantonistaBroker(excludeIds: string[] = []): Promise<RoutedB
     id: row.id,
     nome: row.nome,
     email: row.email,
-    motivo: { type: 'fallback_plantonista' }
+    motivo: { type: 'fallback_plantonista', debug: `Lvl:${row.nivel} XP:${row.xp}` }
   }
 }
 
-export async function routeProspectAndNotify(prospectId: number, excludeIds: string[] = []): Promise<{ success: boolean; reason?: string }> {
+export async function routeProspectAndNotify(
+  prospectId: number,
+  excludeIds: string[] = [],
+  options?: { forceFallback?: boolean }
+): Promise<{ success: boolean; reason?: string }> {
   // Buscar dados do prospect com imóvel e cliente (para roteamento e email)
   const dataQuery = await pool.query(
     `
@@ -182,7 +205,7 @@ export async function routeProspectAndNotify(prospectId: number, excludeIds: str
     LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
     LEFT JOIN status_imovel si ON i.status_fk = si.id
     LEFT JOIN proprietarios pr ON pr.uuid = i.proprietario_uuid
-    INNER JOIN clientes c ON ip.id_cliente = c.uuid
+    LEFT JOIN clientes c ON ip.id_cliente = c.uuid
     WHERE ip.id = $1
     `,
     [prospectId]
@@ -195,29 +218,50 @@ export async function routeProspectAndNotify(prospectId: number, excludeIds: str
   const cidade = String(p.cidade_fk || '').trim()
   if (!estado || !cidade) return { success: false, reason: 'Imóvel sem estado/cidade' }
 
-  // REGRA: se o imóvel tiver corretor_fk definido, o lead vai direto para ele.
+  // REGRA: se o imóvel tiver corretor_fk definido (captação), o lead vai direto para ele.
   let broker: RoutedBroker | null = null
   const imovelCorretorFk = p.corretor_fk ? String(p.corretor_fk).trim() : ''
   if (imovelCorretorFk) {
     broker = await pickBrokerById(imovelCorretorFk)
   }
 
-  // Caso não haja corretor_fk válido no imóvel, usar menor carga / maior tempo sem receber
-  if (!broker) broker = await pickBrokerByArea(estado, cidade, excludeIds)
-  // Se não achou na área (ou todos excluídos), tenta plantonista (respeitando exclusões também, para rodízio)
-  if (!broker) broker = await pickPlantonistaBroker(excludeIds)
+  // Se não tem dono fixo...
+  // 1. Tentar por Área (somente se NÃO for fallback forçado)
+  if (!broker && !options?.forceFallback) {
+    broker = await pickBrokerByArea(estado, cidade, excludeIds)
+  }
+
+  // 2. Se não achou (ou se foi forçado fallback), tentar Plantonista
+  if (!broker) {
+    broker = await pickPlantonistaBroker(excludeIds)
+  }
+
   if (!broker) return { success: false, reason: 'Nenhum corretor elegível (sem área e sem plantonista)' }
 
   // Criar atribuição com SLA (minutos configurável em parametros.sla_minutos_aceite_lead)
   const slaMinutos = await getSlaMinutosAceiteLead()
   // REGRA CRÍTICA: se veio por imovel.corretor_fk, NÃO aplicar transbordo/SLA (expira_em = NULL)
   const motivoType = String((broker as any)?.motivo?.type || '')
-  const expiraEm: Date | null = motivoType === 'imovel_corretor_fk' ? null : new Date(Date.now() + slaMinutos * 60 * 1000)
+  const isPlantonista = motivoType === 'fallback_plantonista'
+
+  // Determinar status e expira_em baseado no tipo de atribuição
+  let status: 'atribuido' | 'aceito' = 'atribuido'
+  let expiraEm: Date | null = new Date(Date.now() + slaMinutos * 60 * 1000)
+
+  if (motivoType === 'imovel_corretor_fk') {
+    // Corretor fixo do imóvel: sem SLA
+    expiraEm = null
+  } else if (isPlantonista) {
+    // Plantonista: aceito automaticamente, sem SLA (finaliza transbordo)
+    status = 'aceito'
+    expiraEm = null
+    console.log(`[routeProspectAndNotify] ✅ Lead atribuído a PLANTONISTA - status='aceito', sem SLA`)
+  }
   try {
     // Evitar criar atribuição duplicada caso esse método seja chamado mais de uma vez
     const activeCheck = await pool.query(
       `
-      SELECT id
+      SELECT id, status
       FROM public.imovel_prospect_atribuicoes
       WHERE prospect_id = $1
         AND status IN ('atribuido', 'aceito')
@@ -226,15 +270,16 @@ export async function routeProspectAndNotify(prospectId: number, excludeIds: str
       [prospectId]
     )
     if (activeCheck.rows.length > 0) {
-      return { success: true }
+      console.log(`[routeProspectAndNotify] ⚠️  Atribuição ativa já existe para prospect ${prospectId}:`, activeCheck.rows[0]);
+      return { success: false, reason: `Atribuição ativa já existe (status: ${activeCheck.rows[0].status})` }
     }
 
     await pool.query(
       `
       INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em)
-      VALUES ($1, $2::uuid, 'atribuido', $3::jsonb, $4)
+      VALUES ($1, $2::uuid, $3, $4::jsonb, $5)
       `,
-      [prospectId, broker.id, JSON.stringify(broker.motivo || {}), expiraEm]
+      [prospectId, broker.id, status, JSON.stringify(broker.motivo || {}), expiraEm]
     )
   } catch (e) {
     return { success: false, reason: 'Falha ao criar atribuição' }

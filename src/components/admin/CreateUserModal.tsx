@@ -50,7 +50,11 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     isencao: false,
     is_plantonista: false
   })
-  
+
+  const [foto, setFoto] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const fotoInputId = 'admin-user-foto-input'
+
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Partial<Record<keyof CreateUserForm, string>>>({})
   const [emailChecking, setEmailChecking] = useState(false)
@@ -93,6 +97,11 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
       lastValidatedEmailRef.current = ''
       lastValidatedCpfRef.current = ''
       cpfExistsCacheRef.current.clear()
+      lastValidatedEmailRef.current = ''
+      lastValidatedCpfRef.current = ''
+      cpfExistsCacheRef.current.clear()
+      setFoto(null)
+      setPreviewUrl(null)
     }
   }, [isOpen])
 
@@ -101,7 +110,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     const email = form.email.trim().toLowerCase()
     setEmailAvailable(null)
     setEmailChecking(false)
-    
+
     if (emailDebounceRef.current) {
       clearTimeout(emailDebounceRef.current)
       emailDebounceRef.current = null
@@ -298,39 +307,63 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
       return
     }
 
     setLoading(true)
-    
+
     try {
-      const requestData = {
-        username: form.username,
-        email: form.email,
-        password: form.password,
-        nome: form.nome,
-        telefone: form.telefone,
-        cpf: form.cpf.replace(/\D/g, ''),
-        roleId: form.roleId,
-        ativo: form.ativo,
-        isencao: form.isencao,
-        is_plantonista: form.is_plantonista
+      const fd = new FormData()
+      fd.append('username', form.username.trim())
+      fd.append('email', form.email.trim())
+      fd.append('nome', form.nome.trim())
+      fd.append('telefone', form.telefone.trim())
+      fd.append('cpf', form.cpf.replace(/\D/g, ''))
+      if (form.roleId) fd.append('roleId', form.roleId.toString())
+      fd.append('password', form.password)
+      fd.append('ativo', String(form.ativo))
+      fd.append('isencao', String(form.isencao))
+      fd.append('is_plantonista', String(form.is_plantonista))
+
+      if (foto) {
+        fd.append('foto', foto)
       }
-      
-      console.log('📤 Dados sendo enviados para a API:', requestData)
-      
-      const response = await post('/api/admin/usuarios', requestData)
+
+      // Recuperar token para autenticação
+      let token = localStorage.getItem('auth-token')
+      if (!token) {
+        const cookies = document.cookie.split(';')
+        const tokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken='))
+        if (tokenCookie) {
+          token = tokenCookie.split('=')[1]
+        }
+      }
+
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      console.log('📤 Dados sendo enviados para a API (FormData)')
+
+      const response = await fetch('/api/admin/usuarios', {
+        method: 'POST',
+        headers,
+        body: fd
+      })
 
       if (response.ok) {
         const data = await response.json()
         console.log('Usuário criado:', data)
-        
+
         // Limpar formulário
         setForm({
           username: '',
@@ -342,24 +375,25 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
           cpf: '',
           roleId: null,
           ativo: true,
-          isencao: false
-          ,
+          isencao: false,
           is_plantonista: false
         })
+        setFoto(null)
+        setPreviewUrl(null)
 
         onSuccess()
         onClose()
       } else {
         const errorData = await response.json()
         console.error('Erro ao criar usuário:', errorData)
-        
+
         let errorMessage = `Erro ao criar usuário: ${errorData.error || 'Erro desconhecido'}`
-        
+
         // Mostrar detalhes de validação se disponíveis
         if (errorData.details && Array.isArray(errorData.details)) {
           errorMessage += '\n\nDetalhes:\n' + errorData.details.join('\n')
         }
-        
+
         alert(errorMessage)
       }
     } catch (error) {
@@ -374,7 +408,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
   const formatPhoneNumber = (value: string): string => {
     // Remove tudo que não é número
     const numbers = value.replace(/\D/g, '')
-    
+
     // Aplica formatação baseada no número de dígitos
     if (numbers.length <= 2) {
       return numbers
@@ -412,7 +446,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     } else {
       setForm(prev => ({ ...prev, [field]: value }))
     }
-    
+
     // Limpar erro do campo quando usuário começar a digitar
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }))
@@ -521,11 +555,11 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
         {/* Backdrop */}
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
           onClick={onClose}
         />
-        
+
         {/* Modal */}
         <div className="relative w-full max-w-4xl transform rounded-2xl bg-white p-6 shadow-2xl transition-all">
           {/* Header */}
@@ -545,6 +579,57 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Foto (Topo) */}
+            <div className="flex justify-center mb-6">
+              <div className="w-full flex flex-col items-center">
+                <div className="relative mb-4">
+                  <div className={`w-32 h-32 rounded-full border-4 flex items-center justify-center overflow-hidden bg-white shadow-sm ${previewUrl ? 'border-blue-100' : 'border-gray-100'
+                    }`}>
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    )}
+                  </div>
+                  <label
+                    htmlFor={fotoInputId}
+                    className="absolute bottom-1 right-1 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 cursor-pointer shadow-md transition-colors"
+                    title="Alterar foto"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </label>
+                </div>
+
+                <input
+                  id={fotoInputId}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null
+                    setFoto(file)
+                    if (file) {
+                      const url = URL.createObjectURL(file)
+                      setPreviewUrl(url)
+                    } else {
+                      setPreviewUrl(null)
+                    }
+                  }}
+                />
+                <p className="text-xs text-gray-500">
+                  {foto ? foto.name : 'Clique no ícone para escolher uma foto (JPG, PNG)'}
+                </p>
+              </div>
+            </div>
+
             {/* Primeira linha: Username e Email */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Username */}
@@ -557,9 +642,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                   value={form.username}
                   onChange={(e) => handleInputChange('username', e.target.value)}
                   onBlur={() => handleInputBlur('username')}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.username ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.username ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Digite o username"
                   autoComplete="off"
                 />
@@ -594,9 +678,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                       setTimeout(() => emailInputRef.current?.focus(), 0)
                     }
                   }}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.email ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.email ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Digite o email"
                   autoComplete="off"
                   ref={emailInputRef}
@@ -628,9 +711,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                   value={form.nome}
                   onChange={(e) => handleInputChange('nome', e.target.value)}
                   onBlur={() => handleInputBlur('nome')}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.nome ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.nome ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Digite o nome completo"
                 />
                 {errors.nome && (
@@ -648,9 +730,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                   value={form.telefone}
                   onChange={(e) => handleInputChange('telefone', e.target.value)}
                   onBlur={() => handleInputBlur('telefone')}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.telefone ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.telefone ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Digite apenas os números (formatação automática)"
                 />
                 {errors.telefone && (
@@ -683,23 +764,15 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                     const cpfDigits = form.cpf.replace(/\D/g, '')
                     const ok = validateCpfForBlur()
                     if (!ok) {
-                      // Não permitir sair do campo CPF se inválido/duplicado
                       setTimeout(() => cpfInputRef.current?.focus(), 0)
                     }
                   }}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.cpf ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.cpf ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="000.000.000-00"
                   autoComplete="off"
                   ref={cpfInputRef}
                 />
-                {!errors.cpf && (cpfChecking || cpfPendingValidation) && (
-                  <p className="mt-1 text-xs text-gray-500">Verificando CPF...</p>
-                )}
-                {!errors.cpf && !cpfChecking && !cpfPendingValidation && cpfAvailable === false && (
-                  <p className="mt-1 text-sm text-red-600">Este CPF já está cadastrado para outro usuário</p>
-                )}
                 {!errors.cpf && !cpfChecking && !cpfPendingValidation && cpfAvailable === true && (
                   <p className="mt-1 text-xs text-emerald-600">CPF disponível</p>
                 )}
@@ -721,9 +794,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                   value={form.roleId || ''}
                   onChange={(e) => handleInputChange('roleId', parseInt(e.target.value) || null)}
                   onBlur={() => handleInputBlur('roleId')}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.roleId ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.roleId ? 'border-red-300' : 'border-gray-300'
+                    }`}
                 >
                   <option value="">Selecione um perfil</option>
                   {roles.map((role) => (
@@ -750,9 +822,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                   value={form.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
                   onBlur={() => handleInputBlur('password')}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.password ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.password ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Digite a senha"
                   autoComplete="new-password"
                 />
@@ -771,9 +842,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                   value={form.confirmPassword}
                   onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
                   onBlur={() => handleInputBlur('confirmPassword')}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                    errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   placeholder="Confirme a senha"
                   autoComplete="new-password"
                 />
@@ -847,8 +917,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
               </button>
             </div>
           </form>
-        </div>
-      </div>
-    </div>
+        </div >
+      </div >
+    </div >
   )
 }

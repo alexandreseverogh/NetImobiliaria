@@ -44,10 +44,10 @@ class EmailService {
     try {
       // Carregar configurações de email do banco
       await this.loadEmailConfig();
-      
+
       // Carregar templates de email
       await this.loadEmailTemplates();
-      
+
       console.log('✅ EmailService inicializado com sucesso');
     } catch (error) {
       console.error('❌ Erro ao inicializar EmailService:', error);
@@ -60,10 +60,10 @@ class EmailService {
    */
   private async loadEmailConfig(): Promise<void> {
     try {
-      console.log('🔍 EmailService - Carregando configurações de email...');
+      console.log('🔍 EmailService - Carregando configurações de email (HMR trigger)...');
       const query = 'SELECT * FROM email_settings WHERE is_active = true LIMIT 1';
       const result = await pool.query(query);
-      
+
       if (result.rows.length === 0) {
         throw new Error('Nenhuma configuração de email ativa encontrada no banco');
       }
@@ -75,7 +75,7 @@ class EmailService {
         secure: settings.smtp_secure,
         from: settings.from_email
       });
-      
+
       this.config = {
         host: settings.smtp_host,
         port: settings.smtp_port,
@@ -91,7 +91,7 @@ class EmailService {
       // Criar transporter
       console.log('🔍 EmailService - Criando transporter...');
       this.transporter = nodemailer.createTransport(this.config);
-      
+
       // Verificar conexão
       console.log('🔍 EmailService - Verificando conexão SMTP...');
       await this.transporter.verify();
@@ -110,7 +110,7 @@ class EmailService {
       console.log('🔍 EmailService - Carregando templates de email...');
       const query = 'SELECT * FROM email_templates WHERE is_active = true';
       const result = await pool.query(query);
-      
+
       result.rows.forEach(template => {
         this.templates.set(template.name, {
           id: template.id,
@@ -157,8 +157,9 @@ class EmailService {
       const placeholder = `{{${key}}}`;
       subject = subject.replace(new RegExp(placeholder, 'g'), value);
       htmlContent = htmlContent.replace(new RegExp(placeholder, 'g'), value);
-      textContent = textContent.replace(new RegExp(placeholder, 'g'), value);
     });
+
+    console.log('🔍 EmailService - Tentando enviar email...');
 
     const mailOptions = {
       from: `"${this.config!.fromName}" <${this.config!.from}>`,
@@ -171,10 +172,10 @@ class EmailService {
 
     try {
       const info = await this.transporter.sendMail(mailOptions);
-      
+
       // Log do envio
       await this.logEmailSend(templateName, to, 'success', info.messageId);
-      
+
       console.log(`✅ Email enviado com sucesso: ${info.messageId}`);
       return true;
     } catch (error) {
@@ -231,7 +232,7 @@ class EmailService {
         INSERT INTO email_logs (template_name, to_email, success, error_message, sent_at)
         VALUES ($1, $2, $3, $4, NOW())
       `;
-      
+
       await pool.query(query, [
         templateName,
         to,
@@ -285,9 +286,9 @@ async function ensureInitialized(): Promise<void> {
     console.log('🔍 EmailService - Já inicializado');
     return; // Já inicializado
   }
-  
+
   console.log('🔍 EmailService - Iniciando inicialização...');
-  
+
   if (!initializationPromise) {
     initializationPromise = emailServiceInstance.initialize()
       .then(() => {
@@ -301,7 +302,7 @@ async function ensureInitialized(): Promise<void> {
         throw error;
       });
   }
-  
+
   return initializationPromise;
 }
 

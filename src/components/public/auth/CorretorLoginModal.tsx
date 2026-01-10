@@ -34,6 +34,18 @@ export default function CorretorLoginModal({
     setRequires2FA(false)
     setTwoFAMessage('')
     setShowPassword(false)
+
+    // 🧹 LIMPEZA PREVENTIVA: Remover tokens antigos para evitar conflitos (Sessão Zumbi)
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth-token')
+      localStorage.removeItem('user-data')
+
+      // 🚀 NUCLEAR OPTION: Forçar logout no servidor para matar cookies HTTP-only "zumbis"
+      fetch('/api/admin/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).catch(() => {/* silenciar erro no logout preventivo */ })
+    }
   }, [isOpen])
 
   if (!isOpen) return null
@@ -57,27 +69,41 @@ export default function CorretorLoginModal({
       const data = await response.json()
 
       if (response.ok && data.success) {
+        const u = data.data?.user
+
+        // 🔒 VALIDAÇÃO DE PERFIL: Trava de segurança no Frontend (Aplicada ANTES de qualquer redirect)
+        const roleName = String(u?.role_name || '').toLowerCase()
+        const isCorretor = roleName.includes('corretor') || roleName.includes('admin')
+
+        if (!isCorretor) {
+          setError('Essa área é restrita ao perfil de Corretor.')
+          localStorage.removeItem('auth-token')
+          localStorage.removeItem('user-data')
+          localStorage.removeItem('last-auth-user')
+          setLoading(false)
+          return
+        }
+
         if (data.data?.token) {
           localStorage.setItem('auth-token', data.data.token)
         }
-        if (data.data?.user) {
-          localStorage.setItem('user-data', JSON.stringify(data.data.user))
+        if (u) {
+          localStorage.setItem('user-data', JSON.stringify(u))
         }
-        // Registrar "último login" (para exibir iniciais no header da landpaging)
+        // Registrar "último login"
         try {
           localStorage.setItem(
             'last-auth-user',
             JSON.stringify({
-              nome: data.data?.user?.nome || '',
+              nome: u?.nome || '',
               userType: 'corretor',
               at: Date.now()
             })
           )
           window.dispatchEvent(new Event('admin-auth-changed'))
-        } catch {}
+        } catch { }
 
-        // Se esse modal foi aberto como "gate" de login (ex.: vindo do link do e-mail),
-        // redirecionar direto para o destino após autenticar (sem exigir mais cliques).
+        // Se esse modal foi aberto como "gate" de login...
         if (afterLoginRedirectTo) {
           onClose()
           window.location.href = afterLoginRedirectTo
@@ -102,7 +128,7 @@ export default function CorretorLoginModal({
           // Persistir dados do corretor para reabrir o modal ao voltar de fluxos do admin
           try {
             sessionStorage.setItem('corretor_success_user', JSON.stringify(successPayload))
-          } catch {}
+          } catch { }
 
           // Regra: NUNCA renderizar o painel do corretor aqui dentro.
           // Apenas redirecionar/disparar evento para a página alvo abrir o painel (evita duplicidade de modais).
@@ -117,25 +143,24 @@ export default function CorretorLoginModal({
                   onClose()
                   return
                 }
-              } catch {}
+              } catch { }
 
               // Caso contrário (ex.: veio de outra rota), redirecionar e suprimir geolocalização 1x.
               try {
                 sessionStorage.setItem('suppress-geolocation-detect-once', 'true')
                 sessionStorage.setItem('suppress-geolocation-modal-once', 'true')
-              } catch {}
+              } catch { }
               onClose()
               window.location.href = to
               return
             }
-          } catch {}
+          } catch { }
 
           // fallback: se não houver redirectTo, fechar e mandar para /admin (comportamento atual)
           onClose()
           window.location.href = redirectTo
         }
 
-        const u = data.data?.user
         if (u?.nome && u?.email) {
           buildSuccessAndRedirect(u)
           return
@@ -155,12 +180,12 @@ export default function CorretorLoginModal({
               // Garantir que user-data esteja atualizado
               try {
                 localStorage.setItem('user-data', JSON.stringify(meData.user))
-              } catch {}
+              } catch { }
               buildSuccessAndRedirect(meData.user)
               return
             }
           }
-        } catch {}
+        } catch { }
 
         // fallback final: segue fluxo antigo
         onClose()

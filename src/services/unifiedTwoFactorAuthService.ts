@@ -60,7 +60,7 @@ class UnifiedTwoFactorAuthService {
    */
   async sendCodeByEmail(params: Send2FACodeParams): Promise<boolean> {
     const { userUuid, userType, email, ipAddress, userAgent } = params;
-    
+
     try {
       console.log(`📧 [UNIFIED 2FA] Enviando código para ${userType} UUID:`, userUuid);
       console.log(`📧 [UNIFIED 2FA] Email destino:`, email);
@@ -68,34 +68,34 @@ class UnifiedTwoFactorAuthService {
       // Gerar código de 6 dígitos
       const code = this.generateCode();
       console.log(`🔢 [UNIFIED 2FA] Código gerado:`, code);
-      
+
       // Calcular data de expiração
       const expiresAt = new Date();
       expiresAt.setMinutes(expiresAt.getMinutes() + this.CODE_EXPIRY_MINUTES);
       console.log(`⏰ [UNIFIED 2FA] Expira em:`, expiresAt);
-      
+
       // Salvar código no banco
       console.log(`💾 [UNIFIED 2FA] Salvando código no banco...`);
       await this.saveCode(userUuid, userType, code, 'email', expiresAt, ipAddress, userAgent);
       console.log(`✅ [UNIFIED 2FA] Código salvo no banco`);
-      
+
       // Enviar email usando o mesmo método do admin
       console.log(`📤 [UNIFIED 2FA] Enviando email...`);
       try {
         // Garantir que o emailService está inicializado
         await emailService.initialize();
         console.log(`✅ [UNIFIED 2FA] EmailService inicializado`);
-        
+
         // Usar sendTemplateEmail com o mesmo template do admin ('2fa-code')
         console.log(`📧 [UNIFIED 2FA] Tentando enviar com template '2fa-code' para:`, email);
         const emailSent = await emailService.sendTemplateEmail('2fa-code', email, { code });
-        
+
         if (!emailSent) {
           console.error('❌ [UNIFIED 2FA] Erro ao enviar email com código 2FA (retornou false)');
           console.error('❌ [UNIFIED 2FA] Verifique se o template "2fa-code" existe no banco de dados');
           return false;
         }
-        
+
         console.log(`✅ [UNIFIED 2FA] Email enviado com sucesso`);
       } catch (emailError: any) {
         console.error('❌ [UNIFIED 2FA] Erro ao enviar email:', emailError);
@@ -106,12 +106,12 @@ class UnifiedTwoFactorAuthService {
           code: emailError?.code,
           name: emailError?.name
         });
-        
+
         // Se o template não existe, tentar com '2fa_verification' como fallback
         if (emailError?.message?.includes('não encontrado') || emailError?.message?.includes('Template')) {
           console.log(`⚠️ [UNIFIED 2FA] Template '2fa-code' não encontrado, tentando '2fa_verification'...`);
           try {
-            const fallbackSent = await emailService.sendTemplateEmail('2fa_verification', email, { 
+            const fallbackSent = await emailService.sendTemplateEmail('2fa_verification', email, {
               code,
               expiration_minutes: '10'
             });
@@ -123,12 +123,12 @@ class UnifiedTwoFactorAuthService {
             console.error('❌ [UNIFIED 2FA] Erro no fallback também:', fallbackError?.message);
           }
         }
-        
+
         return false;
       }
-      
+
       console.log(`✅ [UNIFIED 2FA] Código enviado com sucesso para ${userType} UUID:`, userUuid);
-      
+
       // Registrar log de auditoria (não crítico se falhar)
       try {
         await this.logAuditAction(userUuid, userType, '2FA_CODE_SENT', 'email', { ipAddress, userAgent });
@@ -137,7 +137,7 @@ class UnifiedTwoFactorAuthService {
         console.error('⚠️ [UNIFIED 2FA] Erro ao registrar log de auditoria (não crítico):', auditError?.message);
         // Não bloquear o fluxo se o log falhar
       }
-      
+
       return true;
     } catch (error) {
       console.error('❌ [UNIFIED 2FA] Erro ao enviar código 2FA:', error);
@@ -151,7 +151,7 @@ class UnifiedTwoFactorAuthService {
    */
   async validateCode(params: Validate2FACodeParams): Promise<{ valid: boolean; message: string }> {
     const { userUuid, userType, code, method = 'email' } = params;
-    
+
     try {
       // Buscar código válido
       const result = await pool.query(
@@ -161,13 +161,13 @@ class UnifiedTwoFactorAuthService {
           AND code = $2 
           AND method = $3 
           AND used = false 
-          AND expires_at > NOW()
+          AND expires_at > (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')
           ORDER BY created_at DESC 
           LIMIT 1
         `,
         [userUuid, code, method]
       );
-      
+
       if (result.rows.length === 0) {
         await this.logAuditAction(userUuid, userType, '2FA_FAILED', method, { reason: 'Código inválido ou expirado' });
         return {
@@ -175,19 +175,19 @@ class UnifiedTwoFactorAuthService {
           message: 'Código inválido ou expirado'
         };
       }
-      
+
       // Marcar código como usado
       await pool.query(
         'UPDATE user_2fa_codes SET used = true WHERE id = $1',
         [result.rows[0].id]
       );
-      
+
       // Registrar último uso na configuração
       await this.updateLastUsed(userUuid, userType, method);
-      
+
       // Registrar log de auditoria
       await this.logAuditAction(userUuid, userType, '2FA_SUCCESS', method);
-      
+
       return {
         valid: true,
         message: 'Código validado com sucesso'
@@ -224,12 +224,12 @@ class UnifiedTwoFactorAuthService {
     userAgent: string
   ): Promise<void> {
     console.log(`💾 [UNIFIED 2FA] saveCode - userUuid:`, userUuid, `userType:`, userType);
-    
+
     // Validar se userUuid é um UUID válido
     if (!userUuid || typeof userUuid !== 'string') {
       throw new Error(`userUuid inválido: ${userUuid}`);
     }
-    
+
     // Verificar formato UUID básico (8-4-4-4-12 caracteres hexadecimais)
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(userUuid)) {

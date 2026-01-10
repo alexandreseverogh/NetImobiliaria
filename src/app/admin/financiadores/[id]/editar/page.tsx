@@ -35,25 +35,19 @@ export default function EditarFinanciadorPage() {
 
   const formatMoneyBRInput = (raw: string, finalize: boolean): string => {
     const s = String(raw || '').replace(/[^\d,]/g, '')
-    const commaIndex = s.indexOf(',')
-    const hasComma = commaIndex >= 0
-    const intRaw = hasComma ? s.slice(0, commaIndex) : s
-    const decRaw = hasComma ? s.slice(commaIndex + 1) : ''
+    if (!s) return ''
 
-    let intDigits = intRaw.replace(/\D/g, '')
-    let decDigits = decRaw.replace(/\D/g, '').slice(0, 2)
+    const parts = s.split(',')
+    const intPart = parts[0] || ''
+    const decPart = parts[1] ? parts[1].slice(0, 2) : ''
 
-    intDigits = intDigits.replace(/^0+(?=\d)/, '')
-    const intFmt = intDigits ? intDigits.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''
-
-    if (!hasComma && !finalize) return intFmt
+    const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 
     if (finalize) {
-      if (!decDigits) decDigits = '00'
-      if (decDigits.length === 1) decDigits = `${decDigits}0`
+      return `${intFormatted || '0'},${decPart.padEnd(2, '0')}`
     }
 
-    return `${intFmt || '0'},${decDigits}`
+    return parts.length > 1 ? `${intFormatted},${decPart}` : intFormatted
   }
 
   const parseMoneyBR = (value: string): number => {
@@ -67,10 +61,31 @@ export default function EditarFinanciadorPage() {
     return Number(`${i || '0'}.${dFixed}`)
   }
 
-  const formatMoneyFromNumberBR = (value: any): string => {
-    const n = Number(value)
-    if (!Number.isFinite(n)) return ''
-    return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  // Função para formatar valores monetários com máscara de moeda brasileira (copiada de GeneralDataStep)
+  const formatCurrencyValue = (value: string) => {
+    const digits = value.replace(/\D/g, '')
+
+    if (!digits) {
+      return ''
+    }
+
+    const numericValue = Number(digits) / 100
+
+    return numericValue.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+  }
+
+  const parseCurrencyToNumber = (value: string): number | undefined => {
+    const digits = value.replace(/\D/g, '')
+
+    if (!digits) {
+      return undefined
+    }
+
+    const numericValue = Number(digits) / 100
+    return Number.isNaN(numericValue) ? undefined : numericValue
   }
 
   const load = useCallback(async () => {
@@ -84,10 +99,14 @@ export default function EditarFinanciadorPage() {
       }
       const data = await res.json()
       const fin = data?.data
+      const valorFormatado = fin?.valor_mensal !== undefined
+        ? (Number(fin.valor_mensal) * 100).toFixed(0).replace(/\D/g, '')
+        : ''
+
       setForm({
         nome: fin?.nome || '',
         headline: fin?.headline || '',
-        valor_mensal: fin?.valor_mensal !== undefined ? formatMoneyFromNumberBR(fin.valor_mensal) : '',
+        valor_mensal: formatCurrencyValue(valorFormatado),
         ativo: fin?.ativo !== undefined ? !!fin.ativo : true,
         logo_base64: fin?.logo_base64 || '',
         logo_tipo_mime: fin?.logo_tipo_mime || ''
@@ -128,8 +147,8 @@ export default function EditarFinanciadorPage() {
     if (!form.nome.trim()) return setError('Nome é obrigatório.')
     if (!form.headline.trim()) return setError('Texto chamativo (headline) é obrigatório.')
 
-    const valor = parseMoneyBR(form.valor_mensal)
-    if (!Number.isFinite(valor) || valor < 0) return setError('Valor mensal inválido.')
+    const valor = parseCurrencyToNumber(form.valor_mensal)
+    if (valor === undefined || valor < 0) return setError('Valor mensal inválido.')
 
     setSaving(true)
     try {
@@ -195,14 +214,22 @@ export default function EditarFinanciadorPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Valor mensal (R$) *</label>
-              <input
-                value={form.valor_mensal}
-                onChange={(e) => setForm((p) => ({ ...p, valor_mensal: formatMoneyBRInput(e.target.value, false) }))}
-                onBlur={() => setForm((p) => ({ ...p, valor_mensal: formatMoneyBRInput(p.valor_mensal, true) }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                inputMode="decimal"
-                required
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500 sm:text-sm">R$</span>
+                </div>
+                <input
+                  type="text"
+                  value={form.valor_mensal}
+                  onChange={(e) => {
+                    const formatted = formatCurrencyValue(e.target.value)
+                    setForm((p) => ({ ...p, valor_mensal: formatted }))
+                  }}
+                  placeholder="0,00"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
             </div>
           </div>
 

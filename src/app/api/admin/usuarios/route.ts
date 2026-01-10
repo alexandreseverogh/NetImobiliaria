@@ -122,7 +122,52 @@ export async function POST(request: NextRequest) {
     if (permissionCheck) {
       return permissionCheck
     }
-    const createData: CreateUserRequest = await request.json()
+
+    let createData: any = {}
+    let fotoBuffer: Buffer | undefined = undefined
+    let fotoMimeType: string | undefined = undefined
+
+    // Verificar Content-Type para decidir como ler
+    const contentType = request.headers.get('content-type') || ''
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData()
+
+      createData = {
+        username: String(formData.get('username') || '').trim(),
+        email: String(formData.get('email') || '').trim(),
+        nome: String(formData.get('nome') || '').trim(),
+        telefone: String(formData.get('telefone') || '').trim(),
+        cpf: String(formData.get('cpf') || '').trim(),
+        roleId: Number(formData.get('roleId')),
+        password: String(formData.get('password') || ''),
+        ativo: formData.get('ativo') === 'true',
+        isencao: formData.get('isencao') === 'true',
+        is_plantonista: formData.get('is_plantonista') === 'true'
+      }
+
+      const fotoFile = formData.get('foto')
+      if (fotoFile && fotoFile instanceof File) {
+        // Validar foto
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+        if (!allowedTypes.includes(fotoFile.type)) {
+          return NextResponse.json(
+            { error: 'Formato de foto inválido. Permitido: JPG, PNG, WEBP' },
+            { status: 400 }
+          )
+        }
+        if (fotoFile.size > 5 * 1024 * 1024) { // 5MB
+          return NextResponse.json(
+            { error: 'Foto muito grande. Máximo: 5MB' },
+            { status: 400 }
+          )
+        }
+        fotoBuffer = Buffer.from(await fotoFile.arrayBuffer())
+        fotoMimeType = fotoFile.type
+      }
+    } else {
+      createData = await request.json()
+    }
 
     // Validação dos dados de entrada
     const validation = validateCreateData(createData)
@@ -158,7 +203,9 @@ export async function POST(request: NextRequest) {
       is_plantonista: createData.is_plantonista !== undefined ? createData.is_plantonista : false,
       ultimo_login: null,
       // Se for Corretor (roleId = 3), define como Interno (para cadastros via Admin).
-      tipo_corretor: createData.roleId === 3 ? 'Interno' : null
+      tipo_corretor: createData.roleId === 3 ? 'Interno' : null,
+      foto: fotoBuffer,
+      foto_tipo_mime: fotoMimeType
     })
 
     // Log de auditoria
@@ -189,7 +236,8 @@ export async function POST(request: NextRequest) {
             nome: newUser.nome,
             email: newUser.email,
             cpf: (newUser as any).cpf || null,
-            roleId: createData.roleId
+            roleId: createData.roleId,
+            has_photo: !!fotoBuffer
           }
         },
         ipAddress,
@@ -199,8 +247,8 @@ export async function POST(request: NextRequest) {
       console.error('❌ Erro ao registrar auditoria (audit_logs) na criação de usuário (não crítico):', auditError)
     }
 
-    // Não retornar senha
-    const { password, ...userWithoutPassword } = newUser
+    // Não retornar senha nem foto
+    const { password, foto: _f, ...userWithoutPassword } = newUser as any
 
     return NextResponse.json({
       success: true,

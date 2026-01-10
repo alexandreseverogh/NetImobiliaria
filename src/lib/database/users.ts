@@ -80,14 +80,51 @@ export async function findUsersWithRoles(): Promise<UserWithRole[]> {
   }
 }
 
-// ... skipped findUserByUsername / findUserById (update if needed but * implies all so okay) ...
+export async function findUserByUsername(username: string): Promise<User | null> {
+  try {
+    const query = 'SELECT * FROM users WHERE username = $1'
+    const result = await pool.query(query, [username])
+    return result.rows[0] || null
+  } catch (error) {
+    console.error('Erro ao buscar usuário por username:', error)
+    throw error // Lançar erro para ser tratado pelo caller
+  }
+}
+
+export async function findUserById(id: string): Promise<User | null> {
+  try {
+    const query = 'SELECT * FROM users WHERE id = $1'
+    const result = await pool.query(query, [id])
+    return result.rows[0] || null
+  } catch (error) {
+    console.error('Erro ao buscar usuário por ID:', error)
+    throw error
+  }
+}
+
+export async function findUserByEmail(email: string): Promise<User | null> {
+  try {
+    const query = 'SELECT * FROM users WHERE email = $1'
+    const result = await pool.query(query, [email])
+    return result.rows[0] || null
+  } catch (error) {
+    console.error('Erro ao buscar usuário por email:', error)
+    throw error
+  }
+}
 
 export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'updated_at'> & { roleId: number }): Promise<User> {
   try {
     console.log('=== INÍCIO DA FUNÇÃO CREATEUSER ===')
     console.log('Dados recebidos:', { ...userData, password: '[HIDDEN]' })
 
-    // ... (skipped checks) ...
+    // Verificar se usuário já existe
+    const existingUser = await pool.query('SELECT id FROM users WHERE email = $1 OR username = $2', [userData.email, userData.username])
+    if (existingUser.rows.length > 0) {
+      throw new Error('Usuário ou email já cadastrado')
+    }
+
+    const hashedPassword = await bcrypt.hash(userData.password, 10)
 
     // Inserir usuário
     const insertUserQuery = `
@@ -115,7 +152,18 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
     console.log('Executando inserção do usuário...')
     const userResult = await pool.query(insertUserQuery, userValues)
     // ...
-    return userResult.rows[0]
+    const user = userResult.rows[0]
+
+    // Atribuir role se fornecido
+    if (userData.roleId) {
+      console.log(`Atribuindo role ${userData.roleId} para usuário ${user.id}...`)
+      await pool.query(
+        'INSERT INTO user_role_assignments (user_id, role_id, assigned_by) VALUES ($1, $2, $1)',
+        [user.id, userData.roleId]
+      )
+    }
+
+    return user
   } catch (error) {
     // ...
     throw error
@@ -124,104 +172,116 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
 
 export async function updateUser(id: string, userData: Partial<Omit<User, 'id' | 'created_at' | 'updated_at'> & { roleId?: number }>): Promise<User | null> {
   try {
-    // ...
-    // Construir query dinamicamente baseado nos campos fornecidos
-    // ... (previous fields) ...
+    const fields: string[] = []
+    const values: any[] = []
+    let paramCount = 1
 
-    if (userData.is_plantonista !== undefined) {
-      fields.push(`is_plantonista = $${paramCount}`)
-      values.push(userData.is_plantonista)
+    // Campos simples
+    if (userData.username !== undefined) { fields.push(`username = $${paramCount}`); values.push(userData.username); paramCount++ }
+    if (userData.email !== undefined) { fields.push(`email = $${paramCount}`); values.push(userData.email); paramCount++ }
+    if (userData.nome !== undefined) { fields.push(`nome = $${paramCount}`); values.push(userData.nome); paramCount++ }
+    if (userData.telefone !== undefined) { fields.push(`telefone = $${paramCount}`); values.push(userData.telefone); paramCount++ }
+    if (userData.ativo !== undefined) { fields.push(`ativo = $${paramCount}`); values.push(userData.ativo); paramCount++ }
+
+    // Campos opcionais/nullable
+    if (userData.cpf !== undefined) {
+      fields.push(`cpf = $${paramCount}`)
+      values.push(userData.cpf ? String(userData.cpf).replace(/\D/g, '') : null)
+      paramCount++
+    }
+    if (userData.creci !== undefined) { fields.push(`creci = $${paramCount}`); values.push(userData.creci || null); paramCount++ }
+
+    // Campos específicos
+    if (userData.isencao !== undefined) { fields.push(`isencao = $${paramCount}`); values.push(userData.isencao); paramCount++ }
+    if (userData.is_plantonista !== undefined) { fields.push(`is_plantonista = $${paramCount}`); values.push(userData.is_plantonista); paramCount++ }
+    if (userData.tipo_corretor !== undefined) { fields.push(`tipo_corretor = $${paramCount}`); values.push(userData.tipo_corretor); paramCount++ }
+
+    // Senha
+    if (userData.password) {
+      const hashedPassword = await bcrypt.hash(userData.password, 10)
+      fields.push(`password = $${paramCount}`)
+      values.push(hashedPassword)
       paramCount++
     }
 
-    if (userData.tipo_corretor !== undefined) {
-      fields.push(`tipo_corretor = $${paramCount}`)
-      values.push(userData.tipo_corretor)
-      paramCount++
-    }
+    // Foto
+    if (userData.foto !== undefined) { fields.push(`foto = $${paramCount}`); values.push(userData.foto); paramCount++ }
+    if (userData.foto_tipo_mime !== undefined) { fields.push(`foto_tipo_mime = $${paramCount}`); values.push(userData.foto_tipo_mime); paramCount++ }
 
-    // ...
-    return result.rows[0]
-  } catch (error) {
-    // ...
-    throw error
-  }
-}
+    let result: any = null
 
-let result: any = null
+    // Se há campos para atualizar na tabela users
+    if (fields.length > 0) {
+      fields.push(`updated_at = CURRENT_TIMESTAMP`)
+      values.push(id)
 
-// Se há campos para atualizar na tabela users
-if (fields.length > 0) {
-  fields.push(`updated_at = CURRENT_TIMESTAMP`)
-  values.push(id)
-
-  const query = `
+      const query = `
         UPDATE users 
         SET ${fields.join(', ')}
         WHERE id = $${paramCount}
         RETURNING *
       `
 
-  result = await pool.query(query, values)
+      result = await pool.query(query, values)
 
-  if (result.rows.length === 0) {
-    return null
-  }
-} else {
-  // Se não há campos para atualizar na tabela users, buscar o usuário atual
-  const findQuery = 'SELECT * FROM users WHERE id = $1'
-  result = await pool.query(findQuery, [id])
+      if (result.rows.length === 0) {
+        return null
+      }
+    } else {
+      // Se não há campos para atualizar na tabela users, buscar o usuário atual
+      const findQuery = 'SELECT * FROM users WHERE id = $1'
+      result = await pool.query(findQuery, [id])
 
-  if (result.rows.length === 0) {
-    return null
-  }
-}
-
-// Se roleId foi fornecido, atualizar o perfil do usuário
-if (userData.roleId !== undefined) {
-  try {
-    // Verificar se o perfil existe e se requer 2FA
-    const roleCheckQuery = 'SELECT id, requires_2fa FROM user_roles WHERE id = $1 AND is_active = true'
-    const roleCheckResult = await pool.query(roleCheckQuery, [userData.roleId])
-
-    if (roleCheckResult.rows.length === 0) {
-      throw new Error('Perfil especificado não existe ou não está ativo')
+      if (result.rows.length === 0) {
+        return null
+      }
     }
 
-    const role = roleCheckResult.rows[0]
+    // Se roleId foi fornecido, atualizar o perfil do usuário
+    if (userData.roleId !== undefined) {
+      try {
+        // Verificar se o perfil existe e se requer 2FA
+        const roleCheckQuery = 'SELECT id, requires_2fa FROM user_roles WHERE id = $1 AND is_active = true'
+        const roleCheckResult = await pool.query(roleCheckQuery, [userData.roleId])
 
-    // Primeiro, remover todas as atribuições de perfil existentes para este usuário
-    const removeRolesQuery = 'DELETE FROM user_role_assignments WHERE user_id = $1'
-    await pool.query(removeRolesQuery, [id])
+        if (roleCheckResult.rows.length === 0) {
+          throw new Error('Perfil especificado não existe ou não está ativo')
+        }
 
-    // Depois, inserir a nova atribuição de perfil
-    const assignRoleQuery = `
+        const role = roleCheckResult.rows[0]
+
+        // Primeiro, remover todas as atribuições de perfil existentes para este usuário
+        const removeRolesQuery = 'DELETE FROM user_role_assignments WHERE user_id = $1'
+        await pool.query(removeRolesQuery, [id])
+
+        // Depois, inserir a nova atribuição de perfil
+        const assignRoleQuery = `
           INSERT INTO user_role_assignments (user_id, role_id, assigned_by)
           VALUES ($1, $2, $1)
         `
 
-    await pool.query(assignRoleQuery, [id, userData.roleId])
+        await pool.query(assignRoleQuery, [id, userData.roleId])
 
-    // Se o perfil requer 2FA, habilitar automaticamente
-    if (role.requires_2fa) {
-      const update2FAQuery = `
+        // Se o perfil requer 2FA, habilitar automaticamente
+        if (role.requires_2fa) {
+          const update2FAQuery = `
             UPDATE users 
             SET two_fa_enabled = true 
             WHERE id = $1
           `
-      await pool.query(update2FAQuery, [id])
+          await pool.query(update2FAQuery, [id])
+        }
+      } catch (error) {
+        console.error('Erro ao atualizar perfil do usuário:', error)
+        throw error
+      }
     }
+
+    return result.rows[0]
   } catch (error) {
-    console.error('Erro ao atualizar perfil do usuário:', error)
+    console.error('Erro ao atualizar usuário:', error)
     throw error
   }
-}
-
-return result.rows[0]
-  } catch (error) {
-  console.error('Erro ao atualizar usuário:', error)
-  throw error
-}
 }
 
 export async function deleteUser(id: string): Promise<boolean> {
@@ -230,10 +290,31 @@ export async function deleteUser(id: string): Promise<boolean> {
     await pool.query('BEGIN')
 
     try {
-      // 1. Excluir logs de auditoria relacionados ao usuário
+      // 0. Limpar Gamificação
+      await pool.query('DELETE FROM corretor_scores WHERE user_id = $1', [id])
+
+      // 0. Limpar Áreas de Atuação
+      await pool.query('DELETE FROM corretor_areas_atuacao WHERE corretor_fk = $1', [id])
+
+      // 0. Limpar Logs de Login e Sessão
+      await pool.query('DELETE FROM user_sessions WHERE user_id = $1', [id])
+      await pool.query('DELETE FROM login_logs WHERE user_id = $1', [id])
+      await pool.query('DELETE FROM audit_2fa_logs WHERE user_id = $1', [id])
+      await pool.query('DELETE FROM user_2fa_codes WHERE user_id = $1', [id])
+      await pool.query('DELETE FROM user_2fa_config WHERE user_id = $1', [id])
+
+      // 0. Limpar Atribuições de Leads (Para não quebrar FK, mas perderemos histórico deste corretor)
+      //    Dependendo do negócio, talvez fosse melhor setar NULL, mas 'Excluir' implica remoção.
+      await pool.query('DELETE FROM imovel_prospect_atribuicoes WHERE corretor_fk = $1', [id])
+
+      // 0. Limpar Imóveis (Proprietário/Captador) -> CUIDADO: Se corretor for captador.
+      //    Normalmente imoveis tem corretor_fk (captador). Setar para NULL.
+      await pool.query('UPDATE imoveis SET corretor_fk = NULL WHERE corretor_fk = $1', [id])
+
+      // 1. Excluir logs de auditoria relacionados ao usuário (existente)
       await pool.query('DELETE FROM audit_logs WHERE user_id = $1', [id])
 
-      // 2. Excluir atribuições de roles do usuário
+      // 2. Excluir atribuições de roles do usuário (existente)
       await pool.query('DELETE FROM user_role_assignments WHERE user_id = $1', [id])
 
       // 3. Excluir o usuário

@@ -74,8 +74,9 @@ export async function POST(request: NextRequest) {
 
     const buf = Buffer.from(await file.arrayBuffer())
 
-    // Perfil fixo: Corretor (id=3)
-    const roleId = 3
+    // Buscar ID do perfil 'Corretor' dinamicamente
+    const roleRes = await pool.query("SELECT id FROM user_roles WHERE name = 'Corretor' LIMIT 1")
+    const roleId = roleRes.rows[0]?.id || 3 // Fallback para 3 se não encontrar
 
     // Validar duplicidade de CPF (online)
     const cpfExists = await pool.query('SELECT 1 FROM users WHERE cpf = $1 LIMIT 1', [cpf])
