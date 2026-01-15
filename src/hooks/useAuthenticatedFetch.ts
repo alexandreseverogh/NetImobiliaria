@@ -27,14 +27,14 @@ export function useAuthenticatedFetch() {
    * Fetch com autenticação automática
    */
   const authenticatedFetch = useCallback(async (
-    url: string, 
+    url: string,
     options: FetchOptions = {}
   ) => {
     const { skipAuth = false, headers = {}, body, ...restOptions } = options
-    
+
     // Preparar headers
     const requestHeaders = new Headers(headers as HeadersInit)
-    
+
     // REGRA CRÍTICA: Adicionar Content-Type APENAS se houver body E não for FormData
     if (body) {
       if (!(body instanceof FormData)) {
@@ -42,7 +42,7 @@ export function useAuthenticatedFetch() {
       }
       // Se for FormData, navegador define Content-Type automaticamente com boundary
     }
-    
+
     // Adicionar token automaticamente (exceto se skipAuth = true)
     if (!skipAuth) {
       const token = localStorage.getItem('auth-token')
@@ -50,22 +50,40 @@ export function useAuthenticatedFetch() {
         requestHeaders.set('Authorization', `Bearer ${token}`)
       }
     }
-    
+
     // Executar fetch
-    return fetch(url, {
-      ...restOptions,
-      body,
-      headers: requestHeaders
-    })
+    // Executar fetch
+    try {
+      const response = await fetch(url, {
+        ...restOptions,
+        body,
+        headers: requestHeaders
+      })
+
+      if (response.status === 401) {
+        // Tentar ler o corpo do erro para debug (sem consumir o stream principal se possível, ou clonando)
+        try {
+          const clone = response.clone()
+          const errorBody = await clone.json()
+          console.error(`❌ [useAuthenticatedFetch] 401 Não Autorizado em ${url} \nDEBUG: ${JSON.stringify(errorBody.debug, null, 2)} \nERROR: ${errorBody.error}`)
+        } catch (e) {
+          console.warn(`⚠️ [useAuthenticatedFetch] 401 recebido de ${url}, mas não foi possível ler detalhes de debug.`)
+        }
+      }
+
+      return response
+    } catch (error) {
+      throw error
+    }
   }, [])
-  
+
   /**
    * GET com autenticação
    */
   const get = useCallback(async (url: string) => {
     return authenticatedFetch(url, { method: 'GET' })
   }, [authenticatedFetch])
-  
+
   /**
    * POST com autenticação
    */
@@ -75,7 +93,7 @@ export function useAuthenticatedFetch() {
       body: JSON.stringify(data)
     })
   }, [authenticatedFetch])
-  
+
   /**
    * PUT com autenticação
    */
@@ -85,14 +103,14 @@ export function useAuthenticatedFetch() {
       body: JSON.stringify(data)
     })
   }, [authenticatedFetch])
-  
+
   /**
    * DELETE com autenticação
    */
   const del = useCallback(async (url: string) => {
     return authenticatedFetch(url, { method: 'DELETE' })
   }, [authenticatedFetch])
-  
+
   return {
     fetch: authenticatedFetch,
     get,

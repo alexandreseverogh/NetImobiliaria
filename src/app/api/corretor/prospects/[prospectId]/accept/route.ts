@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 
 export const runtime = 'nodejs'
 
-function getToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization') || ''
-  if (authHeader.startsWith('Bearer ')) return authHeader.slice(7)
-  const cookie = request.cookies.get('accessToken')?.value
-  return cookie || null
-}
-
-function getLoggedUserId(request: NextRequest): string | null {
-  const token = getToken(request)
+async function getLoggedUserId(request: NextRequest): Promise<string | null> {
+  const token = getTokenFromRequest(request)
   if (!token) return null
   try {
-    const decoded: any = verifyTokenNode(token)
+    const decoded: any = await verifyToken(token)
     return decoded?.userId || null
   } catch {
     return null
@@ -23,7 +16,7 @@ function getLoggedUserId(request: NextRequest): string | null {
 
 export async function POST(request: NextRequest, { params }: { params: { prospectId: string } }) {
   try {
-    const userId = getLoggedUserId(request)
+    const userId = await getLoggedUserId(request)
     if (!userId) return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 })
 
     const prospectId = Number(params.prospectId)
@@ -62,6 +55,20 @@ export async function POST(request: NextRequest, { params }: { params: { prospec
       })
     } catch (gError) {
       console.error('Erro ao carregar serviço de gamificação:', gError)
+    }
+
+    // ATUALIZAÇÃO DO IMÓVEL (Regra de Negócio: Se imóvel sem corretor, quem aceita assume)
+    try {
+      await pool.query(`
+        UPDATE imoveis i
+        SET corretor_fk = $1::uuid
+        FROM imovel_prospects ip
+        WHERE ip.id = $2
+          AND ip.id_imovel = i.id
+          AND i.corretor_fk IS NULL
+      `, [userId, prospectId]);
+    } catch (updateErr) {
+      console.error('Erro ao vincular corretor ao imóvel após aceite:', updateErr);
     }
 
     return NextResponse.json({ success: true, data: res.rows[0] })

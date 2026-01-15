@@ -30,34 +30,31 @@ export default function NovoFinanciadorPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const formatMoneyBRInput = (raw: string, finalize: boolean): string => {
-    const s = String(raw || '').replace(/[^\d,]/g, '')
-    if (!s) return ''
+  // Função para formatar valores monetários com máscara de moeda brasileira
+  const formatCurrencyValue = (value: string) => {
+    const digits = value.replace(/\D/g, '')
 
-    const parts = s.split(',')
-    const intPart = parts[0] || ''
-    const decPart = parts[1] ? parts[1].slice(0, 2) : ''
-
-    const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-
-    if (finalize) {
-      return `${intFormatted || '0'},${decPart.padEnd(2, '0')}`
+    if (!digits) {
+      return ''
     }
 
-    return parts.length > 1 ? `${intFormatted},${decPart}` : intFormatted
+    const numericValue = Number(digits) / 100
+
+    return numericValue.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
   }
 
-  const parseMoneyBR = (value: string): number => {
-    const v = String(value || '').trim()
-    if (!v) return NaN
-    const noThousands = v.replace(/\./g, '')
-    if (!noThousands.includes(',')) {
-      return Number(`${noThousands}.00`)
+  const parseCurrencyToNumber = (value: string): number | undefined => {
+    const digits = value.replace(/\D/g, '')
+
+    if (!digits) {
+      return undefined
     }
-    const [i, dRaw] = noThousands.split(',')
-    const d = (dRaw || '').replace(/\D/g, '').slice(0, 2)
-    const dFixed = d.length === 0 ? '00' : d.length === 1 ? `${d}0` : d
-    return Number(`${i || '0'}.${dFixed}`)
+
+    const numericValue = Number(digits) / 100
+    return Number.isNaN(numericValue) ? undefined : numericValue
   }
 
   const handleFile = async (file: File | null) => {
@@ -91,8 +88,8 @@ export default function NovoFinanciadorPage() {
     if (!form.headline.trim()) return setError('Texto chamativo (headline) é obrigatório.')
     if (!form.logo_base64) return setError('Logo é obrigatória.')
 
-    const valor = parseMoneyBR(form.valor_mensal)
-    if (!Number.isFinite(valor) || valor < 0) return setError('Valor mensal inválido.')
+    const valor = parseCurrencyToNumber(form.valor_mensal)
+    if (valor === undefined || valor < 0) return setError('Valor mensal inválido.')
 
     setLoading(true)
     try {
@@ -152,15 +149,22 @@ export default function NovoFinanciadorPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Valor mensal (R$) *</label>
-              <input
-                value={form.valor_mensal}
-                onChange={(e) => setForm((p) => ({ ...p, valor_mensal: formatMoneyBRInput(e.target.value, false) }))}
-                onBlur={() => setForm((p) => ({ ...p, valor_mensal: formatMoneyBRInput(p.valor_mensal, true) }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ex: 5000,00"
-                inputMode="decimal"
-                required
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500 sm:text-sm">R$</span>
+                </div>
+                <input
+                  type="text"
+                  value={form.valor_mensal}
+                  onChange={(e) => {
+                    const formatted = formatCurrencyValue(e.target.value)
+                    setForm((p) => ({ ...p, valor_mensal: formatted }))
+                  }}
+                  placeholder="0,00"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
             </div>
           </div>
 

@@ -33,11 +33,11 @@ export async function GET(request: NextRequest) {
     const result = await pool.query(
       `
         SELECT
-          ic.id,
-          ic.imovel_fk,
-          ic.corretor_fk,
-          ic.created_at,
-          ic.created_by,
+          i.id,
+          i.id as imovel_fk, -- Manter alias para compatibilidade frontend se necessario
+          i.corretor_fk,
+          i.created_at,
+          i.created_by,
           i.titulo,
           i.preco,
           i.quartos,
@@ -58,10 +58,9 @@ export async function GET(request: NextRequest) {
           i.estado_fk,
           i.cidade_fk,
           i.bairro
-        FROM public.imovel_corretor ic
-        JOIN public.imoveis i ON i.id = ic.imovel_fk
-        WHERE ic.corretor_fk = $1::uuid
-        ORDER BY ic.created_at DESC
+        FROM public.imoveis i
+        WHERE i.corretor_fk = $1::uuid
+        ORDER BY i.created_at DESC
       `,
       [userId]
     )

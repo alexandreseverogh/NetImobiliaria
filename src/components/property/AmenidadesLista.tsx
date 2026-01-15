@@ -13,7 +13,7 @@ function getCategoriaIcon(categoria: string): JSX.Element {
     'Públicos Especiais': '👥',
     'Estrutura & Arquitetura': '🏗️'
   }
-  
+
   return <span className="text-xl mr-2">{icons[categoria] || '🏠'}</span>
 }
 
@@ -25,9 +25,9 @@ interface AmenidadesListaProps {
   loading: boolean
 }
 
-export default function AmenidadesLista({ 
-  amenidades, 
-  loading 
+export default function AmenidadesLista({
+  amenidades,
+  loading
 }: AmenidadesListaProps) {
   if (loading) {
     return <SkeletonAmenidades />
@@ -36,23 +36,23 @@ export default function AmenidadesLista({
   return (
     <>
       {amenidades?.por_categoria && Object.keys(amenidades.por_categoria).length > 0 ? (
-        <div className="space-y-6">
+        <div className="space-y-2">
           {Object.entries(amenidades.por_categoria).map(([categoria, items]: [string, any]) => (
             <div key={categoria}>
-              <h4 className="text-lg font-semibold text-gray-800 mb-3 border-b border-gray-200 pb-2 flex items-center">
+              <h4 className="text-lg font-semibold text-gray-800 mb-1 border-b border-gray-200 pb-1 flex items-center">
                 {getCategoriaIcon(categoria)}
                 {categoria}
               </h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1">
                 {items.map((item: any) => (
-                  <div 
-                    key={item.id} 
-                    className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  <div
+                    key={item.id}
+                    className="flex items-center space-x-2 p-1.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
-                    <span className="text-2xl">{item.icone}</span>
+                    <span className="text-xl">{item.icone}</span>
                     <div className="flex-1 min-w-0">
                       {item.descricao && (
-                        <p className="text-sm font-medium text-gray-700 truncate">
+                        <p className="text-sm font-medium text-gray-700 truncate leading-tight">
                           {item.descricao}
                         </p>
                       )}

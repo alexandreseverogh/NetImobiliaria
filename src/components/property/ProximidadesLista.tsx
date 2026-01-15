@@ -11,7 +11,7 @@ function getCategoriaIcon(categoria: string): JSX.Element {
     'Lazer & Cultura': '🎭',
     'Serviços': '🛠️'
   }
-  
+
   return <span className="text-xl mr-2">{icons[categoria] || '📍'}</span>
 }
 
@@ -23,9 +23,9 @@ interface ProximidadesListaProps {
   loading: boolean
 }
 
-export default function ProximidadesLista({ 
-  proximidades, 
-  loading 
+export default function ProximidadesLista({
+  proximidades,
+  loading
 }: ProximidadesListaProps) {
   if (loading) {
     return <SkeletonProximidades />
@@ -34,24 +34,24 @@ export default function ProximidadesLista({
   return (
     <>
       {proximidades?.por_categoria && Object.keys(proximidades.por_categoria).length > 0 ? (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {Object.entries(proximidades.por_categoria).map(([categoria, items]: [string, any]) => (
             <div key={categoria}>
-              <h4 className="text-lg font-semibold text-gray-800 mb-2 border-b border-gray-200 pb-1 flex items-center">
+              <h4 className="text-lg font-semibold text-gray-800 mb-1 border-b border-gray-200 pb-1 flex items-center">
                 {getCategoriaIcon(categoria)}
                 {categoria}
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
                 {items.map((item: any) => (
-                  <div 
-                    key={item.id} 
-                    className="flex items-start justify-between p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors gap-3"
+                  <div
+                    key={item.id}
+                    className="flex items-start justify-between p-1.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors gap-2"
                   >
                     <div className="flex items-start gap-2 min-w-0">
-                      <span className="text-xl leading-none mt-0.5">{item.icone}</span>
+                      <span className="text-lg leading-none mt-0.5">{item.icone}</span>
                       <div className="flex-1 min-w-0">
                         {item.descricao && (
-                          <p className="text-sm font-medium text-gray-700 leading-snug">
+                          <p className="text-sm font-medium text-gray-700 leading-tight">
                             {item.descricao}
                           </p>
                         )}

@@ -80,13 +80,31 @@ export default function AuthButtons() {
     refreshLastAuthUser()
     const onStorage = (e: StorageEvent) => {
       if (!e.key) return
-      if (
-        e.key === 'auth-token' ||
-        e.key === 'user-data' ||
-        e.key === 'public-auth-token' ||
-        e.key === 'public-user-data' ||
-        e.key === 'last-auth-user'
-      ) {
+
+      const criticalKeys = [
+        'auth-token',
+        'user-data',
+        'public-auth-token',
+        'public-user-data',
+        'last-auth-user'
+      ]
+
+      if (criticalKeys.includes(e.key)) {
+        // Detectar mudanças significativas de estado de autenticação
+        const wasLoggedIn = e.oldValue !== null && e.oldValue !== undefined && e.oldValue !== ''
+        const isNowLoggedOut = e.newValue === null || e.newValue === undefined || e.newValue === ''
+
+        const wasLoggedOut = e.oldValue === null || e.oldValue === undefined || e.oldValue === ''
+        const isNowLoggedIn = e.newValue !== null && e.newValue !== undefined && e.newValue !== ''
+
+        // Se houve login ou logout em outra aba, recarregar para sincronizar UI
+        if ((wasLoggedIn && isNowLoggedOut) || (wasLoggedOut && isNowLoggedIn)) {
+          console.log('🔄 [AuthButtons] Estado de autenticação alterado em outra aba, recarregando...')
+          window.location.reload()
+          return
+        }
+
+        // Caso contrário, apenas atualizar estado local
         refreshAdminUser()
         refreshLastAuthUser()
       }
@@ -100,12 +118,12 @@ export default function AuthButtons() {
   useEffect(() => {
     const open = () => setCorretorLoginOpen(true)
     window.addEventListener('open-corretor-login-modal', open)
-    
+
     // Verificar se há parâmetro na URL para abrir o login do corretor (ex: após cadastro)
     const params = new URLSearchParams(window.location.search)
     if (params.get('open_corretor_login') === 'true') {
       setCorretorLoginOpen(true)
-      
+
       // Limpar o parâmetro da URL para não reabrir se der refresh
       const newUrl = window.location.pathname + window.location.search.replace(/[?&]open_corretor_login=true/, '').replace(/^&/, '?')
       window.history.replaceState({}, '', newUrl)
@@ -131,7 +149,7 @@ export default function AuthButtons() {
       localStorage.removeItem('user-data')
       localStorage.removeItem('last-auth-user')
       window.dispatchEvent(new Event('admin-auth-changed'))
-    } catch {}
+    } catch { }
     logout()
   }
 

@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-function getToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization') || ''
-  if (authHeader.startsWith('Bearer ')) return authHeader.slice(7)
-  const cookie = request.cookies.get('accessToken')?.value
-  return cookie || null
-}
-
-function requireUserId(request: NextRequest): string | null {
-  const token = getToken(request)
+async function requireUserId(request: NextRequest): Promise<string | null> {
+  const token = getTokenFromRequest(request)
   if (!token) return null
   try {
-    const decoded: any = verifyTokenNode(token)
+    const decoded: any = await verifyToken(token)
     return decoded?.userId || null
   } catch {
     return null
@@ -23,7 +17,7 @@ function requireUserId(request: NextRequest): string | null {
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = requireUserId(request)
+    const userId = await requireUserId(request)
     if (!userId) return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 })
 
     const pool = (await import('@/lib/database/connection')).default

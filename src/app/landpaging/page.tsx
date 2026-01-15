@@ -303,8 +303,9 @@ export default function LandingPage() {
     const shouldShowModal = geolocationDismissed !== 'true'
     const suppressedBySession =
       typeof window !== 'undefined' && sessionStorage.getItem(SUPPRESS_GEOLOCATION_MODAL_KEY) === 'true'
+    const hasCorretorHomeParam = typeof window !== 'undefined' && (new URLSearchParams(window.location.search).get('corretor_home') === 'true')
     const shouldShowModalNow =
-      shouldShowModal && !suppressedBySession && !suppressGeolocationModalOnceRef.current && !corretorPopupOpenRef.current
+      shouldShowModal && !suppressedBySession && !suppressGeolocationModalOnceRef.current && !corretorPopupOpenRef.current && !corretorHomeOpenRef.current && !corretorHomeQueryConsumedRef.current && !hasCorretorHomeParam
 
     if (!shouldShowModal) {
       console.log('ℹ️ [LANDING PAGE] Usuário pediu para não mostrar o modal novamente (mas vamos detectar em background)')
@@ -386,7 +387,7 @@ export default function LandingPage() {
           country: data.data?.country || data.country
         })
         setDetectedCity(city)
-        setDetectedRegion(data.data?.region || data.region || null)
+        setDetectedRegion((data.data?.region || data.region || '').replace(/State of /gi, '') || null)
         setDetectedCountry(data.data?.country || data.country || null)
 
         // Marcar como executado ANTES de abrir o modal
@@ -398,7 +399,9 @@ export default function LandingPage() {
         } catch { }
 
         // Só abrir modal se não estiver já aberto (usando ref para valor atualizado)
-        if (shouldShowModalNow && !geolocationModalOpenRef.current) {
+        // RE-CHECK: Verificar novamente se o modal do corretor não foi aberto enquanto aguardávamos a API
+        const isCorretorOpenNow = corretorHomeOpenRef.current || corretorPopupOpenRef.current || corretorHomeQueryConsumedRef.current
+        if (shouldShowModalNow && !geolocationModalOpenRef.current && !isCorretorOpenNow) {
           geolocationModalOpenRef.current = true
           setGeolocationModalOpen(true)
         }
@@ -406,7 +409,7 @@ export default function LandingPage() {
         // Não salvar 'geolocation-modal-shown' para permitir exibição a cada recarregamento
         localStorage.setItem('geolocation-city', city)
         if (data.data?.region || data.region) {
-          localStorage.setItem('geolocation-region', data.data?.region || data.region)
+          localStorage.setItem('geolocation-region', (data.data?.region || data.region).replace(/State of /gi, ''))
         }
         if (data.data?.country || data.country) {
           localStorage.setItem('geolocation-country', data.data?.country || data.country)
@@ -415,7 +418,7 @@ export default function LandingPage() {
         // Mesmo sem success: true, se tiver cidade, mostrar
         console.log('⚠️ [LANDING PAGE] Cidade encontrada mas success=false, exibindo mesmo assim:', city)
         setDetectedCity(city)
-        setDetectedRegion(data.data?.region || data.region || null)
+        setDetectedRegion((data.data?.region || data.region || '').replace(/State of /gi, '') || null)
         setDetectedCountry(data.data?.country || data.country || null)
 
         // Marcar como executado ANTES de abrir o modal
@@ -427,7 +430,8 @@ export default function LandingPage() {
         } catch { }
 
         // Só abrir modal se não estiver já aberto (usando ref para valor atualizado)
-        if (shouldShowModalNow && !geolocationModalOpenRef.current) {
+        const isCorretorOpenNow = corretorHomeOpenRef.current || corretorPopupOpenRef.current || corretorHomeQueryConsumedRef.current
+        if (shouldShowModalNow && !geolocationModalOpenRef.current && !isCorretorOpenNow) {
           geolocationModalOpenRef.current = true
           setGeolocationModalOpen(true)
         }
@@ -435,7 +439,7 @@ export default function LandingPage() {
         // Não salvar 'geolocation-modal-shown' para permitir exibição a cada recarregamento
         localStorage.setItem('geolocation-city', city)
         if (data.data?.region || data.region) {
-          localStorage.setItem('geolocation-region', data.data?.region || data.region)
+          localStorage.setItem('geolocation-region', (data.data?.region || data.region).replace(/State of /gi, ''))
         }
         if (data.data?.country || data.country) {
           localStorage.setItem('geolocation-country', data.data?.country || data.country)

@@ -5,10 +5,10 @@ import { Pool } from 'pg';
 // Configuração do pool de conexão com PostgreSQL
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
+  port: parseInt(process.env.DB_PORT || '15432'),
   database: process.env.DB_NAME || 'net_imobiliaria',
   user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
+  password: process.env.DB_PASSWORD || 'postgres',
 });
 
 interface EmailConfig {
@@ -107,9 +107,12 @@ class EmailService {
    */
   private async loadEmailTemplates(): Promise<void> {
     try {
-      console.log('🔍 EmailService - Carregando templates de email...');
+      console.log('🔍 EmailService - Carregando templates de email (FORCE RELOAD)...');
       const query = 'SELECT * FROM email_templates WHERE is_active = true';
       const result = await pool.query(query);
+
+      // Limpar cache antes de carregar
+      this.templates.clear();
 
       result.rows.forEach(template => {
         this.templates.set(template.name, {

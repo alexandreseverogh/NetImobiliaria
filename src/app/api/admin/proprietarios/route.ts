@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
-    
+
     const nome = searchParams.get('nome') || undefined
     const cpf = searchParams.get('cpf') || undefined
     const estado = searchParams.get('estado') || undefined
@@ -73,9 +73,9 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('❌ Erro ao buscar proprietários:', error)
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Erro interno do servidor ao buscar proprietários' 
+      {
+        success: false,
+        error: 'Erro interno do servidor ao buscar proprietários'
       },
       { status: 500 }
     )
@@ -104,15 +104,25 @@ export async function POST(request: NextRequest) {
         const decoded: any = await verifyToken(token)
         requesterUserId = decoded?.userId || null
         const roleName = String(decoded?.role_name || decoded?.cargo || '').toLowerCase()
-        if (requesterUserId && roleName.includes('corretor')) {
-          corretor_fk = requesterUserId
+        const userType = String(decoded?.userType || '').toLowerCase()
+
+        // Robust check: include all variations of broker roles found in the DB/Logic
+        if (requesterUserId && (
+          roleName.includes('corretor') ||
+          userType === 'corretor' ||
+          roleName === 'admin' // Admins creating on behalf of themselves as brokers? Unlikely but safe to check.
+        )) {
+          // Se for corretor, FORÇA o vínculo com ele mesmo
+          if (roleName.includes('corretor') || userType === 'corretor') {
+            corretor_fk = requesterUserId
+          }
         }
       }
     } catch {
       // Se falhar, não quebra o fluxo de criação (o middleware já validou auth/permissão).
       corretor_fk = null
     }
-    
+
     // Validação temporariamente desabilitada para testar auditoria
     // const validator = createValidator('owners', '/api/admin/proprietarios')
     // const validation = await validator.validateAndLog(
@@ -120,7 +130,7 @@ export async function POST(request: NextRequest) {
     //   request.ip || 'unknown',
     //   request.headers.get('user-agent') || 'unknown'
     // )
-    
+
     // if (!validation.isValid) {
     //   return NextResponse.json(
     //     { 
@@ -130,14 +140,14 @@ export async function POST(request: NextRequest) {
     //     { status: 400 }
     //   )
     // }
-    
+
     if (!nome || !cpf || !telefone || !email || !estado_fk || !cidade_fk || !endereco || !bairro || !numero) {
       return NextResponse.json(
         { error: 'Nome, CPF, telefone, email, estado, cidade, endereço, bairro e número são obrigatórios' },
         { status: 400 }
       )
     }
-    
+
     const proprietario = await createProprietario({
       nome,
       cpf,
@@ -155,12 +165,12 @@ export async function POST(request: NextRequest) {
       // Quando o proprietário é cadastrado via acesso do corretor, a senha padrão deve ser "Proprietario"
       ...(corretor_fk ? { password: 'Proprietario' } : {})
     })
-    
+
     // Log de auditoria (não crítico - falha não afeta operação)
     try {
       const { ipAddress, userAgent } = extractRequestData(request)
       const userId = extractUserIdFromToken(request)
-      
+
       await logAuditEvent({
         userId,
         action: 'CREATE',
@@ -180,18 +190,18 @@ export async function POST(request: NextRequest) {
       // Log do erro mas não falha a operação principal
       console.error('❌ Erro na auditoria (não crítico):', auditError)
     }
-    
+
     return NextResponse.json(proprietario, { status: 201 })
   } catch (error: any) {
     console.error('Erro ao criar proprietário:', error)
-    
+
     if (error.message === 'CPF já cadastrado' || error.message === 'Email já cadastrado') {
       return NextResponse.json(
         { error: error.message },
         { status: 409 }
       )
     }
-    
+
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

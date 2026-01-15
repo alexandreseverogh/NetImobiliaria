@@ -830,8 +830,8 @@ export default function UserSuccessModal({
                           type="button"
                           onClick={() => openLeadsPanel(leadsResumo.pendentes > 0 ? 'pendentes' : 'atribuido')}
                           className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black shadow-sm hover:shadow-md transition-all ${leadsResumo.pendentes > 0
-                              ? 'bg-rose-600 text-white hover:bg-rose-700'
-                              : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            ? 'bg-rose-600 text-white hover:bg-rose-700'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
                             }`}
                         >
                           {leadsResumo.pendentes > 0 ? (
@@ -1060,7 +1060,7 @@ export default function UserSuccessModal({
                           className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-slate-900 text-xs font-black hover:bg-slate-50 shadow-sm"
                         >
                           <List className="w-4 h-4 text-emerald-700" />
-                          Meus
+                          Cadastrados
                         </button>
                       </div>
                     </div>

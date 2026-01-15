@@ -7,45 +7,29 @@ type Row = {
   id: number
   nome: string
   headline: string
-  logo: any
+  logo_base64: string
   logo_tipo_mime: string
-}
-
-function bufferToBase64(value: any): string | null {
-  if (!value) return null
-  try {
-    if (Buffer.isBuffer(value)) return value.toString('base64')
-    if (value instanceof Uint8Array) return Buffer.from(value).toString('base64')
-    if (typeof value === 'string') {
-      const s = value.trim()
-      if (s.startsWith('\\x')) return Buffer.from(s.slice(2), 'hex').toString('base64')
-      return Buffer.from(s, 'latin1').toString('base64')
-    }
-    return null
-  } catch {
-    return null
-  }
 }
 
 export async function GET() {
   try {
     const result = await pool.query<Row>(`
-      SELECT id, nome, headline, logo, logo_tipo_mime
-      FROM public.financiamento_patrocinadores
+      SELECT id, nome, headline, logo_base64, logo_tipo_mime
+      FROM public.financiadores
       WHERE ativo = true
       ORDER BY valor_mensal DESC, id DESC
       LIMIT 8
     `)
 
-    const data = (result.rows || []).map((r) => ({
+    const data = (result.rows || []).map((r: any) => ({
       id: Number(r.id),
       nome: r.nome,
       headline: r.headline,
-      logo_base64: bufferToBase64(r.logo),
+      logo_base64: r.logo_base64, // Já está em base64 na tabela
       logo_tipo_mime: r.logo_tipo_mime
     }))
 
-    // Só faz sentido retornar items com logo decodificável
+    // Só faz sentido retornar items com logo
     const filtered = data.filter((d) => d.logo_base64 && d.logo_tipo_mime)
 
     return NextResponse.json(

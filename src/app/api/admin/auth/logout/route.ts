@@ -160,9 +160,12 @@ export async function POST(request: NextRequest) {
     });
 
     // 🗑️ LIMPEZA DE COOKIES: Garantir que o token "zumbi" seja removido do navegador
+    response.cookies.delete('auth_token')  // New HTTP-only cookie
     response.cookies.delete('accessToken')
     response.cookies.delete('adminAccessToken') // Caso exista variante
     response.cookies.delete('refreshToken')
+
+    console.log('✅ Cookies removidos: auth_token, accessToken, adminAccessToken, refreshToken')
 
     return response;
 

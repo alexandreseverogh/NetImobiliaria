@@ -1,30 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { AUTH_CONFIG } from '@/lib/config/auth'
+import { getTokenFromRequest } from '@/lib/auth/jwt'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-function getToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization') || ''
-  if (authHeader.startsWith('Bearer ')) return authHeader.slice(7)
-  const cookie = request.cookies.get('accessToken')?.value
-  return cookie || null
-}
-
-function getLoggedUserId(request: NextRequest): string | null {
-  const token = getToken(request)
-  if (!token) return null
+function getLoggedUserId(request: NextRequest): { userId: string | null, error?: string } {
+  const token = getTokenFromRequest(request)
+  if (!token) {
+    return { userId: null, error: 'Token not found in headers/cookies' }
+  }
   try {
     const decoded: any = verifyTokenNode(token)
-    return decoded?.userId || null
-  } catch {
-    return null
+    if (!decoded) {
+      return { userId: null, error: 'verifyTokenNode returned null (invalid signature/expired)' }
+    }
+    return { userId: decoded.userId }
+  } catch (e: any) {
+    return { userId: null, error: `Exception: ${e.message}` }
   }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = getLoggedUserId(request)
-    if (!userId) return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 })
+    const { userId, error } = getLoggedUserId(request)
+
+    if (!userId) {
+      const token = getTokenFromRequest(request)
+      return NextResponse.json({
+        success: false,
+        error: 'Não autorizado',
+        debug: {
+          reason: error,
+          token_preview: token ? token.substring(0, 10) + '...' : 'none',
+          secret_configured: !!AUTH_CONFIG.JWT.SECRET,
+          secret_len: AUTH_CONFIG.JWT.SECRET?.length,
+          env: process.env.NODE_ENV
+        }
+      }, { status: 401 })
+    }
 
     const { searchParams } = new URL(request.url)
     const statusRaw = String(searchParams.get('status') || 'atribuido').trim().toLowerCase()

@@ -249,13 +249,30 @@ export async function routeProspectAndNotify(
   let expiraEm: Date | null = new Date(Date.now() + slaMinutos * 60 * 1000)
 
   if (motivoType === 'imovel_corretor_fk') {
-    // Corretor fixo do imóvel: sem SLA
+    // Corretor fixo do imóvel: auto-aceite, sem SLA
+    status = 'aceito'
     expiraEm = null
   } else if (isPlantonista) {
     // Plantonista: aceito automaticamente, sem SLA (finaliza transbordo)
     status = 'aceito'
     expiraEm = null
     console.log(`[routeProspectAndNotify] ✅ Lead atribuído a PLANTONISTA - status='aceito', sem SLA`)
+
+    // REGRA DE NEGÓCIO: Se cair para plantonista, ele vira o dono do imóvel (se não tiver dono)
+    // Executar update assíncrono (ou await se for crítico, mas aqui estamos no fluxo)
+    try {
+      await pool.query(`
+        UPDATE imoveis i
+        SET corretor_fk = $1::uuid
+        FROM imovel_prospects ip
+        WHERE ip.id = $2
+          AND ip.id_imovel = i.id
+          AND i.corretor_fk IS NULL
+      `, [broker.id, prospectId]);
+      console.log(`[routeProspectAndNotify] 🏠 Imóvel vinculado ao plantonista ${broker.nome}`);
+    } catch (errPlantonista) {
+      console.error('[routeProspectAndNotify] Erro ao vincular imóvel ao plantonista:', errPlantonista);
+    }
   }
   try {
     // Evitar criar atribuição duplicada caso esse método seja chamado mais de uma vez
@@ -321,6 +338,15 @@ export async function routeProspectAndNotify(
       const templateName = motivoType === 'imovel_corretor_fk'
         ? 'novo-lead-corretor-imovel-fk'
         : 'novo-lead-corretor'
+
+      console.log('[prospectRouter] 📧 Preparando envio de email para corretor:', broker.email);
+      console.log('[prospectRouter] Template:', templateName);
+      console.log('[prospectRouter] Dados Proprietário:', {
+        nome: p.proprietario_nome,
+        uuid: p.proprietario_uuid, // precisar adicionar uuid no select se quiser logar
+        cpf: p.proprietario_cpf
+      });
+
       const imovelEnderecoCompleto = joinParts([
         p.endereco,
         p.numero ? `nº ${p.numero}` : '',
@@ -385,7 +411,8 @@ export async function routeProspectAndNotify(
         painel_url: painelUrl
       })
     }
-  } catch {
+  } catch (emailError) {
+    console.error('[prospectRouter] ❌ Falha ao enviar notificação por email:', emailError);
     // Não falhar o roteamento se o e-mail falhar
   }
 

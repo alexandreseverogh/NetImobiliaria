@@ -1,5 +1,6 @@
 // Implementação JWT compatível com Edge Runtime usando Web Crypto API
 import { AUTH_CONFIG } from '@/lib/config/auth'
+import { NextRequest } from 'next/server'
 
 // Configurações JWT
 const JWT_SECRET = AUTH_CONFIG.JWT.SECRET
@@ -22,6 +23,35 @@ export interface JWTPayload {
   iat?: number
   exp?: number
 }
+
+// Interface para tokens
+export interface Tokens {
+  accessToken: string
+  refreshToken: string
+}
+
+/**
+ * Helper function to extract token from NextRequest
+ * Checks in order: Authorization header, accessToken cookie, auth_token cookie
+ */
+export function getTokenFromRequest(request: NextRequest): string | null {
+  // 1. Check Authorization header (Bearer token)
+  const authHeader = request.headers.get('authorization') || ''
+  if (authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7)
+  }
+
+  // 2. Check existing accessToken cookie (backward compatibility)
+  const accessToken = request.cookies.get('accessToken')?.value
+  if (accessToken) return accessToken
+
+  // 3. Check new auth_token cookie (HTTP-only secure cookie)
+  const authToken = request.cookies.get('auth_token')?.value
+  if (authToken) return authToken
+
+  return null
+}
+
 
 // Interface para tokens
 export interface Tokens {
@@ -72,16 +102,16 @@ export async function generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
   const exp = now + (parseInt(JWT_EXPIRES_IN) || 24 * 60 * 60) // 24 horas padrão
-  
+
   const payloadWithTime = {
     ...payload,
     iat: now,
     exp
   }
-  
+
   const headerB64 = arrayBufferToBase64Url(stringToArrayBuffer(JSON.stringify(header)))
   const payloadB64 = arrayBufferToBase64Url(stringToArrayBuffer(JSON.stringify(payloadWithTime)))
-  
+
   const data = headerB64 + '.' + payloadB64
   const key = await crypto.subtle.importKey(
     'raw',
@@ -90,10 +120,10 @@ export async function generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp
     false,
     ['sign']
   )
-  
+
   const signature = await crypto.subtle.sign('HMAC', key, stringToArrayBuffer(data))
   const signatureB64 = arrayBufferToBase64Url(signature)
-  
+
   return data + '.' + signatureB64
 }
 
@@ -102,16 +132,16 @@ export async function generateRefreshToken(payload: Omit<JWTPayload, 'iat' | 'ex
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
   const exp = now + (parseInt(JWT_REFRESH_EXPIRES_IN) || 7 * 24 * 60 * 60) // 7 dias padrão
-  
+
   const payloadWithTime = {
     ...payload,
     iat: now,
     exp
   }
-  
+
   const headerB64 = arrayBufferToBase64Url(stringToArrayBuffer(JSON.stringify(header)))
   const payloadB64 = arrayBufferToBase64Url(stringToArrayBuffer(JSON.stringify(payloadWithTime)))
-  
+
   const data = headerB64 + '.' + payloadB64
   const key = await crypto.subtle.importKey(
     'raw',
@@ -120,10 +150,10 @@ export async function generateRefreshToken(payload: Omit<JWTPayload, 'iat' | 'ex
     false,
     ['sign']
   )
-  
+
   const signature = await crypto.subtle.sign('HMAC', key, stringToArrayBuffer(data))
   const signatureB64 = arrayBufferToBase64Url(signature)
-  
+
   return data + '.' + signatureB64
 }
 
@@ -133,7 +163,7 @@ export async function generateTokens(payload: Omit<JWTPayload, 'iat' | 'exp'>): 
     generateAccessToken(payload),
     generateRefreshToken(payload)
   ])
-  
+
   return {
     accessToken,
     refreshToken
@@ -145,9 +175,9 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
     const parts = token.split('.')
     if (parts.length !== 3) return null
-    
+
     const [headerB64, payloadB64, signatureB64] = parts
-    
+
     // Verificar assinatura
     const data = headerB64 + '.' + payloadB64
     const key = await crypto.subtle.importKey(
@@ -157,20 +187,20 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
       false,
       ['verify']
     )
-    
+
     const signature = base64UrlToArrayBuffer(signatureB64)
     const isValid = await crypto.subtle.verify('HMAC', key, signature, stringToArrayBuffer(data))
-    
+
     if (!isValid) return null
-    
+
     // Decodificar payload
     const payload = JSON.parse(arrayBufferToString(base64UrlToArrayBuffer(payloadB64)))
-    
+
     // Verificar expiração
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
       return null
     }
-    
+
     return payload
   } catch (error) {
     console.error('Erro ao verificar token:', error)
@@ -193,7 +223,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<string |
   try {
     const decoded = await verifyToken(refreshToken)
     if (!decoded) return null
-    
+
     const { userId, username, cargo } = decoded
     return await generateAccessToken({ userId, username, cargo })
   } catch (error) {

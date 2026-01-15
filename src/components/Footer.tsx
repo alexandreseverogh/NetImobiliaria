@@ -19,10 +19,10 @@ export default function Footer() {
               />
             </div>
             <p className="text-gray-300 mb-6 max-w-md">
-              A Net Imobiliária é referência no mercado imobiliário de Recife, 
+              A Net Imobiliária é referência no mercado imobiliário de Recife,
               oferecendo os melhores imóveis com atendimento personalizado e profissional.
             </p>
-            
+
             {/* Social Media */}
             <div className="flex space-x-4">
               <a href="#" className="text-gray-400 hover:text-white transition-colors">
@@ -81,7 +81,7 @@ export default function Footer() {
               </div>
               <div className="flex items-start text-gray-300">
                 <MapPin className="w-4 h-4 mr-3 mt-1 text-primary-400 flex-shrink-0" />
-                <span>Rua Mac Arthur, 123<br />Imbiribeira, Recife - PE<br />CEP: 51.160-070</span>
+                <span>Rua General Mac Arthur, 1852<br />Imbiribeira, Recife - PE<br />CEP: 51.160-070</span>
               </div>
             </div>
           </div>

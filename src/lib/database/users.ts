@@ -161,6 +161,21 @@ export async function createUser(userData: Omit<User, 'id' | 'created_at' | 'upd
         'INSERT INTO user_role_assignments (user_id, role_id, assigned_by) VALUES ($1, $2, $1)',
         [user.id, userData.roleId]
       )
+
+      // Verificar se o perfil exige 2FA e ativar automaticamente
+      try {
+        const roleQuery = 'SELECT requires_2fa FROM user_roles WHERE id = $1'
+        const roleResult = await pool.query(roleQuery, [userData.roleId])
+
+        if (roleResult.rows.length > 0 && roleResult.rows[0].requires_2fa) {
+          console.log(`Perfil ${userData.roleId} exige 2FA. Ativando para usuário ${user.id}...`)
+          await pool.query('UPDATE users SET two_fa_enabled = true WHERE id = $1', [user.id])
+          user.two_fa_enabled = true // Atualizar objeto retornado
+        }
+      } catch (roleError) {
+        console.error('Erro ao verificar requisito de 2FA do perfil:', roleError)
+        // Não falhar a criação do usuário se apenas a verificação de 2FA falhar, mas logar erro
+      }
     }
 
     return user

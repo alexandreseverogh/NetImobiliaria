@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       const decoded: any = jwt.verify(token, jwtSecret)
       const clienteUuid = String(decoded?.userUuid || '')
       const userType = String(decoded?.userType || '')
-      
+
       if (!clienteUuid || userType !== 'cliente') {
         return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
       }
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       // Validar se o token corresponde ao cliente solicitado
       const authHeader = request.headers.get('authorization') || ''
       const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-      
+
       if (!token) {
         return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
       }
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
     // CENÁRIO 3: Parâmetros inválidos
     else {
       return NextResponse.json(
-        { success: false, message: 'Parâmetros inválidos. Informe imovelId (busca única) ou cliente_uuid (listagem).' }, 
+        { success: false, message: 'Parâmetros inválidos. Informe imovelId (busca única) ou cliente_uuid (listagem).' },
         { status: 400 }
       )
     }
@@ -248,39 +248,45 @@ export async function POST(request: NextRequest) {
     // Buscar dados completos do imóvel e cliente para enviar e-mail
     const imovelDataQuery = await pool.query(
       `SELECT 
-        i.codigo,
-        i.titulo,
-        i.preco,
-        i.preco_condominio as condominio,
-        i.preco_iptu as iptu,
-        i.taxa_extra,
-        i.area_total,
-        i.quartos,
-        i.suites,
-        i.banheiros,
-        i.vagas_garagem,
-        i.varanda,
-        i.andar,
-        i.total_andares,
-        i.endereco,
-        i.numero,
-        i.complemento,
-        i.bairro,
-        i.cidade_fk,
-        i.estado_fk,
-        i.cep,
-        fi.nome as finalidade,
-        c.nome as cliente_nome,
-        c.email as cliente_email,
-        c.telefone as cliente_telefone,
-        ip.created_at as data_interesse,
-        ip.preferencia_contato,
-        ip.mensagem
-       FROM imovel_prospects ip
-       INNER JOIN imoveis i ON ip.id_imovel = i.id
-       LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
-       INNER JOIN clientes c ON ip.id_cliente = c.uuid
-       WHERE ip.id = $1`,
+            i.codigo,
+            i.titulo,
+            i.preco,
+            i.preco_condominio as condominio,
+            i.preco_iptu as iptu,
+            i.taxa_extra,
+            i.area_total,
+            i.quartos,
+            i.suites,
+            i.banheiros,
+            i.vagas_garagem,
+            i.varanda,
+            i.andar,
+            i.total_andares,
+            i.endereco,
+            i.numero,
+            i.complemento,
+            i.bairro,
+            i.cidade_fk,
+            i.estado_fk,
+            i.cep,
+            fi.nome as finalidade,
+            c.nome as cliente_nome,
+            c.email as cliente_email,
+            c.telefone as cliente_telefone,
+            ip.created_at as data_interesse,
+            ip.preferencia_contato,
+            ip.mensagem,
+            pr.nome as proprietario_nome,
+            pr.telefone as proprietario_telefone,
+            pr.email as proprietario_email,
+            pr.cpf as proprietario_cpf,
+            pr.endereco as proprietario_endereco
+           FROM imovel_prospects ip
+           INNER JOIN imoveis i ON ip.id_imovel = i.id
+           LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
+           INNER JOIN clientes c ON ip.id_cliente = c.uuid
+           LEFT JOIN proprietarios pr ON i.proprietario_uuid = pr.uuid
+           WHERE ip.id = $1`,
       [prospectId]
     )
 
@@ -288,7 +294,7 @@ export async function POST(request: NextRequest) {
     if (imovelDataQuery.rows.length > 0) {
       try {
         const imovel = imovelDataQuery.rows[0]
-        
+
         // Formatar valores monetários
         const formatCurrency = (value: number | null | undefined): string => {
           if (value === null || value === undefined) return '-'
@@ -324,6 +330,8 @@ export async function POST(request: NextRequest) {
           imovel.cep && `CEP: ${imovel.cep}`
         ].filter(Boolean).join(', ')
 
+        const toStr = (v: any) => v ? String(v).trim() : '-'
+
         // Preparar variáveis para o template
         const emailVariables: Record<string, string> = {
           codigo: imovel.codigo || '-',
@@ -343,16 +351,24 @@ export async function POST(request: NextRequest) {
           andar: imovel.andar?.toString() || '-',
           total_andares: imovel.total_andares?.toString() || '-',
           endereco_completo: enderecoCompleto || 'Endereço não informado',
+
+          // Proprietário
+          proprietario_nome: toStr(imovel.proprietario_nome),
+          proprietario_telefone: toStr(imovel.proprietario_telefone),
+          proprietario_email: toStr(imovel.proprietario_email),
+          proprietario_cpf: toStr(imovel.proprietario_cpf),
+          proprietario_endereco_completo: toStr(imovel.proprietario_endereco),
+
           cliente_nome: imovel.cliente_nome || '-',
           cliente_email: imovel.cliente_email || '-',
           cliente_telefone: imovel.cliente_telefone || '-',
           data_interesse: formatDate(imovel.data_interesse),
-          preferencia_contato: imovel.preferencia_contato 
-            ? (imovel.preferencia_contato === 'telefone' ? 'Telefone' 
-               : imovel.preferencia_contato === 'email' ? 'Email' 
-               : imovel.preferencia_contato === 'whatsapp' ? 'WhatsApp'
-               : imovel.preferencia_contato === 'ambos' ? 'Telefone e Email' 
-               : imovel.preferencia_contato)
+          preferencia_contato: imovel.preferencia_contato
+            ? (imovel.preferencia_contato === 'telefone' ? 'Telefone'
+              : imovel.preferencia_contato === 'email' ? 'Email'
+                : imovel.preferencia_contato === 'whatsapp' ? 'WhatsApp'
+                  : imovel.preferencia_contato === 'ambos' ? 'Telefone e Email'
+                    : imovel.preferencia_contato)
             : 'Não informado',
           mensagem: imovel.mensagem || 'Nenhuma mensagem foi enviada pelo cliente.'
         }
@@ -394,9 +410,9 @@ export async function POST(request: NextRequest) {
       hint: error.hint
     })
     return NextResponse.json(
-      { 
-        success: false, 
-        message: 'Erro ao registrar interesse', 
+      {
+        success: false,
+        message: 'Erro ao registrar interesse',
         error: error.message,
         details: error.detail || error.hint || 'Verifique se a tabela imovel_prospects existe'
       },

@@ -10,8 +10,9 @@ export async function GET(request: Request) {
 
     try {
         // 1. Ler Parâmetros Gerais
-        const paramsRes = await client.query('SELECT proximos_corretores_recebem_leads FROM parametros LIMIT 1');
+        const paramsRes = await client.query('SELECT proximos_corretores_recebem_leads, sla_minutos_aceite_lead FROM parametros LIMIT 1');
         const limitAttempts = parseInt(paramsRes.rows[0]?.proximos_corretores_recebem_leads || '3');
+        const slaMinutos = parseInt(paramsRes.rows[0]?.sla_minutos_aceite_lead || '5');
 
         // 2. Buscar atribuições vencidas (status='atribuido' e expira_em < NOW())
         //    Ignora as que já foram tratadas (status != 'atribuido')
@@ -71,9 +72,13 @@ export async function GET(request: Request) {
                     // 2. Email de Perda (existente)
                     if (item.corretor_email) {
                         try {
+                            // Ler SLA dos parâmetros se não tiver lido antes (a query inicial leu só proximos_corretores)
+                            // Na verdade, vamos ajustar a query inicial para pegar ambos
+
                             await emailService.sendTemplateEmail('lead-expirado', item.corretor_email, {
                                 nome_corretor: item.corretor_nome,
-                                codigo_imovel: item.imovel_codigo || 'N/A'
+                                codigo_imovel: item.imovel_codigo || 'N/A',
+                                sla_minutos: String(slaMinutos || '5')
                             });
                         } catch (emailErr) {
                             console.warn(`[Transbordo] Falha ao enviar email de perda para ${item.corretor_email}:`, emailErr);

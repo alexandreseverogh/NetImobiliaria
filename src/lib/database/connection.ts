@@ -11,20 +11,20 @@ const poolConfig: PoolConfig = {
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
   database: process.env.DB_NAME || 'net_imobiliaria',
-  password: dbPassword || '',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  
+  password: dbPassword || 'postgres',
+  port: parseInt(process.env.DB_PORT || '15432'),
+
   // Configurações de pool para produção
   max: 20, // Máximo de conexões no pool
   idleTimeoutMillis: 30000, // Tempo limite para conexões ociosas
   connectionTimeoutMillis: 10000, // Tempo limite para estabelecer conexão
-  
+
   // Configurações de encoding para UTF-8
   client_encoding: 'UTF8',
-  
+
   // SSL para produção
-  ssl: process.env.NODE_ENV === 'production' 
-    ? { rejectUnauthorized: false } 
+  ssl: process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: false }
     : false
 }
 

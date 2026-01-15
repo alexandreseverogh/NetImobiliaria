@@ -43,7 +43,7 @@ export default function ProprietariosPage() {
   const { get, delete: del } = useApi()
   const [proprietarios, setProprietarios] = useState<Proprietario[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   // Estados dos filtros
   const [filters, setFilters] = useState({
     nome: '',
@@ -52,7 +52,7 @@ export default function ProprietariosPage() {
     cidade: '',
     bairro: ''
   })
-  
+
   const filtersRef = useRef(filters)
 
   // Estados para os dados dos filtros
@@ -61,8 +61,8 @@ export default function ProprietariosPage() {
     filtersRef.current = filters
   }, [filters])
 
-  
-  
+
+
   // Estados de paginação - inicializar com sessionStorage
   const [currentPage, setCurrentPage] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -93,11 +93,11 @@ export default function ProprietariosPage() {
       if (mineCorretor) {
         queryParams.append('mine_corretor', 'true')
       }
-      
+
       // Adicionar filtros à query
       if (filtersToUse.nome) queryParams.append('nome', filtersToUse.nome)
       if (filtersToUse.cpf) queryParams.append('cpf', filtersToUse.cpf)
-      
+
       // Converter estado para nome usando o hook
       if (filtersToUse.estado) {
         const estadoNome = getEstadoNome(filtersToUse.estado)
@@ -105,7 +105,7 @@ export default function ProprietariosPage() {
           queryParams.append('estado', estadoNome)
         }
       }
-      
+
       // Converter cidade para nome usando o hook
       if (filtersToUse.cidade) {
         const cidadeNome = getCidadeNome(filtersToUse.cidade)
@@ -113,22 +113,22 @@ export default function ProprietariosPage() {
           queryParams.append('cidade', cidadeNome)
         }
       }
-      
+
       if (filtersToUse.bairro) queryParams.append('bairro', filtersToUse.bairro)
-      
+
       const response = await get(`/api/admin/proprietarios?${queryParams}`)
-      
+
       if (!response.ok) {
         throw new Error('Erro ao carregar proprietários')
       }
-      
+
       const data: PaginatedResponse = await response.json()
       setProprietarios(data.proprietarios)
       setTotalPages(data.totalPages)
       setTotalItems(data.total)
       setHasNext(data.hasNext)
       setHasPrev(data.hasPrev)
-      
+
       // Salvar página atual no sessionStorage
       sessionStorage.setItem('proprietarios_currentPage', currentPage.toString())
     } catch (error) {
@@ -151,7 +151,7 @@ export default function ProprietariosPage() {
       ...prev,
       [field]: value
     }))
-    
+
     // Reset cidade quando estado muda
     if (field === 'estado') {
       setFilters(prev => ({
@@ -165,10 +165,10 @@ export default function ProprietariosPage() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     setCurrentPage(1)
-    
+
     // Limpar municípios para nova consulta
     clearMunicipios()
-    
+
     // Usar callback para garantir que temos os filtros mais recentes
     setFilters(currentFilters => {
       fetchProprietarios(currentFilters)
@@ -217,6 +217,11 @@ export default function ProprietariosPage() {
 
   const handleFecharCorretorFlow = () => {
     try {
+      // FIX: Evitar que o modal de geolocalização abra novamente ao retornar
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('suppress-geolocation-modal-once', 'true')
+        sessionStorage.setItem('suppress-geolocation-detect-once', 'true')
+      }
       const returnUrl = sessionStorage.getItem('corretor_return_url') || '/landpaging'
       const url = new URL(returnUrl, window.location.origin)
       url.searchParams.set('corretor_home', 'true')
@@ -382,7 +387,7 @@ export default function ProprietariosPage() {
             />
           </div>
         </form>
-        
+
         {/* Botões de ação dos filtros */}
         <div className="flex gap-3 mt-4">
           <button
@@ -439,7 +444,7 @@ export default function ProprietariosPage() {
                       {proprietario.nome}
                     </h3>
                   </div>
-                  
+
                   {/* Segunda linha: ID + data à esquerda, botões à direita */}
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-gray-200 font-medium">
@@ -490,17 +495,17 @@ export default function ProprietariosPage() {
                     <span className="text-sm font-medium text-gray-500">CPF:</span>
                     <span className="text-sm text-gray-900">{formatCPF(proprietario.cpf)}</span>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">Telefone:</span>
                     <span className="text-sm text-gray-900">{formatTelefone(proprietario.telefone)}</span>
                   </div>
-                  
+
                   <div className="flex items-start justify-between">
                     <span className="text-sm font-medium text-gray-500">Email:</span>
                     <span className="text-sm text-gray-900 text-right max-w-[200px] truncate">{proprietario.email || 'Não informado'}</span>
                   </div>
-                  
+
                   {proprietario.endereco && (
                     <div className="flex items-start justify-between">
                       <span className="text-sm font-medium text-gray-500">Endereço:</span>
@@ -509,24 +514,24 @@ export default function ProprietariosPage() {
                       </span>
                     </div>
                   )}
-                  
+
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">Estado:</span>
                     <span className="text-sm text-gray-900">{proprietario.estado_fk || 'Não informado'}</span>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">Cidade:</span>
                     <span className="text-sm text-gray-900">{proprietario.cidade_fk || 'Não informado'}</span>
                   </div>
-                  
+
                   {proprietario.bairro && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-500">Bairro:</span>
                       <span className="text-sm text-gray-900">{proprietario.bairro}</span>
                     </div>
                   )}
-                  
+
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">CEP:</span>
                     <span className="text-sm text-gray-900">{formatCEP(proprietario.cep)}</span>
@@ -559,7 +564,7 @@ export default function ProprietariosPage() {
           </div>
         </div>
       )}
-      
+
       {/* Estatísticas */}
       <div className="mt-8 bg-white rounded-xl shadow-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between">

@@ -53,7 +53,7 @@ export default function HeroSection({ filterPanel, venderButton, destaquesNacion
         </div>
 
         {filterPanel && (
-          <div className="w-full">
+          <div id="filtros-imoveis" className="w-full">
             <div className="max-w-[48000px] px-4 ml-0 lg:ml-4 lg:mr-[280px]">{filterPanel}</div>
           </div>
         )}

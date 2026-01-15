@@ -460,7 +460,7 @@ export async function POST(request: NextRequest) {
     // Log no sistema de monitoramento de segurança
     logSecurityLoginAttempt(ipAddress, userAgent, true, user.id);
 
-    // 10. Retornar resposta de sucesso
+    // 10. Retornar resposta de sucesso com HTTP-only cookie
     const rawFoto = (user as any).foto
     const rawFotoMime = (user as any).foto_tipo_mime || null
     let fotoBase64: string | null = null
@@ -499,7 +499,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    // Create response with token in body
+    const response = NextResponse.json({
       success: true,
       message: 'Login realizado com sucesso',
       data: {
@@ -522,6 +523,19 @@ export async function POST(request: NextRequest) {
         }
       }
     });
+
+    // Set HTTP-only cookie for token persistence
+    response.cookies.set('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: '/'
+    });
+
+    console.log('✅ HTTP-only cookie auth_token set successfully');
+
+    return response;
 
   } catch (error) {
     console.error('❌ Erro no login:', error);
