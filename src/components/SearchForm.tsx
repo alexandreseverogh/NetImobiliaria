@@ -57,6 +57,7 @@ interface SearchFormProps {
   initialEstado?: string // Sigla do estado (ex: 'SP')
   initialCidade?: string // Nome da cidade (ex: 'São Paulo')
   onOperationChange?: (operation: 'DV' | 'DA') => void // Callback quando botão Comprar/Alugar é clicado
+  customOperation?: 'DV' | 'DA' // Prop para controlar operação externamente
 }
 
 const formatCurrency = (value: number) =>
@@ -77,7 +78,8 @@ export default function SearchForm({
   hasActiveFilters,
   initialEstado,
   initialCidade,
-  onOperationChange
+  onOperationChange,
+  customOperation // Prop para controlar operação externamente
 }: SearchFormProps) {
   const [metadata, setMetadata] = useState<MetadataResponse | null>(null)
   const [metadataLoading, setMetadataLoading] = useState(false) // Iniciar como false - só carregar quando necessário
@@ -88,7 +90,14 @@ export default function SearchForm({
   const [selectedEstadoSigla, setSelectedEstadoSigla] = useState('')
   const [selectedCidadeId, setSelectedCidadeId] = useState('')
   const [bairro, setBairro] = useState('')
-  const [operation, setOperation] = useState<'DV' | 'DA'>('DV') // Default: Comprar (azul)
+  const [operation, setOperation] = useState<'DV' | 'DA'>(customOperation || 'DV') // Default: Comprar (azul) ou customizado
+
+  // Sincronizar operação quando prop mudar externamente (ex: botões da landpaging)
+  useEffect(() => {
+    if (customOperation) {
+      setOperation(customOperation)
+    }
+  }, [customOperation])
 
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 0])
   const [areaRange, setAreaRange] = useState<[number, number]>([0, 0])
@@ -138,11 +147,16 @@ export default function SearchForm({
 
     // Aplicar apenas se o initialEstado mudou (não apenas se existe) e estados estão carregados
     if (initialEstado && estados.length > 0) {
-      const estadoEncontrado = estados.find(e => e.sigla === initialEstado)
+      const initialEstadoNorm = initialEstado.trim().toUpperCase()
+      const estadoEncontrado = estados.find(e =>
+        e.sigla.toUpperCase() === initialEstadoNorm ||
+        e.nome.toUpperCase() === initialEstadoNorm
+      )
+
       if (estadoEncontrado) {
         // Aplicar mesmo se já está selecionado, para garantir que está sincronizado
         if (estadoEncontrado.id !== selectedEstadoId || initialEstado !== initialEstadoAppliedRef.current) {
-          console.log('🔍 [SEARCH FORM] Preenchendo estado externamente:', initialEstado, 'ID:', estadoEncontrado.id)
+          console.log('🔍 [SEARCH FORM] Preenchendo estado externamente:', initialEstado, '-> ID:', estadoEncontrado.id)
           setSelectedEstadoId(estadoEncontrado.id)
           setSelectedEstadoSigla(estadoEncontrado.sigla)
           // Resetar ref da cidade para permitir reaplicação quando municípios forem carregados
@@ -189,8 +203,8 @@ export default function SearchForm({
       const nomeCidade = m.nome.toLowerCase().trim()
       const nomeInicial = initialCidade.toLowerCase().trim()
       return nomeCidade === nomeInicial ||
-             nomeCidade.includes(nomeInicial) ||
-             nomeInicial.includes(nomeCidade)
+        nomeCidade.includes(nomeInicial) ||
+        nomeInicial.includes(nomeCidade)
     })
 
     if (cidadeEncontrada) {
@@ -250,7 +264,7 @@ export default function SearchForm({
 
     // Carregar metadados (tipos e ranges) mesmo sem estado selecionado
     // Se não houver estado, o backend calculará as faixas globais
-    
+
     // Performance/UX: quando a cidade vem do modal (initialCidade),
     // esperar um curto período para a cidade ser aplicada antes de buscar metadados,
     // evitando 2 chamadas (estado-only -> estado+cidade).
@@ -284,7 +298,7 @@ export default function SearchForm({
       try {
         setMetadataLoading(true)
         setMetadataError(null)
-        
+
         // IMPORTANTE: Resetar ranges imediatamente quando operation muda para evitar conflitos
         // Isso garante que os sliders não fiquem travados com valores antigos
         setPriceRange([0, 0])
@@ -293,18 +307,18 @@ export default function SearchForm({
         setBanheirosRange([0, 0])
         setSuitesRange([0, 0])
         setVagasRange([0, 0])
-        
+
         // Buscar nome da cidade selecionada (opcional)
         const cidadeSelecionada = selectedCidadeId ? municipios.find(c => c.id === selectedCidadeId) : null
         const cidadeNome = cidadeSelecionada?.nome || ''
-        
+
         console.log('✅ [SEARCH FORM] Carregando metadados para:', {
           estado: selectedEstadoSigla,
           cidade: cidadeNome || 'Não selecionada',
           cidadeId: selectedCidadeId || 'Não selecionada',
           operation
         })
-        
+
         // Construir URL com estado, cidade (opcional), tipo e operation
         const params = new URLSearchParams()
         if (operation) params.append('tipo_destaque', operation)
@@ -314,29 +328,29 @@ export default function SearchForm({
           params.append('cidade', cidadeNome)
         }
         if (selectedTipo) params.append('tipo_id', selectedTipo)
-        
+
         const url = `/api/public/imoveis/filtros?${params.toString()}`
         const response = await fetch(url)
         const json = await response.json()
-        
+
         if (!response.ok || !json.success) {
           throw new Error(json.error || 'Erro ao buscar filtros')
         }
-        
+
         if (!isMounted) return
-        
+
         console.log('✅ [SEARCH FORM] Metadados carregados:', json.metadata)
-        
+
         // Atualizar metadados e ranges apenas após confirmar que a resposta é válida
         // IMPORTANTE: Garantir que os ranges sempre tenham espaço suficiente para o gap mínimo
         setMetadata(json.metadata)
-        
+
         // Quando há apenas 1 imóvel, min e max devem ser iguais
         // Quando há múltiplos imóveis, garantir diferença mínima apenas se necessário
         const priceMin = json.metadata.priceRange.min || 0
         const priceMax = json.metadata.priceRange.max || 0
         const priceGap = 5000 // Gap mínimo para preço
-        
+
         // Se min e max são iguais (apenas 1 imóvel), manter iguais
         // Caso contrário, garantir gap mínimo apenas se necessário
         let validPriceMax = priceMax
@@ -354,12 +368,12 @@ export default function SearchForm({
           })
         }
         setPriceRange([priceMin, validPriceMax])
-        
+
         // Quando há apenas 1 imóvel, min e max devem ser iguais
         const areaMin = json.metadata.areaRange.min || 0
         const areaMax = json.metadata.areaRange.max || 0
         const areaGap = 5 // Gap mínimo para área
-        
+
         // Se min e max são iguais (apenas 1 imóvel), manter iguais
         let validAreaMax = areaMax
         if (areaMin === areaMax) {
@@ -376,7 +390,7 @@ export default function SearchForm({
           })
         }
         setAreaRange([areaMin, validAreaMax])
-        
+
         // Quando há apenas 1 imóvel, todos os ranges devem ter min = max
         const isSingleImovel = priceMin === priceMax && areaMin === areaMax
         setQuartosRange([
@@ -444,13 +458,13 @@ export default function SearchForm({
     metadataRange?: { min: number; max: number }
   ) => {
     const [currentMin, currentMax] = state
-    
+
     // Validar valor contra os limites dos metadados se fornecidos
     let validatedValue = value
     if (metadataRange) {
       validatedValue = Math.max(metadataRange.min, Math.min(value, metadataRange.max))
     }
-    
+
     console.log('🔍 [handleRangeChange]', {
       position,
       value,
@@ -460,20 +474,20 @@ export default function SearchForm({
       minGap,
       metadataRange
     })
-    
+
     if (position === 'min') {
       // Para o mínimo: permitir movimento livre
       const minAllowed = metadataRange ? metadataRange.min : -Infinity
       const maxAllowed = metadataRange ? metadataRange.max : Infinity
-      
+
       // IMPORTANTE: Se a diferença entre max e min dos metadados for menor que o gap mínimo,
       // reduzir o gap mínimo para permitir movimento
       const availableRange = maxAllowed - minAllowed
       const effectiveGap = availableRange < minGap ? Math.max(0, availableRange - 1) : minGap
-      
+
       // Permitir que o novo mínimo seja o valor validado, respeitando os limites dos metadados
       let newMin = Math.max(minAllowed, validatedValue)
-      
+
       // Se o novo mínimo violar o gap mínimo (for maior que currentMax - effectiveGap),
       // ajustar o máximo para manter o gap
       if (newMin > currentMax - effectiveGap) {
@@ -490,15 +504,15 @@ export default function SearchForm({
       // Para o máximo: permitir movimento livre
       const minAllowed = metadataRange ? metadataRange.min : -Infinity
       const maxAllowed = metadataRange ? metadataRange.max : Infinity
-      
+
       // IMPORTANTE: Se a diferença entre max e min dos metadados for menor que o gap mínimo,
       // reduzir o gap mínimo para permitir movimento
       const availableRange = maxAllowed - minAllowed
       const effectiveGap = availableRange < minGap ? Math.max(0, availableRange - 1) : minGap
-      
+
       // Permitir que o novo máximo seja o valor validado, respeitando os limites dos metadados
       let newMax = Math.min(validatedValue, maxAllowed)
-      
+
       // Se o novo máximo violar o gap mínimo (for menor que currentMin + effectiveGap),
       // ajustar o mínimo para manter o gap
       if (newMax < currentMin + effectiveGap) {
@@ -693,18 +707,18 @@ export default function SearchForm({
     try {
       setMetadataLoading(true)
       setMetadataError(null)
-      
+
       // Buscar nome da cidade selecionada (opcional)
       const cidadeSelecionada = selectedCidadeId ? municipios.find(c => c.id === selectedCidadeId) : null
       const cidadeNome = cidadeSelecionada?.nome || ''
-      
+
       // Construir URL com filtros aplicados para recalcular metadados
       const params = new URLSearchParams()
       if (operation) params.append('tipo_destaque', operation)
       if (selectedEstadoSigla) params.append('estado', selectedEstadoSigla)
       if (cidadeNome) params.append('cidade', cidadeNome)
       if (selectedTipo) params.append('tipo_id', selectedTipo)
-      
+
       // Adicionar filtros aplicados (EXCETO preço e área) para recalcular metadados baseados nos imóveis filtrados
       // Não incluímos preço e área porque esses são os valores que queremos calcular
       if (payload.quartosMin !== undefined) params.append('quartosMin', payload.quartosMin.toString())
@@ -716,22 +730,22 @@ export default function SearchForm({
       if (payload.vagasMin !== undefined) params.append('vagasMin', payload.vagasMin.toString())
       if (payload.vagasMax !== undefined) params.append('vagasMax', payload.vagasMax.toString())
       if (payload.bairro) params.append('bairro', payload.bairro)
-      
+
       const url = `/api/public/imoveis/filtros?${params.toString()}`
       const response = await fetch(url)
       const json = await response.json()
-      
+
       if (response.ok && json.success) {
         console.log('✅ [SEARCH FORM] Metadados recalculados após aplicar filtros:', json.metadata)
-        
+
         // Atualizar metadados e ranges com base nos imóveis filtrados
         setMetadata(json.metadata)
-        
+
         // Quando há apenas 1 imóvel, min e max devem ser iguais
         const priceMin = json.metadata.priceRange.min || 0
         const priceMax = json.metadata.priceRange.max || 0
         const priceGap = 5000
-        
+
         let validPriceMax = priceMax
         if (priceMin === priceMax) {
           validPriceMax = priceMax
@@ -739,11 +753,11 @@ export default function SearchForm({
           validPriceMax = priceMin + priceGap
         }
         setPriceRange([priceMin, validPriceMax])
-        
+
         const areaMin = json.metadata.areaRange.min || 0
         const areaMax = json.metadata.areaRange.max || 0
         const areaGap = 5
-        
+
         let validAreaMax = areaMax
         if (areaMin === areaMax) {
           validAreaMax = areaMax
@@ -751,7 +765,7 @@ export default function SearchForm({
           validAreaMax = areaMin + areaGap
         }
         setAreaRange([areaMin, validAreaMax])
-        
+
         // Quando há apenas 1 imóvel, todos os ranges devem ter min = max
         const isSingleImovel = priceMin === priceMax && areaMin === areaMax
         setQuartosRange([
@@ -847,11 +861,10 @@ export default function SearchForm({
             <p className="text-base md:text-lg font-bold tracking-wide text-primary-200">
               Encontre o imóvel da sua preferência
             </p>
-            <span className={`text-sm md:text-base font-extrabold italic tracking-wide ${
-              operation === 'DV' 
-                ? 'text-blue-500 drop-shadow-lg bg-blue-50/30 px-1.5 py-0.5 rounded-lg border border-blue-300/50' 
-                : 'text-green-500 drop-shadow-lg bg-green-50/30 px-1.5 py-0.5 rounded-lg border border-green-300/50'
-            } transition-all duration-300`}>
+            <span className={`text-sm md:text-base font-extrabold italic tracking-wide ${operation === 'DV'
+              ? 'text-blue-500 drop-shadow-lg bg-blue-50/30 px-1.5 py-0.5 rounded-lg border border-blue-300/50'
+              : 'text-green-500 drop-shadow-lg bg-green-50/30 px-1.5 py-0.5 rounded-lg border border-green-300/50'
+              } transition-all duration-300`}>
               - {textoComplementar}
             </span>
           </div>
@@ -866,8 +879,6 @@ export default function SearchForm({
             onClick={() => {
               setOperation('DV')
               onOperationChange?.('DV')
-              // Disparar busca automaticamente quando botão é clicado
-              handleAutoSearch('DV')
             }}
             className="px-4 py-3 text-base font-medium text-white bg-blue-600"
           >
@@ -879,8 +890,6 @@ export default function SearchForm({
             onClick={() => {
               setOperation('DA')
               onOperationChange?.('DA')
-              // Disparar busca automaticamente quando botão é clicado
-              handleAutoSearch('DA')
             }}
             className="px-4 py-3 text-base font-medium text-white bg-green-600"
           >
@@ -893,75 +902,75 @@ export default function SearchForm({
       <form onSubmit={handleSubmit} className="space-y-3">
         {/* Linha principal (sempre visível) — estilo “barra de busca” */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5">
-                Tipo de Imóvel
-              </label>
-              <select
-                value={selectedTipo}
-                onChange={(event) => setSelectedTipo(event.target.value)}
-                disabled={!hasMetadata}
-                className="w-full px-2.5 py-2 text-base border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-              >
-                <option value="">Todos os tipos</option>
-                {metadata?.tipos.map((tipo) => (
-                  <option key={tipo.id} value={tipo.id}>
-                    {tipo.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5">
+              Tipo de Imóvel
+            </label>
+            <select
+              value={selectedTipo}
+              onChange={(event) => setSelectedTipo(event.target.value)}
+              disabled={!hasMetadata}
+              className="w-full px-2.5 py-2 text-base border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+            >
+              <option value="">Todos os tipos</option>
+              {metadata?.tipos.map((tipo) => (
+                <option key={tipo.id} value={tipo.id}>
+                  {tipo.nome}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5">
-                Estado
-              </label>
-              <EstadoSelect
-                value={selectedEstadoId}
-                onChange={handleEstadoChange}
-                placeholder="Todos os estados"
-                className="w-full px-2.5 py-2 text-base border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors"
-                format="sigla-nome"
-                showAllOption={true}
-                allOptionLabel="Todos os estados"
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5">
+              Estado
+            </label>
+            <EstadoSelect
+              value={selectedEstadoId}
+              onChange={handleEstadoChange}
+              placeholder="Todos os estados"
+              className="w-full px-2.5 py-2 text-base border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors"
+              format="sigla-nome"
+              showAllOption={true}
+              allOptionLabel="Todos os estados"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5">
+              Cidade
+            </label>
+            <select
+              value={selectedCidadeId}
+              onChange={(event) => handleCidadeChange(event.target.value)}
+              disabled={!selectedEstadoId || municipios.length === 0}
+              className="w-full px-2.5 py-2 text-base border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+            >
+              <option value="">Todas as cidades</option>
+              {municipios.map((municipio) => (
+                <option key={municipio.id} value={municipio.id}>
+                  {municipio.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5">
+              Bairro
+            </label>
+            <div className="relative">
+              <MapPin className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Digite o bairro"
+                value={bairro}
+                onChange={(event) => setBairro(event.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-base border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors"
               />
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5">
-                Cidade
-              </label>
-              <select
-                value={selectedCidadeId}
-                onChange={(event) => handleCidadeChange(event.target.value)}
-                disabled={!selectedEstadoId || municipios.length === 0}
-                className="w-full px-2.5 py-2 text-base border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-              >
-                <option value="">Todas as cidades</option>
-                {municipios.map((municipio) => (
-                  <option key={municipio.id} value={municipio.id}>
-                    {municipio.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5">
-                Bairro
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Digite o bairro"
-                  value={bairro}
-                  onChange={(event) => setBairro(event.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-base border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors"
-                />
-              </div>
-            </div>
           </div>
+        </div>
 
         {/* Toggle de filtros avançados (sliders) */}
         <button
@@ -984,9 +993,8 @@ export default function SearchForm({
 
         {/* Painel colapsável (filtros avançados) */}
         <div
-          className={`overflow-hidden transition-[max-height,opacity] duration-300 ${
-            showAdvancedFilters ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0'
-          }`}
+          className={`overflow-hidden transition-[max-height,opacity] duration-300 ${showAdvancedFilters ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0'
+            }`}
         >
           <div className="pt-1">
             {/* Mensagem quando não há metadados (filtros avançados dependem disso) */}
@@ -1008,383 +1016,379 @@ export default function SearchForm({
             {/* Sliders — apenas quando há metadados */}
             {hasMetadata && (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[5fr_5fr_3fr_3fr_3fr_3fr] gap-4">
-            {/* Faixa de Valores */}
-            <div className="flex flex-col h-full">
-              <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
-                Faixa de Valores
-              </label>
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
-                <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{formatCurrency(priceRange[0])}</span>
-                  <DollarSign className="w-4 h-4 text-gray-500" />
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{formatCurrency(priceRange[1])}</span>
-                </div>
-                <div className="relative pt-2 pb-1.5 h-[32px] px-[7px] overflow-hidden">
-                  <div className="absolute top-1/2 left-[7px] right-[7px] h-0.5 bg-gray-200 rounded-full" />
-                  <div
-                    className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full"
-                    style={{
-                      left: `calc(7px + ${
-                        ((priceRange[0] - metadata!.priceRange.min) /
-                          Math.max(metadata!.priceRange.max - metadata!.priceRange.min, 1)) *
-                        (100 - 14)
-                      }%)`,
-                      right: priceRange[0] === priceRange[1] && metadata!.priceRange.min === metadata!.priceRange.max
-                        ? `calc(7px + ${(100 - 14) * (1 - ((priceRange[1] - metadata!.priceRange.min) / Math.max(metadata!.priceRange.max - metadata!.priceRange.min, 1)))}%)`
-                        : `calc(7px + ${
-                            (100 -
-                            ((priceRange[1] - metadata!.priceRange.min) /
-                              Math.max(metadata!.priceRange.max - metadata!.priceRange.min, 1)) *
+                {/* Faixa de Valores */}
+                <div className="flex flex-col h-full">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
+                    Faixa de Valores
+                  </label>
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
+                    <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{formatCurrency(priceRange[0])}</span>
+                      <DollarSign className="w-4 h-4 text-gray-500" />
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{formatCurrency(priceRange[1])}</span>
+                    </div>
+                    <div className="relative pt-2 pb-1.5 h-[32px] px-[7px] overflow-hidden">
+                      <div className="absolute top-1/2 left-[7px] right-[7px] h-0.5 bg-gray-200 rounded-full" />
+                      <div
+                        className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full"
+                        style={{
+                          left: `calc(7px + ${((priceRange[0] - metadata!.priceRange.min) /
+                            Math.max(metadata!.priceRange.max - metadata!.priceRange.min, 1)) *
+                            (100 - 14)
+                            }%)`,
+                          right: priceRange[0] === priceRange[1] && metadata!.priceRange.min === metadata!.priceRange.max
+                            ? `calc(7px + ${(100 - 14) * (1 - ((priceRange[1] - metadata!.priceRange.min) / Math.max(metadata!.priceRange.max - metadata!.priceRange.min, 1)))}%)`
+                            : `calc(7px + ${(100 -
+                              ((priceRange[1] - metadata!.priceRange.min) /
+                                Math.max(metadata!.priceRange.max - metadata!.priceRange.min, 1)) *
                               100) *
                             (100 - 14) / 100
-                          }%)`
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.priceRange.min}
-                    max={metadata!.priceRange.max}
-                    step={5000}
-                    value={priceRange[0]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'min', priceRange, setPriceRange, priceRange[0] === priceRange[1] ? 0 : 5000, metadata!.priceRange)
-                    }
-                    className="dual-slider"
-                    style={{ zIndex: priceRange[0] > priceRange[1] ? 5 : 3, left: '7px', right: '7px', width: 'calc(100% - 14px)' }}
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.priceRange.min}
-                    max={metadata!.priceRange.max}
-                    step={5000}
-                    value={priceRange[1]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'max', priceRange, setPriceRange, priceRange[0] === priceRange[1] ? 0 : 5000, metadata!.priceRange)
-                    }
-                    className="dual-slider"
-                    style={{ zIndex: 4, left: '7px', right: '7px', width: 'calc(100% - 14px)' }}
-                  />
+                            }%)`
+                        }}
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.priceRange.min}
+                        max={metadata!.priceRange.max}
+                        step={5000}
+                        value={priceRange[0]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'min', priceRange, setPriceRange, priceRange[0] === priceRange[1] ? 0 : 5000, metadata!.priceRange)
+                        }
+                        className="dual-slider"
+                        style={{ zIndex: priceRange[0] > priceRange[1] ? 5 : 3, left: '7px', right: '7px', width: 'calc(100% - 14px)' }}
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.priceRange.min}
+                        max={metadata!.priceRange.max}
+                        step={5000}
+                        value={priceRange[1]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'max', priceRange, setPriceRange, priceRange[0] === priceRange[1] ? 0 : 5000, metadata!.priceRange)
+                        }
+                        className="dual-slider"
+                        style={{ zIndex: 4, left: '7px', right: '7px', width: 'calc(100% - 14px)' }}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Área Mínima */}
-            <div className="flex flex-col h-full">
-              <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
-                Área Mínima
-              </label>
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
-                <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{formatArea(areaRange[0])}</span>
-                  <Square className="w-4 h-4 text-gray-500" />
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{formatArea(areaRange[1])}</span>
-                </div>
-                <div className="relative pt-2 pb-1.5 h-[32px] px-[7px] overflow-hidden">
-                  <div className="absolute top-1/2 left-[7px] right-[7px] h-0.5 bg-gray-200 rounded-full" />
-                  <div
-                    className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full"
-                    style={{
-                      left: `calc(7px + ${
-                        ((areaRange[0] - metadata!.areaRange.min) /
-                          Math.max(metadata!.areaRange.max - metadata!.areaRange.min, 1)) *
-                        (100 - 14)
-                      }%)`,
-                      right: areaRange[0] === areaRange[1] && metadata!.areaRange.min === metadata!.areaRange.max
-                        ? `calc(7px + ${(100 - 14) * (1 - ((areaRange[1] - metadata!.areaRange.min) / Math.max(metadata!.areaRange.max - metadata!.areaRange.min, 1)))}%)`
-                        : `calc(7px + ${
-                            (100 -
-                            ((areaRange[1] - metadata!.areaRange.min) /
-                              Math.max(metadata!.areaRange.max - metadata!.areaRange.min, 1)) *
+                {/* Área Mínima */}
+                <div className="flex flex-col h-full">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
+                    Área Mínima
+                  </label>
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
+                    <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{formatArea(areaRange[0])}</span>
+                      <Square className="w-4 h-4 text-gray-500" />
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{formatArea(areaRange[1])}</span>
+                    </div>
+                    <div className="relative pt-2 pb-1.5 h-[32px] px-[7px] overflow-hidden">
+                      <div className="absolute top-1/2 left-[7px] right-[7px] h-0.5 bg-gray-200 rounded-full" />
+                      <div
+                        className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full"
+                        style={{
+                          left: `calc(7px + ${((areaRange[0] - metadata!.areaRange.min) /
+                            Math.max(metadata!.areaRange.max - metadata!.areaRange.min, 1)) *
+                            (100 - 14)
+                            }%)`,
+                          right: areaRange[0] === areaRange[1] && metadata!.areaRange.min === metadata!.areaRange.max
+                            ? `calc(7px + ${(100 - 14) * (1 - ((areaRange[1] - metadata!.areaRange.min) / Math.max(metadata!.areaRange.max - metadata!.areaRange.min, 1)))}%)`
+                            : `calc(7px + ${(100 -
+                              ((areaRange[1] - metadata!.areaRange.min) /
+                                Math.max(metadata!.areaRange.max - metadata!.areaRange.min, 1)) *
                               100) *
                             (100 - 14) / 100
-                          }%)`
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.areaRange.min}
-                    max={metadata!.areaRange.max}
-                    step={5}
-                    value={areaRange[0]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'min', areaRange, setAreaRange, areaRange[0] === areaRange[1] ? 0 : 5, metadata!.areaRange)
-                    }
-                    className="dual-slider"
-                    style={{ zIndex: areaRange[0] > areaRange[1] ? 5 : 3, left: '7px', right: '7px', width: 'calc(100% - 14px)' }}
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.areaRange.min}
-                    max={metadata!.areaRange.max}
-                    step={5}
-                    value={areaRange[1]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'max', areaRange, setAreaRange, areaRange[0] === areaRange[1] ? 0 : 5, metadata!.areaRange)
-                    }
-                    className="dual-slider"
-                    style={{ zIndex: 4, left: '7px', right: '7px', width: 'calc(100% - 14px)' }}
-                  />
+                            }%)`
+                        }}
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.areaRange.min}
+                        max={metadata!.areaRange.max}
+                        step={5}
+                        value={areaRange[0]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'min', areaRange, setAreaRange, areaRange[0] === areaRange[1] ? 0 : 5, metadata!.areaRange)
+                        }
+                        className="dual-slider"
+                        style={{ zIndex: areaRange[0] > areaRange[1] ? 5 : 3, left: '7px', right: '7px', width: 'calc(100% - 14px)' }}
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.areaRange.min}
+                        max={metadata!.areaRange.max}
+                        step={5}
+                        value={areaRange[1]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'max', areaRange, setAreaRange, areaRange[0] === areaRange[1] ? 0 : 5, metadata!.areaRange)
+                        }
+                        className="dual-slider"
+                        style={{ zIndex: 4, left: '7px', right: '7px', width: 'calc(100% - 14px)' }}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Quartos */}
-            <div className="flex flex-col h-full">
-              <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
-                Quartos
-              </label>
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
-                <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{quartosRange[0]}</span>
-                  <Bed className="w-4 h-4 text-gray-500" />
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{quartosRange[1]}</span>
+                {/* Quartos */}
+                <div className="flex flex-col h-full">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
+                    Quartos
+                  </label>
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
+                    <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{quartosRange[0]}</span>
+                      <Bed className="w-4 h-4 text-gray-500" />
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{quartosRange[1]}</span>
+                    </div>
+                    <div className="relative pt-2 pb-1.5 h-[32px] overflow-hidden">
+                      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 rounded-full" />
+                      {/* Marcadores verticais para cada número */}
+                      {Array.from({ length: (metadata!.quartosRange?.max || 10) + 1 }, (_, i) => (
+                        <div
+                          key={i}
+                          className="absolute top-1/2 -translate-y-1/2 w-px h-2 bg-gray-400"
+                          style={{
+                            left: `${(i / Math.max(metadata!.quartosRange?.max || 10, 1)) * 100}%`
+                          }}
+                        />
+                      ))}
+                      <div
+                        className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full z-10"
+                        style={{
+                          left: `${((quartosRange[0] - (metadata!.quartosRange?.min || 0)) / Math.max((metadata!.quartosRange?.max || 10) - (metadata!.quartosRange?.min || 0), 1)) * 100}%`,
+                          right: `${100 - ((quartosRange[1] - (metadata!.quartosRange?.min || 0)) / Math.max((metadata!.quartosRange?.max || 10) - (metadata!.quartosRange?.min || 0), 1)) * 100}%`
+                        }}
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.quartosRange?.min || 0}
+                        max={metadata!.quartosRange?.max || 10}
+                        step={1}
+                        value={quartosRange[0]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'min', quartosRange, setQuartosRange, quartosRange[0] === quartosRange[1] ? 0 : 0, metadata!.quartosRange)
+                        }
+                        className="dual-slider"
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.quartosRange?.min || 0}
+                        max={metadata!.quartosRange?.max || 10}
+                        step={1}
+                        value={quartosRange[1]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'max', quartosRange, setQuartosRange, quartosRange[0] === quartosRange[1] ? 0 : 0, metadata!.quartosRange)
+                        }
+                        className="dual-slider"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="relative pt-2 pb-1.5 h-[32px] overflow-hidden">
-                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 rounded-full" />
-                  {/* Marcadores verticais para cada número */}
-                  {Array.from({ length: (metadata!.quartosRange?.max || 10) + 1 }, (_, i) => (
-                    <div
-                      key={i}
-                      className="absolute top-1/2 -translate-y-1/2 w-px h-2 bg-gray-400"
-                      style={{
-                        left: `${(i / Math.max(metadata!.quartosRange?.max || 10, 1)) * 100}%`
-                      }}
-                    />
-                  ))}
-                  <div
-                    className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full z-10"
-                    style={{
-                      left: `${((quartosRange[0] - (metadata!.quartosRange?.min || 0)) / Math.max((metadata!.quartosRange?.max || 10) - (metadata!.quartosRange?.min || 0), 1)) * 100}%`,
-                      right: `${100 - ((quartosRange[1] - (metadata!.quartosRange?.min || 0)) / Math.max((metadata!.quartosRange?.max || 10) - (metadata!.quartosRange?.min || 0), 1)) * 100}%`
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.quartosRange?.min || 0}
-                    max={metadata!.quartosRange?.max || 10}
-                    step={1}
-                    value={quartosRange[0]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'min', quartosRange, setQuartosRange, quartosRange[0] === quartosRange[1] ? 0 : 0, metadata!.quartosRange)
-                    }
-                    className="dual-slider"
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.quartosRange?.min || 0}
-                    max={metadata!.quartosRange?.max || 10}
-                    step={1}
-                    value={quartosRange[1]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'max', quartosRange, setQuartosRange, quartosRange[0] === quartosRange[1] ? 0 : 0, metadata!.quartosRange)
-                    }
-                    className="dual-slider"
-                  />
-                </div>
-              </div>
-            </div>
 
-            {/* Suites */}
-            <div className="flex flex-col h-full">
-              <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
-                Suítes
-              </label>
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
-                <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{suitesRange[0]}</span>
-                  <ShowerHead className="w-4 h-4 text-gray-500" />
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{suitesRange[1]}</span>
+                {/* Suites */}
+                <div className="flex flex-col h-full">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
+                    Suítes
+                  </label>
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
+                    <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{suitesRange[0]}</span>
+                      <ShowerHead className="w-4 h-4 text-gray-500" />
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{suitesRange[1]}</span>
+                    </div>
+                    <div className="relative pt-2 pb-1.5 h-[32px] overflow-hidden">
+                      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 rounded-full" />
+                      {/* Marcadores verticais para cada número */}
+                      {Array.from({ length: (metadata!.suitesRange?.max || 5) + 1 }, (_, i) => (
+                        <div
+                          key={i}
+                          className="absolute top-1/2 -translate-y-1/2 w-px h-2 bg-gray-400"
+                          style={{
+                            left: `${(i / Math.max(metadata!.suitesRange?.max || 5, 1)) * 100}%`
+                          }}
+                        />
+                      ))}
+                      <div
+                        className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full z-10"
+                        style={{
+                          left: `${((suitesRange[0] - (metadata!.suitesRange?.min || 0)) / Math.max((metadata!.suitesRange?.max || 5) - (metadata!.suitesRange?.min || 0), 1)) * 100}%`,
+                          right: `${100 - ((suitesRange[1] - (metadata!.suitesRange?.min || 0)) / Math.max((metadata!.suitesRange?.max || 5) - (metadata!.suitesRange?.min || 0), 1)) * 100}%`
+                        }}
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.suitesRange?.min || 0}
+                        max={metadata!.suitesRange?.max || 5}
+                        step={1}
+                        value={suitesRange[0]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'min', suitesRange, setSuitesRange, suitesRange[0] === suitesRange[1] ? 0 : 0, metadata!.suitesRange)
+                        }
+                        className="dual-slider"
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.suitesRange?.min || 0}
+                        max={metadata!.suitesRange?.max || 5}
+                        step={1}
+                        value={suitesRange[1]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'max', suitesRange, setSuitesRange, suitesRange[0] === suitesRange[1] ? 0 : 0, metadata!.suitesRange)
+                        }
+                        className="dual-slider"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="relative pt-2 pb-1.5 h-[32px] overflow-hidden">
-                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 rounded-full" />
-                  {/* Marcadores verticais para cada número */}
-                  {Array.from({ length: (metadata!.suitesRange?.max || 5) + 1 }, (_, i) => (
-                    <div
-                      key={i}
-                      className="absolute top-1/2 -translate-y-1/2 w-px h-2 bg-gray-400"
-                      style={{
-                        left: `${(i / Math.max(metadata!.suitesRange?.max || 5, 1)) * 100}%`
-                      }}
-                    />
-                  ))}
-                  <div
-                    className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full z-10"
-                    style={{
-                      left: `${((suitesRange[0] - (metadata!.suitesRange?.min || 0)) / Math.max((metadata!.suitesRange?.max || 5) - (metadata!.suitesRange?.min || 0), 1)) * 100}%`,
-                      right: `${100 - ((suitesRange[1] - (metadata!.suitesRange?.min || 0)) / Math.max((metadata!.suitesRange?.max || 5) - (metadata!.suitesRange?.min || 0), 1)) * 100}%`
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.suitesRange?.min || 0}
-                    max={metadata!.suitesRange?.max || 5}
-                    step={1}
-                    value={suitesRange[0]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'min', suitesRange, setSuitesRange, suitesRange[0] === suitesRange[1] ? 0 : 0, metadata!.suitesRange)
-                    }
-                    className="dual-slider"
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.suitesRange?.min || 0}
-                    max={metadata!.suitesRange?.max || 5}
-                    step={1}
-                    value={suitesRange[1]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'max', suitesRange, setSuitesRange, suitesRange[0] === suitesRange[1] ? 0 : 0, metadata!.suitesRange)
-                    }
-                    className="dual-slider"
-                  />
-                </div>
-              </div>
-            </div>
 
-            {/* Banheiros */}
-            <div className="flex flex-col h-full">
-              <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
-                Banheiros
-              </label>
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
-                <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{banheirosRange[0]}</span>
-                  <Bath className="w-4 h-4 text-gray-500" />
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{banheirosRange[1]}</span>
+                {/* Banheiros */}
+                <div className="flex flex-col h-full">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
+                    Banheiros
+                  </label>
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
+                    <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{banheirosRange[0]}</span>
+                      <Bath className="w-4 h-4 text-gray-500" />
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{banheirosRange[1]}</span>
+                    </div>
+                    <div className="relative pt-2 pb-1.5 h-[32px] overflow-hidden">
+                      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 rounded-full" />
+                      {/* Marcadores verticais para cada número */}
+                      {Array.from({ length: (metadata!.banheirosRange?.max || 10) + 1 }, (_, i) => (
+                        <div
+                          key={i}
+                          className="absolute top-1/2 -translate-y-1/2 w-px h-2 bg-gray-400"
+                          style={{
+                            left: `${(i / Math.max(metadata!.banheirosRange?.max || 10, 1)) * 100}%`
+                          }}
+                        />
+                      ))}
+                      <div
+                        className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full z-10"
+                        style={{
+                          left: `${((banheirosRange[0] - (metadata!.banheirosRange?.min || 0)) / Math.max((metadata!.banheirosRange?.max || 10) - (metadata!.banheirosRange?.min || 0), 1)) * 100}%`,
+                          right: `${100 - ((banheirosRange[1] - (metadata!.banheirosRange?.min || 0)) / Math.max((metadata!.banheirosRange?.max || 10) - (metadata!.banheirosRange?.min || 0), 1)) * 100}%`
+                        }}
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.banheirosRange?.min || 0}
+                        max={metadata!.banheirosRange?.max || 10}
+                        step={1}
+                        value={banheirosRange[0]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'min', banheirosRange, setBanheirosRange, banheirosRange[0] === banheirosRange[1] ? 0 : 0, metadata!.banheirosRange)
+                        }
+                        className="dual-slider"
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.banheirosRange?.min || 0}
+                        max={metadata!.banheirosRange?.max || 10}
+                        step={1}
+                        value={banheirosRange[1]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'max', banheirosRange, setBanheirosRange, banheirosRange[0] === banheirosRange[1] ? 0 : 0, metadata!.banheirosRange)
+                        }
+                        className="dual-slider"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="relative pt-2 pb-1.5 h-[32px] overflow-hidden">
-                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 rounded-full" />
-                  {/* Marcadores verticais para cada número */}
-                  {Array.from({ length: (metadata!.banheirosRange?.max || 10) + 1 }, (_, i) => (
-                    <div
-                      key={i}
-                      className="absolute top-1/2 -translate-y-1/2 w-px h-2 bg-gray-400"
-                      style={{
-                        left: `${(i / Math.max(metadata!.banheirosRange?.max || 10, 1)) * 100}%`
-                      }}
-                    />
-                  ))}
-                  <div
-                    className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full z-10"
-                    style={{
-                      left: `${((banheirosRange[0] - (metadata!.banheirosRange?.min || 0)) / Math.max((metadata!.banheirosRange?.max || 10) - (metadata!.banheirosRange?.min || 0), 1)) * 100}%`,
-                      right: `${100 - ((banheirosRange[1] - (metadata!.banheirosRange?.min || 0)) / Math.max((metadata!.banheirosRange?.max || 10) - (metadata!.banheirosRange?.min || 0), 1)) * 100}%`
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.banheirosRange?.min || 0}
-                    max={metadata!.banheirosRange?.max || 10}
-                    step={1}
-                    value={banheirosRange[0]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'min', banheirosRange, setBanheirosRange, banheirosRange[0] === banheirosRange[1] ? 0 : 0, metadata!.banheirosRange)
-                    }
-                    className="dual-slider"
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.banheirosRange?.min || 0}
-                    max={metadata!.banheirosRange?.max || 10}
-                    step={1}
-                    value={banheirosRange[1]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'max', banheirosRange, setBanheirosRange, banheirosRange[0] === banheirosRange[1] ? 0 : 0, metadata!.banheirosRange)
-                    }
-                    className="dual-slider"
-                  />
-                </div>
-              </div>
-            </div>
 
-            {/* Garagem */}
-            <div className="flex flex-col h-full">
-              <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
-                Garagem
-              </label>
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
-                <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{vagasRange[0]}</span>
-                  <Car className="w-4 h-4 text-gray-500" />
-                  <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{vagasRange[1]}</span>
+                {/* Garagem */}
+                <div className="flex flex-col h-full">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 tracking-wide pl-2.5 h-[20px]">
+                    Garagem
+                  </label>
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-300/50 shadow-inner p-2 flex-1 flex flex-col min-h-[80px]">
+                    <div className="flex items-center justify-between text-xs font-bold text-gray-800 mb-1.5 h-[24px]">
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{vagasRange[0]}</span>
+                      <Car className="w-4 h-4 text-gray-500" />
+                      <span className="bg-white px-2 py-1 rounded text-xs shadow-sm">{vagasRange[1]}</span>
+                    </div>
+                    <div className="relative pt-2 pb-1.5 h-[32px] overflow-hidden">
+                      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 rounded-full" />
+                      {/* Marcadores verticais para cada número */}
+                      {Array.from({ length: (metadata!.vagasRange?.max || 5) + 1 }, (_, i) => (
+                        <div
+                          key={i}
+                          className="absolute top-1/2 -translate-y-1/2 w-px h-2 bg-gray-400"
+                          style={{
+                            left: `${(i / Math.max(metadata!.vagasRange?.max || 5, 1)) * 100}%`
+                          }}
+                        />
+                      ))}
+                      <div
+                        className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full z-10"
+                        style={{
+                          left: `${((vagasRange[0] - (metadata!.vagasRange?.min || 0)) / Math.max((metadata!.vagasRange?.max || 5) - (metadata!.vagasRange?.min || 0), 1)) * 100}%`,
+                          right: `${100 - ((vagasRange[1] - (metadata!.vagasRange?.min || 0)) / Math.max((metadata!.vagasRange?.max || 5) - (metadata!.vagasRange?.min || 0), 1)) * 100}%`
+                        }}
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.vagasRange?.min || 0}
+                        max={metadata!.vagasRange?.max || 5}
+                        step={1}
+                        value={vagasRange[0]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'min', vagasRange, setVagasRange, vagasRange[0] === vagasRange[1] ? 0 : 0, metadata!.vagasRange)
+                        }
+                        className="dual-slider"
+                      />
+                      <input
+                        type="range"
+                        min={metadata!.vagasRange?.min || 0}
+                        max={metadata!.vagasRange?.max || 5}
+                        step={1}
+                        value={vagasRange[1]}
+                        onChange={(event) =>
+                          handleRangeChange(Number(event.target.value), 'max', vagasRange, setVagasRange, vagasRange[0] === vagasRange[1] ? 0 : 0, metadata!.vagasRange)
+                        }
+                        className="dual-slider"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="relative pt-2 pb-1.5 h-[32px] overflow-hidden">
-                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 rounded-full" />
-                  {/* Marcadores verticais para cada número */}
-                  {Array.from({ length: (metadata!.vagasRange?.max || 5) + 1 }, (_, i) => (
-                    <div
-                      key={i}
-                      className="absolute top-1/2 -translate-y-1/2 w-px h-2 bg-gray-400"
-                      style={{
-                        left: `${(i / Math.max(metadata!.vagasRange?.max || 5, 1)) * 100}%`
-                      }}
-                    />
-                  ))}
-                  <div
-                    className="absolute top-1/2 h-0.5 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 rounded-full z-10"
-                    style={{
-                      left: `${((vagasRange[0] - (metadata!.vagasRange?.min || 0)) / Math.max((metadata!.vagasRange?.max || 5) - (metadata!.vagasRange?.min || 0), 1)) * 100}%`,
-                      right: `${100 - ((vagasRange[1] - (metadata!.vagasRange?.min || 0)) / Math.max((metadata!.vagasRange?.max || 5) - (metadata!.vagasRange?.min || 0), 1)) * 100}%`
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.vagasRange?.min || 0}
-                    max={metadata!.vagasRange?.max || 5}
-                    step={1}
-                    value={vagasRange[0]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'min', vagasRange, setVagasRange, vagasRange[0] === vagasRange[1] ? 0 : 0, metadata!.vagasRange)
-                    }
-                    className="dual-slider"
-                  />
-                  <input
-                    type="range"
-                    min={metadata!.vagasRange?.min || 0}
-                    max={metadata!.vagasRange?.max || 5}
-                    step={1}
-                    value={vagasRange[1]}
-                    onChange={(event) =>
-                      handleRangeChange(Number(event.target.value), 'max', vagasRange, setVagasRange, vagasRange[0] === vagasRange[1] ? 0 : 0, metadata!.vagasRange)
-                    }
-                    className="dual-slider"
-                  />
-                </div>
-              </div>
-            </div>
               </div>
             )}
           </div>
         </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={handleClear}
-              className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-orange-100 to-red-50 border-2 border-orange-300 rounded-xl font-semibold text-base text-orange-800 hover:from-orange-200 hover:to-red-100 hover:border-orange-400 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-orange-100 disabled:hover:to-red-50 disabled:hover:border-orange-300 flex items-center justify-center gap-2"
-              disabled={isSearching}
-            >
-              <X className="w-4 h-4" />
-              Limpar Filtros
-            </button>
-            <button
-              type="submit"
-              disabled={disableApplyButton}
-              className="w-full sm:w-auto bg-gradient-to-r from-blue-400 to-indigo-500 border-2 border-blue-500 text-white hover:from-blue-500 hover:to-indigo-600 hover:border-blue-600 hover:shadow-lg disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-500 disabled:border-gray-400 disabled:cursor-not-allowed font-semibold py-2.5 px-6 rounded-xl transition-all duration-200 flex items-center justify-center text-base shadow-md hover:shadow-xl"
-            >
-              {isSearching ? (
-                <span className="flex items-center gap-1.5">
-                  <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                  Buscando...
-                </span>
-              ) : (
-                <>
-                  <Search className="w-4 h-4 mr-2" />
-                  Aplicar Filtros
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+        <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5">
+          <button
+            type="button"
+            onClick={handleClear}
+            className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-orange-100 to-red-50 border-2 border-orange-300 rounded-xl font-semibold text-base text-orange-800 hover:from-orange-200 hover:to-red-100 hover:border-orange-400 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-orange-100 disabled:hover:to-red-50 disabled:hover:border-orange-300 flex items-center justify-center gap-2"
+            disabled={isSearching}
+          >
+            <X className="w-4 h-4" />
+            Limpar Filtros
+          </button>
+          <button
+            type="submit"
+            disabled={disableApplyButton}
+            className="w-full sm:w-auto bg-gradient-to-r from-blue-400 to-indigo-500 border-2 border-blue-500 text-white hover:from-blue-500 hover:to-indigo-600 hover:border-blue-600 hover:shadow-lg disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-500 disabled:border-gray-400 disabled:cursor-not-allowed font-semibold py-2.5 px-6 rounded-xl transition-all duration-200 flex items-center justify-center text-base shadow-md hover:shadow-xl"
+          >
+            {isSearching ? (
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                Buscando...
+              </span>
+            ) : (
+              <>
+                <Search className="w-4 h-4 mr-2" />
+                Aplicar Filtros
+              </>
+            )}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

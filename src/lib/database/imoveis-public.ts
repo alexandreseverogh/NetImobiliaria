@@ -59,7 +59,8 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
   let paramIndex = 1
 
   const where: string[] = [
-    'i.ativo = true'
+    'i.ativo = true',
+    'i.status_fk != 100' // Excluir explicitamente status 100 (solicitação do usuário)
   ]
 
   if (filters.tipoIds && filters.tipoIds.length > 0) {

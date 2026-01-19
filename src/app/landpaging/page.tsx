@@ -1174,7 +1174,7 @@ export default function LandingPage() {
     }
 
     carregarImoveis()
-  }, [tipoDestaque, mostrarDestaquesNacional, searchFormEstado, searchFormCidade, lastFilters?.estado, lastFilters?.cidade, reloadNonce, initialHydrated])
+  }, [mostrarDestaquesNacional, searchFormEstado, searchFormCidade, lastFilters?.estado, lastFilters?.cidade, reloadNonce, initialHydrated])
 
   const mapToPropertyCard = useCallback((imovel: any): PropertyCard => {
     const estado = estados.find((state) => state.sigla === imovel.estado_fk)
@@ -1557,16 +1557,20 @@ export default function LandingPage() {
             // Converter para PropertyCard
             const imoveisNacional = destaqueData.imoveis.map(mapToPropertyCard)
 
+            // IMPORTANTE: Setar flags de estado ANTES de setar os resultados
+            // Isso evita que o componente renderize "Resultados" (que parecem locais)
+            // antes de saber que são "Nacionais", prevenindo títulos incorretos (ex: "Maranhão" em lista de SP)
+            setUsadoFallbackNacional(true) // Marcar que foi usado fallback nacional
+            setMostrarDestaquesNacional(true) // Ativar flag para exibir título correto
+            setFiltersActive(true)
+
             setFilteredResults(imoveisNacional)
             setFilteredPagination({
               page: 1,
               total: imoveisNacional.length,
               totalPages: 1
             })
-            setFiltersActive(true)
             setLastFilters(filters)
-            setUsadoFallbackNacional(true) // Marcar que foi usado fallback nacional
-            setMostrarDestaquesNacional(true) // Ativar flag para exibir título correto
           }
         }, 6000) // 6 segundos
 
@@ -2081,6 +2085,7 @@ export default function LandingPage() {
               setTipoDestaque(operation)
               setCurrentPage(1) // Reset página ao trocar
             }}
+            customOperation={tipoDestaque}
           />
         }
       />
@@ -2700,8 +2705,24 @@ export default function LandingPage() {
         region={detectedRegion || undefined}
         country={detectedCountry || undefined}
         loading={geolocationLoading}
-        onConfirmLocation={async (estadoSigla, cidadeNome) => {
-          console.log('✅ [LANDING PAGE] Confirmando localização detectada:', estadoSigla, cidadeNome)
+        onConfirmLocation={async (estadoSiglaOrName, cidadeNome) => {
+          console.log('✅ [LANDING PAGE] Confirmando localização detectada (raw):', estadoSiglaOrName, cidadeNome)
+
+          // Normalizar estado para Sigla (ex: "Pernambuco" -> "PE")
+          let estadoSigla = estadoSiglaOrName
+          if (estados && estados.length > 0) {
+            const estadoMatch = estados.find(e =>
+              e.sigla.toUpperCase() === estadoSiglaOrName.toUpperCase() ||
+              e.nome.toUpperCase() === estadoSiglaOrName.toUpperCase()
+            )
+            if (estadoMatch) {
+              console.log('✅ [LANDING PAGE] Estado normalizado:', estadoSiglaOrName, '->', estadoMatch.sigla)
+              estadoSigla = estadoMatch.sigla
+            }
+          }
+
+          console.log('✅ [LANDING PAGE] Localização final para uso:', estadoSigla, cidadeNome)
+
           // Marcar que localização foi confirmada ANTES de setar valores (usando ref para evitar timing issues)
           locationConfirmedRef.current = true
 
@@ -2791,8 +2812,24 @@ export default function LandingPage() {
 
           console.log('✅ [LANDING PAGE] Valores setados, locationConfirmedRef:', locationConfirmedRef.current)
         }}
-        onSelectOtherLocation={async (estadoSigla, cidadeNome) => {
-          console.log('✅ [LANDING PAGE] Selecionando localização manual:', estadoSigla, cidadeNome)
+        onSelectOtherLocation={async (estadoSiglaOrName, cidadeNome) => {
+          console.log('✅ [LANDING PAGE] Selecionando localização manual (raw):', estadoSiglaOrName, cidadeNome)
+
+          // Normalizar estado para Sigla (ex: "Pernambuco" -> "PE")
+          let estadoSigla = estadoSiglaOrName
+          if (estados && estados.length > 0) {
+            const estadoMatch = estados.find(e =>
+              e.sigla.toUpperCase() === estadoSiglaOrName.toUpperCase() ||
+              e.nome.toUpperCase() === estadoSiglaOrName.toUpperCase()
+            )
+            if (estadoMatch) {
+              console.log('✅ [LANDING PAGE] Estado normalizado (manual):', estadoSiglaOrName, '->', estadoMatch.sigla)
+              estadoSigla = estadoMatch.sigla
+            }
+          }
+
+          console.log('✅ [LANDING PAGE] Localização manual final:', estadoSigla, cidadeNome)
+
           // Marcar que localização foi confirmada ANTES de setar valores (usando ref para evitar timing issues)
           locationConfirmedRef.current = true
 
