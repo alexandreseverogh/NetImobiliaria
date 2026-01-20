@@ -302,35 +302,55 @@ export async function routeProspectAndNotify(
     return { success: false, reason: 'Falha ao criar atribuição' }
   }
 
+  // Helpers de formatação (movidos para escopo externo para reuso)
+  const formatCurrency = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return '-'
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+  }
+  const yn = (v: any): string => (v === true ? 'Sim' : v === false ? 'Não' : '-')
+  const toStr = (v: any): string => {
+    if (v === null || v === undefined) return '-'
+    const s = String(v).trim()
+    return s ? s : '-'
+  }
+  const formatDateTime = (value: any): string => {
+    if (!value) return '-'
+    try {
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return '-'
+      const dd = String(d.getDate()).padStart(2, '0')
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const yyyy = d.getFullYear()
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mi = String(d.getMinutes()).padStart(2, '0')
+      return `${dd}/${mm}/${yyyy} ${hh}:${mi}`
+    } catch {
+      return '-'
+    }
+  }
+  const joinParts = (parts: Array<any>) => parts.map((x) => String(x || '').trim()).filter(Boolean).join(', ')
+
+  const imovelEnderecoCompleto = joinParts([
+    p.endereco,
+    p.numero ? `nº ${p.numero}` : '',
+    p.complemento,
+    p.bairro,
+    p.cidade_fk,
+    p.estado_fk,
+    p.cep ? `CEP: ${p.cep}` : ''
+  ])
+  const proprietarioEnderecoCompleto = joinParts([
+    p.proprietario_endereco,
+    p.proprietario_numero ? `nº ${p.proprietario_numero}` : '',
+    p.proprietario_complemento,
+    p.proprietario_bairro,
+    p.proprietario_cidade,
+    p.proprietario_estado,
+    p.proprietario_cep ? `CEP: ${p.proprietario_cep}` : ''
+  ])
+
   // Enviar email ao corretor (aceite necessário)
   try {
-    const formatCurrency = (value: number | null | undefined): string => {
-      if (value === null || value === undefined) return '-'
-      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-    }
-    const yn = (v: any): string => (v === true ? 'Sim' : v === false ? 'Não' : '-')
-    const toStr = (v: any): string => {
-      if (v === null || v === undefined) return '-'
-      const s = String(v).trim()
-      return s ? s : '-'
-    }
-    const formatDateTime = (value: any): string => {
-      if (!value) return '-'
-      try {
-        const d = new Date(value)
-        if (Number.isNaN(d.getTime())) return '-'
-        const dd = String(d.getDate()).padStart(2, '0')
-        const mm = String(d.getMonth() + 1).padStart(2, '0')
-        const yyyy = d.getFullYear()
-        const hh = String(d.getHours()).padStart(2, '0')
-        const mi = String(d.getMinutes()).padStart(2, '0')
-        return `${dd}/${mm}/${yyyy} ${hh}:${mi}`
-      } catch {
-        return '-'
-      }
-    }
-    const joinParts = (parts: Array<any>) => parts.map((x) => String(x || '').trim()).filter(Boolean).join(', ')
-
     // Se o corretor não tiver e-mail, não disparar (evita tentativas inúteis).
     if (broker.email && String(broker.email).trim()) {
       // Link seguro: passa por /corretor/entrar (sem token na URL) e redireciona após login
@@ -347,26 +367,20 @@ export async function routeProspectAndNotify(
         cpf: p.proprietario_cpf
       });
 
-      const imovelEnderecoCompleto = joinParts([
-        p.endereco,
-        p.numero ? `nº ${p.numero}` : '',
-        p.complemento,
-        p.bairro,
-        p.cidade_fk,
-        p.estado_fk,
-        p.cep ? `CEP: ${p.cep}` : ''
-      ])
-      const proprietarioEnderecoCompleto = joinParts([
-        p.proprietario_endereco,
-        p.proprietario_numero ? `nº ${p.proprietario_numero}` : '',
-        p.proprietario_complemento,
-        p.proprietario_bairro,
-        p.proprietario_cidade,
-        p.proprietario_estado,
-        p.proprietario_cep ? `CEP: ${p.proprietario_cep}` : ''
-      ])
+      // Lógica de condicional do assunto (solicitação do usuário)
+      // Se for plantonista (ou auto-aceite), remove msg de "aceite necessário"
+      const aceiteMsg = (status === 'aceito') ? '' : '(aceite necessário)'
+
+      // Lógica de condicional de instrução
+      // Se for plantonista, suprime a instrução "acesse o painel e aceite o lead"
+      const instructionMsg = (status === 'aceito')
+        ? ''
+        : 'Para iniciar o atendimento, acesse o painel e <strong>aceite o lead</strong>.'
+
       await emailService.sendTemplateEmail(templateName, broker.email, {
         corretor_nome: broker.nome || 'Corretor',
+        aceite_msg: aceiteMsg,
+        instruction_msg: instructionMsg,
         // Bloco 1: Imóvel (steps 1 e 2)
         codigo: toStr(p.codigo),
         titulo: toStr(p.titulo),
@@ -410,6 +424,63 @@ export async function routeProspectAndNotify(
         mensagem: toStr(p.mensagem || 'Sem mensagem'),
         painel_url: painelUrl
       })
+    }
+
+    // ---------------------------------------------------------------------
+    // Notificação ao Cliente (Auto-Aceite)
+    // Se o status já nasceu 'aceito' (ex: Plantonista ou Dono do Imóvel),
+    // o cliente deve saber IMEDIATAMENTE quem é o corretor.
+    // (No caso manual, isso é feito em accept/route.ts)
+    // ---------------------------------------------------------------------
+    if (status === 'aceito' && p.cliente_email) {
+      console.log(`[prospectRouter] 📧 Enviando notificação para CLIENTE (Auto-Aceite) - ${p.cliente_email}`);
+      try {
+        // Precisamos buscar dados extras do corretor (foto, telefone, creci) que não temos completos em 'broker' (RoutedBroker)
+        // RoutedBroker tem apenas ID, Nome, Email.
+        // Fazer query rápida para enriquecer
+        const corretorDetailsRes = await pool.query('SELECT telefone, creci, foto FROM users WHERE id = $1', [broker.id]);
+        const cDetails = corretorDetailsRes.rows[0] || {};
+
+        await emailService.sendTemplateEmail(
+          'lead_accepted_client_notification',
+          p.cliente_email,
+          {
+            cliente_nome: p.cliente_nome || 'Cliente',
+            imovel_titulo: toStr(p.titulo),
+            imovel_codigo: toStr(p.codigo),
+            corretor_nome: broker.nome || 'Corretor', // Aqui já é o nome real do user
+            corretor_telefone: cDetails.telefone || toStr(broker.email),
+            corretor_email: broker.email || '',
+            corretor_creci: cDetails.creci || '-',
+            year: new Date().getFullYear().toString(),
+            // Dados enriquecidos do template
+            preco: formatCurrency(p.preco),
+            endereco_completo: imovelEnderecoCompleto || '-',
+            cidade_estado: `${toStr(p.cidade_fk)} / ${toStr(p.estado_fk)}`,
+            area_total: p.area_total !== null && p.area_total !== undefined ? `${p.area_total} m²` : '-',
+            quartos: p.quartos !== null && p.quartos !== undefined ? String(p.quartos) : '-',
+            suites: p.suites !== null && p.suites !== undefined ? String(p.suites) : '-',
+            vagas_garagem: p.vagas_garagem !== null && p.vagas_garagem !== undefined ? String(p.vagas_garagem) : '-',
+
+            proprietario_nome: toStr(p.proprietario_nome),
+            proprietario_cpf: toStr(p.proprietario_cpf),
+            proprietario_telefone: toStr(p.proprietario_telefone),
+            proprietario_email: toStr(p.proprietario_email),
+            proprietario_endereco: proprietarioEnderecoCompleto || '-',
+
+            data_interesse: formatDateTime(p.data_interesse),
+            preferencia_contato: toStr(p.preferencia_contato || 'Não informado'),
+            mensagem: toStr(p.mensagem || 'Sem mensagem')
+          },
+          cDetails.foto ? [{
+            filename: 'broker.jpg',
+            content: cDetails.foto,
+            cid: 'broker_photo'
+          }] : []
+        );
+      } catch (clientEmailErr) {
+        console.error('[prospectRouter] ❌ Erro ao notificar cliente (Auto-Aceite):', clientEmailErr);
+      }
     }
   } catch (emailError) {
     console.error('[prospectRouter] ❌ Falha ao enviar notificação por email:', emailError);

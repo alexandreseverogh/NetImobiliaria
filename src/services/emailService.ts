@@ -319,10 +319,24 @@ const emailService = {
   async sendTemplateEmail(
     templateName: string,
     to: string,
-    variables: Record<string, string>
+    variables: Record<string, string>,
+    attachments?: Attachment[]
   ): Promise<boolean> {
     await ensureInitialized();
-    return emailServiceInstance.sendTemplateEmail(templateName, to, variables);
+    return emailServiceInstance.sendTemplateEmail(templateName, to, variables, attachments);
+  },
+
+  /**
+   * Envia email simples sem template
+   */
+  async sendSimpleEmail(
+    to: string,
+    subject: string,
+    htmlContent: string,
+    textContent?: string
+  ): Promise<boolean> {
+    await ensureInitialized();
+    return emailServiceInstance.sendSimpleEmail(to, subject, htmlContent, textContent);
   },
 
   /**

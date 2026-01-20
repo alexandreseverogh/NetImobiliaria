@@ -4,59 +4,36 @@ import { pool } from '@/lib/database/connection'
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
-    try {
-        const { nome, telefone, email, mensagem } = await request.json()
+  try {
+    const { nome, telefone, email, mensagem } = await request.json()
 
-        // Validação
-        if (!nome || !telefone || !email || !mensagem) {
-            return NextResponse.json(
-                { success: false, error: 'Todos os campos são obrigatórios' },
-                { status: 400 }
-            )
-        }
+    // Validação
+    if (!nome || !telefone || !email || !mensagem) {
+      return NextResponse.json(
+        { success: false, error: 'Todos os campos são obrigatórios' },
+        { status: 400 }
+      )
+    }
 
-        // Buscar configurações de e-mail
-        const client = await pool.connect()
-        try {
-            // Buscar e-mail de destino (mesmo usado para "Tenho Interesse")
-            const settingsResult = await client.query(`
-        SELECT valor 
-        FROM parametros_sistema 
-        WHERE chave = 'email_notificacao_leads'
-      `)
+    console.log(`[API Contato] Recebendo mensagem de: ${nome} (${email})`);
 
-            const emailDestino = settingsResult.rows[0]?.valor || 'contato@netimobiliaria.com.br'
+    // Importar serviço de e-mail (Lazy load para evitar circular dependencies se houver)
+    const { default: emailService } = await import('@/services/emailService');
 
-            // Buscar configurações SMTP
-            const smtpResult = await client.query('SELECT * FROM email_settings LIMIT 1')
-            const smtpConfig = smtpResult.rows[0]
+    // Definir destinatário (Fallback seguro)
+    // Idealmente, isso viria de uma variável de ambiente ou parâmetro de sistema validado.
+    // Vou manter o padrão que vi no código anterior como fallback.
+    const emailDestino = process.env.EMAIL_CONTACT_DESTINATION || 'alexandreseverog@gmail.com';
 
-            if (!smtpConfig) {
-                throw new Error('Configurações de e-mail não encontradas')
-            }
-
-            // Criar transporter do nodemailer
-            const nodemailer = require('nodemailer')
-            const transporter = nodemailer.createTransport({
-                host: smtpConfig.smtp_host,
-                port: smtpConfig.smtp_port,
-                secure: smtpConfig.smtp_secure,
-                auth: {
-                    user: smtpConfig.smtp_user,
-                    pass: smtpConfig.smtp_password
-                }
-            })
-
-            // Enviar e-mail
-            await transporter.sendMail({
-                from: `"${smtpConfig.from_name}" <${smtpConfig.from_email}>`,
-                to: emailDestino,
-                subject: `Novo Contato do Site - ${nome}`,
-                html: `
+    // Construir corpo do e-mail
+    const subject = `Novo Contato do Site - ${nome}`;
+    const htmlBody = `
           <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
               <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-                <h2 style="color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">Novo Contato Recebido</h2>
+                <div style="background: linear-gradient(135deg, #0f172a 0%, #111827 100%); padding: 15px; margin: -20px -20px 20px -20px; border-radius: 8px 8px 0 0; color: white;">
+                    <h2 style="margin: 0; font-size: 18px;">Novo Contato Recebido</h2>
+                </div>
                 
                 <div style="margin: 20px 0;">
                   <p style="margin: 10px 0;"><strong>Nome:</strong> ${nome}</p>
@@ -75,18 +52,20 @@ export async function POST(request: NextRequest) {
               </div>
             </body>
           </html>
-        `
-            })
+        `;
 
-            return NextResponse.json({ success: true })
-        } finally {
-            client.release()
-        }
-    } catch (error: any) {
-        console.error('❌ [API Contato] Erro ao enviar e-mail:', error)
-        return NextResponse.json(
-            { success: false, error: 'Erro ao enviar mensagem' },
-            { status: 500 }
-        )
-    }
+    // Enviar
+    await emailService.sendSimpleEmail(emailDestino, subject, htmlBody);
+
+    console.log(`[API Contato] E-mail enviado com sucesso para ${emailDestino}`);
+
+    return NextResponse.json({ success: true })
+
+  } catch (error: any) {
+    console.error('❌ [API Contato] Erro ao enviar e-mail:', error)
+    return NextResponse.json(
+      { success: false, error: 'Erro ao enviar mensagem' },
+      { status: 500 }
+    )
+  }
 }
