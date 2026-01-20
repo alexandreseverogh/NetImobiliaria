@@ -4,11 +4,11 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import EstadoSelect from '@/components/shared/EstadoSelect'
-import { 
-  MapPin, 
-  Plus, 
-  Trash2, 
-  ArrowLeft, 
+import {
+  MapPin,
+  Plus,
+  Trash2,
+  ArrowLeft,
   AlertCircle,
   Loader2,
   CheckCircle2,
@@ -25,8 +25,8 @@ interface AreaAtuacao {
 
 export default function AreasAtuacaoPage() {
   const { get, post, delete: del } = useAuthenticatedFetch()
-  const { estados, municipios, loadMunicipios, getEstadoNome } = useEstadosCidades()
-  
+  const { estados, municipios, loadMunicipios, getEstadoNome } = useEstadosCidades('all')
+
   const [areas, setAreas] = useState<AreaAtuacao[]>([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -50,7 +50,7 @@ export default function AreasAtuacaoPage() {
       const fotoBase64 = u?.foto || null
       const fotoMime = u?.foto_tipo_mime || 'image/jpeg'
       setCorretorFotoDataUrl(fotoBase64 ? `data:${fotoMime};base64,${fotoBase64}` : null)
-    } catch {}
+    } catch { }
   }, [])
 
   // Carregar áreas existentes
@@ -105,7 +105,7 @@ export default function AreasAtuacaoPage() {
 
       if (resp.ok && data.success) {
         setSuccess('Área de atuação adicionada com sucesso!')
-        setAreas(prev => [...prev, data.area].sort((a, b) => 
+        setAreas(prev => [...prev, data.area].sort((a, b) =>
           a.estado_fk.localeCompare(b.estado_fk) || a.cidade_fk.localeCompare(b.cidade_fk)
         ))
         setSelectedEstadoId('')
@@ -138,16 +138,19 @@ export default function AreasAtuacaoPage() {
   }
 
   const handleVoltar = () => {
+    // Restaurar a sessão do corretor para garantir que a Landpaging abra o modal
     try {
-      // Ao retornar para a landpaging, não abrir modal de geolocalização novamente nesta visita
-      sessionStorage.setItem('suppress-geolocation-modal-once', 'true')
-      const returnUrl = sessionStorage.getItem('corretor_return_url') || '/landpaging'
-      const url = new URL(returnUrl, window.location.origin)
-      url.searchParams.set('corretor_home', 'true')
-      window.location.href = url.pathname + url.search
-    } catch {
-      window.location.href = '/landpaging?corretor_home=true'
-    }
+      const userData = localStorage.getItem('user-data')
+      if (userData) {
+        // A Landpaging espera 'corretor_success_user' para abrir o modal automaticamente
+        sessionStorage.setItem('corretor_success_user', userData)
+      }
+    } catch { }
+
+    // Ao retornar, forçamos a abertura do Painel do Corretor via query param
+    // Removemos suppress-geolocation para garantir comportamento padrão, ou mantemos se desejado
+    // Aqui priorizamos a experiência de "Voltar ao Painel"
+    window.location.href = '/landpaging?corretor_home=true'
   }
 
   const municipiosOrdenados = useMemo(() => {
@@ -160,7 +163,7 @@ export default function AreasAtuacaoPage() {
         {/* Header Profissional */}
         <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-8 mb-8 overflow-hidden relative">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-16 -mt-16 opacity-50" />
-          
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
             <div className="flex items-center gap-6">
               {corretorFotoDataUrl ? (
@@ -185,7 +188,7 @@ export default function AreasAtuacaoPage() {
                 )}
               </div>
             </div>
-            
+
             <button
               onClick={handleVoltar}
               className="flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl active:scale-95 group"
@@ -214,6 +217,7 @@ export default function AreasAtuacaoPage() {
                     placeholder="Selecione o Estado"
                     className="w-full bg-slate-50 border-slate-200 rounded-xl py-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700"
                     showAllOption={false}
+                    mode="all"
                   />
                 </div>
 
@@ -321,7 +325,7 @@ export default function AreasAtuacaoPage() {
                           </p>
                         </div>
                       </div>
-                      
+
                       <button
                         onClick={() => handleDeleteArea(area.id)}
                         className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"

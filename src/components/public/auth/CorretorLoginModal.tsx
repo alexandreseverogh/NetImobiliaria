@@ -36,7 +36,8 @@ export default function CorretorLoginModal({
     setShowPassword(false)
 
     // 🧹 LIMPEZA PREVENTIVA: Remover tokens antigos para evitar conflitos (Sessão Zumbi)
-    if (typeof window !== 'undefined') {
+    // COMENTADO: Isso estava causando logout indesejado se o modal fosse montado inadvertidamente
+    /* if (typeof window !== 'undefined') {
       localStorage.removeItem('auth-token')
       localStorage.removeItem('user-data')
 
@@ -44,8 +45,8 @@ export default function CorretorLoginModal({
       fetch('/api/admin/auth/logout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
-      }).catch(() => {/* silenciar erro no logout preventivo */ })
-    }
+      }).catch(() => { })
+    } */
   }, [isOpen])
 
   if (!isOpen) return null

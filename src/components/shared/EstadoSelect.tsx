@@ -12,24 +12,12 @@ interface EstadoSelectProps {
   format?: 'sigla-nome' | 'nome-sigla' | 'nome-only'
   showAllOption?: boolean
   allOptionLabel?: string
+  mode?: 'active' | 'all'
 }
 
 /**
  * Componente reutilizável para seleção de estados
- * 
- * Características:
- * - Ordenação alfabética automática (pt-BR)
- * - IDs baseados em índice (compatível com sistema existente)
- * - Formatação padronizada
- * - Zero risco de quebrar funcionalidade existente
- * 
- * @example
- * <EstadoSelect
- *   value={selectedEstadoId}
- *   onChange={setSelectedEstadoId}
- *   placeholder="Selecione um estado"
- *   format="sigla-nome"
- * />
+ * ...
  */
 export default function EstadoSelect({
   value,
@@ -39,13 +27,14 @@ export default function EstadoSelect({
   disabled = false,
   format = 'sigla-nome',
   showAllOption = true,
-  allOptionLabel = 'Todos os estados'
+  allOptionLabel = 'Todos os estados',
+  mode = 'active'
 }: EstadoSelectProps) {
-  const { estados } = useEstadosCidades()
+  const { estados } = useEstadosCidades(mode)
 
   // Ordenar estados alfabeticamente (sem modificar array original)
   const estadosOrdenados = useMemo(() => {
-    return [...estados].sort((a, b) => 
+    return [...estados].sort((a, b) =>
       a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
     )
   }, [estados])

@@ -100,9 +100,53 @@ async function pickBrokerById(corretorFk: string): Promise<RoutedBroker | null> 
   }
 }
 
-async function pickPlantonistaBroker(excludeIds: string[] = []): Promise<RoutedBroker | null> {
+async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string, cidade?: string): Promise<RoutedBroker | null> {
+  // 1. Tentar Plantonista com Match de Área (Prioridade)
+  if (estado && cidade) {
+    const qLocal = `
+      SELECT
+        u.id, u.nome, u.email,
+        COALESCE(cs.nivel, 0) as nivel,
+        COALESCE(cs.xp_total, 0) as xp,
+        COUNT(a.id) AS total_recebidos,
+        MAX(a.created_at) AS ultimo_recebimento
+      FROM public.users u
+      INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
+      INNER JOIN public.user_roles ur ON ura.role_id = ur.id
+      INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id -- JOIN com área
+      LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
+      LEFT JOIN public.imovel_prospect_atribuicoes a ON a.corretor_fk = u.id
+      WHERE u.ativo = true
+        AND ur.name = 'Corretor'
+        AND COALESCE(u.is_plantonista, false) = true
+        AND COALESCE(u.tipo_corretor, 'Interno') = 'Interno'
+        AND caa.estado_fk = $1
+        AND caa.cidade_fk = $2
+        AND (CASE WHEN array_length($3::uuid[], 1) > 0 THEN u.id != ALL($3::uuid[]) ELSE true END)
+      GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
+      ORDER BY 
+        COALESCE(cs.nivel, 0) DESC,
+        COALESCE(cs.xp_total, 0) DESC,
+        COUNT(a.id) ASC, 
+        MAX(a.created_at) ASC NULLS FIRST, 
+        u.created_at ASC
+      LIMIT 1
+    `
+    const rLocal = await pool.query(qLocal, [estado, cidade, excludeIds || []])
+    if (rLocal.rows.length > 0) {
+      const row = rLocal.rows[0]
+      return {
+        id: row.id,
+        nome: row.nome,
+        email: row.email,
+        motivo: { type: 'fallback_plantonista_area', debug: `Lvl:${row.nivel} Area:${cidade}/${estado}` }
+      }
+    }
+  }
+
+  // 2. Fallback: Qualquer Plantonista (Global)
   // Plantonista também segue mérito, mas dentro do pool de plantonistas
-  const q = `
+  const qGlobal = `
     SELECT
       u.id, u.nome, u.email,
       COALESCE(cs.nivel, 0) as nivel,
@@ -117,7 +161,7 @@ async function pickPlantonistaBroker(excludeIds: string[] = []): Promise<RoutedB
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = true
-      AND COALESCE(u.tipo_corretor, 'Interno') = 'Interno'
+      AND COALESCE(u.tipo_corretor, 'Interno') = 'Interno' -- Plantonista deve ser interno? User disse que sim.
       AND (CASE WHEN array_length($1::uuid[], 1) > 0 THEN u.id != ALL($1::uuid[]) ELSE true END)
     GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
     ORDER BY 
@@ -128,9 +172,9 @@ async function pickPlantonistaBroker(excludeIds: string[] = []): Promise<RoutedB
       u.created_at ASC
     LIMIT 1
   `
-  const r = await pool.query(q, [excludeIds || []])
-  if (r.rows.length === 0) return null
-  const row = r.rows[0]
+  const rGlobal = await pool.query(qGlobal, [excludeIds || []])
+  if (rGlobal.rows.length === 0) return null
+  const row = rGlobal.rows[0]
   return {
     id: row.id,
     nome: row.nome,
@@ -233,16 +277,16 @@ export async function routeProspectAndNotify(
 
   // 2. Se não achou (ou se foi forçado fallback), tentar Plantonista
   if (!broker) {
-    broker = await pickPlantonistaBroker(excludeIds)
+    broker = await pickPlantonistaBroker(excludeIds, estado, cidade)
   }
 
   if (!broker) return { success: false, reason: 'Nenhum corretor elegível (sem área e sem plantonista)' }
 
   // Criar atribuição com SLA (minutos configurável em parametros.sla_minutos_aceite_lead)
   const slaMinutos = await getSlaMinutosAceiteLead()
-  // REGRA CRÍTICA: se veio por imovel.corretor_fk, NÃO aplicar transbordo/SLA (expira_em = NULL)
+  // REGRA CRÍTICA: se veio por imovel.corretor_fk, NÃO aplicar transbordo (expira_em = NULL)
   const motivoType = String((broker as any)?.motivo?.type || '')
-  const isPlantonista = motivoType === 'fallback_plantonista'
+  const isPlantonista = motivoType.startsWith('fallback_plantonista') // Matches both 'fallback_plantonista' and 'fallback_plantonista_area'
 
   // Determinar status e expira_em baseado no tipo de atribuição
   let status: 'atribuido' | 'aceito' = 'atribuido'
@@ -256,7 +300,7 @@ export async function routeProspectAndNotify(
     // Plantonista: aceito automaticamente, sem SLA (finaliza transbordo)
     status = 'aceito'
     expiraEm = null
-    console.log(`[routeProspectAndNotify] ✅ Lead atribuído a PLANTONISTA - status='aceito', sem SLA`)
+    console.log(`[routeProspectAndNotify] ✅ Lead atribuído a PLANTONISTA (${motivoType}) - status='aceito'`)
 
     // REGRA DE NEGÓCIO: Se cair para plantonista, ele vira o dono do imóvel (se não tiver dono)
     // Executar update assíncrono (ou await se for crítico, mas aqui estamos no fluxo)
@@ -318,15 +362,27 @@ export async function routeProspectAndNotify(
     try {
       const d = new Date(value)
       if (Number.isNaN(d.getTime())) return '-'
-      const dd = String(d.getDate()).padStart(2, '0')
-      const mm = String(d.getMonth() + 1).padStart(2, '0')
-      const yyyy = d.getFullYear()
-      const hh = String(d.getHours()).padStart(2, '0')
-      const mi = String(d.getMinutes()).padStart(2, '0')
-      return `${dd}/${mm}/${yyyy} ${hh}:${mi}`
+      // Force 'America/Sao_Paulo' timezone
+      return d.toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     } catch {
       return '-'
     }
+  }
+
+  const formatMultiLine = (text: string): string => {
+    if (!text) return '-'
+    // Remove literal \r\n characters which might appear in JSON dumps
+    let clean = text.replace(/\\r\\n/g, '<br>').replace(/\\n/g, '<br>')
+    // Replace actual newlines
+    clean = clean.replace(/\r\n/g, '<br>').replace(/\n/g, '<br>')
+    return clean
   }
   const joinParts = (parts: Array<any>) => parts.map((x) => String(x || '').trim()).filter(Boolean).join(', ')
 
@@ -421,7 +477,7 @@ export async function routeProspectAndNotify(
         cliente_email: toStr(p.cliente_email),
         data_interesse: formatDateTime(p.data_interesse),
         preferencia_contato: toStr(p.preferencia_contato || 'Não informado'),
-        mensagem: toStr(p.mensagem || 'Sem mensagem'),
+        mensagem: formatMultiLine(p.mensagem || 'Sem mensagem'),
         painel_url: painelUrl
       })
     }
@@ -470,7 +526,7 @@ export async function routeProspectAndNotify(
 
             data_interesse: formatDateTime(p.data_interesse),
             preferencia_contato: toStr(p.preferencia_contato || 'Não informado'),
-            mensagem: toStr(p.mensagem || 'Sem mensagem')
+            mensagem: formatMultiLine(p.mensagem || 'Sem mensagem')
           },
           cDetails.foto ? [{
             filename: 'broker.jpg',

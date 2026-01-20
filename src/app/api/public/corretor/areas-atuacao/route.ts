@@ -6,28 +6,36 @@ export const runtime = 'nodejs'
 function getToken(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization') || ''
   if (authHeader.startsWith('Bearer ')) return authHeader.slice(7)
-  const cookie = request.cookies.get('accessToken')?.value
+
+  // CORREÇÃO: O cookie definido no login é 'auth_token', não 'accessToken'
+  const cookie = request.cookies.get('auth_token')?.value
   return cookie || null
 }
 
-async function getLoggedUser(request: NextRequest) {
+async function getLoggedUser(request: NextRequest): Promise<{ userId: string | null, error?: string }> {
   const token = getToken(request)
-  if (!token) return null
+  if (!token) return { userId: null, error: 'Token não encontrado (Header ou Cookie)' }
 
   try {
     const decoded: any = verifyTokenNode(token)
-    return decoded?.userId || null
-  } catch (error) {
+    if (!decoded) return { userId: null, error: 'Token inválido ou expirado' }
+    return { userId: decoded.userId }
+  } catch (error: any) {
     console.error('❌ Erro ao decodificar token:', error)
-    return null
+    return { userId: null, error: `Erro na verificação: ${error.message}` }
   }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getLoggedUser(request)
+    const { userId, error } = await getLoggedUser(request)
     if (!userId) {
-      return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 })
+      console.warn(`⚠️ [AREAS_ATUACAO] Acesso negado. Motivo: ${error}`)
+      return NextResponse.json({
+        success: false,
+        error: 'Não autorizado',
+        debug: process.env.NODE_ENV === 'development' ? error : undefined
+      }, { status: 401 })
     }
 
     const pool = (await import('@/lib/database/connection')).default
@@ -47,9 +55,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getLoggedUser(request)
+    const { userId, error } = await getLoggedUser(request)
     if (!userId) {
-      return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 })
+      console.warn(`⚠️ [AREAS_ATUACAO] POST negado. Motivo: ${error}`)
+      return NextResponse.json({
+        success: false,
+        error: 'Não autorizado',
+        debug: process.env.NODE_ENV === 'development' ? error : undefined
+      }, { status: 401 })
     }
 
     const { estado_fk, cidade_fk } = await request.json()
@@ -66,7 +79,7 @@ export async function POST(request: NextRequest) {
       WHERE corretor_fk = $1::uuid AND estado_fk = $2 AND cidade_fk = $3
     `
     const checkResult = await pool.query(checkQuery, [userId, estado_fk, cidade_fk])
-    
+
     if (checkResult.rows.length > 0) {
       return NextResponse.json({ success: false, error: 'Esta área já está cadastrada' }, { status: 400 })
     }
@@ -87,9 +100,14 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const userId = await getLoggedUser(request)
+    const { userId, error } = await getLoggedUser(request)
     if (!userId) {
-      return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 })
+      console.warn(`⚠️ [AREAS_ATUACAO] DELETE negado. Motivo: ${error}`)
+      return NextResponse.json({
+        success: false,
+        error: 'Não autorizado',
+        debug: process.env.NODE_ENV === 'development' ? error : undefined
+      }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)

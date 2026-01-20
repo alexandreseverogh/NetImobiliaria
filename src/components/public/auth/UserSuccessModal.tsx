@@ -25,6 +25,8 @@ interface UserSuccessModalProps {
     bairro?: string
     cidade_fk?: string
     estado_fk?: string
+    foto?: string // Base64 puro
+    foto_tipo_mime?: string
   }
   redirectTo?: string
 }
@@ -41,7 +43,23 @@ export default function UserSuccessModal({
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fotoFile, setFotoFile] = useState<File | null>(null)
-  const [fotoPreview, setFotoPreview] = useState<string | null>(userData.fotoDataUrl || null)
+
+  // Lógica robusta para foto: usa fotoDataUrl se existir, senão tenta montar com base64 bruto
+  const initialFoto = useMemo(() => {
+    if (userData.fotoDataUrl) return userData.fotoDataUrl
+    if (userData.foto) {
+      const mime = userData.foto_tipo_mime || 'image/jpeg'
+      return `data:${mime};base64,${userData.foto}`
+    }
+    return null
+  }, [userData.fotoDataUrl, userData.foto, userData.foto_tipo_mime])
+
+  const [fotoPreview, setFotoPreview] = useState<string | null>(initialFoto)
+
+  // Atualizar preview se a prop mudar (ex: reabertura do modal com dados diferentes)
+  useEffect(() => {
+    setFotoPreview(initialFoto)
+  }, [initialFoto])
   const [editForm, setEditForm] = useState({
     nome: userData.nome,
     email: userData.email,
@@ -270,20 +288,20 @@ export default function UserSuccessModal({
 
   const openLeadsPanel = useCallback(
     (tab: LeadTabId, prospectId?: number) => {
-      // UX: abrir em nova aba para não "tomar" o modal do corretor.
+      // UX: navegar na mesma aba para manter a sessão
       const params = new URLSearchParams()
       params.set('status', 'all')
       params.set('view', tab)
       if (prospectId) params.set('prospectId', String(prospectId))
-      window.open(`/corretor/leads?${params.toString()}`, '_blank', 'noopener,noreferrer')
+      window.location.href = `/corretor/leads?${params.toString()}`
     },
     []
   )
 
   const openLeadDetailsPage = useCallback((prospectId: number) => {
     if (!prospectId) return
-    // Abrir em nova aba para não "perder" o contexto do modal do corretor.
-    window.open(`/corretor/leads/${prospectId}`, '_blank', 'noopener,noreferrer')
+    // Navegar na mesma aba para manter contexto
+    window.location.href = `/corretor/leads/${prospectId}`
   }, [])
 
   const openImovelPublic = (imovelId: number) => {
@@ -570,19 +588,19 @@ export default function UserSuccessModal({
   }
 
   const handleAreasAtuacao = () => {
-    // UX: abrir em nova aba para não sobrepor o modal do corretor
+    // UX: navegar na mesma aba para manter sessão e permitir "Voltar" consistente
     try {
       sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
     } catch { }
-    window.open('/corretor/areas-atuacao', '_blank', 'noopener,noreferrer')
+    window.location.href = '/corretor/areas-atuacao'
   }
 
   const handleGerarQRCode = () => {
-    // UX: abrir em nova aba para não sobrepor o modal do corretor
+    // UX: navegar na mesma aba
     try {
       sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
     } catch { }
-    window.open('/corretor/pagamentos/qrcode', '_blank', 'noopener,noreferrer')
+    window.location.href = '/corretor/pagamentos/qrcode'
   }
 
   const handleCadastrarImovel = () => {
@@ -601,7 +619,10 @@ export default function UserSuccessModal({
     onClose()
     // Disparar evento para atualizar AuthButtons após fechar modal
     if (typeof window !== 'undefined') {
-      // Apenas o login público (cliente/proprietário) precisa atualizar o header público
+      // Sempre notificar mudança de auth admin (corretor) e público para garantir que o header atualize
+      window.dispatchEvent(new Event('admin-auth-changed'))
+
+      // Apenas o login público (cliente/proprietário) precisa atualizar o header público especificamente
       if (userData.userType === 'cliente' || userData.userType === 'proprietario') {
         window.dispatchEvent(new Event('public-auth-changed'))
       }
@@ -644,9 +665,9 @@ export default function UserSuccessModal({
           </div>
           <button
             onClick={handleFechar}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold rounded-lg transition-colors flex items-center gap-2"
           >
-            <X className="w-5 h-5" />
+            Fechar
           </button>
         </div>
 
