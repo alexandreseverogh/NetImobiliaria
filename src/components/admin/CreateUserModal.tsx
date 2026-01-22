@@ -31,6 +31,7 @@ interface CreateUserForm {
   ativo: boolean
   isencao: boolean
   is_plantonista: boolean
+  tipo_corretor: 'Interno' | 'Externo' | null
 }
 
 export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: CreateUserModalProps) {
@@ -48,7 +49,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
     roleId: null,
     ativo: true,
     isencao: false,
-    is_plantonista: false
+    is_plantonista: false,
+    tipo_corretor: 'Interno'
   })
 
   const [foto, setFoto] = useState<File | null>(null)
@@ -85,7 +87,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
         roleId: null,
         ativo: true,
         isencao: false,
-        is_plantonista: false
+        is_plantonista: false,
+        tipo_corretor: 'Interno'
       })
       setErrors({})
       setEmailChecking(false)
@@ -307,8 +310,6 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -332,6 +333,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
       fd.append('ativo', String(form.ativo))
       fd.append('isencao', String(form.isencao))
       fd.append('is_plantonista', String(form.is_plantonista))
+      if (form.tipo_corretor) fd.append('tipo_corretor', form.tipo_corretor)
 
       if (foto) {
         fd.append('foto', foto)
@@ -376,7 +378,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
           roleId: null,
           ativo: true,
           isencao: false,
-          is_plantonista: false
+          is_plantonista: false,
+          tipo_corretor: 'Interno'
         })
         setFoto(null)
         setPreviewUrl(null)
@@ -784,7 +787,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
             </div>
 
             {/* Quarta linha: Perfil */}
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Perfil */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -808,6 +811,23 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
                   <p className="mt-1 text-sm text-red-600">{errors.roleId}</p>
                 )}
               </div>
+
+              {/* Tipo de Corretor (Apenas se o perfil for Corretor) */}
+              {roles.find(r => r.id === form.roleId)?.name === 'Corretor' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tipo de Corretor *
+                  </label>
+                  <select
+                    value={form.tipo_corretor || ''}
+                    onChange={(e) => handleInputChange('tipo_corretor', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  >
+                    <option value="Interno">Interno</option>
+                    <option value="Externo">Externo</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Quinta linha: Senha e Confirmar Senha */}
@@ -917,8 +937,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, roles }: C
               </button>
             </div>
           </form>
-        </div >
-      </div >
-    </div >
+        </div>
+      </div>
+    </div>
   )
 }

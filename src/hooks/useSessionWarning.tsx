@@ -28,15 +28,15 @@ export function useSessionWarning(options: SessionWarningOptions) {
   const checkSession = useCallback(async () => {
     // Evitar múltiplas execuções simultâneas
     if (isCheckingRef.current) return
-    
+
     // Debounce: só executar se passou pelo menos 55 segundos desde a última verificação
     const now = Date.now()
     if (now - lastCheckRef.current < 55000) return
-    
+
     isCheckingRef.current = true
     lastCheckRef.current = now
     try {
-      const token = localStorage.getItem('auth-token')
+      const token = localStorage.getItem('admin-auth-token')
       if (!token) {
         onSessionExpired()
         return
@@ -66,7 +66,7 @@ export function useSessionWarning(options: SessionWarningOptions) {
 
       if (data.success && data.session) {
         setSessionData(data.session)
-        
+
         const expiresAt = new Date(data.session.expiresAt)
         const now = new Date()
         const timeDiff = expiresAt.getTime() - now.getTime()
@@ -99,14 +99,14 @@ export function useSessionWarning(options: SessionWarningOptions) {
     const interval = setInterval(() => {
       checkSession()
     }, 60000) // 60 segundos
-    
+
     return () => clearInterval(interval)
   }, [checkSession])
 
   // Função para renovar sessão
   const renewSession = useCallback(async () => {
     try {
-      const token = localStorage.getItem('auth-token')
+      const token = localStorage.getItem('admin-auth-token')
       if (!token) return false
 
       const response = await fetch('/api/admin/auth/renew-session', {
@@ -144,8 +144,8 @@ export function useSessionWarning(options: SessionWarningOptions) {
     } catch (error) {
       console.error('Erro no logout:', error)
     } finally {
-      localStorage.removeItem('auth-token')
-      localStorage.removeItem('user-data')
+      localStorage.removeItem('admin-auth-token')
+      localStorage.removeItem('admin-user-data')
       onSessionExpired()
     }
   }, [onSessionExpired])

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import { auditLogger } from '@/lib/utils/auditLogger'
-import { findUsersWithRoles, createUser } from '@/lib/database/users'
+import { findUsersWithRoles, findUsersPaginated, createUser, UserWithRole } from '@/lib/database/users'
 import { validateApiInput } from '@/lib/validation/advancedValidation'
 import { logInvalidInput } from '@/lib/monitoring/securityMonitor'
 import { validateCPF } from '@/lib/utils/formatters'
@@ -20,6 +20,7 @@ interface CreateUserRequest {
   ativo?: boolean
   isencao?: boolean
   is_plantonista?: boolean
+  tipo_corretor?: 'Interno' | 'Externo' | null
 }
 
 // Função para validar dados de entrada usando validação avançada
@@ -80,11 +81,25 @@ export async function GET(request: NextRequest) {
       return permissionCheck
     }
 
-    // Buscar usuários do banco de dados
-    const users = await findUsersWithRoles()
+    const { searchParams } = new URL(request.url)
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '10')
+
+    const nome = searchParams.get('nome') || undefined
+    const username = searchParams.get('username') || undefined
+    const email = searchParams.get('email') || undefined
+    const role_name = searchParams.get('role_name') || undefined
+
+    // Buscar usuários paginados do banco de dados
+    const result = await findUsersPaginated(page, limit, {
+      nome,
+      username,
+      email,
+      role_name
+    })
 
     // Filtrar usuários (ocultar senhas por segurança)
-    const filteredUsers = users.map(user => ({
+    const filteredUsers = result.users.map((user: UserWithRole) => ({
       ...user,
       password: '***' // Ocultar senha
     }))
@@ -92,7 +107,7 @@ export async function GET(request: NextRequest) {
     // Log de auditoria (sem informações sensíveis)
     auditLogger.log(
       'USERS_LIST',
-      'Usuário listou usuários do sistema',
+      `Usuário listou usuários do sistema (Página ${page})`,
       true,
       'system',
       'system',
@@ -102,7 +117,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       users: filteredUsers,
-      total: filteredUsers.length
+      total: result.total,
+      totalPages: result.totalPages,
+      currentPage: result.currentPage,
+      hasNext: result.hasNext,
+      hasPrev: result.hasPrev
     })
 
   } catch (error) {
@@ -143,7 +162,8 @@ export async function POST(request: NextRequest) {
         password: String(formData.get('password') || ''),
         ativo: formData.get('ativo') === 'true',
         isencao: formData.get('isencao') === 'true',
-        is_plantonista: formData.get('is_plantonista') === 'true'
+        is_plantonista: formData.get('is_plantonista') === 'true',
+        tipo_corretor: formData.get('tipo_corretor') as 'Interno' | 'Externo' | null
       }
 
       const fotoFile = formData.get('foto')
@@ -202,8 +222,8 @@ export async function POST(request: NextRequest) {
       isencao: createData.isencao !== undefined ? createData.isencao : false,
       is_plantonista: createData.is_plantonista !== undefined ? createData.is_plantonista : false,
       ultimo_login: null,
-      // Se for Corretor (roleId = 3), define como Interno (para cadastros via Admin).
-      tipo_corretor: createData.roleId === 3 ? 'Interno' : null,
+      // Se for Corretor (roleId = 3), usa o tipo_corretor fornecido ou padrão 'Interno'.
+      tipo_corretor: createData.roleId === 3 ? (createData.tipo_corretor || 'Interno') : null,
       foto: fotoBuffer,
       foto_tipo_mime: fotoMimeType
     })

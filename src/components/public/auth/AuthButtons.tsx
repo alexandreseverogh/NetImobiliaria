@@ -35,14 +35,10 @@ export default function AuthButtons() {
 
   const refreshAdminUser = () => {
     try {
-      const token = localStorage.getItem('auth-token')
-      const raw = localStorage.getItem('user-data')
-      if (token && raw) {
-        const parsed = JSON.parse(raw)
-        setAdminUserNome(parsed?.nome || null)
-      } else {
-        setAdminUserNome(null)
-      }
+      const raw = localStorage.getItem('admin-user-data')
+      if (!raw) return setAdminUserNome(null)
+      const parsed = JSON.parse(raw)
+      setAdminUserNome(parsed.nome || null)
     } catch {
       setAdminUserNome(null)
     }
@@ -50,7 +46,7 @@ export default function AuthButtons() {
 
   const refreshLastAuthUser = () => {
     try {
-      const raw = localStorage.getItem('last-auth-user')
+      const raw = localStorage.getItem('public-last-auth-user') || localStorage.getItem('admin-last-auth-user')
       if (!raw) return setLastAuthUser(null)
       setLastAuthUser(JSON.parse(raw))
     } catch {
@@ -82,11 +78,9 @@ export default function AuthButtons() {
       if (!e.key) return
 
       const criticalKeys = [
-        'auth-token',
-        'user-data',
         'public-auth-token',
         'public-user-data',
-        'last-auth-user'
+        'public-last-auth-user'
       ]
 
       if (criticalKeys.includes(e.key)) {
@@ -145,10 +139,8 @@ export default function AuthButtons() {
   const handleLogout = () => {
     setIsDropdownOpen(false)
     try {
-      localStorage.removeItem('auth-token')
-      localStorage.removeItem('user-data')
-      localStorage.removeItem('last-auth-user')
-      window.dispatchEvent(new Event('admin-auth-changed'))
+      localStorage.removeItem('public-last-auth-user')
+      // window.dispatchEvent(new Event('admin-auth-changed')) // No longer needed here
     } catch { }
     logout()
   }
@@ -184,11 +176,17 @@ export default function AuthButtons() {
     )
   }
 
-  // Regra: sempre exibir o ÚLTIMO usuário que logou (last-auth-user).
-  // Se esse marcador não existir, priorizar sessão admin (auth-token/user-data) em relação ao login público,
-  // pois é comum o usuário já ter logado como cliente e depois logar como corretor.
-  const displayNome = lastAuthUser?.nome || adminUserNome || user?.nome || null
-  const displayType = (lastAuthUser?.userType || (adminUserNome ? 'corretor' : user?.userType)) as
+  // Determine session priority.
+  // Goal: ALWAYS show the MOST RECENT session if multiple exist.
+
+  // 1. Get timestamps (at) if available
+  const publicRaw = typeof window !== 'undefined' ? localStorage.getItem('public-user-data') : null
+  let publicAt = 0
+  try { if (publicRaw) publicAt = JSON.parse(publicRaw).at || 0 } catch { }
+
+  // 2. Use lastAuthUser as the source of truth for "last logged in"
+  const displayNome = lastAuthUser?.nome || user?.nome || null
+  const displayType = (lastAuthUser?.userType || user?.userType) as
     | 'cliente'
     | 'proprietario'
     | 'corretor'

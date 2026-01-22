@@ -32,12 +32,7 @@ function buildCorretorPainelUrl(prospectId: number): string {
   return `${base}/corretor/entrar?next=${encodeURIComponent(next)}`
 }
 
-async function pickBrokerByArea(estado: string, cidade: string, excludeIds: string[] = []): Promise<RoutedBroker | null> {
-  // Regra de escolha (Smart Routing):
-  // 1) Maior Nível (Gamificação)
-  // 2) Maior XP Total (Gamificação)
-  // 3) Menor carga de leads recebidos
-  // 4) Tempo sem receber (Round Robin implícito)
+async function pickBrokerByArea(estado: string, cidade: string, excludeIds: string[] = [], runner: any = pool): Promise<RoutedBroker | null> {
   const q = `
     SELECT
       u.id, u.nome, u.email,
@@ -67,7 +62,7 @@ async function pickBrokerByArea(estado: string, cidade: string, excludeIds: stri
       u.created_at ASC
     LIMIT 1
   `
-  const r = await pool.query(q, [estado, cidade, excludeIds || []])
+  const r = await runner.query(q, [estado, cidade, excludeIds || []])
   if (r.rows.length === 0) return null
   const row = r.rows[0]
   return {
@@ -78,7 +73,7 @@ async function pickBrokerByArea(estado: string, cidade: string, excludeIds: stri
   }
 }
 
-async function pickBrokerById(corretorFk: string): Promise<RoutedBroker | null> {
+async function pickBrokerById(corretorFk: string, runner: any = pool): Promise<RoutedBroker | null> {
   const q = `
     SELECT u.id, u.nome, u.email
     FROM public.users u
@@ -89,7 +84,7 @@ async function pickBrokerById(corretorFk: string): Promise<RoutedBroker | null> 
       AND ur.name = 'Corretor'
     LIMIT 1
   `
-  const r = await pool.query(q, [corretorFk])
+  const r = await runner.query(q, [corretorFk])
   if (r.rows.length === 0) return null
   const row = r.rows[0]
   return {
@@ -100,7 +95,48 @@ async function pickBrokerById(corretorFk: string): Promise<RoutedBroker | null> 
   }
 }
 
-async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string, cidade?: string): Promise<RoutedBroker | null> {
+async function pickInternalBrokerByArea(estado: string, cidade: string, excludeIds: string[] = [], runner: any = pool): Promise<RoutedBroker | null> {
+  const q = `
+    SELECT
+      u.id, u.nome, u.email,
+      COALESCE(cs.nivel, 0) as nivel,
+      COALESCE(cs.xp_total, 0) as xp,
+      COUNT(a.id) AS total_recebidos,
+      MAX(a.created_at) AS ultimo_recebimento
+    FROM public.users u
+    INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
+    INNER JOIN public.user_roles ur ON ura.role_id = ur.id
+    INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
+    LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
+    LEFT JOIN public.imovel_prospect_atribuicoes a ON a.corretor_fk = u.id
+    WHERE u.ativo = true
+      AND ur.name = 'Corretor'
+      AND COALESCE(u.is_plantonista, false) = false
+      AND COALESCE(u.tipo_corretor, 'Externo') = 'Interno'
+      AND caa.estado_fk = $1
+      AND caa.cidade_fk = $2
+      AND (CASE WHEN array_length($3::uuid[], 1) > 0 THEN u.id != ALL($3::uuid[]) ELSE true END)
+    GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
+    ORDER BY 
+      COALESCE(cs.nivel, 0) DESC,
+      COALESCE(cs.xp_total, 0) DESC,
+      COUNT(a.id) ASC, 
+      MAX(a.created_at) ASC NULLS FIRST, 
+      u.created_at ASC
+    LIMIT 1
+  `
+  const r = await runner.query(q, [estado, cidade, excludeIds || []])
+  if (r.rows.length === 0) return null
+  const row = r.rows[0]
+  return {
+    id: row.id,
+    nome: row.nome,
+    email: row.email,
+    motivo: { type: 'area_match_internal', estado_fk: estado, cidade_fk: cidade, debug: `Lvl:${row.nivel} XP:${row.xp}` }
+  }
+}
+
+async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string, cidade?: string, runner: any = pool): Promise<RoutedBroker | null> {
   // 1. Tentar Plantonista com Match de Área (Prioridade)
   if (estado && cidade) {
     const qLocal = `
@@ -132,7 +168,7 @@ async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string,
         u.created_at ASC
       LIMIT 1
     `
-    const rLocal = await pool.query(qLocal, [estado, cidade, excludeIds || []])
+    const rLocal = await runner.query(qLocal, [estado, cidade, excludeIds || []])
     if (rLocal.rows.length > 0) {
       const row = rLocal.rows[0]
       return {
@@ -172,7 +208,7 @@ async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string,
       u.created_at ASC
     LIMIT 1
   `
-  const rGlobal = await pool.query(qGlobal, [excludeIds || []])
+  const rGlobal = await runner.query(qGlobal, [excludeIds || []])
   if (rGlobal.rows.length === 0) return null
   const row = rGlobal.rows[0]
   return {
@@ -186,10 +222,16 @@ async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string,
 export async function routeProspectAndNotify(
   prospectId: number,
   excludeIds: string[] = [],
-  options?: { forceFallback?: boolean }
+  options?: {
+    forceFallback?: boolean;
+    targetTier?: 'External' | 'Internal' | 'Plantonista';
+    dbClient?: any; // Permite passar um cliente de transação ativa para evitar deadlock
+  }
 ): Promise<{ success: boolean; reason?: string }> {
+  const runner = options?.dbClient || pool;
+
   // Buscar dados do prospect com imóvel e cliente (para roteamento e email)
-  const dataQuery = await pool.query(
+  const dataQuery = await runner.query(
     `
     SELECT
       ip.id as prospect_id,
@@ -266,26 +308,61 @@ export async function routeProspectAndNotify(
   let broker: RoutedBroker | null = null
   const imovelCorretorFk = p.corretor_fk ? String(p.corretor_fk).trim() : ''
   if (imovelCorretorFk) {
-    broker = await pickBrokerById(imovelCorretorFk)
+    broker = await pickBrokerById(imovelCorretorFk, runner)
   }
 
   // Se não tem dono fixo...
-  // 1. Tentar por Área (somente se NÃO for fallback forçado)
-  if (!broker && !options?.forceFallback) {
-    broker = await pickBrokerByArea(estado, cidade, excludeIds)
+  // Helper para buscar SLA interno
+  async function getSlaMinutosAceiteLeadInterno(): Promise<number> {
+    try {
+      const r = await runner.query('SELECT sla_minutos_aceite_lead_interno FROM public.parametros LIMIT 1')
+      const v = r.rows?.[0]?.sla_minutos_aceite_lead_interno
+      const n = Number(v)
+      if (!Number.isFinite(n) || n <= 0) return 15 // Default 15 min internal
+      return n
+    } catch {
+      return 15
+    }
   }
 
-  // 2. Se não achou (ou se foi forçado fallback), tentar Plantonista
+  // 1. Tentar por Área (External) - SE targetTier for External (ou padrão)
+  const targetTier = options?.targetTier || 'External'; // 'External' | 'Internal' | 'Plantonista'
+
+  if (!broker && targetTier === 'External' && !options?.forceFallback) {
+    broker = await pickBrokerByArea(estado, cidade, excludeIds, runner)
+  }
+
+  // 2. Tentar Interno (Tier 2) - Se targetTier for Internal OU se External falhou
+  // NOTA: Se targetTier='External', o fallback natural é tentar Interno se não achou externo?
+  // User Requirement: "A lógica ... primeiro externos ... depois internos ... depois plantonista".
+  // Sim, fallback natural.
+  if (!broker && (targetTier === 'External' || targetTier === 'Internal')) {
+    // Só tenta interno se não estivermos "forçando" plantonista via forceFallback
+    if (!options?.forceFallback) {
+      broker = await pickInternalBrokerByArea(estado, cidade, excludeIds, runner)
+    }
+  }
+
+  // 3. Tentar Plantonista
   if (!broker) {
-    broker = await pickPlantonistaBroker(excludeIds, estado, cidade)
+    broker = await pickPlantonistaBroker(excludeIds, estado, cidade, runner)
   }
 
   if (!broker) return { success: false, reason: 'Nenhum corretor elegível (sem área e sem plantonista)' }
 
-  // Criar atribuição com SLA (minutos configurável em parametros.sla_minutos_aceite_lead)
-  const slaMinutos = await getSlaMinutosAceiteLead()
-  // REGRA CRÍTICA: se veio por imovel.corretor_fk, NÃO aplicar transbordo (expira_em = NULL)
+
+  // Criar atribuição com SLA (minutos configurável em parametros)
+  let slaMinutos = 5
   const motivoType = String((broker as any)?.motivo?.type || '')
+
+  if (motivoType === 'area_match_internal') {
+    slaMinutos = await getSlaMinutosAceiteLeadInterno()
+  } else {
+    slaMinutos = await getSlaMinutosAceiteLead()
+  }
+
+  // REGRA CRÍTICA: se veio por imovel.corretor_fk, NÃO aplicar transbordo (expira_em = NULL)
+  // const motivoType already defined above
   const isPlantonista = motivoType.startsWith('fallback_plantonista') // Matches both 'fallback_plantonista' and 'fallback_plantonista_area'
 
   // Determinar status e expira_em baseado no tipo de atribuição
@@ -300,27 +377,27 @@ export async function routeProspectAndNotify(
     // Plantonista: aceito automaticamente, sem SLA (finaliza transbordo)
     status = 'aceito'
     expiraEm = null
-    console.log(`[routeProspectAndNotify] ✅ Lead atribuído a PLANTONISTA (${motivoType}) - status='aceito'`)
-
-    // REGRA DE NEGÓCIO: Se cair para plantonista, ele vira o dono do imóvel (se não tiver dono)
-    // Executar update assíncrono (ou await se for crítico, mas aqui estamos no fluxo)
-    try {
-      await pool.query(`
-        UPDATE imoveis i
-        SET corretor_fk = $1::uuid
-        FROM imovel_prospects ip
-        WHERE ip.id = $2
-          AND ip.id_imovel = i.id
-          AND i.corretor_fk IS NULL
-      `, [broker.id, prospectId]);
-      console.log(`[routeProspectAndNotify] 🏠 Imóvel vinculado ao plantonista ${broker.nome}`);
-    } catch (errPlantonista) {
-      console.error('[routeProspectAndNotify] Erro ao vincular imóvel ao plantonista:', errPlantonista);
+    if (status === 'aceito') {
+      // REGRA DE NEGÓCIO: Se o lead foi aceito automaticamente (Dono fixo ou Plantonista),
+      // vinculamos esse corretor como o responsável pelo imóvel.
+      try {
+        await runner.query(`
+          UPDATE imoveis i
+          SET corretor_fk = $1::uuid,
+              updated_at = NOW()
+          FROM imovel_prospects ip
+          WHERE ip.id = $2
+            AND ip.id_imovel = i.id
+        `, [broker.id, prospectId]);
+        console.log(`[routeProspectAndNotify] 🏠 Imóvel vinculado ao corretor ${broker.nome} (Status: aceito)`);
+      } catch (errAssign) {
+        console.error('[routeProspectAndNotify] Erro ao vincular corretor ao imóvel:', errAssign);
+      }
     }
   }
   try {
     // Evitar criar atribuição duplicada caso esse método seja chamado mais de uma vez
-    const activeCheck = await pool.query(
+    const activeCheck = await runner.query(
       `
       SELECT id, status
       FROM public.imovel_prospect_atribuicoes
@@ -335,7 +412,7 @@ export async function routeProspectAndNotify(
       return { success: false, reason: `Atribuição ativa já existe (status: ${activeCheck.rows[0].status})` }
     }
 
-    await pool.query(
+    await runner.query(
       `
       INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em)
       VALUES ($1, $2::uuid, $3, $4::jsonb, $5)
@@ -494,7 +571,7 @@ export async function routeProspectAndNotify(
         // Precisamos buscar dados extras do corretor (foto, telefone, creci) que não temos completos em 'broker' (RoutedBroker)
         // RoutedBroker tem apenas ID, Nome, Email.
         // Fazer query rápida para enriquecer
-        const corretorDetailsRes = await pool.query('SELECT telefone, creci, foto FROM users WHERE id = $1', [broker.id]);
+        const corretorDetailsRes = await runner.query('SELECT telefone, creci, foto FROM users WHERE id = $1', [broker.id]);
         const cDetails = corretorDetailsRes.rows[0] || {};
 
         await emailService.sendTemplateEmail(

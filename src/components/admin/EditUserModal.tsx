@@ -13,6 +13,7 @@ interface User {
   ativo: boolean
   isencao?: boolean
   is_plantonista?: boolean
+  tipo_corretor?: 'Interno' | 'Externo' | null
   role_name?: string
   role_id?: number
   foto?: string | null // Base64 or URL
@@ -43,6 +44,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     ativo: true,
     isencao: false,
     is_plantonista: false,
+    tipo_corretor: null as 'Interno' | 'Externo' | null,
     password: '',
     confirmPassword: '',
     roleId: null as number | null
@@ -65,6 +67,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
         ativo: user.ativo,
         isencao: user.isencao || false,
         is_plantonista: user.is_plantonista || false,
+        tipo_corretor: user.tipo_corretor || null,
         password: '',
         confirmPassword: '',
         roleId: user.role_id || null
@@ -167,6 +170,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       updateData.ativo = formData.ativo
       updateData.isencao = formData.isencao
       updateData.is_plantonista = formData.is_plantonista
+      updateData.tipo_corretor = formData.tipo_corretor
 
       if (formData.roleId) {
         updateData.roleId = formData.roleId
@@ -189,6 +193,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       fd.append('ativo', String(formData.ativo))
       fd.append('isencao', String(formData.isencao))
       fd.append('is_plantonista', String(formData.is_plantonista))
+      if (formData.tipo_corretor) fd.append('tipo_corretor', formData.tipo_corretor)
 
       if (formData.roleId) fd.append('roleId', formData.roleId.toString())
 
@@ -459,7 +464,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
             </div>
 
             {/* Terceira linha: Perfil */}
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Perfil */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -481,6 +486,23 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                   <p className="text-red-500 text-xs mt-1">{errors.roleId}</p>
                 )}
               </div>
+
+              {/* Tipo de Corretor (Apenas se o perfil for Corretor) */}
+              {roles.find(r => r.id === formData.roleId)?.name === 'Corretor' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tipo de Corretor *
+                  </label>
+                  <select
+                    value={formData.tipo_corretor || ''}
+                    onChange={(e) => handleInputChange('tipo_corretor', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  >
+                    <option value="Interno">Interno</option>
+                    <option value="Externo">Externo</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Quarta linha: Status e Isenção */}
@@ -528,7 +550,6 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                 </div>
               )}
             </div>
-
 
             {/* Quarta linha: Nova Senha e Confirmar Senha */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -598,7 +619,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                 {loading ? 'Salvando...' : 'Salvar Alterações'}
               </button>
             </div>
-          </form >
+          </form>
         </div>
       </div>
     </div>

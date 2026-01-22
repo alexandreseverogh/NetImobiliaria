@@ -78,23 +78,28 @@ export default function CorretorLoginModal({
 
         if (!isCorretor) {
           setError('Essa área é restrita ao perfil de Corretor.')
-          localStorage.removeItem('auth-token')
-          localStorage.removeItem('user-data')
-          localStorage.removeItem('last-auth-user')
+          localStorage.removeItem('admin-auth-token')
+          localStorage.removeItem('admin-user-data')
+          localStorage.removeItem('admin-last-auth-user')
           setLoading(false)
           return
         }
 
         if (data.data?.token) {
-          localStorage.setItem('auth-token', data.data.token)
+          localStorage.setItem('admin-auth-token', data.data.token)
         }
         if (u) {
-          localStorage.setItem('user-data', JSON.stringify(u))
+          localStorage.setItem('admin-user-data', JSON.stringify({
+            ...u,
+            at: Date.now()
+          }))
+
+          // NUNCA limpar sessão pública aqui para permitir uso simultâneo
         }
         // Registrar "último login"
         try {
           localStorage.setItem(
-            'last-auth-user',
+            'admin-last-auth-user',
             JSON.stringify({
               nome: u?.nome || '',
               userType: 'corretor',
@@ -180,7 +185,7 @@ export default function CorretorLoginModal({
             if (meResp.ok && meData?.success && meData?.user?.nome && meData?.user?.email) {
               // Garantir que user-data esteja atualizado
               try {
-                localStorage.setItem('user-data', JSON.stringify(meData.user))
+                localStorage.setItem('admin-user-data', JSON.stringify(meData.user))
               } catch { }
               buildSuccessAndRedirect(meData.user)
               return

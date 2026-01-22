@@ -137,12 +137,10 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
               // Regra: apenas CLIENTE logado pode seguir para o fluxo de interesse.
               // Se o usuário ativo for corretor/proprietário (ou houver sessão admin), bloquear.
               try {
-                const lastAuthRaw = localStorage.getItem('last-auth-user')
-                const adminToken = localStorage.getItem('auth-token')
-                const adminUser = localStorage.getItem('user-data')
+                const lastAuthRaw = localStorage.getItem('public-last-auth-user')
                 const lastAuth = lastAuthRaw ? JSON.parse(lastAuthRaw) : null
                 const lastType = lastAuth?.userType
-                if (adminToken || adminUser || (lastType && lastType !== 'cliente')) {
+                if (lastType && lastType !== 'cliente') {
                   try {
                     window.dispatchEvent(
                       new CustomEvent('ui-toast', {

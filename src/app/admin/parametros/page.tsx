@@ -23,6 +23,8 @@ interface Parametros {
   proximos_corretores_recebem_leads: number
   sla_minutos_aceite_lead: number
   valor_ticket_alto: number
+  proximos_corretores_recebem_leads_internos: number
+  sla_minutos_aceite_lead_interno: number
 }
 
 export default function ParametrosPage() {
@@ -37,7 +39,9 @@ export default function ParametrosPage() {
     periodo_anuncio_corretor: 30,
     proximos_corretores_recebem_leads: 3,
     sla_minutos_aceite_lead: 5,
-    valor_ticket_alto: 2000000
+    valor_ticket_alto: 2000000.00,
+    proximos_corretores_recebem_leads_internos: 3,
+    sla_minutos_aceite_lead_interno: 15
   })
 
   // Estados locais para os inputs de número para evitar o problema do "zero à esquerda"
@@ -49,6 +53,8 @@ export default function ParametrosPage() {
   const [inputProximosCorretores, setInputProximosCorretores] = useState<string>('3')
   const [inputSlaMinutosAceiteLead, setInputSlaMinutosAceiteLead] = useState<string>('5')
   const [inputValorTicketAlto, setInputValorTicketAlto] = useState<string>('2000000')
+  const [inputProximosCorretoresInternos, setInputProximosCorretoresInternos] = useState<string>('3')
+  const [inputSlaMinutosAceiteLeadInterno, setInputSlaMinutosAceiteLeadInterno] = useState<string>('15')
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -74,6 +80,8 @@ export default function ParametrosPage() {
         const proximosCorretores = data.data.proximos_corretores_recebem_leads ?? 3
         const slaMinutos = data.data.sla_minutos_aceite_lead ?? 5
         const vlTicketAlto = data.data.valor_ticket_alto || 2000000
+        const proximosCorretoresInternos = data.data.proximos_corretores_recebem_leads_internos ?? 3
+        const slaMinutosInterno = data.data.sla_minutos_aceite_lead_interno ?? 15
 
         setFormData({
           vl_destaque_nacional: vlDestaque,
@@ -85,7 +93,9 @@ export default function ParametrosPage() {
           periodo_anuncio_corretor: periodoAnuncio,
           proximos_corretores_recebem_leads: Number(proximosCorretores) || 3,
           sla_minutos_aceite_lead: Number(slaMinutos) || 5,
-          valor_ticket_alto: vlTicketAlto
+          valor_ticket_alto: vlTicketAlto,
+          proximos_corretores_recebem_leads_internos: Number(proximosCorretoresInternos) || 3,
+          sla_minutos_aceite_lead_interno: Number(slaMinutosInterno) || 15
         })
 
         setInputDestaque(vlDestaque.toString())
@@ -96,6 +106,8 @@ export default function ParametrosPage() {
         setInputProximosCorretores(String(proximosCorretores))
         setInputSlaMinutosAceiteLead(String(slaMinutos))
         setInputValorTicketAlto(vlTicketAlto.toString())
+        setInputProximosCorretoresInternos(String(proximosCorretoresInternos))
+        setInputSlaMinutosAceiteLeadInterno(String(slaMinutosInterno))
       } else {
         setMessage({ type: 'error', text: 'Erro ao carregar parâmetros' })
       }
@@ -124,7 +136,9 @@ export default function ParametrosPage() {
         periodo_anuncio_corretor: parseInt(inputPeriodoAnuncio) || 30,
         proximos_corretores_recebem_leads: parseInt(inputProximosCorretores) || 3,
         sla_minutos_aceite_lead: parseInt(inputSlaMinutosAceiteLead) || 5,
-        valor_ticket_alto: parseFloat(inputValorTicketAlto) || 0
+        valor_ticket_alto: parseFloat(inputValorTicketAlto) || 0,
+        proximos_corretores_recebem_leads_internos: parseInt(inputProximosCorretoresInternos) || 3,
+        sla_minutos_aceite_lead_interno: parseInt(inputSlaMinutosAceiteLeadInterno) || 15
       }
 
       const response = await put('/api/admin/parametros', finalData)
@@ -185,8 +199,8 @@ export default function ParametrosPage() {
           {/* Mensagem de sucesso/erro fixa no topo do form */}
           {message && (
             <div className={`p-4 rounded-2xl flex items-center space-x-3 animate-in fade-in slide-in-from-top-2 ${message.type === 'success'
-                ? 'bg-green-50 text-green-800 border border-green-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
+              ? 'bg-green-50 text-green-800 border border-green-200'
+              : 'bg-red-50 text-red-800 border border-red-200'
               }`}>
               {message.type === 'success' ? (
                 <CheckCircleIcon className="w-6 h-6" />
@@ -382,39 +396,86 @@ export default function ParametrosPage() {
                 </div>
               </div>
 
-              <div className="p-6 flex-1 space-y-4">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                    Próximos corretores recebem leads (antes do plantonista)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={inputProximosCorretores}
-                    onChange={(e) => handleNumberInput(e.target.value, setInputProximosCorretores)}
-                    disabled={loading || saving}
-                    className="block w-full px-4 py-4 bg-slate-50 border-slate-200 rounded-2xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold text-slate-700"
-                  />
+              <div className="p-6 flex-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Coluna Externos */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide border-b border-rose-100 pb-2 mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                      Externos
+                    </h3>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        Tentativas (Antes do Interno)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={inputProximosCorretores}
+                        onChange={(e) => handleNumberInput(e.target.value, setInputProximosCorretores)}
+                        disabled={loading || saving}
+                        className="block w-full px-4 py-4 bg-slate-50 border-slate-200 rounded-2xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold text-slate-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        SLA de aceite (minutos)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={inputSlaMinutosAceiteLead}
+                        onChange={(e) => handleNumberInput(e.target.value, setInputSlaMinutosAceiteLead)}
+                        disabled={loading || saving}
+                        className="block w-full px-4 py-4 bg-slate-50 border-slate-200 rounded-2xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold text-slate-700"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Coluna Internos */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide border-b border-rose-100 pb-2 mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                      Internos
+                    </h3>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        Tentativas (Antes do Plantonista)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={inputProximosCorretoresInternos}
+                        onChange={(e) => handleNumberInput(e.target.value, setInputProximosCorretoresInternos)}
+                        disabled={loading || saving}
+                        className="block w-full px-4 py-4 bg-slate-50 border-slate-200 rounded-2xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold text-slate-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                        SLA de aceite (minutos)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={inputSlaMinutosAceiteLeadInterno}
+                        onChange={(e) => handleNumberInput(e.target.value, setInputSlaMinutosAceiteLeadInterno)}
+                        disabled={loading || saving}
+                        className="block w-full px-4 py-4 bg-slate-50 border-slate-200 rounded-2xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold text-slate-700"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                    SLA de aceite do lead (minutos)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={inputSlaMinutosAceiteLead}
-                    onChange={(e) => handleNumberInput(e.target.value, setInputSlaMinutosAceiteLead)}
-                    disabled={loading || saving}
-                    className="block w-full px-4 py-4 bg-slate-50 border-slate-200 rounded-2xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold text-slate-700"
-                  />
-                </div>
-
-                <div className="mt-2 p-3 bg-rose-50 rounded-xl border border-rose-100 flex items-start gap-2">
+                <div className="mt-6 p-3 bg-rose-50 rounded-xl border border-rose-100 flex items-start gap-2">
                   <InformationCircleIcon className="w-4 h-4 text-rose-700 mt-0.5" />
                   <p className="text-[11px] text-rose-800 font-medium leading-relaxed">
-                    Ao expirar o SLA, o lead transborda para outros corretores elegíveis até o limite definido — depois disso, vai para o plantonista.
+                    A distribuição segue a ordem: <b>Externos</b> → <b>Internos</b> → <b>Plantonista</b> (Local depois Global).
+                    O lead transborda quando atinge o limite de tentativas ou o SLA expira.
                   </p>
                 </div>
               </div>

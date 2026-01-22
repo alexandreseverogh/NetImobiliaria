@@ -57,16 +57,17 @@ export async function POST(request: NextRequest, { params }: { params: { prospec
       console.error('Erro ao carregar serviço de gamificação:', gError)
     }
 
-    // ATUALIZAÇÃO DO IMÓVEL (Regra de Negócio: Se imóvel sem corretor, quem aceita assume)
+    // ATUALIZAÇÃO DO IMÓVEL (Regra de Negócio: Corretor que aceita assume o imóvel)
     try {
       await pool.query(`
         UPDATE imoveis i
-        SET corretor_fk = $1::uuid
+        SET corretor_fk = $1::uuid,
+            updated_at = NOW()
         FROM imovel_prospects ip
         WHERE ip.id = $2
           AND ip.id_imovel = i.id
-          AND i.corretor_fk IS NULL
       `, [userId, prospectId]);
+      console.log(`[AcceptRoute] 🏠 Imóvel vinculado ao corretor ${userId}`);
     } catch (updateErr) {
       console.error('Erro ao vincular corretor ao imóvel após aceite:', updateErr);
     }

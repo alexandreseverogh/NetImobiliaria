@@ -48,8 +48,11 @@ async function performLogin(username: string, password: string, twoFactorCode?: 
     if (response.ok && data.success) {
       // Salvar token no localStorage
       if (data.data && data.data.token) {
-        localStorage.setItem('auth-token', data.data.token)
-        localStorage.setItem('user-data', JSON.stringify(data.data.user))
+        localStorage.setItem('admin-auth-token', data.data.token)
+        localStorage.setItem('admin-user-data', JSON.stringify({
+          ...data.data.user,
+          at: Date.now()
+        }))
       }
       return { success: true }
     } else if (data.requires2FA) {
@@ -79,8 +82,8 @@ async function performLogout() {
     console.error('Erro no logout:', error)
   } finally {
     // Sempre limpar localStorage
-    localStorage.removeItem('auth-token')
-    localStorage.removeItem('user-data')
+    localStorage.removeItem('admin-auth-token')
+    localStorage.removeItem('admin-user-data')
   }
 }
 
@@ -88,9 +91,9 @@ async function performLogout() {
 async function checkAuthentication(): Promise<AdminUser | null> {
   try {
     // Primeiro verificar se há token no localStorage
-    const token = localStorage.getItem('auth-token')
-    const userData = localStorage.getItem('user-data')
-    
+    const token = localStorage.getItem('admin-auth-token')
+    const userData = localStorage.getItem('admin-user-data')
+
     if (token && userData) {
       // Verificar se o token ainda é válido fazendo uma chamada à API
       const response = await fetch('/api/admin/auth/me', {
@@ -98,24 +101,24 @@ async function checkAuthentication(): Promise<AdminUser | null> {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         return data.user || JSON.parse(userData)
       } else {
         // Token inválido, limpar localStorage
-        localStorage.removeItem('auth-token')
-        localStorage.removeItem('user-data')
+        localStorage.removeItem('admin-auth-token')
+        localStorage.removeItem('admin-user-data')
         return null
       }
     }
-    
+
     return null
   } catch (error) {
     console.error('Erro ao verificar autenticação:', error)
     // Em caso de erro, limpar localStorage
-    localStorage.removeItem('auth-token')
-    localStorage.removeItem('user-data')
+    localStorage.removeItem('admin-auth-token')
+    localStorage.removeItem('admin-user-data')
     return null
   }
 }
@@ -131,28 +134,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Se estiver no cliente, verificar localStorage primeiro
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('auth-token')
-      const userData = localStorage.getItem('user-data')
-      
+      const token = localStorage.getItem('admin-auth-token')
+      const userData = localStorage.getItem('admin-user-data')
+
       if (token && userData) {
         // Se há dados no localStorage, usar eles temporariamente
         try {
           const parsedUser = JSON.parse(userData)
           setUser(parsedUser)
           setLoading(false)
-          
+
           // Mas sempre verificar permissões atualizadas da API
           // para garantir que temos os dados mais recentes
           checkAuth()
           return
         } catch (error) {
           console.error('Erro ao parsear dados do usuário:', error)
-          localStorage.removeItem('auth-token')
-          localStorage.removeItem('user-data')
+          localStorage.removeItem('admin-auth-token')
+          localStorage.removeItem('admin-user-data')
         }
       }
     }
-    
+
     checkAuth()
   }, [])
 
@@ -160,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkAuth = async () => {
     try {
       setLoading(true)
-      
+
       // Se estiver na página de login, não verificar autenticação
       const currentPath = window.location.pathname
       if (currentPath === '/admin/login') {
@@ -168,14 +171,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false)
         return
       }
-      
+
       // Só verificar autenticação se não estiver na página de login
       const userData = await checkAuthentication()
-      
+
       if (userData) {
         setUser(userData)
         // Atualizar localStorage com dados completos da API (incluindo permissões)
-        localStorage.setItem('user-data', JSON.stringify(userData))
+        localStorage.setItem('admin-user-data', JSON.stringify(userData))
       } else {
         setUser(null)
         // Não redirecionar automaticamente - deixar o middleware fazer isso
@@ -193,16 +196,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true)
       const result = await performLogin(username, password, twoFactorCode)
-      
+
       if (result.success) {
         // Login bem-sucedido - definir usuário e redirecionar
-        const userData = localStorage.getItem('user-data')
+        const userData = localStorage.getItem('admin-user-data')
         if (userData) {
           setUser(JSON.parse(userData))
         }
         router.push('/admin')
       }
-      
+
       return result
     } catch (error) {
       console.error('Erro no login:', error)

@@ -102,7 +102,8 @@ export async function GET(request: NextRequest) {
         c.email as cliente_email,
         c.telefone as cliente_telefone,
         ip.preferencia_contato,
-        ip.mensagem
+        ip.mensagem,
+        i.status_fk as imovel_status_fk
       FROM public.imovel_prospect_atribuicoes a
       INNER JOIN public.imovel_prospects ip ON ip.id = a.prospect_id
       INNER JOIN public.imoveis i ON ip.id_imovel = i.id

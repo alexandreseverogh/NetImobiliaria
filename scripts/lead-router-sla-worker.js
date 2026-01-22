@@ -22,6 +22,11 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'postgres'
 })
 
+console.log(`🔌 [LeadWorker] DB Setup: ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '5432'}`);
+
+// Global flag to prevent overlapping executions
+let isProcessing = false;
+
 const DEFAULT_SLA_MINUTES = 5
 
 function appBaseUrl() {
@@ -44,6 +49,30 @@ async function getParametroProximosCorretores() {
     return n
   } catch {
     return 3
+  }
+}
+
+async function getParametroProximosCorretoresInternos() {
+  try {
+    const r = await pool.query('SELECT proximos_corretores_recebem_leads_internos FROM public.parametros LIMIT 1')
+    const v = r.rows?.[0]?.proximos_corretores_recebem_leads_internos
+    const n = Number(v)
+    if (!Number.isFinite(n) || n <= 0) return 3
+    return n
+  } catch {
+    return 3
+  }
+}
+
+async function getParametroSlaMinutosAceiteLeadInterno() {
+  try {
+    const r = await pool.query('SELECT sla_minutos_aceite_lead_interno FROM public.parametros LIMIT 1')
+    const v = r.rows?.[0]?.sla_minutos_aceite_lead_interno
+    const n = Number(v)
+    if (!Number.isFinite(n) || n <= 0) return 15
+    return n
+  } catch {
+    return 15
   }
 }
 
@@ -217,10 +246,7 @@ async function getUserById(userId) {
   return r.rows?.[0] || null
 }
 
-async function pickNextBrokerByArea(estado, cidade, prospectId) {
-  // Mesma regra do roteamento inicial:
-  // 1) menor carga (COUNT atribuições)
-  // 2) empate: maior tempo sem receber (MAX created_at mais antigo; NULL primeiro)
+async function pickNextBrokerByAreaExternal(estado, cidade, prospectId) {
   const q = `
     SELECT
       u.id, u.nome, u.email,
@@ -234,6 +260,36 @@ async function pickNextBrokerByArea(estado, cidade, prospectId) {
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = false
+      AND (COALESCE(u.tipo_corretor, 'Externo') = 'Externo' OR u.tipo_corretor IS NULL)
+      AND caa.estado_fk = $1
+      AND caa.cidade_fk = $2
+      AND u.id NOT IN (
+        SELECT corretor_fk FROM public.imovel_prospect_atribuicoes WHERE prospect_id = $3
+      )
+    GROUP BY u.id, u.nome, u.email
+    ORDER BY COUNT(a2.id) ASC, MAX(a2.created_at) ASC NULLS FIRST, u.created_at ASC
+    LIMIT 1
+  `
+  const r = await pool.query(q, [estado, cidade, prospectId])
+  if (!r.rows.length) return null
+  return r.rows[0]
+}
+
+async function pickInternalBrokerByArea(estado, cidade, prospectId) {
+  const q = `
+    SELECT
+      u.id, u.nome, u.email,
+      COUNT(a2.id) AS total_recebidos,
+      MAX(a2.created_at) AS ultimo_recebimento
+    FROM public.users u
+    INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
+    INNER JOIN public.user_roles ur ON ura.role_id = ur.id
+    INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
+    LEFT JOIN public.imovel_prospect_atribuicoes a2 ON a2.corretor_fk = u.id
+    WHERE u.ativo = true
+      AND ur.name = 'Corretor'
+      AND COALESCE(u.is_plantonista, false) = false
+      AND COALESCE(u.tipo_corretor, 'Externo') = 'Interno'
       AND caa.estado_fk = $1
       AND caa.cidade_fk = $2
       AND u.id NOT IN (
@@ -300,6 +356,7 @@ async function getLeadPayload(prospectId) {
   const q = `
     SELECT
       ip.id as prospect_id,
+      ip.id_imovel,
       ip.created_at as data_interesse,
       ip.preferencia_contato,
       ip.mensagem,
@@ -374,6 +431,7 @@ async function getUnassignedProspects(limit = 50) {
       )
     ORDER BY ip.id ASC
     LIMIT $1
+    FOR UPDATE SKIP LOCKED
   `
   const r = await pool.query(q, [limit])
   return r.rows || []
@@ -399,6 +457,7 @@ async function processUnassignedProspectsOnce() {
 
       // Regra: se o imóvel tiver corretor_fk, direciona direto (se ativo e corretor)
       let broker = null
+      let isPlantonista = false
       const imovelCorretorFk = payload.corretor_fk ? String(payload.corretor_fk).trim() : ''
       let directBroker = false
       if (imovelCorretorFk) {
@@ -406,28 +465,40 @@ async function processUnassignedProspectsOnce() {
         directBroker = !!broker
       }
       if (!broker) broker = await pickBrokerByAreaInitial(estado, cidade)
-      if (!broker) broker = await pickPlantonistaBroker()
+      if (!broker) {
+        broker = await pickPlantonistaBroker()
+        isPlantonista = !!broker
+      }
       if (!broker) continue
 
       // REGRA CRÍTICA: se veio por imovel.corretor_fk, NÃO aplicar transbordo/SLA (expira_em = NULL)
       const expiraEm = directBroker ? null : new Date(Date.now() + slaMinutes * 60 * 1000)
 
-      // Inserir atribuição (apenas se ainda estiver sem atribuição)
-      await pool.query(
+      const mType = directBroker ? 'imovel_corretor_fk' : (isPlantonista ? 'fallback_plantonista' : 'area_match')
+      const curStatus = (directBroker || isPlantonista) ? 'aceito' : 'atribuido'
+
+      const newAssignment = await pool.query(
         `
         INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em)
-        SELECT $1, $2::uuid, 'atribuido', $3::jsonb, $4
+        SELECT $1, $2::uuid, $3, $4::jsonb, $5
         WHERE NOT EXISTS (
           SELECT 1 FROM public.imovel_prospect_atribuicoes a WHERE a.prospect_id = $1
         )
+        RETURNING status
         `,
         [
           prospectId,
           broker.id,
-          JSON.stringify({ type: directBroker ? 'imovel_corretor_fk' : 'area_match', source: 'backfill_unassigned' }),
+          curStatus,
+          JSON.stringify({ type: mType, source: 'backfill_unassigned' }),
           expiraEm
         ]
       )
+
+      if (newAssignment.rows?.[0]?.status === 'aceito') {
+        await pool.query('UPDATE public.imoveis SET corretor_fk = $1::uuid, updated_at = NOW() WHERE id = $2', [broker.id, payload.id_imovel])
+        console.log(`🏠 [LeadWorker] Imóvel ${payload.id_imovel} vinculado ao corretor ${broker.id} (Aceite Automático - Backfill)`)
+      }
 
       // Notificar corretor escolhido
       if (broker.email) {
@@ -552,7 +623,9 @@ function joinParts(parts) {
 }
 
 async function processExpiredOnce() {
-  const proximos = await getParametroProximosCorretores()
+  console.log('🔍 [LeadWorker] Buscando leads expirados...');
+  const limitExternal = await getParametroProximosCorretores()
+  const limitInternal = await getParametroProximosCorretoresInternos()
   const slaMinutes = await getParametroSlaMinutosAceiteLead()
 
   // Normalização defensiva: atribuições fixas (imovel_corretor_fk) não podem expirar.
@@ -581,6 +654,7 @@ async function processExpiredOnce() {
       AND COALESCE(motivo->>'type','') <> 'imovel_corretor_fk'
     ORDER BY expira_em ASC
     LIMIT 50
+    FOR UPDATE SKIP LOCKED
     `
   )
 
@@ -593,12 +667,13 @@ async function processExpiredOnce() {
     const prevBrokerId = row.corretor_fk
 
     try {
+      console.log(`💡 [LeadWorker] Processando lead ${prospectId} (AssignedId: ${assignmentId})`);
       await pool.query('BEGIN')
 
       const upd = await pool.query(
         `
         UPDATE public.imovel_prospect_atribuicoes
-        SET status = 'expirado', atualizado_em = NOW()
+        SET status = 'expirado', updated_at = NOW()
         WHERE id = $1 AND status = 'atribuido'
         RETURNING prospect_id
         `,
@@ -617,17 +692,10 @@ async function processExpiredOnce() {
         previous_corretor_fk: prevBrokerId
       })
 
-      // Quantas tentativas (não-plantonista) já foram feitas?
-      const attemptsQ = await pool.query(
-        `
-        SELECT COUNT(*)::int AS cnt
-        FROM public.imovel_prospect_atribuicoes
-        WHERE prospect_id = $1
-          AND COALESCE(motivo->>'type','') <> 'fallback_plantonista'
-        `,
-        [prospectId]
-      )
-      const attempts = attemptsQ.rows?.[0]?.cnt ?? 0
+      // Analisar Hitórico para definir o Próximo Tier
+      let broker = null
+      let motivo = null
+      let targetTier = 'External'
 
       const payload = await getLeadPayload(prospectId)
       if (!payload) {
@@ -639,31 +707,83 @@ async function processExpiredOnce() {
       const estado = String(payload.estado_fk || '').trim()
       const cidade = String(payload.cidade_fk || '').trim()
 
-      let broker = null
-      let motivo = null
+      // Contar tentativas por tipo
+      const historyQ = await pool.query(
+        `
+        SELECT 
+          pa.corretor_fk,
+          u.tipo_corretor,
+          COALESCE(pa.motivo->>'type', '') as m_type
+        FROM public.imovel_prospect_atribuicoes pa
+        JOIN public.users u ON u.id = pa.corretor_fk
+        WHERE pa.prospect_id = $1
+        ORDER BY pa.created_at ASC
+        `,
+        [prospectId]
+      )
 
-      if (attempts < proximos) {
-        broker = await pickNextBrokerByArea(estado, cidade, prospectId)
+      const externalAttempts = historyQ.rows.filter(r =>
+        (r.tipo_corretor === 'Externo' || !r.tipo_corretor) &&
+        !r.m_type.includes('plantonista')
+      ).length
+
+      const internalAttempts = historyQ.rows.filter(r =>
+        r.tipo_corretor === 'Interno' &&
+        !r.m_type.includes('plantonista')
+      ).length
+
+      console.log(`📊 [LeadWorker] Lead ${prospectId}: ExtAttempts=${externalAttempts}/${limitExternal}, IntAttempts=${internalAttempts}/${limitInternal}`);
+
+      // Decisão de Tier
+      if (externalAttempts < limitExternal && internalAttempts === 0) {
+        targetTier = 'External'
+      } else if (internalAttempts < limitInternal) {
+        targetTier = 'Internal'
+      } else {
+        targetTier = 'Plantonista'
+      }
+
+      // 1. Tentar External
+      if (targetTier === 'External') {
+        broker = await pickNextBrokerByAreaExternal(estado, cidade, prospectId)
         if (broker) {
           motivo = {
             type: 'area_match',
             source: 'sla_transbordo',
             previous_corretor_fk: prevBrokerId,
-            attempts: attempts + 1,
-            limite: proximos
+            attempts: externalAttempts + 1,
+            limit: limitExternal
           }
+        } else {
+          // Fallback imediato para Internal se não achou externo disponível
+          targetTier = 'Internal'
         }
       }
 
+      // 2. Tentar Internal
+      if (!broker && targetTier === 'Internal') {
+        broker = await pickInternalBrokerByArea(estado, cidade, prospectId)
+        if (broker) {
+          motivo = {
+            type: 'area_match_internal',
+            source: 'sla_transbordo',
+            previous_corretor_fk: prevBrokerId,
+            attempts: internalAttempts + 1,
+            limit: limitInternal
+          }
+        } else {
+          targetTier = 'Plantonista'
+        }
+      }
+
+      // 3. Tentar Plantonista
       if (!broker) {
         broker = await pickPlantonistaBroker()
         if (broker) {
           motivo = {
             type: 'fallback_plantonista',
             source: 'sla_transbordo',
-            previous_corretor_fk: prevBrokerId,
-            attempts: attempts + 1,
-            limite: proximos
+            previous_corretor_fk: prevBrokerId
           }
         }
       }
@@ -675,15 +795,32 @@ async function processExpiredOnce() {
         continue
       }
 
-      const expiraEm = new Date(Date.now() + slaMinutes * 60 * 1000)
+      const curSla = (motivo?.type === 'area_match_internal')
+        ? await getParametroSlaMinutosAceiteLeadInterno()
+        : slaMinutes
+
+      const expiraEm = (motivo?.type === 'fallback_plantonista') ? null : new Date(Date.now() + curSla * 60 * 1000)
+
+      const curStatus = (motivo?.type === 'fallback_plantonista' ? 'aceito' : 'atribuido')
       const newAssignRes = await pool.query(
         `
         INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em)
-        VALUES ($1, $2::uuid, 'atribuido', $3::jsonb, $4)
+        VALUES ($1, $2::uuid, $3, $4::jsonb, $5)
         RETURNING id
         `,
-        [prospectId, broker.id, JSON.stringify(motivo || {}), expiraEm]
+        [
+          prospectId,
+          broker.id,
+          curStatus,
+          JSON.stringify(motivo || {}),
+          expiraEm
+        ]
       )
+
+      if (curStatus === 'aceito') {
+        await pool.query('UPDATE public.imoveis SET corretor_fk = $1::uuid, updated_at = NOW() WHERE id = $2', [broker.id, payload.id_imovel])
+        console.log(`🏠 [LeadWorker] Imóvel ${payload.id_imovel} vinculado ao corretor ${broker.id} (SLA Transbordo -> Aceite Automático)`)
+      }
       const newAssignmentId = newAssignRes.rows?.[0]?.id ?? null
 
       await pool.query('COMMIT')
@@ -787,8 +924,8 @@ async function processExpiredOnce() {
             estado: String(payload.estado_fk || '-'),
             painel_url: painelUrl,
             sla_minutos: String(slaMinutes),
-            tentativa_atual: String(Math.min(attempts, proximos)),
-            limite_tentativas: String(proximos)
+            tentativa_atual: String(Math.min(externalAttempts + internalAttempts, limitExternal + limitInternal)),
+            limite_tentativas: String(limitExternal + limitInternal)
           })
         }
       } catch (e) {
@@ -799,7 +936,7 @@ async function processExpiredOnce() {
     } catch (e) {
       try {
         await pool.query('ROLLBACK')
-      } catch {}
+      } catch { }
       console.error('❌ [LeadWorker] Erro processando expiração:', e?.message || e)
     }
   }
@@ -808,14 +945,23 @@ async function processExpiredOnce() {
 }
 
 async function tick() {
+  if (isProcessing) {
+    console.warn('⚠️ [LeadWorker] Tick suprimido: execução anterior ainda em andamento.');
+    return;
+  }
+
+  isProcessing = true;
   try {
+    console.log('🔄 [LeadWorker] Iniciando tick...');
     const backfilled = await processUnassignedProspectsOnce()
     if (backfilled > 0) console.log(`✅ [LeadWorker] Backfill: atribuídos ${backfilled} prospects sem atribuição`)
 
     const n = await processExpiredOnce()
-    if (n > 0) console.log(`✅ [LeadWorker] Reprocessados ${n} leads expirados`)
+    console.log(`ℹ️ [LeadWorker] Tick finalizado. Processados: ${n}`);
   } catch (e) {
     console.error('❌ [LeadWorker] Tick error:', e?.message || e)
+  } finally {
+    isProcessing = false;
   }
 }
 

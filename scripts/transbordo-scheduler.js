@@ -27,8 +27,8 @@ async function runTransbordoCheck() {
 
         if (response.ok) {
             const data = await response.json();
-            if (data.summary.processed > 0) {
-                console.log(`✅ [Transbordo] Processado com sucesso:`, data.summary);
+            if (data.summary.processed > 0 || data.debug) {
+                console.log(`✅ [Transbordo] Dados:`, data);
             } else {
                 console.log(`ℹ️ [Transbordo] Nenhum lead expirado.`);
             }

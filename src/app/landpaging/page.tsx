@@ -144,14 +144,14 @@ export default function LandingPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
-      const storedUser = localStorage.getItem('user-data')
+      const storedUser = localStorage.getItem('admin-user-data')
       if (storedUser) {
         const user = JSON.parse(storedUser)
         // ID do usuário fantasma relatado nos logs
         if (user.id === 'c57ab897-c068-46a4-9b12-bb9f2d938fe7') {
           console.warn('🧟 [ZOMBIE KILLER] Sessão fantasma detectada! Exterminando...')
-          localStorage.removeItem('auth-token')
-          localStorage.removeItem('user-data')
+          localStorage.removeItem('admin-auth-token')
+          localStorage.removeItem('admin-user-data')
           // Forçar reload para limpar estado da memória
           window.location.reload()
         }
@@ -161,7 +161,8 @@ export default function LandingPage() {
     }
   }, [])
 
-  // Reabrir o modal de informações do corretor após voltar do fluxo "Novo Proprietário"
+  // Reabrir o modal de informações do corretor após voltar do fluxo "Novo Proprietário" ou refresh do "Negócio Fechado"
+  // Adiciona um delay de 2s para o usuário ver o grid atualizado primeiro (requisito UX)
   useEffect(() => {
     const shouldOpen = (searchParams?.get('corretor_home') || '').toLowerCase() === 'true'
     if (!shouldOpen) return
@@ -169,36 +170,40 @@ export default function LandingPage() {
     if (corretorHomeQueryConsumedRef.current) return
     corretorHomeQueryConsumedRef.current = true
 
-    try {
-      const raw = sessionStorage.getItem('corretor_success_user')
-      if (raw) {
-        const parsed = JSON.parse(raw)
+    const timer = setTimeout(() => {
+      try {
+        const raw = sessionStorage.getItem('corretor_success_user')
+        if (raw) {
+          const parsed = JSON.parse(raw)
 
-        // Tentar sincronizar isencao do localStorage caso esteja stale no sessionStorage
-        try {
-          const localRaw = localStorage.getItem('user-data')
-          if (localRaw) {
-            const localUser = JSON.parse(localRaw)
-            if ((localUser.id === parsed.id || localUser.uuid === parsed.id) && localUser.isencao !== undefined) {
-              parsed.isencao = !!localUser.isencao
-            }
-          }
-        } catch { }
-
-        if (parsed?.nome && parsed?.email) {
-          corretorHomeOpenRef.current = true
-          setCorretorHomeUser(parsed)
-          setCorretorHomeSuccessOpen(true)
-
-          // Consumir o parâmetro imediatamente para não reabrir em re-hidratações
+          // Tentar sincronizar isencao do localStorage caso esteja stale no sessionStorage
           try {
-            const url = new URL(window.location.href)
-            url.searchParams.delete('corretor_home')
-            router.replace(url.pathname + (url.search ? url.search : ''))
+            const localRaw = localStorage.getItem('admin-user-data')
+            if (localRaw) {
+              const localUser = JSON.parse(localRaw)
+              if ((localUser.id === parsed.id || localUser.uuid === parsed.id) && localUser.isencao !== undefined) {
+                parsed.isencao = !!localUser.isencao
+              }
+            }
           } catch { }
+
+          if (parsed?.nome && parsed?.email) {
+            corretorHomeOpenRef.current = true
+            setCorretorHomeUser(parsed)
+            setCorretorHomeSuccessOpen(true)
+
+            // Consumir o parâmetro imediatamente para não reabrir em re-hidratações
+            try {
+              const url = new URL(window.location.href)
+              url.searchParams.delete('corretor_home')
+              router.replace(url.pathname + (url.search ? url.search : ''))
+            } catch { }
+          }
         }
-      }
-    } catch { }
+      } catch { }
+    }, 2000)
+
+    return () => clearTimeout(timer)
   }, [searchParams, router])
 
   // Abrir painel do corretor sem redirecionar (login via header na própria landpaging).
@@ -628,13 +633,13 @@ export default function LandingPage() {
 
       // Regra: só CLIENTE pode abrir o modal de interesse.
       // Se a sessão ativa for corretor/proprietário (ou houver sessão admin), bloqueia.
+      // Regra: só CLIENTE pode abrir o modal de interesse.
+      // Se houver sessão pública ativa que não seja cliente, bloqueia.
       try {
-        const lastAuthRaw = localStorage.getItem('last-auth-user')
-        const adminToken = localStorage.getItem('auth-token')
-        const adminUser = localStorage.getItem('user-data')
+        const lastAuthRaw = localStorage.getItem('public-last-auth-user')
         const lastAuth = lastAuthRaw ? JSON.parse(lastAuthRaw) : null
         const lastType = lastAuth?.userType
-        if (adminToken || adminUser || (lastType && lastType !== 'cliente')) {
+        if (lastType && lastType !== 'cliente') {
           console.log('ℹ️ [LANDING PAGE] Bloqueando abertura do modal de interesse: usuário ativo não é cliente')
           return
         }
@@ -692,13 +697,12 @@ export default function LandingPage() {
   const handleTenhoInteresseClick = (imovelId: number, imovelTitulo?: string) => {
     // Regra: somente CLIENTE logado pode abrir o modal de interesse.
     // Se o usuário ativo for corretor/proprietário, não permitir.
+    // Regra: somente CLIENTE logado pode abrir o modal de interesse.
     try {
-      const lastAuthRaw = localStorage.getItem('last-auth-user')
-      const adminToken = localStorage.getItem('auth-token')
-      const adminUser = localStorage.getItem('user-data')
+      const lastAuthRaw = localStorage.getItem('public-last-auth-user')
       const lastAuth = lastAuthRaw ? JSON.parse(lastAuthRaw) : null
       const lastType = lastAuth?.userType
-      if (adminToken || adminUser || (lastType && lastType !== 'cliente')) {
+      if (lastType && lastType !== 'cliente') {
         try {
           window.dispatchEvent(
             new CustomEvent('ui-toast', {

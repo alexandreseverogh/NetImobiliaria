@@ -23,7 +23,9 @@ export async function GET(request: NextRequest) {
         periodo_anuncio_corretor,
         proximos_corretores_recebem_leads,
         sla_minutos_aceite_lead,
-        valor_ticket_alto
+        valor_ticket_alto,
+        proximos_corretores_recebem_leads_internos,
+        sla_minutos_aceite_lead_interno
       FROM parametros LIMIT 1`
     )
 
@@ -40,8 +42,10 @@ export async function GET(request: NextRequest) {
           periodo_anuncio_corretor,
           proximos_corretores_recebem_leads,
           sla_minutos_aceite_lead,
-          valor_ticket_alto
-        ) VALUES (0.00, 0.00, $1, $2, 0.00, 5, 30, 3, 5, 2000000.00)`,
+          valor_ticket_alto,
+          proximos_corretores_recebem_leads_internos,
+          sla_minutos_aceite_lead_interno
+        ) VALUES (0.00, 0.00, $1, $2, 0.00, 5, 30, 3, 5, 2000000.00, 3, 15)`,
         ['', 'BRASILIA']
       )
 
@@ -57,7 +61,9 @@ export async function GET(request: NextRequest) {
           periodo_anuncio_corretor: 30,
           proximos_corretores_recebem_leads: 3,
           sla_minutos_aceite_lead: 5,
-          valor_ticket_alto: 2000000.00
+          valor_ticket_alto: 2000000.00,
+          proximos_corretores_recebem_leads_internos: 3,
+          sla_minutos_aceite_lead_interno: 15
         }
       })
     }
@@ -74,7 +80,9 @@ export async function GET(request: NextRequest) {
         periodo_anuncio_corretor: parseInt(result.rows[0].periodo_anuncio_corretor) || 30,
         proximos_corretores_recebem_leads: parseInt(result.rows[0].proximos_corretores_recebem_leads) || 3,
         sla_minutos_aceite_lead: parseInt(result.rows[0].sla_minutos_aceite_lead) || 5,
-        valor_ticket_alto: parseFloat(result.rows[0].valor_ticket_alto) || 2000000.00
+        valor_ticket_alto: parseFloat(result.rows[0].valor_ticket_alto) || 2000000.00,
+        proximos_corretores_recebem_leads_internos: parseInt(result.rows[0].proximos_corretores_recebem_leads_internos) || 3,
+        sla_minutos_aceite_lead_interno: parseInt(result.rows[0].sla_minutos_aceite_lead_interno) || 15
       }
     })
 
@@ -98,6 +106,8 @@ interface ParametrosRequest {
   proximos_corretores_recebem_leads?: number;
   sla_minutos_aceite_lead?: number;
   valor_ticket_alto?: number;
+  proximos_corretores_recebem_leads_internos?: number;
+  sla_minutos_aceite_lead_interno?: number;
 }
 
 // PUT - Atualizar valor do parâmetro
@@ -120,7 +130,9 @@ export async function PUT(request: NextRequest) {
       periodo_anuncio_corretor,
       proximos_corretores_recebem_leads,
       sla_minutos_aceite_lead,
-      valor_ticket_alto
+      valor_ticket_alto,
+      proximos_corretores_recebem_leads_internos,
+      sla_minutos_aceite_lead_interno
     } = body
 
     // Preparar campos e valores para atualização
@@ -210,6 +222,24 @@ export async function PUT(request: NextRequest) {
       }
       updates.push(`valor_ticket_alto = $${paramCount++}`)
       values.push(valorNumerico)
+    }
+
+    if (proximos_corretores_recebem_leads_internos !== undefined) {
+      const n = parseInt(proximos_corretores_recebem_leads_internos.toString())
+      if (isNaN(n) || n < 0) {
+        return NextResponse.json({ error: 'Valor inválido para próximos corretores internos' }, { status: 400 })
+      }
+      updates.push(`proximos_corretores_recebem_leads_internos = $${paramCount++}`)
+      values.push(n)
+    }
+
+    if (sla_minutos_aceite_lead_interno !== undefined) {
+      const n = parseInt(sla_minutos_aceite_lead_interno.toString())
+      if (isNaN(n) || n <= 0) {
+        return NextResponse.json({ error: 'Valor inválido para SLA interno (minutos)' }, { status: 400 })
+      }
+      updates.push(`sla_minutos_aceite_lead_interno = $${paramCount++}`)
+      values.push(n)
     }
 
     if (updates.length === 0) {

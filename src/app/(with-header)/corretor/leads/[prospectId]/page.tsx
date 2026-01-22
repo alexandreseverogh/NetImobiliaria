@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
-import { ArrowLeft, CheckCircle2, Clock, RefreshCcw } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Clock, RefreshCcw, Bed, Bath, Car, Layers, Building2, DollarSign, CreditCard, ArrowLeftRight, BadgeCheck, X } from 'lucide-react'
 
 type LeadRow = {
   prospect_id: number
@@ -59,6 +59,7 @@ type LeadRow = {
   cliente_telefone: string | null
   preferencia_contato: string | null
   mensagem: string | null
+  imovel_status_fk: number | null
 }
 
 export default function CorretorLeadDetalhePage() {
@@ -70,6 +71,21 @@ export default function CorretorLeadDetalhePage() {
   const [lead, setLead] = useState<LeadRow | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [accepting, setAccepting] = useState(false)
+
+  // Estados para o Modal de Negócio Fechado
+  const [isNegocioFechadoOpen, setIsNegocioFechadoOpen] = useState(false)
+  const [codigoBusca, setCodigoBusca] = useState('')
+  const inputBuscaRef = useRef<HTMLInputElement>(null)
+  const [imovelEncontrado, setImovelEncontrado] = useState<any>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [isConfirmingNegocio, setIsConfirmingNegocio] = useState(false)
+  const [negocioFechadoChecked, setNegocioFechadoChecked] = useState(false)
+  const [negocioError, setNegocioError] = useState<string | null>(null)
+  const [showParabens, setShowParabens] = useState(false)
+  const [initialStatus, setInitialStatus] = useState<number | null>(null)
+  const [slaMinutos, setSlaMinutos] = useState<number | null>(null)
+  const [slaMinutosInterno, setSlaMinutosInterno] = useState<number | null>(null)
+  const [tipoCorretor, setTipoCorretor] = useState<string | null>(null)
 
   const formatMoney = (v: number | null | undefined) => {
     if (v === null || v === undefined) return '-'
@@ -98,10 +114,24 @@ export default function CorretorLeadDetalhePage() {
   }
   const joinParts = (parts: Array<any>) => parts.map((x) => String(x || '').trim()).filter(Boolean).join(', ')
 
+  const loadConfig = useCallback(async () => {
+    try {
+      const resp = await get('/api/corretor/lead-config')
+      const data = await resp.json()
+      if (resp.ok && data?.success) {
+        const n = Number(data?.data?.sla_minutos_aceite_lead)
+        if (Number.isFinite(n) && n > 0) setSlaMinutos(n)
+        const ni = Number(data?.data?.sla_minutos_aceite_lead_interno)
+        if (Number.isFinite(ni) && ni > 0) setSlaMinutosInterno(ni)
+      }
+    } catch { }
+  }, [get])
+
   const load = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
+      loadConfig()
       if (!Number.isFinite(prospectId) || prospectId <= 0) throw new Error('Lead inválido')
       const resp = await get(`/api/corretor/prospects/${encodeURIComponent(String(prospectId))}`)
       const data = await resp.json().catch(() => null)
@@ -116,6 +146,13 @@ export default function CorretorLeadDetalhePage() {
   }, [get, prospectId])
 
   useEffect(() => {
+    try {
+      const stored = localStorage.getItem('admin-user-data')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        setTipoCorretor(parsed.tipo_corretor || null)
+      }
+    } catch { }
     load()
   }, [load])
 
@@ -124,6 +161,15 @@ export default function CorretorLeadDetalhePage() {
     const req = (lead.requires_aceite ?? (lead.expira_em ? true : false)) === true
     return lead.status === 'atribuido' && req
   }, [lead])
+
+  // Efeito para focar o input ao abrir o modal de Negócio Fechado
+  useEffect(() => {
+    if (isNegocioFechadoOpen) {
+      setTimeout(() => {
+        inputBuscaRef.current?.focus()
+      }, 300)
+    }
+  }, [isNegocioFechadoOpen])
 
   const acceptLead = useCallback(async () => {
     if (!lead) return
@@ -140,24 +186,151 @@ export default function CorretorLeadDetalhePage() {
     }
   }, [lead, post, load])
 
+  const handleBuscarImovelStatus = async () => {
+    if (!codigoBusca.trim()) return
+    setIsSearching(true)
+    setNegocioError(null)
+    setImovelEncontrado(null)
+    setInitialStatus(null)
+    try {
+      const resp = await fetch(`/api/admin/imoveis/by-codigo/${codigoBusca}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('admin-auth-token') || localStorage.getItem('auth-token')}`
+        }
+      })
+      const data = await resp.json()
+      if (resp.ok && data.success) {
+        const imovel = data.imovel
+
+        // Validação: corretor logado
+        let currentBrokerId = ''
+        try {
+          const stored = localStorage.getItem('admin-user-data')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            currentBrokerId = String(parsed.id || '')
+          }
+        } catch { }
+
+        const imovelBrokerId = String(imovel?.corretor_fk || '').toLowerCase().trim()
+
+        if (imovelBrokerId !== currentBrokerId.toLowerCase().trim()) {
+          setNegocioError('Este código de imóvel não está associado a você')
+          return
+        }
+
+        setImovelEncontrado(imovel)
+        setNegocioFechadoChecked(imovel.status_fk === 100)
+        setInitialStatus(imovel.status_fk)
+      } else {
+        setNegocioError('Este código de imóvel não está associado a você')
+      }
+    } catch (err) {
+      setNegocioError('Erro ao buscar imóvel.')
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleConfirmarNegocioFechado = async () => {
+    if (!imovelEncontrado) return
+    setIsConfirmingNegocio(true)
+    setNegocioError(null)
+    try {
+      const novoStatus = negocioFechadoChecked ? 100 : 1
+      const resp = await fetch(`/api/admin/imoveis/${imovelEncontrado.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('admin-auth-token') || localStorage.getItem('auth-token')}`
+        },
+        body: JSON.stringify({ status_fk: novoStatus })
+      })
+      const data = await resp.json()
+      if (resp.ok && data.success) {
+        if (novoStatus === 100) {
+          setShowParabens(true)
+          setTimeout(() => {
+            setIsNegocioFechadoOpen(false)
+            setShowParabens(false)
+            setImovelEncontrado(null)
+            setCodigoBusca('')
+
+            // Limpar cache de destaques da landpaging para garantir sincronia após reload
+            try {
+              Object.keys(sessionStorage).forEach(key => {
+                if (key.startsWith('featured-destaque-cache:')) {
+                  sessionStorage.removeItem(key)
+                }
+              })
+            } catch { }
+
+            const statusAlterado = novoStatus !== initialStatus
+            if (statusAlterado) {
+              window.location.href = '/landpaging'
+            } else {
+              window.location.reload()
+            }
+          }, 3000)
+        } else {
+          setIsNegocioFechadoOpen(false)
+          setImovelEncontrado(null)
+          setCodigoBusca('')
+
+          const statusAlterado = novoStatus !== initialStatus
+          if (statusAlterado) {
+            try {
+              Object.keys(sessionStorage).forEach(key => {
+                if (key.startsWith('featured-destaque-cache:')) {
+                  sessionStorage.removeItem(key)
+                }
+              })
+            } catch { }
+            window.location.href = '/landpaging'
+          } else {
+            window.location.reload()
+          }
+        }
+
+        // Disparar toast de sucesso se possível
+        try {
+          window.dispatchEvent(new CustomEvent('ui-toast', {
+            detail: { type: 'success', message: 'Status do imóvel atualizado com sucesso!' }
+          }))
+        } catch { }
+      } else {
+        setNegocioError(data.error || 'Erro ao atualizar status.')
+      }
+    } catch (err) {
+      setNegocioError('Erro ao atualizar status.')
+    } finally {
+      setIsConfirmingNegocio(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50/50">
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="flex items-center justify-end gap-3 mb-6">
+          <button
+            onClick={() => {
+              setNegocioError(null)
+              setImovelEncontrado(null)
+              setCodigoBusca('')
+              setIsNegocioFechadoOpen(true)
+            }}
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-white font-black hover:bg-indigo-700 shadow-sm transition-all"
+          >
+            <BadgeCheck className="w-4 h-4" />
+            Negócio Fechado
+          </button>
           <a
-            href="/corretor/leads?status=all"
+            href="/landpaging?corretor_home=true"
             className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-4 py-2 text-slate-900 font-black hover:bg-slate-50"
           >
             <ArrowLeft className="w-4 h-4" />
             Voltar
           </a>
-          <button
-            onClick={load}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white font-black hover:bg-slate-800"
-          >
-            <RefreshCcw className="w-4 h-4" />
-            Atualizar
-          </button>
         </div>
 
         {error && <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 text-sm">{error}</div>}
@@ -171,12 +344,70 @@ export default function CorretorLeadDetalhePage() {
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
             <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-white to-slate-50">
-              <div className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                Código {lead.codigo || '-'} • {formatMoney(lead.preco)}
+              <div className="text-xs font-black text-slate-500 uppercase tracking-widest space-y-0.5">
+                <div>Data do interesse: <span className="text-slate-900">{formatDateTime(lead.data_interesse || lead.atribuido_em)}</span></div>
+                <div>Negócio: <span className="text-slate-900">{lead.codigo || '-'}</span></div>
+                <div>Código do Imóvel: <span className="text-slate-900">{lead.imovel_id || '-'}</span></div>
+                <div className="mt-2 text-sm text-slate-600">
+                  <strong>Status:</strong>{' '}
+                  <span className="text-slate-700 font-bold">
+                    {lead.status || '-'}
+                    {lead.status === 'expirado' && (() => {
+                      const type = String(tipoCorretor || '').toLowerCase()
+                      const mins = type === 'interno' ? slaMinutosInterno : slaMinutos
+                      return mins ? ` SLA ${mins} min` : ''
+                    })()}
+                  </span>
+                </div>
+                <div className="text-slate-900 text-sm mt-2">{formatMoney(lead.preco)}</div>
               </div>
-              <div className="mt-1 text-2xl font-black text-slate-900">{lead.titulo || 'Lead'}</div>
-              <div className="mt-2 text-sm text-slate-600">
-                <strong>Data do interesse:</strong> {formatDateTime(lead.data_interesse || lead.atribuido_em)}
+              <div className="mt-3 text-2xl font-black text-slate-900">{lead.titulo || 'Lead'}</div>
+
+              {/* Características rápidas do imóvel */}
+              <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-y-3 gap-x-4 pt-4 border-t border-slate-100">
+                <div className="flex items-center gap-2 text-sm">
+                  <Bed className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="text-slate-600"><strong>Quartos:</strong> <span className="font-black text-slate-900">{toStr(lead.quartos)}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Bed className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span className="text-slate-600"><strong>Suítes:</strong> <span className="font-black text-slate-900">{toStr(lead.suites)}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Bath className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="text-slate-600"><strong>Banheiros:</strong> <span className="font-black text-slate-900">{toStr(lead.banheiros)}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Car className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="text-slate-600"><strong>Garagem:</strong> <span className="font-black text-slate-900">{toStr(lead.vagas_garagem)}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Layers className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="text-slate-600"><strong>Andar:</strong> <span className="font-black text-slate-900">{toStr(lead.andar)}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="text-slate-600"><strong>Total Andares:</strong> <span className="font-black text-slate-900">{toStr(lead.total_andares)}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <DollarSign className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span className="text-slate-600"><strong>IPTU:</strong> <span className="font-black text-slate-900">{formatMoney(lead.preco_iptu)}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <DollarSign className="w-4 h-4 text-blue-500 shrink-0" />
+                  <span className="text-slate-600"><strong>Taxas:</strong> <span className="font-black text-slate-900">{formatMoney(lead.taxa_extra)}</span></span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 py-4 px-6 border-t border-slate-100 bg-slate-50/20">
+                <div className="flex items-center gap-2 text-sm">
+                  <CreditCard className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="text-slate-600"><strong>Financiamento:</strong> <span className="font-black text-slate-900">{yn(lead.aceita_financiamento)}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <ArrowLeftRight className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="text-slate-600"><strong>Permuta:</strong> <span className="font-black text-slate-900">{yn(lead.aceita_permuta)}</span></span>
+                </div>
               </div>
 
               {requiresAceite && (
@@ -274,6 +505,138 @@ export default function CorretorLeadDetalhePage() {
           </div>
         )}
       </div>
+
+      {/* Modal de Negócio Fechado */}
+      {isNegocioFechadoOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in duration-200">
+            {/* Header / Parabens */}
+            <div className={`p-6 border-b border-slate-100 transition-all duration-500 ${showParabens ? 'bg-indigo-600 text-white' : 'bg-gradient-to-br from-indigo-50 to-white'}`}>
+              <div className="flex items-center justify-between">
+                {!showParabens ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                        <BadgeCheck className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 leading-tight">Negócio Fechado</h3>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">Gerenciar Status</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => !isConfirmingNegocio && setIsNegocioFechadoOpen(false)}
+                      className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex-1 text-center py-4 animate-bounce">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
+                      <BadgeCheck className="w-10 h-10 text-white" />
+                    </div>
+                    <h3 className="text-4xl font-black tracking-tighter">Parabéns !!!</h3>
+                    <p className="text-white/80 font-bold mt-2 uppercase text-xs tracking-[0.3em]">Negócio Finalizado com Sucesso</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {!showParabens && (
+              <>
+                <div className="p-6 space-y-6">
+                  {/* Busca */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                      Buscar Imóvel por Código
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        ref={inputBuscaRef}
+                        type="text"
+                        value={codigoBusca}
+                        onChange={(e) => setCodigoBusca(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => e.key === 'Enter' && handleBuscarImovelStatus()}
+                        placeholder="Ex: 123"
+                        className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                      />
+                      <button
+                        onClick={handleBuscarImovelStatus}
+                        disabled={isSearching || !codigoBusca.trim()}
+                        className="px-4 py-2.5 bg-slate-900 text-white text-xs font-black rounded-xl hover:bg-slate-800 disabled:opacity-50 transition-all flex items-center gap-2"
+                      >
+                        {isSearching ? <RefreshCcw className="w-4 h-4 animate-spin" /> : 'Buscar'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {negocioError && (
+                    <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-700 text-xs font-bold animate-in slide-in-from-top-2 duration-200">
+                      {negocioError}
+                    </div>
+                  )}
+
+                  {imovelEncontrado && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Código</span>
+                          <span className="text-sm font-black text-slate-900">{imovelEncontrado.codigo}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Título</div>
+                          <div className="text-sm font-bold text-slate-700 line-clamp-2">{imovelEncontrado.titulo}</div>
+                        </div>
+                        {imovelEncontrado.preco && (
+                          <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Preço</span>
+                            <span className="text-sm font-black text-indigo-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(imovelEncontrado.preco)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <label className="flex items-center gap-3 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl cursor-pointer group transition-all hover:bg-indigo-100">
+                        <div className="relative flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={negocioFechadoChecked}
+                            onChange={(e) => setNegocioFechadoChecked(e.target.checked)}
+                            className="peer sr-only"
+                          />
+                          <div className="w-6 h-6 border-2 border-indigo-200 rounded-lg bg-white peer-checked:bg-indigo-600 peer-checked:border-indigo-600 transition-all"></div>
+                          <BadgeCheck className="absolute w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-all" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-black text-indigo-900">Negócio Fechado</div>
+                          <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-tight">Vendido / Alugado</div>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex gap-3">
+                  <button
+                    onClick={() => setIsNegocioFechadoOpen(false)}
+                    className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-600 text-xs font-black rounded-xl hover:bg-slate-50 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmarNegocioFechado}
+                    disabled={!imovelEncontrado || isConfirmingNegocio}
+                    className="flex-[2] px-4 py-3 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+                  >
+                    {isConfirmingNegocio ? <RefreshCcw className="w-4 h-4 animate-spin" /> : 'Confirmar Alteração'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

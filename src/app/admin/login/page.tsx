@@ -25,9 +25,9 @@ export default function AdminLoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          username, 
-          password, 
+        body: JSON.stringify({
+          username,
+          password,
           ...(requires2FA && twoFactorCode && { twoFactorCode })
         }),
       })
@@ -39,15 +39,18 @@ export default function AdminLoginPage() {
         console.log('🔍 Login bem-sucedido, redirecionando...')
         // Salvar token e dados do usuário
         if (data.data && data.data.token) {
-          localStorage.setItem('auth-token', data.data.token)
-          localStorage.setItem('user-data', JSON.stringify(data.data.user))
+          localStorage.setItem('admin-auth-token', data.data.token)
+          localStorage.setItem('admin-user-data', JSON.stringify({
+            ...data.data.user,
+            at: Date.now()
+          }))
         }
         // Registrar "último login" (para exibir iniciais no header da landpaging)
         try {
           const nome = data.data?.user?.nome || ''
           const isCorretor = !!data.data?.user?.creci || !!data.data?.user?.is_corretor
           localStorage.setItem(
-            'last-auth-user',
+            'admin-last-auth-user',
             JSON.stringify({
               nome,
               userType: isCorretor ? 'corretor' : 'corretor',
@@ -55,7 +58,7 @@ export default function AdminLoginPage() {
             })
           )
           window.dispatchEvent(new Event('admin-auth-changed'))
-        } catch {}
+        } catch { }
         window.location.href = '/admin'
       } else if (data.requires2FA) {
         // 2FA necessário
@@ -84,9 +87,9 @@ export default function AdminLoginPage() {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="mx-auto h-20 w-20 flex items-center justify-center rounded-full bg-white shadow-lg">
-            <Image 
-              src="/logo.png" 
-              alt="Net Imobiliária" 
+            <Image
+              src="/logo.png"
+              alt="Net Imobiliária"
               width={64}
               height={64}
               className="h-16 w-16 object-contain"
@@ -155,7 +158,7 @@ export default function AdminLoginPage() {
                             const newCode = twoFactorCode.split('')
                             newCode[index] = value
                             setTwoFactorCode(newCode.join('').slice(0, 6))
-                            
+
                             // Auto-focus no próximo campo
                             if (value && index < 5) {
                               const nextInput = document.getElementById(`code-${index + 1}`)
@@ -233,7 +236,7 @@ export default function AdminLoginPage() {
                   requires2FA ? 'Verificar Código' : 'Entrar'
                 )}
               </button>
-              
+
               {requires2FA && (
                 <>
                   <button

@@ -72,10 +72,113 @@ export async function findUsersWithRoles(): Promise<UserWithRole[]> {
 
     console.log('🔍 DEBUG - Query executada:', query)
     const result = await pool.query(query)
-    // ... rest of function ...
     return result.rows
   } catch (error) {
-    // ...
+    console.error('Erro ao buscar usuários com roles:', error)
+    throw error
+  }
+}
+
+export async function findUsersPaginated(
+  page: number = 1,
+  limit: number = 10,
+  filters: { nome?: string; username?: string; email?: string; role_name?: string } = {}
+): Promise<{
+  users: UserWithRole[]
+  total: number
+  totalPages: number
+  currentPage: number
+  hasNext: boolean
+  hasPrev: boolean
+}> {
+  try {
+    const offset = (page - 1) * limit
+    const queryParams: any[] = []
+    let paramCount = 0
+    let whereClause = ''
+
+    const conditions: string[] = []
+
+    if (filters.nome) {
+      conditions.push(`u.nome ILIKE $${++paramCount}`)
+      queryParams.push(`%${filters.nome}%`)
+    }
+    if (filters.username) {
+      conditions.push(`u.username ILIKE $${++paramCount}`)
+      queryParams.push(`%${filters.username}%`)
+    }
+    if (filters.email) {
+      conditions.push(`u.email ILIKE $${++paramCount}`)
+      queryParams.push(`%${filters.email}%`)
+    }
+    if (filters.role_name) {
+      conditions.push(`ur.name = $${++paramCount}`)
+      queryParams.push(filters.role_name)
+    }
+
+    if (conditions.length > 0) {
+      whereClause = `WHERE ${conditions.join(' AND ')}`
+    }
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM users u
+      LEFT JOIN user_role_assignments ura ON u.id = ura.user_id
+      LEFT JOIN user_roles ur ON ura.role_id = ur.id
+      ${whereClause}
+    `
+
+    const dataQuery = `
+      SELECT 
+        u.id,
+        u.username,
+        u.email,
+        u.password,
+        u.nome,
+        u.telefone,
+        u.ativo,
+        u.isencao,
+        u.is_plantonista,
+        u.tipo_corretor,
+        u.ultimo_login,
+        u.created_at,
+        u.updated_at,
+        ur.id as role_id,
+        ur.name as role_name,
+        ur.description as role_description,
+        ur.level as role_level,
+        COALESCE(ufc.is_enabled, u.two_fa_enabled, false) as two_fa_enabled,
+        COALESCE(ufc.is_enabled, u.two_fa_enabled, false) as two_factor_enabled,
+        COALESCE(ufc.is_enabled, false) as user_2fa_enabled_from_config,
+        CASE 
+          WHEN COALESCE(ufc.is_enabled, u.two_fa_enabled, false) = true THEN 'Ativado'
+          ELSE 'Desativado'
+        END as two_fa_method
+      FROM users u
+      LEFT JOIN user_role_assignments ura ON u.id = ura.user_id
+      LEFT JOIN user_roles ur ON ura.role_id = ur.id
+      LEFT JOIN user_2fa_config ufc ON u.id = ufc.user_id AND ufc.method = 'email'
+      ${whereClause}
+      ORDER BY u.nome
+      LIMIT $${++paramCount} OFFSET $${++paramCount}
+    `
+
+    const countResult = await pool.query(countQuery, queryParams)
+    const total = parseInt(countResult.rows[0].total)
+    const totalPages = Math.ceil(total / limit)
+
+    const dataResult = await pool.query(dataQuery, [...queryParams, limit, offset])
+
+    return {
+      users: dataResult.rows,
+      total,
+      totalPages,
+      currentPage: page,
+      hasNext: page < totalPages,
+      hasPrev: page > 1
+    }
+  } catch (error) {
+    console.error('Erro ao buscar usuários paginados:', error)
     throw error
   }
 }

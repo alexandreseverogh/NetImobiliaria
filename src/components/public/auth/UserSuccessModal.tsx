@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, X, User, Mail, Phone, MapPin, Building2, BadgeCheck, UserPlus, Users, List, Edit2, Save, XCircle, QrCode, Clock, CheckCircle2, RefreshCcw, Bell, Settings, ArrowUpRight } from 'lucide-react'
+import { CheckCircle, X, User, Mail, Phone, MapPin, Building2, BadgeCheck, UserPlus, Users, List, Edit2, Save, XCircle, QrCode, Clock, CheckCircle2, RefreshCcw, Bell, Settings, ArrowUpRight, Bed, Bath, Car, Layers, DollarSign, CreditCard, ArrowLeftRight } from 'lucide-react'
 import { formatCPF, validateCPF } from '@/lib/utils/formatters'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 
@@ -19,6 +19,7 @@ interface UserSuccessModalProps {
     cpf?: string
     creci?: string
     isencao?: boolean
+    tipo_corretor?: 'Interno' | 'Externo' | null
     fotoDataUrl?: string
     endereco?: string
     numero?: string
@@ -43,6 +44,18 @@ export default function UserSuccessModal({
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fotoFile, setFotoFile] = useState<File | null>(null)
+
+  // Estados para o Modal de Negócio Fechado
+  const [isNegocioFechadoOpen, setIsNegocioFechadoOpen] = useState(false)
+  const [codigoBusca, setCodigoBusca] = useState('')
+  const inputBuscaRef = useRef<HTMLInputElement>(null)
+  const [imovelEncontrado, setImovelEncontrado] = useState<any>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [negocioFechadoChecked, setNegocioFechadoChecked] = useState(false)
+  const [isConfirmingNegocio, setIsConfirmingNegocio] = useState(false)
+  const [negocioError, setNegocioError] = useState<string | null>(null)
+  const [showParabens, setShowParabens] = useState(false)
+  const [initialStatus, setInitialStatus] = useState<number | null>(null)
 
   // Lógica robusta para foto: usa fotoDataUrl se existir, senão tenta montar com base64 bruto
   const initialFoto = useMemo(() => {
@@ -130,6 +143,7 @@ export default function UserSuccessModal({
     cliente_telefone: string | null
     preferencia_contato: string | null
     mensagem: string | null
+    imovel_status_fk: number | null
   }
 
   const [leadsLoading, setLeadsLoading] = useState(false)
@@ -137,6 +151,7 @@ export default function UserSuccessModal({
   const [leads, setLeads] = useState<LeadRow[]>([])
   const [acceptingProspectId, setAcceptingProspectId] = useState<number | null>(null)
   const [slaMinutos, setSlaMinutos] = useState<number | null>(null)
+  const [slaMinutosInterno, setSlaMinutosInterno] = useState<number | null>(null)
   const [leadStats, setLeadStats] = useState<{
     recebidos: number
     perdidosSla: number
@@ -178,6 +193,8 @@ export default function UserSuccessModal({
           if (resp.ok && data?.success) {
             const n = Number(data?.data?.sla_minutos_aceite_lead)
             if (Number.isFinite(n) && n > 0) setSlaMinutos(n)
+            const ni = Number(data?.data?.sla_minutos_aceite_lead_interno)
+            if (Number.isFinite(ni) && ni > 0) setSlaMinutosInterno(ni)
           }
         } catch { }
       })()
@@ -224,11 +241,11 @@ export default function UserSuccessModal({
 
   const leadsResumo = useMemo(() => {
     const isReq = (l: any) => (l?.requires_aceite ?? (l?.expira_em ? true : false)) === true
-    const pendentes = leads.filter((l: any) => l.status === 'atribuido' && isReq(l)).length
-    const atribuidos = leads.filter((l: any) => (l.status === 'aceito' || (l.status === 'atribuido' && !isReq(l)))).length
-    const aceitos = leads.filter((l: any) => l.status === 'aceito').length
+    const pendentes = leads.filter((l: any) => l.status === 'atribuido' && isReq(l) && l.imovel_status_fk !== 100).length
+    const atribuidos = leads.filter((l: any) => (l.status === 'aceito' || (l.status === 'atribuido' && !isReq(l))) && l.imovel_status_fk !== 100).length
+    const aceitos = leads.filter((l: any) => l.status === 'aceito' && l.imovel_status_fk !== 100).length
     const perdidos = leads.filter((l: any) => l.status === 'expirado').length
-    const fechados = 0 // futuro
+    const fechados = leads.filter((l: any) => l.imovel_status_fk === 100).length
     const todos = leads.length
     return { pendentes, atribuidos, aceitos, perdidos, fechados, todos }
   }, [leads])
@@ -237,10 +254,10 @@ export default function UserSuccessModal({
     () =>
       [
         { id: 'pendentes', label: 'Pendentes (SLA)', count: leadsResumo.pendentes, tone: 'danger' as const },
-        { id: 'atribuido', label: 'Atribuídos (diretos ou via plataforma)', count: leadsResumo.atribuidos, tone: 'primary' as const },
+        { id: 'atribuido', label: 'Atribuídos', count: leadsResumo.atribuidos, tone: 'primary' as const },
         { id: 'aceito', label: 'Aceitos', count: leadsResumo.aceitos, tone: 'success' as const },
+        { id: 'fechado', label: 'Fechados', count: leadsResumo.fechados, tone: 'muted' as const },
         { id: 'expirado', label: 'Perdidos (SLA)', count: leadsResumo.perdidos, tone: 'muted' as const },
-        { id: 'fechado', label: 'Fechados', count: leadsResumo.fechados, tone: 'muted' as const, disabled: true as const },
         { id: 'todos', label: 'Todos', count: leadsResumo.todos, tone: 'muted' as const }
       ] as const,
     [leadsResumo]
@@ -260,11 +277,11 @@ export default function UserSuccessModal({
   const getTabLeads = useCallback(
     (tab: LeadTabId): LeadRow[] => {
       const isReq = (l: any) => (l?.requires_aceite ?? (l?.expira_em ? true : false)) === true
-      if (tab === 'pendentes') return leads.filter((l: any) => l.status === 'atribuido' && isReq(l))
-      if (tab === 'atribuido') return leads.filter((l: any) => l.status === 'aceito' || (l.status === 'atribuido' && !isReq(l)))
-      if (tab === 'aceito') return leads.filter((l: any) => l.status === 'aceito')
+      if (tab === 'pendentes') return leads.filter((l: any) => l.status === 'atribuido' && isReq(l) && l.imovel_status_fk !== 100)
+      if (tab === 'atribuido') return leads.filter((l: any) => (l.status === 'aceito' || (l.status === 'atribuido' && !isReq(l))) && l.imovel_status_fk !== 100)
+      if (tab === 'aceito') return leads.filter((l: any) => l.status === 'aceito' && l.imovel_status_fk !== 100)
       if (tab === 'expirado') return leads.filter((l: any) => l.status === 'expirado')
-      if (tab === 'fechado') return []
+      if (tab === 'fechado') return leads.filter((l: any) => l.imovel_status_fk === 100)
       return leads
     },
     [leads]
@@ -587,12 +604,181 @@ export default function UserSuccessModal({
     }, 100)
   }
 
+  // Efeito para focar o input ao abrir o modal de Negócio Fechado
+  useEffect(() => {
+    if (isNegocioFechadoOpen) {
+      setTimeout(() => {
+        inputBuscaRef.current?.focus()
+      }, 300)
+    }
+  }, [isNegocioFechadoOpen])
+
   const handleAreasAtuacao = () => {
     // UX: navegar na mesma aba para manter sessão e permitir "Voltar" consistente
     try {
       sessionStorage.setItem('corretor_return_url', window.location.pathname + window.location.search)
     } catch { }
     window.location.href = '/corretor/areas-atuacao'
+  }
+
+  const handleNegocioFechado = () => {
+    setNegocioError(null)
+    setImovelEncontrado(null)
+    setCodigoBusca('')
+    setIsNegocioFechadoOpen(true)
+  }
+
+  const handleBuscarImovelStatus = async () => {
+    if (!codigoBusca.trim()) return
+    setIsSearching(true)
+    setNegocioError(null)
+    setImovelEncontrado(null)
+    setInitialStatus(null)
+    try {
+      const resp = await fetch(`/api/admin/imoveis/by-codigo/${codigoBusca}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('admin-auth-token') || localStorage.getItem('auth-token')}`
+        }
+      })
+      const data = await resp.json()
+      if (resp.ok && data.success) {
+        const imovel = data.imovel
+
+        // Validação: conferir se o imóvel pertence ao corretor logado
+        const currentBrokerId = String(userData?.id || '').toLowerCase().trim()
+        const imovelBrokerId = String(imovel?.corretor_fk || '').toLowerCase().trim()
+
+        if (imovelBrokerId !== currentBrokerId) {
+          setNegocioError('Este código de imóvel não está associado a você')
+          return
+        }
+
+        setImovelEncontrado(imovel)
+        setNegocioFechadoChecked(imovel.status_fk === 100)
+        setInitialStatus(imovel.status_fk)
+      } else {
+        setNegocioError('Este código de imóvel não está associado a você')
+      }
+    } catch (err) {
+      setNegocioError('Erro ao buscar imóvel.')
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleConfirmarNegocioFechado = async () => {
+    if (!imovelEncontrado) return
+    setIsConfirmingNegocio(true)
+    setNegocioError(null)
+    try {
+      const novoStatus = negocioFechadoChecked ? 100 : 1
+      const resp = await fetch(`/api/admin/imoveis/${imovelEncontrado.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('admin-auth-token') || localStorage.getItem('auth-token')}`
+        },
+        body: JSON.stringify({ status_fk: novoStatus })
+      })
+      const data = await resp.json()
+      if (resp.ok && data.success) {
+        if (novoStatus === 100) {
+          setShowParabens(true)
+          setTimeout(() => {
+            setIsNegocioFechadoOpen(false)
+            setShowParabens(false)
+            setImovelEncontrado(null)
+            setCodigoBusca('')
+
+            // Limpar cache de destaques da landpaging para garantir sincronia após reload
+            try {
+              Object.keys(sessionStorage).forEach(key => {
+                if (key.startsWith('featured-destaque-cache:')) {
+                  sessionStorage.removeItem(key)
+                }
+              })
+            } catch { }
+
+            const statusAlterado = novoStatus !== initialStatus
+
+            // Se o status foi alterado, o usuário quer retornar para a landpaging (limpa) para ver o resultado no grid.
+            // Se NÃO foi alterado, podemos manter o comportamento de reabrir o painel.
+            if (statusAlterado) {
+              const url = new URL(window.location.origin + '/landpaging')
+              // Preservar filtros caso já esteja na landpaging
+              if (window.location.pathname.includes('/landpaging')) {
+                const currentUrl = new URL(window.location.href)
+                currentUrl.searchParams.forEach((value, key) => {
+                  if (key !== 'corretor_home' && key !== 'corretor_popup') {
+                    url.searchParams.set(key, value)
+                  }
+                })
+              }
+              window.location.href = url.toString()
+            } else {
+              // Comportamento original: reabrir painel
+              if (window.location.pathname.includes('/landpaging')) {
+                const url = new URL(window.location.href)
+                url.searchParams.set('corretor_home', 'true')
+                window.location.href = url.toString()
+              } else {
+                window.location.reload()
+              }
+            }
+          }, 3000)
+        } else {
+          setIsNegocioFechadoOpen(false)
+          setImovelEncontrado(null)
+          setCodigoBusca('')
+
+          const statusAlterado = novoStatus !== initialStatus
+
+          if (statusAlterado) {
+            // Limpar cache de destaques da landpaging para garantir sincronia após reload
+            try {
+              Object.keys(sessionStorage).forEach(key => {
+                if (key.startsWith('featured-destaque-cache:')) {
+                  sessionStorage.removeItem(key)
+                }
+              })
+            } catch { }
+
+            const url = new URL(window.location.origin + '/landpaging')
+            // Preservar filtros caso já esteja na landpaging
+            if (window.location.pathname.includes('/landpaging')) {
+              const currentUrl = new URL(window.location.href)
+              currentUrl.searchParams.forEach((value, key) => {
+                if (key !== 'corretor_home' && key !== 'corretor_popup') {
+                  url.searchParams.set(key, value)
+                }
+              })
+            }
+            window.location.href = url.toString()
+          } else {
+            // Comportamento original: reabrir painel
+            if (window.location.pathname.includes('/landpaging')) {
+              const url = new URL(window.location.href)
+              url.searchParams.set('corretor_home', 'true')
+              window.location.href = url.toString()
+            } else {
+              window.location.reload()
+            }
+          }
+        }
+
+        try {
+          window.dispatchEvent(new CustomEvent('ui-toast', {
+            detail: { type: 'success', message: 'Status do imóvel atualizado com sucesso!' }
+          }))
+        } catch { }
+      } else {
+        setNegocioError(data.error || 'Erro ao atualizar status.')
+      }
+    } catch (err) {
+      setNegocioError('Erro ao atualizar status.')
+    } finally {
+      setIsConfirmingNegocio(false)
+    }
   }
 
   const handleGerarQRCode = () => {
@@ -647,7 +833,7 @@ export default function UserSuccessModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div
-        className={`relative w-full ${userData.userType === 'corretor' ? 'max-w-7xl' : 'max-w-lg'
+        className={`relative w-full ${userData.userType === 'corretor' ? 'max-w-[80%]' : 'max-w-lg'
           } bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-hidden`}
       >
         {/* Header */}
@@ -658,7 +844,7 @@ export default function UserSuccessModal({
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-2xl font-bold text-gray-900 truncate">
-                Login realizado com sucesso!
+                Seu Portal de Negócios de Imóveis
               </h2>
               <p className="text-sm text-gray-600">Bem-vindo(a) de volta ao seu painel.</p>
             </div>
@@ -817,8 +1003,8 @@ export default function UserSuccessModal({
               {/* 2) Leads (mais “deitados” / horizontais) */}
               <div className="md:col-span-6 space-y-5">
                 {/* HUB premium de Leads */}
-                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
-                  <div className="flex flex-col gap-4">
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 shadow-sm overflow-hidden pt-4 px-0 pb-0">
+                  <div className="flex flex-col gap-4 px-4 pb-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2">
@@ -847,31 +1033,21 @@ export default function UserSuccessModal({
                           <RefreshCcw className="w-4 h-4" />
                           Atualizar
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => openLeadsPanel(leadsResumo.pendentes > 0 ? 'pendentes' : 'atribuido')}
-                          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black shadow-sm hover:shadow-md transition-all ${leadsResumo.pendentes > 0
-                            ? 'bg-rose-600 text-white hover:bg-rose-700'
-                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                            }`}
-                        >
-                          {leadsResumo.pendentes > 0 ? (
-                            <>
-                              <Clock className="w-4 h-4" />
-                              Ver pendentes ({leadsResumo.pendentes})
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 className="w-4 h-4" />
-                              Ver atribuídos
-                            </>
-                          )}
-                        </button>
+                        {leadsResumo.pendentes > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => openLeadsPanel('pendentes')}
+                            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black shadow-sm hover:shadow-md transition-all bg-rose-600 text-white hover:bg-rose-700"
+                          >
+                            <Clock className="w-4 h-4" />
+                            Ver pendentes ({leadsResumo.pendentes})
+                          </button>
+                        )}
                       </div>
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-400 bg-slate-50/50 p-2 shadow-sm">
                       {leadTabs.map((t) => {
                         const isActive = activeLeadTab === t.id
                         const disabled = (t as any).disabled === true
@@ -916,121 +1092,172 @@ export default function UserSuccessModal({
                         {leadsError}
                       </div>
                     )}
+                  </div>
 
-                    {/* Preview */}
-                    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
-                        <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Resumo</div>
-                        <button
-                          type="button"
-                          onClick={() => openLeadsPanel(activeLeadTab)}
-                          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-white text-[11px] font-black hover:bg-blue-700"
-                        >
-                          <ArrowUpRight className="w-4 h-4" />
-                          Ver todos
-                        </button>
-                      </div>
-
-                      <div className="p-3">
-                        {leadsLoading ? (
-                          <div className="text-slate-600 text-sm">Carregando leads...</div>
-                        ) : getTabLeads(activeLeadTab).length === 0 ? (
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-                            <div className="text-slate-900 font-black">
-                              {activeLeadTab === 'fechado'
-                                ? 'Em breve: leads fechados.'
-                                : 'Nenhum lead nesta categoria.'}
-                            </div>
-                            <div className="text-slate-600 text-sm mt-1">
-                              {activeLeadTab === 'pendentes'
-                                ? 'Quando houver lead com SLA para aceite, ele aparecerá aqui.'
-                                : 'Assim que houver novos leads, eles serão listados automaticamente.'}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {getTabLeads(activeLeadTab)
-                              .slice(0, 3)
-                              .map((l: any) => (
-                                <div
-                                  key={l.prospect_id}
-                                  className="rounded-2xl border border-slate-200 p-3 hover:shadow-sm transition-shadow"
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        Código <span className="text-slate-700">{l.codigo || '-'}</span>
-                                      </div>
-                                      <div className="mt-0.5 text-sm font-black text-slate-900">{formatMoney(l.preco)}</div>
-                                      <div className="mt-0.5 text-[11px] text-slate-600 font-bold">
-                                        <span className="text-slate-500 font-black">Data:</span>{' '}
-                                        {formatDateTime(l.data_interesse || l.atribuido_em)}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {activeLeadTab === 'pendentes' && (
-                                        <span className="inline-flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-amber-900 text-[11px] font-black">
-                                          <Clock className="w-4 h-4" />
-                                          SLA{slaMinutos ? `: ${slaMinutos} min` : ''}
-                                        </span>
-                                      )}
-                                      <button
-                                        type="button"
-                                        onClick={() => openLeadDetailsPage(l.prospect_id)}
-                                        className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-slate-900 text-[11px] font-black hover:bg-slate-50"
-                                      >
-                                        <ArrowUpRight className="w-4 h-4" />
-                                        Ver detalhes
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-2 text-[12px] text-slate-700 leading-snug">
-                                    <span className="font-black text-slate-900">Cliente:</span> {l.cliente_nome || '-'}
-                                    <span className="text-slate-300 font-black"> • </span>
-                                    <span className="font-black text-slate-900">Tel:</span> {l.cliente_telefone || '-'}
-                                    <span className="text-slate-300 font-black"> • </span>
-                                    <span className="font-black text-slate-900">E-mail:</span>{' '}
-                                    <span className="break-all">{l.cliente_email || '-'}</span>
-                                  </div>
-                                  <div className="mt-1 text-[12px] text-slate-700 leading-snug">
-                                    <span className="font-black text-slate-900">Preferência:</span> {l.preferencia_contato || 'Não informado'}
-                                    <span className="text-slate-300 font-black"> • </span>
-                                    <span className="font-black text-slate-900">Msg:</span>{' '}
-                                    <span className="italic line-clamp-1">{l.mensagem ? String(l.mensagem) : 'Sem mensagem.'}</span>
-                                  </div>
-
-                                  {activeLeadTab === 'pendentes' && (
-                                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => acceptLead(l.prospect_id)}
-                                        disabled={acceptingProspectId === l.prospect_id}
-                                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white text-xs font-black hover:bg-blue-700 disabled:opacity-60"
-                                      >
-                                        <CheckCircle2 className="w-4 h-4" />
-                                        {acceptingProspectId === l.prospect_id ? 'Aceitando...' : 'Aceitar agora'}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => openImovelPublic(l.imovel_id)}
-                                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white text-xs font-black hover:bg-slate-800"
-                                      >
-                                        <ArrowUpRight className="w-4 h-4" />
-                                        Ver imóvel
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                          </div>
-                        )}
-                      </div>
+                  {/* Preview (Full Width) */}
+                  <div className="border-t border-slate-200 bg-white">
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                      <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Resumo</div>
+                      <button
+                        type="button"
+                        onClick={() => openLeadsPanel(activeLeadTab)}
+                        className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-white text-[11px] font-black hover:bg-blue-700"
+                      >
+                        <ArrowUpRight className="w-4 h-4" />
+                        Ver todos
+                      </button>
                     </div>
 
+                    <div className="">
+                      {leadsLoading ? (
+                        <div className="p-6 text-slate-600 text-sm">Carregando leads...</div>
+                      ) : getTabLeads(activeLeadTab).length === 0 ? (
+                        <div className="p-8 text-center bg-slate-50/50">
+                          <div className="text-slate-900 font-black">
+                            {activeLeadTab === 'fechado'
+                              ? 'Em breve: leads fechados.'
+                              : 'Nenhum lead nesta categoria.'}
+                          </div>
+                          <div className="text-slate-600 text-sm mt-1">
+                            {activeLeadTab === 'pendentes'
+                              ? 'Quando houver lead com SLA para aceite, ele aparecerá aqui.'
+                              : 'Assim que houver novos leads, eles serão listados automaticamente.'}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-slate-100">
+                          {getTabLeads(activeLeadTab)
+                            .slice(0, 3)
+                            .map((l: any) => (
+                              <div
+                                key={l.prospect_id}
+                                className="p-4 hover:bg-slate-50 transition-colors"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="mt-0.5 text-[11px] text-slate-600 font-bold">
+                                      <span className="text-slate-500 font-black">Data:</span>{' '}
+                                      {formatDateTime(l.data_interesse || l.atribuido_em)}
+                                    </div>
+                                    <div className="mt-1 text-[10px] font-black text-slate-400 uppercase tracking-widest space-y-0.5">
+                                      <div>Negócio: <span className="text-slate-700">{l.codigo || '-'}</span></div>
+                                      <div>Código do Imóvel: <span className="text-slate-700">{l.imovel_id || '-'}</span></div>
+                                    </div>
+                                    <div className="mt-1.5 text-sm font-black text-slate-900">{formatMoney(l.preco)}</div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {activeLeadTab === 'pendentes' && (
+                                      <span className="inline-flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-amber-900 text-[11px] font-black">
+                                        <Clock className="w-4 h-4" />
+                                        SLA{slaMinutos ? `: ${slaMinutos} min` : ''}
+                                      </span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => openLeadDetailsPage(l.prospect_id)}
+                                      className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-slate-900 text-[11px] font-black hover:bg-slate-50 shadow-sm"
+                                    >
+                                      <ArrowUpRight className="w-4 h-4" />
+                                      Ver detalhes
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Características rápidas no modal (compacto) */}
+                                <div className="mt-3 py-2 border-y border-slate-50 bg-slate-50/50 rounded-xl px-2.5 space-y-2">
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-1.5 gap-x-3">
+                                    <div className="flex items-center gap-1.5 text-[10px]">
+                                      <Bed className="w-3 h-3 text-slate-400 shrink-0" />
+                                      <span className="text-slate-600 truncate"><strong>Quartos:</strong> <span className="font-black text-slate-900">{l.quartos || '-'}</span></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[10px]">
+                                      <Bed className="w-3 h-3 text-purple-400 shrink-0" />
+                                      <span className="text-slate-600 truncate"><strong>Suites:</strong> <span className="font-black text-slate-900">{l.suites || '-'}</span></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[10px]">
+                                      <Bath className="w-3 h-3 text-slate-400 shrink-0" />
+                                      <span className="text-slate-600 truncate"><strong>Banheiros:</strong> <span className="font-black text-slate-900">{l.banheiros || '-'}</span></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[10px]">
+                                      <Car className="w-3 h-3 text-slate-400 shrink-0" />
+                                      <span className="text-slate-600 truncate"><strong>Garagem:</strong> <span className="font-black text-slate-900">{l.vagas_garagem || '-'}</span></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[10px]">
+                                      <Layers className="w-3 h-3 text-slate-400 shrink-0" />
+                                      <span className="text-slate-600 truncate"><strong>Andar:</strong> <span className="font-black text-slate-900">{l.andar || '-'}</span></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[10px]">
+                                      <DollarSign className="w-3 h-3 text-emerald-500 shrink-0" />
+                                      <span className="text-slate-600 truncate"><strong>IPTU:</strong> <span className="font-black text-slate-900">{formatMoney(l.preco_iptu)}</span></span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1.5 border-t border-slate-100/50">
+                                    <div className="flex items-center gap-1.5 text-[10px]">
+                                      <CreditCard className="w-3 h-3 text-slate-400 shrink-0" />
+                                      <span className="text-slate-600"><strong>Financiamento:</strong> <span className="font-black text-slate-900">{l.aceita_financiamento ? 'Sim' : 'Não'}</span></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[10px]">
+                                      <ArrowLeftRight className="w-3 h-3 text-slate-400 shrink-0" />
+                                      <span className="text-slate-600"><strong>Permuta:</strong> <span className="font-black text-slate-900">{l.aceita_permuta ? 'Sim' : 'Não'}</span></span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="mt-2 text-[12px] text-slate-700 leading-snug">
+                                  <span className="font-black text-slate-900">Cliente:</span> {l.cliente_nome || '-'}
+                                  <span className="text-slate-300 font-black"> • </span>
+                                  <span className="font-black text-slate-900">Tel:</span> {l.cliente_telefone || '-'}
+                                  <span className="text-slate-300 font-black"> • </span>
+                                  <span className="font-black text-slate-900">E-mail:</span>{' '}
+                                  <span className="break-all">{l.cliente_email || '-'}</span>
+                                </div>
+                                <div className="mt-1 text-[12px] text-slate-700 leading-snug">
+                                  <span className="font-black text-slate-900">Preferência:</span> {l.preferencia_contato || 'Não informado'}
+                                  <span className="text-slate-300 font-black"> • </span>
+                                  <span className="font-black text-slate-900">Msg:</span>{' '}
+                                  <span className="italic line-clamp-1">{l.mensagem ? String(l.mensagem) : 'Sem mensagem.'}</span>
+                                </div>
+                                <div className="mt-1 text-[12px] text-slate-700 leading-snug">
+                                  <span className="font-black text-slate-900">Status:</span>{' '}
+                                  <span className="text-slate-600 font-bold">
+                                    {l.status || '-'}
+                                    {l.status === 'expirado' && (() => {
+                                      const type = String(userData.tipo_corretor || '').toLowerCase()
+                                      const mins = type === 'interno' ? slaMinutosInterno : slaMinutos
+                                      return mins ? ` SLA ${mins} min` : ''
+                                    })()}
+                                  </span>
+                                </div>
+
+                                {activeLeadTab === 'pendentes' && (
+                                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => acceptLead(l.prospect_id)}
+                                      disabled={acceptingProspectId === l.prospect_id}
+                                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white text-xs font-black hover:bg-blue-700 disabled:opacity-60"
+                                    >
+                                      <CheckCircle2 className="w-4 h-4" />
+                                      {acceptingProspectId === l.prospect_id ? 'Aceitando...' : 'Aceitar agora'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openImovelPublic(l.imovel_id)}
+                                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white text-xs font-black hover:bg-slate-800"
+                                    >
+                                      <ArrowUpRight className="w-4 h-4" />
+                                      Ver imóvel
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-
               </div>
 
               {/* 3) Operacionais */}
@@ -1082,6 +1309,20 @@ export default function UserSuccessModal({
                         >
                           <List className="w-4 h-4 text-emerald-700" />
                           Cadastrados
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ações</div>
+                      <div className="mt-2 flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={handleNegocioFechado}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-2.5 text-white text-xs font-black hover:bg-indigo-700 shadow-sm"
+                        >
+                          <BadgeCheck className="w-6 h-6" />
+                          Negócio Fechado
                         </button>
                       </div>
                     </div>
@@ -1174,6 +1415,158 @@ export default function UserSuccessModal({
           )}
         </div>
       </div>
+
+      {/* Modal de Negócio Fechado */}
+      {isNegocioFechadoOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in duration-200">
+            {/* Header / Parabens */}
+            <div className={`p-6 border-b border-slate-100 transition-all duration-500 ${showParabens ? 'bg-indigo-600 text-white' : 'bg-gradient-to-br from-indigo-50 to-white'}`}>
+              <div className="flex items-center justify-between">
+                {!showParabens ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                        <BadgeCheck className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 leading-tight">Negócio Fechado</h3>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">Gerenciar Status</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => !isConfirmingNegocio && setIsNegocioFechadoOpen(false)}
+                      className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex-1 text-center py-4 animate-bounce">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
+                      <BadgeCheck className="w-10 h-10 text-white" />
+                    </div>
+                    <h3 className="text-4xl font-black tracking-tighter">Parabéns !!!</h3>
+                    <p className="text-white/80 font-bold mt-2 uppercase text-xs tracking-[0.3em]">Negócio Finalizado com Sucesso</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {!showParabens && (
+              <div className="p-8 space-y-8">
+                {/* Busca por Código */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] ml-1">
+                    Código do Imóvel
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1 group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 transition-colors group-focus-within:text-indigo-600">
+                        <QrCode className="w-4 h-4" />
+                      </div>
+                      <input
+                        ref={inputBuscaRef}
+                        type="text"
+                        value={codigoBusca}
+                        onChange={(e) => setCodigoBusca(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => e.key === 'Enter' && handleBuscarImovelStatus()}
+                        placeholder="Ex: AP-001"
+                        className="w-full pl-11 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl text-sm font-black text-slate-900 placeholder:text-slate-300 focus:bg-white focus:border-indigo-600/20 focus:ring-4 focus:ring-indigo-600/5 transition-all outline-none"
+                      />
+                    </div>
+                    <button
+                      onClick={handleBuscarImovelStatus}
+                      disabled={isSearching || !codigoBusca.trim()}
+                      className="px-6 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-slate-200"
+                    >
+                      {isSearching ? <RefreshCcw className="w-5 h-5 animate-spin" /> : 'Buscar'}
+                    </button>
+                  </div>
+                </div>
+
+                {negocioError && (
+                  <div className="p-4 rounded-2xl bg-rose-50 border border-rose-100 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                    <XCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                    <p className="text-xs font-black text-rose-800">{negocioError}</p>
+                  </div>
+                )}
+
+                {imovelEncontrado && (
+                  <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+                    <div className="p-6 rounded-3xl bg-slate-50 border border-slate-100 space-y-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shrink-0 shadow-sm">
+                          <Building2 className="w-6 h-6 text-slate-400" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{imovelEncontrado.codigo}</div>
+                          <h4 className="text-sm font-black text-slate-900 truncate mt-1">{imovelEncontrado.titulo}</h4>
+                          <div className="text-xs font-black text-indigo-600 mt-1">{formatMoney(imovelEncontrado.preco)}</div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-200/50">
+                        <label
+                          className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all cursor-pointer select-none ${negocioFechadoChecked
+                            ? 'bg-emerald-50 border-emerald-500/30'
+                            : 'bg-white border-transparent hover:border-slate-200'
+                            }`}
+                        >
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              checked={negocioFechadoChecked}
+                              onChange={(e) => setNegocioFechadoChecked(e.target.checked)}
+                              className="w-6 h-6 rounded-lg border-2 border-slate-200 text-emerald-600 focus:ring-emerald-500/20 transition-all cursor-pointer"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <span className={`text-sm font-black ${negocioFechadoChecked ? 'text-emerald-900' : 'text-slate-900'}`}>
+                              Negócio Fechado
+                            </span>
+                            <p className={`text-[10px] font-bold mt-0.5 ${negocioFechadoChecked ? 'text-emerald-600' : 'text-slate-500'}`}>
+                              {negocioFechadoChecked ? 'Este imóvel será marcado como vendido/locado.' : 'Marque para finalizar o negócio.'}
+                            </p>
+                          </div>
+                          {negocioFechadoChecked && <CheckCircle2 className="w-6 h-6 text-emerald-500 animate-in zoom-in" />}
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setIsNegocioFechadoOpen(false)}
+                        className="flex-1 px-6 py-4 rounded-2xl bg-slate-100 text-slate-900 text-sm font-black hover:bg-slate-200 transition-colors active:scale-95"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={handleConfirmarNegocioFechado}
+                        disabled={isConfirmingNegocio}
+                        className="flex-[2] px-6 py-4 rounded-2xl bg-indigo-600 text-white text-sm font-black hover:bg-indigo-700 transition-all active:scale-95 shadow-xl shadow-indigo-100 disabled:opacity-50"
+                      >
+                        {isConfirmingNegocio ? <RefreshCcw className="w-5 h-5 animate-spin mx-auto" /> : 'Confirmar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-center">
+              <button
+                onClick={() => setIsNegocioFechadoOpen(false)}
+                className="group flex items-center gap-2 text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-[0.2em] transition-colors"
+              >
+                <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                Retornar ao Perfil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

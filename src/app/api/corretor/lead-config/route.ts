@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
       `
       SELECT
         sla_minutos_aceite_lead,
+        sla_minutos_aceite_lead_interno,
         proximos_corretores_recebem_leads
       FROM public.parametros
       LIMIT 1
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         sla_minutos_aceite_lead: row.sla_minutos_aceite_lead ?? 5,
+        sla_minutos_aceite_lead_interno: row.sla_minutos_aceite_lead_interno ?? 15,
         proximos_corretores_recebem_leads: row.proximos_corretores_recebem_leads ?? 3
       }
     })

@@ -129,8 +129,10 @@ export async function findImovelByCodigo(codigo: string): Promise<ImovelCompleto
       query = `
         SELECT 
           ic.*,
+          i.corretor_fk,
           fi.tipo_destaque as finalidade_tipo_destaque
         FROM imoveis_completos ic
+        LEFT JOIN imoveis i ON ic.id = i.id
         LEFT JOIN finalidades_imovel fi ON ic.finalidade_fk = fi.id
         WHERE ic.id = $1
       `
@@ -140,8 +142,10 @@ export async function findImovelByCodigo(codigo: string): Promise<ImovelCompleto
       query = `
         SELECT 
           ic.*,
+          i.corretor_fk,
           fi.tipo_destaque as finalidade_tipo_destaque
         FROM imoveis_completos ic
+        LEFT JOIN imoveis i ON ic.id = i.id
         LEFT JOIN finalidades_imovel fi ON ic.finalidade_fk = fi.id
         WHERE ic.codigo = $1
       `

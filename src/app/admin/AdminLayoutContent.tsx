@@ -98,15 +98,15 @@ function AdminLayoutPrivateContent({
   if (!user) {
     // Verificar se há token no localStorage (para desenvolvimento)
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('auth-token')
-      const userData = localStorage.getItem('user-data')
+      const token = localStorage.getItem('admin-auth-token')
+      const userData = localStorage.getItem('admin-user-data')
 
       if (token && userData) {
         // Se há token e dados do usuário, usar eles
         const parsedUser = JSON.parse(userData)
 
         return (
-          <ErrorBoundary onError={handleAuthError}>
+          <ErrorBoundary onError={onError}>
             <div className={containerClasses}>
               <AdminHeader
                 user={parsedUser}

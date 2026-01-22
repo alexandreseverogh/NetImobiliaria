@@ -37,12 +37,12 @@ export function useSidebarMenu() {
 
   useEffect(() => {
     loadMenuFromDatabase();
-    
+
     // Escutar eventos de mudança na sidebar
     const unsubscribe = sidebarEventManager.subscribe(() => {
       loadMenuFromDatabase();
     });
-    
+
     return () => {
       unsubscribe();
     };
@@ -54,7 +54,7 @@ export function useSidebarMenu() {
       setError(null);
 
       // Buscar token do localStorage
-      const token = localStorage.getItem('auth-token');
+      const token = localStorage.getItem('admin-auth-token');
 
       // Preparar headers
       const headers: HeadersInit = {
@@ -118,11 +118,11 @@ function buildHierarchicalMenu(
   // Separar itens raiz e filhos
   // REGRA: Se um filho não tem pai visível, ele vira root (filho órfão)
   const parentIds = new Set(filteredItems.map(item => item.id));
-  
-  const rootItems = filteredItems.filter((item) => 
+
+  const rootItems = filteredItems.filter((item) =>
     item.parent_id === null || !parentIds.has(item.parent_id)  // Órfãos viram root!
   );
-  const childItems = filteredItems.filter((item) => 
+  const childItems = filteredItems.filter((item) =>
     item.parent_id !== null && parentIds.has(item.parent_id)  // Só filhos com pai visível
   );
 

@@ -31,18 +31,17 @@ export default function PropertyCard({ property }: PropertyCardProps) {
           src={property.image}
           alt={property.title}
           fill
-          className="object-cover group-hover:scale-105 transition-transform duration-300"
+          className="object-contain group-hover:scale-105 transition-transform duration-300"
         />
-        
+
         {/* Favorite Button */}
         <button
           onClick={() => setIsFavorite(!isFavorite)}
           className="absolute top-4 right-4 p-2 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow duration-200"
         >
-          <Heart 
-            className={`w-5 h-5 ${
-              isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-600'
-            }`} 
+          <Heart
+            className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-600'
+              }`}
           />
         </button>
 

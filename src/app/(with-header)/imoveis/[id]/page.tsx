@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter, usePathname } from 'next/navigation'
 import { useEstadosCidades } from '@/hooks/useEstadosCidades'
-import { 
-  MapPinIcon, 
-  HomeIcon, 
+import {
+  MapPinIcon,
+  HomeIcon,
   XCircleIcon,
   PhotoIcon,
   CurrencyDollarIcon,
@@ -39,14 +39,14 @@ export default function ImovelDetalhes() {
   const params = useParams()
   const router = useRouter()
   const pathname = usePathname()
-  
+
   // Extrair ID da URL atual para garantir que seja o correto
   const urlPath = pathname || ''
   const urlImovelId = urlPath.split('/').pop() || ''
-  
+
   // Usar o ID da URL em vez do params (que pode estar cached)
   const imovelId = urlImovelId
-  
+
   const {
     dadosBasicos,
     dadosDetalhados,
@@ -88,10 +88,10 @@ export default function ImovelDetalhes() {
   const loadVideo = async () => {
     try {
       console.log('🔍 Página Pública - Carregando vídeo para imóvel:', imovelId)
-      
+
       // Buscar vídeo da API PÚBLICA (sem autenticação)
       const response = await fetch(`/api/public/imoveis/${imovelId}/video`)
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           alert('Nenhum vídeo disponível para este imóvel')
@@ -100,24 +100,24 @@ export default function ImovelDetalhes() {
         }
         return
       }
-      
+
       const data = await response.json()
-      
+
       if (!data.success || !data.data) {
         alert('Nenhum vídeo disponível para este imóvel')
         return
       }
-      
+
       console.log('✅ Página Pública - Vídeo carregado com sucesso:', {
         id: data.data.id,
         tamanho: data.data.tamanho_bytes,
         formato: data.data.formato
       })
-      
+
       // O vídeo já vem no formato correto (ImovelVideo com Buffer)
       setVideoData(data.data)
       setIsVideoModalOpen(true)
-      
+
     } catch (err) {
       console.error('❌ Página Pública - Erro ao carregar vídeo:', err)
       alert('Erro ao carregar vídeo')
@@ -213,10 +213,10 @@ export default function ImovelDetalhes() {
                     src={dadosBasicos.imagem_principal.url}
                     alt={dadosBasicos.imagem_principal.alt || dadosBasicos.titulo || 'Imagem do imóvel'}
                     fill
-                    className="object-cover"
+                    className="object-contain"
                     unoptimized
                   />
-                  
+
                   {/* Badges dentro da imagem */}
                   <div className="absolute top-4 left-4">
                     <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium">
@@ -256,138 +256,138 @@ export default function ImovelDetalhes() {
 
           {/* Container Direito - Informações */}
           <div className="bg-white rounded-xl shadow-lg border-2 border-gray-400 p-6 overflow-y-auto" style={{ height: '350px' }}>
-          {/* Linha 1 - Preço */}
-          <div className="mb-2">
-            <span className="text-2xl font-bold text-primary-600">
-              {formatarPreco(dadosBasicos.preco)}
-            </span>
-          </div>
-
-          {/* Linha 2 - Descrição */}
-          {dadosBasicos.descricao && dadosBasicos.descricao.trim() && (
+            {/* Linha 1 - Preço */}
             <div className="mb-2">
-              <p className="text-gray-900 leading-tight text-sm">
-                {dadosBasicos.descricao}
-              </p>
-            </div>
-          )}
-
-          {/* Linha 3 - Localização */}
-          <div className="mb-2 flex items-center text-sm">
-            <SafeImage src="/Assets/mapa.png" alt="Mapa" width={20} height={20} className="w-5 h-5 mr-2" />
-            <span className="text-gray-700">
-              {(() => {
-                // Buscar estado por sigla em vez de ID
-                const estado = estados.find(e => e.sigla === dadosBasicos.estado_fk)
-                const estadoNome = estado?.nome || ''
-                return estadoNome
-              })()} • {dadosBasicos.cidade_fk} • {dadosBasicos.endereco}, {dadosBasicos.numero} • CEP: {dadosBasicos.cep}
-              {dadosBasicos.complemento && ` • ${dadosBasicos.complemento}`}
-            </span>
-          </div>
-
-          {/* Linha 4 - Características, Custos e Áreas em Grid */}
-          <div className="grid grid-cols-3 gap-2 mb-2">
-            {/* Coluna 1 - Características */}
-            <div className="space-y-1">
-              {dadosBasicos.quartos !== null && dadosBasicos.quartos !== undefined && (
-                <div className="flex items-center text-xs">
-                  <Bed className="w-3.5 h-3.5 mr-1 text-blue-500 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">{dadosBasicos.quartos} quartos</span>
-                </div>
-              )}
-              {dadosBasicos.suites !== null && dadosBasicos.suites !== undefined && (
-                <div className="flex items-center text-xs">
-                  <BedDouble className="w-3.5 h-3.5 mr-1 text-purple-500 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">{dadosBasicos.suites} suítes</span>
-                </div>
-              )}
-              {dadosBasicos.banheiros !== null && dadosBasicos.banheiros !== undefined && (
-                <div className="flex items-center text-xs">
-                  <Bath className="w-3.5 h-3.5 mr-1 text-cyan-500 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">{dadosBasicos.banheiros} banheiros</span>
-                </div>
-              )}
-              {dadosBasicos.varanda !== null && dadosBasicos.varanda !== undefined && (
-                <div className="flex items-center text-xs">
-                  <Home className="w-3.5 h-3.5 mr-1 text-green-500 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">{dadosBasicos.varanda} varanda</span>
-                </div>
-              )}
-              {dadosBasicos.vagas_garagem !== null && dadosBasicos.vagas_garagem !== undefined && (
-                <div className="flex items-center text-xs">
-                  <Car className="w-3.5 h-3.5 mr-1 text-orange-500 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">{dadosBasicos.vagas_garagem} garagem</span>
-                </div>
-              )}
+              <span className="text-2xl font-bold text-primary-600">
+                {formatarPreco(dadosBasicos.preco)}
+              </span>
             </div>
 
-            {/* Coluna 2 - Custos */}
-            <div className="space-y-1">
-              {dadosBasicos.preco_condominio && (
-                <div className="flex items-center text-xs">
-                  <CurrencyDollarIcon className="w-3.5 h-3.5 mr-1 text-emerald-500 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">Condomínio: {formatarPreco(dadosBasicos.preco_condominio)}</span>
-                </div>
-              )}
-              {dadosBasicos.preco_iptu && (
-                <div className="flex items-center text-xs">
-                  <CurrencyDollarIcon className="w-3.5 h-3.5 mr-1 text-emerald-600 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">IPTU: {formatarPreco(dadosBasicos.preco_iptu)}</span>
-                </div>
-              )}
-              {dadosBasicos.taxa_extra && (
-                <div className="flex items-center text-xs">
-                  <CurrencyDollarIcon className="w-3.5 h-3.5 mr-1 text-emerald-700 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">Taxa Extra: {formatarPreco(dadosBasicos.taxa_extra)}</span>
-                </div>
-              )}
+            {/* Linha 2 - Descrição */}
+            {dadosBasicos.descricao && dadosBasicos.descricao.trim() && (
+              <div className="mb-2">
+                <p className="text-gray-900 leading-tight text-sm">
+                  {dadosBasicos.descricao}
+                </p>
+              </div>
+            )}
+
+            {/* Linha 3 - Localização */}
+            <div className="mb-2 flex items-center text-sm">
+              <SafeImage src="/Assets/mapa.png" alt="Mapa" width={20} height={20} className="w-5 h-5 mr-2" />
+              <span className="text-gray-700">
+                {(() => {
+                  // Buscar estado por sigla em vez de ID
+                  const estado = estados.find(e => e.sigla === dadosBasicos.estado_fk)
+                  const estadoNome = estado?.nome || ''
+                  return estadoNome
+                })()} • {dadosBasicos.cidade_fk} • {dadosBasicos.endereco}, {dadosBasicos.numero} • CEP: {dadosBasicos.cep}
+                {dadosBasicos.complemento && ` • ${dadosBasicos.complemento}`}
+              </span>
             </div>
 
-            {/* Coluna 3 - Áreas e Andares */}
-            <div className="space-y-1">
-              {dadosBasicos.area_total !== null && dadosBasicos.area_total !== undefined && (
-                <div className="flex items-center text-xs">
-                  <Square className="w-3.5 h-3.5 mr-1 text-indigo-500 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">{dadosBasicos.area_total}m² total</span>
-                </div>
-              )}
-              {dadosBasicos.area_construida !== null && dadosBasicos.area_construida !== undefined && (
-                <div className="flex items-center text-xs">
-                  <Square className="w-3.5 h-3.5 mr-1 text-indigo-600 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">{dadosBasicos.area_construida}m² const.</span>
-                </div>
-              )}
-              {dadosBasicos.andar !== null && dadosBasicos.andar !== undefined && (
-                <div className="flex items-center text-xs">
-                  <Layers className="w-3.5 h-3.5 mr-1 text-pink-500 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">Andar: {dadosBasicos.andar}</span>
-                </div>
-              )}
-              {dadosBasicos.total_andares !== null && dadosBasicos.total_andares !== undefined && (
-                <div className="flex items-center text-xs">
-                  <Building className="w-3.5 h-3.5 mr-1 text-rose-500 flex-shrink-0" />
-                  <span className="text-gray-700 truncate">{dadosBasicos.total_andares} andares</span>
-                </div>
-              )}
-            </div>
-          </div>
+            {/* Linha 4 - Características, Custos e Áreas em Grid */}
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {/* Coluna 1 - Características */}
+              <div className="space-y-1">
+                {dadosBasicos.quartos !== null && dadosBasicos.quartos !== undefined && (
+                  <div className="flex items-center text-xs">
+                    <Bed className="w-3.5 h-3.5 mr-1 text-blue-500 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">{dadosBasicos.quartos} quartos</span>
+                  </div>
+                )}
+                {dadosBasicos.suites !== null && dadosBasicos.suites !== undefined && (
+                  <div className="flex items-center text-xs">
+                    <BedDouble className="w-3.5 h-3.5 mr-1 text-purple-500 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">{dadosBasicos.suites} suítes</span>
+                  </div>
+                )}
+                {dadosBasicos.banheiros !== null && dadosBasicos.banheiros !== undefined && (
+                  <div className="flex items-center text-xs">
+                    <Bath className="w-3.5 h-3.5 mr-1 text-cyan-500 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">{dadosBasicos.banheiros} banheiros</span>
+                  </div>
+                )}
+                {dadosBasicos.varanda !== null && dadosBasicos.varanda !== undefined && (
+                  <div className="flex items-center text-xs">
+                    <Home className="w-3.5 h-3.5 mr-1 text-green-500 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">{dadosBasicos.varanda} varanda</span>
+                  </div>
+                )}
+                {dadosBasicos.vagas_garagem !== null && dadosBasicos.vagas_garagem !== undefined && (
+                  <div className="flex items-center text-xs">
+                    <Car className="w-3.5 h-3.5 mr-1 text-orange-500 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">{dadosBasicos.vagas_garagem} garagem</span>
+                  </div>
+                )}
+              </div>
 
-          {/* Linha 7 - Badges com fundo discreto */}
-          {(dadosBasicos.aceita_permuta || dadosBasicos.aceita_financiamento) && (
-            <div className="bg-gray-50 rounded-lg p-2 flex flex-wrap gap-2 mt-1">
-              {dadosBasicos.aceita_permuta && (
-                <span className="bg-blue-100 text-blue-800 px-3 py-1.5 rounded-full text-xs font-medium">
-                  ✓ Aceita Permuta
-                </span>
-              )}
-              {dadosBasicos.aceita_financiamento && (
-                <span className="bg-green-100 text-green-800 px-3 py-1.5 rounded-full text-xs font-medium">
-                  ✓ Aceita Financiamento
-                </span>
-              )}
+              {/* Coluna 2 - Custos */}
+              <div className="space-y-1">
+                {dadosBasicos.preco_condominio && (
+                  <div className="flex items-center text-xs">
+                    <CurrencyDollarIcon className="w-3.5 h-3.5 mr-1 text-emerald-500 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">Condomínio: {formatarPreco(dadosBasicos.preco_condominio)}</span>
+                  </div>
+                )}
+                {dadosBasicos.preco_iptu && (
+                  <div className="flex items-center text-xs">
+                    <CurrencyDollarIcon className="w-3.5 h-3.5 mr-1 text-emerald-600 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">IPTU: {formatarPreco(dadosBasicos.preco_iptu)}</span>
+                  </div>
+                )}
+                {dadosBasicos.taxa_extra && (
+                  <div className="flex items-center text-xs">
+                    <CurrencyDollarIcon className="w-3.5 h-3.5 mr-1 text-emerald-700 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">Taxa Extra: {formatarPreco(dadosBasicos.taxa_extra)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Coluna 3 - Áreas e Andares */}
+              <div className="space-y-1">
+                {dadosBasicos.area_total !== null && dadosBasicos.area_total !== undefined && (
+                  <div className="flex items-center text-xs">
+                    <Square className="w-3.5 h-3.5 mr-1 text-indigo-500 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">{dadosBasicos.area_total}m² total</span>
+                  </div>
+                )}
+                {dadosBasicos.area_construida !== null && dadosBasicos.area_construida !== undefined && (
+                  <div className="flex items-center text-xs">
+                    <Square className="w-3.5 h-3.5 mr-1 text-indigo-600 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">{dadosBasicos.area_construida}m² const.</span>
+                  </div>
+                )}
+                {dadosBasicos.andar !== null && dadosBasicos.andar !== undefined && (
+                  <div className="flex items-center text-xs">
+                    <Layers className="w-3.5 h-3.5 mr-1 text-pink-500 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">Andar: {dadosBasicos.andar}</span>
+                  </div>
+                )}
+                {dadosBasicos.total_andares !== null && dadosBasicos.total_andares !== undefined && (
+                  <div className="flex items-center text-xs">
+                    <Building className="w-3.5 h-3.5 mr-1 text-rose-500 flex-shrink-0" />
+                    <span className="text-gray-700 truncate">{dadosBasicos.total_andares} andares</span>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+
+            {/* Linha 7 - Badges com fundo discreto */}
+            {(dadosBasicos.aceita_permuta || dadosBasicos.aceita_financiamento) && (
+              <div className="bg-gray-50 rounded-lg p-2 flex flex-wrap gap-2 mt-1">
+                {dadosBasicos.aceita_permuta && (
+                  <span className="bg-blue-100 text-blue-800 px-3 py-1.5 rounded-full text-xs font-medium">
+                    ✓ Aceita Permuta
+                  </span>
+                )}
+                {dadosBasicos.aceita_financiamento && (
+                  <span className="bg-green-100 text-green-800 px-3 py-1.5 rounded-full text-xs font-medium">
+                    ✓ Aceita Financiamento
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -492,8 +492,8 @@ export default function ImovelDetalhes() {
                   Atrativos
                 </h3>
                 {temDadosDetalhados ? (
-                    <AmenidadesLista
-                      amenidades={dadosDetalhados.amenidades}
+                  <AmenidadesLista
+                    amenidades={dadosDetalhados.amenidades}
                     loading={loading.detalhado}
                   />
                 ) : (
@@ -513,8 +513,8 @@ export default function ImovelDetalhes() {
                   Proximidades
                 </h3>
                 {temDadosDetalhados ? (
-                    <ProximidadesLista
-                      proximidades={dadosDetalhados.proximidades}
+                  <ProximidadesLista
+                    proximidades={dadosDetalhados.proximidades}
                     loading={loading.detalhado}
                   />
                 ) : (
@@ -535,7 +535,7 @@ export default function ImovelDetalhes() {
                 </h3>
                 {temDadosCompletos ? (
                   <ImagensLista
-                          imagens={dadosCompletos.imagens}
+                    imagens={dadosCompletos.imagens}
                     loading={loading.completo}
                   />
                 ) : (
@@ -561,13 +561,13 @@ export default function ImovelDetalhes() {
                     imovelId={imovelId}
                   />
                 ) : (
-                    <div className="text-center py-12">
+                  <div className="text-center py-12">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
                     <p className="text-gray-600">Carregando documentos...</p>
                   </div>
                 )}
-                    </div>
-                  )}
+              </div>
+            )}
 
             {/* Mapas */}
             {isSectionActive('mapas') && (

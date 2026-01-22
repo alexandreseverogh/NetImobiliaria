@@ -97,11 +97,37 @@ function base64UrlToArrayBuffer(base64url: string): ArrayBuffer {
   return bytes.buffer
 }
 
+/**
+ * Parses duration strings like '24h', '7d', '60m' into seconds.
+ * Fallback to seconds if purely numeric string.
+ */
+export function parseDurationToSeconds(duration: string | number): number {
+  if (typeof duration === 'number') return duration
+  if (!duration) return 0
+
+  const match = duration.match(/^(\d+)([smhd])?$/i)
+  if (!match) {
+    const parsed = parseInt(duration)
+    return isNaN(parsed) ? 0 : parsed
+  }
+
+  const value = parseInt(match[1])
+  const unit = (match[2] || 's').toLowerCase()
+
+  switch (unit) {
+    case 's': return value
+    case 'm': return value * 60
+    case 'h': return value * 3600
+    case 'd': return value * 86400
+    default: return value
+  }
+}
+
 // Gerar token de acesso
 export async function generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
-  const exp = now + (parseInt(JWT_EXPIRES_IN) || 24 * 60 * 60) // 24 horas padrão
+  const exp = now + parseDurationToSeconds(JWT_EXPIRES_IN || '24h')
 
   const payloadWithTime = {
     ...payload,
@@ -131,7 +157,7 @@ export async function generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp
 export async function generateRefreshToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
-  const exp = now + (parseInt(JWT_REFRESH_EXPIRES_IN) || 7 * 24 * 60 * 60) // 7 dias padrão
+  const exp = now + parseDurationToSeconds(JWT_REFRESH_EXPIRES_IN || '7d')
 
   const payloadWithTime = {
     ...payload,

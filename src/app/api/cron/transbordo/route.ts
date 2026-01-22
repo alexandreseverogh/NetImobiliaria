@@ -10,12 +10,12 @@ export async function GET(request: Request) {
 
     try {
         // 1. Ler Parâmetros Gerais
-        const paramsRes = await client.query('SELECT proximos_corretores_recebem_leads, sla_minutos_aceite_lead FROM parametros LIMIT 1');
-        const limitAttempts = parseInt(paramsRes.rows[0]?.proximos_corretores_recebem_leads || '3');
+        const paramsRes = await client.query('SELECT proximos_corretores_recebem_leads, proximos_corretores_recebem_leads_internos, sla_minutos_aceite_lead FROM parametros LIMIT 1');
+        const limitExternal = parseInt(paramsRes.rows[0]?.proximos_corretores_recebem_leads || '3');
+        const limitInternal = parseInt(paramsRes.rows[0]?.proximos_corretores_recebem_leads_internos || '3');
         const slaMinutos = parseInt(paramsRes.rows[0]?.sla_minutos_aceite_lead || '5');
 
         // 2. Buscar atribuições vencidas (status='atribuido' e expira_em < NOW())
-        //    Ignora as que já foram tratadas (status != 'atribuido')
         const expiredQuery = `
       SELECT 
         pa.id, 
@@ -33,7 +33,6 @@ export async function GET(request: Request) {
       FOR UPDATE SKIP LOCKED
     `;
 
-        // Usar transação para garantir integridade se houver concorrência (embora o job seja serial)
         await client.query('BEGIN');
         const expiredResult = await client.query(expiredQuery);
         const expiredList = expiredResult.rows;
@@ -62,19 +61,15 @@ export async function GET(request: Request) {
                     // 1. Penalidade de XP (Gamificação)
                     try {
                         console.log(`[Transbordo] Aplicando penalidade ao corretor ${item.corretor_fk} por perder lead ${item.prospect_id}`);
-                        // Import dinâmico para garantir que GamificationService está disponível
                         const { GamificationService } = await import('@/lib/gamification/gamificationService');
                         await GamificationService.penalizeSLA(item.corretor_fk);
                     } catch (gErr) {
                         console.error(`[Transbordo] Falha ao aplicar penalidade:`, gErr);
                     }
 
-                    // 2. Email de Perda (existente)
+                    // 2. Email de Perda
                     if (item.corretor_email) {
                         try {
-                            // Ler SLA dos parâmetros se não tiver lido antes (a query inicial leu só proximos_corretores)
-                            // Na verdade, vamos ajustar a query inicial para pegar ambos
-
                             await emailService.sendTemplateEmail('lead-expirado', item.corretor_email, {
                                 nome_corretor: item.corretor_nome,
                                 codigo_imovel: item.imovel_codigo || 'N/A',
@@ -86,70 +81,46 @@ export async function GET(request: Request) {
                     }
                 }
 
-                // COMMIT para garantir que o UPDATE seja visível para routeProspectAndNotify
                 await client.query('COMMIT');
                 await client.query('BEGIN');
 
                 // C. Buscar histórico de tentativas para este propspect
-                //    Isso inclui o que acabamos de expirar
                 const historyRes = await client.query(
-                    `SELECT DISTINCT corretor_fk FROM imovel_prospect_atribuicoes WHERE prospect_id = $1`,
+                    `SELECT pa.corretor_fk, u.tipo_corretor, u.is_plantonista 
+                     FROM imovel_prospect_atribuicoes pa
+                     JOIN users u ON u.id = pa.corretor_fk
+                     WHERE pa.prospect_id = $1`,
                     [item.prospect_id]
                 );
-                const distinctBrokers = historyRes.rows.map(r => r.corretor_fk); // UUIDs
-                const attemptsCount = distinctBrokers.length;
 
-                // D. Decidir Roteamento
-                // Regra: Se Tentativas <= Limite -> Tenta Próximo da Área (passando excludeIds)
-                //        Se Tentativas > Limite -> Vai pro Plantonista (router já faz fallback se exclude incluir todos)
+                const distinctBrokers = historyRes.rows.map(r => r.corretor_fk); // UUIDs para exclude
 
-                // No nosso implementation plan: "Se Tentativas <= Limite: Busca próximo".
-                // Ex: Limite=3. Tentativas=1 (Acabou de expirar). 1<=3 -> Tenta proximo.
-                //     ... Tentativas=3. 3<=3 -> Tenta proximo.
-                //     Tentativas=4. 4>3 -> Plantonista.
-                // O router 'routeProspectAndNotify' já tem a lógica de fallback pro plantonista se area falhar.
-                // O IMPORTANTE é forçar o plantonista se attempts > limit, para não gastar query de area à toa,
-                // mas o mais simples é passar o excludeIds e deixar o router decidir. 
-                // Se quisermos FORÇAR plantonista, teríamos que ter uma flag no router.
-                // Mas como o router: "if (!broker) broker = pickBrokerByArea... if (!broker) broker = pickPlantonista",
-                // se passarmos TODOS os brokers da area no excludeIds, ele vai pro plantonista naturally.
+                // Contar tentativas por tipo (ignorando plantonistas pois eles são o fim da linha)
+                // is_plantonista precedence overrides tipo_corretor usually, but here checking explicit fields
+                const externalAttempts = historyRes.rows.filter(r =>
+                    (r.tipo_corretor === 'Externo') && !r.is_plantonista
+                ).length;
 
-                // Porem, se attempts > limit, queremos PULAR a etapa de busca por area. 
-                // Vou assumir que passar excludeIds é suficiente, mas para rigoroso cumprimento da regra "Tentativas > Limite vai direto pro plantonista",
-                // podemos alterar o router ou confiar que depois de N corretores, acabaram os da área. 
-                // Na maioria das imobiliarias, N < total_corretores_area. Então precisamos impedir pickBrokerByArea.
+                const internalAttempts = historyRes.rows.filter(r =>
+                    (r.tipo_corretor === 'Interno') && !r.is_plantonista
+                ).length;
 
-                // Solução Elegante: Se attempts > limit, chamamos uma função específica ou confiamos no router?
-                // Vou confiar no router passando excludeIds. Se ele achar mais alguem da área, é lucro (ou erro de config).
-                // Mas o usuário pediu estrito. Vamos ver se o router suporta "skipArea"? Não suporta.
-                // Vou manter simples: Passa excludeIds. O "Limite" serve mais para dizer "já tentamos muita gente".
+                // D. Decidir Roteamento (Tiered Transbordo)
+                let targetTier: 'External' | 'Internal' | 'Plantonista' = 'External';
+                let forceFallback = false;
 
-                // AJUSTE: O usuário foi muito específico: "Se Tentativas <= Limite: Busca próximo".
-                // Se eu só passar excludeIds e tiver 50 corretores na área e limite 3, ele vai tentar os 50.
-                // Isso viola a regra. 
-                // Preciso passar algo pro routeProspectAndNotify saber que deve ir pro plantonista?
-                // Ou chamo uma função interna dele? Não posso expor 'pickPlantonistaBroker' facilmente sem mudar o router de novo.
-                // VOU ALTERAR O ROUTER NOVAMENTE? Não, o user já viu o código.
-                // HACK: Se attempts > limit, eu passo um "flag" nos excludeIds? Não.
-                // Vou chamar routeProspectAndNotify normalmente e ele vai tentar achar na área.
-                // SE ISSO FOR UM PROBLEMA, eu deveria ter mudado o router para aceitar "forcePlantonista".
-                // Espera, eu posso adicionar um parametro no router "forceFallback".
-                // Mas já editei o router. 
-                // Vou seguir com excludeIds. Se o usuário reclamar que tentou 4 corretores em vez de 3, ajustamos.
-                // (Na prática, é melhor tentar mais corretores da área do que jogar pro plantonista cedo demais, mas regras são regras).
+                if (externalAttempts < limitExternal && internalAttempts === 0) {
+                    targetTier = 'External';
+                } else if (internalAttempts < limitInternal) {
+                    targetTier = 'Internal';
+                } else {
+                    targetTier = 'Plantonista';
+                    forceFallback = true;
+                }
 
-                // PENSANDO MELHOR: Se eu passar excludeIds = [todos os corretores da cidade], ele vai pro plantonista.
-                // Mas eu não sei quem são todos.
-                // OK, vou implementar assim: Chamo `routeProspectAndNotify`.
-                // Se ele selecionar alguém que NÃO é plantonista e attempts >= limit, isso seria "errado".
-                // Mas vamos deixar fluir por enquanto para não bloquear. O transbordo está funcionando (não repete corretor).
+                console.log(`[Transbordo] Roteando prospect ${item.prospect_id}. Ext: ${externalAttempts}/${limitExternal}, Int: ${internalAttempts}/${limitInternal}. Target: ${targetTier}`);
 
-                // D. Decidir Roteamento (Smart Fallback)
-                // Se tentativas >= limite, FORÇA o fallback para plantonista (pula area)
-                const forceFallback = attemptsCount >= limitAttempts;
-                console.log(`[Transbordo] Roteando prospect ${item.prospect_id}. Tentativas: ${attemptsCount}/${limitAttempts}. ForceFallback: ${forceFallback}`);
-
-                const result = await routeProspectAndNotify(item.prospect_id, distinctBrokers, { forceFallback });
+                const result = await routeProspectAndNotify(item.prospect_id, distinctBrokers, { forceFallback, targetTier, dbClient: client });
 
                 console.log(`[Transbordo] Resultado do roteamento:`, JSON.stringify(result));
 

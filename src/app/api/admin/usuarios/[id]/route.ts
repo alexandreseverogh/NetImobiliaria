@@ -19,6 +19,7 @@ interface UpdateUserRequest {
   ativo?: boolean
   isencao?: boolean
   is_plantonista?: boolean
+  tipo_corretor?: 'Interno' | 'Externo' | null
   roleId?: number
 }
 
@@ -148,7 +149,7 @@ export async function PUT(
 
     const userId = params.id
     const currentUser = await findUserById(userId)
-    
+
     if (!currentUser) {
       return NextResponse.json(
         { error: 'Usuário não encontrado' },
@@ -157,9 +158,9 @@ export async function PUT(
     }
 
     // 🛡️ PROTEÇÃO HIERÁRQUICA - Extrair ID do usuário logado
-    const token = request.cookies.get('accessToken')?.value || 
-                  request.headers.get('authorization')?.replace('Bearer ', '')
-    
+    const token = request.cookies.get('accessToken')?.value ||
+      request.headers.get('authorization')?.replace('Bearer ', '')
+
     if (!token) {
       return NextResponse.json(
         { error: 'Token não fornecido' },
@@ -169,7 +170,7 @@ export async function PUT(
 
     const { verifyTokenNode } = await import('@/lib/auth/jwt-node')
     const decoded = verifyTokenNode(token)
-    
+
     if (!decoded || !decoded.userId) {
       return NextResponse.json(
         { error: 'Token inválido' },
@@ -181,7 +182,7 @@ export async function PUT(
 
     // 🛡️ VERIFICAÇÃO HIERÁRQUICA OBRIGATÓRIA (Permitir editar a si mesmo no fluxo do corretor)
     const { canManageUser } = await import('@/lib/database/users')
-    
+
     // Se não for o próprio usuário tentando se editar, verifica hierarquia
     if (loggedUserId !== userId) {
       const hierarchyCheck = await canManageUser(loggedUserId, userId)
@@ -201,7 +202,7 @@ export async function PUT(
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData()
-      
+
       if (formData.has('nome')) updateData.nome = formData.get('nome') as string
       if (formData.has('username')) updateData.username = formData.get('username') as string
       if (formData.has('email')) updateData.email = formData.get('email') as string
@@ -212,6 +213,7 @@ export async function PUT(
       if (formData.has('ativo')) updateData.ativo = formData.get('ativo') === 'true'
       if (formData.has('isencao')) updateData.isencao = formData.get('isencao') === 'true'
       if (formData.has('is_plantonista')) updateData.is_plantonista = formData.get('is_plantonista') === 'true'
+      if (formData.has('tipo_corretor')) updateData.tipo_corretor = formData.get('tipo_corretor') as 'Interno' | 'Externo' | null
       if (formData.has('roleId')) updateData.roleId = parseInt(formData.get('roleId') as string)
 
       const fotoFile = formData.get('foto') as File | null
@@ -223,7 +225,7 @@ export async function PUT(
     } else {
       updateData = await request.json()
     }
-    
+
     console.log('📥 Dados recebidos para atualização:', { ...updateData, foto: updateData.foto ? '[BUFFER]' : undefined })
     console.log('🆔 ID do usuário:', userId)
 
@@ -231,9 +233,9 @@ export async function PUT(
     const validation = validateUpdateData(updateData)
     if (!validation.isValid) {
       return NextResponse.json(
-        { 
+        {
           error: 'Dados inválidos',
-          details: validation.errors 
+          details: validation.errors
         },
         { status: 400 }
       )
@@ -310,7 +312,7 @@ export async function PUT(
     console.error('❌ ERRO ao atualizar usuário:', error)
     console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A')
     console.error('❌ Mensagem:', error instanceof Error ? error.message : String(error))
-    
+
     // Tratar erros específicos do banco
     if (error instanceof Error) {
       if (error.message.includes('já existe')) {
@@ -320,7 +322,7 @@ export async function PUT(
         )
       }
     }
-    
+
     return NextResponse.json(
       { error: 'Erro interno do servidor', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
@@ -342,7 +344,7 @@ export async function DELETE(
 
     const userId = params.id
     const currentUser = await findUserById(userId)
-    
+
     if (!currentUser) {
       return NextResponse.json(
         { error: 'Usuário não encontrado' },
@@ -351,9 +353,9 @@ export async function DELETE(
     }
 
     // 🛡️ PROTEÇÃO HIERÁRQUICA - Extrair ID do usuário logado
-    const token = request.cookies.get('accessToken')?.value || 
-                  request.headers.get('authorization')?.replace('Bearer ', '')
-    
+    const token = request.cookies.get('accessToken')?.value ||
+      request.headers.get('authorization')?.replace('Bearer ', '')
+
     if (!token) {
       return NextResponse.json(
         { error: 'Token não fornecido' },
@@ -363,7 +365,7 @@ export async function DELETE(
 
     const { verifyTokenNode } = await import('@/lib/auth/jwt-node')
     const decoded = verifyTokenNode(token)
-    
+
     if (!decoded || !decoded.userId) {
       return NextResponse.json(
         { error: 'Token inválido' },
@@ -376,7 +378,7 @@ export async function DELETE(
     // 🛡️ VERIFICAÇÃO HIERÁRQUICA OBRIGATÓRIA
     const { canManageUser } = await import('@/lib/database/users')
     const hierarchyCheck = await canManageUser(loggedUserId, userId)
-    
+
     if (!hierarchyCheck.allowed) {
       console.log('🚫 Bloqueado por hierarquia:', hierarchyCheck.reason)
       return NextResponse.json(

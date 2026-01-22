@@ -32,12 +32,12 @@ export default function LoginForm({ userType, onBack, onSuccess, redirectTo }: L
     setError('')
     setRequires2FA(false)
     setTwoFAMessage('')
-    
+
     // Remover readonly após 100ms (técnica anti-autocomplete)
     const timer = setTimeout(() => {
       setIsReady(true)
     }, 100)
-    
+
     return () => clearTimeout(timer)
   }, [userType]) // Limpa quando trocar de tipo (cliente/proprietario)
 
@@ -65,20 +65,26 @@ export default function LoginForm({ userType, onBack, onSuccess, redirectTo }: L
       if (response.ok && data.success) {
         // Login bem-sucedido
         localStorage.setItem('public-auth-token', data.data.token)
-        localStorage.setItem('public-user-data', JSON.stringify(data.data.user))
+        localStorage.setItem('public-user-data', JSON.stringify({
+          ...data.data.user,
+          at: Date.now()
+        }))
+
+        // Remover comentário ou lógica de limpeza que cause interferência
+        // Se logou como cliente, não precisamos mais apagar a sessão admin
 
         // Registrar "último login" (para exibir iniciais no header da landpaging)
         try {
           localStorage.setItem(
-            'last-auth-user',
+            'public-last-auth-user',
             JSON.stringify({
               nome: data.data.user?.nome || '',
               userType,
               at: Date.now()
             })
           )
-        } catch {}
-        
+        } catch { }
+
         // Se for proprietário e houver redirectTo, usar autenticação admin primeiro
         if (userType === 'proprietario' && redirectTo) {
           // Fazer login na API admin também para acessar área admin
@@ -94,16 +100,16 @@ export default function LoginForm({ userType, onBack, onSuccess, redirectTo }: L
                 password: password,
               }),
             })
-            
+
             const adminLoginData = await adminLoginResponse.json()
-            
+
             if (adminLoginResponse.ok && adminLoginData.success && adminLoginData.data?.token) {
               // Salvar token admin
-              localStorage.setItem('auth-token', adminLoginData.data.token)
+              localStorage.setItem('admin-auth-token', adminLoginData.data.token)
               if (adminLoginData.data.user) {
-                localStorage.setItem('user-data', JSON.stringify(adminLoginData.data.user))
+                localStorage.setItem('admin-user-data', JSON.stringify(adminLoginData.data.user))
               }
-              
+
               // Aguardar um pouco para garantir que o token foi salvo
               await new Promise(resolve => setTimeout(resolve, 100))
             } else {
@@ -118,11 +124,11 @@ export default function LoginForm({ userType, onBack, onSuccess, redirectTo }: L
             // O modal ainda será exibido, mas pode não conseguir acessar a área admin
           }
         }
-        
+
         // Exibir modal de sucesso com dados do usuário
         setLoggedInUser(data.data.user)
         setShowSuccessModal(true)
-        
+
         // Disparar evento customizado para atualizar AuthButtons após um pequeno delay
         // para garantir que o localStorage foi atualizado
         if (typeof window !== 'undefined') {
@@ -256,7 +262,7 @@ export default function LoginForm({ userType, onBack, onSuccess, redirectTo }: L
                     const newCode = twoFactorCode.split('')
                     newCode[index] = value
                     setTwoFactorCode(newCode.join('').slice(0, 6))
-                    
+
                     // Auto-focus no próximo campo
                     if (value && index < 5) {
                       const nextInput = document.getElementById(`code-${index + 1}`)

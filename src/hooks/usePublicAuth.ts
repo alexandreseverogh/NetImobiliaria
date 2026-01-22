@@ -40,7 +40,7 @@ export function usePublicAuth() {
     // Listener para mudanças no localStorage (quando login acontece em outra aba/componente)
     const handleStorageChange = (e: StorageEvent) => {
       // Detectar mudanças críticas de sessão em outras abas
-      const criticalKeys = ['public-auth-token', 'public-user-data', 'auth-token', 'user-data', 'last-auth-user']
+      const criticalKeys = ['public-auth-token', 'public-user-data', 'public-last-auth-user']
 
       if (criticalKeys.includes(e.key || '')) {
         // Se o valor mudou (login/logout em outra aba), recarregar para sincronizar UI

@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
     const userQuery = `
       SELECT 
         u.id, u.username, u.email, u.password, u.nome, u.telefone, u.creci, u.cpf, u.foto, u.foto_tipo_mime, u.ativo as is_active,
-        u.two_fa_enabled, u.isencao,
+        u.two_fa_enabled, u.isencao, u.tipo_corretor,
         ur.name as role_name, ur.description as role_description, ur.level as role_level
       FROM users u
       LEFT JOIN user_role_assignments ura ON u.id = ura.user_id
@@ -443,7 +443,7 @@ export async function POST(request: NextRequest) {
     console.log('🔍 DEBUG LOGIN - Token Payload:', JSON.stringify(jwtPayload, null, 2));
 
     const token = jwt.sign(jwtPayload, jwtSecret, {
-      expiresIn: '1h'
+      expiresIn: AUTH_CONFIG.JWT.ACCESS_TOKEN_EXPIRES_IN || '24h'
     } as SignOptions);
 
     // 8. Criar sessão no banco
@@ -515,6 +515,7 @@ export async function POST(request: NextRequest) {
           cpf: (user as any).cpf || null,
           creci: (user as any).creci || null,
           isencao: (user as any).isencao === true || (user as any).isencao === 't',
+          tipo_corretor: (user as any).tipo_corretor || null,
           foto: fotoBase64,
           foto_tipo_mime: rawFotoMime,
           is2FAEnabled,
