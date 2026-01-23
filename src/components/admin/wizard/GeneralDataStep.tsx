@@ -103,10 +103,10 @@ export default function GeneralDataStep({
   useEffect(() => {
     if (finalidadePreSelecionada && data.finalidade_fk) {
       // Converter para número se necessário para garantir consistência
-      const finalidadeValue = typeof data.finalidade_fk === 'string' 
-        ? Number(data.finalidade_fk) 
+      const finalidadeValue = typeof data.finalidade_fk === 'string'
+        ? Number(data.finalidade_fk)
         : Number(data.finalidade_fk)
-      
+
       // Sempre atualizar para garantir que o valor está no formData como número
       // Isso é importante porque o campo está desabilitado e não dispara onChange
       onUpdate({ finalidade_fk: finalidadeValue })
@@ -137,7 +137,7 @@ export default function GeneralDataStep({
         `/api/admin/proprietarios?nome=${encodeURIComponent(nome)}`
       )
       const result = await response.json()
-      
+
       if (result.success) {
         setProprietarios(result.proprietarios)
       } else {
@@ -164,7 +164,7 @@ export default function GeneralDataStep({
         : `/api/admin/proprietarios?limit=1000`
       const response = await get(url)
       const result = await response.json()
-      
+
       if (result.success) {
         const list = (result.proprietarios || []) as any[]
         // Blindagem extra: no fluxo do corretor, filtrar também no front por corretor_fk
@@ -230,7 +230,7 @@ export default function GeneralDataStep({
   useEffect(() => {
     // Verificar se veio da página pública (via noSidebar query param)
     const noSidebar = searchParams?.get('noSidebar') === 'true'
-    
+
     // Se não veio da pública ou já carregou, não fazer nada
     if (!noSidebar || proprietarioPublicoCarregado || mode !== 'create') {
       return
@@ -241,15 +241,15 @@ export default function GeneralDataStep({
       const publicUserData = typeof window !== 'undefined' ? localStorage.getItem('public-user-data') : null
       if (publicUserData) {
         const userData = JSON.parse(publicUserData)
-        
+
         // Verificar se é um proprietário e tem UUID
         if (userData.userType === 'proprietario' && userData.uuid) {
           console.log('🔍 GeneralDataStep - Proprietário público detectado:', userData.uuid, userData.nome)
-          
+
           // Tentar encontrar na lista primeiro (se já carregou)
           if (todosProprietarios.length > 0) {
             const proprietarioEncontrado = todosProprietarios.find(p => p.uuid === userData.uuid)
-            
+
             if (proprietarioEncontrado) {
               console.log('✅ GeneralDataStep - Proprietário encontrado na lista:', proprietarioEncontrado)
               setProprietarioSelecionado(proprietarioEncontrado)
@@ -293,7 +293,7 @@ export default function GeneralDataStep({
       proprietario_uuid: proprietarioIdentificador,
       todosProprietariosLength: todosProprietarios.length
     })
-    
+
     if (
       mode === 'edit' &&
       proprietarioIdentificador &&
@@ -450,16 +450,16 @@ export default function GeneralDataStep({
   const formatAreaValue = (value: string) => {
     // Se o valor for vazio, retorna vazio
     if (!value || value === '0') return ''
-    
+
     // Converte para número para remover decimais desnecessários
     const numValue = parseFloat(value)
-    
+
     // Se não for um número válido, retorna vazio
     if (isNaN(numValue)) return ''
-    
+
     // Converte para inteiro (remove decimais)
     const intValue = Math.floor(numValue)
-    
+
     // Converte para string e formata com pontos para milhares
     return intValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
   }
@@ -549,7 +549,7 @@ export default function GeneralDataStep({
         <div className="border-t border-gray-400 pt-6">
           <h3 className="text-lg font-medium text-gray-900">Tipo e Finalidade</h3>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-2">
@@ -584,9 +584,8 @@ export default function GeneralDataStep({
                 handleInputChange('finalidade_fk', value)
               }}
               disabled={finalidadePreSelecionada}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                finalidadePreSelecionada ? 'bg-gray-100 cursor-not-allowed opacity-75' : ''
-              }`}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${finalidadePreSelecionada ? 'bg-gray-100 cursor-not-allowed opacity-75' : ''
+                }`}
               required
             >
               <option value="">Selecione a finalidade</option>
@@ -610,7 +609,7 @@ export default function GeneralDataStep({
         <div className="border-t border-gray-400 pt-6">
           <h3 className="text-lg font-medium text-gray-900">Proprietário</h3>
         </div>
-        
+
         <div className="space-y-4">
           <div>
             <label htmlFor="proprietarioSearch" className="block text-sm font-medium text-gray-700 mb-2">
@@ -632,13 +631,12 @@ export default function GeneralDataStep({
                   (proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true') ||
                   (isCorretorFlow && loadingTodosProprietarios)
                 }
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true' 
-                    ? 'bg-gray-100 cursor-not-allowed' 
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true'
+                    ? 'bg-gray-100 cursor-not-allowed'
                     : isCorretorFlow && loadingTodosProprietarios
                       ? 'bg-gray-100 cursor-not-allowed'
-                    : ''
-                }`}
+                      : ''
+                  }`}
               />
               {(loadingProprietarios || (isCorretorFlow && loadingTodosProprietarios)) && (
                 <div className="absolute right-3 top-2.5">
@@ -646,7 +644,7 @@ export default function GeneralDataStep({
                 </div>
               )}
             </div>
-            
+
             {/* Lista de proprietários encontrados */}
             {proprietariosParaExibirNoBuscar.length > 0 && (
               <div className="mt-2 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto z-10 relative">
@@ -690,11 +688,10 @@ export default function GeneralDataStep({
                 }
               }}
               disabled={proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true'}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true' 
-                  ? 'bg-gray-100 cursor-not-allowed' 
+              className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true'
+                  ? 'bg-gray-100 cursor-not-allowed'
                   : ''
-              }`}
+                }`}
             >
               <option value="">Selecione um proprietário</option>
               {todosProprietarios.map((proprietario) => (
@@ -733,7 +730,7 @@ export default function GeneralDataStep({
         <div className="border-t border-gray-400 pt-6">
           <h3 className="text-lg font-medium text-gray-900">Informações Básicas</h3>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
             <label htmlFor="titulo" className="block text-sm font-medium text-gray-700 mb-2">
@@ -772,7 +769,7 @@ export default function GeneralDataStep({
         <div className="border-t border-gray-400 pt-6">
           <h3 className="text-lg font-medium text-gray-900">Valores</h3>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div>
             <label htmlFor="preco" className="block text-sm font-medium text-gray-700 mb-2">
@@ -874,7 +871,7 @@ export default function GeneralDataStep({
         <div className="border-t border-gray-400 pt-6">
           <h3 className="text-lg font-medium text-gray-900">Áreas</h3>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label htmlFor="areaTotal" className="block text-sm font-medium text-gray-700 mb-2">
@@ -919,7 +916,7 @@ export default function GeneralDataStep({
         <div className="border-t border-gray-400 pt-6">
           <h3 className="text-lg font-medium text-gray-900">Características</h3>
         </div>
-        
+
         <div className="grid grid-cols-7 gap-2">
           <div>
             <label htmlFor="quartos" className="block text-sm font-medium text-gray-700 mb-2">
@@ -1048,7 +1045,7 @@ export default function GeneralDataStep({
         <div className="border-t border-gray-400 pt-6">
           <h3 className="text-lg font-medium text-gray-900">Opções</h3>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
 
@@ -1062,6 +1059,19 @@ export default function GeneralDataStep({
               />
               <label htmlFor="aceitaPermuta" className="ml-2 block text-sm text-gray-900">
                 Aceita Permuta
+              </label>
+            </div>
+
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="lancamento"
+                checked={(data as any).lancamento || false}
+                onChange={(e) => handleInputChange('lancamento', e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="lancamento" className="ml-2 block text-sm text-gray-900">
+                Lançamento
               </label>
             </div>
 

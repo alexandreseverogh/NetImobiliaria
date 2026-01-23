@@ -12,6 +12,7 @@ import pool from '@/lib/database/connection'
 import { buildImovelAuditChanges } from '@/lib/utils/imovelAuditHelper'
 import { logAuditEvent, extractUserIdFromToken, extractRequestData } from '@/lib/audit/auditLogger'
 import { findProprietarioByUuid } from '@/lib/database/proprietarios'
+import { getTokenFromRequest } from '@/lib/auth/jwt'
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/
 
@@ -22,14 +23,7 @@ function isUuid(value: string): boolean {
 // Função para extrair usuário logado
 function getCurrentUser(request: NextRequest): string | null {
   try {
-    // Tentar pegar do header Authorization primeiro (Bearer token)
-    const authHeader = request.headers.get('authorization')
-    let token = authHeader?.replace('Bearer ', '') || null
-
-    // Se não encontrou no header, tentar pegar do cookie
-    if (!token) {
-      token = request.cookies.get('accessToken')?.value || null
-    }
+    const token = getTokenFromRequest(request)
 
     if (!token) {
       console.log('🔍 Nenhum token encontrado')
@@ -880,9 +874,10 @@ export async function PUT(
         status_fk = $30,
         proprietario_uuid = $31,
         destaque = $32,
-        updated_by = $33,
+        lancamento = $33,
+        updated_by = $34,
         updated_at = NOW()
-      WHERE id = $34
+      WHERE id = $35
     `
 
     console.log('🔍 ========== PREPARANDO UPDATE NO BANCO ==========')
@@ -924,8 +919,9 @@ export async function PUT(
       data.status_fk,
       proprietarioUuidNormalizado, // $31
       data.destaque !== undefined ? data.destaque : destaqueAtual, // $32
-      currentUserId, // $33 - updated_by
-      imovelId // $34 - WHERE id
+      data.lancamento !== undefined ? data.lancamento : false, // $33 - lancamento (default false)
+      currentUserId, // $34 - updated_by
+      imovelId // $35 - WHERE id
     ]
 
     // Executar todas as operações em paralelo para melhor performance
@@ -1355,6 +1351,12 @@ export async function PUT(
           changes.destaque = {
             before: imovelAtualResult.rows[0].destaque,
             after: data.destaque
+          }
+        }
+        if (data.lancamento !== undefined && data.lancamento !== null && data.lancamento !== imovelAtualResult.rows[0].lancamento) {
+          changes.lancamento = {
+            before: imovelAtualResult.rows[0].lancamento,
+            after: data.lancamento
           }
         }
 

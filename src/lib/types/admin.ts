@@ -35,12 +35,12 @@ export type UserPermissions = Record<string, Permission>
 export type Permission = 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'EXECUTE' | 'ADMIN' | 'WRITE'
 
 // Tipo mais específico para recursos
-export type Resource = 
-  | 'imoveis' 
-  | 'proximidades' 
-  | 'amenidades' 
-  | 'categorias-amenidades' 
-  | 'categorias-proximidades' 
+export type Resource =
+  | 'imoveis'
+  | 'proximidades'
+  | 'amenidades'
+  | 'categorias-amenidades'
+  | 'categorias-proximidades'
   | 'tipos-imoveis'
   | 'tipos-documentos'
   | 'status'
@@ -48,7 +48,7 @@ export type Resource =
   | 'status-imovel'
   | 'clientes'
   | 'proprietarios'
-  | 'usuarios' 
+  | 'usuarios'
   | 'relatorios'
   | 'sistema'
   | 'system-features'
@@ -84,14 +84,14 @@ export interface Imovel {
   descricao: string
   tipo: 'CASA' | 'APARTAMENTO' | 'COBERTURA' | 'TERRENO' | 'COMERCIAL' | 'RURAL'
   finalidade: 'VENDA' | 'ALUGUEL' | 'TEMPORADA'
-  tipo_fk?: string
-  finalidade_fk?: string
+  tipo_fk?: string | number
+  finalidade_fk?: string | number
   proprietario_uuid?: string | null
   preco: number
   precoCondominio?: number
   precoIPTU?: number
   taxaExtra?: number
-  
+
   // Localização
   endereco: {
     endereco: string
@@ -104,7 +104,7 @@ export interface Imovel {
     latitude?: number
     longitude?: number
   }
-  
+
   // Características físicas
   areaTotal: number
   areaConstruida?: number
@@ -115,7 +115,7 @@ export interface Imovel {
   varanda?: number
   andar?: number
   totalAndares?: number
-  
+
   // Detalhes
   mobiliado: boolean
   aceitaPets: boolean
@@ -123,24 +123,27 @@ export interface Imovel {
   aceitaFumantes: boolean
   aceita_permuta?: boolean
   aceita_financiamento?: boolean
-  
+
   // Status
   status: 'ATIVO' | 'INATIVO' | 'VENDIDO' | 'ALUGADO'
   destaque: boolean
   dataCadastro: string
   dataAtualizacao: string
-  
+
   // Exclusão lógica
   dataExclusao?: string
   userExclusao?: string
-  
+
   // Relacionamentos
   imagens: Imagem[]
   documentos: ImovelDocumento[]
   amenidades: ImovelAmenidade[]
   proximidades: ImovelProximidadeSimplificada[]
   video?: any // Tipo será definido quando necessário
-  
+
+  // Novo campo
+  lancamento?: boolean
+
   // Usuário responsável
   corretorId: string
   corretorNome: string
@@ -239,33 +242,33 @@ export enum ProximidadeTipo {
   SUPERMERCADO = 'SUPERMERCADO',
   FARMACIA = 'FARMACIA',
   BANCO = 'BANCO',
-  
+
   // ALIMENTAÇÃO
   RESTAURANTE = 'RESTAURANTE',
   PADARIA = 'PADARIA',
   LANCHONETE = 'LANCHONETE',
-  
+
   // SAÚDE
   HOSPITAL = 'HOSPITAL',
   POSTO_SAUDE = 'POSTO_SAUDE',
   CLINICA = 'CLINICA',
-  
+
   // EDUCAÇÃO
   ESCOLA = 'ESCOLA',
   UNIVERSIDADE = 'UNIVERSIDADE',
   CRECHE = 'CRECHE',
-  
+
   // TRANSPORTE
   METRO = 'METRO',
   ONIBUS = 'ONIBUS',
   TAXI = 'TAXI',
-  
+
   // LAZER
   PRAIA = 'PRAIA',
   PARQUE = 'PARQUE',
   CINEMA = 'CINEMA',
   ACADEMIA = 'ACADEMIA',
-  
+
   // SERVIÇOS
   CORREIOS = 'CORREIOS',
   POLICIA = 'POLICIA',

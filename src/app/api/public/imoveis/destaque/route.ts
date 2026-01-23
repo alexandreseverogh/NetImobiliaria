@@ -127,6 +127,7 @@ export async function GET(request: NextRequest) {
           fi.nome as finalidade_nome,
           fi.tipo_destaque,
           i.destaque_nacional,
+          i.lancamento,
           fi.vender_landpaging,
           fi.alugar_landpaging
         FROM imoveis i

@@ -31,7 +31,7 @@ class EmailServiceSimple {
       const mailOptions = {
         from: 'alexandreseverog@gmail.com',
         to: to,
-        subject: 'Código de Verificação - Net Imobiliária',
+        subject: 'Código de Verificação - Imovtec',
         html: `
           <!DOCTYPE html>
           <html>
@@ -42,7 +42,7 @@ class EmailServiceSimple {
           <body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4;">
             <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
               <div style="text-align: center; margin-bottom: 30px;">
-                <h1 style="color: #2563eb;">🏠 Net Imobiliária</h1>
+                <h1 style="color: #2563eb;">🏠 Imovtec</h1>
                 <h2>Código de Verificação</h2>
               </div>
               
@@ -65,7 +65,7 @@ class EmailServiceSimple {
               <p>Se você não solicitou este código, ignore este email.</p>
               
               <div style="text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px;">
-                <p>© 2024 Net Imobiliária</p>
+                <p>© 2024 Imovtec</p>
               </div>
             </div>
           </body>

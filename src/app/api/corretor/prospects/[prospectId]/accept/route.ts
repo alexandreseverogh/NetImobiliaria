@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: { prospec
     const q = `
       UPDATE public.imovel_prospect_atribuicoes
       SET status = 'aceito',
-          data_aceite = NOW()
+          data_aceite = created_at
       WHERE prospect_id = $1
         AND corretor_fk = $2::uuid
         AND status = 'atribuido'

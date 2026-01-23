@@ -29,7 +29,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from '@/lib/auth/jwt'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 import { checkUserPermission } from '@/lib/permissions/PermissionChecker'
 import type { PermissionAction } from '@/lib/utils/permissions'
 import pool from '@/lib/database/connection'
@@ -110,7 +110,7 @@ export async function unifiedPermissionMiddleware(
     }
 
     // 2. Verificar autenticação (extrair token)
-    const token = extractToken(request)
+    const token = getTokenFromRequest(request)
 
     if (!token) {
       return NextResponse.json(
@@ -288,31 +288,6 @@ async function checkUserExists(userId: string): Promise<boolean> {
     console.error('❌ Erro ao verificar existência do usuário:', error)
     return false
   }
-}
-
-/**
- * ============================================================
- * Extrair Token da Requisição
- * ============================================================
- * 
- * Suporta:
- * - Header Authorization: Bearer {token}
- * - Cookie: accessToken
- */
-function extractToken(request: NextRequest): string | null {
-  // Tentar header Authorization
-  const authHeader = request.headers.get('authorization')
-  if (authHeader?.startsWith('Bearer ')) {
-    return authHeader.replace('Bearer ', '')
-  }
-
-  // Tentar cookie
-  const cookie = request.cookies.get('accessToken')
-  if (cookie?.value) {
-    return cookie.value
-  }
-
-  return null
 }
 
 /**

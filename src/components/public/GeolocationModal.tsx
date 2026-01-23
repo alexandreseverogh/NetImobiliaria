@@ -43,7 +43,7 @@ export default function GeolocationModal({
   const [selectedEstadoId, setSelectedEstadoId] = useState('')
   const [selectedCidadeId, setSelectedCidadeId] = useState('')
   const [shouldClose, setShouldClose] = useState(false) // Estado interno para controlar fechamento
-  
+
   const { estados, municipios, loadMunicipios } = useEstadosCidades()
 
   // Fechar modal quando shouldClose for true (sem chamar onClose)
@@ -63,12 +63,12 @@ export default function GeolocationModal({
   useEffect(() => {
     if (isOpen && region && !showOtherLocations && estados.length > 0) {
       // Tentar encontrar estado pelo nome da região
-      const estadoEncontrado = estados.find(e => 
+      const estadoEncontrado = estados.find(e =>
         e.nome.toLowerCase().includes(region.toLowerCase()) ||
         region.toLowerCase().includes(e.nome.toLowerCase()) ||
         e.sigla.toLowerCase() === region.toLowerCase()
       )
-      
+
       if (estadoEncontrado && estadoEncontrado.id !== selectedEstadoId) {
         console.log('🔍 [GEOLOCATION MODAL] Mapeando região detectada para estado:', estadoEncontrado.nome)
         setSelectedEstadoId(estadoEncontrado.id)
@@ -80,7 +80,7 @@ export default function GeolocationModal({
   // Tentar mapear cidade detectada após municípios serem carregados
   useEffect(() => {
     if (isOpen && city && selectedEstadoId && municipios.length > 0 && !showOtherLocations) {
-      const cidadeEncontrada = municipios.find(m => 
+      const cidadeEncontrada = municipios.find(m =>
         m.nome.toLowerCase() === city.toLowerCase() ||
         m.nome.toLowerCase().includes(city.toLowerCase()) ||
         city.toLowerCase().includes(m.nome.toLowerCase())
@@ -100,12 +100,12 @@ export default function GeolocationModal({
       localStorage.setItem('geolocation-modal-dismissed', 'true')
       console.log('✅ [GEOLOCATION MODAL] Usuário optou por não mostrar novamente')
     }
-    
+
     // Resetar estados
     setShowOtherLocations(false)
     setSelectedEstadoId('')
     setSelectedCidadeId('')
-    
+
     // Chamar onClose apenas quando usuário fecha manualmente
     onClose()
   }
@@ -131,7 +131,7 @@ export default function GeolocationModal({
     if (selectedEstadoId && selectedCidadeId) {
       const estado = estados.find(e => e.id === selectedEstadoId)
       const cidade = municipios.find(m => m.id === selectedCidadeId)
-      
+
       if (estado && cidade && onConfirmLocation) {
         console.log('✅ [GEOLOCATION MODAL] Confirmando localização detectada (mapeada):', estado.sigla, cidade.nome)
         // Chamar callback ANTES de fechar
@@ -141,12 +141,12 @@ export default function GeolocationModal({
         return
       }
     }
-    
+
     // Se não tiver mapeamento automático, tentar usar a cidade detectada diretamente
     // e deixar o usuário selecionar o estado manualmente depois
     console.log('⚠️ [GEOLOCATION MODAL] Localização detectada mas sem mapeamento automático')
     console.log('⚠️ [GEOLOCATION MODAL] Cidade detectada:', city, 'Região:', region)
-    
+
     // Fechar modal - usuário pode usar os filtros manualmente
     handleClose()
   }
@@ -155,7 +155,7 @@ export default function GeolocationModal({
     if (selectedEstadoId && selectedCidadeId) {
       const estado = estados.find(e => e.id === selectedEstadoId)
       const cidade = municipios.find(m => m.id === selectedCidadeId)
-      
+
       if (estado && cidade && onSelectOtherLocation) {
         console.log('✅ [GEOLOCATION MODAL] Confirmando localização manual:', estado.sigla, cidade.nome)
         // Chamar callback ANTES de fechar
@@ -202,8 +202,8 @@ export default function GeolocationModal({
             <div className="p-3 bg-blue-100 rounded-full">
               <MapPin className="w-6 h-6 text-blue-600" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              🏠 Net Imobiliária
+            <h2>
+              🏠 Imovtec
             </h2>
           </div>
 
@@ -242,7 +242,7 @@ export default function GeolocationModal({
               <p className="text-lg text-gray-700 leading-relaxed">
                 <span className="font-semibold text-primary-600">📍 Detectamos que você está em:</span>
               </p>
-              
+
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4">
                 <p className="text-xl font-bold text-gray-900 text-center">
                   {fullLocation}
@@ -284,7 +284,7 @@ export default function GeolocationModal({
               <p className="text-sm font-semibold text-gray-700">
                 Selecione Estado e Cidade:
               </p>
-              
+
               {/* Estado */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -342,8 +342,8 @@ export default function GeolocationModal({
                     disabled={isLoading}
                     className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors duration-200 shadow-md hover:shadow-lg"
                   >
-                    {selectedEstadoId && selectedCidadeId 
-                      ? 'Confirmar Localização Detectada' 
+                    {selectedEstadoId && selectedCidadeId
+                      ? 'Confirmar Localização Detectada'
                       : 'Entendi (usar filtros manualmente)'}
                   </button>
                   {/* Texto LGPD abaixo do botão de confirmar */}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from '@/lib/auth/jwt'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 import jwt from 'jsonwebtoken'
 import { AUTH_CONFIG } from '@/lib/config/auth'
 import { findProprietariosPaginated } from '@/lib/database/proprietarios'
@@ -7,11 +7,7 @@ import { findProprietariosPaginated } from '@/lib/database/proprietarios'
 export async function GET(request: NextRequest) {
   try {
     // Autenticação explícita (não dependemos de route_permissions_config para não vazar dados)
-    const authHeader = request.headers.get('authorization') || ''
-    const token =
-      authHeader.startsWith('Bearer ')
-        ? authHeader.slice(7)
-        : request.cookies.get('accessToken')?.value || null
+    const token = getTokenFromRequest(request)
 
     if (!token) {
       return NextResponse.json({ success: false, error: 'Autenticação necessária' }, { status: 401 })

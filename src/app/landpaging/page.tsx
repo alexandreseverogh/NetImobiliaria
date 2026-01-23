@@ -38,6 +38,7 @@ interface PropertyCard {
   garages: number
   image: string
   type: string
+  lancamento?: boolean
 }
 
 interface FilteredResponse {
@@ -134,7 +135,7 @@ export default function LandingPage() {
   const LAST_GEOLOCATION_CIDADE_KEY = 'last-geolocation-cidade'
 
   // Cache leve do grid de destaques (evita recarregar ao entrar/sair de fluxos onde a localidade não muda)
-  const FEATURED_CACHE_PREFIX = 'featured-destaque-cache:'
+  const FEATURED_CACHE_PREFIX = 'featured-destaque-cache-v3:'
   const FEATURED_CACHE_TTL_MS = 5 * 60 * 1000 // 5 min
   const forceFeaturedFetchRef = useRef(false) // true quando usuário pediu explicitamente (ex.: Destaques Nacional)
 
@@ -1184,6 +1185,7 @@ export default function LandingPage() {
     const estado = estados.find((state) => state.sigla === imovel.estado_fk)
     const estadoNome = estado?.nome || imovel.estado_fk || ''
 
+
     const precoFormatado = imovel.preco
       ? `R$ ${Number(imovel.preco).toLocaleString('pt-BR', {
         minimumFractionDigits: 2,
@@ -1203,7 +1205,8 @@ export default function LandingPage() {
       area: imovel.area_total ? `${imovel.area_total}m²` : '-',
       garages: imovel.vagas_garagem || 0,
       image: imovel.imagem_principal || 'placeholder',
-      type: imovel.tipo_nome || 'Imóvel'
+      type: imovel.tipo_nome || 'Imóvel',
+      lancamento: imovel.lancamento === true
     }
   }, [estados])
 
@@ -2258,9 +2261,8 @@ export default function LandingPage() {
 
           <div className="relative min-h-[400px] bg-white overflow-x-visible -mx-4 sm:-mx-6">
             {filtersActive && (
-              <div className="absolute inset-0 z-10">
-                <div className="absolute -inset-1 bg-white rounded-3xl"></div>
-                <div className="absolute inset-0 bg-white border border-blue-100 shadow-2xl rounded-3xl overflow-hidden">
+              <div className="absolute inset-0 z-10 bg-white">
+                <div className="relative h-full w-full bg-white rounded-3xl border border-blue-100 shadow-2xl overflow-hidden">
                   <div className="relative h-full p-6 overflow-y-auto overflow-x-visible">
                     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
                       <div className="flex-1">
@@ -2329,7 +2331,7 @@ export default function LandingPage() {
                     ) : (
                       <>
                         <div className="w-full">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start relative">
                             {filteredResults.map((property) => (
                               <LandingPropertyCard
                                 key={property.id}

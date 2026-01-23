@@ -88,16 +88,16 @@ export default function AdminLoginPage() {
         <div className="text-center">
           <div className="mx-auto h-20 w-20 flex items-center justify-center rounded-full bg-white shadow-lg">
             <Image
-              src="/logo.png"
-              alt="Net Imobiliária"
-              width={64}
-              height={64}
-              className="h-16 w-16 object-contain"
+              src="/imovtec-logo.png"
+              alt="Imovtec"
+              width={128}
+              height={128}
+              className="h-24 w-24 object-contain"
               priority
             />
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Net Imobiliária
+            Imovtec
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Sistema Administrativo

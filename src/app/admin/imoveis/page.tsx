@@ -10,7 +10,8 @@ import EstadoSelect from '@/components/shared/EstadoSelect'
 import { useApi } from '@/hooks/useApi'
 import ImovelGrid from '@/components/admin/ImovelGrid'
 
-export default function ImoveisPage() {'  '
+export default function ImoveisPage() {
+  '  '
   const router = useRouter()
   const { get } = useApi()
   const [imoveis, setImoveis] = useState<Imovel[]>([])
@@ -23,7 +24,8 @@ export default function ImoveisPage() {'  '
     municipio: '',
     tipo: '',
     finalidade: '',
-    status: ''
+    status: '',
+    corretor: ''
   })
   const [appliedFilters, setAppliedFilters] = useState({
     codigo: '',
@@ -32,12 +34,14 @@ export default function ImoveisPage() {'  '
     municipio: '',
     tipo: '',
     finalidade: '',
-    status: ''
+    status: '',
+    corretor: ''
   })
-  const [tipos, setTipos] = useState<Array<{id: string, nome: string}>>([])
-  const [finalidades, setFinalidades] = useState<Array<{id: string, nome: string}>>([])
-  const [statusOptions, setStatusOptions] = useState<Array<{id: string, nome: string}>>([])
-  
+  const [tipos, setTipos] = useState<Array<{ id: string, nome: string }>>([])
+  const [finalidades, setFinalidades] = useState<Array<{ id: string, nome: string }>>([])
+  const [statusOptions, setStatusOptions] = useState<Array<{ id: string, nome: string }>>([])
+  const [corretores, setCorretores] = useState<Array<{ id: string, nome: string }>>([])
+
   // Usar hook centralizado para estados e municípios
   const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()
 
@@ -67,6 +71,13 @@ export default function ImoveisPage() {'  '
           const statusData = await statusResponse.json()
           setStatusOptions(statusData || [])
         }
+
+        // Carregar corretores
+        const corretoresResponse = await get('/api/admin/usuarios?role_name=Corretor&limit=100')
+        if (corretoresResponse.ok) {
+          const corretoresData = await corretoresResponse.json()
+          setCorretores(corretoresData.users || [])
+        }
       } catch (err) {
         console.error('Erro ao carregar dados dos filtros:', err)
       }
@@ -84,7 +95,7 @@ export default function ImoveisPage() {'  '
     try {
       setLoading(true)
       setError(null)
-      
+
       // Construir query string com filtros aplicados
       const queryParams = new URLSearchParams()
       Object.entries(appliedFilters).forEach(([key, value]) => {
@@ -127,7 +138,7 @@ export default function ImoveisPage() {'  '
   const handleApplyFilters = () => {
     // Limpar municípios para nova consulta
     clearMunicipios()
-    
+
     setAppliedFilters(filters)
   }
 
@@ -139,7 +150,8 @@ export default function ImoveisPage() {'  '
       municipio: '',
       tipo: '',
       finalidade: '',
-      status: ''
+      status: '',
+      corretor: ''
     }
     setFilters(emptyFilters)
     setAppliedFilters(emptyFilters)
@@ -168,9 +180,9 @@ export default function ImoveisPage() {'  '
       {/* Filtros */}
       <div className="bg-white p-6 rounded-lg shadow">
         <h2 className="text-lg font-bold text-gray-900 mb-4 text-center">Filtros</h2>
-        <div className="grid grid-cols-7 gap-4">
+        <div className="grid grid-cols-9 gap-4 items-end">
           {/* Código */}
-          <div>
+          <div className="col-span-1">
             <label className="block text-sm font-bold text-gray-700 text-center mb-2">
               Código
             </label>
@@ -182,14 +194,14 @@ export default function ImoveisPage() {'  '
                 const value = e.target.value.replace(/[^0-9]/g, '')
                 handleFilterChange('codigo', value)
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Digite o código"
+              className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              placeholder="Código"
               min="1"
             />
           </div>
 
           {/* Bairro */}
-          <div>
+          <div className="col-span-1">
             <label className="block text-sm font-bold text-gray-700 text-center mb-2">
               Bairro
             </label>
@@ -197,39 +209,39 @@ export default function ImoveisPage() {'  '
               type="text"
               value={filters.bairro}
               onChange={(e) => handleFilterChange('bairro', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Digite o bairro"
+              className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              placeholder="Bairro"
             />
           </div>
 
           {/* Estado */}
-          <div>
+          <div className="col-span-1">
             <label className="block text-sm font-bold text-gray-700 text-center mb-2">
-              Estado
+              UF
             </label>
             <EstadoSelect
               value={filters.estado}
               onChange={(estadoId) => handleFilterChange('estado', estadoId)}
-              placeholder="Selecione o estado"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              format="sigla-nome"
+              placeholder="UF"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              format="sigla"
               showAllOption={true}
-              allOptionLabel="Selecione o estado"
+              allOptionLabel="UF"
             />
           </div>
 
           {/* Município */}
-          <div>
+          <div className="col-span-1">
             <label className="block text-sm font-bold text-gray-700 text-center mb-2">
               Cidade
             </label>
             <select
               value={filters.municipio}
               onChange={(e) => handleFilterChange('municipio', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               disabled={!filters.estado}
             >
-              <option value="">Selecione a cidade</option>
+              <option value="">Cidade</option>
               {municipios.map(municipio => (
                 <option key={municipio.id} value={municipio.nome}>
                   {municipio.nome}
@@ -239,16 +251,16 @@ export default function ImoveisPage() {'  '
           </div>
 
           {/* Tipo */}
-          <div>
+          <div className="col-span-1">
             <label className="block text-sm font-bold text-gray-700 text-center mb-2">
               Tipo
             </label>
             <select
               value={filters.tipo}
               onChange={(e) => handleFilterChange('tipo', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
-              <option value="">Selecione o tipo</option>
+              <option value="">Tipo</option>
               {tipos.map(tipo => (
                 <option key={tipo.id} value={tipo.id}>
                   {tipo.nome}
@@ -258,16 +270,16 @@ export default function ImoveisPage() {'  '
           </div>
 
           {/* Finalidade */}
-          <div>
+          <div className="col-span-1">
             <label className="block text-sm font-bold text-gray-700 text-center mb-2">
               Finalidade
             </label>
             <select
               value={filters.finalidade}
               onChange={(e) => handleFilterChange('finalidade', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
-              <option value="">Selecione a finalidade</option>
+              <option value="">Finalidade</option>
               {finalidades.map(finalidade => (
                 <option key={finalidade.id} value={finalidade.id}>
                   {finalidade.nome}
@@ -277,16 +289,16 @@ export default function ImoveisPage() {'  '
           </div>
 
           {/* Status */}
-          <div>
+          <div className="col-span-1">
             <label className="block text-sm font-bold text-gray-700 text-center mb-2">
               Status
             </label>
             <select
               value={filters.status}
               onChange={(e) => handleFilterChange('status', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
-              <option value="">Selecione o status</option>
+              <option value="">Status</option>
               {statusOptions.map(status => (
                 <option key={status.id} value={status.id}>
                   {status.nome}
@@ -294,34 +306,48 @@ export default function ImoveisPage() {'  '
               ))}
             </select>
           </div>
-        </div>
-        
-        {/* Botões de Ação dos Filtros */}
-        <div className="flex justify-center space-x-4 mt-4">
-          <button
-            onClick={handleApplyFilters}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200 flex items-center space-x-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <span>Aplicar Filtros</span>
-          </button>
-          
-          <button
-            onClick={handleClearFilters}
-            className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200 flex items-center space-x-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            <span>Limpar Filtros</span>
-          </button>
+
+          {/* Corretor */}
+          <div className="col-span-1">
+            <label className="block text-sm font-bold text-gray-700 text-center mb-2">
+              Corretor
+            </label>
+            <select
+              value={filters.corretor}
+              onChange={(e) => handleFilterChange('corretor', e.target.value)}
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="">Corretor</option>
+              {corretores.map(corretor => (
+                <option key={corretor.id} value={corretor.id}>
+                  {corretor.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Botões */}
+          <div className="col-span-1 flex gap-2">
+            <button
+              onClick={handleApplyFilters}
+              className="flex-1 bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-bold"
+              title="Filtrar"
+            >
+              OK
+            </button>
+            <button
+              onClick={handleClearFilters}
+              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-md hover:bg-gray-300 transition-colors text-sm font-bold"
+              title="Limpar"
+            >
+              X
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Grid de Imóveis */}
-      <ImovelGrid 
+      <ImovelGrid
         imoveis={filteredImoveis}
         loading={loading}
         error={error}

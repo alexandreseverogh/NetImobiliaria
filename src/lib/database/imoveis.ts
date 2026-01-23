@@ -40,6 +40,7 @@ export interface Imovel {
   aceita_financiamento?: boolean
   destaque?: boolean
   destaque_nacional?: boolean
+  lancamento?: boolean
   ativo?: boolean
   origem_cadastro?: 'Publico' | 'Admin' | null
   created_by?: string | null
@@ -79,6 +80,7 @@ export interface FiltroImovel {
   tipo_id?: number
   finalidade_id?: number
   status_id?: number
+  corretor_id?: string
   preco_min?: number
   preco_max?: number
   quartos_min?: number
@@ -278,6 +280,12 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
       paramIndex++
     }
 
+    if (filtros.corretor_id) {
+      query += ` AND ic.corretor_fk = $${paramIndex}`
+      params.push(filtros.corretor_id)
+      paramIndex++
+    }
+
     if (filtros.cidade_fk) {
       query += ` AND cidade_fk = $${paramIndex}`
       params.push(filtros.cidade_fk)
@@ -430,11 +438,11 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
         preco_iptu, taxa_extra, area_total, area_construida, quartos, banheiros, suites, 
         vagas_garagem, varanda, endereco, numero, complemento, bairro, cidade_fk, estado_fk, cep, latitude, longitude,
         ano_construcao, andar, total_andares, mobiliado, aceita_permuta, 
-        aceita_financiamento, destaque, origem_cadastro, created_by, corretor_fk
+        aceita_financiamento, destaque, lancamento, origem_cadastro, created_by, corretor_fk
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 
         $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, 
-        $31, $32, $33, $34, $35, $36, $37
+        $31, $32, $33, $34, $35, $36, $37, $38
       ) RETURNING *
     `
 
@@ -446,7 +454,7 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
       imovel.vagas_garagem, imovel.varanda, imovel.endereco, imovel.numero, imovel.complemento, imovel.bairro, imovel.cidade_fk,
       imovel.estado_fk, imovel.cep, imovel.latitude, imovel.longitude,
       imovel.ano_construcao, imovel.andar, imovel.total_andares, imovel.mobiliado,
-      imovel.aceita_permuta, imovel.aceita_financiamento, imovel.destaque,
+      imovel.aceita_permuta, imovel.aceita_financiamento, imovel.destaque, imovel.lancamento || false,
       imovel.origem_cadastro || 'Admin', userId, imovel.corretor_fk ?? null
     ]
 

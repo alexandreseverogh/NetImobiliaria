@@ -144,11 +144,11 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
           <div className="flex-shrink-0 pl-4 sm:pl-6 lg:pl-8">
             <Link href="/" className="flex items-center">
               <Image
-                src="/logo.png"
-                alt="NET IMOBILI├üRIA"
-                width={120}
-                height={40}
-                className="h-10 w-auto"
+                src="/imovtec-robot-side.png"
+                alt="Imovtec Logo"
+                width={180}
+                height={60}
+                className="h-16 w-auto"
                 priority
               />
             </Link>
@@ -246,8 +246,8 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
               {/* Logo */}
               <div className="flex justify-center mb-6">
                 <Image
-                  src="/logo.png"
-                  alt="NET IMOBILIÁRIA"
+                  src="/imovtec-robot-side.png"
+                  alt="Imovtec"
                   width={180}
                   height={60}
                   className="h-16 w-auto"
@@ -261,7 +261,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
               <div className="space-y-4 text-left bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
                 <div className="flex items-start gap-3">
                   <div className="w-2 h-2 bg-primary-600 rounded-full mt-2 flex-shrink-0"></div>
-                  <p className="text-gray-700 font-semibold">NET IMOBILIÁRIA LTDA-ME</p>
+                  <p className="text-gray-700 font-semibold">IMOVTEC LTDA-ME</p>
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="w-2 h-2 bg-primary-600 rounded-full mt-2 flex-shrink-0"></div>

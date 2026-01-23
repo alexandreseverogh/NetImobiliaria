@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { getTokenFromRequest } from '@/lib/auth/jwt'
 import { getUserWithPermissions } from '@/lib/database/userPermissions'
 import pool from '@/lib/database/connection'
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('accessToken')?.value ||
-      request.headers.get('authorization')?.replace('Bearer ', '')
+    const token = getTokenFromRequest(request)
 
     if (!token) {
       return NextResponse.json(

@@ -340,7 +340,7 @@ FROM imoveis i
 LEFT JOIN tipos_imovel ti ON i.tipo_fk = ti.id
 LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
 LEFT JOIN status_imovel si ON i.status_fk = si.id
-LEFT JOIN users u ON i.created_by = u.id
+LEFT JOIN users u ON i.corretor_fk = u.id
 WHERE i.ativo = true;
 
 -- View para estatísticas de imóveis

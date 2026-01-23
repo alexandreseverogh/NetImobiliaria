@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Net Imobiliária',
-  description: 'Sistema de gestão imobiliária',
+  title: 'Imovtec',
+  description: 'Sistema de gestão imobiliária Imovtec',
 }
 
 export default function RootLayout({

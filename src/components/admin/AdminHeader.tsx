@@ -18,7 +18,8 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex-1">
+            <div className="flex-1 flex items-center space-x-3">
+              <img src="/imovtec-robot-side.png" alt="Logo" className="h-16 w-auto" />
               <h1 className="text-lg font-semibold text-gray-900">
                 Área Administrativa
               </h1>
@@ -49,14 +50,15 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
               </svg>
             </button>
           </div>
-          
+
           {/* Título da página */}
-          <div className="flex-1 lg:flex-none">
+          <div className="flex-1 lg:flex-none flex items-center space-x-3">
+            <img src="/imovtec-robot-side.png" alt="Logo" className="h-16 w-auto" />
             <h1 className="text-lg font-semibold text-gray-900">
               Área Administrativa
             </h1>
           </div>
-          
+
           {/* Menu do usuário */}
           <div className="flex items-center space-x-4">
             {/* Notificações */}
@@ -75,7 +77,7 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
                 <div className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full"></div>
               </div>
             </button>
-            
+
             {/* Menu do usuário */}
             <Menu as="div" className="relative">
               <div>
@@ -89,7 +91,7 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
                   <ChevronDownIcon className="ml-2 h-4 w-4 text-gray-400" />
                 </Menu.Button>
               </div>
-              
+
               <Transition
                 as={Fragment}
                 enter="transition ease-out duration-100"
@@ -108,27 +110,25 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
                       </div>
                     )}
                   </Menu.Item>
-                  
+
                   <Menu.Item>
                     {({ active }) => (
                       <button
-                        className={`${
-                          active ? 'bg-gray-100' : ''
-                        } flex w-full items-center px-4 py-2 text-sm text-gray-700`}
+                        className={`${active ? 'bg-gray-100' : ''
+                          } flex w-full items-center px-4 py-2 text-sm text-gray-700`}
                       >
                         <UserCircleIcon className="mr-3 h-4 w-4" />
                         Perfil
                       </button>
                     )}
                   </Menu.Item>
-                  
+
                   <Menu.Item>
                     {({ active }) => (
                       <button
                         onClick={onLogout}
-                        className={`${
-                          active ? 'bg-gray-100' : ''
-                        } flex w-full items-center px-4 py-2 text-sm text-gray-700`}
+                        className={`${active ? 'bg-gray-100' : ''
+                          } flex w-full items-center px-4 py-2 text-sm text-gray-700`}
                       >
                         <svg className="mr-3 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

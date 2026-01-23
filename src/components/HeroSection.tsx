@@ -44,7 +44,7 @@ export default function HeroSection({ filterPanel, venderButton, destaquesNacion
               Encontre seu Imóvel dos Sonhos
             </h1>
             <p className="text-xl md:text-2xl text-primary-100 mb-2">
-              A Net Imobiliária oferece os melhores imóveis para você.
+              A Imovtec oferece os melhores imóveis para você.
             </p>
             <p className="text-xl md:text-2xl text-primary-100">
               Comprar, Vender ou Alugar nunca foi tão fácil.

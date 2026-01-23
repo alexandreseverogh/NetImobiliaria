@@ -206,10 +206,13 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       }
 
       // Recuperar token para autenticação
-      let token = localStorage.getItem('auth-token')
+      let token = localStorage.getItem('admin-auth-token')
       if (!token) {
         const cookies = document.cookie.split(';')
-        const tokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken='))
+        const tokenCookie = cookies.find(c =>
+          c.trim().startsWith('auth_token=') ||
+          c.trim().startsWith('accessToken=')
+        )
         if (tokenCookie) {
           token = tokenCookie.split('=')[1]
         }

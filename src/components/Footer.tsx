@@ -11,15 +11,15 @@ export default function Footer() {
           <div className="md:col-span-2">
             <div className="flex items-center mb-4">
               <Image
-                src="/logo.png"
-                alt="NET IMOBILIÁRIA"
-                width={120}
-                height={40}
-                className="h-10 w-auto"
+                src="/imovtec-logo.png"
+                alt="Imovtec"
+                width={180}
+                height={60}
+                className="h-16 w-auto"
               />
             </div>
             <p className="text-gray-300 mb-6 max-w-md">
-              A Net Imobiliária é referência no mercado imobiliário de Recife,
+              A Imovtec é referência no mercado imobiliário de Recife,
               oferecendo os melhores imóveis com atendimento personalizado e profissional.
             </p>
 
@@ -91,7 +91,7 @@ export default function Footer() {
         <div className="border-t border-gray-800 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-400 text-sm">
-              © 2024 Net Imobiliária. Todos os direitos reservados.
+              © 2024 Imovtec. Todos os direitos reservados.
             </p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <Link href="/privacidade" className="text-gray-400 hover:text-white text-sm transition-colors">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import { auditLogger } from '@/lib/utils/auditLogger'
 import { findUserById, updateUser, deleteUser } from '@/lib/database/users'
+import { getTokenFromRequest } from '@/lib/auth/jwt'
 import { validateCPF } from '@/lib/utils/formatters'
 import { logAuditEvent as logDbAuditEvent, extractRequestData } from '@/lib/audit/auditLogger'
 
@@ -158,8 +159,7 @@ export async function PUT(
     }
 
     // 🛡️ PROTEÇÃO HIERÁRQUICA - Extrair ID do usuário logado
-    const token = request.cookies.get('accessToken')?.value ||
-      request.headers.get('authorization')?.replace('Bearer ', '')
+    const token = getTokenFromRequest(request)
 
     if (!token) {
       return NextResponse.json(
@@ -353,8 +353,7 @@ export async function DELETE(
     }
 
     // 🛡️ PROTEÇÃO HIERÁRQUICA - Extrair ID do usuário logado
-    const token = request.cookies.get('accessToken')?.value ||
-      request.headers.get('authorization')?.replace('Bearer ', '')
+    const token = getTokenFromRequest(request)
 
     if (!token) {
       return NextResponse.json(

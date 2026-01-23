@@ -17,6 +17,7 @@ interface Property {
   garages: number
   image: string
   type: string
+  lancamento?: boolean
 }
 
 interface LandingPropertyCardProps {
@@ -29,9 +30,9 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
   const [showTenhoInteresseModal, setShowTenhoInteresseModal] = useState(false)
 
   return (
-    <div className="card overflow-hidden group w-full">
+    <div className="card overflow-hidden group w-full relative" style={{ position: 'relative' }}>
       {/* Image Container */}
-      <div className="relative h-64 overflow-hidden bg-gray-100">
+      <div className="relative h-64 overflow-hidden bg-gray-100" style={{ position: 'relative' }}>
         {property.image && (property.image.startsWith('data:') || property.image.startsWith('http') || property.image.startsWith('/')) ? (
           <Image
             src={property.image}
@@ -66,6 +67,15 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
             {property.type}
           </span>
         </div>
+
+        {/* Lançamento Badge (Top Center) - Same structure as Property Type */}
+        {property.lancamento && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2">
+            <span className="bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md uppercase tracking-wider whitespace-nowrap">
+              Lançamento
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Content */}

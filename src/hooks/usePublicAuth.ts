@@ -71,11 +71,47 @@ export function usePublicAuth() {
     }
   }, [])
 
-  const logout = () => {
-    localStorage.removeItem('public-auth-token')
-    localStorage.removeItem('public-user-data')
-    setUser(null)
-    router.push('/landpaging')
+  const logout = async () => {
+    try {
+      // 1. Tentar fazer logout no backend para limpar cookies
+      const adminToken = localStorage.getItem('admin-auth-token')
+      const publicToken = localStorage.getItem('public-auth-token')
+      const token = adminToken || publicToken
+
+      if (token) {
+        await fetch('/api/admin/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }).catch(err => console.warn('⚠️ Erro ao chamar logout API:', err))
+      }
+    } catch (error) {
+      console.error('Erro no processo de logout:', error)
+    } finally {
+      // 2. Limpar TODO o localStorage relacionado a qualquer sessão
+      const keysToRemove = [
+        'public-auth-token',
+        'public-user-data',
+        'public-last-auth-user',
+        'admin-auth-token',
+        'admin-user-data',
+        'admin-last-auth-user'
+      ]
+      keysToRemove.forEach(key => localStorage.removeItem(key))
+
+      // 3. Atualizar estado e redirecionar
+      setUser(null)
+
+      // Disparar eventos para outros componentes
+      window.dispatchEvent(new Event('public-auth-changed'))
+      window.dispatchEvent(new Event('admin-auth-changed'))
+
+      router.push('/landpaging')
+
+      // Forçar reload opcional para limpar qualquer estado pendente em componentes complexos
+      window.location.reload()
+    }
   }
 
   const isAuthenticated = !!user

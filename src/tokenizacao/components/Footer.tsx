@@ -12,21 +12,21 @@ export default function Footer() {
           <div className="md:col-span-2">
             <div className="flex items-center mb-4">
               <Image
-                src="/logo.png"
-                alt="NET IMOBILIÃRIA TOKENIZAÃ‡ÃƒO"
-                width={120}
-                height={40}
-                className="h-10 w-auto"
+                src="/imovtec-logo.png"
+                alt="Imovtec Tokenização"
+                width={180}
+                height={60}
+                className="h-16 w-auto"
               />
               <span className="ml-2 text-xs bg-gradient-to-r from-blue-600 to-purple-600 text-white px-2 py-1 rounded-full font-medium">
                 TOKENIZAÃ‡ÃƒO
               </span>
             </div>
             <p className="text-gray-300 mb-6 max-w-md">
-              A Net ImobiliÃ¡ria TokenizaÃ§Ã£o democratiza o acesso ao mercado imobiliÃ¡rio premium 
+              A Net ImobiliÃ¡ria TokenizaÃ§Ã£o democratiza o acesso ao mercado imobiliÃ¡rio premium
               atravÃ©s de tokens digitais seguros e regulamentados pela CVM.
             </p>
-            
+
             {/* Compliance Badge */}
             <div className="flex items-center mb-4 p-3 bg-blue-900/50 rounded-lg border border-blue-700">
               <Shield className="w-5 h-5 text-blue-400 mr-2" />
@@ -34,7 +34,7 @@ export default function Footer() {
                 Plataforma regulamentada pela CVM
               </span>
             </div>
-            
+
             {/* Social Media */}
             <div className="flex space-x-4">
               <a href="#" className="text-gray-400 hover:text-white transition-colors">
@@ -107,7 +107,7 @@ export default function Footer() {
                 <span>Av. Paulista, 1000<br />Bela Vista, SÃ£o Paulo - SP<br />CEP: 01.310-100</span>
               </div>
             </div>
-            
+
             {/* Tokenization Info */}
             <div className="mt-6 p-4 bg-gradient-to-r from-blue-900/50 to-purple-900/50 rounded-lg border border-blue-700">
               <h4 className="text-sm font-semibold text-blue-300 mb-2">

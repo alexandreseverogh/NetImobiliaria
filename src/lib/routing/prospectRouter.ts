@@ -414,8 +414,8 @@ export async function routeProspectAndNotify(
 
     await runner.query(
       `
-      INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em)
-      VALUES ($1, $2::uuid, $3, $4::jsonb, $5)
+      INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em, data_aceite)
+      VALUES ($1, $2::uuid, $3, $4::jsonb, $5, CASE WHEN $3 = 'aceito' THEN NOW() ELSE NULL END)
       `,
       [prospectId, broker.id, status, JSON.stringify(broker.motivo || {}), expiraEm]
     )

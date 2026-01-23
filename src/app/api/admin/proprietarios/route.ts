@@ -4,7 +4,7 @@ import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
 import { findProprietariosPaginated, createProprietario } from '@/lib/database/proprietarios'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
-import { verifyToken } from '@/lib/auth/jwt'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,11 +30,7 @@ export async function GET(request: NextRequest) {
       try {
         // Quando mine_corretor=true, NUNCA retornar lista sem filtro.
         // Se não conseguirmos identificar o corretor pelo token, falhar.
-        const authHeader = request.headers.get('authorization') || ''
-        const token =
-          authHeader.startsWith('Bearer ')
-            ? authHeader.slice(7)
-            : request.cookies.get('accessToken')?.value || null
+        const token = getTokenFromRequest(request)
 
         if (!token) {
           return NextResponse.json({ success: false, error: 'Autenticação necessária' }, { status: 401 })
@@ -98,8 +94,7 @@ export async function POST(request: NextRequest) {
     let corretor_fk: string | null = null
     let requesterUserId: string | null = null
     try {
-      const authHeader = request.headers.get('authorization') || ''
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+      const token = getTokenFromRequest(request)
       if (token) {
         const decoded: any = await verifyToken(token)
         requesterUserId = decoded?.userId || null

@@ -231,6 +231,7 @@ export async function listPublicImoveis(filters: PublicImovelFilters): Promise<Q
       i.suites,
       i.vagas_garagem,
       i.area_total,
+      i.lancamento,
       ti.nome AS tipo_nome
     ${baseQuery}
     ORDER BY i.created_at DESC

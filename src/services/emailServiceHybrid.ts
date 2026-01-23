@@ -70,14 +70,14 @@ class EmailServiceHybrid {
         pass: 'ewaz aohi aznk megn'
       },
       from: 'alexandreseverog@gmail.com',
-      fromName: 'Net Imobiliária'
+      fromName: 'Imovtec'
     };
 
     // Template hardcoded para 2FA
     this.templates.set('2fa-code', {
       id: 0,
       name: '2fa-code',
-      subject: 'Código de Verificação - Net Imobiliária',
+      subject: 'Código de Verificação - Imovtec',
       html_content: `<!DOCTYPE html>
 <html>
 <head>
@@ -87,7 +87,7 @@ class EmailServiceHybrid {
 <body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
     <div style="text-align: center; margin-bottom: 30px;">
-      <h1 style="color: #2563eb;">🏠 Net Imobiliária</h1>
+      <h1 style="color: #2563eb;">🏠 Imovtec</h1>
       <h2>Código de Verificação</h2>
     </div>
     <p>Olá!</p>
@@ -105,7 +105,7 @@ class EmailServiceHybrid {
     </div>
     <p>Se você não solicitou este código, ignore este email.</p>
     <div style="text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px;">
-      <p>© 2024 Net Imobiliária</p>
+      <p>© 2024 Imovtec</p>
     </div>
   </div>
 </body>
@@ -123,13 +123,13 @@ class EmailServiceHybrid {
   private async loadEmailConfig(): Promise<void> {
     const query = 'SELECT * FROM email_settings WHERE is_active = true LIMIT 1';
     const result = await pool.query(query);
-    
+
     if (result.rows.length === 0) {
       throw new Error('Nenhuma configuração de email ativa encontrada');
     }
 
     const settings = result.rows[0];
-    
+
     if (!settings.smtp_username || !settings.smtp_password) {
       throw new Error('Credenciais SMTP não configuradas');
     }
@@ -153,7 +153,7 @@ class EmailServiceHybrid {
   private async loadEmailTemplates(): Promise<void> {
     const query = 'SELECT * FROM email_templates WHERE is_active = true';
     const result = await pool.query(query);
-    
+
     result.rows.forEach(template => {
       this.templates.set(template.name, {
         id: template.id,
@@ -213,21 +213,21 @@ class EmailServiceHybrid {
 
       const info = await this.transporter.sendMail(mailOptions);
       console.log('✅ Email enviado com sucesso:', info.messageId);
-      
+
       // Log no banco se estiver usando sistema dinâmico
       if (this.isDynamicInitialized) {
         await this.logEmailSend(templateName, to, 'success', info.messageId);
       }
-      
+
       return true;
     } catch (error) {
       console.error('❌ Erro ao enviar email:', error);
-      
+
       // Log no banco se estiver usando sistema dinâmico
       if (this.isDynamicInitialized) {
         await this.logEmailSend(templateName, to, 'error', null, error);
       }
-      
+
       return false;
     }
   }
@@ -249,7 +249,7 @@ class EmailServiceHybrid {
         INSERT INTO email_logs (template_name, recipient_email, status, message_id, error_message, sent_at)
         VALUES ($1, $2, $3, $4, $5, NOW())
       `;
-      
+
       await pool.query(query, [
         templateName,
         to,

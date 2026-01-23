@@ -60,15 +60,15 @@ function CorretorManifestoDrawer({
   // Carregar SLA (parametros.sla_minutos_aceite_lead) para exibir aviso de transbordo no manifesto
   useEffect(() => {
     if (!isOpen) return
-    ;(async () => {
-      try {
-        const response = await fetch('/api/public/corretor/plano')
-        if (!response.ok) return
-        const json = await response.json()
-        const n = Number(json?.data?.sla_minutos_aceite_lead)
-        if (Number.isFinite(n) && n > 0) setSlaMinutos(n)
-      } catch {}
-    })()
+      ; (async () => {
+        try {
+          const response = await fetch('/api/public/corretor/plano')
+          if (!response.ok) return
+          const json = await response.json()
+          const n = Number(json?.data?.sla_minutos_aceite_lead)
+          if (Number.isFinite(n) && n > 0) setSlaMinutos(n)
+        } catch { }
+      })()
   }, [isOpen])
 
   if (!isOpen) return null
@@ -109,9 +109,8 @@ function CorretorManifestoDrawer({
                   <button
                     type="button"
                     onClick={() => setActiveTab('essencia')}
-                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
-                      activeTab === 'essencia' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                    }`}
+                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors ${activeTab === 'essencia' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      }`}
                     aria-pressed={activeTab === 'essencia'}
                   >
                     Essência
@@ -119,9 +118,8 @@ function CorretorManifestoDrawer({
                   <button
                     type="button"
                     onClick={() => setActiveTab('como')}
-                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
-                      activeTab === 'como' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                    }`}
+                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors ${activeTab === 'como' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      }`}
                     aria-pressed={activeTab === 'como'}
                   >
                     Como ajudamos
@@ -129,9 +127,8 @@ function CorretorManifestoDrawer({
                   <button
                     type="button"
                     onClick={() => setActiveTab('confianca')}
-                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
-                      activeTab === 'confianca' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                    }`}
+                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors ${activeTab === 'confianca' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      }`}
                     aria-pressed={activeTab === 'confianca'}
                   >
                     Confiança
@@ -152,7 +149,7 @@ function CorretorManifestoDrawer({
                   </div>
 
                   <div className="rounded-2xl border border-gray-200 p-4">
-                    <h3 className="text-sm font-extrabold text-gray-900">O que a Net Imobiliária acredita</h3>
+                    <h3 className="text-sm font-extrabold text-gray-900">O que a Imovtec acredita</h3>
                     <ul className="mt-2 space-y-2 text-sm text-gray-700 leading-relaxed">
                       <li className="flex gap-2">
                         <span className="text-blue-700 font-bold">•</span>
@@ -406,13 +403,13 @@ export default function CorretorPopup({ isOpen, onClose, onCadastrarClick, onLog
                     <h3 className="text-xl font-bold text-amber-900 mb-3 flex items-center">
                       <span className="mr-2">💼</span> Como funciona
                     </h3>
-                    
+
                     <div className="space-y-2 text-gray-800 text-sm">
                       <div className="bg-white/50 rounded-lg p-3">
                         <p className="font-semibold text-gray-700 text-xs mb-1">Acesso mensal do corretor:</p>
                         <p className="text-2xl font-black text-blue-700">{formatCurrency(planData.valor_corretor)}</p>
                       </div>
-                      
+
                       <div className="bg-white/50 rounded-lg p-3">
                         <p className="font-semibold text-gray-700 text-xs mb-1">Benefício inicial:</p>
                         <p>
@@ -420,7 +417,7 @@ export default function CorretorPopup({ isOpen, onClose, onCadastrarClick, onLog
                           <strong className="text-blue-700">{planData.periodo_anuncio_corretor} dias</strong>
                         </p>
                       </div>
-                      
+
                       <div className="bg-white/50 rounded-lg p-3">
                         <p className="font-semibold text-gray-700 text-xs mb-1">Após o período inicial:</p>
                         <p>
@@ -443,7 +440,7 @@ export default function CorretorPopup({ isOpen, onClose, onCadastrarClick, onLog
           {/* Acesse agora + Footer combinados */}
           <div className="border-t pt-4 space-y-3">
             <h3 className="text-lg font-bold text-gray-900 text-center">Acesse agora</h3>
-            
+
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
                 onClick={onCadastrarClick}
@@ -451,7 +448,7 @@ export default function CorretorPopup({ isOpen, onClose, onCadastrarClick, onLog
               >
                 🚀 Quero me cadastrar como corretor
               </button>
-              
+
               <button
                 onClick={onLoginClick}
                 className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-colors border-2 border-gray-300 text-sm"

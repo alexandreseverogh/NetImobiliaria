@@ -46,7 +46,7 @@ export default function AdminDashboard() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           <div className="flex flex-col items-center text-center gap-4">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-white/90 ring-1 ring-white/20 backdrop-blur">
-              <span className="text-sm font-semibold">Painel Administrativo • Net Imobiliária</span>
+              <span className="text-sm font-semibold">Painel Administrativo • Imovtec</span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white">

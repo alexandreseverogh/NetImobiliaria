@@ -26,11 +26,11 @@ export default function Header() {
           <div className="flex-shrink-0">
             <Link href="/" className="flex items-center">
               <Image
-                src="/logo.png"
-                alt="NET IMOBILIÃRIA TOKENIZAÃ‡ÃƒO"
-                width={120}
-                height={40}
-                className="h-10 w-auto"
+                src="/imovtec-logo.png"
+                alt="Imovtec Tokenização"
+                width={180}
+                height={60}
+                className="h-16 w-auto"
                 priority
               />
               <span className="ml-2 text-xs bg-gradient-to-r from-blue-600 to-purple-600 text-white px-2 py-1 rounded-full font-medium">
@@ -45,11 +45,10 @@ export default function Header() {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`px-3 py-2 text-sm font-medium transition-colors duration-200 ${
-                  item.name === 'TokenizaÃ§Ã£o' 
-                    ? 'text-blue-600 font-bold' 
-                    : 'text-gray-700 hover:text-blue-600'
-                }`}
+                className={`px-3 py-2 text-sm font-medium transition-colors duration-200 ${item.name === 'TokenizaÃ§Ã£o'
+                  ? 'text-blue-600 font-bold'
+                  : 'text-gray-700 hover:text-blue-600'
+                  }`}
               >
                 {item.name}
                 {item.name === 'TokenizaÃ§Ã£o' && (
@@ -91,11 +90,10 @@ export default function Header() {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`block px-3 py-2 text-base font-medium transition-colors ${
-                  item.name === 'TokenizaÃ§Ã£o' 
-                    ? 'text-blue-600 font-bold' 
-                    : 'text-gray-700 hover:text-blue-600'
-                }`}
+                className={`block px-3 py-2 text-base font-medium transition-colors ${item.name === 'TokenizaÃ§Ã£o'
+                  ? 'text-blue-600 font-bold'
+                  : 'text-gray-700 hover:text-blue-600'
+                  }`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 {item.name}

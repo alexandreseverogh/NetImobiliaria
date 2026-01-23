@@ -16,7 +16,7 @@ export default function EditarImovelPage() {
   const router = useRouter()
   const params = useParams()
   const imovelId = params.id as string
-  
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [initialData, setInitialData] = useState<Partial<Imovel>>({})
@@ -27,17 +27,17 @@ export default function EditarImovelPage() {
   const [hasInitialized, setHasInitialized] = useState(false) // Flag para controlar inicialização única
 
   // Hook de rascunho - só inicializar quando imovelId estiver disponível
-  const { 
-    rascunho, 
-    iniciarRascunho, 
+  const {
+    rascunho,
+    iniciarRascunho,
     registrarAlteracao,
     registrarVideoAlteracao,
     substituirVideo,
     registrarImagemPrincipal,
-    descartarRascunho, 
-    confirmarRascunho, 
-    loading: rascunhoLoading, 
-    error: rascunhoError 
+    descartarRascunho,
+    confirmarRascunho,
+    loading: rascunhoLoading,
+    error: rascunhoError
   } = useRascunho(imovelId ? parseInt(imovelId) : 0)
 
   // Limpar rascunhos antigos deste imóvel específico antes de carregar dados
@@ -45,7 +45,7 @@ export default function EditarImovelPage() {
     try {
       console.log('🧹 Limpando rascunhos antigos do imóvel:', imovelId)
       const response = await del(`/api/admin/imoveis/${imovelId}/rascunho`)
-      
+
       if (response.ok) {
         const result = await response.json()
         console.log('✅ Rascunhos antigos do imóvel limpos:', result.message)
@@ -85,7 +85,7 @@ export default function EditarImovelPage() {
       console.log('🔍 Resposta completa da API:', response)
       const imovel = response.data
       console.log('🔍 Dados do imóvel extraídos:', imovel)
-      
+
       // Log específico dos documentos
       console.log('🔍 Documentos recebidos da API:', imovel.documentos)
       if (imovel.documentos && imovel.documentos.length > 0) {
@@ -112,7 +112,7 @@ export default function EditarImovelPage() {
       console.log('🔍 imovel.taxa_extra:', imovel.taxa_extra, typeof imovel.taxa_extra)
       console.log('🔍 imovel.area_total:', imovel.area_total, typeof imovel.area_total)
       console.log('🔍 imovel.area_construida:', imovel.area_construida, typeof imovel.area_construida)
-      
+
       type FormattedAmenidade = {
         amenidadeId: string
         id: number
@@ -123,102 +123,102 @@ export default function EditarImovelPage() {
 
       const formattedAmenidades: FormattedAmenidade[] = Array.isArray(imovel.amenidades)
         ? imovel.amenidades
-            .map((amenidade: any): FormattedAmenidade | null => {
-              const amenidadeId =
-                amenidade?.amenidade_id ??
-                amenidade?.amenidadeId ??
-                amenidade?.id ??
-                null
+          .map((amenidade: any): FormattedAmenidade | null => {
+            const amenidadeId =
+              amenidade?.amenidade_id ??
+              amenidade?.amenidadeId ??
+              amenidade?.id ??
+              null
 
-              if (amenidadeId === null || amenidadeId === undefined) {
-                return null
-              }
+            if (amenidadeId === null || amenidadeId === undefined) {
+              return null
+            }
 
-              return {
-                amenidadeId: amenidadeId.toString(),
-                id: amenidadeId,
-                nome: amenidade?.amenidade_nome ?? amenidade?.nome ?? '',
-                categoria_nome: amenidade?.categoria_nome ?? '',
-                observacoes: amenidade?.observacoes ?? null,
-              }
-            })
-            .filter(
-              (amenidade: FormattedAmenidade | null): amenidade is FormattedAmenidade =>
-                amenidade !== null
-            )
+            return {
+              amenidadeId: amenidadeId.toString(),
+              id: amenidadeId,
+              nome: amenidade?.amenidade_nome ?? amenidade?.nome ?? '',
+              categoria_nome: amenidade?.categoria_nome ?? '',
+              observacoes: amenidade?.observacoes ?? null,
+            }
+          })
+          .filter(
+            (amenidade: FormattedAmenidade | null): amenidade is FormattedAmenidade =>
+              amenidade !== null
+          )
         : []
 
       const formattedProximidades = Array.isArray(imovel.proximidades)
         ? imovel.proximidades.map((prox: any) => ({
-            id: prox?.proximidade_id ?? prox?.id,
-            proximidade_id: prox?.proximidade_id ?? prox?.id,
-            nome: prox?.proximidade_nome ?? prox?.nome ?? '',
-            categoria_nome: prox?.categoria_nome ?? '',
-            distancia_metros:
-              prox?.distancia_metros ??
-              (typeof prox?.distancia === 'number' ? prox.distancia : null),
-            distancia: prox?.distancia ?? '',
-            tempo_caminhada: prox?.tempo_caminhada ?? '',
-            observacoes: prox?.observacoes ?? '',
-          }))
+          id: prox?.proximidade_id ?? prox?.id,
+          proximidade_id: prox?.proximidade_id ?? prox?.id,
+          nome: prox?.proximidade_nome ?? prox?.nome ?? '',
+          categoria_nome: prox?.categoria_nome ?? '',
+          distancia_metros:
+            prox?.distancia_metros ??
+            (typeof prox?.distancia === 'number' ? prox.distancia : null),
+          distancia: prox?.distancia ?? '',
+          tempo_caminhada: prox?.tempo_caminhada ?? '',
+          observacoes: prox?.observacoes ?? '',
+        }))
         : []
 
       const formattedImagens = Array.isArray(imovel.imagens)
         ? imovel.imagens.map((img: any) => {
-            const base64 =
-              img?.url ??
-              (img?.imagem_base64
-                ? `data:${img?.tipo_mime || 'image/jpeg'};base64,${img.imagem_base64}`
-                : null)
+          const base64 =
+            img?.url ??
+            (img?.imagem_base64
+              ? `data:${img?.tipo_mime || 'image/jpeg'};base64,${img.imagem_base64}`
+              : null)
 
-            return {
-              id:
-                img?.id !== undefined && img?.id !== null
-                  ? img.id.toString()
-                  : `imagem-temp-${Date.now()}-${Math.random()}`,
-              url: base64 ?? '',
-              nome: img?.nome_arquivo ?? `imagem_${img?.id ?? 'sem-id'}`,
-              descricao: img?.descricao ?? '',
-              ordem: img?.ordem ?? 0,
-              principal: Boolean(img?.principal ?? img?.is_principal),
-              dataUpload: img?.created_at ?? new Date().toISOString(),
-              tamanho: img?.tamanho_bytes ?? 0,
-              tipo: img?.tipo_mime ?? 'image/jpeg',
-              nome_arquivo: img?.nome_arquivo ?? null,
-            }
-          })
+          return {
+            id:
+              img?.id !== undefined && img?.id !== null
+                ? img.id.toString()
+                : `imagem-temp-${Date.now()}-${Math.random()}`,
+            url: base64 ?? '',
+            nome: img?.nome_arquivo ?? `imagem_${img?.id ?? 'sem-id'}`,
+            descricao: img?.descricao ?? '',
+            ordem: img?.ordem ?? 0,
+            principal: Boolean(img?.principal ?? img?.is_principal),
+            dataUpload: img?.created_at ?? new Date().toISOString(),
+            tamanho: img?.tamanho_bytes ?? 0,
+            tipo: img?.tipo_mime ?? 'image/jpeg',
+            nome_arquivo: img?.nome_arquivo ?? null,
+          }
+        })
         : []
 
       const formattedDocumentos = Array.isArray(imovel.documentos)
         ? imovel.documentos.map((doc: any) => ({
-            id: doc?.id,
-            nome_arquivo: doc?.nome_arquivo ?? `documento_${doc?.id ?? 'sem-id'}`,
-            tipo_mime: doc?.tipo_mime ?? 'application/pdf',
-            id_tipo_documento: doc?.id_tipo_documento ?? doc?.tipo_documento_id ?? null,
-            tipo_documento_descricao: doc?.tipo_documento_descricao ?? doc?.tipoDocumentoDescricao ?? 'Tipo não encontrado',
-            tamanho_bytes:
-              typeof doc?.tamanho_bytes === 'string'
-                ? parseInt(doc.tamanho_bytes, 10)
-                : doc?.tamanho_bytes ?? doc?.tamanhoBytes ?? 0,
-            url: doc?.url ?? null,
-            created_at: doc?.created_at ?? new Date().toISOString(),
-          }))
+          id: doc?.id,
+          nome_arquivo: doc?.nome_arquivo ?? `documento_${doc?.id ?? 'sem-id'}`,
+          tipo_mime: doc?.tipo_mime ?? 'application/pdf',
+          id_tipo_documento: doc?.id_tipo_documento ?? doc?.tipo_documento_id ?? null,
+          tipo_documento_descricao: doc?.tipo_documento_descricao ?? doc?.tipoDocumentoDescricao ?? 'Tipo não encontrado',
+          tamanho_bytes:
+            typeof doc?.tamanho_bytes === 'string'
+              ? parseInt(doc.tamanho_bytes, 10)
+              : doc?.tamanho_bytes ?? doc?.tamanhoBytes ?? 0,
+          url: doc?.url ?? null,
+          created_at: doc?.created_at ?? new Date().toISOString(),
+        }))
         : []
 
       const formattedVideo = imovel.video
         ? {
-            ...imovel.video,
-            id: imovel.video.id,
-            imovel_id: imovel.video.imovel_id ?? imovel.id,
-            url: imovel.video.url ?? null,
-            nome_arquivo: imovel.video.nome_arquivo ?? '',
-            tipo_mime: imovel.video.tipo_mime ?? '',
-            tamanho_bytes: imovel.video.tamanho_bytes ?? 0,
-            duracao_segundos: imovel.video.duracao_segundos ?? null,
-            resolucao: imovel.video.resolucao ?? null,
-            formato: imovel.video.formato ?? null,
-            ativo: imovel.video.ativo ?? true,
-          }
+          ...imovel.video,
+          id: imovel.video.id,
+          imovel_id: imovel.video.imovel_id ?? imovel.id,
+          url: imovel.video.url ?? null,
+          nome_arquivo: imovel.video.nome_arquivo ?? '',
+          tipo_mime: imovel.video.tipo_mime ?? '',
+          tamanho_bytes: imovel.video.tamanho_bytes ?? 0,
+          duracao_segundos: imovel.video.duracao_segundos ?? null,
+          resolucao: imovel.video.resolucao ?? null,
+          formato: imovel.video.formato ?? null,
+          ativo: imovel.video.ativo ?? true,
+        }
         : null
 
       const formattedData: Partial<Imovel> = {
@@ -251,6 +251,7 @@ export default function EditarImovelPage() {
         mobiliado: imovel.mobiliado,
         aceita_permuta: imovel.aceita_permuta,
         aceita_financiamento: imovel.aceita_financiamento,
+        lancamento: imovel.lancamento,
         tipo_fk: imovel.tipo_fk,
         finalidade_fk: imovel.finalidade_fk,
         proprietario_uuid: imovel.proprietario_uuid,
@@ -270,7 +271,7 @@ export default function EditarImovelPage() {
       console.log('🔍 formattedData.areaConstruida:', formattedData.areaConstruida, typeof formattedData.areaConstruida)
       console.log('🔍 Código nos dados formatados:', formattedData.codigo)
       console.log('🔍 Proprietário UUID nos dados formatados:', formattedData.proprietario_uuid)
-      
+
       // Log específico dos documentos formatados
       console.log('🔍 Documentos formatados para o wizard:', formattedData.documentos)
       if (formattedData.documentos && formattedData.documentos.length > 0) {
@@ -342,7 +343,7 @@ export default function EditarImovelPage() {
       hasInitialized,
       shouldInit: !loading && !error && imovelId && !rascunhoLoading && !isSaving && !hasInitialized
     })
-    
+
     if (!loading && !error && imovelId && !rascunhoLoading && !isSaving && !hasInitialized) {
       console.log('🔍 Inicializando rascunho para imóvel:', imovelId)
       setHasInitialized(true) // Marcar como inicializado
@@ -362,10 +363,10 @@ export default function EditarImovelPage() {
       console.log('🟢 [EDIÇÃO] Dados de ENDEREÇO:', data.endereco)
       console.log('🟢 [EDIÇÃO] Campo NUMERO especificamente:', data.endereco?.numero)
       console.log('🟢 [EDIÇÃO] Tipo do numero:', typeof data.endereco?.numero)
-      
+
       // Converter apenas vídeo para base64 se necessário
       const requestBody = { ...data }
-      
+
       if (data.video?.arquivo instanceof File) {
         console.log('🔍 Convertendo vídeo File para base64...')
         const reader = new FileReader()
@@ -373,44 +374,44 @@ export default function EditarImovelPage() {
           reader.onload = () => resolve(reader.result as string)
           reader.readAsDataURL(data.video!.arquivo as File)
         })
-        
+
         requestBody.video = {
           ...data.video,
           arquivo: base64Video
         }
         console.log('🔍 Vídeo convertido para base64')
       }
-      
+
       console.log('🟢 [EDIÇÃO] requestBody FINAL antes do PUT:', requestBody)
       console.log('🟢 [EDIÇÃO] requestBody.endereco FINAL:', requestBody.endereco)
       console.log('🟢 [EDIÇÃO] requestBody.endereco.numero FINAL:', requestBody.endereco?.numero)
-      
+
       const response = await put(`/api/admin/imoveis/${imovelId}`, requestBody)
 
       if (!response.ok) {
         const errorData = await response.json()
-        
+
         // Se for erro de validação do número, exibir mensagem específica
         if (errorData.field === 'numero' && response.status === 400) {
           alert(`❌ ERRO DE VALIDAÇÃO:\n\n${errorData.error}\n\n${errorData.details?.mensagem || ''}`)
         }
-        
+
         throw new Error(errorData.error || 'Erro ao salvar alterações')
       }
 
       const result = await response.json()
       console.log('🔍 Imóvel atualizado com sucesso:', result)
-      
+
       // Confirmar rascunho (manter alterações)
       if (rascunho) {
         await confirmarRascunho()
       }
-      
+
       // Garantir que a tabela imovel_rascunho esteja limpa após o salvamento
       try {
         console.log('🧹 Limpando tabela imovel_rascunho após salvamento...')
         const cleanResponse = await del('/api/admin/limpar-rascunhos')
-        
+
         if (cleanResponse.ok) {
           const cleanResult = await cleanResponse.json()
           console.log('✅ Tabela imovel_rascunho limpa após salvamento:', cleanResult.registrosRemovidos, 'registros removidos')
@@ -419,7 +420,7 @@ export default function EditarImovelPage() {
         console.error('⚠️ Erro ao limpar tabela imovel_rascunho após salvamento:', cleanError)
         // Não falhar o salvamento por causa da limpeza
       }
-      
+
       // Redirecionar para a lista de imóveis
       router.push('/admin/imoveis')
     } catch (error) {
@@ -433,10 +434,10 @@ export default function EditarImovelPage() {
     try {
       console.log('🔍 Descartando rascunho...')
       await descartarRascunho()
-      
+
       // Recarregar dados do imóvel para reverter alterações
       await loadImovelData()
-      
+
       alert('Rascunho descartado com sucesso! Todas as alterações foram revertidas.')
     } catch (error) {
       console.error('Erro ao descartar rascunho:', error)
@@ -448,7 +449,7 @@ export default function EditarImovelPage() {
   console.log('🔍 PÁGINA DE EDIÇÃO - Estado atual:', { loading, error, initialData: !!initialData })
   console.log('🔍 PÁGINA DE EDIÇÃO - initialData completo:', initialData)
   console.log('🔍 PÁGINA DE EDIÇÃO - initialData.video:', initialData?.video)
-  
+
   if (loading) {
     console.log('🔍 PÁGINA DE EDIÇÃO - Mostrando loading...')
     return (
@@ -481,7 +482,7 @@ export default function EditarImovelPage() {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Editar Imóvel</h1>
-        
+
         {/* Barra de status do rascunho */}
         {rascunho && (
           <RascunhoStatusBar
@@ -490,7 +491,7 @@ export default function EditarImovelPage() {
             loading={rascunhoLoading}
           />
         )}
-        
+
         {/* Exibir erro do rascunho se houver */}
         {rascunhoError && (
           <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
@@ -503,7 +504,7 @@ export default function EditarImovelPage() {
             </div>
           </div>
         )}
-        
+
         {(() => {
           console.log('🔍 PÁGINA DE EDIÇÃO - Renderizando ImovelWizard com initialData:', initialData)
           console.log('🔍 PÁGINA DE EDIÇÃO - TESTE SIMPLES - 1, 2, 3')

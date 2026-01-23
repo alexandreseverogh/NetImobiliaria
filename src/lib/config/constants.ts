@@ -3,10 +3,10 @@
 
 export const APP_CONFIG = {
   // Informações gerais da aplicação
-  APP_NAME: 'Net Imobiliária',
+  APP_NAME: 'Imovtec',
   APP_VERSION: '1.0.0',
   APP_DESCRIPTION: 'Sistema de gestão imobiliária profissional',
-  
+
   // Configurações de ambiente
   ENVIRONMENT: {
     DEVELOPMENT: 'development',
@@ -23,16 +23,16 @@ export const DB_CONFIG = {
     CONNECTION_TIMEOUT: 2000, // 2 segundos
     MIN_CONNECTIONS: 2
   },
-  
+
   // Configurações de encoding
   ENCODING: 'UTF8',
-  
+
   // Configurações de SSL
   SSL: {
     PRODUCTION: { rejectUnauthorized: false },
     DEVELOPMENT: false
   },
-  
+
   // Configurações de retry
   RETRY: {
     MAX_ATTEMPTS: 3,
@@ -47,13 +47,13 @@ export const API_CONFIG = {
     UPLOAD: 120000, // 2 minutos
     DOWNLOAD: 60000 // 1 minuto
   },
-  
+
   // Configurações de retry
   RETRY: {
     MAX_ATTEMPTS: 3,
     DELAY_MS: 1000
   },
-  
+
   // Configurações de cache
   CACHE: {
     DEFAULT_TTL: 300000, // 5 minutos
@@ -67,10 +67,10 @@ export const PAGINATION_CONFIG = {
   DEFAULT_PAGE_SIZE: 20,
   MAX_PAGE_SIZE: 100,
   MIN_PAGE_SIZE: 5,
-  
+
   // Opções de tamanho de página
   PAGE_SIZE_OPTIONS: [5, 10, 20, 50, 100],
-  
+
   // Configurações de navegação
   MAX_VISIBLE_PAGES: 5
 } as const
@@ -79,21 +79,21 @@ export const UPLOAD_CONFIG = {
   // Configurações de upload de arquivos
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
   MAX_IMAGES_PER_IMOVEL: 20,
-  
+
   // Tipos de arquivo permitidos
   ALLOWED_IMAGE_TYPES: [
     'image/jpeg',
-    'image/png', 
+    'image/png',
     'image/webp',
     'image/gif'
   ],
-  
+
   ALLOWED_DOCUMENT_TYPES: [
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   ],
-  
+
   // Diretórios de upload
   UPLOAD_DIRS: {
     IMAGES: './public/uploads/imagens',
@@ -110,14 +110,14 @@ export const LOGGING_CONFIG = {
     INFO: 'info',
     DEBUG: 'debug'
   },
-  
+
   // Configurações por ambiente
   BY_ENVIRONMENT: {
     development: 'debug',
     production: 'info',
     test: 'error'
   },
-  
+
   // Configurações de auditoria
   AUDIT: {
     ENABLED: true,
@@ -136,14 +136,14 @@ export const SECURITY_CONFIG = {
     REQUIRE_SPECIAL_CHARS: true,
     SALT_ROUNDS: 12
   },
-  
+
   // Configurações de sessão
   SESSION: {
     MAX_ACTIVE_SESSIONS: 5,
     SESSION_TIMEOUT: 30 * 60 * 1000, // 30 minutos
     REFRESH_THRESHOLD: 5 * 60 * 1000 // 5 minutos
   },
-  
+
   // Configurações de rate limiting (será sobrescrito pelas configurações de ambiente)
   RATE_LIMIT: {
     LOGIN_ATTEMPTS: 5,
@@ -163,14 +163,14 @@ export const UI_CONFIG = {
     WARNING_COLOR: '#F59E0B',
     ERROR_COLOR: '#EF4444'
   },
-  
+
   // Configurações de breakpoints
   BREAKPOINTS: {
     MOBILE: 768,
     TABLET: 1024,
     DESKTOP: 1280
   },
-  
+
   // Configurações de animação
   ANIMATION: {
     DURATION: 300,
@@ -186,7 +186,7 @@ export const VALIDATION_CONFIG = {
     MAX_LENGTH: 255,
     DESCRIPTION_MAX_LENGTH: 1000
   },
-  
+
   // Validações numéricas
   NUMERIC: {
     MIN_PRICE: 0,
@@ -194,12 +194,12 @@ export const VALIDATION_CONFIG = {
     MIN_AREA: 0,
     MAX_AREA: 99999
   },
-  
+
   // Validações de email
   EMAIL: {
     PATTERN: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   },
-  
+
   // Validações de telefone
   PHONE: {
     PATTERN: /^\(\d{2}\)\s\d{4,5}-\d{4}$/
@@ -214,7 +214,7 @@ export const TIMESTAMP_CONFIG = {
     ISO: 'ISO',
     US: 'en-US'
   },
-  
+
   // Formatos de exibição
   DISPLAY_FORMATS: {
     DATE_ONLY: 'dd/MM/yyyy',
@@ -222,13 +222,13 @@ export const TIMESTAMP_CONFIG = {
     TIME_ONLY: 'HH:mm',
     ISO_STRING: 'yyyy-MM-ddTHH:mm:ss.SSSZ'
   },
-  
+
   // SQL Timestamps
   SQL: {
     CURRENT_TIMESTAMP: 'CURRENT_TIMESTAMP',
     NOW: 'NOW()'
   },
-  
+
   // JavaScript Timestamps
   JS: {
     ISO_STRING: () => new Date().toISOString(),
@@ -246,7 +246,7 @@ export const MESSAGES = {
     DELETED: 'Excluído com sucesso!',
     CREATED: 'Criado com sucesso!'
   },
-  
+
   // Mensagens de erro
   ERROR: {
     GENERIC: 'Ocorreu um erro inesperado',
@@ -255,7 +255,7 @@ export const MESSAGES = {
     PERMISSION: 'Acesso negado',
     NOT_FOUND: 'Registro não encontrado'
   },
-  
+
   // Mensagens de validação
   VALIDATION: {
     REQUIRED: 'Este campo é obrigatório',
@@ -275,7 +275,7 @@ export const ROUTES = {
     LOGIN: '/login',
     ABOUT: '/sobre'
   },
-  
+
   // Rotas administrativas
   ADMIN: {
     DASHBOARD: '/admin',
@@ -285,7 +285,7 @@ export const ROUTES = {
     AMENITIES: '/admin/amenidades',
     PROXIMITIES: '/admin/proximidades'
   },
-  
+
   // APIs
   API: {
     AUTH: '/api/admin/auth',
@@ -305,7 +305,7 @@ export const API_ENDPOINTS = {
     ME: '/api/admin/auth/me',
     REFRESH: '/api/admin/auth/refresh'
   },
-  
+
   // Usuários
   USERS: {
     LIST: '/api/admin/usuarios',
@@ -314,7 +314,7 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/api/admin/usuarios/${id}`,
     ROLES: '/api/admin/roles'
   },
-  
+
   // Imóveis
   PROPERTIES: {
     LIST: '/api/admin/imoveis',
@@ -326,7 +326,7 @@ export const API_ENDPOINTS = {
     STATUS: '/api/admin/status-imovel',
     FINALIDADES: '/api/admin/imoveis/finalidades'
   },
-  
+
   // Amenidades
   AMENITIES: {
     LIST: '/api/admin/amenidades',
@@ -336,7 +336,7 @@ export const API_ENDPOINTS = {
     CATEGORIES: '/api/admin/categorias-amenidades',
     CATEGORIES_CREATE: '/api/admin/categorias-amenidades'
   },
-  
+
   // Proximidades
   PROXIMITIES: {
     LIST: '/api/admin/proximidades',
@@ -346,7 +346,7 @@ export const API_ENDPOINTS = {
     CATEGORIES: '/api/admin/categorias-proximidades',
     CATEGORIES_CREATE: '/api/admin/categorias-proximidades'
   },
-  
+
   // Tipos de Documentos
   DOCUMENT_TYPES: {
     LIST: '/api/admin/tipos-documentos',
@@ -354,7 +354,7 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/api/admin/tipos-documentos/${id}`,
     DELETE: (id: string) => `/api/admin/tipos-documentos/${id}`
   },
-  
+
   // Perfis
   PROFILES: {
     LIST: '/api/admin/perfis',
@@ -362,7 +362,7 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/api/admin/perfis/${id}`,
     DELETE: (id: string) => `/api/admin/perfis/${id}`
   },
-  
+
   // Finalidades
   FINALIDADES: {
     LIST: '/api/admin/finalidades',
@@ -370,7 +370,7 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/api/admin/finalidades/${id}`,
     DELETE: (id: string) => `/api/admin/finalidades/${id}`
   },
-  
+
   // Tipos de Imóveis
   PROPERTY_TYPES: {
     LIST: '/api/admin/tipos-imoveis',
@@ -378,7 +378,7 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/api/admin/tipos-imoveis/${id}`,
     DELETE: (id: string) => `/api/admin/tipos-imoveis/${id}`
   },
-  
+
   // Municípios
   MUNICIPALITIES: {
     LIST: '/api/admin/municipios'

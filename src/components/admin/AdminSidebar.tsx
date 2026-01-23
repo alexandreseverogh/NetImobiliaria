@@ -35,7 +35,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Net Imobiliária</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Imovtec</h1>
           </div>
           <div className="flex-1 px-2 py-4">
             <p className="text-sm text-gray-500">Carregando usuário...</p>
@@ -54,8 +54,8 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
   }
 
   const toggleMenu = (menuId: number) => {
-    setExpandedMenus(prev => 
-      prev.includes(menuId) 
+    setExpandedMenus(prev =>
+      prev.includes(menuId)
         ? prev.filter(id => id !== menuId)
         : [...prev, menuId]
     )
@@ -82,18 +82,16 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         <div key={item.id}>
           <button
             onClick={() => toggleMenu(item.id)}
-            className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md ${
-              isActiveItem
+            className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md ${isActiveItem
                 ? 'bg-blue-100 text-blue-900'
                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-            }`}
+              }`}
             style={{ paddingLeft: `${8 + level * 16}px` }}
           >
             <DynamicIcon
               iconName={item.icon_name}
-              className={`mr-3 h-5 w-5 flex-shrink-0 ${
-                isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
-              }`}
+              className={`mr-3 h-5 w-5 flex-shrink-0 ${isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
+                }`}
             />
             {item.name}
             {isExpanded ? (
@@ -102,7 +100,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
               <ChevronRightIcon className="ml-auto h-4 w-4" />
             )}
           </button>
-          
+
           {isExpanded && (
             <div className="ml-4 space-y-1">
               {item.children!.map(child => renderMenuItem(child, level + 1))}
@@ -130,23 +128,21 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
           </span>
         )
       }
-      
+
       return (
         <Link
           key={item.id}
           href={item.url}
-          className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-            isActiveItem
+          className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActiveItem
               ? 'bg-blue-100 text-blue-900'
               : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-          }`}
+            }`}
           onClick={() => setOpen(false)}
         >
           <DynamicIcon
             iconName={item.icon_name}
-            className={`mr-3 h-5 w-5 flex-shrink-0 ${
-              isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
-            }`}
+            className={`mr-3 h-5 w-5 flex-shrink-0 ${isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
+              }`}
           />
           {item.name}
         </Link>
@@ -169,23 +165,21 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
           </PermissionGuard>
         )
       }
-      
+
       return (
         <PermissionGuard key={item.id} resource={item.resource! as any} action={item.permission_action as any}>
           <Link
             href={item.url}
-            className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-              isActiveItem
+            className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActiveItem
                 ? 'bg-blue-100 text-blue-900'
                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-            }`}
+              }`}
             onClick={() => setOpen(false)}
           >
             <DynamicIcon
               iconName={item.icon_name}
-              className={`mr-3 h-5 w-5 flex-shrink-0 ${
-                isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
-              }`}
+              className={`mr-3 h-5 w-5 flex-shrink-0 ${isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
+                }`}
             />
             {item.name}
           </Link>
@@ -209,23 +203,21 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         </span>
       )
     }
-    
+
     return (
       <Link
         key={item.id}
         href={item.url}
-        className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-          isActiveItem
+        className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActiveItem
             ? 'bg-blue-100 text-blue-900'
             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-        }`}
+          }`}
         onClick={() => setOpen(false)}
       >
         <DynamicIcon
           iconName={item.icon_name}
-          className={`mr-3 h-5 w-5 flex-shrink-0 ${
-            isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
-          }`}
+          className={`mr-3 h-5 w-5 flex-shrink-0 ${isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
+            }`}
         />
         {item.name}
       </Link>
@@ -238,7 +230,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Net Imobiliária</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Imovtec</h1>
           </div>
           <div className="flex-1 px-2 py-4">
             <p className="text-sm text-gray-500">Carregando menu...</p>
@@ -255,7 +247,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Net Imobiliária</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Imovtec</h1>
           </div>
           <div className="flex-1 px-2 py-4">
             <p className="text-sm text-red-600">Erro ao carregar menu</p>
@@ -343,7 +335,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Net Imobiliária</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Imovtec</h1>
           </div>
           <nav className="mt-8 flex-1 px-2 space-y-1">
             {menuItems.map((item, index) => (
@@ -356,7 +348,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
               </div>
             ))}
           </nav>
-          
+
           {/* User info and logout at bottom */}
           <div className="flex-shrink-0 border-t border-gray-200 p-4">
             <div className="flex items-center mb-3">

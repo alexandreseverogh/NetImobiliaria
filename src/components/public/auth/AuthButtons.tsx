@@ -136,13 +136,9 @@ export default function AuthButtons() {
     setIsModalOpen(true)
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsDropdownOpen(false)
-    try {
-      localStorage.removeItem('public-last-auth-user')
-      // window.dispatchEvent(new Event('admin-auth-changed')) // No longer needed here
-    } catch { }
-    logout()
+    await logout()
   }
 
   const handleMeuPerfil = () => {

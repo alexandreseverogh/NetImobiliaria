@@ -3,13 +3,13 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { QRCodeSVG } from 'qrcode.react'
-import { 
-  QrCode, 
-  Download, 
-  Copy, 
-  ArrowLeft, 
-  Loader2, 
-  CheckCircle2, 
+import {
+  QrCode,
+  Download,
+  Copy,
+  ArrowLeft,
+  Loader2,
+  CheckCircle2,
   Share2,
   Wallet,
   Building2,
@@ -24,10 +24,10 @@ export default function GerarQRCodePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const [params, setParams] = useState({ 
-    valor_corretor: 0, 
+  const [params, setParams] = useState({
+    valor_corretor: 0,
     chave_pix_corretor: '',
-    cidade_beneficiario_recebimento_corretor: '' 
+    cidade_beneficiario_recebimento_corretor: ''
   })
   const [corretorNome, setCorretorNome] = useState('')
   const qrRef = useRef<HTMLDivElement>(null)
@@ -82,45 +82,45 @@ export default function GerarQRCodePage() {
     if (!params.chave_pix_corretor) return ''
 
     const parts = []
-    
+
     // 00: Payload Format Indicator
     parts.push('000201')
-    
+
     // 26: Merchant Account Information
     const gui = '0014br.gov.bcb.pix'
     const key = `01${params.chave_pix_corretor.length.toString().padStart(2, '0')}${params.chave_pix_corretor}`
     const merchantInfo = gui + key
     parts.push(`26${merchantInfo.length.toString().padStart(2, '0')}${merchantInfo}`)
-    
+
     // 52: Merchant Category Code
     parts.push('52040000')
-    
+
     // 53: Transaction Currency (986 = BRL)
     parts.push('5303986')
-    
+
     // 54: Transaction Amount
     const amountStr = params.valor_corretor.toFixed(2)
     parts.push(`54${amountStr.length.toString().padStart(2, '0')}${amountStr}`)
-    
+
     // 58: Country Code
     parts.push('5802BR')
-    
+
     // 59: Merchant Name (Net Imobiliaria)
-    const name = 'Net Imobiliaria'
+    const name = 'Imovtec'
     parts.push(`59${name.length.toString().padStart(2, '0')}${name}`)
-    
+
     // 60: Merchant City
     const city = params.cidade_beneficiario_recebimento_corretor || 'BRASILIA'
     parts.push(`60${city.length.toString().padStart(2, '0')}${city}`)
-    
+
     // 62: Additional Data Field Template (TXID)
     const txid = '0503***'
     parts.push(`62${txid.length.toString().padStart(2, '0')}${txid}`)
-    
+
     // 63: CRC16
     const payloadWithoutCRC = parts.join('') + '6304'
     const crc = calculateCRC16(payloadWithoutCRC)
-    
+
     return payloadWithoutCRC + crc
   }, [params])
 
@@ -148,7 +148,7 @@ export default function GerarQRCodePage() {
         ctx.drawImage(img, 20, 20)
         const url = canvas.toDataURL('image/png')
         const link = document.createElement('a')
-        link.download = `qrcode-pix-netimobiliaria.png`
+        link.download = `qrcode-pix-imovtec.png`
         link.href = url
         link.click()
       }
@@ -160,7 +160,7 @@ export default function GerarQRCodePage() {
     // Ao retornar para a landpaging, não abrir modal de geolocalização novamente nesta visita
     try {
       sessionStorage.setItem('suppress-geolocation-modal-once', 'true')
-    } catch {}
+    } catch { }
     const returnUrl = sessionStorage.getItem('corretor_return_url') || '/landpaging'
     const url = new URL(returnUrl, window.location.origin)
     url.searchParams.set('corretor_home', 'true')
@@ -192,7 +192,7 @@ export default function GerarQRCodePage() {
               <p className="text-slate-500 text-sm font-medium">QR Code para sinal de reserva e taxas</p>
             </div>
           </div>
-          
+
           <button
             onClick={handleVoltar}
             className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl active:scale-95 group"
@@ -238,7 +238,7 @@ export default function GerarQRCodePage() {
                 <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
                   <h3 className="text-sm font-bold text-blue-800 mb-1">Como funciona?</h3>
                   <p className="text-xs text-blue-600 leading-relaxed">
-                    Este QR Code é gerado com base nos parâmetros oficiais da Net Imobiliária. 
+                    Este QR Code é gerado com base nos parâmetros oficiais da Imovtec.
                     Apresente-o ao cliente para realização do sinal de reserva ou taxas administrativas.
                   </p>
                 </div>
@@ -246,14 +246,14 @@ export default function GerarQRCodePage() {
             </div>
 
             <div className="flex flex-col gap-3">
-              <button 
+              <button
                 onClick={handleCopy}
                 className="w-full flex items-center justify-center gap-3 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-[0.98]"
               >
                 {copied ? <CheckCircle2 className="w-5 h-5 text-green-400" /> : <Copy className="w-5 h-5" />}
                 {copied ? 'Código Copiado!' : 'Copiar Código PIX'}
               </button>
-              <button 
+              <button
                 onClick={handleDownload}
                 className="w-full flex items-center justify-center gap-3 py-4 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold hover:bg-slate-50 transition-all active:scale-[0.98]"
               >
@@ -268,12 +268,12 @@ export default function GerarQRCodePage() {
             <div className="relative">
               {/* Efeito de papel decorativo atrás */}
               <div className="absolute inset-0 bg-blue-600 rounded-[2.5rem] rotate-2 scale-[1.02] opacity-10" />
-              
+
               <div className="relative bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl overflow-hidden">
                 {/* Topo do Recibo */}
                 <div className="bg-slate-900 p-8 text-white flex items-center justify-between">
                   <div>
-                    <img src="/logo.png" alt="Logo" className="h-8 brightness-0 invert" />
+                    <img src="/imovtec-logo.png" alt="Imovtec" className="h-12 w-auto mx-auto" />
                     <p className="text-[10px] font-bold text-white/50 uppercase tracking-[0.3em] mt-3">Comprovante de Intenção</p>
                   </div>
                   <div className="text-right">
@@ -286,13 +286,13 @@ export default function GerarQRCodePage() {
                 <div className="p-10 text-center">
                   {pixPayload ? (
                     <div className="mb-8 inline-block p-6 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200" ref={qrRef}>
-                      <QRCodeSVG 
-                        value={pixPayload} 
+                      <QRCodeSVG
+                        value={pixPayload}
                         size={240}
                         level="H"
                         includeMargin={false}
                         imageSettings={{
-                          src: "/logo.png",
+                          src: "/imovtec-logo.png",
                           x: undefined,
                           y: undefined,
                           height: 40,
@@ -344,7 +344,7 @@ export default function GerarQRCodePage() {
                 <div className="bg-slate-50 p-6 text-center border-t border-slate-100">
                   <div className="flex items-center justify-center gap-2 text-slate-400">
                     <Building2 className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Net Imobiliária - Inteligência Imobiliária</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Imovtec - Inteligência Imobiliária</span>
                   </div>
                 </div>
               </div>
