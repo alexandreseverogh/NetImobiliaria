@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 
 // Importar componente do mapa dinamicamente (apenas no cliente)
-const MapaImoveis = dynamic(() => import('@/components/mapa/MapaImoveis'), { 
+const MapaImoveis = dynamic(() => import('@/components/mapa/MapaImoveis'), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center h-full">
@@ -36,7 +36,7 @@ interface ImovelMapa {
   finalidade_nome: string
 }
 
-export default function MapaImoveisPage() {
+function MapaImoveisPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [imoveis, setImoveis] = useState<ImovelMapa[]>([])
@@ -199,7 +199,7 @@ export default function MapaImoveisPage() {
 
       {/* Modal com página de consulta pública do imóvel */}
       {popupImovel && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: '0',
@@ -218,7 +218,7 @@ export default function MapaImoveisPage() {
           }}
           onClick={() => setPopupImovel(null)}
         >
-          <div 
+          <div
             style={{
               backgroundColor: 'white',
               borderRadius: '16px',
@@ -276,6 +276,21 @@ export default function MapaImoveisPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function MapaImoveisPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Carregando mapa...</p>
+        </div>
+      </div>
+    }>
+      <MapaImoveisPageContent />
+    </Suspense>
   )
 }
 

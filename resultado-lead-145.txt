@@ -1,0 +1,9 @@
+﻿ id  |  status  |          created_at           |           corretor            | tipo_corretor | is_plantonista |                                                                         motivo                                                                         
+-----+----------+-------------------------------+-------------------------------+---------------+----------------+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ 207 | expirado | 2026-01-29 13:48:00.064563+00 | Jose Damasio Neto             | Interno       | f              | {"type": "area_match", "source": "backfill_unassigned"}
+ 208 | expirado | 2026-01-29 13:52:00.047996+00 | ROBERTO SEVERO SALGUES CAMPOS | Interno       | f              | {"type": "area_match_internal", "limit": 4, "source": "sla_transbordo", "attempts": 2, "previous_corretor_fk": "4d456e42-4031-46ba-9b5c-912bec1d28b5"}
+ 209 | expirado | 2026-01-29 13:55:00.041763+00 | Nunes Cabelo de A├ºo           | Interno       | f              | {"type": "area_match_internal", "limit": 4, "source": "sla_transbordo", "attempts": 3, "previous_corretor_fk": "491795c4-c017-4285-b85a-eb29c26c28b5"}
+ 210 | expirado | 2026-01-29 13:58:00.037632+00 | Gigi                          | Interno       | f              | {"type": "area_match_internal", "limit": 4, "source": "sla_transbordo", "attempts": 4, "previous_corretor_fk": "ebad63d6-c774-40e1-b9c7-0f55b7c1735f"}
+ 211 | aceito   | 2026-01-29 14:01:00.056099+00 | Plantonista                   | Interno       | t              | {"type": "fallback_plantonista", "source": "sla_transbordo", "previous_corretor_fk": "abd6b94a-fbe9-4a9b-8688-f3ecb142fff3"}
+(5 rows)
+

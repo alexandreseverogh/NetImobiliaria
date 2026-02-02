@@ -28,13 +28,13 @@ export default function ProfileBanners({
           <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory md:grid md:grid-cols-3 md:overflow-visible">
             {/* Proprietário */}
             <div className="min-w-[280px] snap-start md:min-w-0">
-              <div className="h-full rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
+              <div className="h-full rounded-2xl border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm">
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center border border-emerald-200 flex-shrink-0">
-                    <Building2 className="w-6 h-6 text-emerald-700" />
+                  <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center border border-primary-200 flex-shrink-0">
+                    <Building2 className="w-6 h-6 text-primary-700" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-emerald-800">Sou proprietário</div>
+                    <div className="text-sm font-semibold text-primary-800">Sou proprietário</div>
                     <div className="text-lg font-bold text-gray-900 leading-tight mt-1">
                       Anuncie seu imóvel
                     </div>
@@ -51,7 +51,7 @@ export default function ProfileBanners({
                   <button
                     type="button"
                     onClick={onProprietarioClick}
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold transition-colors"
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold transition-colors"
                   >
                     Quero anunciar
                   </button>
@@ -67,7 +67,7 @@ export default function ProfileBanners({
                     <User className="w-6 h-6 text-blue-700" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-blue-800">Quero comprar</div>
+                    <div className="text-sm font-semibold text-primary-800">Quero comprar</div>
                     <div className="text-lg font-bold text-gray-900 leading-tight mt-1">
                       Encontre o imóvel ideal
                     </div>
@@ -84,7 +84,7 @@ export default function ProfileBanners({
                   <button
                     type="button"
                     onClick={onClienteClick}
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold transition-colors"
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold transition-colors"
                   >
                     Criar conta
                   </button>

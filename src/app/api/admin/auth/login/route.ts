@@ -10,10 +10,10 @@ import { AUTH_CONFIG } from '@/lib/config/auth';
 // Configuração do pool de conexão
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'net_imobiliaria',
+  port: parseInt(process.env.DB_PORT || '15432'),
+  database: process.env.DB_NAME!,
   user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
+  password: process.env.DB_PASSWORD || 'postgres',
 });
 
 interface LoginRequest {
@@ -526,7 +526,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Set HTTP-only cookie for token persistence
-    response.cookies.set('auth_token', token, {
+    response.cookies.set('admin_auth_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -534,7 +534,7 @@ export async function POST(request: NextRequest) {
       path: '/'
     });
 
-    console.log('✅ HTTP-only cookie auth_token set successfully');
+    console.log('✅ HTTP-only cookie admin_auth_token set successfully');
 
     return response;
 

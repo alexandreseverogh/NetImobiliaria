@@ -96,7 +96,10 @@ export function usePublicAuth() {
         'public-last-auth-user',
         'admin-auth-token',
         'admin-user-data',
-        'admin-last-auth-user'
+        'admin-last-auth-user',
+        // NOVAS CHAVES (Legacy/Genéricas) que estavam mantendo sessão zumbi
+        'auth-token',
+        'user-data'
       ]
       keysToRemove.forEach(key => localStorage.removeItem(key))
 

@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import pool from '@/lib/database/connection'
+import { safeParseInt } from '@/lib/utils/safeParser'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 
 export async function GET(request: NextRequest) {
   // Verificar permissões via middleware unificado
   const permissionCheck = await unifiedPermissionMiddleware(request)
   if (permissionCheck) return permissionCheck
-  
+
   try {
 
     // Extrair parâmetros de filtro
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '50')
+    const page = safeParseInt(searchParams.get('page'), 1, 1)
+    const limit = safeParseInt(searchParams.get('limit'), 50, 1, 100)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const userId = searchParams.get('userId')
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN users u ON al.user_id = u.id
       WHERE 1=1
     `
-    
+
     const params: any[] = []
     let paramCount = 0
 
@@ -81,12 +83,12 @@ export async function GET(request: NextRequest) {
 
     // Ordenação e paginação
     query += ` ORDER BY al.timestamp DESC`
-    
+
     const offset = (page - 1) * limit
     paramCount++
     query += ` LIMIT $${paramCount}`
     params.push(limit)
-    
+
     paramCount++
     query += ` OFFSET $${paramCount}`
     params.push(offset)
@@ -101,7 +103,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN users u ON al.user_id = u.id
       WHERE 1=1
     `
-    
+
     const countParams: any[] = []
     let countParamCount = 0
 

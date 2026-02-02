@@ -26,7 +26,7 @@ export default function Header() {
           <div className="flex-shrink-0">
             <Link href="/" className="flex items-center">
               <Image
-                src="/imovtec-logo.png"
+                src="/imovtec-logo-definitive.png"
                 alt="Imovtec Tokenização"
                 width={180}
                 height={60}

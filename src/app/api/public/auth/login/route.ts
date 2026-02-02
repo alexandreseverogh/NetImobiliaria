@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
       FROM ${tableName}
       WHERE email = $1
     `
-    
+
     let userResult
     try {
       userResult = await pool.query(userQuery, [email])
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
-    
+
     if (userResult.rows.length === 0) {
       console.log('❌ PUBLIC LOGIN - Usuário não encontrado:', email)
       await logPublicLoginEvent({
@@ -291,7 +291,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
-    
+
     if (!passwordMatch) {
       console.log('❌ PUBLIC LOGIN - Senha incorreta para:', email)
       await logPublicLoginEvent({
@@ -315,22 +315,22 @@ export async function POST(request: NextRequest) {
 
     // 4. Verificar se 2FA está habilitado
     const is2FAEnabled = user.two_fa_enabled === true
-    
+
     if (is2FAEnabled) {
       console.log('🔐 PUBLIC LOGIN - 2FA está habilitado')
-      
+
       // Se 2FA está habilitado mas código não foi fornecido
       if (!twoFactorCode) {
         console.log('📧 PUBLIC LOGIN - Enviando código 2FA por email')
-        
+
         // Enviar código 2FA
         try {
           console.log('📧 PUBLIC LOGIN - Preparando envio de código 2FA:', { userUuid, userType, email })
-          
+
           if (!userUuid) {
             throw new Error('userUuid é obrigatório para envio de código 2FA')
           }
-          
+
           const codeSent = await unifiedTwoFactorAuthService.sendCodeByEmail({
             userUuid,
             userType,
@@ -338,7 +338,7 @@ export async function POST(request: NextRequest) {
             ipAddress,
             userAgent
           })
-          
+
           if (codeSent) {
             console.log('✅ PUBLIC LOGIN - Código 2FA enviado com sucesso')
             await logPublicLoginEvent({
@@ -393,7 +393,7 @@ export async function POST(request: NextRequest) {
             userUuid,
             userType
           })
-          
+
           await logPublicLoginEvent({
             userUuid,
             userType,
@@ -417,7 +417,7 @@ export async function POST(request: NextRequest) {
         }
       } else {
         console.log('🔐 PUBLIC LOGIN - Validando código 2FA:', twoFactorCode)
-        
+
         // Validar código 2FA
         const validationResult = await unifiedTwoFactorAuthService.validateCode({
           userUuid,
@@ -425,7 +425,7 @@ export async function POST(request: NextRequest) {
           code: twoFactorCode,
           method: 'email'
         })
-        
+
         if (!validationResult.valid) {
           console.log('❌ PUBLIC LOGIN - Código 2FA inválido:', validationResult.message)
           await logPublicLoginEvent({
@@ -444,7 +444,7 @@ export async function POST(request: NextRequest) {
             { status: 401 }
           )
         }
-        
+
         console.log('✅ PUBLIC LOGIN - Código 2FA válido')
         await logPublicLoginEvent({
           userUuid,
@@ -462,7 +462,7 @@ export async function POST(request: NextRequest) {
 
     // 5. Gerar JWT
     const jwtSecret = process.env.JWT_SECRET || 'fallback-secret'
-    
+
     const jwtPayload = {
       userUuid,
       userType,
@@ -471,7 +471,7 @@ export async function POST(request: NextRequest) {
       cpf: user.cpf,
       is2FAEnabled: is2FAEnabled
     }
-    
+
     const token = jwt.sign(jwtPayload, jwtSecret, {
       expiresIn: '24h'
     } as SignOptions)
@@ -490,7 +490,7 @@ export async function POST(request: NextRequest) {
     })
 
     // 6. Retornar resposta de sucesso
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Login realizado com sucesso',
       data: {
@@ -513,6 +513,19 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Set HTTP-only cookie for public/landing page authentication
+    response.cookies.set('public_auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24 hours
+      path: '/'
+    })
+
+    console.log('✅ HTTP-only cookie public_auth_token set successfully')
+
+    return response
+
   } catch (error: any) {
     console.error('❌ PUBLIC LOGIN - Erro no login:', error)
     console.error('❌ PUBLIC LOGIN - Stack trace:', error?.stack)
@@ -521,7 +534,7 @@ export async function POST(request: NextRequest) {
       name: error?.name,
       code: error?.code
     })
-    
+
     try {
       const { ipAddress, userAgent } = extractRequestMeta(request)
       await logAuditEvent({
@@ -542,14 +555,14 @@ export async function POST(request: NextRequest) {
     } catch (logError) {
       console.error('❌ PUBLIC LOGIN - Falha ao registrar auditoria de erro:', logError)
     }
-    
+
     // Retornar mensagem de erro mais específica se possível
-    const errorMessage = error?.message?.includes('password') 
+    const errorMessage = error?.message?.includes('password')
       ? 'Erro ao validar credenciais. Verifique se sua conta está configurada corretamente.'
       : error?.message?.includes('query') || error?.message?.includes('SQL')
-      ? 'Erro ao acessar banco de dados. Tente novamente em alguns instantes.'
-      : 'Erro interno do servidor. Tente novamente ou entre em contato com o suporte.'
-    
+        ? 'Erro ao acessar banco de dados. Tente novamente em alguns instantes.'
+        : 'Erro interno do servidor. Tente novamente ou entre em contato com o suporte.'
+
     return NextResponse.json(
       { success: false, message: errorMessage, error: process.env.NODE_ENV === 'development' ? error?.message : undefined },
       { status: 500 }

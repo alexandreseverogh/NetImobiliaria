@@ -35,7 +35,9 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Imovtec</h1>
+            <Link href="/admin/logo">
+              <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+            </Link>
           </div>
           <div className="flex-1 px-2 py-4">
             <p className="text-sm text-gray-500">Carregando usuário...</p>
@@ -64,9 +66,33 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
+      // ☢️ NUCLEAR LOGOUT: Forçar limpeza total antes de chamar a função do hook
+      if (typeof window !== 'undefined') {
+        const keysToRemove = [
+          'auth-token',
+          'user-data',
+          'public-auth-token',
+          'public-user-data',
+          'admin-auth-token',
+          'admin-user-data',
+          'admin-last-auth-user'
+        ]
+
+        console.log('☢️ [AdminSidebar] Executando logout nuclear no client...')
+        keysToRemove.forEach(k => localStorage.removeItem(k))
+
+        // Disparar eventos para atualizar UI em outras partes
+        window.dispatchEvent(new Event('storage'))
+        window.dispatchEvent(new Event('auth-change'))
+        window.dispatchEvent(new Event('admin-auth-changed'))
+        window.dispatchEvent(new Event('public-auth-changed'))
+      }
+
       await onLogout()
     } catch (error) {
       console.error('Erro no logout:', error)
+      // Fallback: redirecionar mesmo se der erro
+      window.location.href = '/admin/login'
     } finally {
       setIsLoggingOut(false)
     }
@@ -83,8 +109,8 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
           <button
             onClick={() => toggleMenu(item.id)}
             className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md ${isActiveItem
-                ? 'bg-blue-100 text-blue-900'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              ? 'bg-blue-100 text-blue-900'
+              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               }`}
             style={{ paddingLeft: `${8 + level * 16}px` }}
           >
@@ -134,8 +160,8 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
           key={item.id}
           href={item.url}
           className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActiveItem
-              ? 'bg-blue-100 text-blue-900'
-              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            ? 'bg-blue-100 text-blue-900'
+            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
             }`}
           onClick={() => setOpen(false)}
         >
@@ -171,8 +197,8 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
           <Link
             href={item.url}
             className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActiveItem
-                ? 'bg-blue-100 text-blue-900'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              ? 'bg-blue-100 text-blue-900'
+              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               }`}
             onClick={() => setOpen(false)}
           >
@@ -209,8 +235,8 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         key={item.id}
         href={item.url}
         className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActiveItem
-            ? 'bg-blue-100 text-blue-900'
-            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+          ? 'bg-blue-100 text-blue-900'
+          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
           }`}
         onClick={() => setOpen(false)}
       >
@@ -230,7 +256,9 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Imovtec</h1>
+            <Link href="/admin/logo">
+              <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+            </Link>
           </div>
           <div className="flex-1 px-2 py-4">
             <p className="text-sm text-gray-500">Carregando menu...</p>
@@ -247,7 +275,9 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Imovtec</h1>
+            <Link href="/admin/logo">
+              <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+            </Link>
           </div>
           <div className="flex-1 px-2 py-4">
             <p className="text-sm text-red-600">Erro ao carregar menu</p>
@@ -277,7 +307,9 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
           <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setOpen(false)} />
           <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
             <div className="flex h-16 items-center justify-between px-4">
-              <h1 className="text-lg font-semibold text-gray-900">Admin</h1>
+              <Link href="/admin/logo">
+                <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-10 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              </Link>
               <button
                 type="button"
                 className="text-gray-500 hover:text-gray-600"
@@ -335,7 +367,9 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Imovtec</h1>
+            <Link href="/admin/logo">
+              <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+            </Link>
           </div>
           <nav className="mt-8 flex-1 px-2 space-y-1">
             {menuItems.map((item, index) => (

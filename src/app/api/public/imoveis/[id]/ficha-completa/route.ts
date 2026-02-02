@@ -52,6 +52,7 @@ export async function GET(
         i.mobiliado,
         i.aceita_permuta,
         i.aceita_financiamento,
+        i.lancamento,
         i.destaque,
         i.ativo,
         i.estado_fk,
@@ -128,6 +129,7 @@ export async function GET(
       mobiliado: imovel.mobiliado,
       aceita_permuta: imovel.aceita_permuta,
       aceita_financiamento: imovel.aceita_financiamento,
+      lancamento: imovel.lancamento,
       destaque: imovel.destaque,
       ativo: imovel.ativo,
       estado_fk: imovel.estado_fk,
@@ -283,7 +285,6 @@ export async function GET(
       `
       const imagensResult = await pool.query(imagensQuery, [imovelId])
       const imagens = imagensResult.rows.map(row => ({
-        id: row.id,
         id: row.id,
         url: `/api/public/imagens/${row.id}`,
         alt: `Imagem ${row.ordem || row.id}`,

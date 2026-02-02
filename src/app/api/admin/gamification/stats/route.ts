@@ -1,5 +1,6 @@
-
 import { NextRequest, NextResponse } from 'next/server';
+import pool from '@/lib/database/connection';
+import { safeParseInt } from '@/lib/utils/safeParser';
 import { GamificationService } from '@/lib/gamification/gamificationService';
 
 export const dynamic = 'force-dynamic';
@@ -8,8 +9,8 @@ export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const type = searchParams.get('type') || 'leaderboard'; // 'leaderboard' or 'transbordo'
-        const page = parseInt(searchParams.get('page') || '1');
-        const limit = parseInt(searchParams.get('limit') || '50');
+        const page = safeParseInt(searchParams.get('page'), 1, 1);
+        const limit = safeParseInt(searchParams.get('limit'), 50, 1, 100);
         const search = searchParams.get('search') || undefined;
 
         if (type === 'leaderboard') {

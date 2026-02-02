@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { safeParseInt } from '@/lib/utils/safeParser'
 import { findFinanciadoresPaginated, createFinanciador } from '@/lib/database/financiadores'
 
 export async function GET(request: NextRequest) {
@@ -8,8 +9,8 @@ export async function GET(request: NextRequest) {
     if (permissionCheck) return permissionCheck
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1', 10)
-    const limit = parseInt(searchParams.get('limit') || '10', 10)
+    const page = safeParseInt(searchParams.get('page'), 1, 1)
+    const limit = safeParseInt(searchParams.get('limit'), 10, 1, 100)
     const search = searchParams.get('search') || ''
 
     const result = await findFinanciadoresPaginated(page, limit, search)

@@ -1,51 +1,46 @@
 const { Pool } = require('pg');
+require('dotenv').config({ path: '.env.local' });
 
 const pool = new Pool({
-    user: process.env.DB_USER || 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'net_imobiliaria',
-    password: process.env.DB_PASSWORD || 'postgres',
-    port: parseInt(process.env.DB_PORT || '15432'),
-    ssl: false
+    host: process.env.DB_HOST || 'localhost', port: 15432, database: 'net_imobiliaria', user: 'postgres', password: 'postgres'
 });
 
-async function checkLocks() {
+async function run() {
     try {
-        console.log('--- CHECKING ACTIVE LOCKS ---');
-
-        // Query to find blocking activity
+        console.log('Checking active locks...');
         const q = `
-      SELECT 
-        pid, 
-        usename, 
-        pg_blocking_pids(pid) as blocked_by, 
-        query as query_snippet, 
-        state, 
-        age(clock_timestamp(), query_start) as duration
-      FROM pg_stat_activity 
-      WHERE state != 'idle' 
-        AND pid <> pg_backend_pid()
-      ORDER BY duration DESC;
-    `;
-
+            SELECT 
+                pid, 
+                query, 
+                query_start, 
+                state, 
+                wait_event_type, 
+                wait_event
+            FROM pg_stat_activity 
+            WHERE state != 'idle' AND query NOT LIKE '%pg_stat_activity%'
+        `;
         const res = await pool.query(q);
+        console.log(JSON.stringify(res.rows, null, 2));
 
-        if (res.rows.length === 0) {
-            console.log('✅ No active/blocking queries found.');
-        } else {
-            console.log('⚠️ Active Transactions/Queries:', res.rows.length);
-            res.rows.forEach(r => {
-                console.log(`\nPID: ${r.pid} | User: ${r.usename} | State: ${r.state}`);
-                console.log(`Blocked By: ${r.blocked_by} | Duration: ${r.duration.seconds || r.duration}s`);
-                console.log(`Query: ${r.query_snippet.substring(0, 100)}...`);
-            });
-        }
+        console.log('\nChecking locks on table...');
+        const q2 = `
+            SELECT 
+                l.pid, 
+                l.mode, 
+                l.granted, 
+                a.query, 
+                a.query_start
+            FROM pg_locks l
+            JOIN pg_stat_activity a ON l.pid = a.pid
+            WHERE l.relation = 'imovel_prospect_atribuicoes'::regclass
+        `;
+        const res2 = await pool.query(q2);
+        console.log(JSON.stringify(res2.rows, null, 2));
 
-    } catch (err) {
-        console.error('Erro:', err);
+    } catch (e) {
+        console.error(e);
     } finally {
         await pool.end();
     }
 }
-
-checkLocks();
+run();

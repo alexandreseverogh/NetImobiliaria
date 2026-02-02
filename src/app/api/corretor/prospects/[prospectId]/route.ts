@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
+import { verifyToken } from '@/lib/auth/jwt'
+import { getPublicTokenFromRequest } from '@/lib/auth/jwt-public'
 
 export const runtime = 'nodejs'
 
 async function getLoggedUserId(request: NextRequest): Promise<string | null> {
-  const token = getTokenFromRequest(request)
+  const token = getPublicTokenFromRequest(request)  // ✅ Use public helper
   if (!token) return null
   try {
     const decoded: any = await verifyToken(token)

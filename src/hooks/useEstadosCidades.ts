@@ -111,8 +111,8 @@ export const useEstadosCidades = (mode: Mode = 'active') => {
     setLoading(true)
 
     try {
+      console.log('HOOK DEBUG: loadMunicipios called', { mode, estadoId })
       if (mode === 'active') {
-        // Filtrar do cache de locais ativos
         const cidadesDoEstado = todosLocaisAtivos
           .filter(l => l.estado === estadoId)
           .map(l => l.cidade)
@@ -126,8 +126,11 @@ export const useEstadosCidades = (mode: Mode = 'active') => {
         setMunicipios(cidadesDoEstado)
       } else {
         // Filtrar do cache de todos os municípios (JSON)
+        console.log('HOOK DEBUG: Searching in full list', { hasData: !!municipiosData })
         if (municipiosData) {
           const estadoEncontrado = municipiosData.estados.find(e => e.sigla === estadoId)
+          console.log('HOOK DEBUG: Estado found?', estadoEncontrado ? 'YES' : 'NO', estadoId)
+
           if (estadoEncontrado) {
             const cidadesFormatadas = estadoEncontrado.municipios
               .map(m => ({
@@ -136,9 +139,12 @@ export const useEstadosCidades = (mode: Mode = 'active') => {
               }))
               .sort((a, b) => a.nome.localeCompare(b.nome))
             setMunicipios(cidadesFormatadas)
+            console.log('HOOK DEBUG: Cities set', cidadesFormatadas.length)
           } else {
             setMunicipios([])
           }
+        } else {
+          console.warn('HOOK DEBUG: municipiosData is null when loading municipios')
         }
       }
     } finally {

@@ -12,7 +12,7 @@ interface HeroSectionProps {
 export default function HeroSection({ filterPanel, venderButton, destaquesNacionalButton }: HeroSectionProps) {
 
   return (
-    <section className="relative bg-gradient-to-r from-primary-600 to-primary-700 text-white">
+    <section className="relative bg-gradient-to-br from-[#020817] via-[#0a192f] to-[#020817] text-white overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute inset-0" style={{
@@ -43,10 +43,10 @@ export default function HeroSection({ filterPanel, venderButton, destaquesNacion
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
               Encontre seu Imóvel dos Sonhos
             </h1>
-            <p className="text-xl md:text-2xl text-primary-100 mb-2">
+            <p className="text-xl md:text-2xl text-gray-300 mb-2">
               A Imovtec oferece os melhores imóveis para você.
             </p>
-            <p className="text-xl md:text-2xl text-primary-100">
+            <p className="text-xl md:text-2xl text-gray-300">
               Comprar, Vender ou Alugar nunca foi tão fácil.
             </p>
           </div>

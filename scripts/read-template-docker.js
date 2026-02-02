@@ -1,12 +1,4 @@
-const { Pool } = require('pg');
-
-const pool = new Pool({
-    host: 'localhost',
-    port: 15432,
-    database: 'net_imobiliaria',
-    user: 'postgres',
-    password: 'postgres',
-});
+const { pool } = require('./utils/db.js');
 
 async function main() {
     try {

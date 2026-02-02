@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { safeParseInt } from '@/lib/utils/safeParser'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 
 // Interface para sessão
@@ -30,8 +32,8 @@ export async function GET(request: NextRequest) {
     const dateFilter = searchParams.get('date') || 'today' // today, week, month, custom
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '50')
+    const page = safeParseInt(searchParams.get('page'), 1, 1)
+    const limit = safeParseInt(searchParams.get('limit'), 50, 1, 100)
     const offset = (page - 1) * limit
 
     // Construir filtro de data com parâmetros seguros
@@ -89,7 +91,7 @@ export async function GET(request: NextRequest) {
 
     // Adicionar limit e offset aos parâmetros
     const finalParams = [...queryParams, limit, offset]
-    
+
     console.log('🔍 Query params:', finalParams)
 
     const [result, countResult] = await Promise.all([
@@ -98,7 +100,7 @@ export async function GET(request: NextRequest) {
     ])
 
     const total = parseInt(countResult.rows[0].total)
-    
+
     // Formatar dados para o frontend
     const sessions: ActiveSession[] = result.rows.map(row => ({
       id: row.id,
@@ -136,16 +138,16 @@ export async function GET(request: NextRequest) {
 function formatTimeRemaining(minutes: number): string {
   if (minutes < 0) return 'Expirada'
   if (minutes < 60) return `${Math.round(minutes)}min`
-  
+
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = Math.round(minutes % 60)
-  
+
   if (hours < 24) {
     return `${hours}h ${remainingMinutes}min`
   }
-  
+
   const days = Math.floor(hours / 24)
   const remainingHours = hours % 24
-  
+
   return `${days}d ${remainingHours}h`
 }

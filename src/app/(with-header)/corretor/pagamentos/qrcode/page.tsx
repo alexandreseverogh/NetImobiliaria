@@ -273,7 +273,7 @@ export default function GerarQRCodePage() {
                 {/* Topo do Recibo */}
                 <div className="bg-slate-900 p-8 text-white flex items-center justify-between">
                   <div>
-                    <img src="/imovtec-logo.png" alt="Imovtec" className="h-12 w-auto mx-auto" />
+                    <img src="/imovtec-logo-definitive.png" alt="Imovtec" className="h-12 w-auto mx-auto" />
                     <p className="text-[10px] font-bold text-white/50 uppercase tracking-[0.3em] mt-3">Comprovante de Intenção</p>
                   </div>
                   <div className="text-right">
@@ -292,7 +292,7 @@ export default function GerarQRCodePage() {
                         level="H"
                         includeMargin={false}
                         imageSettings={{
-                          src: "/imovtec-logo.png",
+                          src: "/imovtec-logo-definitive.png",
                           x: undefined,
                           y: undefined,
                           height: 40,

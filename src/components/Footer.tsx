@@ -11,7 +11,7 @@ export default function Footer() {
           <div className="md:col-span-2">
             <div className="flex items-center mb-4">
               <Image
-                src="/imovtec-logo.png"
+                src="/imovtec-logo-definitive.png"
                 alt="Imovtec"
                 width={180}
                 height={60}

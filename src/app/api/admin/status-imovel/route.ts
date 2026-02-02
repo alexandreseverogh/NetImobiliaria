@@ -4,6 +4,7 @@ import { PAGINATION_CONFIG } from '@/lib/config/constants'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
+import { safeParseInt } from '@/lib/utils/safeParser'
 
 // GET - Listar status de imóvel
 export async function GET(request: NextRequest) {
@@ -15,8 +16,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
+    const page = safeParseInt(searchParams.get('page'), 1, 1)
+    const limit = safeParseInt(searchParams.get('limit'), 10, 1, 100)
     const search = searchParams.get('search') || ''
 
     // Se não há parâmetros de paginação, usar a função antiga para compatibilidade
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
     try {
       const { ipAddress, userAgent } = extractRequestData(request)
       const userId = extractUserIdFromToken(request)
-      
+
       await logAuditEvent({
         userId,
         action: 'CREATE',

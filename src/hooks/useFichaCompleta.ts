@@ -33,6 +33,7 @@ interface ImovelBasico {
   status_cor: string
   aceita_permuta?: boolean
   aceita_financiamento?: boolean
+  lancamento?: boolean
   imagem_principal: {
     url: string
     alt: string
@@ -92,7 +93,7 @@ export const useFichaCompleta = (imovelId: string) => {
   // Carregar dados básicos
   const carregarBasicos = useCallback(async () => {
     console.log('🔍 useFichaCompleta - Iniciando carregamento básico para imovelId:', imovelId)
-    
+
     // Evitar chamadas duplas - verificar se já está carregando
     setLoading(prev => {
       if (prev.basico) {
@@ -101,17 +102,17 @@ export const useFichaCompleta = (imovelId: string) => {
       }
       return { ...prev, basico: true }
     })
-    
+
     setError(prev => ({ ...prev, basico: null }))
-    
+
     try {
       const response = await fetch(`/api/public/imoveis/${imovelId}/ficha-completa?nivel=basico`)
       const data = await response.json()
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao carregar dados básicos')
       }
-      
+
       if (data.success) {
         console.log('🔍 useFichaCompleta - Dados básicos carregados com sucesso:', data.imovel?.id)
         setDadosBasicos(data.imovel)
@@ -131,15 +132,15 @@ export const useFichaCompleta = (imovelId: string) => {
   const carregarDetalhados = useCallback(async () => {
     setLoading(prev => ({ ...prev, detalhado: true }))
     setError(prev => ({ ...prev, detalhado: null }))
-    
+
     try {
       const response = await fetch(`/api/public/imoveis/${imovelId}/ficha-completa?nivel=detalhado`)
       const data = await response.json()
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao carregar dados detalhados')
       }
-      
+
       if (data.success) {
         setDadosDetalhados(data.imovel)
       }
@@ -156,15 +157,15 @@ export const useFichaCompleta = (imovelId: string) => {
   const carregarCompletos = useCallback(async () => {
     setLoading(prev => ({ ...prev, completo: true }))
     setError(prev => ({ ...prev, completo: null }))
-    
+
     try {
       const response = await fetch(`/api/public/imoveis/${imovelId}/ficha-completa?nivel=completo`)
       const data = await response.json()
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao carregar dados completos')
       }
-      
+
       if (data.success) {
         setDadosCompletos(data.imovel)
       }
@@ -216,20 +217,20 @@ export const useFichaCompleta = (imovelId: string) => {
     dadosBasicos,
     dadosDetalhados,
     dadosCompletos,
-    
+
     // Estados de carregamento
     loading,
     error,
-    
+
     // Funções de carregamento
     carregarBasicos,
     carregarDetalhados,
     carregarCompletos,
-    
+
     // Funções utilitárias
     recarregar,
     limpar,
-    
+
     // Estados derivados
     temDadosBasicos: !!dadosBasicos,
     temDadosDetalhados: !!dadosDetalhados,

@@ -1,5 +1,15 @@
 import pool from '@/lib/database/connection'
 import emailService from '@/services/emailService'
+import fs from 'fs'
+import path from 'path'
+
+function debugLog(msg: string) {
+  try {
+    const logPath = path.join(process.cwd(), 'routing_debug.txt')
+    const time = new Date().toISOString()
+    fs.appendFileSync(logPath, `[${time}] ${msg}\n`)
+  } catch (e) { }
+}
 
 type RoutedBroker = {
   id: string
@@ -22,8 +32,13 @@ async function getSlaMinutosAceiteLead(): Promise<number> {
 
 function getAppBaseUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL
-  if (fromEnv) return fromEnv.replace(/\/+$/, '')
-  return 'http://localhost:3000'
+  let url = fromEnv ? fromEnv.replace(/\/+$/, '') : 'http://localhost:3000'
+
+  // Garantir que tenha protocolo
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'http://' + url
+  }
+  return url
 }
 
 function buildCorretorPainelUrl(prospectId: number): string {
@@ -32,7 +47,16 @@ function buildCorretorPainelUrl(prospectId: number): string {
   return `${base}/corretor/entrar?next=${encodeURIComponent(next)}`
 }
 
+function buildNegocioFechadoUrl(prospectId: number, imovelId: number): string {
+  const base = getAppBaseUrl()
+  const next = `/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}&openNegocioId=${encodeURIComponent(String(imovelId))}`
+  return `${base}/corretor/entrar?next=${encodeURIComponent(next)}`
+}
+
 async function pickBrokerByArea(estado: string, cidade: string, excludeIds: string[] = [], runner: any = pool): Promise<RoutedBroker | null> {
+  console.log(`🔍 [pickBrokerByArea] EXTERNAL - Buscando corretor externo para ${cidade}/${estado}`);
+  console.log(`🔍 [pickBrokerByArea] EXTERNAL - excludeIds:`, excludeIds);
+
   const q = `
     SELECT
       u.id, u.nome, u.email,
@@ -49,22 +73,30 @@ async function pickBrokerByArea(estado: string, cidade: string, excludeIds: stri
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = false
-      AND COALESCE(u.tipo_corretor, 'Externo') = 'Externo'
+      AND u.tipo_corretor = 'Externo'
       AND caa.estado_fk = $1
       AND caa.cidade_fk = $2
       AND (CASE WHEN array_length($3::uuid[], 1) > 0 THEN u.id != ALL($3::uuid[]) ELSE true END)
     GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
     ORDER BY 
-      COALESCE(cs.nivel, 0) DESC,
-      COALESCE(cs.xp_total, 0) DESC,
       COUNT(a.id) ASC, 
       MAX(a.created_at) ASC NULLS FIRST, 
+      COALESCE(cs.nivel, 0) DESC,
+      COALESCE(cs.xp_total, 0) DESC,
       u.created_at ASC
     LIMIT 1
   `
   const r = await runner.query(q, [estado, cidade, excludeIds || []])
-  if (r.rows.length === 0) return null
+  console.log(`🔍 [pickBrokerByArea] EXTERNAL - Resultado: ${r.rows.length} corretor(es) encontrado(s)`);
+
+  if (r.rows.length === 0) {
+    console.log(`❌ [pickBrokerByArea] EXTERNAL - NENHUM corretor externo encontrado para ${cidade}/${estado}`);
+    return null
+  }
+
   const row = r.rows[0]
+  console.log(`✅ [pickBrokerByArea] EXTERNAL - Corretor selecionado: ${row.nome} (${row.id})`);
+
   return {
     id: row.id,
     nome: row.nome,
@@ -96,6 +128,9 @@ async function pickBrokerById(corretorFk: string, runner: any = pool): Promise<R
 }
 
 async function pickInternalBrokerByArea(estado: string, cidade: string, excludeIds: string[] = [], runner: any = pool): Promise<RoutedBroker | null> {
+  console.log(`🔍 [pickInternalBrokerByArea] INTERNAL - Buscando corretor interno para ${cidade}/${estado}`);
+  console.log(`🔍 [pickInternalBrokerByArea] INTERNAL - excludeIds:`, excludeIds);
+
   const q = `
     SELECT
       u.id, u.nome, u.email,
@@ -112,22 +147,30 @@ async function pickInternalBrokerByArea(estado: string, cidade: string, excludeI
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = false
-      AND COALESCE(u.tipo_corretor, 'Externo') = 'Interno'
+      AND u.tipo_corretor = 'Interno'
       AND caa.estado_fk = $1
       AND caa.cidade_fk = $2
       AND (CASE WHEN array_length($3::uuid[], 1) > 0 THEN u.id != ALL($3::uuid[]) ELSE true END)
     GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
     ORDER BY 
-      COALESCE(cs.nivel, 0) DESC,
-      COALESCE(cs.xp_total, 0) DESC,
       COUNT(a.id) ASC, 
       MAX(a.created_at) ASC NULLS FIRST, 
+      COALESCE(cs.nivel, 0) DESC,
+      COALESCE(cs.xp_total, 0) DESC,
       u.created_at ASC
     LIMIT 1
   `
   const r = await runner.query(q, [estado, cidade, excludeIds || []])
-  if (r.rows.length === 0) return null
+  console.log(`🔍 [pickInternalBrokerByArea] INTERNAL - Resultado: ${r.rows.length} corretor(es) encontrado(s)`);
+
+  if (r.rows.length === 0) {
+    console.log(`❌ [pickInternalBrokerByArea] INTERNAL - NENHUM corretor interno encontrado para ${cidade}/${estado}`);
+    return null
+  }
+
   const row = r.rows[0]
+  console.log(`✅ [pickInternalBrokerByArea] INTERNAL - Corretor selecionado: ${row.nome} (${row.id})`);
+
   return {
     id: row.id,
     nome: row.nome,
@@ -137,8 +180,12 @@ async function pickInternalBrokerByArea(estado: string, cidade: string, excludeI
 }
 
 async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string, cidade?: string, runner: any = pool): Promise<RoutedBroker | null> {
+  console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA - Buscando plantonista para ${cidade}/${estado}`);
+  console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA - excludeIds:`, excludeIds);
+
   // 1. Tentar Plantonista com Match de Área (Prioridade)
   if (estado && cidade) {
+    console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA - Tentando com área específica: ${cidade}/${estado}`);
     const qLocal = `
       SELECT
         u.id, u.nome, u.email,
@@ -161,16 +208,19 @@ async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string,
         AND (CASE WHEN array_length($3::uuid[], 1) > 0 THEN u.id != ALL($3::uuid[]) ELSE true END)
       GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
       ORDER BY 
-        COALESCE(cs.nivel, 0) DESC,
-        COALESCE(cs.xp_total, 0) DESC,
         COUNT(a.id) ASC, 
         MAX(a.created_at) ASC NULLS FIRST, 
+        COALESCE(cs.nivel, 0) DESC,
+        COALESCE(cs.xp_total, 0) DESC,
         u.created_at ASC
       LIMIT 1
     `
     const rLocal = await runner.query(qLocal, [estado, cidade, excludeIds || []])
+    console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA (área) - Resultado: ${rLocal.rows.length} plantonista(s) encontrado(s)`);
+
     if (rLocal.rows.length > 0) {
       const row = rLocal.rows[0]
+      console.log(`✅ [pickPlantonistaBroker] PLANTONISTA (área) - Selecionado: ${row.nome} (${row.id})`);
       return {
         id: row.id,
         nome: row.nome,
@@ -181,7 +231,7 @@ async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string,
   }
 
   // 2. Fallback: Qualquer Plantonista (Global)
-  // Plantonista também segue mérito, mas dentro do pool de plantonistas
+  console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA - Tentando plantonista global (sem área específica)`);
   const qGlobal = `
     SELECT
       u.id, u.nome, u.email,
@@ -197,20 +247,28 @@ async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string,
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = true
-      AND COALESCE(u.tipo_corretor, 'Interno') = 'Interno' -- Plantonista deve ser interno? User disse que sim.
+      AND u.tipo_corretor = 'Interno' -- Plantonista deve ser interno? User disse que sim.
       AND (CASE WHEN array_length($1::uuid[], 1) > 0 THEN u.id != ALL($1::uuid[]) ELSE true END)
     GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
     ORDER BY 
-      COALESCE(cs.nivel, 0) DESC,
-      COALESCE(cs.xp_total, 0) DESC,
       COUNT(a.id) ASC, 
       MAX(a.created_at) ASC NULLS FIRST, 
+      COALESCE(cs.nivel, 0) DESC,
+      COALESCE(cs.xp_total, 0) DESC,
       u.created_at ASC
     LIMIT 1
   `
   const rGlobal = await runner.query(qGlobal, [excludeIds || []])
-  if (rGlobal.rows.length === 0) return null
+  console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA (global) - Resultado: ${rGlobal.rows.length} plantonista(s) encontrado(s)`);
+
+  if (rGlobal.rows.length === 0) {
+    console.log(`❌ [pickPlantonistaBroker] PLANTONISTA - NENHUM plantonista encontrado`);
+    return null
+  }
+
   const row = rGlobal.rows[0]
+  console.log(`✅ [pickPlantonistaBroker] PLANTONISTA (global) - Selecionado: ${row.nome} (${row.id})`);
+
   return {
     id: row.id,
     nome: row.nome,
@@ -228,6 +286,7 @@ export async function routeProspectAndNotify(
     dbClient?: any; // Permite passar um cliente de transação ativa para evitar deadlock
   }
 ): Promise<{ success: boolean; reason?: string }> {
+  debugLog(`Starting routing for prospect ${prospectId}`)
   const runner = options?.dbClient || pool;
 
   // Buscar dados do prospect com imóvel e cliente (para roteamento e email)
@@ -302,7 +361,11 @@ export async function routeProspectAndNotify(
 
   const estado = String(p.estado_fk || '').trim()
   const cidade = String(p.cidade_fk || '').trim()
-  if (!estado || !cidade) return { success: false, reason: 'Imóvel sem estado/cidade' }
+  debugLog(`Location: ${cidade}/${estado}`)
+  if (!estado || !cidade) {
+    debugLog(`Failed: Imóvel sem estado/cidade`)
+    return { success: false, reason: 'Imóvel sem estado/cidade' }
+  }
 
   // REGRA: se o imóvel tiver corretor_fk definido (captação), o lead vai direto para ele.
   let broker: RoutedBroker | null = null
@@ -327,9 +390,21 @@ export async function routeProspectAndNotify(
 
   // 1. Tentar por Área (External) - SE targetTier for External (ou padrão)
   const targetTier = options?.targetTier || 'External'; // 'External' | 'Internal' | 'Plantonista'
+  console.log(`\n🎯 [routeProspectAndNotify] ========== INICIANDO ROTEAMENTO ==========`);
+  console.log(`🎯 [routeProspectAndNotify] Prospect ID: ${prospectId}`);
+  console.log(`🎯 [routeProspectAndNotify] Localização: ${cidade}/${estado}`);
+  console.log(`🎯 [routeProspectAndNotify] Target Tier: ${targetTier}`);
+  console.log(`🎯 [routeProspectAndNotify] Force Fallback: ${options?.forceFallback || false}`);
+  console.log(`🎯 [routeProspectAndNotify] Exclude IDs: ${excludeIds.length} corretor(es) excluído(s)`);
 
   if (!broker && targetTier === 'External' && !options?.forceFallback) {
+    console.log(`\n🔄 [routeProspectAndNotify] TIER 1: Tentando EXTERNAL...`);
     broker = await pickBrokerByArea(estado, cidade, excludeIds, runner)
+    if (broker) {
+      console.log(`✅ [routeProspectAndNotify] TIER 1: EXTERNAL encontrado - ${broker.nome}`);
+    } else {
+      console.log(`⚠️ [routeProspectAndNotify] TIER 1: EXTERNAL não encontrado - passando para INTERNAL`);
+    }
   }
 
   // 2. Tentar Interno (Tier 2) - Se targetTier for Internal OU se External falhou
@@ -339,16 +414,38 @@ export async function routeProspectAndNotify(
   if (!broker && (targetTier === 'External' || targetTier === 'Internal')) {
     // Só tenta interno se não estivermos "forçando" plantonista via forceFallback
     if (!options?.forceFallback) {
+      console.log(`\n🔄 [routeProspectAndNotify] TIER 2: Tentando INTERNAL...`);
       broker = await pickInternalBrokerByArea(estado, cidade, excludeIds, runner)
+      if (broker) {
+        console.log(`✅ [routeProspectAndNotify] TIER 2: INTERNAL encontrado - ${broker.nome}`);
+      } else {
+        console.log(`⚠️ [routeProspectAndNotify] TIER 2: INTERNAL não encontrado - passando para PLANTONISTA`);
+      }
     }
   }
 
   // 3. Tentar Plantonista
   if (!broker) {
+    console.log(`\n🔄 [routeProspectAndNotify] TIER 3: Tentando PLANTONISTA...`);
     broker = await pickPlantonistaBroker(excludeIds, estado, cidade, runner)
+    if (broker) {
+      console.log(`✅ [routeProspectAndNotify] TIER 3: PLANTONISTA encontrado - ${broker.nome}`);
+    } else {
+      console.log(`❌ [routeProspectAndNotify] TIER 3: PLANTONISTA não encontrado - FALHA TOTAL`);
+    }
   }
 
-  if (!broker) return { success: false, reason: 'Nenhum corretor elegível (sem área e sem plantonista)' }
+  if (!broker) {
+    debugLog(`Failed: No broker found`)
+    console.log(`\n❌ [routeProspectAndNotify] ========== ROTEAMENTO FALHOU ==========\n`);
+    return { success: false, reason: 'Nenhum corretor elegível (sem área e sem plantonista)' }
+  }
+
+  debugLog(`Broker selected: ${broker.nome} (${broker.id})`)
+
+  console.log(`\n✅ [routeProspectAndNotify] ========== ROTEAMENTO CONCLUÍDO ==========`);
+  console.log(`✅ [routeProspectAndNotify] Corretor selecionado: ${broker.nome} (${broker.id})`);
+  console.log(`✅ [routeProspectAndNotify] Motivo: ${JSON.stringify(broker.motivo)}\n`);
 
 
   // Criar atribuição com SLA (minutos configurável em parametros)
@@ -415,11 +512,13 @@ export async function routeProspectAndNotify(
     await runner.query(
       `
       INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em, data_aceite)
-      VALUES ($1, $2::uuid, $3, $4::jsonb, $5, CASE WHEN $3 = 'aceito' THEN NOW() ELSE NULL END)
+      VALUES ($1::integer, $2::uuid, $3::text, $4::jsonb, $5::timestamp with time zone, CASE WHEN $3::text = 'aceito' THEN NOW() ELSE NULL END)
       `,
       [prospectId, broker.id, status, JSON.stringify(broker.motivo || {}), expiraEm]
     )
-  } catch (e) {
+    debugLog(`Success: Assignment created`)
+  } catch (e: any) {
+    debugLog(`Failed: Error creating assignment: ${e.message}`)
     return { success: false, reason: 'Falha ao criar atribuição' }
   }
 
@@ -500,6 +599,8 @@ export async function routeProspectAndNotify(
         cpf: p.proprietario_cpf
       });
 
+      const negocioFechadoUrl = buildNegocioFechadoUrl(prospectId, p.imovel_id)
+
       // Lógica de condicional do assunto (solicitação do usuário)
       // Se for plantonista (ou auto-aceite), remove msg de "aceite necessário"
       const aceiteMsg = (status === 'aceito') ? '' : '(aceite necessário)'
@@ -544,10 +645,10 @@ export async function routeProspectAndNotify(
         longitude: p.longitude !== null && p.longitude !== undefined ? String(p.longitude) : '-',
         // Bloco 2: Proprietário
         proprietario_nome: toStr(p.proprietario_nome),
-        proprietario_cpf: toStr(p.proprietario_cpf),
-        proprietario_telefone: toStr(p.proprietario_telefone),
-        proprietario_email: toStr(p.proprietario_email),
-        proprietario_endereco_completo: proprietarioEnderecoCompleto || '-',
+        proprietario_cpf: status === 'aceito' ? toStr(p.proprietario_cpf) : '-',
+        proprietario_telefone: status === 'aceito' ? toStr(p.proprietario_telefone) : '-',
+        proprietario_email: status === 'aceito' ? toStr(p.proprietario_email) : '-',
+        proprietario_endereco_completo: status === 'aceito' ? (proprietarioEnderecoCompleto || '-') : '-',
         // Bloco 3: Cliente (Tenho interesse)
         cliente_nome: toStr(p.cliente_nome),
         cliente_telefone: toStr(p.cliente_telefone),
@@ -555,7 +656,8 @@ export async function routeProspectAndNotify(
         data_interesse: formatDateTime(p.data_interesse),
         preferencia_contato: toStr(p.preferencia_contato || 'Não informado'),
         mensagem: formatMultiLine(p.mensagem || 'Sem mensagem'),
-        painel_url: painelUrl
+        painel_url: painelUrl,
+        negocio_fechado_url: negocioFechadoUrl
       })
     }
 
@@ -566,7 +668,7 @@ export async function routeProspectAndNotify(
     // (No caso manual, isso é feito em accept/route.ts)
     // ---------------------------------------------------------------------
     if (status === 'aceito' && p.cliente_email) {
-      console.log(`[prospectRouter] 📧 Enviando notificação para CLIENTE (Auto-Aceite) - ${p.cliente_email}`);
+      console.log(`[prospectRouter] 📧 Enviando notificação para CLIENTE(Auto - Aceite) - ${p.cliente_email}`);
       try {
         // Precisamos buscar dados extras do corretor (foto, telefone, creci) que não temos completos em 'broker' (RoutedBroker)
         // RoutedBroker tem apenas ID, Nome, Email.
@@ -589,7 +691,8 @@ export async function routeProspectAndNotify(
             // Dados enriquecidos do template
             preco: formatCurrency(p.preco),
             endereco_completo: imovelEnderecoCompleto || '-',
-            cidade_estado: `${toStr(p.cidade_fk)} / ${toStr(p.estado_fk)}`,
+            cidade_estado: `${toStr(p.cidade_fk)
+              } / ${toStr(p.estado_fk)}`,
             area_total: p.area_total !== null && p.area_total !== undefined ? `${p.area_total} m²` : '-',
             quartos: p.quartos !== null && p.quartos !== undefined ? String(p.quartos) : '-',
             suites: p.suites !== null && p.suites !== undefined ? String(p.suites) : '-',

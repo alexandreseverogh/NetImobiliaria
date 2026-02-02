@@ -1,12 +1,4 @@
-const { Pool } = require('pg');
-
-const pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    database: process.env.DB_NAME || 'net_imobiliaria',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'Roberto@2007',
-});
+const { pool } = require('./utils/db.js');
 
 const htmlContent = `<!DOCTYPE html>
 <html>
@@ -95,17 +87,17 @@ Mensagem: {{mensagem}}
 `;
 
 const variables = JSON.stringify([
-    "codigo", "finalidade", "preco", "endereco_completo", "cidade", "estado",
-    "area_total", "quartos", "suites", "garagens",
-    "proprietario_nome", "proprietario_cpf", "proprietario_telefone", "proprietario_email", "proprietario_endereco_completo",
-    "cliente_nome", "cliente_telefone", "cliente_email", "data_interesse", "preferencia_contato", "mensagem"
+  "codigo", "finalidade", "preco", "endereco_completo", "cidade", "estado",
+  "area_total", "quartos", "suites", "garagens",
+  "proprietario_nome", "proprietario_cpf", "proprietario_telefone", "proprietario_email", "proprietario_endereco_completo",
+  "cliente_nome", "cliente_telefone", "cliente_email", "data_interesse", "preferencia_contato", "mensagem"
 ]);
 
 async function main() {
-    try {
-        console.log('Atualizando template imovel-interesse...');
+  try {
+    console.log('Atualizando template imovel-interesse...');
 
-        await pool.query(`
+    await pool.query(`
       INSERT INTO email_templates (name, subject, html_content, text_content, variables, is_active)
       VALUES ($1, $2, $3, $4, $5::jsonb, true)
       ON CONFLICT (name) DO UPDATE SET
@@ -117,13 +109,13 @@ async function main() {
         updated_at = CURRENT_TIMESTAMP
     `, ['imovel-interesse', 'Novo Interesse em Imóvel - {{codigo}}', htmlContent, textContent, variables]);
 
-        console.log('✅ Template atualizado com sucesso.');
+    console.log('✅ Template atualizado com sucesso.');
 
-    } catch (err) {
-        console.error('❌ Erro ao atualizar template:', err);
-    } finally {
-        pool.end();
-    }
+  } catch (err) {
+    console.error('❌ Erro ao atualizar template:', err);
+  } finally {
+    pool.end();
+  }
 }
 
 main();

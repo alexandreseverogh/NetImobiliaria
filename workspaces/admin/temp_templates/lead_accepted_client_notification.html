@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; color: #333; font-size: 14px; line-height: 1.5; }
+        .container { max-width: 760px; margin: 0 auto; background-color: white; padding: 0; }
+        
+        /* HEADER (Dark Theme like System Email) */
+        .header { background: linear-gradient(135deg, #0f172a 0%, #111827 100%); padding: 26px; text-align: left; color: white; }
+        .header-brand { font-size: 14px; opacity: 0.9; }
+        .header-title { margin: 8px 0 0 0; font-size: 22px; font-weight: 800; }
+        
+        .content { padding: 26px; }
+        .section { margin-bottom: 25px; }
+        .section-title { font-size: 12px; color: #6b7280; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 15px; }
+        .row { margin-bottom: 8px; }
+        .label { font-weight: bold; color: #555; }
+        
+        .footer { border-top: 1px solid #ddd; padding-top: 20px; text-align: center; font-size: 12px; color: #777; margin-top: 30px; }
+        
+        /* Broker Highlights */
+        .broker-box { background: #f0fff4; border: 1px solid #c6f6d5; padding: 20px; border-radius: 8px; display: flex; align-items: center; }
+        .broker-photo { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; margin-right: 20px; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .broker-details h3 { margin: 0 0 5px 0; font-size: 18px; color: #2d3748; }
+        .broker-contact { font-size: 14px; color: #4a5568; margin-bottom: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-brand">Net Imobiliária</div>
+            <h1 class="header-title">Atendimento Iniciado</h1>
+            <div style="margin-top: 10px; font-size: 14px; opacity: 0.95;">
+                Olá, <strong>{{cliente_nome}}</strong>. Seguem os dados do seu atendimento.
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 1. Imóvel -->
+            <div class="section">
+                <div class="section-title">Imóvel</div>
+                <div class="row"><span class="label">Imóvel:</span> {{imovel_titulo}}</div>
+                <div class="row"><span class="label">Código:</span> {{imovel_codigo}}</div>
+                <div class="row"><span class="label">Valor:</span> {{preco}}</div>
+                <div class="row"><span class="label">Endereço:</span> {{endereco_completo}}</div>
+                <div class="row"><span class="label">Cidade/UF:</span> {{cidade_estado}}</div>
+                <div class="row"><span class="label">Detalhes:</span> Área: {{area_total}} · Quartos: {{quartos}} · Suítes: {{suites}} · Vagas: {{vagas_garagem}}</div>
+            </div>
+
+            <!-- 2. Seus Dados (Cliente)</div>
+                <div class="row"><span class="label">Nome:</span> {{cliente_nome}}</div>
+                <div class="row"><span class="label">Data do interesse:</span> {{data_interesse}}</div>
+                <div class="row"><span class="label">Preferência:</span> {{preferencia_contato}}</div>
+                <div class="row"><span class="label">Mensagem:</span> {{mensagem}}</div>
+            </div>
+
+            <!-- 4. Corretor Responsável -->
+            <div class="section">
+                <div class="section-title">Corretor Responsável</div>
+                <div class="broker-box">
+                    <img src="cid:broker_photo" alt="Foto" class="broker-photo" onerror="this.src='https://ui-avatars.com/api/?name={{corretor_nome}}&background=random'">
+                    <div class="broker-details">
+                        <h3>{{corretor_nome}}</h3>
+                        <div class="broker-contact">📞 {{corretor_telefone}}</div>
+                        <div class="broker-contact">📧 {{corretor_email}}</div>
+                        <div class="broker-contact">💳 CRECI: {{corretor_creci}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p>Este e-mail foi enviado automaticamente pelo sistema NetImobiliária.</p>
+                <p>&copy; {{year}}</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

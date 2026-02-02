@@ -256,7 +256,7 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
     }
 
     if (filtros.bairro) {
-      query += ` AND bairro ILIKE $${paramIndex}`
+      query += ` AND ic.bairro ILIKE $${paramIndex}`
       params.push(`%${filtros.bairro}%`)
       paramIndex++
     }
@@ -269,49 +269,49 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
     }
 
     if (filtros.estado_fk) {
-      query += ` AND estado_fk = $${paramIndex}`
+      query += ` AND i.estado_fk = $${paramIndex}`
       params.push(filtros.estado_fk)
       paramIndex++
     }
 
     if (filtros.estado_sigla) {
-      query += ` AND estado_fk = $${paramIndex}`
+      query += ` AND i.estado_fk = $${paramIndex}`
       params.push(filtros.estado_sigla)
       paramIndex++
     }
 
     if (filtros.corretor_id) {
-      query += ` AND ic.corretor_fk = $${paramIndex}`
+      query += ` AND i.corretor_fk = $${paramIndex}`
       params.push(filtros.corretor_id)
       paramIndex++
     }
 
     if (filtros.cidade_fk) {
-      query += ` AND cidade_fk = $${paramIndex}`
+      query += ` AND i.cidade_fk = $${paramIndex}`
       params.push(filtros.cidade_fk)
       paramIndex++
     }
 
     if (filtros.cidade_nome) {
-      query += ` AND cidade_fk = $${paramIndex}`
-      params.push(filtros.cidade_nome)
+      query += ` AND i.cidade_fk ILIKE $${paramIndex}`
+      params.push(`%${filtros.cidade_nome}%`)
       paramIndex++
     }
 
     if (filtros.tipo_fk) {
-      query += ` AND tipo_fk = $${paramIndex}`
+      query += ` AND i.tipo_fk = $${paramIndex}`
       params.push(filtros.tipo_fk)
       paramIndex++
     }
 
     if (filtros.finalidade_fk) {
-      query += ` AND finalidade_fk = $${paramIndex}`
+      query += ` AND i.finalidade_fk = $${paramIndex}`
       params.push(filtros.finalidade_fk)
       paramIndex++
     }
 
     if (filtros.status_fk) {
-      query += ` AND status_fk = $${paramIndex}`
+      query += ` AND i.status_fk = $${paramIndex}`
       params.push(filtros.status_fk)
       paramIndex++
     }

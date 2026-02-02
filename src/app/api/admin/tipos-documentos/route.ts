@@ -3,11 +3,12 @@ import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionM
 import { auditLogger } from '@/lib/utils/auditLogger'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
-import { 
-  findTiposDocumentos, 
+import { safeParseInt } from '@/lib/utils/safeParser'
+import {
+  findTiposDocumentos,
   findTiposDocumentosPaginated,
-  createTipoDocumento, 
-  CreateTipoDocumentoData 
+  createTipoDocumento,
+  CreateTipoDocumentoData
 } from '@/lib/database/tipo-documentos'
 
 // GET - Listar tipos de documentos
@@ -16,14 +17,14 @@ export async function GET(request: NextRequest) {
     // Verificação de permissão usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck
-    
+
     console.log('🔍 API: Carregando tipos de documentos...')
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
+    const page = safeParseInt(searchParams.get('page'), 1, 1)
+    const limit = safeParseInt(searchParams.get('limit'), 10, 1, 100)
     const search = searchParams.get('search') || ''
-    
+
     // Se não há parâmetros de paginação, usar a função antiga para compatibilidade
     if (!searchParams.has('page') && !searchParams.has('limit')) {
       const tiposDocumentos = await findTiposDocumentos()
@@ -37,10 +38,10 @@ export async function GET(request: NextRequest) {
         hasPrev: false
       })
     }
-    
+
     // Usar paginação
     const result = await findTiposDocumentosPaginated(page, limit, search)
-    
+
     console.log('✅ API: Tipos de documentos carregados:', result.tiposDocumentos.length)
 
     return NextResponse.json({
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
     try {
       const { ipAddress, userAgent } = extractRequestData(request)
       const userId = extractUserIdFromToken(request)
-      
+
       await logAuditEvent({
         userId,
         action: 'CREATE',
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Erro ao criar tipo de documento:', error)
-    
+
     if (error instanceof Error) {
       if (error.message.includes('Já existe um tipo de documento')) {
         return NextResponse.json(
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
         )
       }
     }
-    
+
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

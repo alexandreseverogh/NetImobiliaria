@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseInt } from '@/lib/utils/safeParser';
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware';
 import pool from '@/lib/database/connection';
 
@@ -6,13 +7,13 @@ import pool from '@/lib/database/connection';
 export async function GET(request: NextRequest) {
   try {
     // Verificar permissões via middleware unificado
-  const permissionCheck = await unifiedPermissionMiddleware(request);
-  if (permissionCheck) return permissionCheck;
+    const permissionCheck = await unifiedPermissionMiddleware(request);
+    if (permissionCheck) return permissionCheck;
 
     // Obter parâmetros de consulta
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const page = safeParseInt(searchParams.get('page'), 1, 1);
+    const limit = safeParseInt(searchParams.get('limit'), 20, 1, 100);
     const action = searchParams.get('action') || '';
     const username = searchParams.get('username') || '';
     const startDate = searchParams.get('startDate') || '';
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     const client = await pool.connect();
-    
+
     try {
       // Construir query base
       let whereConditions = [];
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
         paramIndex++;
       }
 
-      const whereClause = whereConditions.length > 0 
+      const whereClause = whereConditions.length > 0
         ? `WHERE ${whereConditions.join(' AND ')}`
         : '';
 
@@ -133,11 +134,11 @@ export async function GET(request: NextRequest) {
     } finally {
       client.release();
     }
-    
+
   } catch (error) {
     console.error('Erro ao buscar logs arquivados:', error);
     return NextResponse.json(
-      { 
+      {
         message: 'Erro interno do servidor',
         error: process.env.NODE_ENV === 'development' && error instanceof Error ? error.message : undefined
       },

@@ -124,6 +124,7 @@ export default function CorretorLoginModal({
             id: u.id,
             nome: u.nome,
             email: u.email,
+            userType: 'corretor',
             telefone: u.telefone || undefined,
             cpf: u.cpf || undefined,
             creci: u.creci || undefined,

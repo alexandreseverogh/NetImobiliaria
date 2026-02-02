@@ -1,0 +1,446 @@
+=== Template: password_reset ===
+<html><body><h2>Net Imobiliaria</h2><h3>Redefinição de Senha</h3><p>Olá,</p><p>Você solicitou a redefinição da senha da sua conta no sistema Net Imobiliária.</p><p>Clique no botao abaixo para redefinir sua senha:</p><div style="text-align: center;"><a href="{{reset_link}}" style="display: inline-block; background-color: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0;">Redefinir Senha</a></div><div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; margin: 20px 0; color: #721c24;"><strong>Importante:</strong><ul><li>Este link expira em {{expiration_hours}} horas</li><li>Use este link apenas uma vez</li><li>Se voce nao solicitou esta redefinicao, ignore este email</li></ul></div><p>Se o botao nao funcionar, copie e cole o link abaixo no seu navegador:</p><p style="word-break: break-all; color: #007bff;">{{reset_link}}</p><div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center;"><p>Este e um email automatico, nao responda.</p><p>Â© 2024 Net Imobiliaria. Todos os direitos reservados.</p></div></body></html>
+
+=== Template: 2fa_verification ===
+<html><body><h2>Net Imobiliária</h2><h3>Código de Verificação</h3><p>Olá,</p><p>Você solicitou um código de verificação para acessar sua conta no sistema Net Imobiliaria.</p><div style="background-color: #f8f9fa; border: 2px dashed #007bff; padding: 20px; text-align: center; margin: 20px 0;"><p><strong>Seu codigo de verificacao e:</strong></p><div style="font-size: 32px; font-weight: bold; color: #007bff; letter-spacing: 5px; font-family: monospace;">{{code}}</div></div><div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 20px 0; color: #856404;"><strong>Importante:</strong><ul><li>Este codigo expira em {{expiration_minutes}} minutos</li><li>Use este codigo apenas uma vez</li><li>Nao compartilhe este codigo com ninguém</li></ul></div><p>Se você nao solicitou este código, ignore este email ou entre em contato conosco.</p><div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center;"><p>Este e um email automático, nao responda.</p><p>Â© 2024 Net Imobiliária. Todos os direitos reservados.</p></div></body></html>
+
+=== Template: 2fa-code ===
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Código de Verificação</title>
+</head>
+<body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #2563eb;">🏠 Net Imobiliária</h1>
+            <h2>Código de Verificação</h2>
+        </div>
+        
+        <p>Olá!</p>
+        <p>Você solicitou um código de verificação para acessar sua conta.</p>
+        
+        <div style="background-color: #f3f4f6; border: 2px solid #d1d5db; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+            <p style="margin: 0; color: #6b7280;">Seu código de verificação é:</p>
+            <div style="font-size: 32px; font-weight: bold; color: #1f2937; letter-spacing: 5px; margin-top: 10px;">{{code}}</div>
+        </div>
+        
+        <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 5px; padding: 15px; margin: 20px 0; color: #92400e;">
+            <strong>⚠️ Importante:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Este código expira em <strong>10 minutos</strong></li>
+                <li>Não compartilhe este código com ninguém</li>
+            </ul>
+        </div>
+        
+        <p>Se você não solicitou este código, ignore este email.</p>
+        
+        <div style="text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px;">
+            <p>© 2024 Net Imobiliária</p>
+        </div>
+    </div>
+</body>
+</html>
+
+=== Template: lead-expirado ===
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Lead Expirado</title>
+</head>
+<body style="font-family: sans-serif; background-color: #f4f4f4; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; border-left: 6px solid #ef4444;">
+    <h2 style="color: #ef4444; margin-top: 0;">Lead Expirado</h2>
+    <p>Olá <strong>{{nome_corretor}}</strong>,</p>
+    <p>O tempo de SLA para aceite do lead do imóvel <strong>{{codigo_imovel}}</strong> expirou.</p>
+    
+    <div style="background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 20px;">
+      SLA {{sla_minutos}} min
+    </div>
+
+    <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; background-color: #f9fafb;">
+      <h3 style="margin-top: 0; color: #374151; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">Dados do Imóvel</h3>
+      <p style="margin: 10px 0; font-weight: bold; font-size: 18px; color: #111827;">{{imovel_titulo}}</p>
+      <p style="margin: 5px 0; color: #4b5563;"><strong>Código:</strong> {{imovel_codigo}}</p>
+      <p style="margin: 5px 0; color: #4b5563;"><strong>Finalidade:</strong> {{finalidade_nome}} · <strong>Tipo:</strong> {{tipo_nome}} · <strong>Status:</strong> {{status_nome}}</p>
+      <p style="margin: 15px 0; font-size: 20px; color: #059669; font-weight: bold;">{{imovel_preco}}</p>
+      <p style="margin: 10px 0; color: #4b5563;"><strong>Descrição:</strong> {{imovel_descricao}}</p>
+      <p style="margin: 5px 0; color: #4b5563;"><strong>Endereço:</strong> {{imovel_endereco}}</p>
+      <p style="margin: 5px 0; color: #4b5563;"><strong>Cidade/UF:</strong> {{imovel_cidade_uf}}</p>
+      <p style="margin: 5px 0; color: #4b5563;"><strong>Detalhes:</strong> {{imovel_detalhes}}</p>
+    </div>
+
+    <p style="margin-top: 20px;">O lead foi redistribuído automaticamente para outro corretor.</p>
+    <p style="color: #666; font-size: 12px; margin-top: 20px;">Fique atento ao painel para não perder novas oportunidades.</p>
+  </div>
+</body>
+</html>
+
+=== Template: imovel-interesse ===
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novo interesse em imóvel</title>
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4;">
+  <div style="max-width: 760px; margin: 0 auto; background-color: white; padding: 0;">
+    <div style="background: linear-gradient(135deg, #0f766e 0%, #115e59 100%); padding: 26px; text-align: left; color: white;">
+      <div style="font-size: 14px; opacity: 0.9;">Net Imobiliária</div>
+      <h1 style="margin: 8px 0 0 0; font-size: 22px; font-weight: 800;">Novo interesse registrado</h1>
+      <div style="margin-top: 10px; font-size: 14px; opacity: 0.95;">Cliente demonstrou interesse via site</div>
+    </div>
+
+    <div style="padding: 26px;">
+      <p style="margin: 0 0 12px 0; color: #111827; font-size: 16px;"><strong>Olá!</strong></p>
+      <p style="margin: 0 0 18px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        Um novo lead foi gerado através da página pública do imóvel. Abaixo estão os detalhes completos.
+      </p>
+
+      <!-- BLOCO 1: IMÓVEL -->
+      <div style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 16px 0;">
+        <div style="font-size: 12px; color: #6b7280; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Imóvel</div>
+        <div style="margin-top: 6px; color: #374151; font-size: 14px;">Código: <strong>{{codigo}}</strong></div>
+        <div style="margin-top: 6px; color: #374151; font-size: 14px;">Finalidade: <strong>{{finalidade}}</strong></div>
+        <div style="margin-top: 10px; color: #111827; font-size: 18px; font-weight: 900;">{{preco}}</div>
+
+        <div style="margin-top: 12px; font-size: 13px; color: #111827; line-height: 1.5;">
+          <div style="margin-top: 8px;"><strong>Endereço:</strong> {{endereco_completo}}</div>
+          <div style="margin-top: 6px;"><strong>Cidade/UF:</strong> {{cidade}} / {{estado}}</div>
+          <div style="margin-top: 6px;"><strong>Área total:</strong> {{area_total}}</div>
+          <div style="margin-top: 6px;"><strong>Quartos:</strong> {{quartos}} · <strong>Suítes:</strong> {{suites}} · <strong>Vagas:</strong> {{garagens}}</div>
+        </div>
+      </div>
+
+      <!-- BLOCO 2: PROPRIETÁRIO -->
+      <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 16px; margin: 16px 0;">
+        <div style="font-size: 12px; color: #9a3412; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Proprietário</div>
+        <div style="margin-top: 8px; color: #111827; font-size: 15px;"><strong>{{proprietario_nome}}</strong></div>
+        <div style="margin-top: 6px; color: #111827; font-size: 13px;">CPF: {{proprietario_cpf}}</div>
+        <div style="margin-top: 6px; color: #111827; font-size: 13px;">Telefone: {{proprietario_telefone}}</div>
+        <div style="margin-top: 6px; color: #111827; font-size: 13px;">E-mail: {{proprietario_email}}</div>
+        <div style="margin-top: 8px; color: #111827; font-size: 13px;"><strong>Endereço:</strong> {{proprietario_endereco_completo}}</div>
+      </div>
+
+      <!-- BLOCO 3: CLIENTE (Tenho interesse) -->
+      <div style="background: #ecfeff; border: 1px solid #cffafe; border-radius: 12px; padding: 16px; margin: 16px 0;">
+        <div style="font-size: 12px; color: #0f766e; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Cliente (Tenho interesse)</div>
+        <div style="margin-top: 8px; color: #0f172a; font-size: 15px;"><strong>{{cliente_nome}}</strong></div>
+        <div style="margin-top: 6px; color: #0f172a; font-size: 14px;">{{cliente_telefone}}</div>
+        <div style="margin-top: 6px; color: #0f172a; font-size: 14px;">{{cliente_email}}</div>
+        <div style="margin-top: 10px; color: #0f172a; font-size: 13px;">Data do interesse: <strong>{{data_interesse}}</strong></div>
+        <div style="margin-top: 8px; color: #0f172a; font-size: 13px;">Preferência de contato: <strong>{{preferencia_contato}}</strong></div>
+        <div style="margin-top: 8px; color: #0f172a; font-size: 13px;">Mensagem: <em style="white-space: pre-wrap;">{{mensagem}}</em></div>
+      </div>
+
+      <div style="border-top: 1px solid #e5e7eb; margin-top: 18px; padding-top: 14px; color: #6b7280; font-size: 12px;">
+        <div>Este é um e-mail automático do sistema.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
+=== Template: lead_accepted_owner_notification ===
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: "Roboto", sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; color: #333; }
+        .container { max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background-color: #1a365d; color: #ffffff; padding: 20px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
+        .content { padding: 30px; }
+        .section { margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #eee; }
+        .section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .section-title { font-size: 18px; color: #2c5282; font-weight: 600; margin-bottom: 15px; border-left: 4px solid #4299e1; padding-left: 10px; }
+        
+        /* Broker Card */
+        .broker-card { display: flex; align-items: center; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .broker-photo { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-right: 20px; }
+        .broker-info h3 { margin: 0 0 5px 0; font-size: 18px; color: #2d3748; }
+        .broker-detail { font-size: 14px; color: #718096; margin: 2px 0; display: flex; align-items: center; }
+        
+        /* Property Card */
+        .property-card { background: #fff; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .property-title { font-weight: 700; color: #2d3748; margin-bottom: 5px; }
+        .property-code { font-size: 13px; color: #718096; background: #edf2f7; padding: 2px 8px; border-radius: 4px; display: inline-block; }
+        
+        /* CTA Button */
+        .btn-container { text-align: center; margin-top: 30px; }
+        .btn { display: inline-block; padding: 12px 24px; background-color: #3182ce; color: #ffffff !important; text-decoration: none; border-radius: 6px; font-weight: 500; transition: background-color 0.2s; }
+        .btn:hover { background-color: #2c5282; }
+        
+        .footer { background-color: #f7fafc; padding: 20px; text-align: center; font-size: 12px; color: #a0aec0; border-top: 1px solid #edf2f7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Lead em Atendimento</h1>
+        </div>
+        <div class="content">
+            <p>Olá, <strong>{{proprietario_nome}}</strong>!</p>
+            <p>Temos uma ótima notícia! Um interessado em seu imóvel acaba de iniciar atendimento com um de nossos especialistas.</p>
+
+            <!-- Dados do Imóvel -->
+            <div class="section">
+                <div class="section-title">Imóvel de Interesse</div>
+                <div class="property-card">
+                    <div class="property-title">{{imovel_titulo}}</div>
+                    <div class="property-code">Cód: {{imovel_codigo}}</div>
+                </div>
+            </div>
+
+            <!-- Dados do Corretor -->
+            <div class="section">
+                <div class="section-title">Corretor Responsável</div>
+                <div class="broker-card">
+                    <!-- A imagem usa CID para anexo inline -->
+                    <img src="cid:broker_photo" alt="Foto do Corretor" class="broker-photo" onerror="this.src='https://ui-avatars.com/api/?name={{corretor_nome}}&background=random'">
+                    <div class="broker-info">
+                        <h3>{{corretor_nome}}</h3>
+                        <div class="broker-detail">📞 {{corretor_telefone}}</div>
+                        <div class="broker-detail">📧 {{corretor_email}}</div>
+                        <div class="broker-detail">💳 CRECI: {{corretor_creci}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <p style="text-align: center; margin-top: 30px; font-size: 14px; color: #718096;">
+                O corretor entrará em contato com você em breve para alinhar os detalhes da negociação.
+            </p>
+        </div>
+        <div class="footer">
+            <p>&copy; {{year}} NetImobiliária. Todos os direitos reservados.</p>
+        </div>
+    </div>
+</body>
+</html>
+
+=== Template: novo-lead-corretor-imovel-fk ===
+<!DOCTYPE html><html><head>  <meta charset="UTF-8">  <meta name="viewport" content="width=device-width, initial-scale=1.0">  <title>Novo interesse em imóvel</title></head><body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4;">  <div style="max-width: 760px; margin: 0 auto; background-color: white; padding: 0;">    <div style="background: linear-gradient(135deg, #0f172a 0%, #111827 100%); padding: 26px; text-align: left; color: white;">      <div style="font-size: 14px; opacity: 0.9;">Net Imobiliária</div>      <h1 style="margin: 8px 0 0 0; font-size: 22px; font-weight: 800;">Novo interesse em imóvel</h1>      <div style="margin-top: 10px; font-size: 14px; opacity: 0.95;">Um cliente demonstrou interesse em um imóvel vinculado a você</div>    </div>    <div style="padding: 26px;">      <p style="margin: 0 0 12px 0; color: #111827; font-size: 16px;"><strong>Olá, {{corretor_nome}}!</strong></p>      <p style="margin: 0 0 18px 0; color: #374151; font-size: 15px; line-height: 1.6;">        Um cliente demonstrou interesse em um imóvel que já está associado ao seu perfil. Acesse o painel para ver os detalhes e iniciar o atendimento.      </p>      <!-- BLOCO 1: IMÓVEL (Steps 1 e 2) -->      <div style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 16px 0;">        <div style="font-size: 12px; color: #6b7280; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Imóvel (Dados Gerais + Localização)</div>        <div style="margin-top: 10px; color: #111827; font-size: 16px; font-weight: 800;">{{titulo}}</div>        <div style="margin-top: 6px; color: #374151; font-size: 14px;">Código: <strong>{{codigo}}</strong></div>        <div style="margin-top: 6px; color: #374151; font-size: 14px;">Finalidade: <strong>{{finalidade}}</strong> · Tipo: <strong>{{tipo}}</strong> · Status: <strong>{{status}}</strong></div>        <div style="margin-top: 10px; color: #111827; font-size: 18px; font-weight: 900;">{{preco}}</div>        <div style="margin-top: 12px; font-size: 13px; color: #111827; line-height: 1.5;">          <div><strong>Descrição:</strong> {{descricao}}</div>          <div style="margin-top: 8px;"><strong>Endereço:</strong> {{endereco_completo}}</div>          <div style="margin-top: 6px;"><strong>Cidade/UF:</strong> {{cidade}} / {{estado}}</div>          <div style="margin-top: 6px;"><strong>Condomínio:</strong> {{preco_condominio}} · <strong>IPTU:</strong> {{preco_iptu}} · <strong>Taxa extra:</strong> {{taxa_extra}}</div>          <div style="margin-top: 6px;"><strong>Área total:</strong> {{area_total}} · <strong>Área construída:</strong> {{area_construida}}</div>          <div style="margin-top: 6px;"><strong>Quartos:</strong> {{quartos}} · <strong>Banheiros:</strong> {{banheiros}} · <strong>Suítes:</strong> {{suites}}</div>          <div style="margin-top: 6px;"><strong>Vagas:</strong> {{vagas_garagem}} · <strong>Varanda:</strong> {{varanda}} · <strong>Andar:</strong> {{andar}} · <strong>Total de andares:</strong> {{total_andares}}</div>          <div style="margin-top: 6px;"><strong>Aceita permuta:</strong> {{aceita_permuta}} · <strong>Aceita financiamento:</strong> {{aceita_financiamento}}</div>        </div>      </div>      <!-- BLOCO 2: PROPRIETÁRIO -->      <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 16px; margin: 16px 0;">        <div style="font-size: 12px; color: #9a3412; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Proprietário</div>        <div style="margin-top: 8px; color: #111827; font-size: 15px;"><strong>{{proprietario_nome}}</strong></div>        <div style="margin-top: 6px; color: #111827; font-size: 13px;">CPF: {{proprietario_cpf}}</div>        <div style="margin-top: 6px; color: #111827; font-size: 13px;">Telefone: {{proprietario_telefone}}</div>        <div style="margin-top: 6px; color: #111827; font-size: 13px;">E-mail: {{proprietario_email}}</div>        <div style="margin-top: 8px; color: #111827; font-size: 13px;"><strong>Endereço:</strong> {{proprietario_endereco_completo}}</div>      </div>      <!-- BLOCO 3: CLIENTE (Tenho interesse) -->      <div style="background: #ecfeff; border: 1px solid #cffafe; border-radius: 12px; padding: 16px; margin: 16px 0;">        <div style="font-size: 12px; color: #0f766e; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Cliente (Tenho interesse)</div>        <div style="margin-top: 8px; color: #0f172a; font-size: 15px;"><strong>{{cliente_nome}}</strong></div>        <div style="margin-top: 6px; color: #0f172a; font-size: 14px;">{{cliente_telefone}}</div>        <div style="margin-top: 6px; color: #0f172a; font-size: 14px;">{{cliente_email}}</div>        <div style="margin-top: 10px; color: #0f172a; font-size: 13px;">Data do interesse: <strong>{{data_interesse}}</strong></div>        <div style="margin-top: 8px; color: #0f172a; font-size: 13px;">Preferência de contato: <strong>{{preferencia_contato}}</strong></div>        <div style="margin-top: 8px; color: #0f172a; font-size: 13px;">Mensagem: <em style="white-space: pre-wrap;">{{mensagem}}</em></div>      </div>      <div style="text-align: center; margin: 22px 0;">        <a href="{{painel_url}}"           style="display: inline-block; background: #111827; color: white; text-decoration: none; padding: 12px 18px; border-radius: 12px; font-weight: 900;">          Abrir painel        </a>      </div>      <div style="border-top: 1px solid #e5e7eb; margin-top: 18px; padding-top: 14px; color: #6b7280; font-size: 12px;">        <div>Este é um e-mail automático.</div>      </div>    </div>  </div></body></html>
+
+=== Template: lead_accepted_client_notification ===
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; color: #333; font-size: 14px; line-height: 1.5; }
+        .container { max-width: 760px; margin: 0 auto; background-color: white; padding: 0; }
+        
+        /* HEADER (Dark Theme like System Email) */
+        .header { background: linear-gradient(135deg, #0f172a 0%, #111827 100%); padding: 26px; text-align: left; color: white; }
+        .header-brand { font-size: 14px; opacity: 0.9; }
+        .header-title { margin: 8px 0 0 0; font-size: 22px; font-weight: 800; }
+        
+        .content { padding: 26px; }
+        .section { margin-bottom: 25px; }
+        .section-title { font-size: 12px; color: #6b7280; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 15px; }
+        .row { margin-bottom: 8px; }
+        .label { font-weight: bold; color: #555; }
+        
+        .footer { border-top: 1px solid #ddd; padding-top: 20px; text-align: center; font-size: 12px; color: #777; margin-top: 30px; }
+        
+        /* Broker Highlights */
+        .broker-box { background: #f0fff4; border: 1px solid #c6f6d5; padding: 20px; border-radius: 8px; display: flex; align-items: center; }
+        .broker-photo { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; margin-right: 20px; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .broker-details h3 { margin: 0 0 5px 0; font-size: 18px; color: #2d3748; }
+        .broker-contact { font-size: 14px; color: #4a5568; margin-bottom: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-brand">Net Imobiliária</div>
+            <h1 class="header-title">Atendimento Iniciado</h1>
+            <div style="margin-top: 10px; font-size: 14px; opacity: 0.95;">
+                Olá, <strong>{{cliente_nome}}</strong>. Seguem os dados do seu atendimento.
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 1. Imóvel -->
+            <div class="section">
+                <div class="section-title">Imóvel</div>
+                <div class="row"><span class="label">Imóvel:</span> {{imovel_titulo}}</div>
+                <div class="row"><span class="label">Código:</span> {{imovel_codigo}}</div>
+                <div class="row"><span class="label">Valor:</span> {{preco}}</div>
+                <div class="row"><span class="label">Endereço:</span> {{endereco_completo}}</div>
+                <div class="row"><span class="label">Cidade/UF:</span> {{cidade_estado}}</div>
+                <div class="row"><span class="label">Detalhes:</span> Área: {{area_total}} · Quartos: {{quartos}} · Suítes: {{suites}} · Vagas: {{vagas_garagem}}</div>
+            </div>
+
+            <!-- 2. Seus Dados (Cliente)</div>
+                <div class="row"><span class="label">Nome:</span> {{cliente_nome}}</div>
+                <div class="row"><span class="label">Data do interesse:</span> {{data_interesse}}</div>
+                <div class="row"><span class="label">Preferência:</span> {{preferencia_contato}}</div>
+                <div class="row"><span class="label">Mensagem:</span> {{mensagem}}</div>
+            </div>
+
+            <!-- 4. Corretor Responsável -->
+            <div class="section">
+                <div class="section-title">Corretor Responsável</div>
+                <div class="broker-box">
+                    <img src="cid:broker_photo" alt="Foto" class="broker-photo" onerror="this.src='https://ui-avatars.com/api/?name={{corretor_nome}}&background=random'">
+                    <div class="broker-details">
+                        <h3>{{corretor_nome}}</h3>
+                        <div class="broker-contact">📞 {{corretor_telefone}}</div>
+                        <div class="broker-contact">📧 {{corretor_email}}</div>
+                        <div class="broker-contact">💳 CRECI: {{corretor_creci}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p>Este e-mail foi enviado automaticamente pelo sistema NetImobiliária.</p>
+                <p>&copy; {{year}}</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+
+=== Template: novo-lead-corretor ===
+<!DOCTYPE html><html><head>  <meta charset="UTF-8">  <meta name="viewport" content="width=device-width, initial-scale=1.0">  <title>Novo lead atribuído</title></head><body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4;">  <div style="max-width: 760px; margin: 0 auto; background-color: white; padding: 0;">    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%); padding: 26px; text-align: left; color: white;">      <div style="font-size: 14px; opacity: 0.9;">Net Imobiliária</div>      <h1 style="margin: 8px 0 0 0; font-size: 22px; font-weight: 800;">Você recebeu um novo lead</h1>    </div>    <div style="padding: 26px;">      <p style="margin: 0 0 12px 0; color: #111827; font-size: 16px;"><strong>Olá, {{corretor_nome}}!</strong></p>      <p style="margin: 0 0 18px 0; color: #374151; font-size: 15px; line-height: 1.6;">        Um cliente demonstrou interesse. {{instruction_msg}}      </p>      <!-- BLOCO 1: IMÓVEL (Steps 1 e 2) -->      <div style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 16px 0;">        <div style="font-size: 12px; color: #6b7280; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Imóvel</div>        <div style="margin-top: 10px; color: #111827; font-size: 16px; font-weight: 800;">{{titulo}}</div>        <div style="margin-top: 6px; color: #374151; font-size: 14px;">Código: <strong>{{codigo}}</strong></div>        <div style="margin-top: 6px; color: #374151; font-size: 14px;">Finalidade: <strong>{{finalidade}}</strong> · Tipo: <strong>{{tipo}}</strong> · Status: <strong>{{status}}</strong></div>        <div style="margin-top: 10px; color: #111827; font-size: 18px; font-weight: 900;">{{preco}}</div>        <div style="margin-top: 12px; font-size: 13px; color: #111827; line-height: 1.5;">          <div><strong>Descrição:</strong> {{descricao}}</div>          <div style="margin-top: 8px;"><strong>Endereço:</strong> {{endereco_completo}}</div>          <div style="margin-top: 6px;"><strong>Cidade/UF:</strong> {{cidade}} / {{estado}}</div>          <div style="margin-top: 6px;"><strong>Detalhes:</strong> {{quartos}} quartos, {{banheiros}} banheiros, {{vagas_garagem}} vagas. área: {{area_total}}</div>        </div>      </div>      <!-- BLOCO 2: PROPRIETÁRIO -->      <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 16px; margin: 16px 0;">        <div style="font-size: 12px; color: #9a3412; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Proprietário</div>        <div style="margin-top: 8px; color: #111827; font-size: 15px;"><strong>{{proprietario_nome}}</strong></div>        <div style="margin-top: 6px; color: #111827; font-size: 13px;">Telefone: {{proprietario_telefone}}</div>        <div style="margin-top: 6px; color: #111827; font-size: 13px;">E-mail: {{proprietario_email}}</div>      </div>      <!-- BLOCO 3: CLIENTE (Tenho interesse) -->      <div style="background: #ecfeff; border: 1px solid #cffafe; border-radius: 12px; padding: 16px; margin: 16px 0;">        <div style="font-size: 12px; color: #0f766e; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Cliente (Tenho interesse)</div>        <div style="margin-top: 8px; color: #0f172a; font-size: 15px;"><strong>{{cliente_nome}}</strong></div>        <div style="margin-top: 6px; color: #0f172a; font-size: 14px;">{{cliente_telefone}}</div>        <div style="margin-top: 6px; color: #0f172a; font-size: 14px;">{{cliente_email}}</div>        <div style="margin-top: 10px; color: #0f172a; font-size: 13px;">Data do interesse: <strong>{{data_interesse}}</strong></div>        <div style="margin-top: 8px; color: #0f172a; font-size: 13px;">Preferência de contato: <strong>{{preferencia_contato}}</strong></div>        <div style="margin-top: 8px; color: #0f172a; font-size: 13px;">Mensagem: <em style="white-space: pre-wrap;">{{mensagem}}</em></div>      </div>            <div style="text-align: center; margin: 22px 0;">        <a href="{{painel_url}}"           style="display: inline-block; background: #2563eb; color: white; text-decoration: none; padding: 12px 18px; border-radius: 12px; font-weight: 900;">          Acessar Painel        </a>      </div>    </div>  </div></body></html>
+
+=== Template: lead-perdido-sla ===
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SLA expirado</title>
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4;">
+  <div style="max-width: 760px; margin: 0 auto; background-color: white; padding: 0;">
+    <div style="background: linear-gradient(135deg, #7f1d1d 0%, #ef4444 100%); padding: 26px; text-align: left; color: white;">
+      <div style="font-size: 14px; opacity: 0.9;">Net Imobiliária</div>
+      <h1 style="margin: 8px 0 0 0; font-size: 22px; font-weight: 800;">SLA expirado: Oportunidade perdida</h1>
+      <div style="margin-top: 10px; font-size: 14px; opacity: 0.95;">O lead foi redirecionado para outro corretor devido à expiração do prazo</div>
+    </div>
+
+    <div style="padding: 26px;">
+      <p style="margin: 0 0 12px 0; color: #111827; font-size: 16px;"><strong>Olá, {{corretor_nome}}!</strong></p>
+      <p style="margin: 0 0 18px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        O prazo de aceite para este lead expirou e ele foi encaminhado para o próximo corretor da fila para garantir o atendimento rápido ao cliente.
+      </p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0;">
+        <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 12px;">
+          <div style="font-size: 11px; color: #9a3412; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Tempo Limite (SLA)</div>
+          <div style="margin-top: 6px; font-size: 18px; font-weight: 900; color: #9a3412;">{{sla_minutos}} min</div>
+        </div>
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 12px;">
+          <div style="font-size: 11px; color: #1d4ed8; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Tentativa Global</div>
+          <div style="margin-top: 6px; font-size: 18px; font-weight: 900; color: #1d4ed8;">{{tentativa_atual}} de {{limite_tentativas}}</div>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid #e5e7eb; margin: 24px 0;"></div>
+
+      <p style="font-size: 14px; color: #6b7280; font-weight: 700; text-transform: uppercase; margin-bottom: 12px;">Detalhes da oportunidade perdida:</p>
+
+      <!-- BLOCO 1: IMÓVEL (Completo igual ao Novo Lead) -->
+      <div style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 16px 0; opacity: 0.8;">
+        <div style="font-size: 12px; color: #6b7280; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Imóvel</div>
+        <div style="margin-top: 10px; color: #111827; font-size: 16px; font-weight: 800;">{{titulo}}</div>
+        <div style="margin-top: 6px; color: #374151; font-size: 14px;">Código: <strong>{{codigo}}</strong></div>
+        <div style="margin-top: 6px; color: #374151; font-size: 14px;">Finalidade: <strong>{{finalidade}}</strong> · Tipo: <strong>{{tipo}}</strong> · Status: <strong>{{status}}</strong></div>
+        <div style="margin-top: 10px; color: #111827; font-size: 18px; font-weight: 900;">{{preco}}</div>
+
+        <div style="margin-top: 12px; font-size: 13px; color: #111827; line-height: 1.5;">
+          <div><strong>Descrição:</strong> {{descricao}}</div>
+          <div style="margin-top: 8px;"><strong>Endereço:</strong> {{endereco_completo}}</div>
+          <div style="margin-top: 6px;"><strong>Cidade/UF:</strong> {{cidade}} / {{estado}}</div>
+          <div style="margin-top: 6px;"><strong>Condomínio:</strong> {{preco_condominio}} · <strong>IPTU:</strong> {{preco_iptu}} · <strong>Taxa extra:</strong> {{taxa_extra}}</div>
+          <div style="margin-top: 6px;"><strong>Área total:</strong> {{area_total}} · <strong>Área construída:</strong> {{area_construida}}</div>
+          <div style="margin-top: 6px;"><strong>Quartos:</strong> {{quartos}} · <strong>Banheiros:</strong> {{banheiros}} · <strong>Suítes:</strong> {{suites}}</div>
+          <div style="margin-top: 6px;"><strong>Vagas:</strong> {{vagas_garagem}} · <strong>Varanda:</strong> {{varanda}} · <strong>Andar:</strong> {{andar}} · <strong>Total de andares:</strong> {{total_andares}}</div>
+          <div style="margin-top: 6px;"><strong>Aceita permuta:</strong> {{aceita_permuta}} · <strong>Aceita financiamento:</strong> {{aceita_financiamento}}</div>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin: 22px 0;">
+        <a href="{{painel_url}}"
+           style="display: inline-block; background: #374151; color: white; text-decoration: none; padding: 12px 18px; border-radius: 12px; font-weight: 800;">
+          Acessar Painel
+        </a>
+      </div>
+
+      <div style="border-top: 1px solid #e5e7eb; margin-top: 18px; padding-top: 14px; color: #6b7280; font-size: 12px;">
+        <div>Dica: Mantenha as notificações ativas e fique atento ao painel para não perder os próximos leads. A velocidade de resposta é fundamental.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
+=== Template: lead-aceito-cliente ===
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lead em Atendimento</title>
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4;">
+  <div style="max-width: 700px; margin: 0 auto; background-color: white; padding: 0;">
+    <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 26px; text-align: left; color: white;">
+      <div style="font-size: 14px; opacity: 0.9;">Net Imobiliária</div>
+      <h1 style="margin: 8px 0 0 0; font-size: 22px; font-weight: 800;">Boa notícia! Você será atendido.</h1>
+      <div style="margin-top: 10px; font-size: 14px; opacity: 0.95;">Um de nossos corretores já assumiu seu interesse no imóvel.</div>
+    </div>
+
+    <div style="padding: 26px;">
+      <p style="margin: 0 0 12px 0; color: #111827; font-size: 16px;"><strong>Olá, {{cliente_nome}}!</strong></p>
+      <p style="margin: 0 0 18px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+        Recebemos seu interesse e já designamos um especialista para cuidar do seu atendimento. Em breve entrarão em contato.
+      </p>
+
+      <!-- CORRETOR -->
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px; margin: 16px 0;">
+        <div style="font-size: 12px; color: #15803d; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Seu Corretor</div>
+        <div style="margin-top: 10px; color: #111827; font-size: 18px; font-weight: 800;">{{corretor_nome}}</div>
+        
+        <div style="margin-top: 12px; font-size: 14px; color: #374151;">
+          <div style="display: flex; align-items: center; margin-bottom: 6px;">
+            <span style="font-weight: 600; width: 80px;">E-mail:</span> 
+            <span>{{corretor_email}}</span>
+          </div>
+          <div style="display: flex; align-items: center; margin-bottom: 6px;">
+            <span style="font-weight: 600; width: 80px;">Telefone:</span> 
+            <span>{{corretor_telefone}}</span>
+          </div>
+          <div style="display: flex; align-items: center;">
+            <span style="font-weight: 600; width: 80px;">CRECI:</span> 
+            <span>{{corretor_creci}}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- IMÓVEL (Resumo) -->
+      <div style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 16px 0;">
+        <div style="font-size: 12px; color: #6b7280; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;">Imóvel de Interesse</div>
+        <div style="margin-top: 10px; color: #111827; font-size: 16px; font-weight: 800;">{{imovel_titulo}}</div>
+        <div style="margin-top: 6px; color: #374151; font-size: 14px;">Código: <strong>{{imovel_codigo}}</strong></div>
+        <div style="margin-top: 6px; color: #374151; font-size: 14px;">{{cidade_estado}}</div>
+        <div style="margin-top: 8px; color: #111827; font-size: 15px; font-weight: 700;">{{preco}}</div>
+      </div>
+
+      <div style="border-top: 1px solid #e5e7eb; margin-top: 24px; padding-top: 14px; color: #6b7280; font-size: 12px;">
+        <div>Dica: Se preferir, você também pode entrar em contato diretamente com o corretor pelos canais acima.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+

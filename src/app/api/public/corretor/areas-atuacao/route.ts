@@ -1,23 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
+import pool from '@/lib/database/connection'
 
 export const runtime = 'nodejs'
 
-function getToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization') || ''
-  if (authHeader.startsWith('Bearer ')) return authHeader.slice(7)
-
-  // CORREÇÃO: O cookie definido no login é 'auth_token', não 'accessToken'
-  const cookie = request.cookies.get('auth_token')?.value
-  return cookie || null
-}
-
 async function getLoggedUser(request: NextRequest): Promise<{ userId: string | null, error?: string }> {
-  const token = getToken(request)
+  const token = getTokenFromRequest(request)
   if (!token) return { userId: null, error: 'Token não encontrado (Header ou Cookie)' }
 
   try {
-    const decoded: any = verifyTokenNode(token)
+    const decoded = await verifyToken(token)
     if (!decoded) return { userId: null, error: 'Token inválido ou expirado' }
     return { userId: decoded.userId }
   } catch (error: any) {
@@ -27,8 +19,12 @@ async function getLoggedUser(request: NextRequest): Promise<{ userId: string | n
 }
 
 export async function GET(request: NextRequest) {
+  console.log('🔍 [AREAS_ATUACAO] GET request received');
   try {
-    const { userId, error } = await getLoggedUser(request)
+    const userResult = await getLoggedUser(request)
+    console.log('🔍 [AREAS_ATUACAO] getLoggedUser result:', userResult);
+
+    const { userId, error } = userResult;
     if (!userId) {
       console.warn(`⚠️ [AREAS_ATUACAO] Acesso negado. Motivo: ${error}`)
       return NextResponse.json({
@@ -38,7 +34,16 @@ export async function GET(request: NextRequest) {
       }, { status: 401 })
     }
 
-    const pool = (await import('@/lib/database/connection')).default
+    console.log('🔍 [AREAS_ATUACAO] Using pool...');
+    console.log('🔍 [AREAS_ATUACAO] Querying database for userId:', userId);
+
+    // Validar se o userId é um UUID válido para evitar erro do Postgres
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      console.warn(`⚠️ [AREAS_ATUACAO] userId inválido (não é UUID): ${userId}`);
+      return NextResponse.json({ success: false, error: 'Identificador de usuário inválido' }, { status: 401 });
+    }
+
     const query = `
       SELECT id, estado_fk, cidade_fk, created_at 
       FROM public.corretor_areas_atuacao 
@@ -46,10 +51,30 @@ export async function GET(request: NextRequest) {
       ORDER BY estado_fk, cidade_fk
     `
     const result = await pool.query(query, [userId])
+    console.log('✅ [AREAS_ATUACAO] Query result size:', result.rows.length);
+
     return NextResponse.json({ success: true, areas: result.rows })
   } catch (error: any) {
-    console.error('❌ Erro ao buscar áreas de atuação:', error)
-    return NextResponse.json({ success: false, error: 'Erro interno do servidor' }, { status: 500 })
+    console.error('❌ [AREAS_ATUACAO] Erro ao buscar áreas de atuação:', error)
+    if (error.stack) console.error(error.stack);
+
+    // DEBUG: Write to ABSOLUTE path
+    try {
+      const fs = require('fs');
+      // Hardcoded path to ensure we can find it
+      const logPath = 'C:/NetImobiliária/net-imobiliaria/debug_route_error.log';
+      const timestamp = new Date().toISOString();
+      const msg = `\n[${timestamp}] [GET] Error: ${error.message}\nStack: ${error.stack}\nUserContext: ${JSON.stringify(request.headers.get('cookie'))}\n`;
+      fs.appendFileSync(logPath, msg);
+    } catch (e) { console.error('Error writing log file', e); }
+
+    // FORCE return detailed error
+    return NextResponse.json({
+      success: false,
+      error: 'Erro interno do servidor',
+      message: error.message,
+      stack: error.stack
+    }, { status: 500 })
   }
 }
 
@@ -73,6 +98,12 @@ export async function POST(request: NextRequest) {
 
     const pool = (await import('@/lib/database/connection')).default
 
+    // Validar se o userId é um UUID válido
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      return NextResponse.json({ success: false, error: 'Identificador de usuário inválido' }, { status: 401 });
+    }
+
     // Verificar se já existe
     const checkQuery = `
       SELECT id FROM public.corretor_areas_atuacao 
@@ -93,8 +124,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, area: result.rows[0] })
   } catch (error: any) {
-    console.error('❌ Erro ao cadastrar área de atuação:', error)
-    return NextResponse.json({ success: false, error: 'Erro interno do servidor' }, { status: 500 })
+    console.error('❌ [AREAS_ATUACAO] Erro ao cadastrar área de atuação:', error)
+    if (error.stack) console.error(error.stack);
+    return NextResponse.json({
+      success: false,
+      error: 'Erro interno do servidor',
+      detail: process.env.NODE_ENV === 'development' ? error.message : undefined
+    }, { status: 500 })
   }
 }
 
@@ -118,6 +154,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     const pool = (await import('@/lib/database/connection')).default
+
+    // Validar se o userId é um UUID válido
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      return NextResponse.json({ success: false, error: 'Identificador de usuário inválido' }, { status: 401 });
+    }
+
     const query = `
       DELETE FROM public.corretor_areas_atuacao 
       WHERE id = $1 AND corretor_fk = $2::uuid
@@ -131,7 +174,12 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Área removida com sucesso' })
   } catch (error: any) {
-    console.error('❌ Erro ao remover área de atuação:', error)
-    return NextResponse.json({ success: false, error: 'Erro interno do servidor' }, { status: 500 })
+    console.error('❌ [AREAS_ATUACAO] Erro ao remover área de atuação:', error)
+    if (error.stack) console.error(error.stack);
+    return NextResponse.json({
+      success: false,
+      error: 'Erro interno do servidor',
+      detail: process.env.NODE_ENV === 'development' ? error.message : undefined
+    }, { status: 500 })
   }
 }

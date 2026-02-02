@@ -1,0 +1,5 @@
+﻿                  id                  |       nome        | tipo_corretor | is_plantonista 
+--------------------------------------+-------------------+---------------+----------------
+ 4d456e42-4031-46ba-9b5c-912bec1d28b5 | Jose Damasio Neto | Interno       | f
+(1 row)
+

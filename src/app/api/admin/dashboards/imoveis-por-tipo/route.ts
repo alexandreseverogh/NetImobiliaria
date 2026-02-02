@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { safeParseInt } from '@/lib/utils/safeParser'
 
 export async function GET(request: NextRequest) {
   const permissionCheck = await unifiedPermissionMiddleware(request)
@@ -8,7 +9,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url)
-    
+
     let query = `
       SELECT 
         ti.nome as name,
@@ -24,13 +25,13 @@ export async function GET(request: NextRequest) {
     // Aplicar filtros
     if (searchParams.get('finalidade_id')) {
       query += ` AND i.finalidade_fk = $${paramIndex}`
-      params.push(parseInt(searchParams.get('finalidade_id')!))
+      params.push(safeParseInt(searchParams.get('finalidade_id'), 0, 1))
       paramIndex++
     }
 
     if (searchParams.get('status_id')) {
       query += ` AND i.status_fk = $${paramIndex}`
-      params.push(parseInt(searchParams.get('status_id')!))
+      params.push(safeParseInt(searchParams.get('status_id'), 0, 1))
       paramIndex++
     }
 

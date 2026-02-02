@@ -1,0 +1,146 @@
+﻿[dotenv@17.2.3] injecting env (18) from .env.local -- tip: ­ƒøá´©Å  run anywhere with `dotenvx run -- yourcommand`
+[dotenv@17.2.3] injecting env (0) from .env.local -- tip: ­ƒùé´©Å backup and recover secrets: https://dotenvx.com/ops
+­ƒöî [DB-Utils] Connecting to net_imobiliaria on localhost:15432
+­ƒöì INVESTIGA├ç├âO DETALHADA DE ROTEAMENTO DE LEADS
+
+­ƒôï ├ÜLTIMO LEAD CRIADO:
+   Prospect ID: 76
+   Im├│vel: APARTAMENTO_VENDA_145 - lindo e maravilhoso imovel
+   Localiza├º├úo: Recife/PE
+   Corretor FK: 50ca3bce-e57b-4fb3-beec-87b9a8f76685
+
+­ƒôè HIST├ôRICO DE ATRIBUI├ç├òES (5 tentativas):
+
+   1. Jose Damasio Neto (Interno)
+      Status: expirado
+      Plantonista: N├âO
+      Criado em: Thu Jan 29 2026 10:25:00 GMT-0300 (Hor├írio Padr├úo de Bras├¡lia)
+      Motivo: {
+  "type": "area_match",
+  "source": "backfill_unassigned"
+}
+
+   2. ROBERTO SEVERO SALGUES CAMPOS (Interno)
+      Status: expirado
+      Plantonista: N├âO
+      Criado em: Thu Jan 29 2026 10:29:00 GMT-0300 (Hor├írio Padr├úo de Bras├¡lia)
+      Motivo: {
+  "type": "area_match_internal",
+  "limit": 4,
+  "source": "sla_transbordo",
+  "attempts": 2,
+  "previous_corretor_fk": "4d456e42-4031-46ba-9b5c-912bec1d28b5"
+}
+
+   3. Nunes Cabelo de A├ºo (Interno)
+      Status: expirado
+      Plantonista: N├âO
+      Criado em: Thu Jan 29 2026 10:33:00 GMT-0300 (Hor├írio Padr├úo de Bras├¡lia)
+      Motivo: {
+  "type": "area_match_internal",
+  "limit": 4,
+  "source": "sla_transbordo",
+  "attempts": 3,
+  "previous_corretor_fk": "491795c4-c017-4285-b85a-eb29c26c28b5"
+}
+
+   4. Gigi (Interno)
+      Status: expirado
+      Plantonista: N├âO
+      Criado em: Thu Jan 29 2026 10:36:00 GMT-0300 (Hor├írio Padr├úo de Bras├¡lia)
+      Motivo: {
+  "type": "area_match_internal",
+  "limit": 4,
+  "source": "sla_transbordo",
+  "attempts": 4,
+  "previous_corretor_fk": "ebad63d6-c774-40e1-b9c7-0f55b7c1735f"
+}
+
+   5. Plantonista (Interno)
+      Status: aceito
+      Plantonista: SIM
+      Criado em: Thu Jan 29 2026 10:39:00 GMT-0300 (Hor├írio Padr├úo de Bras├¡lia)
+      Motivo: {
+  "type": "fallback_plantonista",
+  "source": "sla_transbordo",
+  "previous_corretor_fk": "abd6b94a-fbe9-4a9b-8688-f3ecb142fff3"
+}
+
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+SIMULANDO pickNextBrokerByAreaExternal
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+­ƒöì Corretores EXTERNOS eleg├¡veis para Recife/PE:
+   Total encontrado: 5
+
+   1. Maria Silva
+      ID: b537ea32-2011-4511-812f-7a62edc7d701
+      Tipo: Externo
+      Total recebidos: 0
+      ├üreas: Recife/PE
+      ---
+   2. Paula Lima
+      ID: 36262cee-e951-45ce-8f52-bb2311f7323e
+      Tipo: Externo
+      Total recebidos: 0
+      ├üreas: Recife/PE
+      ---
+   3. Corretor1
+      ID: c57ab897-c068-46a4-9b12-bb9f2d938fe7
+      Tipo: Externo
+      Total recebidos: 0
+      ├üreas: Recife/PE
+      ---
+   4. Corretor2
+      ID: 9c89c838-e989-46e1-a358-6a564ae15034
+      Tipo: Externo
+      Total recebidos: 0
+      ├üreas: Recife/PE
+      ---
+   5. QuartoCorretorExterno
+      ID: 9c95dfb0-3bff-4270-9364-d944631b821b
+      Tipo: Externo
+      Total recebidos: 0
+      ├üreas: Recife/PE
+      ---
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+SIMULANDO pickInternalBrokerByArea
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+­ƒöì Corretores INTERNOS eleg├¡veis para Recife/PE:
+   Total encontrado: 0
+
+   ÔØî NENHUM corretor interno encontrado!
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+TODOS OS CORRETORES EXTERNOS COM ├üREA NESSA LOCALIZA├ç├âO
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+Total: 5
+
+1. Paula Lima
+   Ativo: SIM
+   Plantonista: N├âO
+   J├í recebeu este lead: N├âO
+
+2. Corretor2
+   Ativo: SIM
+   Plantonista: N├âO
+   J├í recebeu este lead: N├âO
+
+3. QuartoCorretorExterno
+   Ativo: SIM
+   Plantonista: N├âO
+   J├í recebeu este lead: N├âO
+
+4. Maria Silva
+   Ativo: SIM
+   Plantonista: N├âO
+   J├í recebeu este lead: N├âO
+
+5. Corretor1
+   Ativo: SIM
+   Plantonista: N├âO
+   J├í recebeu este lead: N├âO

@@ -205,15 +205,15 @@ export default function ImovelDetalhes() {
         {/* Dois Containers Lado a Lado */}
         <div className="grid grid-cols-2 gap-6 mb-10" style={{ maxWidth: '1400px', margin: '0 auto' }}>
           {/* Container Esquerdo - Imagem */}
-          <div className="relative bg-white rounded-xl shadow-lg border-2 border-gray-400 p-6 overflow-hidden" style={{ height: '350px' }}>
-            <div className="relative w-full h-full rounded-lg overflow-hidden">
+          <div className="relative bg-white rounded-xl shadow-lg border-2 border-gray-400 overflow-hidden" style={{ height: '350px' }}>
+            <div className="relative w-full h-full overflow-hidden">
               {dadosBasicos.imagem_principal?.url ? (
                 <>
                   <SafeImage
                     src={dadosBasicos.imagem_principal.url}
                     alt={dadosBasicos.imagem_principal.alt || dadosBasicos.titulo || 'Imagem do imóvel'}
                     fill
-                    className="object-contain"
+                    className="object-cover"
                     unoptimized
                   />
 
@@ -228,6 +228,15 @@ export default function ImovelDetalhes() {
                       {dadosBasicos.finalidade_nome}
                     </span>
                   </div>
+
+                  {/* Lançamento Badge (Top Center) */}
+                  {dadosBasicos.lancamento && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                      <span className="bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md uppercase tracking-wider whitespace-nowrap">
+                        Lançamento
+                      </span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -249,6 +258,15 @@ export default function ImovelDetalhes() {
                       {dadosBasicos.finalidade_nome}
                     </span>
                   </div>
+
+                  {/* Lançamento Badge (Top Center) mesmo sem imagem */}
+                  {dadosBasicos.lancamento && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                      <span className="bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md uppercase tracking-wider whitespace-nowrap">
+                        Lançamento
+                      </span>
+                    </div>
+                  )}
                 </>
               )}
             </div>

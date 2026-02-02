@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: "Roboto", sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; color: #333; }
+        .container { max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background-color: #1a365d; color: #ffffff; padding: 20px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
+        .content { padding: 30px; }
+        .section { margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #eee; }
+        .section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .section-title { font-size: 18px; color: #2c5282; font-weight: 600; margin-bottom: 15px; border-left: 4px solid #4299e1; padding-left: 10px; }
+        
+        /* Broker Card */
+        .broker-card { display: flex; align-items: center; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .broker-photo { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-right: 20px; }
+        .broker-info h3 { margin: 0 0 5px 0; font-size: 18px; color: #2d3748; }
+        .broker-detail { font-size: 14px; color: #718096; margin: 2px 0; display: flex; align-items: center; }
+        
+        /* Property Card */
+        .property-card { background: #fff; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .property-title { font-weight: 700; color: #2d3748; margin-bottom: 5px; }
+        .property-code { font-size: 13px; color: #718096; background: #edf2f7; padding: 2px 8px; border-radius: 4px; display: inline-block; }
+        
+        /* CTA Button */
+        .btn-container { text-align: center; margin-top: 30px; }
+        .btn { display: inline-block; padding: 12px 24px; background-color: #3182ce; color: #ffffff !important; text-decoration: none; border-radius: 6px; font-weight: 500; transition: background-color 0.2s; }
+        .btn:hover { background-color: #2c5282; }
+        
+        .footer { background-color: #f7fafc; padding: 20px; text-align: center; font-size: 12px; color: #a0aec0; border-top: 1px solid #edf2f7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Lead em Atendimento</h1>
+        </div>
+        <div class="content">
+            <p>Olá, <strong>{{proprietario_nome}}</strong>!</p>
+            <p>Temos uma ótima notícia! Um interessado em seu imóvel acaba de iniciar atendimento com um de nossos especialistas.</p>
+
+            <!-- Dados do Imóvel -->
+            <div class="section">
+                <div class="section-title">Imóvel de Interesse</div>
+                <div class="property-card">
+                    <div class="property-title">{{imovel_titulo}}</div>
+                    <div class="property-code">Cód: {{imovel_codigo}}</div>
+                </div>
+            </div>
+
+            <!-- Dados do Corretor -->
+            <div class="section">
+                <div class="section-title">Corretor Responsável</div>
+                <div class="broker-card">
+                    <!-- A imagem usa CID para anexo inline -->
+                    <img src="cid:broker_photo" alt="Foto do Corretor" class="broker-photo" onerror="this.src='https://ui-avatars.com/api/?name={{corretor_nome}}&background=random'">
+                    <div class="broker-info">
+                        <h3>{{corretor_nome}}</h3>
+                        <div class="broker-detail">📞 {{corretor_telefone}}</div>
+                        <div class="broker-detail">📧 {{corretor_email}}</div>
+                        <div class="broker-detail">💳 CRECI: {{corretor_creci}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <p style="text-align: center; margin-top: 30px; font-size: 14px; color: #718096;">
+                O corretor entrará em contato com você em breve para alinhar os detalhes da negociação.
+            </p>
+        </div>
+        <div class="footer">
+            <p>&copy; {{year}} NetImobiliária. Todos os direitos reservados.</p>
+        </div>
+    </div>
+</body>
+</html>

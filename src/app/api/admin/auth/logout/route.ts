@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     const pool = new Pool({
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'net_imobiliaria',
+      database: process.env.DB_NAME!,
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'Roberto@2007',
     });
@@ -160,12 +160,13 @@ export async function POST(request: NextRequest) {
     });
 
     // 🗑️ LIMPEZA DE COOKIES: Garantir que o token "zumbi" seja removido do navegador
-    response.cookies.delete('auth_token')  // New HTTP-only cookie
+    response.cookies.delete('admin_auth_token')  // New admin-specific cookie
+    response.cookies.delete('auth_token')  // Legacy cookie (backward compatibility)
     response.cookies.delete('accessToken')
     response.cookies.delete('adminAccessToken') // Caso exista variante
     response.cookies.delete('refreshToken')
 
-    console.log('✅ Cookies removidos: auth_token, accessToken, adminAccessToken, refreshToken')
+    console.log('✅ Cookies removidos: admin_auth_token, auth_token, accessToken, adminAccessToken, refreshToken')
 
     return response;
 

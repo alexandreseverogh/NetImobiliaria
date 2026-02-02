@@ -1,0 +1,24 @@
+﻿      teste       
+------------------
+ COM PROSPECT 77:
+(1 row)
+
+                  id                  |    nome     | tipo_corretor 
+--------------------------------------+-------------+---------------
+ b537ea32-2011-4511-812f-7a62edc7d701 | Maria Silva | Externo
+ c57ab897-c068-46a4-9b12-bb9f2d938fe7 | Corretor1   | Externo
+ 9c89c838-e989-46e1-a358-6a564ae15034 | Corretor2   | Externo
+(3 rows)
+
+          teste          
+-------------------------
+ SEM FILTRO DE PROSPECT:
+(1 row)
+
+                  id                  |    nome     | tipo_corretor 
+--------------------------------------+-------------+---------------
+ c57ab897-c068-46a4-9b12-bb9f2d938fe7 | Corretor1   | Externo
+ b537ea32-2011-4511-812f-7a62edc7d701 | Maria Silva | Externo
+ 9c89c838-e989-46e1-a358-6a564ae15034 | Corretor2   | Externo
+(3 rows)
+

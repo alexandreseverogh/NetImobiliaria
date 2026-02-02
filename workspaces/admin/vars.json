@@ -1,0 +1,240 @@
+[
+  {
+    "name": "password_reset",
+    "variables": [
+      "reset_link",
+      "expiration_hours"
+    ]
+  },
+  {
+    "name": "2fa_verification",
+    "variables": [
+      "code",
+      "expiration_minutes"
+    ]
+  },
+  {
+    "name": "2fa-code",
+    "variables": [
+      "code",
+      "expiration_minutes"
+    ]
+  },
+  {
+    "name": "lead-expirado",
+    "variables": [
+      "nome_corretor",
+      "codigo_imovel",
+      "sla_minutos",
+      "imovel_titulo",
+      "imovel_codigo",
+      "tipo_nome",
+      "finalidade_nome",
+      "status_nome",
+      "imovel_preco",
+      "imovel_descricao",
+      "imovel_endereco",
+      "imovel_cidade_uf",
+      "imovel_detalhes"
+    ]
+  },
+  {
+    "name": "imovel-interesse",
+    "variables": [
+      "codigo",
+      "finalidade",
+      "preco",
+      "endereco_completo",
+      "cidade",
+      "estado",
+      "area_total",
+      "quartos",
+      "suites",
+      "garagens",
+      "proprietario_nome",
+      "proprietario_cpf",
+      "proprietario_telefone",
+      "proprietario_email",
+      "proprietario_endereco_completo",
+      "cliente_nome",
+      "cliente_telefone",
+      "cliente_email",
+      "data_interesse",
+      "preferencia_contato",
+      "mensagem"
+    ]
+  },
+  {
+    "name": "lead_accepted_owner_notification",
+    "variables": [
+      "proprietario_nome",
+      "imovel_titulo",
+      "imovel_codigo",
+      "corretor_nome",
+      "corretor_telefone",
+      "corretor_email",
+      "corretor_creci",
+      "year"
+    ]
+  },
+  {
+    "name": "novo-lead-corretor-imovel-fk",
+    "variables": [
+      "corretor_nome",
+      "codigo",
+      "titulo",
+      "descricao",
+      "tipo",
+      "finalidade",
+      "status",
+      "cidade",
+      "estado",
+      "preco",
+      "preco_condominio",
+      "preco_iptu",
+      "taxa_extra",
+      "area_total",
+      "area_construida",
+      "quartos",
+      "banheiros",
+      "suites",
+      "vagas_garagem",
+      "varanda",
+      "andar",
+      "total_andares",
+      "aceita_permuta",
+      "aceita_financiamento",
+      "endereco_completo",
+      "proprietario_nome",
+      "proprietario_cpf",
+      "proprietario_telefone",
+      "proprietario_email",
+      "proprietario_endereco_completo",
+      "cliente_nome",
+      "cliente_telefone",
+      "cliente_email",
+      "data_interesse",
+      "preferencia_contato",
+      "mensagem",
+      "painel_url"
+    ]
+  },
+  {
+    "name": "lead_accepted_client_notification",
+    "variables": [
+      "cliente_nome",
+      "imovel_titulo",
+      "imovel_codigo",
+      "corretor_nome",
+      "corretor_telefone",
+      "corretor_email",
+      "corretor_creci",
+      "year",
+      "preco",
+      "endereco_completo",
+      "cidade_estado",
+      "area_total",
+      "quartos",
+      "suites",
+      "vagas_garagem",
+      "proprietario_nome",
+      "proprietario_cpf",
+      "proprietario_telefone",
+      "proprietario_email",
+      "proprietario_endereco",
+      "data_interesse",
+      "preferencia_contato",
+      "mensagem"
+    ]
+  },
+  {
+    "name": "novo-lead-corretor",
+    "variables": [
+      "corretor_nome",
+      "codigo",
+      "titulo",
+      "descricao",
+      "tipo",
+      "finalidade",
+      "status",
+      "cidade",
+      "estado",
+      "preco",
+      "preco_condominio",
+      "preco_iptu",
+      "taxa_extra",
+      "area_total",
+      "area_construida",
+      "quartos",
+      "banheiros",
+      "suites",
+      "vagas_garagem",
+      "varanda",
+      "andar",
+      "total_andares",
+      "aceita_permuta",
+      "aceita_financiamento",
+      "endereco_completo",
+      "proprietario_nome",
+      "proprietario_cpf",
+      "proprietario_telefone",
+      "proprietario_email",
+      "proprietario_endereco_completo",
+      "cliente_nome",
+      "cliente_telefone",
+      "cliente_email",
+      "data_interesse",
+      "preferencia_contato",
+      "mensagem",
+      "painel_url"
+    ]
+  },
+  {
+    "name": "lead-perdido-sla",
+    "variables": [
+      "corretor_nome",
+      "codigo",
+      "titulo",
+      "descricao",
+      "tipo",
+      "finalidade",
+      "status",
+      "cidade",
+      "estado",
+      "preco",
+      "preco_condominio",
+      "preco_iptu",
+      "taxa_extra",
+      "area_total",
+      "area_construida",
+      "quartos",
+      "banheiros",
+      "suites",
+      "vagas_garagem",
+      "varanda",
+      "andar",
+      "total_andares",
+      "aceita_permuta",
+      "aceita_financiamento",
+      "endereco_completo",
+      "painel_url",
+      "sla_minutos",
+      "tentativa_atual",
+      "limite_tentativas"
+    ]
+  },
+  {
+    "name": "lead-aceito-cliente",
+    "variables": [
+      "cliente_nome",
+      "imovel_titulo",
+      "imovel_codigo",
+      "cidade_estado",
+      "preco",
+      "corretor_nome",
+      "corretor_email",
+      "corretor_telefone",
+      "corretor_creci"
+    ]
+  }
+]

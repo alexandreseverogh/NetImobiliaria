@@ -6,20 +6,8 @@
  */
 
 require('dotenv').config({ path: '.env.local' });
-const { Pool } = require('pg');
+const { pool } = require('./utils/db.js');
 const Parser = require('rss-parser');
-
-// Configuração do Pool
-const poolConfig = {
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'net_imobiliaria',
-  password: process.env.DB_PASSWORD || '',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-};
-
-const pool = new Pool(poolConfig);
 const parser = new Parser({
   customFields: {
     item: [
@@ -164,8 +152,8 @@ async function saveFeedItems(items, sourceId, categoryId, sourceLanguage) {
 
       // Tenta encontrar imagem (pode variar muito entre feeds)
       // Tenta múltiplas fontes: enclosure, media:content, media:thumbnail, itunes:image, contentSnippet (HTML parsing), content (HTML parsing)
-      let imagem = item.enclosure?.url 
-        || (item.media?.$?.url) 
+      let imagem = item.enclosure?.url
+        || (item.media?.$?.url)
         || (item.mediaThumbnail?.$?.url)
         || (item.mediaThumbnail)
         || (item['itunes:image']?.href)
@@ -183,11 +171,11 @@ async function saveFeedItems(items, sourceId, categoryId, sourceLanguage) {
           (Array.isArray(anyImg) && typeof anyImg[0] === 'string' && anyImg[0]) ||
           null;
       }
-      
+
       // Se não encontrou, tenta extrair do HTML do conteúdo
       if (!imagem && (item.content || item.contentSnippet || item.contentEncoded)) {
         const htmlContent = item.content || item.contentSnippet || item.contentEncoded || '';
-        
+
         // 1. Procurar por tags img no HTML (múltiplas variações)
         const imgMatches = [
           htmlContent.match(/<img[^>]+src=["']([^"']+)["']/i),
@@ -195,14 +183,14 @@ async function saveFeedItems(items, sourceId, categoryId, sourceLanguage) {
           htmlContent.match(/<img[^>]+data-src=["']([^"']+)["']/i), // lazy loading
           htmlContent.match(/<img[^>]+data-lazy-src=["']([^"']+)["']/i), // lazy loading alternativo
         ];
-        
+
         for (const match of imgMatches) {
           if (match && match[1]) {
             imagem = match[1];
             break;
           }
         }
-        
+
         // 2. Procurar por meta tags og:image
         if (!imagem) {
           const ogImageMatch = htmlContent.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
@@ -210,7 +198,7 @@ async function saveFeedItems(items, sourceId, categoryId, sourceLanguage) {
             imagem = ogImageMatch[1];
           }
         }
-        
+
         // 3. Procurar por URLs de imagens comuns no texto
         if (!imagem) {
           const urlMatch = htmlContent.match(/(https?:\/\/[^\s<>"']+\.(jpg|jpeg|png|gif|webp|svg))/i);
@@ -218,7 +206,7 @@ async function saveFeedItems(items, sourceId, categoryId, sourceLanguage) {
             imagem = urlMatch[1];
           }
         }
-        
+
         // 4. Procurar por URLs de CDN comuns (cdn.propmodo.com, cdn.vox-cdn.com para The Verge)
         if (!imagem) {
           const cdnMatch = htmlContent.match(/(https?:\/\/[^\s<>"']*(cdn|images|img|assets)[^\s<>"']*\.(jpg|jpeg|png|gif|webp))/i);
@@ -227,7 +215,7 @@ async function saveFeedItems(items, sourceId, categoryId, sourceLanguage) {
           }
         }
       }
-      
+
       // Limpar URL da imagem (remover query strings problemáticas se necessário)
       if (imagem && typeof imagem === 'string') {
         // Remover espaços e quebras de linha
@@ -265,10 +253,10 @@ async function saveFeedItems(items, sourceId, categoryId, sourceLanguage) {
           ON CONFLICT (url_original) DO NOTHING
           RETURNING id
         `;
-        
+
         const values = [titulo, resumo, link, imagem, dataPub, sourceId, categoryId];
         const result = await client.query(query, values);
-        
+
         if (result.rowCount && result.rowCount > 0) {
           savedCount++;
         }
@@ -291,7 +279,7 @@ async function saveFeedItems(items, sourceId, categoryId, sourceLanguage) {
 // Processar um job
 async function processJob(job) {
   const client = await pool.connect();
-  
+
   try {
     // Buscar informações da fonte
     const fonteResult = await client.query(
@@ -309,12 +297,12 @@ async function processJob(job) {
 
     // Buscar feed
     const items = await fetchAndParseFeed(fonte.url_feed);
-    
+
     // Salvar itens
     const savedCount = await saveFeedItems(
-      items, 
-      job.fonte_fk, 
-      fonte.categoria_fk, 
+      items,
+      job.fonte_fk,
+      fonte.categoria_fk,
       fonte.idioma
     );
 
@@ -365,7 +353,7 @@ async function processAllPendingJobs() {
 
   while (maxIterations > 0) {
     const client = await pool.connect();
-    
+
     try {
       await client.query('BEGIN'); // Iniciar transação para o SELECT FOR UPDATE
 
@@ -406,7 +394,7 @@ async function processAllPendingJobs() {
       }
 
       maxIterations--;
-      
+
       // Aguardar um pouco entre processamentos
       await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {

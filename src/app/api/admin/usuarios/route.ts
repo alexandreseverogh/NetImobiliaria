@@ -7,6 +7,7 @@ import { logInvalidInput } from '@/lib/monitoring/securityMonitor'
 import { validateCPF } from '@/lib/utils/formatters'
 import { logAuditEvent as logDbAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
+import { safeParseInt } from '@/lib/utils/safeParser'
 
 // Interface para criação de usuário
 interface CreateUserRequest {
@@ -82,8 +83,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
+    const page = safeParseInt(searchParams.get('page'), 1, 1)
+    const limit = safeParseInt(searchParams.get('limit'), 10, 1, 100)
 
     const nome = searchParams.get('nome') || undefined
     const username = searchParams.get('username') || undefined
@@ -107,7 +108,7 @@ export async function GET(request: NextRequest) {
     // Log de auditoria (sem informações sensíveis)
     auditLogger.log(
       'USERS_LIST',
-      `Usuário listou usuários do sistema (Página ${page})`,
+      `Usuário listou usuários do sistema(Página ${page})`,
       true,
       'system',
       'system',

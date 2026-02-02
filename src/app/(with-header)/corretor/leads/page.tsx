@@ -137,8 +137,14 @@ export default function CorretorLeadsPage() {
   }, [get, statusParam])
 
   useEffect(() => {
-    load()
-  }, [load])
+    load().then(() => {
+      // Auto-open Negocio Fechado if param is present
+      const openNegocioId = searchParams?.get('openNegocioId')
+      if (openNegocioId) {
+        openNegocioFechadoForLeadById(openNegocioId)
+      }
+    })
+  }, [load, searchParams])
 
   // Efeito para focar o input ao abrir o modal de Negócio Fechado
   useEffect(() => {
@@ -191,14 +197,26 @@ export default function CorretorLeadsPage() {
     }
   }
 
-  const handleBuscarImovelStatus = async () => {
-    if (!codigoBusca.trim()) return
+  const handleBuscarImovelStatus = async (specificCodigo?: string, specificId?: string) => {
+    const codigo = specificCodigo || codigoBusca
+    const id = specificId
+
+    if (!codigo.trim() && !id) return
     setIsSearching(true)
     setNegocioError(null)
     setImovelEncontrado(null)
     setInitialStatus(null)
     try {
-      const resp = await fetch(`/api/admin/imoveis/by-codigo/${codigoBusca}`, {
+      let url = ''
+      if (id) {
+        url = `/api/admin/imoveis/by-id/${id}`
+      } else if (/^\d+$/.test(codigo)) {
+        url = `/api/admin/imoveis/by-id/${codigo}`
+      } else {
+        url = `/api/admin/imoveis/by-codigo/${codigo}`
+      }
+
+      const resp = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('admin-auth-token') || localStorage.getItem('auth-token')}`
         }
@@ -220,7 +238,7 @@ export default function CorretorLeadsPage() {
         const imovelBrokerId = String(imovel?.corretor_fk || '').toLowerCase().trim()
 
         if (imovelBrokerId !== currentBrokerId.toLowerCase().trim()) {
-          setNegocioError('Este código de imóvel não está associado a você')
+          setNegocioError('Este imóvel não está associado a você')
           return
         }
 
@@ -228,13 +246,34 @@ export default function CorretorLeadsPage() {
         setNegocioFechadoChecked(data.imovel.status_fk === 100)
         setInitialStatus(data.imovel.status_fk)
       } else {
-        setNegocioError('Este código de imóvel não está associado a você')
+        setNegocioError('Imóvel não encontrado ou não associado a você')
       }
     } catch (err) {
       setNegocioError('Erro ao buscar imóvel.')
     } finally {
       setIsSearching(false)
     }
+  }
+
+  const openNegocioFechadoForLead = (id: string | number) => {
+    const sId = String(id)
+    setNegocioError(null)
+    setImovelEncontrado(null)
+    setCodigoBusca(sId)
+    setIsNegocioFechadoOpen(true)
+    setTimeout(() => {
+      handleBuscarImovelStatus(undefined, sId)
+    }, 100)
+  }
+
+  const openNegocioFechadoForLeadById = (id: string) => {
+    setNegocioError(null)
+    setImovelEncontrado(null)
+    setCodigoBusca(id)
+    setIsNegocioFechadoOpen(true)
+    setTimeout(() => {
+      handleBuscarImovelStatus(undefined, id)
+    }, 100)
   }
 
   const handleConfirmarNegocioFechado = async () => {
@@ -272,7 +311,7 @@ export default function CorretorLeadsPage() {
 
             const statusAlterado = novoStatus !== initialStatus
             if (statusAlterado) {
-              window.location.href = '/landpaging'
+              window.location.href = '/corretor/leads'
             } else {
               window.location.reload()
             }
@@ -291,7 +330,7 @@ export default function CorretorLeadsPage() {
                 }
               })
             } catch { }
-            window.location.href = '/landpaging'
+            window.location.href = '/corretor/leads'
           } else {
             window.location.reload()
           }
@@ -381,23 +420,27 @@ export default function CorretorLeadsPage() {
             </p>
           </div>
           <button
+            onClick={() => {
+              try {
+                const returnUrl = sessionStorage.getItem('corretor_return_url') || '/landpaging'
+                const url = new URL(returnUrl, window.location.origin)
+                url.searchParams.set('corretor_home', 'true')
+                window.location.href = url.toString()
+              } catch {
+                window.location.href = '/landpaging?corretor_home=true'
+              }
+            }}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-900 font-bold hover:bg-slate-50"
+          >
+            <X className="w-4 h-4" />
+            Fechar
+          </button>
+          <button
             onClick={load}
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white font-bold hover:bg-slate-800"
           >
             <RefreshCcw className="w-4 h-4" />
             Atualizar
-          </button>
-          <button
-            onClick={() => {
-              setNegocioError(null)
-              setImovelEncontrado(null)
-              setCodigoBusca('')
-              setIsNegocioFechadoOpen(true)
-            }}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-white font-bold hover:bg-indigo-700 shadow-sm transition-all"
-          >
-            <BadgeCheck className="w-4 h-4" />
-            Negócio Fechado
           </button>
         </div>
 
@@ -645,25 +688,36 @@ export default function CorretorLeadsPage() {
                       </div>
                     )}
 
+                    {focusProspectId !== l.prospect_id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isOpen = !!(openDetails[l.prospect_id])
+                          setOpenDetails((prev) => ({ ...prev, [l.prospect_id]: !isOpen }))
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-900 font-black hover:bg-slate-50"
+                      >
+                        {openDetails[l.prospect_id] ? (
+                          <>
+                            <ChevronUp className="w-4 h-4" />
+                            Ocultar detalhes
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="w-4 h-4" />
+                            Ver detalhes
+                          </>
+                        )}
+                      </button>
+                    )}
+
                     <button
                       type="button"
-                      onClick={() => {
-                        const isOpen = !!(openDetails[l.prospect_id] || focusProspectId === l.prospect_id)
-                        setOpenDetails((prev) => ({ ...prev, [l.prospect_id]: !isOpen }))
-                      }}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-900 font-black hover:bg-slate-50"
+                      onClick={() => openNegocioFechadoForLead(l.imovel_id || '')}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-white font-black hover:bg-indigo-700 shadow-sm transition-all"
                     >
-                      {openDetails[l.prospect_id] || focusProspectId === l.prospect_id ? (
-                        <>
-                          <ChevronUp className="w-4 h-4" />
-                          Ocultar detalhes
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="w-4 h-4" />
-                          Ver detalhes
-                        </>
-                      )}
+                      <BadgeCheck className="w-4 h-4" />
+                      Negócio Fechado
                     </button>
                   </div>
                 </div>
@@ -716,7 +770,7 @@ export default function CorretorLeadsPage() {
                   {/* Busca */}
                   <div>
                     <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">
-                      Buscar Imóvel por Código
+                      CÓDIGO DO IMÓVEL (ID)
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -725,11 +779,11 @@ export default function CorretorLeadsPage() {
                         value={codigoBusca}
                         onChange={(e) => setCodigoBusca(e.target.value.toUpperCase())}
                         onKeyDown={(e) => e.key === 'Enter' && handleBuscarImovelStatus()}
-                        placeholder="Ex: 123"
+                        placeholder="Ex: 45"
                         className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                       />
                       <button
-                        onClick={handleBuscarImovelStatus}
+                        onClick={() => handleBuscarImovelStatus()}
                         disabled={isSearching || !codigoBusca.trim()}
                         className="px-4 py-2.5 bg-slate-900 text-white text-xs font-black rounded-xl hover:bg-slate-800 disabled:opacity-50 transition-all flex items-center gap-2"
                       >
@@ -807,5 +861,3 @@ export default function CorretorLeadsPage() {
     </div>
   )
 }
-
-

@@ -11,6 +11,7 @@ import { updateImovelProximidades } from '@/lib/database/proximidades'
 import { insertImovelImagem } from '@/lib/database/imoveis'
 import { saveImovelVideo } from '@/lib/database/imovel-video'
 import { buscarCoordenadasPorEnderecoCompleto } from '@/lib/utils/geocoding'
+import { safeParseInt, safeParseFloat } from '@/lib/utils/safeParser'
 
 // Função para extrair usuário logado
 function getCurrentUserPayload(request: NextRequest) {
@@ -118,8 +119,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Caso contrário, usar paginação
-    const pageNum = parseInt(page || '1')
-    const limitNum = parseInt(limit || '20')
+    const pageNum = safeParseInt(page, 1, 1)
+    const limitNum = safeParseInt(limit, 20, 1, 100)
     const offset = (pageNum - 1) * limitNum
 
     // Filtros
@@ -127,7 +128,7 @@ export async function GET(request: NextRequest) {
 
     // Filtros do frontend - usando os campos corretos do banco
     if (searchParams.get('codigo')) {
-      filtros.id = parseInt(searchParams.get('codigo')!)
+      filtros.id = safeParseInt(searchParams.get('codigo'), 0, 1)
     }
 
     if (searchParams.get('bairro')) {
@@ -135,37 +136,28 @@ export async function GET(request: NextRequest) {
     }
 
     if (searchParams.get('estado')) {
-      // Frontend envia ID do estado, mas banco armazena sigla
-      // Vamos buscar a sigla correspondente ao ID
-      const estadoId = parseInt(searchParams.get('estado')!)
-      const siglasEstados: { [key: number]: string } = {
-        0: 'RO', 1: 'AC', 2: 'AM', 3: 'RR', 4: 'PA', 5: 'AP', 6: 'TO', 7: 'MA',
-        8: 'PI', 9: 'CE', 10: 'RN', 11: 'PB', 12: 'PE', 13: 'AL', 14: 'SE', 15: 'BA',
-        16: 'MG', 17: 'ES', 18: 'RJ', 19: 'SP', 20: 'PR', 21: 'SC', 22: 'RS', 23: 'MS',
-        24: 'MT', 25: 'GO', 26: 'DF'
-      }
-      filtros.estado_sigla = siglasEstados[estadoId] || null
-      console.log('🔍 Estado filtro - ID recebido:', estadoId, 'Sigla convertida:', filtros.estado_sigla)
-      console.log('🔍 Mapeamento completo:', siglasEstados)
+      // Frontend agora envia SIGLA do estado (ex: "PE")
+      // NÃO tentar converter para Int
+      const estadoSigla = searchParams.get('estado')
+      filtros.estado_sigla = estadoSigla
+      console.log('🔍 Estado filtro - Sigla recebida:', filtros.estado_sigla)
     }
 
     if (searchParams.get('municipio')) {
-      // Frontend envia ID da cidade, mas banco armazena nome
-      // Vamos buscar o nome da cidade correspondente ao ID
-      const cidadeId = parseInt(searchParams.get('municipio')!)
-      // Para isso funcionar, precisamos carregar os municípios do estado selecionado
-      // Por enquanto, vamos usar uma abordagem diferente
-      filtros.cidade_nome = searchParams.get('municipio') // Temporário - usar nome diretamente
+      // Frontend envia NOME da cidade (ex: "Recife")
+      // NÃO tentar converter para Int
+      filtros.cidade_nome = searchParams.get('municipio')
+      console.log('🔍 Municipio filtro - Nome recebido:', filtros.cidade_nome)
     }
 
     if (searchParams.get('tipo')) {
       // Frontend envia ID do tipo
-      filtros.tipo_fk = parseInt(searchParams.get('tipo')!)
+      filtros.tipo_fk = safeParseInt(searchParams.get('tipo'), 0, 1)
     }
 
     if (searchParams.get('finalidade')) {
       // Frontend envia ID da finalidade
-      filtros.finalidade_fk = parseInt(searchParams.get('finalidade')!)
+      filtros.finalidade_fk = safeParseInt(searchParams.get('finalidade'), 0, 1)
     }
 
     if (searchParams.get('status')) {
@@ -183,27 +175,27 @@ export async function GET(request: NextRequest) {
 
     // Filtros legados (manter compatibilidade)
     if (searchParams.get('tipo_id')) {
-      filtros.tipo_id = parseInt(searchParams.get('tipo_id')!)
+      filtros.tipo_id = safeParseInt(searchParams.get('tipo_id'), 0, 1)
     }
 
     if (searchParams.get('status_id')) {
-      filtros.status_id = parseInt(searchParams.get('status_id')!)
+      filtros.status_id = safeParseInt(searchParams.get('status_id'), 0, 1)
     }
 
     if (searchParams.get('preco_min')) {
-      filtros.preco_min = parseFloat(searchParams.get('preco_min')!)
+      filtros.preco_min = safeParseFloat(searchParams.get('preco_min'), 0, 0)
     }
 
     if (searchParams.get('preco_max')) {
-      filtros.preco_max = parseFloat(searchParams.get('preco_max')!)
+      filtros.preco_max = safeParseFloat(searchParams.get('preco_max'), 0, 0)
     }
 
     if (searchParams.get('quartos_min')) {
-      filtros.quartos_min = parseInt(searchParams.get('quartos_min')!)
+      filtros.quartos_min = safeParseInt(searchParams.get('quartos_min'), 0, 0)
     }
 
     if (searchParams.get('area_min')) {
-      filtros.area_min = parseFloat(searchParams.get('area_min')!)
+      filtros.area_min = safeParseFloat(searchParams.get('area_min'), 0, 0)
     }
 
     if (searchParams.get('cidade')) {
@@ -233,10 +225,22 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('❌ Erro ao listar imóveis:', error)
     console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A')
-    console.error('❌ Detalhes do erro:', {
-      message: error instanceof Error ? error.message : String(error),
-      name: error instanceof Error ? error.name : 'Unknown'
-    })
+
+    const errorLog = `
+=== ERROR ${new Date().toISOString()} ===
+Message: ${error instanceof Error ? error.message : String(error)}
+Stack: ${error instanceof Error ? error.stack : 'N/A'}
+URL: ${request.url}
+===================================
+
+`
+    try {
+      const fs = require('fs')
+      fs.appendFileSync('C:/NetImobiliária/net-imobiliaria/debug_crash.txt', errorLog)
+    } catch (e) {
+      console.error('Error writing log:', e)
+    }
+
     return NextResponse.json(
       {
         error: 'Erro interno do servidor',

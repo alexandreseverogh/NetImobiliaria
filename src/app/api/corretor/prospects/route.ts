@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import { AUTH_CONFIG } from '@/lib/config/auth'
-import { getTokenFromRequest } from '@/lib/auth/jwt'
+import { getPublicTokenFromRequest } from '@/lib/auth/jwt-public'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 function getLoggedUserId(request: NextRequest): { userId: string | null, error?: string } {
-  const token = getTokenFromRequest(request)
+  const token = getPublicTokenFromRequest(request)  // ✅ Use public helper
   if (!token) {
     return { userId: null, error: 'Token not found in headers/cookies' }
   }
@@ -27,18 +27,16 @@ export async function GET(request: NextRequest) {
     const { userId, error } = getLoggedUserId(request)
 
     if (!userId) {
-      const token = getTokenFromRequest(request)
-      return NextResponse.json({
-        success: false,
-        error: 'Não autorizado',
-        debug: {
-          reason: error,
-          token_preview: token ? token.substring(0, 10) + '...' : 'none',
-          secret_configured: !!AUTH_CONFIG.JWT.SECRET,
-          secret_len: AUTH_CONFIG.JWT.SECRET?.length,
-          env: process.env.NODE_ENV
-        }
-      }, { status: 401 })
+      const token = getPublicTokenFromRequest(request)  // ✅ Use public helper
+      console.error('❌ CORRETOR PROSPECTS - Token inválido ou ausente:', {
+        error,
+        hasToken: !!token,
+        tokenPreview: token ? `${token.substring(0, 20)}...` : 'N/A'
+      })
+      return NextResponse.json(
+        { success: false, message: 'Não autorizado', details: error },
+        { status: 401 }
+      )
     }
 
     const { searchParams } = new URL(request.url)
@@ -171,7 +169,8 @@ export async function GET(request: NextRequest) {
         c.email as cliente_email,
         c.telefone as cliente_telefone,
         ip.preferencia_contato,
-        ip.mensagem
+        ip.mensagem,
+        i.status_fk as imovel_status_fk
       FROM public.imovel_prospect_atribuicoes a
       INNER JOIN public.imovel_prospects ip ON ip.id = a.prospect_id
       INNER JOIN public.imoveis i ON ip.id_imovel = i.id

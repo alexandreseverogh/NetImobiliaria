@@ -1,0 +1,9 @@
+﻿                  id                  |         nome          |                  email                  | tipo_corretor | total_recebidos | ultimo_recebimento 
+--------------------------------------+-----------------------+-----------------------------------------+---------------+-----------------+--------------------
+ b537ea32-2011-4511-812f-7a62edc7d701 | Maria Silva           | voxefe6197@arqsis.com                   | Externo       |               0 | 
+ 36262cee-e951-45ce-8f52-bb2311f7323e | Paula Lima            | wironid274@okexbit.com                  | Externo       |               0 | 
+ c57ab897-c068-46a4-9b12-bb9f2d938fe7 | Corretor1             | liwalek898@noihse.com                   | Externo       |               0 | 
+ 9c89c838-e989-46e1-a358-6a564ae15034 | Corretor2             | misleading.marmot.absl@protectsmail.net | Externo       |               0 | 
+ 9c95dfb0-3bff-4270-9364-d944631b821b | QuartoCorretorExterno | wovasa5115@sepole.com                   | Externo       |               0 | 
+(5 rows)
+

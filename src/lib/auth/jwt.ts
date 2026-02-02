@@ -31,8 +31,8 @@ export interface Tokens {
 }
 
 /**
- * Helper function to extract token from NextRequest
- * Checks in order: Authorization header, accessToken cookie, auth_token cookie
+ * Helper function to extract token from NextRequest (ADMIN routes)
+ * Checks in order: Authorization header, admin_auth_token cookie, auth_token cookie (legacy), accessToken cookie (legacy)
  */
 export function getTokenFromRequest(request: NextRequest): string | null {
   // 1. Check Authorization header (Bearer token)
@@ -41,13 +41,17 @@ export function getTokenFromRequest(request: NextRequest): string | null {
     return authHeader.slice(7)
   }
 
-  // 2. Check existing accessToken cookie (backward compatibility)
-  const accessToken = request.cookies.get('accessToken')?.value
-  if (accessToken) return accessToken
+  // 2. Check new admin_auth_token cookie (PRIORITY for admin routes)
+  const adminAuthToken = request.cookies.get('admin_auth_token')?.value
+  if (adminAuthToken) return adminAuthToken
 
-  // 3. Check new auth_token cookie (HTTP-only secure cookie)
+  // 3. Check legacy auth_token cookie (backward compatibility)
   const authToken = request.cookies.get('auth_token')?.value
   if (authToken) return authToken
+
+  // 4. Check existing accessToken cookie (backward compatibility)
+  const accessToken = request.cookies.get('accessToken')?.value
+  if (accessToken) return accessToken
 
   return null
 }

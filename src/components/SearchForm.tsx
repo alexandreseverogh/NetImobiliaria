@@ -858,17 +858,17 @@ export default function SearchForm({
       <div className="flex flex-col lg:flex-row gap-2 lg:gap-4 items-start lg:items-center justify-between border-b border-gray-100 pb-2 mb-3">
         <div className="text-left flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-base md:text-lg font-bold tracking-wide text-primary-200">
+            <p className="text-base md:text-lg font-bold tracking-wide text-primary-900">
               Encontre o imóvel da sua preferência
             </p>
             <span className={`text-sm md:text-base font-extrabold italic tracking-wide ${operation === 'DV'
-              ? 'text-blue-500 drop-shadow-lg bg-blue-50/30 px-1.5 py-0.5 rounded-lg border border-blue-300/50'
-              : 'text-green-500 drop-shadow-lg bg-green-50/30 px-1.5 py-0.5 rounded-lg border border-green-300/50'
+              ? 'text-primary-700 drop-shadow-md bg-primary-50 px-1.5 py-0.5 rounded-lg border border-primary-200'
+              : 'text-emerald-700 drop-shadow-md bg-emerald-50 px-1.5 py-0.5 rounded-lg border border-emerald-200'
               } transition-all duration-300`}>
               - {textoComplementar}
             </span>
           </div>
-          <h3 className="text-lg md:text-xl font-semibold text-white">
+          <h3 className="text-lg md:text-xl font-semibold text-gray-800">
             Refinar busca ({resumoOperacao})
           </h3>
         </div>
@@ -880,7 +880,7 @@ export default function SearchForm({
               setOperation('DV')
               onOperationChange?.('DV')
             }}
-            className="px-4 py-3 text-base font-medium text-white bg-blue-600"
+            className="px-4 py-3 text-base font-medium text-white bg-primary-700"
           >
             <Home className="w-4 h-4 inline mr-2" />
             Comprar
@@ -891,7 +891,7 @@ export default function SearchForm({
               setOperation('DA')
               onOperationChange?.('DA')
             }}
-            className="px-4 py-3 text-base font-medium text-white bg-green-600"
+            className="px-4 py-3 text-base font-medium text-white bg-emerald-700 hover:bg-emerald-800 transition-colors"
           >
             <Building className="w-4 h-4 inline mr-2" />
             Alugar
@@ -1373,7 +1373,7 @@ export default function SearchForm({
           <button
             type="submit"
             disabled={disableApplyButton}
-            className="w-full sm:w-auto bg-gradient-to-r from-blue-400 to-indigo-500 border-2 border-blue-500 text-white hover:from-blue-500 hover:to-indigo-600 hover:border-blue-600 hover:shadow-lg disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-500 disabled:border-gray-400 disabled:cursor-not-allowed font-semibold py-2.5 px-6 rounded-xl transition-all duration-200 flex items-center justify-center text-base shadow-md hover:shadow-xl"
+            className="w-full sm:w-auto bg-gradient-to-r from-primary-700 to-primary-900 border-2 border-primary-800 text-white hover:from-primary-800 hover:to-primary-950 hover:border-primary-900 hover:shadow-lg disabled:from-gray-300 disabled:to-gray-400 disabled:text-gray-500 disabled:border-gray-400 disabled:cursor-not-allowed font-semibold py-2.5 px-6 rounded-xl transition-all duration-200 flex items-center justify-center text-base shadow-md hover:shadow-xl"
           >
             {isSearching ? (
               <span className="flex items-center gap-1.5">

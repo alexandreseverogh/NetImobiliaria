@@ -306,6 +306,14 @@ export default function UserSuccessModal({
   const openLeadsPanel = useCallback(
     (tab: LeadTabId, prospectId?: number) => {
       // UX: navegar na mesma aba para manter a sessão
+      try {
+        const currentPath = window.location.pathname
+        // Só salvar a origem se não estivermos já na área de leads (para não sobrescrever a verdadeira origem)
+        if (!currentPath.includes('/corretor/leads')) {
+          sessionStorage.setItem('corretor_return_url', currentPath + window.location.search)
+        }
+      } catch { }
+
       const params = new URLSearchParams()
       params.set('status', 'all')
       params.set('view', tab)
@@ -317,7 +325,14 @@ export default function UserSuccessModal({
 
   const openLeadDetailsPage = useCallback((prospectId: number) => {
     if (!prospectId) return
-    // Navegar na mesma aba para manter contexto
+    // UX: navegar na mesma aba para manter a sessão
+    try {
+      const currentPath = window.location.pathname
+      // Só salvar a origem se não estivermos já na área de leads (para não sobrescrever a verdadeira origem)
+      if (!currentPath.includes('/corretor/leads')) {
+        sessionStorage.setItem('corretor_return_url', currentPath + window.location.search)
+      }
+    } catch { }
     window.location.href = `/corretor/leads/${prospectId}`
   }, [])
 
@@ -621,21 +636,31 @@ export default function UserSuccessModal({
     window.location.href = '/corretor/areas-atuacao'
   }
 
-  const handleNegocioFechado = () => {
+  const handleNegocioFechado = (codigo?: string) => {
     setNegocioError(null)
     setImovelEncontrado(null)
-    setCodigoBusca('')
-    setIsNegocioFechadoOpen(true)
+    if (codigo) {
+      setCodigoBusca(codigo)
+      setIsNegocioFechadoOpen(true)
+      // Chamar a busca automaticamente após um pequeno delay para garantir que o estado abriu
+      setTimeout(() => {
+        handleBuscarImovelStatus(codigo)
+      }, 100)
+    } else {
+      setCodigoBusca('')
+      setIsNegocioFechadoOpen(true)
+    }
   }
 
-  const handleBuscarImovelStatus = async () => {
-    if (!codigoBusca.trim()) return
+  const handleBuscarImovelStatus = async (overrideCodigo?: string) => {
+    const codigoEfetivo = overrideCodigo || codigoBusca
+    if (!codigoEfetivo.trim()) return
     setIsSearching(true)
     setNegocioError(null)
     setImovelEncontrado(null)
     setInitialStatus(null)
     try {
-      const resp = await fetch(`/api/admin/imoveis/by-codigo/${codigoBusca}`, {
+      const resp = await fetch(`/api/admin/imoveis/by-codigo/${codigoEfetivo}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('admin-auth-token') || localStorage.getItem('auth-token')}`
         }
@@ -831,10 +856,10 @@ export default function UserSuccessModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div
         className={`relative w-full ${userData.userType === 'corretor' ? 'max-w-[80%]' : 'max-w-lg'
-          } bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-hidden`}
+          } bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-y-auto max-h-[95vh]`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
@@ -1108,7 +1133,7 @@ export default function UserSuccessModal({
                       </button>
                     </div>
 
-                    <div className="">
+                    <div className="max-h-[400px] overflow-y-auto">
                       {leadsLoading ? (
                         <div className="p-6 text-slate-600 text-sm">Carregando leads...</div>
                       ) : getTabLeads(activeLeadTab).length === 0 ? (
@@ -1152,14 +1177,26 @@ export default function UserSuccessModal({
                                         SLA{slaMinutos ? `: ${slaMinutos} min` : ''}
                                       </span>
                                     )}
-                                    <button
-                                      type="button"
-                                      onClick={() => openLeadDetailsPage(l.prospect_id)}
-                                      className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-slate-900 text-[11px] font-black hover:bg-slate-50 shadow-sm"
-                                    >
-                                      <ArrowUpRight className="w-4 h-4" />
-                                      Ver detalhes
-                                    </button>
+                                    <div className="flex flex-col gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => openLeadDetailsPage(l.prospect_id)}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-2.5 py-1.5 text-slate-900 text-[11px] font-black hover:bg-slate-50 shadow-sm"
+                                      >
+                                        <ArrowUpRight className="w-4 h-4 text-blue-600" />
+                                        Ver detalhes
+                                      </button>
+                                      {l.codigo && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleNegocioFechado(l.codigo)}
+                                          className="inline-flex items-center gap-2 rounded-xl bg-indigo-50 border border-indigo-100 px-2.5 py-1.5 text-indigo-700 text-[11px] font-black hover:bg-indigo-100 transition-colors shadow-sm"
+                                        >
+                                          <BadgeCheck className="w-4 h-4" />
+                                          Negócio Fechado
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
 
@@ -1313,19 +1350,7 @@ export default function UserSuccessModal({
                       </div>
                     </div>
 
-                    <div>
-                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ações</div>
-                      <div className="mt-2 flex flex-col gap-2">
-                        <button
-                          type="button"
-                          onClick={handleNegocioFechado}
-                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-2.5 text-white text-xs font-black hover:bg-indigo-700 shadow-sm"
-                        >
-                          <BadgeCheck className="w-6 h-6" />
-                          Negócio Fechado
-                        </button>
-                      </div>
-                    </div>
+
 
                     <div>
                       <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Configurações</div>
@@ -1476,7 +1501,7 @@ export default function UserSuccessModal({
                       />
                     </div>
                     <button
-                      onClick={handleBuscarImovelStatus}
+                      onClick={() => handleBuscarImovelStatus()}
                       disabled={isSearching || !codigoBusca.trim()}
                       className="px-6 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-slate-200"
                     >

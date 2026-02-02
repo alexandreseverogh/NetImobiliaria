@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useCallback, ReactNode } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, ReactNode } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useSessionWarning } from '@/hooks/useSessionWarning'
 import AdminHeader from '@/components/admin/AdminHeader'
@@ -78,6 +78,20 @@ function AdminLayoutPrivateContent({
     }
   })
 
+  // ✅ Redirecionar para login em useEffect (não durante render)
+  useEffect(() => {
+    if (!loading && !user) {
+      // Verificar se há token no localStorage
+      const token = typeof window !== 'undefined' ? localStorage.getItem('admin-auth-token') : null
+      const userData = typeof window !== 'undefined' ? localStorage.getItem('admin-user-data') : null
+
+      if (!token || !userData) {
+        // Se não há usuário nem token, redirecionar para login
+        window.location.href = '/admin/login'
+      }
+    }
+  }, [loading, user])
+
   const handleMenuClick = useCallback(() => {
     setSidebarOpen(true)
   }, [])
@@ -94,7 +108,7 @@ function AdminLayoutPrivateContent({
     return <LoadingSpinner message="Carregando..." />
   }
 
-  // Se não há usuário e não está na página de login, redirecionar para login
+  // Se não há usuário e não está na página de login, mostrar loading enquanto redireciona
   if (!user) {
     // Verificar se há token no localStorage (para desenvolvimento)
     if (typeof window !== 'undefined') {
@@ -130,11 +144,7 @@ function AdminLayoutPrivateContent({
       }
     }
 
-    // Se não há usuário nem token, redirecionar para login
-    if (typeof window !== 'undefined') {
-      window.location.href = '/admin/login'
-    }
-
+    // Mostrar loading enquanto redireciona (o redirect acontece no useEffect acima)
     return <LoadingSpinner message="Redirecionando para login..." />
   }
 

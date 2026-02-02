@@ -1,0 +1,146 @@
+﻿[dotenv@17.2.3] injecting env (18) from .env.local -- tip: ÔÜÖ´©Å  suppress all logs with { quiet: true }
+[dotenv@17.2.3] injecting env (0) from .env.local -- tip: ­ƒöÉ prevent committing .env to code: https://dotenvx.com/precommit
+­ƒöî [DB-Utils] Connecting to net_imobiliaria on localhost:15432
+­ƒöì DIAGN├ôSTICO DE CORRETORES
+
+­ƒôè Total de corretores: 16
+
+­ƒôê Externos: 9
+­ƒôê Internos: 7
+­ƒôê Plantonistas: 1
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+CORRETORES EXTERNOS (ou tipo_corretor = NULL)
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+ID: 65c7942e-786a-42a0-8939-06aff92737a0
+Nome: Corretor Teste corretor_fk
+Tipo: Externo
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 0
+---
+ID: c57ab897-c068-46a4-9b12-bb9f2d938fe7
+Nome: Corretor1
+Tipo: Externo
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 1
+---
+ID: 9c89c838-e989-46e1-a358-6a564ae15034
+Nome: Corretor2
+Tipo: Externo
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 1
+---
+ID: 43b2242a-cbea-4696-9e29-3987211188a3
+Nome: Corretor2000
+Tipo: Externo
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 0
+---
+ID: 791cf35e-a49d-4be0-ba1e-3c680fa8802c
+Nome: Corretor3000
+Tipo: Externo
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 0
+---
+ID: 01e81664-3d59-4abb-a249-ea3dc39b51ff
+Nome: CorretorFK
+Tipo: Externo
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 0
+---
+ID: b537ea32-2011-4511-812f-7a62edc7d701
+Nome: Maria Silva
+Tipo: Externo
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 1
+---
+ID: 36262cee-e951-45ce-8f52-bb2311f7323e
+Nome: Paula Lima
+Tipo: Externo
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 1
+---
+ID: 9c95dfb0-3bff-4270-9364-d944631b821b
+Nome: QuartoCorretorExterno
+Tipo: Externo
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 3
+---
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+CORRETORES INTERNOS
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+ID: d4640a41-8995-4236-9f90-3db23e2683dd
+Nome: Cliente teste transbordo
+Tipo: Interno
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 0
+---
+ID: 6a3da779-2e4c-4ce2-bf6b-8b4d8a38ae5a
+Nome: Corretor FK
+Tipo: Interno
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 0
+---
+ID: abd6b94a-fbe9-4a9b-8688-f3ecb142fff3
+Nome: Gigi
+Tipo: Interno
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 1
+---
+ID: 4d456e42-4031-46ba-9b5c-912bec1d28b5
+Nome: Jose Damasio Neto
+Tipo: Interno
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 1
+---
+ID: ebad63d6-c774-40e1-b9c7-0f55b7c1735f
+Nome: Nunes Cabelo de A├ºo
+Tipo: Interno
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 1
+---
+ID: 491795c4-c017-4285-b85a-eb29c26c28b5
+Nome: ROBERTO SEVERO SALGUES CAMPOS
+Tipo: Interno
+Plantonista: N├âO
+Ativo: SIM
+├üreas cadastradas: 1
+---
+ID: 50ca3bce-e57b-4fb3-beec-87b9a8f76685
+Nome: Plantonista
+Tipo: Interno
+Plantonista: SIM
+Ativo: SIM
+├üreas cadastradas: 0
+---
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+├üREAS DE ATUA├ç├âO POR CORRETOR
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+Corretor1 (Externo): Recife/PE
+Corretor2 (Externo): Recife/PE
+Maria Silva (Externo): Recife/PE
+Paula Lima (Externo): Recife/PE
+QuartoCorretorExterno (Externo): Jaboat├úo dos Guararapes/PE
+QuartoCorretorExterno (Externo): Olinda/PE
+QuartoCorretorExterno (Externo): Recife/PE
+Administrador Principal (Interno): Olinda/PE
+Gigi (Interno): Recife/PE
+Jose Damasio Neto (Interno): Recife/PE
+Nunes Cabelo de A├ºo (Interno): Recife/PE
+ROBERTO SEVERO SALGUES CAMPOS (Interno): Recife/PE

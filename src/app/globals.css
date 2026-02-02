@@ -28,7 +28,7 @@
   html {
     scroll-behavior: smooth;
   }
-  
+
   body {
     @apply text-gray-900 bg-white;
   }
@@ -38,47 +38,47 @@
   .btn-primary {
     @apply bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200;
   }
-  
+
   .btn-secondary {
     @apply bg-white hover:bg-gray-50 text-primary-600 font-semibold py-3 px-6 rounded-lg border border-primary-600 transition-colors duration-200;
   }
-  
+
   .card {
     @apply bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-200;
   }
-  
+
   /* Esconder TODOS os popups e tooltips permanentes do Leaflet - usar apenas modal customizado */
   .leaflet-popup {
     display: none !important;
     visibility: hidden !important;
   }
-  
+
   .leaflet-popup-pane {
     display: none !important;
     visibility: hidden !important;
   }
-  
+
   .leaflet-tooltip-pane {
     z-index: 650 !important;
   }
-  
+
   .custom-tooltip {
     max-width: 300px !important;
   }
-  
+
   /* Garantir que cards em grid de 5 colunas tenham largura mínima adequada */
-  .grid.grid-cols-5 > .card {
+  .grid.grid-cols-5>.card {
     min-width: 0;
   }
-  
+
   /* Garantir que o campo Área nos cards (primeiro campo) tenha espaço suficiente */
   .card .bg-gray-50:first-child {
     min-width: 95px !important;
     width: 95px !important;
     flex-shrink: 0 !important;
   }
-  
-  .card .bg-gray-50:first-child > div:last-child {
+
+  .card .bg-gray-50:first-child>div:last-child {
     word-break: break-word;
     overflow-wrap: break-word;
     white-space: normal;
@@ -150,9 +150,9 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-

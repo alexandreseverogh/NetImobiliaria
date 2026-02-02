@@ -6,13 +6,28 @@ if (!dbPassword) {
   console.warn('⚠️ DB_PASSWORD não definido nas variáveis de ambiente.')
 }
 
-// Configuração do pool de conexões
+const dbName = process.env.DB_NAME
+if (!dbName) {
+  throw new Error('❌ ERRO CRÍTICO: DB_NAME não definido nas variáveis de ambiente. Verifique o arquivo .env.local')
+}
+
+const dbHost = process.env.DB_HOST || 'localhost'
+const dbPort = process.env.DB_PORT || '15432'
+
+console.log('🚀 [DB CONNECTION DEBUG] Iniciando pool de conexões:', {
+  timestamp: new Date().toISOString(),
+  host: dbHost,
+  port: dbPort,
+  database: dbName,
+  env_db: process.env.DB_NAME // para ver se tem algo vindo do env
+})
+
 const poolConfig: PoolConfig = {
   user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'net_imobiliaria',
+  host: dbHost,
+  database: dbName,
   password: dbPassword || 'postgres',
-  port: parseInt(process.env.DB_PORT || '15432'),
+  port: parseInt(dbPort),
 
   // Configurações de pool para produção
   max: 20, // Máximo de conexões no pool

@@ -1,28 +1,29 @@
 /**
- * Lead Router SLA Worker (MVP)
+ * Lead Router SLA Worker (MVP + Guardian)
  * - Roda continuamente (cron a cada 1 minuto)
  * - Expira atribuições (status=atribuido AND expira_em <= NOW())
- * - Reatribui para outro corretor da área até o limite definido em parametros.proximos_corretores_recebem_leads
- * - Se exceder o limite (ou não houver próximos), direciona para corretor plantonista
- * - Envia email para o novo corretor (template: novo-lead-corretor)
+ * - Usa LeadGuardian para decisões de tier transition (External → Internal → Plantonista)
+ * - Envia emails para corretores e clientes conforme regras de negócio
  *
  * Execute: node scripts/lead-router-sla-worker.js
  */
 
 require('dotenv').config({ path: '.env.local' })
 const cron = require('node-cron')
-const { Pool } = require('pg')
-const nodemailer = require('nodemailer')
+const { pool } = require('./utils/db.js');
+const { LeadGuardian } = require('./utils/LeadGuardian.js');
+const fs = require('fs');
+const path = require('path');
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  database: process.env.DB_NAME || 'net_imobiliaria',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres'
-})
+function workerDebugLog(msg) {
+  try {
+    const logPath = path.join(process.cwd(), 'worker_debug.txt')
+    const time = new Date().toISOString()
+    fs.appendFileSync(logPath, `[${time}] ${msg}\n`)
+  } catch (e) { }
+}
 
-console.log(`🔌 [LeadWorker] DB Setup: ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '5432'}`);
+console.log(`🔌 [LeadWorker] DB Setup initialized from utils/db.js`);
 
 // Global flag to prevent overlapping executions
 let isProcessing = false;
@@ -30,13 +31,25 @@ let isProcessing = false;
 const DEFAULT_SLA_MINUTES = 5
 
 function appBaseUrl() {
-  const base = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'
-  return String(base).replace(/\/+$/, '')
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL
+  let url = fromEnv ? fromEnv.replace(/\/+$/, '') : 'http://localhost:3000'
+
+  // Garantir que tenha protocolo
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'http://' + url
+  }
+  return url
 }
 
 function buildCorretorPainelUrl(prospectId) {
   const base = appBaseUrl()
   const next = `/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}`
+  return `${base}/corretor/entrar?next=${encodeURIComponent(next)}`
+}
+
+function buildNegocioFechadoUrl(prospectId, imovelId) {
+  const base = appBaseUrl()
+  const next = `/corretor/leads?prospectId=${encodeURIComponent(String(prospectId))}&openNegocioId=${encodeURIComponent(String(imovelId))}`
   return `${base}/corretor/entrar?next=${encodeURIComponent(next)}`
 }
 
@@ -77,6 +90,13 @@ async function getParametroSlaMinutosAceiteLeadInterno() {
 }
 
 async function getParametroSlaMinutosAceiteLead() {
+  // 1. Prioridade: Variável de Ambiente
+  const envVal = Number(process.env.LEAD_SLA_MINUTES)
+  if (Number.isFinite(envVal) && envVal > 0) {
+    return envVal
+  }
+
+  // 2. Fallback: Banco de Dados
   try {
     const r = await pool.query('SELECT sla_minutos_aceite_lead FROM public.parametros LIMIT 1')
     const v = r.rows?.[0]?.sla_minutos_aceite_lead
@@ -242,8 +262,30 @@ async function sendTemplateEmail(to, templateName, variables) {
 }
 
 async function getUserById(userId) {
-  const r = await pool.query('SELECT id, nome, email FROM public.users WHERE id = $1::uuid LIMIT 1', [userId])
-  return r.rows?.[0] || null
+  const r = await pool.query('SELECT * FROM public.users WHERE id = $1', [userId])
+  return r.rows[0]
+}
+
+async function fetchGuardianConfig(pool) {
+  const paramsQ = await pool.query('SELECT * FROM public.parametros LIMIT 1')
+  return paramsQ.rows[0]
+}
+
+async function fetchAssignmentHistory(prospectId, pool) {
+  const historyQ = await pool.query(
+    `
+    SELECT 
+      pa.corretor_fk,
+      u.tipo_corretor,
+      COALESCE(pa.motivo->>'type', '') as m_type
+    FROM public.imovel_prospect_atribuicoes pa
+    JOIN public.users u ON u.id = pa.corretor_fk
+    WHERE pa.prospect_id = $1
+    ORDER BY pa.created_at ASC
+    `,
+    [prospectId]
+  )
+  return historyQ.rows
 }
 
 async function pickNextBrokerByAreaExternal(estado, cidade, prospectId) {
@@ -256,18 +298,24 @@ async function pickNextBrokerByAreaExternal(estado, cidade, prospectId) {
     INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
     INNER JOIN public.user_roles ur ON ura.role_id = ur.id
     INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
+    LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
     LEFT JOIN public.imovel_prospect_atribuicoes a2 ON a2.corretor_fk = u.id
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = false
-      AND (COALESCE(u.tipo_corretor, 'Externo') = 'Externo' OR u.tipo_corretor IS NULL)
+      AND u.tipo_corretor = 'Externo'
       AND caa.estado_fk = $1
       AND caa.cidade_fk = $2
       AND u.id NOT IN (
         SELECT corretor_fk FROM public.imovel_prospect_atribuicoes WHERE prospect_id = $3
       )
-    GROUP BY u.id, u.nome, u.email
-    ORDER BY COUNT(a2.id) ASC, MAX(a2.created_at) ASC NULLS FIRST, u.created_at ASC
+    GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
+    ORDER BY 
+      COUNT(a2.id) ASC, 
+      MAX(a2.created_at) ASC NULLS FIRST, 
+      COALESCE(cs.nivel, 0) DESC,
+      COALESCE(cs.xp_total, 0) DESC,
+      u.created_at ASC
     LIMIT 1
   `
   const r = await pool.query(q, [estado, cidade, prospectId])
@@ -285,18 +333,24 @@ async function pickInternalBrokerByArea(estado, cidade, prospectId) {
     INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
     INNER JOIN public.user_roles ur ON ura.role_id = ur.id
     INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
+    LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
     LEFT JOIN public.imovel_prospect_atribuicoes a2 ON a2.corretor_fk = u.id
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = false
-      AND COALESCE(u.tipo_corretor, 'Externo') = 'Interno'
+      AND u.tipo_corretor = 'Interno'
       AND caa.estado_fk = $1
       AND caa.cidade_fk = $2
       AND u.id NOT IN (
         SELECT corretor_fk FROM public.imovel_prospect_atribuicoes WHERE prospect_id = $3
       )
-    GROUP BY u.id, u.nome, u.email
-    ORDER BY COUNT(a2.id) ASC, MAX(a2.created_at) ASC NULLS FIRST, u.created_at ASC
+    GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
+    ORDER BY 
+      COUNT(a2.id) ASC, 
+      MAX(a2.created_at) ASC NULLS FIRST, 
+      COALESCE(cs.nivel, 0) DESC,
+      COALESCE(cs.xp_total, 0) DESC,
+      u.created_at ASC
     LIMIT 1
   `
   const r = await pool.query(q, [estado, cidade, prospectId])
@@ -314,14 +368,20 @@ async function pickBrokerByAreaInitial(estado, cidade) {
     INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
     INNER JOIN public.user_roles ur ON ura.role_id = ur.id
     INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
+    LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
     LEFT JOIN public.imovel_prospect_atribuicoes a2 ON a2.corretor_fk = u.id
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = false
       AND caa.estado_fk = $1
       AND caa.cidade_fk = $2
-    GROUP BY u.id, u.nome, u.email
-    ORDER BY COUNT(a2.id) ASC, MAX(a2.created_at) ASC NULLS FIRST, u.created_at ASC
+    GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
+    ORDER BY 
+      COUNT(a2.id) ASC, 
+      MAX(a2.created_at) ASC NULLS FIRST, 
+      COALESCE(cs.nivel, 0) DESC,
+      COALESCE(cs.xp_total, 0) DESC,
+      u.created_at ASC
     LIMIT 1
   `
   const r = await pool.query(q, [estado, cidade])
@@ -339,12 +399,18 @@ async function pickPlantonistaBroker() {
     FROM public.users u
     INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
     INNER JOIN public.user_roles ur ON ura.role_id = ur.id
+    LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
     LEFT JOIN public.imovel_prospect_atribuicoes a2 ON a2.corretor_fk = u.id
     WHERE u.ativo = true
       AND ur.name = 'Corretor'
       AND COALESCE(u.is_plantonista, false) = true
-    GROUP BY u.id, u.nome, u.email
-    ORDER BY COUNT(a2.id) ASC, MAX(a2.created_at) ASC NULLS FIRST, u.created_at ASC
+    GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
+    ORDER BY 
+      COUNT(a2.id) ASC, 
+      MAX(a2.created_at) ASC NULLS FIRST, 
+      COALESCE(cs.nivel, 0) DESC,
+      COALESCE(cs.xp_total, 0) DESC,
+      u.created_at ASC
     LIMIT 1
   `
   const r = await pool.query(q)
@@ -458,31 +524,59 @@ async function processUnassignedProspectsOnce() {
       // Regra: se o imóvel tiver corretor_fk, direciona direto (se ativo e corretor)
       let broker = null
       let isPlantonista = false
+      let isInternal = false
       const imovelCorretorFk = payload.corretor_fk ? String(payload.corretor_fk).trim() : ''
       let directBroker = false
+
       if (imovelCorretorFk) {
         broker = await getUserById(imovelCorretorFk)
         directBroker = !!broker
       }
-      if (!broker) broker = await pickBrokerByAreaInitial(estado, cidade)
+
+      // HIERARQUIA CORRETA: External → Internal → Plantonista
+      let targetTier = 'External'
       if (!broker) {
-        broker = await pickPlantonistaBroker()
-        isPlantonista = !!broker
+        console.log(`[LeadWorker] 🔍 Tentando EXTERNAL para prospect ${prospectId}, ${cidade}/${estado}`)
+        broker = await pickNextBrokerByAreaExternal(estado, cidade, prospectId)
       }
-      if (!broker) continue
+      if (!broker) {
+        console.log(`[LeadWorker] 🔍 Tentando INTERNAL para prospect ${prospectId}, ${cidade}/${estado}`)
+        broker = await pickInternalBrokerByArea(estado, cidade, prospectId)
+        targetTier = 'Internal'
+      }
+      if (!broker) {
+        console.log(`[LeadWorker] 🔍 Fallback para PLANTONISTA para prospect ${prospectId}`)
+        broker = await pickPlantonistaBroker()
+        targetTier = 'Plantonista'
+      }
 
-      // REGRA CRÍTICA: se veio por imovel.corretor_fk, NÃO aplicar transbordo/SLA (expira_em = NULL)
-      const expiraEm = directBroker ? null : new Date(Date.now() + slaMinutes * 60 * 1000)
+      if (!broker) {
+        console.log(`[LeadWorker] ❌ NENHUM corretor elegível para prospect ${prospectId}`)
+        continue
+      }
 
-      const mType = directBroker ? 'imovel_corretor_fk' : (isPlantonista ? 'fallback_plantonista' : 'area_match')
-      const curStatus = (directBroker || isPlantonista) ? 'aceito' : 'atribuido'
+      // Decisão Final usando Guardian
+      const guardianConfig = await fetchGuardianConfig(pool)
+      const guardian = new LeadGuardian(guardianConfig)
+      const routingDecision = guardian.makeRoutingDecision(
+        payload,
+        broker,
+        targetTier,
+        [], // Histórico vazio para novo prospect
+        'backfill_unassigned'
+      )
+
+      const finalMotivo = routingDecision.motivo
+      const curStatus = routingDecision.status
+      const expiraEm = routingDecision.expira_em
 
       const newAssignment = await pool.query(
         `
-        INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em)
-        SELECT $1, $2::uuid, $3, $4::jsonb, $5
+        INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em, data_aceite)
+        SELECT $1, $2::uuid, $3, $4::jsonb, $5, CASE WHEN $3 = 'aceito' THEN NOW() ELSE NULL END
         WHERE NOT EXISTS (
-          SELECT 1 FROM public.imovel_prospect_atribuicoes a WHERE a.prospect_id = $1
+          SELECT 1 FROM public.imovel_prospect_atribuicoes a 
+          WHERE a.prospect_id = $1 AND a.status IN ('atribuido', 'aceito')
         )
         RETURNING status
         `,
@@ -490,7 +584,7 @@ async function processUnassignedProspectsOnce() {
           prospectId,
           broker.id,
           curStatus,
-          JSON.stringify({ type: mType, source: 'backfill_unassigned' }),
+          JSON.stringify(finalMotivo || {}),
           expiraEm
         ]
       )
@@ -498,7 +592,14 @@ async function processUnassignedProspectsOnce() {
       if (newAssignment.rows?.[0]?.status === 'aceito') {
         await pool.query('UPDATE public.imoveis SET corretor_fk = $1::uuid, updated_at = NOW() WHERE id = $2', [broker.id, payload.id_imovel])
         console.log(`🏠 [LeadWorker] Imóvel ${payload.id_imovel} vinculado ao corretor ${broker.id} (Aceite Automático - Backfill)`)
+
+        // Notificar CLIENTE sobre o aceite automático
+        if (payload.cliente_email) {
+          await notifyClientAutoAcceptance(payload, broker);
+        }
       }
+
+      const negocioFechadoUrl = buildNegocioFechadoUrl(prospectId, payload.id_imovel)
 
       // Notificar corretor escolhido
       if (broker.email) {
@@ -565,7 +666,8 @@ async function processUnassignedProspectsOnce() {
           data_interesse: formatDateTime(payload.data_interesse),
           preferencia_contato: toStr(payload.preferencia_contato || 'Não informado'),
           mensagem: toStr(payload.mensagem || 'Sem mensagem'),
-          painel_url: painelUrl
+          painel_url: painelUrl,
+          negocio_fechado_url: negocioFechadoUrl
         })
       }
 
@@ -622,11 +724,53 @@ function joinParts(parts) {
     .join(', ')
 }
 
+/**
+ * Envia notificação ao cliente quando um lead é aceito automaticamente (plantonista ou captação própria)
+ */
+async function notifyClientAutoAcceptance(payload, broker) {
+  try {
+    const brokerDetailsRes = await pool.query('SELECT telefone, creci FROM public.users WHERE id = $1', [broker.id]);
+    const cDetails = brokerDetailsRes.rows[0] || {};
+
+    const imovelEnderecoCompleto = joinParts([
+      payload.endereco,
+      payload.numero ? `nº ${payload.numero}` : '',
+      payload.complemento,
+      payload.bairro,
+      payload.cidade_fk,
+      payload.estado_fk,
+      payload.cep ? `CEP: ${payload.cep}` : ''
+    ])
+
+    await sendTemplateEmail(payload.cliente_email, 'lead_accepted_client_notification', {
+      cliente_nome: payload.cliente_nome || 'Cliente',
+      imovel_titulo: toStr(payload.titulo),
+      imovel_codigo: toStr(payload.codigo),
+      corretor_nome: broker.nome || 'Corretor',
+      corretor_telefone: cDetails.telefone || broker.telefone || broker.email || 'N/A',
+      corretor_email: broker.email || '',
+      corretor_creci: cDetails.creci || '-',
+      cidade_estado: `${toStr(payload.cidade_fk)} / ${toStr(payload.estado_fk)}`,
+      preco: formatCurrency(payload.preco),
+      endereco_completo: imovelEnderecoCompleto || '-',
+      area_total: payload.area_total !== null && payload.area_total !== undefined ? `${payload.area_total} m²` : '-',
+      quartos: payload.quartos !== null && payload.quartos !== undefined ? String(payload.quartos) : '-',
+      suites: payload.suites !== null && payload.suites !== undefined ? String(payload.suites) : '-',
+      vagas_garagem: payload.vagas_garagem !== null && payload.vagas_garagem !== undefined ? String(payload.vagas_garagem) : '-',
+      year: new Date().getFullYear().toString()
+    });
+    console.log(`📧 [LeadWorker] Notificação de aceite enviada ao cliente: ${payload.cliente_email}`);
+  } catch (err) {
+    console.warn('⚠️ [LeadWorker] Falha ao notificar cliente sobre aceite automático:', err.message);
+  }
+}
+
 async function processExpiredOnce() {
   console.log('🔍 [LeadWorker] Buscando leads expirados...');
   const limitExternal = await getParametroProximosCorretores()
   const limitInternal = await getParametroProximosCorretoresInternos()
   const slaMinutes = await getParametroSlaMinutosAceiteLead()
+  console.log(`ℹ️ [LeadWorker] Configuração SLA: ${slaMinutes} minutos`)
 
   // Normalização defensiva: atribuições fixas (imovel_corretor_fk) não podem expirar.
   // Isso garante que não entrem em transbordo e não bloqueiem o aceite por expiração.
@@ -722,97 +866,72 @@ async function processExpiredOnce() {
         [prospectId]
       )
 
-      const externalAttempts = historyQ.rows.filter(r =>
-        (r.tipo_corretor === 'Externo' || !r.tipo_corretor) &&
-        !r.m_type.includes('plantonista')
-      ).length
+      // Decisão de Tier usando Guardian
+      const guardianConfig = await fetchGuardianConfig(pool)
+      const guardian = new LeadGuardian(guardianConfig)
+      const history = await fetchAssignmentHistory(prospectId, pool)
+      const tierDecision = guardian.getNextTier(history)
 
-      const internalAttempts = historyQ.rows.filter(r =>
-        r.tipo_corretor === 'Interno' &&
-        !r.m_type.includes('plantonista')
-      ).length
+      targetTier = tierDecision.tier
+      workerDebugLog(`Lead ${prospectId}: Tier=${tierDecision.tier}, Reason=${tierDecision.reason}`)
 
-      console.log(`📊 [LeadWorker] Lead ${prospectId}: ExtAttempts=${externalAttempts}/${limitExternal}, IntAttempts=${internalAttempts}/${limitInternal}`);
-
-      // Decisão de Tier
-      if (externalAttempts < limitExternal && internalAttempts === 0) {
-        targetTier = 'External'
-      } else if (internalAttempts < limitInternal) {
-        targetTier = 'Internal'
-      } else {
-        targetTier = 'Plantonista'
-      }
+      const externalAttempts = tierDecision.externalAttempts
+      const internalAttempts = tierDecision.internalAttempts
+      const limitExternal = tierDecision.externalLimit
+      const limitInternal = tierDecision.internalLimit
 
       // 1. Tentar External
       if (targetTier === 'External') {
         broker = await pickNextBrokerByAreaExternal(estado, cidade, prospectId)
-        if (broker) {
-          motivo = {
-            type: 'area_match',
-            source: 'sla_transbordo',
-            previous_corretor_fk: prevBrokerId,
-            attempts: externalAttempts + 1,
-            limit: limitExternal
-          }
-        } else {
-          // Fallback imediato para Internal se não achou externo disponível
-          targetTier = 'Internal'
-        }
+        if (!broker) targetTier = 'Internal'
       }
 
       // 2. Tentar Internal
       if (!broker && targetTier === 'Internal') {
         broker = await pickInternalBrokerByArea(estado, cidade, prospectId)
-        if (broker) {
-          motivo = {
-            type: 'area_match_internal',
-            source: 'sla_transbordo',
-            previous_corretor_fk: prevBrokerId,
-            attempts: internalAttempts + 1,
-            limit: limitInternal
-          }
-        } else {
-          targetTier = 'Plantonista'
-        }
+        if (!broker) targetTier = 'Plantonista'
       }
 
       // 3. Tentar Plantonista
       if (!broker) {
         broker = await pickPlantonistaBroker()
-        if (broker) {
-          motivo = {
-            type: 'fallback_plantonista',
-            source: 'sla_transbordo',
-            previous_corretor_fk: prevBrokerId
-          }
-        }
+        if (!broker) workerDebugLog(`Lead ${prospectId}: No plantonista broker found.`)
+        targetTier = 'Plantonista'
       }
 
       if (!broker) {
+        workerDebugLog(`Lead ${prospectId}: No broker found for tier ${targetTier}`)
         // Sem corretor elegível (nem plantonista): só marca expirado e segue.
         await pool.query('COMMIT')
         processed++
         continue
       }
+      workerDebugLog(`Lead ${prospectId}: Selected broker ${broker.nome} (${broker.id})`)
 
-      const curSla = (motivo?.type === 'area_match_internal')
-        ? await getParametroSlaMinutosAceiteLeadInterno()
-        : slaMinutes
+      // 4. Decisão Final usando Guardian
+      const routingDecision = guardian.makeRoutingDecision(
+        payload,
+        broker,
+        targetTier,
+        history,
+        'sla_transbordo',
+        prevBrokerId
+      )
 
-      const expiraEm = (motivo?.type === 'fallback_plantonista') ? null : new Date(Date.now() + curSla * 60 * 1000)
-
-      const curStatus = (motivo?.type === 'fallback_plantonista' ? 'aceito' : 'atribuido')
+      const finalMotivo = routingDecision.motivo
+      const curStatus = routingDecision.status
+      const expiraEm = routingDecision.expira_em
       const newAssignRes = await pool.query(
         `
-        INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em)
-        VALUES ($1, $2::uuid, $3, $4::jsonb, $5)
+        INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em, data_aceite)
+        VALUES ($1, $2::uuid, $3, $4::jsonb, $5, CASE WHEN $3 = 'aceito' THEN NOW() ELSE NULL END)
         RETURNING id
         `,
         [
           prospectId,
           broker.id,
           curStatus,
-          JSON.stringify(motivo || {}),
+          JSON.stringify(finalMotivo || {}),
           expiraEm
         ]
       )
@@ -820,6 +939,11 @@ async function processExpiredOnce() {
       if (curStatus === 'aceito') {
         await pool.query('UPDATE public.imoveis SET corretor_fk = $1::uuid, updated_at = NOW() WHERE id = $2', [broker.id, payload.id_imovel])
         console.log(`🏠 [LeadWorker] Imóvel ${payload.id_imovel} vinculado ao corretor ${broker.id} (SLA Transbordo -> Aceite Automático)`)
+
+        // Notificar CLIENTE sobre o aceite automático por transbordo
+        if (payload.cliente_email) {
+          await notifyClientAutoAcceptance(payload, broker);
+        }
       }
       const newAssignmentId = newAssignRes.rows?.[0]?.id ?? null
 
@@ -833,7 +957,7 @@ async function processExpiredOnce() {
         previous_corretor_fk: prevBrokerId,
         new_assignment_id: newAssignmentId,
         new_corretor_fk: broker.id,
-        motivo: motivo || null,
+        motivo: finalMotivo || null,
         sla_minutes: slaMinutes
       })
 
@@ -916,16 +1040,47 @@ async function processExpiredOnce() {
         const prevUser = await getUserById(prevBrokerId)
         if (prevUser?.email) {
           const painelUrl = `${appBaseUrl()}/corretor/leads`
+          const imovelEnderecoCompleto = joinParts([
+            payload.endereco,
+            payload.numero ? `nº ${payload.numero}` : '',
+            payload.complemento,
+            payload.bairro,
+            payload.cidade_fk,
+            payload.estado_fk,
+          ])
+
           await sendTemplateEmail(prevUser.email, 'lead-perdido-sla', {
             corretor_nome: prevUser.nome || 'Corretor',
-            codigo: String(payload.codigo || '-'),
-            titulo: String(payload.titulo || 'Imóvel'),
-            cidade: String(payload.cidade_fk || '-'),
-            estado: String(payload.estado_fk || '-'),
             painel_url: painelUrl,
             sla_minutos: String(slaMinutes),
             tentativa_atual: String(Math.min(externalAttempts + internalAttempts, limitExternal + limitInternal)),
-            limite_tentativas: String(limitExternal + limitInternal)
+            limite_tentativas: String(limitExternal + limitInternal),
+
+            // Dados do Imóvel Perdido (Mesmo payload do novo-lead-corretor)
+            codigo: toStr(payload.codigo),
+            titulo: toStr(payload.titulo),
+            descricao: toStr(payload.descricao),
+            tipo: toStr(payload.tipo_nome),
+            finalidade: toStr(payload.finalidade_nome),
+            status: toStr(payload.status_nome),
+            cidade: toStr(payload.cidade_fk),
+            estado: toStr(payload.estado_fk),
+            preco: formatCurrency(payload.preco),
+            preco_condominio: formatCurrency(payload.preco_condominio),
+            preco_iptu: formatCurrency(payload.preco_iptu),
+            taxa_extra: formatCurrency(payload.taxa_extra),
+            area_total: payload.area_total !== null && payload.area_total !== undefined ? `${payload.area_total} m²` : '-',
+            area_construida: payload.area_construida !== null && payload.area_construida !== undefined ? `${payload.area_construida} m²` : '-',
+            quartos: payload.quartos !== null && payload.quartos !== undefined ? String(payload.quartos) : '-',
+            banheiros: payload.banheiros !== null && payload.banheiros !== undefined ? String(payload.banheiros) : '-',
+            suites: payload.suites !== null && payload.suites !== undefined ? String(payload.suites) : '-',
+            vagas_garagem: payload.vagas_garagem !== null && payload.vagas_garagem !== undefined ? String(payload.vagas_garagem) : '-',
+            varanda: payload.varanda !== null && payload.varanda !== undefined ? String(payload.varanda) : '-',
+            andar: payload.andar !== null && payload.andar !== undefined ? String(payload.andar) : '-',
+            total_andares: payload.total_andares !== null && payload.total_andares !== undefined ? String(payload.total_andares) : '-',
+            aceita_permuta: yn(payload.aceita_permuta),
+            aceita_financiamento: yn(payload.aceita_financiamento),
+            endereco_completo: imovelEnderecoCompleto || '-',
           })
         }
       } catch (e) {
@@ -966,13 +1121,26 @@ async function tick() {
 }
 
 console.log('⏰ Lead Router SLA Worker rodando...')
-console.log('   📅 Intervalo: a cada 1 minuto')
+
+// Periodicidade configurável via .env.local
+const CRON_INTERVAL = process.env.LEAD_WORKER_CRON_INTERVAL || '* * * * *'
+const intervalDescription = {
+  '* * * * *': 'a cada 1 minuto',
+  '*/2 * * * *': 'a cada 2 minutos',
+  '*/3 * * * *': 'a cada 3 minutos',
+  '*/5 * * * *': 'a cada 5 minutos',
+  '*/10 * * * *': 'a cada 10 minutos',
+  '*/15 * * * *': 'a cada 15 minutos',
+  '*/30 * * * *': 'a cada 30 minutos'
+}[CRON_INTERVAL] || `expressão customizada: ${CRON_INTERVAL}`
+
+console.log(`   📅 Intervalo: ${intervalDescription}`)
 console.log('   🔁 Transbordo: até parametros.proximos_corretores_recebem_leads, depois plantonista\n')
 
 // Rodar 1x ao subir
 tick()
 
-// Cron a cada 1 minuto
-cron.schedule('* * * * *', tick, { timezone: 'America/Sao_Paulo' })
+// Cron configurável (padrão: a cada 1 minuto)
+cron.schedule(CRON_INTERVAL, tick, { timezone: 'America/Sao_Paulo' })
 
 

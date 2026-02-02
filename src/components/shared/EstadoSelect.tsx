@@ -9,7 +9,7 @@ interface EstadoSelectProps {
   placeholder?: string
   className?: string
   disabled?: boolean
-  format?: 'sigla-nome' | 'nome-sigla' | 'nome-only'
+  format?: 'sigla-nome' | 'nome-sigla' | 'nome-only' | 'sigla'
   showAllOption?: boolean
   allOptionLabel?: string
   mode?: 'active' | 'all'
@@ -48,6 +48,8 @@ export default function EstadoSelect({
         return `${estado.nome} (${estado.sigla})`
       case 'nome-only':
         return estado.nome
+      case 'sigla':
+        return estado.sigla
       default:
         return `${estado.sigla} - ${estado.nome}`
     }

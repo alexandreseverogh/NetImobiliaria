@@ -88,7 +88,7 @@ export default function AdminLoginPage() {
         <div className="text-center">
           <div className="mx-auto h-20 w-20 flex items-center justify-center rounded-full bg-white shadow-lg">
             <Image
-              src="/imovtec-logo.png"
+              src="/imovtec-logo-definitive.png"
               alt="Imovtec"
               width={128}
               height={128}

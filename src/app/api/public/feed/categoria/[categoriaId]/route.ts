@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/database/connection';
+import pool from '@/lib/database/connection';
+import { safeParseInt } from '@/lib/utils/safeParser';
 
 export const dynamic = 'force-dynamic'; // Forçar não-cache
 
@@ -17,7 +18,7 @@ export async function GET(
 ) {
   try {
     const categoriaId = parseInt(params.categoriaId);
-    
+
     // Validação básica
     if (isNaN(categoriaId) || categoriaId <= 0) {
       return NextResponse.json(
@@ -28,12 +29,12 @@ export async function GET(
 
     // Extrair parâmetros de paginação
     const { searchParams } = new URL(request.url);
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
-    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20')));
+    const page = safeParseInt(searchParams.get('page'), 1, 1);
+    const limit = safeParseInt(searchParams.get('limit'), 20, 1, 50);
     const offset = (page - 1) * limit;
 
     const client = await pool.connect();
-    
+
     try {
       // Verificar se a categoria existe e está ativa
       const categoriaCheck = await client.query(
@@ -68,7 +69,7 @@ export async function GET(
       if (topFeedIds.length > 0) {
         // Criar placeholders para os IDs (começando do $2, pois $1 é categoriaId)
         const placeholders = topFeedIds.map((_, index) => `$${index + 2}`).join(',');
-        
+
         query = `
           SELECT 
             c.id, 

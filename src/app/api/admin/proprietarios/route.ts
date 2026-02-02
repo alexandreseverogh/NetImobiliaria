@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import pool from '@/lib/database/connection'
+import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { safeParseInt } from '@/lib/utils/safeParser'
 import { createValidator } from '@/lib/validation/unifiedValidation'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
@@ -15,8 +18,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
+    const page = safeParseInt(searchParams.get('page'), 1, 1)
+    const limit = safeParseInt(searchParams.get('limit'), 10, 1, 100)
 
     const nome = searchParams.get('nome') || undefined
     const cpf = searchParams.get('cpf') || undefined

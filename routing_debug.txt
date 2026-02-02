@@ -1,0 +1,252 @@
+[2026-01-29T20:12:48.809Z] Starting routing for prospect 86
+[2026-01-29T20:12:48.830Z] Location: Recife/PE
+[2026-01-29T20:12:48.862Z] Broker selected: Maria Silva (b537ea32-2011-4511-812f-7a62edc7d701)
+[2026-01-29T20:12:48.874Z] Failed: Error creating assignment: inconsistent types deduced for parameter $3
+[2026-01-29T20:21:06.883Z] Starting routing for prospect 87
+[2026-01-29T20:21:06.903Z] Location: Recife/PE
+[2026-01-29T20:21:06.932Z] Broker selected: Maria Silva (b537ea32-2011-4511-812f-7a62edc7d701)
+[2026-01-29T20:21:06.946Z] Failed: Error creating assignment: inconsistent types deduced for parameter $3
+[2026-01-29T20:28:51.278Z] Starting routing for prospect 88
+[2026-01-29T20:28:51.290Z] Location: Recife/PE
+[2026-01-29T20:28:51.309Z] Broker selected: Maria Silva (b537ea32-2011-4511-812f-7a62edc7d701)
+[2026-01-29T20:28:51.330Z] Success: Assignment created
+[2026-01-29T20:35:06.899Z] Starting routing for prospect 88
+[2026-01-29T20:35:06.914Z] Location: Recife/PE
+[2026-01-29T20:35:06.932Z] Broker selected: Corretor1 (c57ab897-c068-46a4-9b12-bb9f2d938fe7)
+[2026-01-29T20:35:06.948Z] Success: Assignment created
+[2026-01-29T20:45:04.342Z] Starting routing for prospect 88
+[2026-01-29T20:45:04.359Z] Location: Recife/PE
+[2026-01-29T20:45:04.379Z] Broker selected: Corretor2 (9c89c838-e989-46e1-a358-6a564ae15034)
+[2026-01-29T20:45:04.388Z] Success: Assignment created
+[2026-01-29T20:50:04.045Z] Starting routing for prospect 88
+[2026-01-29T20:50:04.073Z] Location: Recife/PE
+[2026-01-29T20:50:04.092Z] Broker selected: Paula Lima (36262cee-e951-45ce-8f52-bb2311f7323e)
+[2026-01-29T20:50:04.103Z] Success: Assignment created
+[2026-01-29T21:24:04.707Z] Starting routing for prospect 88
+[2026-01-29T21:24:04.718Z] Location: Recife/PE
+[2026-01-29T21:24:04.732Z] Broker selected: ROBERTO SEVERO SALGUES CAMPOS (491795c4-c017-4285-b85a-eb29c26c28b5)
+[2026-01-29T21:24:04.740Z] Success: Assignment created
+[2026-01-29T21:28:00.750Z] Starting routing for prospect 89
+[2026-01-29T21:28:00.765Z] Location: Recife/PE
+[2026-01-29T21:28:00.798Z] Broker selected: Maria Silva (b537ea32-2011-4511-812f-7a62edc7d701)
+[2026-01-29T21:28:00.816Z] Success: Assignment created
+[2026-01-29T21:35:06.367Z] Starting routing for prospect 89
+[2026-01-29T21:35:06.392Z] Location: Recife/PE
+[2026-01-29T21:35:06.416Z] Broker selected: Paula Lima (36262cee-e951-45ce-8f52-bb2311f7323e)
+[2026-01-29T21:35:06.424Z] Success: Assignment created
+[2026-01-29T21:40:03.708Z] Starting routing for prospect 89
+[2026-01-29T21:40:03.718Z] Location: Recife/PE
+[2026-01-29T21:40:03.732Z] Broker selected: Corretor1 (c57ab897-c068-46a4-9b12-bb9f2d938fe7)
+[2026-01-29T21:40:03.739Z] Success: Assignment created
+[2026-01-29T21:45:04.055Z] Starting routing for prospect 89
+[2026-01-29T21:45:04.073Z] Location: Recife/PE
+[2026-01-29T21:45:04.090Z] Broker selected: Corretor2 (9c89c838-e989-46e1-a358-6a564ae15034)
+[2026-01-29T21:45:04.099Z] Success: Assignment created
+[2026-01-29T21:50:04.118Z] Starting routing for prospect 89
+[2026-01-29T21:50:04.129Z] Location: Recife/PE
+[2026-01-29T21:50:04.143Z] Broker selected: ROBERTO SEVERO SALGUES CAMPOS (491795c4-c017-4285-b85a-eb29c26c28b5)
+[2026-01-29T21:50:04.150Z] Success: Assignment created
+[2026-01-29T21:55:04.417Z] Starting routing for prospect 89
+[2026-01-29T21:55:04.431Z] Location: Recife/PE
+[2026-01-29T21:55:04.446Z] Broker selected: Jose Damasio Neto (4d456e42-4031-46ba-9b5c-912bec1d28b5)
+[2026-01-29T21:55:04.452Z] Success: Assignment created
+[2026-01-29T22:00:04.592Z] Starting routing for prospect 89
+[2026-01-29T22:00:04.613Z] Location: Recife/PE
+[2026-01-29T22:00:04.636Z] Broker selected: Nunes Cabelo de Aço (ebad63d6-c774-40e1-b9c7-0f55b7c1735f)
+[2026-01-29T22:00:04.642Z] Success: Assignment created
+[2026-01-29T22:05:04.308Z] Starting routing for prospect 89
+[2026-01-29T22:05:04.319Z] Location: Recife/PE
+[2026-01-29T22:05:04.334Z] Broker selected: Gigi (abd6b94a-fbe9-4a9b-8688-f3ecb142fff3)
+[2026-01-29T22:05:04.340Z] Success: Assignment created
+[2026-01-29T22:10:04.193Z] Starting routing for prospect 89
+[2026-01-29T22:10:04.204Z] Location: Recife/PE
+[2026-01-29T22:10:04.221Z] Broker selected: Plantonista (50ca3bce-e57b-4fb3-beec-87b9a8f76685)
+[2026-01-29T22:10:04.320Z] Success: Assignment created
+[2026-01-30T13:53:43.721Z] Starting routing for prospect 90
+[2026-01-30T13:53:43.745Z] Location: Recife/PE
+[2026-01-30T13:53:43.761Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
+[2026-01-30T13:53:43.787Z] Success: Assignment created
+[2026-01-30T14:22:08.877Z] Starting routing for prospect 91
+[2026-01-30T14:22:08.903Z] Location: Recife/PE
+[2026-01-30T14:22:08.916Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
+[2026-01-30T14:22:08.932Z] Success: Assignment created
+[2026-01-30T14:27:02.569Z] Starting routing for prospect 92
+[2026-01-30T14:27:02.586Z] Location: Recife/PE
+[2026-01-30T14:27:02.614Z] Broker selected: Maria Silva (b537ea32-2011-4511-812f-7a62edc7d701)
+[2026-01-30T14:27:02.629Z] Success: Assignment created
+[2026-01-30T14:30:07.222Z] Starting routing for prospect 92
+[2026-01-30T14:30:07.247Z] Location: Recife/PE
+[2026-01-30T14:30:07.261Z] Broker selected: Paula Lima (36262cee-e951-45ce-8f52-bb2311f7323e)
+[2026-01-30T14:30:07.268Z] Success: Assignment created
+[2026-01-30T14:35:04.082Z] Starting routing for prospect 92
+[2026-01-30T14:35:04.094Z] Location: Recife/PE
+[2026-01-30T14:35:04.112Z] Broker selected: Corretor1 (c57ab897-c068-46a4-9b12-bb9f2d938fe7)
+[2026-01-30T14:35:04.119Z] Success: Assignment created
+[2026-01-30T14:40:04.051Z] Starting routing for prospect 92
+[2026-01-30T14:40:04.070Z] Location: Recife/PE
+[2026-01-30T14:40:04.087Z] Broker selected: Corretor2 (9c89c838-e989-46e1-a358-6a564ae15034)
+[2026-01-30T14:40:04.095Z] Success: Assignment created
+[2026-01-30T14:45:03.901Z] Starting routing for prospect 92
+[2026-01-30T14:45:03.919Z] Location: Recife/PE
+[2026-01-30T14:45:03.939Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
+[2026-01-30T14:45:03.949Z] Success: Assignment created
+[2026-01-30T14:50:03.538Z] Starting routing for prospect 92
+[2026-01-30T14:50:03.552Z] Location: Recife/PE
+[2026-01-30T14:50:03.578Z] Broker selected: ROBERTO SEVERO SALGUES CAMPOS (491795c4-c017-4285-b85a-eb29c26c28b5)
+[2026-01-30T14:50:03.586Z] Success: Assignment created
+[2026-01-30T14:55:04.439Z] Starting routing for prospect 92
+[2026-01-30T14:55:04.450Z] Location: Recife/PE
+[2026-01-30T14:55:04.466Z] Broker selected: Jose Damasio Neto (4d456e42-4031-46ba-9b5c-912bec1d28b5)
+[2026-01-30T14:55:04.475Z] Success: Assignment created
+[2026-01-30T15:00:04.790Z] Starting routing for prospect 92
+[2026-01-30T15:00:04.806Z] Location: Recife/PE
+[2026-01-30T15:00:04.826Z] Broker selected: Nunes Cabelo de Aço (ebad63d6-c774-40e1-b9c7-0f55b7c1735f)
+[2026-01-30T15:00:04.834Z] Success: Assignment created
+[2026-01-30T15:05:04.763Z] Starting routing for prospect 92
+[2026-01-30T15:05:04.780Z] Location: Recife/PE
+[2026-01-30T15:05:04.798Z] Broker selected: Gigi (abd6b94a-fbe9-4a9b-8688-f3ecb142fff3)
+[2026-01-30T15:05:04.808Z] Success: Assignment created
+[2026-01-30T15:10:03.784Z] Starting routing for prospect 92
+[2026-01-30T15:10:03.804Z] Location: Recife/PE
+[2026-01-30T15:10:03.851Z] Broker selected: Plantonista (50ca3bce-e57b-4fb3-beec-87b9a8f76685)
+[2026-01-30T15:10:03.955Z] Success: Assignment created
+[2026-01-30T15:33:25.480Z] Starting routing for prospect 94
+[2026-01-30T15:33:25.489Z] Location: Recife/PE
+[2026-01-30T15:33:25.495Z] Broker selected: Plantonista (50ca3bce-e57b-4fb3-beec-87b9a8f76685)
+[2026-01-30T15:33:25.503Z] Success: Assignment created
+[2026-01-30T15:39:20.194Z] Starting routing for prospect 95
+[2026-01-30T15:39:20.210Z] Location: Recife/PE
+[2026-01-30T15:39:20.236Z] Broker selected: Maria Silva (b537ea32-2011-4511-812f-7a62edc7d701)
+[2026-01-30T15:39:20.257Z] Success: Assignment created
+[2026-01-30T15:45:06.199Z] Starting routing for prospect 95
+[2026-01-30T15:45:06.214Z] Location: Recife/PE
+[2026-01-30T15:45:06.238Z] Broker selected: Paula Lima (36262cee-e951-45ce-8f52-bb2311f7323e)
+[2026-01-30T15:45:06.247Z] Success: Assignment created
+[2026-01-30T15:50:04.016Z] Starting routing for prospect 95
+[2026-01-30T15:50:04.025Z] Location: Recife/PE
+[2026-01-30T15:50:04.040Z] Broker selected: Corretor1 (c57ab897-c068-46a4-9b12-bb9f2d938fe7)
+[2026-01-30T15:50:04.048Z] Success: Assignment created
+[2026-01-30T15:55:04.953Z] Starting routing for prospect 95
+[2026-01-30T15:55:04.963Z] Location: Recife/PE
+[2026-01-30T15:55:04.976Z] Broker selected: Corretor2 (9c89c838-e989-46e1-a358-6a564ae15034)
+[2026-01-30T15:55:04.983Z] Success: Assignment created
+[2026-01-30T16:00:05.271Z] Starting routing for prospect 95
+[2026-01-30T16:00:05.279Z] Location: Recife/PE
+[2026-01-30T16:00:05.293Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
+[2026-01-30T16:00:05.299Z] Success: Assignment created
+[2026-01-30T16:05:04.752Z] Starting routing for prospect 95
+[2026-01-30T16:05:04.760Z] Location: Recife/PE
+[2026-01-30T16:05:04.778Z] Broker selected: ROBERTO SEVERO SALGUES CAMPOS (491795c4-c017-4285-b85a-eb29c26c28b5)
+[2026-01-30T16:05:04.784Z] Success: Assignment created
+[2026-01-30T16:10:04.542Z] Starting routing for prospect 95
+[2026-01-30T16:10:04.551Z] Location: Recife/PE
+[2026-01-30T16:10:04.566Z] Broker selected: Jose Damasio Neto (4d456e42-4031-46ba-9b5c-912bec1d28b5)
+[2026-01-30T16:10:04.572Z] Success: Assignment created
+[2026-01-30T16:15:04.373Z] Starting routing for prospect 95
+[2026-01-30T16:15:04.383Z] Location: Recife/PE
+[2026-01-30T16:15:04.396Z] Broker selected: Nunes Cabelo de Aço (ebad63d6-c774-40e1-b9c7-0f55b7c1735f)
+[2026-01-30T16:15:04.403Z] Success: Assignment created
+[2026-01-30T16:20:03.614Z] Starting routing for prospect 95
+[2026-01-30T16:20:03.626Z] Location: Recife/PE
+[2026-01-30T16:20:03.638Z] Broker selected: Gigi (abd6b94a-fbe9-4a9b-8688-f3ecb142fff3)
+[2026-01-30T16:20:03.643Z] Success: Assignment created
+[2026-01-30T16:25:06.176Z] Starting routing for prospect 95
+[2026-01-30T16:25:06.202Z] Location: Recife/PE
+[2026-01-30T16:25:06.223Z] Broker selected: Plantonista (50ca3bce-e57b-4fb3-beec-87b9a8f76685)
+[2026-01-30T16:25:06.256Z] Success: Assignment created
+[2026-01-30T18:13:59.793Z] Starting routing for prospect 96
+[2026-01-30T18:13:59.806Z] Location: Recife/PE
+[2026-01-30T18:13:59.833Z] Broker selected: Maria Silva (b537ea32-2011-4511-812f-7a62edc7d701)
+[2026-01-30T18:13:59.847Z] Success: Assignment created
+[2026-01-30T18:25:06.013Z] Starting routing for prospect 96
+[2026-01-30T18:25:06.022Z] Location: Recife/PE
+[2026-01-30T18:25:06.035Z] Broker selected: Paula Lima (36262cee-e951-45ce-8f52-bb2311f7323e)
+[2026-01-30T18:25:06.044Z] Success: Assignment created
+[2026-01-30T18:30:04.042Z] Starting routing for prospect 96
+[2026-01-30T18:30:04.055Z] Location: Recife/PE
+[2026-01-30T18:30:04.074Z] Broker selected: Corretor1 (c57ab897-c068-46a4-9b12-bb9f2d938fe7)
+[2026-01-30T18:30:04.082Z] Success: Assignment created
+[2026-01-30T18:35:04.412Z] Starting routing for prospect 96
+[2026-01-30T18:35:04.421Z] Location: Recife/PE
+[2026-01-30T18:35:04.435Z] Broker selected: Corretor2 (9c89c838-e989-46e1-a358-6a564ae15034)
+[2026-01-30T18:35:04.443Z] Success: Assignment created
+[2026-01-30T18:40:04.044Z] Starting routing for prospect 96
+[2026-01-30T18:40:04.058Z] Location: Recife/PE
+[2026-01-30T18:40:04.079Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
+[2026-01-30T18:40:04.087Z] Success: Assignment created
+[2026-01-30T18:45:04.783Z] Starting routing for prospect 96
+[2026-01-30T18:45:04.804Z] Location: Recife/PE
+[2026-01-30T18:45:04.852Z] Broker selected: ROBERTO SEVERO SALGUES CAMPOS (491795c4-c017-4285-b85a-eb29c26c28b5)
+[2026-01-30T18:45:04.861Z] Success: Assignment created
+[2026-01-30T18:50:04.486Z] Starting routing for prospect 96
+[2026-01-30T18:50:04.495Z] Location: Recife/PE
+[2026-01-30T18:50:04.511Z] Broker selected: Jose Damasio Neto (4d456e42-4031-46ba-9b5c-912bec1d28b5)
+[2026-01-30T18:50:04.518Z] Success: Assignment created
+[2026-01-30T18:55:03.504Z] Starting routing for prospect 96
+[2026-01-30T18:55:03.518Z] Location: Recife/PE
+[2026-01-30T18:55:03.536Z] Broker selected: Nunes Cabelo de Aço (ebad63d6-c774-40e1-b9c7-0f55b7c1735f)
+[2026-01-30T18:55:03.544Z] Success: Assignment created
+[2026-01-30T19:00:04.221Z] Starting routing for prospect 96
+[2026-01-30T19:00:04.229Z] Location: Recife/PE
+[2026-01-30T19:00:04.242Z] Broker selected: Gigi (abd6b94a-fbe9-4a9b-8688-f3ecb142fff3)
+[2026-01-30T19:00:04.248Z] Success: Assignment created
+[2026-01-30T19:05:04.597Z] Starting routing for prospect 96
+[2026-01-30T19:05:04.616Z] Location: Recife/PE
+[2026-01-30T19:05:04.647Z] Broker selected: Plantonista (50ca3bce-e57b-4fb3-beec-87b9a8f76685)
+[2026-01-30T19:05:04.677Z] Success: Assignment created
+[2026-01-30T19:31:25.647Z] Starting routing for prospect 114
+[2026-01-30T19:31:25.663Z] Location: Recife/PE
+[2026-01-30T19:31:25.683Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
+[2026-01-30T19:31:25.702Z] Success: Assignment created
+[2026-01-30T19:35:06.132Z] Starting routing for prospect 114
+[2026-01-30T19:35:06.147Z] Location: Recife/PE
+[2026-01-30T19:35:06.165Z] Broker selected: Maria Silva (b537ea32-2011-4511-812f-7a62edc7d701)
+[2026-01-30T19:35:06.173Z] Success: Assignment created
+[2026-01-30T19:40:03.518Z] Starting routing for prospect 114
+[2026-01-30T19:40:03.546Z] Location: Recife/PE
+[2026-01-30T19:40:03.574Z] Broker selected: Paula Lima (36262cee-e951-45ce-8f52-bb2311f7323e)
+[2026-01-30T19:40:03.584Z] Success: Assignment created
+[2026-01-30T19:45:04.332Z] Starting routing for prospect 114
+[2026-01-30T19:45:04.342Z] Location: Recife/PE
+[2026-01-30T19:45:04.360Z] Broker selected: Corretor1 (c57ab897-c068-46a4-9b12-bb9f2d938fe7)
+[2026-01-30T19:45:04.368Z] Success: Assignment created
+[2026-01-30T19:50:04.408Z] Starting routing for prospect 114
+[2026-01-30T19:50:04.417Z] Location: Recife/PE
+[2026-01-30T19:50:04.434Z] Broker selected: Corretor2 (9c89c838-e989-46e1-a358-6a564ae15034)
+[2026-01-30T19:50:04.444Z] Success: Assignment created
+[2026-01-30T19:55:04.811Z] Starting routing for prospect 114
+[2026-01-30T19:55:04.819Z] Location: Recife/PE
+[2026-01-30T19:55:04.845Z] Broker selected: ROBERTO SEVERO SALGUES CAMPOS (491795c4-c017-4285-b85a-eb29c26c28b5)
+[2026-01-30T19:55:04.853Z] Success: Assignment created
+[2026-01-30T20:00:06.088Z] Starting routing for prospect 114
+[2026-01-30T20:00:06.100Z] Location: Recife/PE
+[2026-01-30T20:00:06.123Z] Broker selected: Jose Damasio Neto (4d456e42-4031-46ba-9b5c-912bec1d28b5)
+[2026-01-30T20:00:06.134Z] Success: Assignment created
+[2026-01-30T20:05:06.325Z] Starting routing for prospect 114
+[2026-01-30T20:05:06.335Z] Location: Recife/PE
+[2026-01-30T20:05:06.351Z] Broker selected: Nunes Cabelo de Aço (ebad63d6-c774-40e1-b9c7-0f55b7c1735f)
+[2026-01-30T20:05:06.358Z] Success: Assignment created
+[2026-01-30T20:10:07.112Z] Starting routing for prospect 114
+[2026-01-30T20:10:07.121Z] Location: Recife/PE
+[2026-01-30T20:10:07.135Z] Broker selected: Gigi (abd6b94a-fbe9-4a9b-8688-f3ecb142fff3)
+[2026-01-30T20:10:07.142Z] Success: Assignment created
+[2026-01-30T20:15:03.994Z] Starting routing for prospect 114
+[2026-01-30T20:15:04.004Z] Location: Recife/PE
+[2026-01-30T20:15:04.023Z] Broker selected: Plantonista (50ca3bce-e57b-4fb3-beec-87b9a8f76685)
+[2026-01-30T20:15:04.071Z] Success: Assignment created
+[2026-01-30T21:58:27.817Z] Starting routing for prospect 115
+[2026-01-30T21:58:27.833Z] Location: Recife/PE
+[2026-01-30T21:58:27.861Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
+[2026-01-30T21:58:27.879Z] Success: Assignment created
+[2026-01-30T22:15:28.330Z] Starting routing for prospect 116
+[2026-01-30T22:15:28.344Z] Location: Recife/PE
+[2026-01-30T22:15:28.370Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
+[2026-01-30T22:15:28.387Z] Success: Assignment created
+[2026-01-30T22:35:25.732Z] Starting routing for prospect 117
+[2026-01-30T22:35:25.748Z] Location: Recife/PE
+[2026-01-30T22:35:25.770Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
+[2026-01-30T22:35:25.791Z] Success: Assignment created
+[2026-01-30T22:41:35.034Z] Starting routing for prospect 118
+[2026-01-30T22:41:35.051Z] Location: Recife/PE
+[2026-01-30T22:41:35.078Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
+[2026-01-30T22:41:35.097Z] Success: Assignment created

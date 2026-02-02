@@ -237,7 +237,7 @@ const nextConfig = {
     },
   }),
 
-  // Configurações experimentais
+  /* 
   experimental: {
     // Turbopack em desenvolvimento (se disponível)
     ...(isDevelopment && {
@@ -251,6 +251,7 @@ const nextConfig = {
       },
     }),
   },
+  */
 
   // Configurações de webpack
   webpack: (config, { dev, isServer }) => {

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { safeParseInt } from '@/lib/utils/safeParser'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import pool from '@/lib/database/connection'
 
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') || 'events' // 'events' ou 'stats'
-    const limit = parseInt(searchParams.get('limit') || '100')
+    const limit = safeParseInt(searchParams.get('limit'), 100, 1, 1000)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
@@ -252,10 +254,10 @@ async function getSecurityStats(
 function mapAuditLogToSecurityEvent(row: any): SecurityEvent {
   // Determinar tipo de evento baseado na ação
   const type = mapActionToEventType(row.action)
-  
+
   // Determinar severidade
   const severity = determineSeverity(row)
-  
+
   // Criar descrição legível
   const description = createDescription(row)
 
@@ -298,8 +300,8 @@ function normalizeDetails(details: any): Record<string, any> {
 
     // Tentativa 2: formato chave: valor
     if (trimmed.includes(':')) {
-    const keyValuePairs: Record<string, string> = {}
-    const parts = trimmed.split(/;|\n|\|/).map((part) => part.trim()).filter(Boolean)
+      const keyValuePairs: Record<string, string> = {}
+      const parts = trimmed.split(/;|\n|\|/).map((part) => part.trim()).filter(Boolean)
 
       parts.forEach((part) => {
         const [key, ...rest] = part.split(':')
@@ -324,7 +326,7 @@ function normalizeDetails(details: any): Record<string, any> {
  */
 function mapActionToEventType(action: string): string {
   const actionLower = action.toLowerCase()
-  
+
   if (actionLower.includes('login')) {
     return 'login_attempt'
   }
@@ -346,7 +348,7 @@ function mapActionToEventType(action: string): string {
   if (actionLower.includes('error') || actionLower.includes('fail')) {
     return 'system_error'
   }
-  
+
   return 'suspicious_activity'
 }
 
@@ -355,7 +357,7 @@ function mapActionToEventType(action: string): string {
  */
 function determineSeverity(row: any): 'low' | 'medium' | 'high' | 'critical' {
   const action = row.action.toUpperCase()
-  
+
   // Ações com FAIL ou ERROR são de alta severidade
   if (action.includes('FAIL') || action.includes('ERROR')) {
     return 'high'
@@ -382,30 +384,30 @@ function createDescription(row: any): string {
   const action = row.action
   const resource = row.resource || 'recurso'
   const resourceId = row.resource_id ? ` (ID: ${row.resource_id})` : ''
-  
+
   if (action === 'LOGIN') {
     return 'Login realizado com sucesso'
   }
-  
+
   if (action === 'LOGOUT') {
     return 'Usuário desconectado do sistema'
   }
-  
+
   if (action === 'CREATE') {
     return `Criação de ${resource}${resourceId} realizada`
   }
-  
+
   if (action === 'UPDATE') {
     return `Atualização de ${resource}${resourceId} realizada`
   }
-  
+
   if (action === 'DELETE') {
     return `Exclusão de ${resource}${resourceId} realizada`
   }
-  
+
   if (action.includes('FAIL') || action.includes('ERROR')) {
     return `Falha: ${action} em ${resource}`
   }
-  
+
   return `Ação "${action}" em ${resource}`
 }

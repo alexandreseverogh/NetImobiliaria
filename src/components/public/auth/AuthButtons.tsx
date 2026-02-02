@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import { LogOut, ChevronDown, LogIn, UserPlus } from 'lucide-react'
 import AuthModal from './AuthModal'
 import CorretorLoginModal from './CorretorLoginModal'
@@ -23,6 +24,11 @@ export default function AuthButtons() {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [adminUserNome, setAdminUserNome] = useState<string | null>(null)
   const [lastAuthUser, setLastAuthUser] = useState<LastAuthUser | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const getInitials = (nome?: string | null) => {
     const n = String(nome || '').trim()
@@ -210,7 +216,6 @@ export default function AuthButtons() {
           <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0 text-white ${isDropdownOpen ? 'rotate-180' : ''}`} />
         </button>
 
-        {/* Dropdown Menu */}
         {isDropdownOpen && (
           <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border-2 border-gray-200 py-2 z-50 overflow-hidden">
             <button
@@ -256,7 +261,7 @@ export default function AuthButtons() {
         </button>
       </div>
 
-      {isModalOpen && (
+      {mounted && isModalOpen && createPortal(
         <AuthModal
           mode={modalMode}
           onChangeMode={setModalMode}
@@ -269,15 +274,18 @@ export default function AuthButtons() {
             setIsModalOpen(false)
             router.push('/corretor/cadastro')
           }}
-        />
+        />,
+        document.body
       )}
 
-      <CorretorLoginModal
-        isOpen={corretorLoginOpen}
-        onClose={() => setCorretorLoginOpen(false)}
-        redirectTo="/landpaging?corretor_home=true"
-      />
+      {mounted && corretorLoginOpen && createPortal(
+        <CorretorLoginModal
+          isOpen={corretorLoginOpen}
+          onClose={() => setCorretorLoginOpen(false)}
+          redirectTo={typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}${window.location.search.includes('?') ? '&' : '?'}corretor_home=true` : '/landpaging?corretor_home=true'}
+        />,
+        document.body
+      )}
     </>
   )
 }
-

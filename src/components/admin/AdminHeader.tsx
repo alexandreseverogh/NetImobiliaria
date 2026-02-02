@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment } from 'react'
+import Link from 'next/link'
 import { Menu, Transition } from '@headlessui/react'
 import { ChevronDownIcon, UserCircleIcon } from '@heroicons/react/24/outline'
 import { AdminUser } from '@/lib/types/admin'
@@ -19,7 +20,9 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex-1 flex items-center space-x-3">
-              <img src="/imovtec-robot-side.png" alt="Logo" className="h-16 w-auto" />
+              <Link href="/admin/logo">
+                <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              </Link>
               <h1 className="text-lg font-semibold text-gray-900">
                 Área Administrativa
               </h1>
@@ -53,7 +56,9 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
 
           {/* Título da página */}
           <div className="flex-1 lg:flex-none flex items-center space-x-3">
-            <img src="/imovtec-robot-side.png" alt="Logo" className="h-16 w-auto" />
+            <Link href="/admin/logo">
+              <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+            </Link>
             <h1 className="text-lg font-semibold text-gray-900">
               Área Administrativa
             </h1>

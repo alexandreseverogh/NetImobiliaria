@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -56,7 +56,7 @@ interface FilteredResponse {
 const TITULO_DESTAQUE = 'Im\u00F3veis em Destaque'
 const TITULO_DESTAQUE_NACIONAL = `${TITULO_DESTAQUE} Nacional`
 
-export default function LandingPage() {
+function LandingPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [featuredData, setFeaturedData] = useState<any[]>([])
@@ -85,25 +85,6 @@ export default function LandingPage() {
   const [venderPopupOpen, setVenderPopupOpen] = useState(false)
   const [corretorPopupOpen, setCorretorPopupOpen] = useState(false)
   const [corretorLoginModalOpen, setCorretorLoginModalOpen] = useState(false)
-  const [corretorHomeSuccessOpen, setCorretorHomeSuccessOpen] = useState(false)
-  const [corretorHomeUser, setCorretorHomeUser] = useState<{
-    id?: string
-    uuid?: string
-    nome: string
-    email: string
-    telefone?: string
-    cpf?: string
-    creci?: string
-    isencao?: boolean
-    fotoDataUrl?: string
-  } | null>(null)
-
-  // Dedupe: evitar abrir o painel do corretor 2x (por query + por evento, ou múltiplos efeitos).
-  const corretorHomeOpenRef = useRef(false)
-  const corretorHomeQueryConsumedRef = useRef(false)
-  useEffect(() => {
-    corretorHomeOpenRef.current = !!corretorHomeSuccessOpen
-  }, [corretorHomeSuccessOpen])
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('register')
   const [authUserType, setAuthUserType] = useState<'cliente' | 'proprietario' | null>(null)
@@ -142,91 +123,26 @@ export default function LandingPage() {
   const { estados, municipios, loadMunicipios } = useEstadosCidades()
 
   // 🧟 ZOMBIE SESSION KILLER: Detectar e remover usuário fantasma específico
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const storedUser = localStorage.getItem('admin-user-data')
-      if (storedUser) {
-        const user = JSON.parse(storedUser)
-        // ID do usuário fantasma relatado nos logs
-        if (user.id === 'c57ab897-c068-46a4-9b12-bb9f2d938fe7') {
-          console.warn('🧟 [ZOMBIE KILLER] Sessão fantasma detectada! Exterminando...')
-          localStorage.removeItem('admin-auth-token')
-          localStorage.removeItem('admin-user-data')
-          // Forçar reload para limpar estado da memória
-          window.location.reload()
-        }
-      }
-    } catch (e) {
-      console.error('Erro no Zombie Killer:', e)
-    }
-  }, [])
+  // useEffect(() => {
+  //   if (typeof window === 'undefined') return
+  //   try {
+  //     const storedUser = localStorage.getItem('admin-user-data')
+  //     if (storedUser) {
+  //       const user = JSON.parse(storedUser)
+  //       // ID do usuário fantasma relatado nos logs
+  //       if (user.id === 'c57ab897-c068-46a4-9b12-bb9f2d938fe7') {
+  //         console.warn('🧟 [ZOMBIE KILLER] Sessão fantasma detectada! Exterminando...')
+  //         localStorage.removeItem('admin-auth-token')
+  //         localStorage.removeItem('admin-user-data')
+  //         // Forçar reload para limpar estado da memória
+  //         // window.location.reload()
+  //       }
+  //     }
+  //   } catch (e) {
+  //     console.error('Erro no Zombie Killer:', e)
+  //   }
+  // }, [])
 
-  // Reabrir o modal de informações do corretor após voltar do fluxo "Novo Proprietário" ou refresh do "Negócio Fechado"
-  // Adiciona um delay de 2s para o usuário ver o grid atualizado primeiro (requisito UX)
-  useEffect(() => {
-    const shouldOpen = (searchParams?.get('corretor_home') || '').toLowerCase() === 'true'
-    if (!shouldOpen) return
-    if (corretorHomeOpenRef.current) return
-    if (corretorHomeQueryConsumedRef.current) return
-    corretorHomeQueryConsumedRef.current = true
-
-    const timer = setTimeout(() => {
-      try {
-        const raw = sessionStorage.getItem('corretor_success_user')
-        if (raw) {
-          const parsed = JSON.parse(raw)
-
-          // Tentar sincronizar isencao do localStorage caso esteja stale no sessionStorage
-          try {
-            const localRaw = localStorage.getItem('admin-user-data')
-            if (localRaw) {
-              const localUser = JSON.parse(localRaw)
-              if ((localUser.id === parsed.id || localUser.uuid === parsed.id) && localUser.isencao !== undefined) {
-                parsed.isencao = !!localUser.isencao
-              }
-            }
-          } catch { }
-
-          if (parsed?.nome && parsed?.email) {
-            corretorHomeOpenRef.current = true
-            setCorretorHomeUser(parsed)
-            setCorretorHomeSuccessOpen(true)
-
-            // Consumir o parâmetro imediatamente para não reabrir em re-hidratações
-            try {
-              const url = new URL(window.location.href)
-              url.searchParams.delete('corretor_home')
-              router.replace(url.pathname + (url.search ? url.search : ''))
-            } catch { }
-          }
-        }
-      } catch { }
-    }, 2000)
-
-    return () => clearTimeout(timer)
-  }, [searchParams, router])
-
-  // Abrir painel do corretor sem redirecionar (login via header na própria landpaging).
-  // Evita "pisca" e evita duplicidade visual de modais.
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const handler = (e: any) => {
-      try {
-        if (corretorHomeOpenRef.current) return
-        const payload = e?.detail
-        if (payload?.nome && payload?.email) {
-          // Garantir que o popup "Sou Corretor" não fique aberto por trás
-          setCorretorPopupOpen(false)
-          corretorHomeOpenRef.current = true
-          setCorretorHomeUser(payload)
-          setCorretorHomeSuccessOpen(true)
-        }
-      } catch { }
-    }
-    window.addEventListener('open-corretor-home-modal', handler as EventListener)
-    return () => window.removeEventListener('open-corretor-home-modal', handler as EventListener)
-  }, [])
 
   // Abrir popup do corretor quando vindo de cadastro/login de corretor
   useEffect(() => {
@@ -311,7 +227,7 @@ export default function LandingPage() {
       typeof window !== 'undefined' && sessionStorage.getItem(SUPPRESS_GEOLOCATION_MODAL_KEY) === 'true'
     const hasCorretorHomeParam = typeof window !== 'undefined' && (new URLSearchParams(window.location.search).get('corretor_home') === 'true')
     const shouldShowModalNow =
-      shouldShowModal && !suppressedBySession && !suppressGeolocationModalOnceRef.current && !corretorPopupOpenRef.current && !corretorHomeOpenRef.current && !corretorHomeQueryConsumedRef.current && !hasCorretorHomeParam
+      shouldShowModal && !suppressedBySession && !suppressGeolocationModalOnceRef.current && !corretorPopupOpenRef.current && !hasCorretorHomeParam
 
     if (!shouldShowModal) {
       console.log('ℹ️ [LANDING PAGE] Usuário pediu para não mostrar o modal novamente (mas vamos detectar em background)')
@@ -406,7 +322,7 @@ export default function LandingPage() {
 
         // Só abrir modal se não estiver já aberto (usando ref para valor atualizado)
         // RE-CHECK: Verificar novamente se o modal do corretor não foi aberto enquanto aguardávamos a API
-        const isCorretorOpenNow = corretorHomeOpenRef.current || corretorPopupOpenRef.current || corretorHomeQueryConsumedRef.current
+        const isCorretorOpenNow = corretorPopupOpenRef.current
         if (shouldShowModalNow && !geolocationModalOpenRef.current && !isCorretorOpenNow) {
           geolocationModalOpenRef.current = true
           setGeolocationModalOpen(true)
@@ -436,7 +352,7 @@ export default function LandingPage() {
         } catch { }
 
         // Só abrir modal se não estiver já aberto (usando ref para valor atualizado)
-        const isCorretorOpenNow = corretorHomeOpenRef.current || corretorPopupOpenRef.current || corretorHomeQueryConsumedRef.current
+        const isCorretorOpenNow = corretorPopupOpenRef.current
         if (shouldShowModalNow && !geolocationModalOpenRef.current && !isCorretorOpenNow) {
           geolocationModalOpenRef.current = true
           setGeolocationModalOpen(true)
@@ -2107,30 +2023,55 @@ export default function LandingPage() {
         }}
         onCorretorClick={() => {
           // Se já existe sessão de CORRETOR (admin login) válida no client, abrir direto o painel/modal do corretor.
-          // Caso contrário, seguir fluxo padrão (popup -> login/cadastro).
           try {
-            const token = localStorage.getItem('auth-token')
-            const raw = localStorage.getItem('user-data')
+            // 1. Prioridade: Checar token de ADMIN (Corretor Dashboard)
+            const adminToken = localStorage.getItem('admin-auth-token')
+            const adminRaw = localStorage.getItem('admin-user-data')
+
+            // 2. Fallback: Checar token genérico (Legacy ou Public Broker)
+            const publicToken = localStorage.getItem('auth-token')
+            const publicRaw = localStorage.getItem('user-data')
+
+            // Decidir qual usar (Admin ganha se existir)
+            const token = adminToken || publicToken
+            const raw = adminToken ? adminRaw : publicRaw
+
             if (token && raw) {
               const parsed: any = JSON.parse(raw)
-              const roleName = String(parsed?.role_name || parsed?.cargo || '').toLowerCase()
-              const isCorretor = roleName.includes('corretor') || !!token
+              // Normalizar role name
+              const roleName = String(parsed?.role_name || parsed?.cargo || parsed?.userType || '').toLowerCase()
+
+              // VALIDAÇÃO ESTRITA: Só é corretor se tiver a role explicita.
+              // REMOVIDO: "|| !!token" pois permitia que Clientes fossem tratados como Corretores indevidamente.
+              const isCorretor = roleName.includes('corretor') || roleName.includes('admin')
+
               if (isCorretor) {
+                // Ao clicar em ser corretor e já ter sessão, enviar para dashboard via evento global
                 const fotoBase64 = (parsed?.foto as string | null | undefined) || null
                 const fotoMime = (parsed?.foto_tipo_mime as string | null | undefined) || 'image/jpeg'
                 const fotoDataUrl = fotoBase64 ? `data:${fotoMime};base64,${fotoBase64}` : undefined
 
-                setCorretorHomeUser({
+                const successPayload = {
                   id: String(parsed?.id || parsed?.uuid || ''),
                   nome: String(parsed?.nome || ''),
                   email: String(parsed?.email || ''),
+                  userType: 'corretor',
                   telefone: parsed?.telefone ? String(parsed.telefone) : undefined,
                   cpf: parsed?.cpf ? String(parsed.cpf) : undefined,
                   creci: parsed?.creci ? String(parsed.creci) : undefined,
                   fotoDataUrl,
                   isencao: parsed?.isencao !== undefined ? !!parsed.isencao : undefined
-                })
-                setCorretorHomeSuccessOpen(true)
+                }
+
+                // Salvar no sessionStorage para as outras abas/header
+                try {
+                  sessionStorage.setItem('corretor_success_user', JSON.stringify(successPayload))
+                } catch { }
+
+                // Abrir dashboard via parâmetro URL (para ser global)
+                const url = new URL(window.location.href)
+                url.searchParams.set('corretor_home', 'true')
+                window.location.href = url.toString()
                 return
               }
             }
@@ -2622,26 +2563,6 @@ export default function LandingPage() {
         redirectTo="/landpaging?corretor_home=true"
       />
 
-      {corretorHomeSuccessOpen && corretorHomeUser && (
-        <UserSuccessModal
-          isOpen={true}
-          onClose={() => {
-            setCorretorHomeSuccessOpen(false)
-            // Limpar o parâmetro corretor_home sem perder outros parâmetros do contexto original
-            try {
-              const url = new URL(window.location.href)
-              url.searchParams.delete('corretor_home')
-              router.replace(url.pathname + (url.search ? url.search : ''))
-            } catch {
-              router.replace('/landpaging')
-            }
-          }}
-          userData={{
-            ...corretorHomeUser,
-            userType: 'corretor'
-          }}
-        />
-      )}
 
       {/* Modal de Meu Perfil */}
       <MeuPerfilModal
@@ -2959,5 +2880,17 @@ export default function LandingPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function LandingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    }>
+      <LandingPageContent />
+    </Suspense>
   )
 }

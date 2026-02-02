@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Imovel } from '@/lib/database/imoveis'
@@ -42,8 +42,9 @@ export default function ImoveisPage() {
   const [statusOptions, setStatusOptions] = useState<Array<{ id: string, nome: string }>>([])
   const [corretores, setCorretores] = useState<Array<{ id: string, nome: string }>>([])
 
-  // Usar hook centralizado para estados e municípios
-  const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades()
+  // Usar hook centralizado para estados e municípios com mode='all' para ver todas as cidades
+  const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades('all')
+  const prevEstadoRef = useRef<string>('')
 
   // Carregar dados dos filtros
   useEffect(() => {
@@ -88,10 +89,26 @@ export default function ImoveisPage() {
 
   // Carregar municípios quando estado mudar usando o hook
   useEffect(() => {
-    loadMunicipios(filters.estado)
-  }, [filters.estado, loadMunicipios])
+    // Se o estado mudou (e não é a primeira renderização)
+    if (filters.estado !== prevEstadoRef.current) {
+      prevEstadoRef.current = filters.estado
+
+      if (filters.estado) {
+        // Limpar cidade selecionada quando estado muda para um novo valor
+        if (filters.municipio) {
+          setFilters(prev => ({ ...prev, municipio: '' }))
+        }
+        loadMunicipios(filters.estado)
+      } else {
+        // Se não há estado selecionado, limpar municípios
+        clearMunicipios()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.estado]) // ✅ APENAS filters.estado - funções são estáveis
 
   const fetchImoveis = useCallback(async () => {
+    console.log('🔄 fetchImoveis CHAMADO', { appliedFilters })
     try {
       setLoading(true)
       setError(null)
@@ -121,6 +138,7 @@ export default function ImoveisPage() {
   }, [appliedFilters, get])
 
   useEffect(() => {
+    console.log('🔄 useEffect[fetchImoveis] EXECUTADO')
     fetchImoveis()
   }, [fetchImoveis])
 
@@ -136,9 +154,6 @@ export default function ImoveisPage() {
   }
 
   const handleApplyFilters = () => {
-    // Limpar municípios para nova consulta
-    clearMunicipios()
-
     setAppliedFilters(filters)
   }
 
@@ -200,20 +215,6 @@ export default function ImoveisPage() {
             />
           </div>
 
-          {/* Bairro */}
-          <div className="col-span-1">
-            <label className="block text-sm font-bold text-gray-700 text-center mb-2">
-              Bairro
-            </label>
-            <input
-              type="text"
-              value={filters.bairro}
-              onChange={(e) => handleFilterChange('bairro', e.target.value)}
-              className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              placeholder="Bairro"
-            />
-          </div>
-
           {/* Estado */}
           <div className="col-span-1">
             <label className="block text-sm font-bold text-gray-700 text-center mb-2">
@@ -227,6 +228,7 @@ export default function ImoveisPage() {
               format="sigla"
               showAllOption={true}
               allOptionLabel="UF"
+              mode="all"
             />
           </div>
 
@@ -248,6 +250,20 @@ export default function ImoveisPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Bairro - MOVIDO PARA CÁ */}
+          <div className="col-span-1">
+            <label className="block text-sm font-bold text-gray-700 text-center mb-2">
+              Bairro
+            </label>
+            <input
+              type="text"
+              value={filters.bairro}
+              onChange={(e) => handleFilterChange('bairro', e.target.value)}
+              className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              placeholder="Bairro"
+            />
           </div>
 
           {/* Tipo */}
