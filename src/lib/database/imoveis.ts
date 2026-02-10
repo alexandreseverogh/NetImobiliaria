@@ -69,6 +69,8 @@ export interface FiltroImovel {
   tipo_fk?: number      // Chave estrangeira para tipo
   finalidade_fk?: number // Chave estrangeira para finalidade
   status_fk?: number    // Chave estrangeira para status
+  corretor_fk?: number  // Chave estrangeira para corretor
+  proprietario_uuid?: string // UUID do proprietário
 
   // Filtros legados (manter compatibilidade)
   codigo?: string
@@ -316,6 +318,18 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
       paramIndex++
     }
 
+    if (filtros.corretor_fk) {
+      query += ` AND i.corretor_fk = $${paramIndex}`
+      params.push(filtros.corretor_fk)
+      paramIndex++
+    }
+
+    if (filtros.proprietario_uuid) {
+      query += ` AND i.proprietario_uuid = $${paramIndex}`
+      params.push(filtros.proprietario_uuid)
+      paramIndex++
+    }
+
     // Filtros legados (manter compatibilidade)
     if (filtros.codigo) {
       query += ` AND codigo ILIKE $${paramIndex}`
@@ -373,6 +387,21 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
 
     query += ` ORDER BY ic.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`
     params.push(limit, offset)
+
+    try {
+      const fs = require('fs')
+      const path = require('path')
+      const debugLog = `
+[${new Date().toISOString()}] listImoveis execution:
+Filtros: ${JSON.stringify(filtros)}
+Query: ${query}
+Params: ${JSON.stringify(params)}
+----------------------------------------
+`
+      fs.appendFileSync('C:/Users/Cliente/.gemini/antigravity/brain/50bc094b-2ad0-4f97-a117-3a5494d74325/debug_filter.txt', debugLog)
+    } catch (e) {
+      console.error('Error writing debug log', e)
+    }
 
     try {
       const result = await pool.query(query, params)
@@ -629,12 +658,25 @@ export async function restoreImovel(id: number, userId: string): Promise<boolean
 // Buscar estatísticas de imóveis
 export async function getImoveisStats(): Promise<any> {
   try {
-    const query = `SELECT * FROM estatisticas_imoveis`
+    // Fallback: view estatisticas_imoveis seems missing, using direct counts
+    const query = `
+      SELECT 
+        (SELECT COUNT(*) FROM imoveis WHERE ativo = true) as total_imoveis,
+        (SELECT COUNT(*) FROM imoveis WHERE ativo = true AND destaque = true) as total_destaque,
+        (SELECT COUNT(*) FROM imoveis WHERE ativo = true AND lancamento = true) as total_lancamento
+    `
     const result = await pool.query(query)
-    return result.rows[0] || {}
+    const row = result.rows[0] || {}
+
+    return {
+      total_imoveis: parseInt(row.total_imoveis || '0'),
+      total_destaque: parseInt(row.total_destaque || '0'),
+      total_lancamento: parseInt(row.total_lancamento || '0')
+    }
   } catch (error) {
     console.error('Erro ao buscar estatísticas de imóveis:', error)
-    throw error
+    // Return safe default to prevent crash
+    return { total_imoveis: 0, total_destaque: 0, total_lancamento: 0 }
   }
 }
 

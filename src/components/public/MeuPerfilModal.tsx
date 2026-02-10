@@ -6,14 +6,16 @@ import { useEstadosCidadesPublic } from '@/hooks/useEstadosCidadesPublic'
 import { formatCPF, formatTelefone, formatCEP, validateEmail } from '@/lib/utils/formatters'
 import { buscarEnderecoPorCep } from '@/lib/utils/geocoding'
 
+
 interface MeuPerfilModalProps {
   isOpen: boolean
   onClose: () => void
+  initialMode?: 'details' | 'imoveis'
 }
 
-export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps) {
+export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details' }: MeuPerfilModalProps) {
   const { estados, getCidadesPorEstado } = useEstadosCidadesPublic()
-  
+
   const [userData, setUserData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -33,6 +35,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
   const [imoveisInteresse, setImoveisInteresse] = useState<any[]>([])
   const [loadingInteresse, setLoadingInteresse] = useState(false)
   const [errorInteresse, setErrorInteresse] = useState('')
+  const [showNoImoveisModal, setShowNoImoveisModal] = useState(false)
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -57,7 +60,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
       // Não resetar estados para não interferir na autenticação
       return
     }
-    
+
     // Resetar apenas estados de UI quando modal abre, não dados de autenticação
     setError('')
     setSuccessMessage('')
@@ -67,7 +70,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
       console.log('🔍 [MEU PERFIL MODAL] Iniciando carregamento...')
       const token = localStorage.getItem('public-auth-token')
       const userDataLocal = localStorage.getItem('public-user-data')
-      
+
       // Verificar se token e dados existem antes de continuar
       if (!token || !userDataLocal) {
         console.log('❌ [MEU PERFIL MODAL] Sem token ou dados locais')
@@ -76,7 +79,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
         // Não fechar modal automaticamente - deixar usuário ver a mensagem de erro
         return
       }
-      
+
       // Primeiro, tentar carregar dados do localStorage como fallback
       if (userDataLocal && !token) {
         try {
@@ -101,7 +104,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
           console.error('❌ [MEU PERFIL MODAL] Erro ao parsear dados locais:', e)
         }
       }
-      
+
 
       try {
         const response = await fetch('/api/public/auth/profile', {
@@ -113,7 +116,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
 
         if (response.ok) {
           const data = await response.json()
-          
+
           if (data.success && data.data) {
             setUserData(data.data)
             setFormData({
@@ -178,7 +181,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
         }
       } catch (error: any) {
         console.error('❌ [MEU PERFIL MODAL] Erro ao carregar dados:', error)
-        
+
         if (userDataLocal) {
           try {
             const localData = JSON.parse(userDataLocal)
@@ -214,7 +217,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
   // Buscar endereço automaticamente quando CEP for informado
   useEffect(() => {
     if (!isEditing || !isOpen) return
-    
+
     const cep = formData.cep
     if (!cep) return
 
@@ -252,7 +255,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
       setEmailPendingValidation(false)
       return
     }
-    
+
     const email = formData.email
     if (!email || !validateEmail(email) || email === userData?.email) {
       setEmailExists(false)
@@ -382,10 +385,10 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
         setIsEditing(false)
         setUserData(data.data)
         setFormData(prev => ({ ...prev, password: '' }))
-        
+
         // Atualizar localStorage
         localStorage.setItem('public-user-data', JSON.stringify(data.data))
-        
+
         // Disparar evento para atualizar AuthButtons
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new Event('public-auth-changed'))
@@ -408,42 +411,99 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
     onClose()
   }
 
-  const handleVerImoveis = async () => {
-    setShowImoveisModal(true)
-    setLoadingImoveis(true)
-    setErrorImoveis('')
 
-    const token = localStorage.getItem('public-auth-token')
-    if (!token) {
-      setErrorImoveis('Token de autenticação não encontrado')
-      setLoadingImoveis(false)
-      return
-    }
-
+  const handleCadastrarImovel = async () => {
     try {
-      const response = await fetch('/api/public/auth/meus-imoveis', {
+      // 1. Gerar token admin temporário (necessário para consultar API admin)
+      const publicToken = localStorage.getItem('public-auth-token')
+      const authResponse = await fetch('/api/public/auth/generate-admin-token', {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${publicToken}`, // Token público
           'Content-Type': 'application/json'
         }
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success && data.data) {
-          setImoveis(data.data)
-        } else {
-          setErrorImoveis('Erro ao carregar imóveis')
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }))
-        setErrorImoveis(errorData.message || 'Erro ao carregar imóveis')
+      if (!authResponse.ok) {
+        throw new Error('Falha ao autenticar como proprietário')
       }
-    } catch (error: any) {
-      console.error('Erro ao carregar imóveis:', error)
-      setErrorImoveis('Erro de conexão ao carregar imóveis')
-    } finally {
-      setLoadingImoveis(false)
+
+      const authData = await authResponse.json()
+      const adminToken = authData.adminToken
+
+      // Salvar tokens
+      localStorage.setItem('admin-auth-token', adminToken)
+      localStorage.setItem('admin-user-data', JSON.stringify(authData.userData))
+
+      // 2. Redirecionar para criação de imóvel em nova janela
+      const proprietarioUuid = userData?.uuid || userData?.id
+
+      window.open(
+        `/admin/imoveis/novo?fromProprietario=true&proprietario_uuid=${proprietarioUuid}&noSidebar=true`,
+        '_blank',
+        'noopener,noreferrer'
+      )
+    } catch (error) {
+      console.error('Erro ao acessar cadastro:', error)
+      alert('Erro ao acessar área de cadastro. Tente novamente.')
+    }
+  }
+
+  const handleVerImoveis = async () => {
+    try {
+      // 1. Gerar token admin temporário (necessário para consultar API admin)
+      const publicToken = localStorage.getItem('public-auth-token')
+      const authResponse = await fetch('/api/public/auth/generate-admin-token', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${publicToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!authResponse.ok) {
+        throw new Error('Falha ao autenticar como proprietário')
+      }
+
+      const authData = await authResponse.json()
+      const adminToken = authData.adminToken
+
+      // Salvar tokens
+      localStorage.setItem('admin-auth-token', adminToken)
+      localStorage.setItem('admin-user-data', JSON.stringify(authData.userData))
+
+      // 2. Verificar se existem imóveis cadastrados
+      const proprietarioUuid = userData?.uuid || userData?.id
+      const checkResponse = await fetch(`/api/admin/imoveis?proprietario_uuid=${proprietarioUuid}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`, // Usando o token gerado
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json()
+        const hasImoveis = checkData.data && checkData.data.length > 0
+
+        if (!hasImoveis) {
+          // Mostrar modal informando que não há imóveis cadastrados
+          setShowNoImoveisModal(true)
+          return
+        }
+      }
+
+      // 3. Se existem imóveis, abrir a página CRUD em uma nova janela
+      // Usar window.open para manter o modal do proprietário aberto na janela original
+      window.open(
+        `/admin/imoveis?fromProprietario=true&proprietario_uuid=${proprietarioUuid}&noSidebar=true`,
+        '_blank', // Abre em nova aba/janela
+        'noopener,noreferrer' // Boas práticas de segurança
+      )
+    } catch (error) {
+      console.error('Erro ao verificar imóveis:', error)
+      setLoading(false)
+      alert('Erro ao verificar seus imóveis. Tente novamente.')
     }
   }
 
@@ -467,8 +527,10 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
         return
       }
 
+      const publicToken = localStorage.getItem('public-auth-token')
       const response = await fetch(`/api/public/imoveis/prospects?cliente_uuid=${user.uuid}`, {
         headers: {
+          'Authorization': `Bearer ${publicToken}`,
           'Content-Type': 'application/json'
         }
       })
@@ -521,7 +583,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
 
   const formatEnderecoCompleto = (imovel: any): string => {
     const partes: string[] = []
-    
+
     if (imovel.endereco) partes.push(imovel.endereco)
     if (imovel.numero) partes.push(imovel.numero)
     if (imovel.complemento) partes.push(imovel.complemento)
@@ -529,7 +591,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
     if (imovel.cidade) partes.push(imovel.cidade)
     if (imovel.estado) partes.push(imovel.estado)
     if (imovel.cep) partes.push(`CEP: ${imovel.cep}`)
-    
+
     return partes.length > 0 ? partes.join(', ') : 'Endereço não informado'
   }
 
@@ -544,13 +606,12 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="flex-shrink-0 w-16 h-16 flex items-center justify-center bg-green-100 rounded-full">
-                  <User className={`w-8 h-8 ${
-                    userData?.userType === 'cliente' ? 'text-blue-600' : 'text-green-600'
-                  }`} />
+                  <User className={`w-8 h-8 ${userData?.userType === 'cliente' ? 'text-blue-600' : 'text-green-600'
+                    }`} />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">
-                    Meu Perfil
+                    {userData?.userType === 'cliente' ? 'Meu Perfil' : 'Meu Portal de Negócios Imobiliários'}
                   </h1>
                   {userData && (
                     <p className="text-sm text-gray-600 mt-1">
@@ -614,12 +675,10 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
               <>
                 {/* Tipo de Usuário */}
                 <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border border-blue-100 mb-6">
-                  <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg ${
-                    userData.userType === 'cliente' ? 'bg-blue-100' : 'bg-green-100'
-                  }`}>
-                    <User className={`w-5 h-5 ${
-                      userData.userType === 'cliente' ? 'text-blue-600' : 'text-green-600'
-                    }`} />
+                  <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg ${userData.userType === 'cliente' ? 'bg-blue-100' : 'bg-green-100'
+                    }`}>
+                    <User className={`w-5 h-5 ${userData.userType === 'cliente' ? 'text-blue-600' : 'text-green-600'
+                      }`} />
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Tipo de Conta</p>
@@ -725,12 +784,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                         <div className="pt-4 border-t border-gray-200">
                           <div className="flex flex-col sm:flex-row gap-3">
                             <button
-                              onClick={() => {
-                                onClose()
-                                setTimeout(() => {
-                                  window.location.href = '/admin/imoveis/novo?noSidebar=true'
-                                }, 100)
-                              }}
+                              onClick={handleCadastrarImovel}
                               className="flex-1 px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                             >
                               <Building2 className="w-4 h-4" />
@@ -775,9 +829,8 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                           <input
                             name="nome"
                             type="text"
-                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                              errors.nome ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.nome ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                              }`}
                             value={formData.nome}
                             onChange={handleChange}
                           />
@@ -806,9 +859,8 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                             <input
                               name="email"
                               type="email"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                errors.email || emailExists ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                              }`}
+                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email || emailExists ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                                }`}
                               value={formData.email}
                               onChange={handleChange}
                             />
@@ -832,9 +884,8 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                           <input
                             name="telefone"
                             type="text"
-                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                              errors.telefone ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.telefone ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                              }`}
                             value={formData.telefone}
                             onChange={handleChange}
                           />
@@ -855,9 +906,8 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                               <input
                                 name="cep"
                                 type="text"
-                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                  errors.cep ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                                }`}
+                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cep ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                                  }`}
                                 value={formData.cep}
                                 onChange={handleChange}
                               />
@@ -878,9 +928,8 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                             <input
                               name="endereco"
                               type="text"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                errors.endereco ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                              }`}
+                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.endereco ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                                }`}
                               value={formData.endereco}
                               onChange={handleChange}
                             />
@@ -895,9 +944,8 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                             <input
                               name="numero"
                               type="text"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                errors.numero ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                              }`}
+                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.numero ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                                }`}
                               value={formData.numero}
                               onChange={handleChange}
                             />
@@ -926,9 +974,8 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                             <input
                               name="bairro"
                               type="text"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                errors.bairro ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                              }`}
+                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.bairro ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                                }`}
                               value={formData.bairro}
                               onChange={handleChange}
                             />
@@ -942,15 +989,14 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                             </label>
                             <select
                               name="estado_fk"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                errors.estado_fk ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                              }`}
+                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.estado_fk ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                                }`}
                               value={formData.estado_fk}
                               onChange={handleChange}
                             >
                               <option value="">Selecione o estado</option>
                               {estados.map((estado) => (
-                                <option key={estado.id} value={estado.sigla}>
+                                <option key={estado.sigla} value={estado.sigla}>
                                   {estado.nome}
                                 </option>
                               ))}
@@ -965,17 +1011,16 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                             </label>
                             <select
                               name="cidade_fk"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                errors.cidade_fk ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                              }`}
+                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cidade_fk ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                                }`}
                               value={formData.cidade_fk}
                               onChange={handleChange}
                               disabled={!formData.estado_fk}
                             >
                               <option value="">Selecione a cidade</option>
                               {cidades.map((cidade) => (
-                                <option key={cidade.id} value={cidade.nome}>
-                                  {cidade.nome}
+                                <option key={cidade} value={cidade}>
+                                  {cidade}
                                 </option>
                               ))}
                             </select>
@@ -1125,13 +1170,12 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                     <tbody className="bg-white divide-y divide-gray-100">
                       {imoveis.map((imovel: any, index: number) => (
                         <>
-                          <tr 
-                            key={imovel.id || index} 
-                            className={`transition-all duration-200 ${
-                              index % 2 === 0 
-                                ? 'bg-gradient-to-r from-blue-50/50 to-indigo-50/30 hover:from-blue-100/70 hover:to-indigo-100/50' 
-                                : 'bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30'
-                            }`}
+                          <tr
+                            key={imovel.id || index}
+                            className={`transition-all duration-200 ${index % 2 === 0
+                              ? 'bg-gradient-to-r from-blue-50/50 to-indigo-50/30 hover:from-blue-100/70 hover:to-indigo-100/50'
+                              : 'bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30'
+                              }`}
                           >
                             <td className="px-2 py-2.5 text-sm text-gray-900">{imovel.estado || '-'}</td>
                             <td className="px-2 py-2.5 text-sm text-gray-900">{imovel.cidade || '-'}</td>
@@ -1151,11 +1195,10 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                             <td className="px-2 py-2.5 text-sm text-gray-900">{formatDate(imovel.created_at)}</td>
                           </tr>
                           {/* Linha de endereço completo */}
-                          <tr className={`transition-all duration-200 border-t border-gray-200/50 ${
-                            index % 2 === 0 
-                              ? 'bg-gradient-to-r from-gray-50/70 to-blue-50/40' 
-                              : 'bg-gray-50/40'
-                          }`}>
+                          <tr className={`transition-all duration-200 border-t border-gray-200/50 ${index % 2 === 0
+                            ? 'bg-gradient-to-r from-gray-50/70 to-blue-50/40'
+                            : 'bg-gray-50/40'
+                            }`}>
                             <td colSpan={16} className="px-4 py-2.5 text-sm text-gray-700">
                               <div className="flex items-center gap-2">
                                 <MapPin className="w-4 h-4 text-indigo-600 flex-shrink-0" />
@@ -1238,7 +1281,7 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
               {!loadingInteresse && !errorInteresse && imoveisInteresse.length > 0 && (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200 rounded-xl overflow-hidden">
-                    <thead className="bg-gradient-to-r from-blue-600 to-indigo-700">
+                    <thead className="bg-gradient-to-r from-slate-700 to-slate-800">
                       <tr>
                         <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-xl">Estado</th>
                         <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Cidade</th>
@@ -1255,18 +1298,17 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                         <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Varanda</th>
                         <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Andar</th>
                         <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Total Andares</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tr-xl">Data de Interesse</th>
+                        <th className="px-2 py-3 text-center text-xs font-bold text-white uppercase tracking-wider rounded-tr-xl">Data de Interesse</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
                       {imoveisInteresse.map((item: any, index: number) => (
                         <React.Fragment key={item.id || `interesse-${index}`}>
-                          <tr 
-                            className={`transition-all duration-200 ${
-                              index % 2 === 0 
-                                ? 'bg-gradient-to-r from-blue-50/50 to-indigo-50/30 hover:from-blue-100/70 hover:to-indigo-100/50' 
-                                : 'bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30'
-                            }`}
+                          <tr
+                            className={`transition-all duration-200 ${index % 2 === 0
+                              ? 'bg-gradient-to-r from-blue-50/50 to-indigo-50/30 hover:from-blue-100/70 hover:to-indigo-100/50'
+                              : 'bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30'
+                              }`}
                           >
                             <td className="px-2 py-2.5 text-sm text-gray-900">{item.estado_fk || '-'}</td>
                             <td className="px-2 py-2.5 text-sm text-gray-900">{item.cidade_fk || '-'}</td>
@@ -1280,31 +1322,59 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                             <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.suites)}</td>
                             <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.banheiros)}</td>
                             <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.vagas_garagem)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{item.varanda ? 'Sim' : 'Não'}</td>
+                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.varanda)}</td>
                             <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.andar)}</td>
                             <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.total_andares)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatDate(item.created_at)}</td>
+                            <td className="px-2 py-2.5 text-sm text-gray-900 text-center">{formatDate(item.created_at)}</td>
                           </tr>
                           {/* Linha de endereço completo */}
-                          <tr className={`transition-all duration-200 border-t border-gray-200/50 ${
-                            index % 2 === 0 
-                              ? 'bg-gradient-to-r from-gray-50/70 to-blue-50/40' 
-                              : 'bg-gray-50/40'
-                          }`}>
+                          <tr className={`transition-all duration-200 border-t border-gray-200/50 ${index % 2 === 0
+                            ? 'bg-gradient-to-r from-gray-50/70 to-blue-50/40'
+                            : 'bg-gray-50/40'
+                            }`}>
                             <td colSpan={16} className="px-4 py-2.5 text-sm text-gray-700">
-                              <div className="flex items-center gap-2">
-                                <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                                <span className="font-semibold text-gray-700">Endereço:</span>
-                                <span className="text-gray-800 break-words">
-                                  {item.endereco || ''}
-                                  {item.numero && `, ${item.numero}`}
-                                  {item.complemento && ` - ${item.complemento}`}
-                                  {item.bairro && ` - ${item.bairro}`}
-                                  {item.cidade_fk && `, ${item.cidade_fk}`}
-                                  {item.estado_fk && ` - ${item.estado_fk}`}
-                                  {item.cep && ` • CEP: ${item.cep}`}
-                                  {item.finalidade && ` - ${item.finalidade}`}
-                                </span>
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                  <span className="font-semibold text-gray-700">Endereço:</span>
+                                  <span className="text-gray-800 break-words">
+                                    {item.endereco || ''}
+                                    {item.numero && `, ${item.numero}`}
+                                    {item.complemento && ` - ${item.complemento}`}
+                                    {item.bairro && ` - ${item.bairro}`}
+                                    {item.cidade_fk && `, ${item.cidade_fk}`}
+                                    {item.estado_fk && ` - ${item.estado_fk}`}
+                                    {item.cep && ` • CEP: ${item.cep}`}
+                                    {item.finalidade && ` - ${item.finalidade}`}
+                                    {item.corretor_nome && (
+                                      <>
+                                        {' • '}
+                                        <span className="font-semibold text-blue-700">Corretor:</span>
+                                        {` ${item.corretor_nome}`}
+                                        {item.corretor_email && (
+                                          <>
+                                            {' • '}
+                                            <span className="font-semibold text-blue-700">Email:</span>
+                                            {` ${item.corretor_email}`}
+                                          </>
+                                        )}
+                                        {item.corretor_telefone && (
+                                          <>
+                                            {' • '}
+                                            <span className="font-semibold text-blue-700">Tel:</span>
+                                            {` ${formatTelefone(item.corretor_telefone)}`}
+                                          </>
+                                        )}
+                                      </>
+                                    )}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => window.open(`/imoveis/${item.id_imovel}`, '_blank')}
+                                  className="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg"
+                                >
+                                  Ver Detalhes
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -1326,6 +1396,43 @@ export default function MeuPerfilModal({ isOpen, onClose }: MeuPerfilModalProps)
                   Fechar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Nenhum Imóvel Cadastrado */}
+      {showNoImoveisModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header com gradiente */}
+            <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6">
+              <div className="flex items-center justify-center">
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                  <Building2 className="w-8 h-8 text-white" />
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-8 text-center">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                Nenhum Imóvel Cadastrado
+              </h2>
+              <p className="text-gray-600 text-lg mb-6">
+                Ainda não existem imóveis cadastrados para você
+              </p>
+              <p className="text-sm text-gray-500 mb-8">
+                Comece cadastrando seu primeiro imóvel clicando no botão "Cadastrar Imóvel"
+              </p>
+
+              {/* Botão Fechar */}
+              <button
+                onClick={() => setShowNoImoveisModal(false)}
+                className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-base font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                Fechar
+              </button>
             </div>
           </div>
         </div>

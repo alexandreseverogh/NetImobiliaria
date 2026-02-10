@@ -21,7 +21,7 @@ function isUuid(value: string): boolean {
 }
 
 // Função para extrair usuário logado
-function getCurrentUser(request: NextRequest): string | null {
+function getCurrentUser(request: NextRequest): { userId: string, role?: string, userType?: string } | null {
   try {
     const token = getTokenFromRequest(request)
 
@@ -37,7 +37,12 @@ function getCurrentUser(request: NextRequest): string | null {
     }
 
     console.log('🔍 Usuário logado:', decoded.userId)
-    return decoded.userId
+    // Retornar objeto com detalhes do usuário
+    return {
+      userId: decoded.userId,
+      role: (decoded as any).role_name || (decoded as any).cargo || '',
+      userType: (decoded as any).userType
+    }
   } catch (error) {
     console.error('🔍 Erro ao extrair usuário:', error)
     return null
@@ -302,7 +307,8 @@ export async function PUT(
       const destaqueNacionalMudou = 'destaque_nacional' in data && destaqueNacionalAtual !== data.destaque_nacional
 
       if (destaqueMudou || destaqueNacionalMudou) {
-        const currentUserId = getCurrentUser(request)
+        const currentUserPayload = getCurrentUser(request)
+        const currentUserId = currentUserPayload?.userId
         console.log('🔍 User ID para auditoria:', currentUserId)
 
         if (currentUserId) {
@@ -394,7 +400,14 @@ export async function PUT(
 
       // 3. Inserir no histórico SE o status mudou
       if (statusAtual !== data.status_fk) {
-        const currentUserId = getCurrentUser(request)
+        const currentUserPayload = getCurrentUser(request)
+        const currentUserId = currentUserPayload?.userId
+        const isOwner = currentUserPayload?.role?.toLowerCase().includes('proprietário') ||
+          currentUserPayload?.role?.toLowerCase().includes('proprietario') ||
+          currentUserPayload?.userType === 'proprietario'
+        // Se for proprietário, não deve tentar usar currentUserId em campos que exigem FK de users
+        const userIdForAudit = isOwner ? null : currentUserId
+
         console.log('🔍 User ID para histórico:', currentUserId)
 
         const historicoQuery = `
@@ -404,40 +417,49 @@ export async function PUT(
         `
 
         try {
-          const resultHistorico = await pool.query(historicoQuery, [imovelId, data.status_fk, currentUserId])
+          // Se userIdForAudit for null, o insert pode falhar se created_by for NOT NULL
+          console.log('🔍 Executando INSERT em imovel_status com userId:', userIdForAudit)
+          const resultHistorico = await pool.query(historicoQuery, [imovelId, data.status_fk, userIdForAudit])
           console.log('✅ Histórico de status inserido:', resultHistorico.rows[0])
+          console.log('✅ ID do registro de histórico criado:', resultHistorico.rows[0]?.id)
+        } catch (insertError) {
+          console.error('❌ ERRO ao inserir em imovel_status:', insertError)
+          console.error('❌ Mensagem do erro:', insertError instanceof Error ? insertError.message : insertError)
+          console.error('❌ Stack trace:', insertError instanceof Error ? insertError.stack : 'N/A')
+          // throw insertError // Não interromper o processo por erro no histórico
+        }
 
-          // 4. Registrar log de auditoria
-          if (currentUserId) {
-            try {
-              // Buscar informações para o log
-              const imovelInfo = await pool.query(
-                'SELECT codigo, titulo FROM imoveis WHERE id = $1',
-                [imovelId]
-              )
+        // 4. Registrar log de auditoria
+        if (userIdForAudit) {
+          try {
+            // Buscar informações para o log
+            const imovelInfo = await pool.query(
+              'SELECT codigo, titulo FROM imoveis WHERE id = $1',
+              [imovelId]
+            )
 
-              const statusAntigoInfo = await pool.query(
-                'SELECT nome FROM status_imovel WHERE id = $1',
-                [statusAtual]
-              )
+            const statusAntigoInfo = await pool.query(
+              'SELECT nome FROM status_imovel WHERE id = $1',
+              [statusAtual]
+            )
 
-              const statusNovoInfo = await pool.query(
-                'SELECT nome FROM status_imovel WHERE id = $1',
-                [data.status_fk]
-              )
+            const statusNovoInfo = await pool.query(
+              'SELECT nome FROM status_imovel WHERE id = $1',
+              [data.status_fk]
+            )
 
-              const userInfo = await pool.query(
-                'SELECT username, nome FROM users WHERE id = $1',
-                [currentUserId]
-              )
+            const userInfo = await pool.query(
+              'SELECT username, nome FROM users WHERE id = $1',
+              [userIdForAudit]
+            )
 
-              const imovelCodigo = imovelInfo.rows[0]?.codigo || 'Desconhecido'
-              const imovelTitulo = imovelInfo.rows[0]?.titulo || 'Desconhecido'
-              const statusAntigoNome = statusAntigoInfo.rows[0]?.nome || 'Desconhecido'
-              const statusNovoNome = statusNovoInfo.rows[0]?.nome || 'Desconhecido'
-              const userName = userInfo.rows[0]?.nome || userInfo.rows[0]?.username || 'Desconhecido'
+            const imovelCodigo = imovelInfo.rows[0]?.codigo || 'Desconhecido'
+            const imovelTitulo = imovelInfo.rows[0]?.titulo || 'Desconhecido'
+            const statusAntigoNome = statusAntigoInfo.rows[0]?.nome || 'Desconhecido'
+            const statusNovoNome = statusNovoInfo.rows[0]?.nome || 'Desconhecido'
+            const userName = userInfo.rows[0]?.nome || userInfo.rows[0]?.username || 'Desconhecido'
 
-              const auditQuery = `
+            const auditQuery = `
                 INSERT INTO audit_logs (
                   user_id,
                   action,
@@ -449,38 +471,35 @@ export async function PUT(
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
               `
 
-              const details = {
-                description: `Mudou status do imóvel ${imovelCodigo} (${imovelTitulo}) de "${statusAntigoNome}" para "${statusNovoNome}"`,
-                imovel_codigo: imovelCodigo,
-                imovel_titulo: imovelTitulo,
-                status_anterior: statusAtual,
-                status_anterior_nome: statusAntigoNome,
-                status_novo: data.status_fk,
-                status_novo_nome: statusNovoNome,
-                changed_by: currentUserId,
-                changed_by_name: userName,
-                timestamp: new Date().toISOString()
-              }
-
-              await pool.query(auditQuery, [
-                currentUserId,
-                'UPDATE',
-                'mudanca-status',
-                imovelId,
-                JSON.stringify(details),
-                request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-                request.headers.get('user-agent') || 'unknown'
-              ])
-
-              console.log('✅ Log de auditoria registrado para mudança de status')
-            } catch (auditError) {
-              console.error('⚠️ Erro ao registrar log de auditoria (não crítico):', auditError)
+            const details = {
+              description: `Mudou status do imóvel ${imovelCodigo} (${imovelTitulo}) de "${statusAntigoNome}" para "${statusNovoNome}"`,
+              imovel_codigo: imovelCodigo,
+              imovel_titulo: imovelTitulo,
+              status_anterior: statusAtual,
+              status_anterior_nome: statusAntigoNome,
+              status_novo: data.status_fk,
+              status_novo_nome: statusNovoNome,
+              changed_by: currentUserId,
+              changed_by_name: userName,
+              timestamp: new Date().toISOString()
             }
+
+            await pool.query(auditQuery, [
+              userIdForAudit,
+              'UPDATE',
+              'mudanca-status',
+              imovelId,
+              JSON.stringify(details),
+              request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+              request.headers.get('user-agent') || 'unknown'
+            ])
+
+            console.log('✅ Log de auditoria registrado para mudança de status')
+          } catch (auditError) {
+            console.error('⚠️ Erro ao registrar log de auditoria (não crítico):', auditError)
           }
-        } catch (insertError) {
-          console.error('❌ ERRO ao inserir histórico:', insertError)
-          console.error('❌ Detalhes:', insertError instanceof Error ? insertError.message : insertError)
         }
+
       }
 
       return NextResponse.json({
@@ -735,7 +754,7 @@ export async function PUT(
       // 3. Adicionar ao histórico SE o status mudou
       if (statusAtual !== data.status_fk) {
         // Pegar o usuário logado
-        const currentUserId = getCurrentUser(request)
+        const currentUserId = getCurrentUser(request)?.userId
         console.log('🔍 User ID para histórico:', currentUserId)
         console.log('🔍 Tipo de currentUserId:', typeof currentUserId)
 
@@ -836,8 +855,18 @@ export async function PUT(
     }
 
     // Obter usuário logado para updated_by
-    const currentUserId = getCurrentUser(request)
+    const currentUserPayload = getCurrentUser(request)
+    const currentUserId = currentUserPayload?.userId
+
+    // Verificar se é proprietário
+    const userRole = currentUserPayload?.role?.toLowerCase() || ''
+    const userType = currentUserPayload?.userType || ''
+    const isOwner = userRole.includes('proprietário') ||
+      userRole.includes('proprietario') ||
+      userType === 'proprietario'
+
     console.log('🔍 Usuário logado (updated_by):', currentUserId)
+    console.log('🔍 É proprietário?', isOwner)
 
     // Atualizar dados básicos do imóvel
     const updateQuery = `
@@ -912,15 +941,15 @@ export async function PUT(
       converterValorNumerico(data.andar), // $23 - Convertido
       converterValorNumerico(data.totalAndares), // $24 - Convertido
       data.mobiliado,
-      data.aceita_permuta,
-      data.aceita_financiamento,
+      data.aceita_permuta ?? data.aceitaPermuta,
+      data.aceita_financiamento ?? data.aceitaFinanciamento,
       data.tipo_fk,
       data.finalidade_fk,
       data.status_fk,
       proprietarioUuidNormalizado, // $31
       data.destaque !== undefined ? data.destaque : destaqueAtual, // $32
       data.lancamento !== undefined ? data.lancamento : false, // $33 - lancamento (default false)
-      currentUserId, // $34 - updated_by
+      isOwner ? null : currentUserId, // $34 - updated_by
       imovelId // $35 - WHERE id
     ]
 

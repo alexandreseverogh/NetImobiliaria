@@ -84,7 +84,7 @@ export default function ProfileBanners({
                   <button
                     type="button"
                     onClick={onClienteClick}
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold transition-colors"
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg"
                   >
                     Criar conta
                   </button>

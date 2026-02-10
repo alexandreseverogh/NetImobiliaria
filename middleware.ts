@@ -3,6 +3,7 @@ import { environmentMainMiddleware } from './src/middleware/environmentMiddlewar
 
 // Middleware principal do Next.js
 export function middleware(request: NextRequest) {
+  console.log('⚡ ROOT MIDDLEWARE running for:', request.url)
   // Aplicar middleware de ambiente
   return environmentMainMiddleware(request)
 }
@@ -18,7 +19,7 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public (public files)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public).*)',
   ],
 }
 

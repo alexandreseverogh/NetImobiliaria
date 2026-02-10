@@ -76,16 +76,9 @@ export interface FiltroImovel {
   tipo_id?: number
   finalidade_id?: number
   status_id?: number
-  preco_min?: number
-  preco_max?: number
-  quartos_min?: number
-  area_min?: number
-  cidade?: string
-  destaque?: boolean
-  ativo?: boolean
 }
 
-// Buscar imÃ³vel por ID
+// Buscar imóvel por ID
 export async function findImovelById(id: number): Promise<ImovelCompleto | null> {
   try {
     const query = `

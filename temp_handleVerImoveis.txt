@@ -1,0 +1,36 @@
+const handleVerImoveis = async () => {
+  try {
+    setLoading(true)
+    
+    // Verificar se o proprietário tem imóveis cadastrados
+    const proprietarioUuid = userData?.uuid || userData?.id
+    const publicToken = localStorage.getItem('public-auth-token')
+    
+    const response = await fetch(`/api/public/auth/meus-imoveis?proprietario_uuid=${proprietarioUuid}`, {
+      headers: {
+        'Authorization': `Bearer ${publicToken}`
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error('Erro ao verificar imóveis')
+    }
+
+    const data = await response.json()
+    
+    setLoading(false)
+    
+    // Se não há imóveis, mostrar modal informativo
+    if (!data.imoveis || data.imoveis.length === 0) {
+      setShowNoImoveisModal(true)
+      return
+    }
+
+    // Se há imóveis, redirecionar para o CRUD
+    window.location.href = `/admin/imoveis?fromProprietario=true&proprietario_uuid=${proprietarioUuid}&noSidebar=true`
+  } catch (error) {
+    console.error('Erro ao verificar imóveis:', error)
+    setLoading(false)
+    alert('Erro ao acessar área de imóveis. Por favor, tente novamente.')
+  }
+}

@@ -89,6 +89,10 @@ function LandingPageContent() {
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('register')
   const [authUserType, setAuthUserType] = useState<'cliente' | 'proprietario' | null>(null)
   const [meuPerfilModalOpen, setMeuPerfilModalOpen] = useState(false)
+  const [meuPerfilInitialMode, setMeuPerfilInitialMode] = useState<'details' | 'imoveis'>('details')
+  const [userSuccessModalOpen, setUserSuccessModalOpen] = useState(false)
+  const [userSuccessData, setUserSuccessData] = useState<any>(null)
+
   // Metadados de finalidades removidos - não são mais necessários
   const [pendingImovelId, setPendingImovelId] = useState<number | null>(null)
   const [tenhoInteresseFormModalOpen, setTenhoInteresseFormModalOpen] = useState(false)
@@ -158,7 +162,42 @@ function LandingPageContent() {
         router.replace('/landpaging')
       }
     }
+
+    // Verificar se deve abrir Meus Imóveis (Portal do Proprietário)
+    const action = searchParams?.get('action')
+    if (action === 'meus-imoveis') {
+      setMeuPerfilInitialMode('imoveis')
+      setMeuPerfilModalOpen(true)
+
+      // Limpar URL
+      try {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('action')
+        router.replace(url.pathname + (url.search ? url.search : ''))
+      } catch { }
+    }
   }, [searchParams, router])
+
+  // Listeners para abrir modal de perfil
+  useEffect(() => {
+    const handleOpenProfile = () => {
+      setMeuPerfilInitialMode('details')
+      setMeuPerfilModalOpen(true)
+    }
+    const handleOpenProperties = () => {
+      setMeuPerfilInitialMode('imoveis')
+      setMeuPerfilModalOpen(true)
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('open-meu-perfil-modal', handleOpenProfile)
+      window.addEventListener('open-meu-perfil-imoveis', handleOpenProperties)
+      return () => {
+        window.removeEventListener('open-meu-perfil-modal', handleOpenProfile)
+        window.removeEventListener('open-meu-perfil-imoveis', handleOpenProperties)
+      }
+    }
+  }, [])
 
   // Monitorar mudanças nos valores de estado e cidade para debug
   useEffect(() => {
@@ -1565,6 +1604,62 @@ function LandingPageContent() {
   }
 
   const handleVenderClick = () => {
+    // Verificar se já existe sessão de proprietário ativa
+    if (typeof window !== 'undefined') {
+      try {
+        // Verificar token público (onde guardamos o userType explicitamente)
+        const publicToken = localStorage.getItem('public-auth-token')
+        const publicUserRaw = localStorage.getItem('public-user-data')
+
+        // Verificar token admin
+        const adminToken = localStorage.getItem('admin-auth-token')
+        const adminUserRaw = localStorage.getItem('admin-user-data')
+
+        let isProprietario = false
+
+        // 1. Checar sessão pública (mais preciso para userType)
+        if (publicToken && publicUserRaw) {
+          const publicUser = JSON.parse(publicUserRaw)
+          if (publicUser.userType === 'proprietario') {
+            isProprietario = true
+          }
+        }
+
+        // 2. Fallback: Checar sessão admin se não detectou pública
+        if (!isProprietario && adminToken && adminUserRaw) {
+          const adminUser = JSON.parse(adminUserRaw)
+          const role = String(adminUser.role_name || adminUser.cargo || '').toLowerCase()
+          // Se a role diz explicitamente proprietario
+          if (role.includes('proprietario')) {
+            isProprietario = true
+          }
+        }
+
+        // Se já estiver logado como proprietário
+        if (isProprietario) {
+          // Pular o modal "Vender ou Alugar" e abrir direto as informações do proprietário (UserSuccessModal)
+          // Isso atende à solicitação: "abrir o modal do proprietário para visualização das informações"
+
+          let userData = null
+          if (publicUserRaw) {
+            userData = JSON.parse(publicUserRaw)
+          } else if (adminUserRaw) {
+            userData = JSON.parse(adminUserRaw)
+          }
+
+          if (userData) {
+            // Alterado para abrir o MeuPerfilModal em vez do UserSuccessModal
+            // para unificar a experiência do usuário proprietário
+            setMeuPerfilInitialMode('details')
+            setMeuPerfilModalOpen(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error('Erro ao verificar sessão de proprietário:', e)
+      }
+    }
+
     setVenderPopupOpen(true)
   }
 
@@ -2017,6 +2112,29 @@ function LandingPageContent() {
       <ProfileBanners
         onProprietarioClick={handleVenderClick}
         onClienteClick={() => {
+          // Verificar se já existe sessão de CLIENTE válida
+          try {
+            const publicToken = localStorage.getItem('public-auth-token')
+            const userData = localStorage.getItem('public-user-data')
+
+            if (publicToken && userData) {
+              const user = JSON.parse(userData)
+              if (user.userType === 'cliente') {
+                console.log('✅ [LANDING PAGE] Cliente já logado - abrindo perfil direto')
+                /*
+                  Abertura inteligente:
+                  1. O modal de perfil já carrega os dados do cliente
+                  2. O botão "Imóveis de meu interesse" está disponível lá
+                */
+                setMeuPerfilModalOpen(true)
+                return
+              }
+            }
+          } catch (e) {
+            console.error('Erro ao verificar sessão de cliente:', e)
+          }
+
+          // Se não estiver logado, abrir modal de registro
           setAuthUserType('cliente')
           setAuthModalMode('register')
           setAuthModalOpen(true)
@@ -2076,6 +2194,28 @@ function LandingPageContent() {
               }
             }
           } catch { }
+
+          // NOVA VALIDAÇÃO: Verificar se um CLIENTE está logado
+          // Se sim, não abrir o popup do corretor (ele precisa fazer cadastro/login como corretor separadamente)
+          try {
+            const publicToken = localStorage.getItem('public-auth-token')
+            const publicUserRaw = localStorage.getItem('public-user-data')
+
+            if (publicToken && publicUserRaw) {
+              const userData: any = JSON.parse(publicUserRaw)
+              const userType = String(userData?.userType || '').toLowerCase()
+
+              // Se é um cliente logado, não é permitido acessar painel de corretor
+              // Deve fazer cadastro/login como corretor separadamente
+              if (userType === 'cliente') {
+                // Cliente logado clicando em "Sou Corretor": abrir modal de registro/login do corretor
+                // (não abrir o CorretorPopup que é para corretores já logados)
+                return // Não fazer nada - cliente precisa se cadastrar como corretor via fluxo normal
+              }
+            }
+          } catch (e) {
+            console.error('Erro ao verificar sessão de cliente:', e)
+          }
 
           // Fluxo padrão: abrir popup do corretor
           suppressGeolocationModalOnceRef.current = true
@@ -2563,11 +2703,22 @@ function LandingPageContent() {
         redirectTo="/landpaging?corretor_home=true"
       />
 
+      {/* Modal de Sucesso/Informaçoes do Usuário (usado quando proprietário já está logado) */}
+      {userSuccessModalOpen && userSuccessData && (
+        <UserSuccessModal
+          isOpen={userSuccessModalOpen}
+          onClose={() => setUserSuccessModalOpen(false)}
+          userData={userSuccessData}
+          redirectTo="/admin/imoveis/novo?noSidebar=true"
+        />
+      )}
+
 
       {/* Modal de Meu Perfil */}
       <MeuPerfilModal
         isOpen={meuPerfilModalOpen}
         onClose={() => setMeuPerfilModalOpen(false)}
+        initialMode={meuPerfilInitialMode}
       />
 
       {/* Modal Formulário Tenho Interesse */}

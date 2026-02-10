@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { ChevronLeftIcon, ChevronRightIcon, CheckIcon } from '@heroicons/react/24/outline'
+import { ChevronLeftIcon, ChevronRightIcon, CheckIcon, HomeIcon, KeyIcon } from '@heroicons/react/24/outline'
 import { Imovel } from '@/lib/types/admin'
 import LocationStep from './wizard/LocationStep'
 import GeneralDataStep from './wizard/GeneralDataStep'
@@ -27,6 +27,7 @@ interface ImovelWizardProps {
   successRedirectTo?: string // URL para redirecionar após salvar (fluxos especiais, ex.: portal do corretor)
   finalidadePreSelecionada?: boolean // Indica se a finalidade foi pré-selecionada (vem da página pública)
   onlyMineProprietarios?: boolean // No Step 2, limitar proprietários ao corretor logado (fluxo do portal do corretor)
+  lockedProprietario?: { uuid: string, nome: string } | null // Proprietário bloqueado (modo proprietário)
 }
 
 interface WizardStep {
@@ -67,11 +68,11 @@ function deepEqual(a: any, b: any): boolean {
   return false
 }
 
-export default function ImovelWizard({ 
-  initialData = {}, 
-  onSave, 
-  onCancel, 
-  mode, 
+export default function ImovelWizard({
+  initialData = {},
+  onSave,
+  onCancel,
+  mode,
   loading = false,
   finalidadesImovel = [],
   tiposImovel = [],
@@ -84,13 +85,14 @@ export default function ImovelWizard({
   redirectTo,
   successRedirectTo,
   finalidadePreSelecionada = false,
-  onlyMineProprietarios = false
+  onlyMineProprietarios = false,
+  lockedProprietario = null
 }: ImovelWizardProps) {
   console.log('🔍 ImovelWizard - COMPONENTE INICIADO - mode:', mode, 'initialData:', initialData)
   console.log('🔍 ImovelWizard - TESTE SIMPLES - 1, 2, 3')
   console.log('🔍 ImovelWizard - initialData.video:', initialData?.video)
   console.log('🔍 ImovelWizard - TESTE SIMPLES - 1, 2, 3')
-  
+
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState<Partial<Imovel>>(() => {
     console.log('🔍 ImovelWizard - useState inicial - initialData:', initialData)
@@ -102,22 +104,25 @@ export default function ImovelWizard({
   const [createdImovel, setCreatedImovel] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [cepValidation, setCepValidation] = useState<{ valid: boolean; message?: string | null }>({ valid: false, message: null })
-  
+
   // Modal de boas-vindas para cadastramento público
   const [showWelcomeModal, setShowWelcomeModal] = useState(() => {
     // Mostrar modal apenas se for acesso público (redirectTo definido) e modo criação
     return !!(redirectTo && mode === 'create')
   })
-  
+
   // Ref para rastrear se já inicializamos o formData com initialData
   const initialDataAppliedRef = useRef(false)
-  
+
+  // Estado para controlar a finalidade selecionada no modal (1 = Venda, 2 = Alugel)
+  const [selectedPurpose, setSelectedPurpose] = useState<number | null>(null)
+
   useEffect(() => {
     console.log('🟩 [ImovelWizard] CEP validation state changed:', cepValidation)
   }, [cepValidation])
-  
+
   const totalSteps = 5
-  
+
   // Log para debug do formData inicial
   console.log('🔍 ImovelWizard - formData inicial:', {
     hasVideo: !!formData.video,
@@ -126,11 +131,11 @@ export default function ImovelWizard({
     formDataKeys: Object.keys(formData),
     initialDataKeys: initialData ? Object.keys(initialData) : 'no initialData'
   })
-  
+
   // Log para debug do formData a cada renderização
   console.log('🔍 ImovelWizard - RENDERIZAÇÃO - formData.video:', formData.video)
   console.log('🔍 ImovelWizard - RENDERIZAÇÃO - formData completo:', formData)
-  
+
   // Log para debug do currentStep
   console.log('🔍 ImovelWizard - currentStep:', currentStep, 'totalSteps:', totalSteps)
 
@@ -156,7 +161,7 @@ export default function ImovelWizard({
       })
     }
   }, [initialData, mode])
-  
+
   // NUNCA resetar formData após ele ter sido preenchido
   // Este useEffect só deve executar uma vez no início
 
@@ -228,18 +233,18 @@ export default function ImovelWizard({
       component: GeneralDataStep,
       isValid: (data) => {
         // Converter finalidade_fk para número se necessário (pode vir como string do select)
-        const finalidadeFk = data.finalidade_fk 
+        const finalidadeFk = data.finalidade_fk
           ? (typeof data.finalidade_fk === 'string' ? Number(data.finalidade_fk) : data.finalidade_fk)
           : null
-        
+
         const isValid = !!(data.titulo && data.tipo_fk && finalidadeFk && data.preco)
-        console.log('🔍 Validação Step 2:', { 
-          titulo: data.titulo, 
-          tipo_fk: data.tipo_fk, 
+        console.log('🔍 Validação Step 2:', {
+          titulo: data.titulo,
+          tipo_fk: data.tipo_fk,
           finalidade_fk: data.finalidade_fk,
           finalidadeFkConvertido: finalidadeFk,
           preco: data.preco,
-          isValid 
+          isValid
         })
         return isValid
       }
@@ -319,33 +324,33 @@ export default function ImovelWizard({
   const generateCodigo = (data: Partial<Imovel>) => {
     console.log('🔍 generateCodigo - mode:', mode)
     console.log('🔍 generateCodigo - data:', data)
-    
+
     // No modo de edição, não gerar código - apenas usar o existente
     if (mode === 'edit') {
       console.log('🔍 generateCodigo - Modo edição: usando código existente')
       return
     }
-    
+
     // No modo de criação, gerar código automaticamente
     if (mode === 'create' && data.tipo_fk && data.finalidade_fk) {
       console.log('🔍 generateCodigo - Modo criação: gerando código')
-      
+
       // Buscar descrições dos tipos e finalidades
       const tipo = tiposImovel.find(t => t.id === data.tipo_fk)
       const finalidade = finalidadesImovel.find(f => f.id === data.finalidade_fk)
-      
+
       console.log('🔍 generateCodigo - tipo encontrado:', tipo)
       console.log('🔍 generateCodigo - finalidade encontrada:', finalidade)
-      
+
       if (tipo && finalidade) {
         // Gerar código: [Finalidade]_[Tipo]_[Status]_[ID]
         const id = `TEMP_${Date.now()}`
-        
+
         const codigo = `${finalidade.nome}_${tipo.nome}_ATIVO_${id}`
           .replace(/\s+/g, '') // Remover espaços
           .replace(/[^A-Z0-9_]/g, '') // Manter apenas letras maiúsculas, números e underscore
           .toUpperCase()
-        
+
         console.log('🔍 generateCodigo - código gerado:', codigo)
         setFormData(prev => ({ ...prev, codigo }))
       }
@@ -387,19 +392,19 @@ export default function ImovelWizard({
     // Verificar campos essenciais do Step 1 (sem exigir numero para salvar)
     // O número será validado pelo backend se o CEP for alterado
     const step1Valid = !!(formData.endereco?.estado && formData.endereco?.cidade)
-    
+
     // Verificar se Step 2 está válido
     const step2Valid = steps[1].isValid(formData)
-    
+
     // Verificar se dados de referência estão carregados
     const hasFinalidades = finalidadesImovel && finalidadesImovel.length > 0
     const hasTipos = tiposImovel && tiposImovel.length > 0
-    
+
     // Verificar se não está salvando
     const notSaving = !isSaving
-    
+
     const isValid = step1Valid && step2Valid && hasFinalidades && hasTipos && notSaving
-    
+
     // Debug apenas se houver problema
     if (!isValid) {
       console.log('🔍 Validação de salvamento falhou:', {
@@ -416,29 +421,29 @@ export default function ImovelWizard({
         preco: formData.preco
       })
     }
-    
+
     return isValid
   }
 
   const handleSave = async () => {
     console.log('🟡 [WIZARD] handleSave chamado - isSaving:', isSaving)
-    
+
     if (isSaving) {
       console.log('❌ Já está salvando, ignorando chamada')
       return
     }
-    
+
     console.log('🟡 [WIZARD] Verificando canSave...')
     const canSaveResult = canSave()
     console.log('🟡 [WIZARD] canSave result:', canSaveResult)
-    
+
     // Validar proprietario_uuid antes de salvar
     if (!formData.proprietario_uuid || formData.proprietario_uuid === null || formData.proprietario_uuid === undefined || formData.proprietario_uuid === '') {
       console.error('❌ [WIZARD] proprietario_uuid não preenchido:', formData.proprietario_uuid)
       alert('Por favor, selecione um proprietário antes de salvar o imóvel.')
       return
     }
-    
+
     if (canSaveResult) {
       setIsSaving(true)
       console.log('🟡 [WIZARD] Salvando imóvel...')
@@ -447,12 +452,12 @@ export default function ImovelWizard({
       console.log('🟡 [WIZARD] formData.endereco:', formData.endereco)
       console.log('🟡 [WIZARD] formData.endereco.numero:', formData.endereco?.numero)
       console.log('🟡 [WIZARD] Tipo do numero:', typeof formData.endereco?.numero)
-      
+
       try {
         // Converter para string para comparação (evita problemas de tipo)
         const finalidade = finalidadesImovel.find(f => String(f.id) === String(formData.finalidade_fk))
         const tipo = tiposImovel.find(t => String(t.id) === String(formData.tipo_fk))
-        
+
         // PRESERVAR status_fk original em modo de edição
         let status
         if (mode === 'edit') {
@@ -465,40 +470,40 @@ export default function ImovelWizard({
           status = { id: 1, nome: 'ATIVO' }
           console.log('🔍 Modo criação - Usando status padrão:', status.nome)
         }
-        
+
         if (!finalidade || !tipo || !status) {
           console.error('❌ Dados insuficientes para gerar código')
           return
         }
-        
+
         // Gerar código temporário único (será atualizado após salvar)
         const finalidadeNome = finalidade.nome || 'FINALIDADE'
         const tipoNome = tipo.nome || 'TIPO'
         const statusNome = status.nome || 'ATIVO'
-        
+
         const codigoTemp = `${finalidadeNome}_${tipoNome}_${statusNome}_TEMP_${Date.now()}`
           .replace(/\s+/g, '') // Remover espaços
           .replace(/[^A-Za-z0-9_]/g, '') // Manter letras (maiúsculas e minúsculas), números e underscore
           .toUpperCase()
-        
+
         // PRESERVAR status_fk original em modo de edição
-        const dataToSave = { 
-          ...formData, 
+        const dataToSave = {
+          ...formData,
           codigo: codigoTemp,
           // Preservar status_fk original em modo de edição
           ...(mode === 'edit' && { status_fk: initialData.status })
         }
-        
+
         console.log('🟡 [WIZARD] dataToSave COMPLETO antes de chamar onSave:', dataToSave)
         console.log('🟡 [WIZARD] dataToSave.endereco:', dataToSave.endereco)
         console.log('🟡 [WIZARD] dataToSave.endereco.numero:', dataToSave.endereco?.numero)
-        
+
         await onSave(dataToSave as Imovel)
         console.log('✅ Imóvel salvo!')
-        
+
         // Verificar se veio da página pública
         const fromPublic = typeof window !== 'undefined' && sessionStorage.getItem('imovelCreatedFromPublic') === 'true'
-        
+
         if (fromPublic && redirectTo) {
           // Se veio da pública, redirecionar diretamente sem mostrar popup
           console.log('🔄 Redirecionando para página pública:', redirectTo)
@@ -587,11 +592,74 @@ export default function ImovelWizard({
                 </p>
               </div>
 
-              {/* Botão de Fechar */}
-              <div className="mt-8 flex justify-end">
+              {/* Seletor de Finalidade - Estilizado e Moderno */}
+              <div className="mt-8 mb-6">
+                <p className="text-gray-700 font-medium mb-4">O que você deseja fazer com este imóvel?</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setSelectedPurpose(1)} // 1 = Venda
+                    className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-3 group ${selectedPurpose === 1
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                      }`}
+                  >
+                    <div className={`p-3 rounded-full transition-colors ${selectedPurpose === 1 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 group-hover:text-blue-600'
+                      }`}>
+                      <HomeIcon className="w-6 h-6" />
+                    </div>
+                    <span className={`font-semibold ${selectedPurpose === 1 ? 'text-blue-700' : 'text-gray-600 group-hover:text-blue-700'
+                      }`}>
+                      Vender
+                    </span>
+                    {selectedPurpose === 1 && (
+                      <div className="absolute top-3 right-3 text-blue-600">
+                        <CheckIcon className="w-5 h-5" />
+                      </div>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedPurpose(2)} // 2 = Aluguel
+                    className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-3 group ${selectedPurpose === 2
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                      }`}
+                  >
+                    <div className={`p-3 rounded-full transition-colors ${selectedPurpose === 2 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 group-hover:text-blue-600'
+                      }`}>
+                      <KeyIcon className="w-6 h-6" />
+                    </div>
+                    <span className={`font-semibold ${selectedPurpose === 2 ? 'text-blue-700' : 'text-gray-600 group-hover:text-blue-700'
+                      }`}>
+                      Alugar
+                    </span>
+                    {selectedPurpose === 2 && (
+                      <div className="absolute top-3 right-3 text-blue-600">
+                        <CheckIcon className="w-5 h-5" />
+                      </div>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Botão de Proceder */}
+              <div className="flex justify-end">
                 <button
-                  onClick={() => setShowWelcomeModal(false)}
-                  className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg shadow-lg hover:from-blue-700 hover:to-blue-800 transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  onClick={() => {
+                    if (selectedPurpose) {
+                      // Atualizar o formData com a finalidade selecionada (convertendo para number)
+                      updateFormData({ finalidade_fk: selectedPurpose })
+                      // Fechar modal
+                      setShowWelcomeModal(false)
+                    } else {
+                      alert("Por favor, selecione se deseja Vender ou Alugar o imóvel.")
+                    }
+                  }}
+                  disabled={!selectedPurpose}
+                  className={`px-8 py-3 bg-gradient-to-r text-white font-semibold rounded-lg shadow-lg transform transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${selectedPurpose
+                    ? 'from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 hover:scale-105 cursor-pointer focus:ring-blue-500'
+                    : 'from-gray-400 to-gray-500 cursor-not-allowed opacity-70'
+                    }`}
                 >
                   Entendi, vamos começar!
                 </button>
@@ -608,7 +676,7 @@ export default function ImovelWizard({
             {mode === 'create' ? 'Novo Imóvel' : 'Editar Imóvel'}
           </h1>
           <p className="mt-2 text-gray-600">
-            {mode === 'create' 
+            {mode === 'create'
               ? 'Preencha as informações do novo imóvel em 5 etapas'
               : 'Atualize as informações do imóvel'
             }
@@ -624,13 +692,12 @@ export default function ImovelWizard({
                   <div className="flex items-center">
                     <button
                       onClick={() => goToStep(step.id)}
-                      className={`group relative flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                        currentStep === step.id
-                          ? 'border-blue-600 bg-blue-600 text-white'
-                          : completedSteps.includes(step.id)
+                      className={`group relative flex items-center justify-center w-10 h-10 rounded-full border-2 ${currentStep === step.id
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : completedSteps.includes(step.id)
                           ? 'border-green-500 bg-green-500 text-white'
                           : 'border-gray-300 bg-white text-gray-500 hover:text-gray-700'
-                      }`}
+                        }`}
                     >
                       {completedSteps.includes(step.id) ? (
                         <CheckIcon className="w-6 h-6" />
@@ -638,18 +705,16 @@ export default function ImovelWizard({
                         <span className="text-sm font-medium">{step.id}</span>
                       )}
                     </button>
-                    
+
                     {stepIdx < steps.length - 1 && (
-                      <div className={`ml-4 w-full h-0.5 ${
-                        completedSteps.includes(step.id) ? 'bg-green-500' : 'bg-gray-300'
-                      }`} />
+                      <div className={`ml-4 w-full h-0.5 ${completedSteps.includes(step.id) ? 'bg-green-500' : 'bg-gray-300'
+                        }`} />
                     )}
                   </div>
-                  
+
                   <div className="mt-2 text-center">
-                    <p className={`text-sm font-medium ${
-                      currentStep === step.id ? 'text-blue-600' : 'text-gray-500'
-                    }`}>
+                    <p className={`text-sm font-medium ${currentStep === step.id ? 'text-blue-600' : 'text-gray-500'
+                      }`}>
                       {step.title}
                     </p>
                     <p className="text-xs text-gray-400">{step.description}</p>
@@ -688,19 +753,21 @@ export default function ImovelWizard({
                   data={formData}
                   onUpdate={updateFormData}
                   onCepValidationChange={setCepValidation}
-                mode={mode}
-                finalidades={finalidadesImovel}
-                tipos={tiposImovel}
-                statusImovel={statusImovel}
-                imovelId={mode === 'edit' ? formData.id : undefined}
-                registrarAlteracaoRascunho={registrarAlteracaoRascunho}
-                registrarVideoAlteracaoRascunho={registrarVideoAlteracaoRascunho}
-                substituirVideoRascunho={substituirVideoRascunho}
-                registrarImagemPrincipalRascunho={registrarImagemPrincipalRascunho}
-                rascunho={rascunho}
-                finalidadePreSelecionada={finalidadePreSelecionada}
-                onlyMineProprietarios={onlyMineProprietarios}
-              />
+                  mode={mode}
+                  finalidades={finalidadesImovel}
+                  tipos={tiposImovel}
+                  statusImovel={statusImovel}
+                  imovelId={mode === 'edit' ? formData.id : undefined}
+                  registrarAlteracaoRascunho={registrarAlteracaoRascunho}
+                  registrarVideoAlteracaoRascunho={registrarVideoAlteracaoRascunho}
+                  substituirVideoRascunho={substituirVideoRascunho}
+                  registrarImagemPrincipalRascunho={registrarImagemPrincipalRascunho}
+                  rascunho={rascunho}
+                  // Travar se vier da URL (finalidadePreSelecionada) OU se foi selecionado no modal (selectedPurpose)
+                  finalidadePreSelecionada={finalidadePreSelecionada || !!selectedPurpose}
+                  onlyMineProprietarios={onlyMineProprietarios}
+                  lockedProprietario={lockedProprietario}
+                />
               </>
             )}
           </div>
@@ -746,7 +813,7 @@ export default function ImovelWizard({
                 Progresso: {currentStep} de {totalSteps} etapas concluídas
               </p>
               <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                <div 
+                <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${(currentStep / totalSteps) * 100}%` }}
                 />
@@ -769,17 +836,17 @@ export default function ImovelWizard({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            
+
             {/* Título */}
             <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
               Sucesso!
             </h3>
-            
+
             {/* Mensagem */}
             <p className="text-gray-600 text-center mb-4">
               Imóvel cadastrado com sucesso
             </p>
-            
+
             {/* Código do imóvel */}
             <div className="bg-gray-50 rounded-lg p-3 mb-6">
               <p className="text-sm text-gray-500 text-center mb-1">Código do imóvel:</p>
@@ -787,7 +854,7 @@ export default function ImovelWizard({
                 {createdImovel.codigo}
               </p>
             </div>
-            
+
             {/* Botões */}
             <div className="flex space-x-3">
               <button

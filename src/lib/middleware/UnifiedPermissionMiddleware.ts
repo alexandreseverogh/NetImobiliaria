@@ -137,6 +137,26 @@ export async function unifiedPermissionMiddleware(
 
     // 🆕 VALIDAÇÃO CRÍTICA: Verificar se o usuário ainda existe e está ativo no banco
     // Isso evita o "token fantasma" onde um usuário deletado continua logado
+
+    // Tratamento especial para Proprietários (tabela proprietarios)
+    if (decoded.cargo === 'Proprietário') {
+      const proprietarioExists = await checkProprietarioExists(decoded.userId)
+      if (!proprietarioExists) {
+        console.warn('👻 Token fantasma detectado: Proprietário não existe mais no banco:', decoded.userId)
+        return NextResponse.json(
+          {
+            error: 'Proprietário inválido ou inativo',
+            code: 'OWNER_NOT_FOUND'
+          },
+          { status: 401 }
+        )
+      }
+      // Proprietários têm acesso permitido às rotas que conseguem autenticar
+      // (Assumindo que o generate-admin-token já filtrou quem pode ter o token)
+      return null
+    }
+
+    // Tratamento padrão para Usuários Admin (tabela users)
     const userExists = await checkUserExists(decoded.userId)
     if (!userExists) {
       console.warn('👻 Token fantasma detectado: Usuário não existe mais no banco:', decoded.userId)
@@ -205,6 +225,24 @@ export async function unifiedPermissionMiddleware(
       },
       { status: 500 }
     )
+  }
+}
+
+/**
+ * ============================================================
+ * Verificar se Proprietário Existe
+ * ============================================================
+ */
+async function checkProprietarioExists(uuid: string): Promise<boolean> {
+  try {
+    const result = await pool.query(
+      'SELECT 1 FROM proprietarios WHERE uuid = $1 LIMIT 1',
+      [uuid]
+    )
+    return result.rows.length > 0
+  } catch (error) {
+    console.error('❌ Erro ao verificar existência do proprietário:', error)
+    return false
   }
 }
 

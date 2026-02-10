@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { X } from 'lucide-react'
 
 interface VenderPopupProps {
@@ -11,21 +10,7 @@ interface VenderPopupProps {
 }
 
 export default function VenderPopup({ isOpen, onClose, onCadastrarClick, onLoginClick }: VenderPopupProps) {
-  const [finalidadeEscolhida, setFinalidadeEscolhida] = useState<number | null>(null)
-
   if (!isOpen) return null
-
-  const handleCadastrar = () => {
-    if (finalidadeEscolhida) {
-      onCadastrarClick(finalidadeEscolhida)
-    }
-  }
-
-  const handleLogin = () => {
-    if (finalidadeEscolhida) {
-      onLoginClick(finalidadeEscolhida)
-    }
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -43,44 +28,16 @@ export default function VenderPopup({ isOpen, onClose, onCadastrarClick, onLogin
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
             Vender ou Alugar o seu Imóvel
           </h2>
-          
-          {/* Radio Buttons */}
-          <div className="flex items-center gap-6 mb-6">
-            <label className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <input
-                type="radio"
-                name="finalidade"
-                value="1"
-                checked={finalidadeEscolhida === 1}
-                onChange={() => setFinalidadeEscolhida(1)}
-                className="w-5 h-5 text-primary-600 focus:ring-primary-500"
-              />
-              <span className="text-gray-700 font-medium text-lg">Vender</span>
-            </label>
-            
-            <label className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <input
-                type="radio"
-                name="finalidade"
-                value="2"
-                checked={finalidadeEscolhida === 2}
-                onChange={() => setFinalidadeEscolhida(2)}
-                className="w-5 h-5 text-primary-600 focus:ring-primary-500"
-              />
-              <span className="text-gray-700 font-medium text-lg">Alugar</span>
-            </label>
-          </div>
-          
-          <p className="text-gray-700 leading-relaxed">
+
+          <p className="text-gray-700 leading-relaxed mb-6">
             Aqui você poderá anunciar o seu imóvel e iremos ajudar a encontrar alguém interessado na sua oferta.
           </p>
 
           <p className="text-gray-700 leading-relaxed">
             Para cadastrar o seu imóvel, primeiro você terá que possuir um cadastro dos seus dados.{' '}
             <button
-              onClick={handleCadastrar}
-              disabled={!finalidadeEscolhida}
-              className="text-primary-600 font-semibold underline hover:text-primary-700 transition-colors disabled:text-gray-400 disabled:cursor-not-allowed disabled:no-underline"
+              onClick={() => onCadastrarClick(0)}
+              className="text-primary-600 font-semibold underline hover:text-primary-700 transition-colors"
             >
               Clique aqui para se cadastrar
             </button>
@@ -89,9 +46,8 @@ export default function VenderPopup({ isOpen, onClose, onCadastrarClick, onLogin
           <p className="text-gray-700 leading-relaxed">
             Se já possui cadastro,{' '}
             <button
-              onClick={handleLogin}
-              disabled={!finalidadeEscolhida}
-              className="text-primary-600 font-semibold underline hover:text-primary-700 transition-colors disabled:text-gray-400 disabled:cursor-not-allowed disabled:no-underline"
+              onClick={() => onLoginClick(0)}
+              className="text-primary-600 font-semibold underline hover:text-primary-700 transition-colors"
             >
               clique aqui
             </button>

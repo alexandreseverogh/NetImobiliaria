@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Imovel } from '@/lib/database/imoveis'
 import { usePageFocus } from '@/hooks/usePageFocus'
 import { useEstadosCidades } from '@/hooks/useEstadosCidades'
@@ -13,6 +13,7 @@ import ImovelGrid from '@/components/admin/ImovelGrid'
 export default function ImoveisPage() {
   '  '
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { get } = useApi()
   const [imoveis, setImoveis] = useState<Imovel[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,7 +26,9 @@ export default function ImoveisPage() {
     tipo: '',
     finalidade: '',
     status: '',
-    corretor: ''
+    corretor: '',
+    proprietario: '',
+    proprietario_uuid: searchParams.get('proprietario_uuid') || ''
   })
   const [appliedFilters, setAppliedFilters] = useState({
     codigo: '',
@@ -35,12 +38,17 @@ export default function ImoveisPage() {
     tipo: '',
     finalidade: '',
     status: '',
-    corretor: ''
+    corretor: '',
+    proprietario: '',
+    proprietario_uuid: searchParams.get('proprietario_uuid') || ''
   })
   const [tipos, setTipos] = useState<Array<{ id: string, nome: string }>>([])
   const [finalidades, setFinalidades] = useState<Array<{ id: string, nome: string }>>([])
   const [statusOptions, setStatusOptions] = useState<Array<{ id: string, nome: string }>>([])
   const [corretores, setCorretores] = useState<Array<{ id: string, nome: string }>>([])
+  const [proprietarios, setProprietarios] = useState<Array<{ uuid: string, nome: string }>>([])
+  const [isProprietarioMode, setIsProprietarioMode] = useState(false)
+  const [proprietarioNome, setProprietarioNome] = useState('')
 
   // Usar hook centralizado para estados e municípios com mode='all' para ver todas as cidades
   const { estados, municipios, loadMunicipios, clearMunicipios, getEstadoNome, getCidadeNome } = useEstadosCidades('all')
@@ -79,6 +87,13 @@ export default function ImoveisPage() {
           const corretoresData = await corretoresResponse.json()
           setCorretores(corretoresData.users || [])
         }
+
+        // Carregar proprietários
+        const proprietariosResponse = await get('/api/admin/proprietarios?limit=100')
+        if (proprietariosResponse.ok) {
+          const proprietariosData = await proprietariosResponse.json()
+          setProprietarios(proprietariosData.proprietarios || [])
+        }
       } catch (err) {
         console.error('Erro ao carregar dados dos filtros:', err)
       }
@@ -107,6 +122,46 @@ export default function ImoveisPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.estado]) // ✅ APENAS filters.estado - funções são estáveis
 
+  // Sincronizar proprietario_uuid da URL
+  useEffect(() => {
+    const uuid = searchParams.get('proprietario_uuid')
+    if (uuid && uuid !== filters.proprietario_uuid) {
+      console.log('🔄 Sincronizando proprietario_uuid da URL:', uuid)
+      setFilters(prev => ({ ...prev, proprietario_uuid: uuid }))
+      setAppliedFilters(prev => ({ ...prev, proprietario_uuid: uuid }))
+    }
+  }, [searchParams, filters.proprietario_uuid])
+
+  // Detectar modo proprietário e carregar nome
+  useEffect(() => {
+    const fromProprietario = searchParams.get('fromProprietario')
+    const proprietarioUuid = searchParams.get('proprietario_uuid')
+
+    if (fromProprietario === 'true' && proprietarioUuid) {
+      setIsProprietarioMode(true)
+
+      // Carregar nome do proprietário
+      const loadProprietarioNome = async () => {
+        try {
+          const response = await get(`/api/admin/proprietarios?uuid=${proprietarioUuid}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.proprietarios && data.proprietarios.length > 0) {
+              setProprietarioNome(data.proprietarios[0].nome)
+              // Aplicar filtro automaticamente
+              setFilters(prev => ({ ...prev, proprietario: proprietarioUuid }))
+              setAppliedFilters(prev => ({ ...prev, proprietario: proprietarioUuid }))
+            }
+          }
+        } catch (err) {
+          console.error('Erro ao carregar proprietário:', err)
+        }
+      }
+
+      loadProprietarioNome()
+    }
+  }, [searchParams, get])
+
   const fetchImoveis = useCallback(async () => {
     console.log('🔄 fetchImoveis CHAMADO', { appliedFilters })
     try {
@@ -117,16 +172,24 @@ export default function ImoveisPage() {
       const queryParams = new URLSearchParams()
       Object.entries(appliedFilters).forEach(([key, value]) => {
         if (value) {
-          queryParams.append(key, value)
+          // Mapear 'proprietario' para 'proprietario_uuid' para a API
+          const apiKey = key === 'proprietario' ? 'proprietario_uuid' : key
+          queryParams.append(apiKey, value as string)
         }
       })
 
-      const response = await get(`/api/admin/imoveis?${queryParams.toString()}`)
+      const apiUrl = `/api/admin/imoveis?${queryParams.toString()}`
+      console.log('🚀 fetching from URL:', apiUrl)
+
+      const response = await get(apiUrl)
       if (!response.ok) {
         throw new Error('Erro ao carregar imóveis')
       }
       const data = await response.json()
       console.log('🔍 Página de Imóveis - Dados recebidos da API:', data)
+      if (data._debug) {
+        console.log('🐞 API DEBUG:', data._debug)
+      }
       console.log('🔍 Página de Imóveis - Quantidade de imóveis:', data.data?.length || 0)
       console.log('🔍 Página de Imóveis - IDs dos imóveis:', data.data?.map((imovel: any) => imovel.id))
       setImoveis(data.data || [])
@@ -166,7 +229,9 @@ export default function ImoveisPage() {
       tipo: '',
       finalidade: '',
       status: '',
-      corretor: ''
+      corretor: '',
+      proprietario: '',
+      proprietario_uuid: ''
     }
     setFilters(emptyFilters)
     setAppliedFilters(emptyFilters)
@@ -181,7 +246,15 @@ export default function ImoveisPage() {
       <div className="pt-4">
         <div className="relative flex items-center justify-center mb-4">
           <h1 className="text-2xl font-bold text-gray-900">Cadastro de Imóveis</h1>
-          <div className="absolute right-0">
+          <div className="absolute right-0 flex gap-2">
+            {isProprietarioMode && (
+              <button
+                onClick={() => window.close()}
+                className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-all duration-200 font-semibold text-base shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+              >
+                Fechar Janela
+              </button>
+            )}
             <Link
               href="/admin/imoveis/novo"
               className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-all duration-200 font-semibold text-base shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
@@ -195,40 +268,43 @@ export default function ImoveisPage() {
       {/* Filtros */}
       <div className="bg-white p-6 rounded-lg shadow">
         <h2 className="text-lg font-bold text-gray-900 mb-4 text-center">Filtros</h2>
-        <div className="grid grid-cols-9 gap-4 items-end">
-          {/* Código */}
+        <div className="grid grid-cols-10 gap-3 items-end">
+          {/* Código - Reduzido para metade da largura */}
           <div className="col-span-1">
-            <label className="block text-sm font-bold text-gray-700 text-center mb-2">
+            <label className="block text-xs font-bold text-gray-700 text-center mb-2">
               Código
             </label>
             <input
               type="number"
               value={filters.codigo}
               onChange={(e) => {
-                // Permitir apenas números
-                const value = e.target.value.replace(/[^0-9]/g, '')
+                // Permitir apenas números e limitar a 7 dígitos
+                const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 7)
                 handleFilterChange('codigo', value)
               }}
-              className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
               placeholder="Código"
               min="1"
+              maxLength={7}
+              disabled={isProprietarioMode}
             />
           </div>
 
-          {/* Estado */}
+          {/* Estado - Reduzido para metade da largura */}
           <div className="col-span-1">
-            <label className="block text-sm font-bold text-gray-700 text-center mb-2">
+            <label className="block text-xs font-bold text-gray-700 text-center mb-2">
               UF
             </label>
             <EstadoSelect
               value={filters.estado}
               onChange={(estadoId) => handleFilterChange('estado', estadoId)}
               placeholder="UF"
-              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs disabled:bg-gray-100 disabled:cursor-not-allowed"
               format="sigla"
               showAllOption={true}
               allOptionLabel="UF"
               mode="all"
+              disabled={isProprietarioMode}
             />
           </div>
 
@@ -240,8 +316,8 @@ export default function ImoveisPage() {
             <select
               value={filters.municipio}
               onChange={(e) => handleFilterChange('municipio', e.target.value)}
-              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              disabled={!filters.estado}
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+              disabled={!filters.estado || isProprietarioMode}
             >
               <option value="">Cidade</option>
               {municipios.map(municipio => (
@@ -261,8 +337,9 @@ export default function ImoveisPage() {
               type="text"
               value={filters.bairro}
               onChange={(e) => handleFilterChange('bairro', e.target.value)}
-              className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
               placeholder="Bairro"
+              disabled={isProprietarioMode}
             />
           </div>
 
@@ -274,7 +351,8 @@ export default function ImoveisPage() {
             <select
               value={filters.tipo}
               onChange={(e) => handleFilterChange('tipo', e.target.value)}
-              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+              disabled={isProprietarioMode}
             >
               <option value="">Tipo</option>
               {tipos.map(tipo => (
@@ -293,7 +371,8 @@ export default function ImoveisPage() {
             <select
               value={filters.finalidade}
               onChange={(e) => handleFilterChange('finalidade', e.target.value)}
-              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+              disabled={isProprietarioMode}
             >
               <option value="">Finalidade</option>
               {finalidades.map(finalidade => (
@@ -312,7 +391,8 @@ export default function ImoveisPage() {
             <select
               value={filters.status}
               onChange={(e) => handleFilterChange('status', e.target.value)}
-              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+              disabled={isProprietarioMode}
             >
               <option value="">Status</option>
               {statusOptions.map(status => (
@@ -331,12 +411,33 @@ export default function ImoveisPage() {
             <select
               value={filters.corretor}
               onChange={(e) => handleFilterChange('corretor', e.target.value)}
-              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+              disabled={isProprietarioMode}
             >
               <option value="">Corretor</option>
               {corretores.map(corretor => (
                 <option key={corretor.id} value={corretor.id}>
                   {corretor.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Proprietário */}
+          <div className="col-span-1">
+            <label className="block text-sm font-bold text-gray-700 text-center mb-2">
+              Proprietário
+            </label>
+            <select
+              value={filters.proprietario}
+              onChange={(e) => handleFilterChange('proprietario', e.target.value)}
+              className="w-full px-1 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+              disabled={isProprietarioMode}
+            >
+              <option value="">{isProprietarioMode && proprietarioNome ? proprietarioNome : 'Proprietário'}</option>
+              {!isProprietarioMode && proprietarios.map(proprietario => (
+                <option key={proprietario.uuid} value={proprietario.uuid}>
+                  {proprietario.nome}
                 </option>
               ))}
             </select>

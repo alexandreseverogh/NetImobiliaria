@@ -28,7 +28,7 @@ export default function AdminLayoutContent({
     (searchParams?.get('public_broker') === 'true' || publicBrokerByWindow)
 
   // Verificar se deve ocultar sidebar via query param
-  const hideSidebar = searchParams?.get('noSidebar') === 'true'
+  const hideSidebar = searchParams?.get('noSidebar') === 'true' || searchParams?.get('from_corretor') === 'true'
 
   // Tratamento de erro para falhas de autenticação
   const handleAuthError = useCallback((error: Error) => {
@@ -82,10 +82,28 @@ function AdminLayoutPrivateContent({
   useEffect(() => {
     if (!loading && !user) {
       // Verificar se há token no localStorage
-      const token = typeof window !== 'undefined' ? localStorage.getItem('admin-auth-token') : null
-      const userData = typeof window !== 'undefined' ? localStorage.getItem('admin-user-data') : null
+      const adminToken = typeof window !== 'undefined' ? localStorage.getItem('admin-auth-token') : null
+      const adminUserData = typeof window !== 'undefined' ? localStorage.getItem('admin-user-data') : null
 
-      if (!token || !userData) {
+      // Verificar também token público (para proprietários)
+      const publicToken = typeof window !== 'undefined' ? localStorage.getItem('public-auth-token') : null
+      const publicUserData = typeof window !== 'undefined' ? localStorage.getItem('public-user-data') : null
+
+      // Se não há usuário admin mas há usuário público (proprietário), permitir acesso
+      if (!adminToken && !adminUserData && publicToken && publicUserData) {
+        try {
+          const userData = JSON.parse(publicUserData)
+          // Permitir apenas proprietários acessarem
+          if (userData.userType === 'proprietario') {
+            console.log('✅ Proprietário detectado, permitindo acesso ao admin')
+            return // Não redirecionar para login
+          }
+        } catch (e) {
+          console.error('Erro ao parsear dados do usuário público:', e)
+        }
+      }
+
+      if (!adminToken && !adminUserData && !publicToken) {
         // Se não há usuário nem token, redirecionar para login
         window.location.href = '/admin/login'
       }
@@ -114,6 +132,8 @@ function AdminLayoutPrivateContent({
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('admin-auth-token')
       const userData = localStorage.getItem('admin-user-data')
+      const publicToken = localStorage.getItem('public-auth-token')
+      const publicUserData = localStorage.getItem('public-user-data')
 
       if (token && userData) {
         // Se há token e dados do usuário, usar eles
@@ -141,6 +161,47 @@ function AdminLayoutPrivateContent({
             </div>
           </ErrorBoundary>
         )
+      }
+
+      // Se há token público de proprietário, renderizar layout
+      if (publicToken && publicUserData) {
+        try {
+          const parsedPublicUser = JSON.parse(publicUserData)
+
+          if (parsedPublicUser.userType === 'proprietario') {
+            console.log('✅ Renderizando layout para proprietário')
+
+            return (
+              <ErrorBoundary onError={onError}>
+                <div className={containerClasses}>
+                  <AdminHeader
+                    user={{
+                      id: parsedPublicUser.uuid,
+                      nome: parsedPublicUser.nome,
+                      email: parsedPublicUser.email,
+                      username: parsedPublicUser.email,
+                      role_name: 'Proprietário',
+                      permissoes: {},
+                      status: 'ATIVO'
+                    }}
+                    onLogout={() => {
+                      localStorage.removeItem('public-auth-token')
+                      localStorage.removeItem('public-user-data')
+                      window.location.href = '/landpaging'
+                    }}
+                    onMenuClick={handleMenuClick}
+                  />
+                  {/* Proprietários não têm sidebar - apenas conteúdo principal */}
+                  <main className="w-full min-w-0 p-6" role="main" aria-label="Conteúdo principal">
+                    {children}
+                  </main>
+                </div>
+              </ErrorBoundary>
+            )
+          }
+        } catch (e) {
+          console.error('Erro ao parsear dados do usuário público:', e)
+        }
       }
     }
 

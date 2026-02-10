@@ -421,8 +421,22 @@ export default function EditarImovelPage() {
         // Não falhar o salvamento por causa da limpeza
       }
 
-      // Redirecionar para a lista de imóveis
-      router.push('/admin/imoveis')
+      // Redirecionar
+      try {
+        const adminUserRaw = localStorage.getItem('admin-user-data')
+        const adminUser = adminUserRaw ? JSON.parse(adminUserRaw) : {}
+        const isOwner = adminUser.role_name === 'Proprietário' || adminUser.tipo === 'proprietario' || adminUser.role === 'proprietario' || adminUser.cargo === 'Proprietário'
+
+        if (isOwner) {
+          console.log('🔄 Redirecionando Proprietário para Portal na Landpaging')
+          window.location.href = '/landpaging?action=meus-imoveis'
+        } else {
+          router.push('/admin/imoveis')
+        }
+      } catch (error) {
+        console.error('Erro ao processar redirecionamento:', error)
+        router.push('/admin/imoveis')
+      }
     } catch (error) {
       console.error('Erro ao salvar alterações:', error)
       alert('Erro ao salvar alterações: ' + (error as Error).message)

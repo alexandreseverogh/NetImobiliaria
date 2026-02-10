@@ -25,7 +25,46 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Buscar usuário com permissões do banco de dados (SISTEMA ROBUSTO)
+    // SUPORTE A PROPRIETÁRIOS
+    // Se o token for de um proprietário, buscar na tabela proprietarios
+    const decodedAny = decoded as any
+    // Verificar cargo ou userType (dependendo de como foi gerado)
+    if (decoded.cargo === 'Proprietário' || decodedAny.userType === 'proprietario') {
+      const propResult = await pool.query(
+        'SELECT uuid, nome, email, telefone FROM proprietarios WHERE uuid = $1 LIMIT 1',
+        [decoded.userId]
+      )
+
+      if (propResult.rows.length === 0) {
+        return NextResponse.json(
+          { error: 'Proprietário não encontrado' },
+          { status: 404 }
+        )
+      }
+
+      const proprietario = propResult.rows[0]
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: proprietario.uuid,
+          username: proprietario.email,
+          nome: proprietario.nome,
+          email: proprietario.email,
+          telefone: proprietario.telefone,
+          role_name: 'Proprietário',
+          role_description: 'Proprietário de Imóveis',
+          role_level: 0,
+          permissoes: {}, // Proprietário tem acesso restrito implícito
+          status: 'ATIVO',
+          foto: null,
+          foto_tipo_mime: null,
+          userType: 'proprietario' // Identificador útil para o frontend
+        }
+      })
+    }
+
+    // Buscar usuário interno com permissões do banco de dados (SISTEMA ROBUSTO)
     const userWithPermissions = await getUserWithPermissions(decoded.userId)
 
     if (!userWithPermissions) {

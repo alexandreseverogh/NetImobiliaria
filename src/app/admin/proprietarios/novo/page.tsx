@@ -71,8 +71,9 @@ export default function NovoProprietarioPage() {
     const loadEstados = async () => {
       try {
         const municipiosData = await import('@/lib/admin/municipios.json')
-        const estadosComId = municipiosData.estados?.map((estado, index) => ({
-          id: index.toString(),
+        // Usar SIGLA como ID, não o índice, para compatibilidade com EstadoSelect
+        const estadosComId = municipiosData.estados?.map((estado) => ({
+          id: estado.sigla, // Usar sigla como ID (ex: "SP", "RJ")
           sigla: estado.sigla,
           nome: estado.nome
         })) || []
@@ -94,8 +95,10 @@ export default function NovoProprietarioPage() {
 
       try {
         const municipiosData = await import('@/lib/admin/municipios.json')
-        const estadoIndex = parseInt(formData.estado)
-        const municipiosDoEstado = municipiosData.estados[estadoIndex]?.municipios || []
+        // formData.estado agora contém a SIGLA do estado (ex: "SP", "RJ")
+        // Precisamos buscar o estado pela sigla, não pelo índice
+        const estadoEncontrado = municipiosData.estados.find(e => e.sigla === formData.estado)
+        const municipiosDoEstado = estadoEncontrado?.municipios || []
 
         const municipiosComId = municipiosDoEstado.map((municipio, index) => ({
           id: index.toString(),
@@ -598,14 +601,25 @@ export default function NovoProprietarioPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center space-x-4 mb-4">
-            <Link
-              href="/admin/proprietarios"
-              className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeftIcon className="h-5 w-5 mr-2" />
-              Voltar para Proprietários
-            </Link>
+          <div className="flex items-center justify-between mb-4">
+            {!fromCorretor ? (
+              <Link
+                href="/admin/proprietarios"
+                className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <ArrowLeftIcon className="h-5 w-5 mr-2" />
+                Voltar para Proprietários
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => window.close()}
+                className="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+              >
+                <XMarkIcon className="h-5 w-5 mr-2" />
+                Fechar
+              </button>
+            )}
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Novo Proprietário</h1>
           <p className="mt-2 text-gray-600">Preencha os dados do novo proprietário</p>
@@ -614,6 +628,23 @@ export default function NovoProprietarioPage() {
         {/* Formulário */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200">
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            {/* Corretor (informativo) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Corretor
+              </label>
+              <input
+                type="text"
+                value={(user as any)?.nome || 'Não informado'}
+                readOnly
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+                title="Campo informativo"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Se o cadastro for feito por um usuário do perfil <strong>Corretor</strong>, o sistema gravará automaticamente esse corretor como responsável.
+              </p>
+            </div>
+
             {/* Nome */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -784,23 +815,6 @@ export default function NovoProprietarioPage() {
               )}
               <p className="mt-1 text-xs text-gray-500">
                 {buscandoCep ? 'Buscando endereço...' : 'Informe o CEP para preencher automaticamente'}
-              </p>
-            </div>
-
-            {/* Corretor (informativo) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Corretor
-              </label>
-              <input
-                type="text"
-                value={(user as any)?.nome || 'Não informado'}
-                readOnly
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                title="Campo informativo"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Se o cadastro for feito por um usuário do perfil <strong>Corretor</strong>, o sistema gravará automaticamente esse corretor como responsável.
               </p>
             </div>
 

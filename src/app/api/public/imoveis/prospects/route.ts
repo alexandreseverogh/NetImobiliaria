@@ -97,10 +97,14 @@ export async function GET(request: NextRequest) {
           i.cidade_fk,
           i.estado_fk,
           i.cep,
-          fi.nome as finalidade
+          fi.nome as finalidade,
+          u.nome as corretor_nome,
+          u.email as corretor_email,
+          u.telefone as corretor_telefone
         FROM imovel_prospects ip
         INNER JOIN imoveis i ON ip.id_imovel = i.id
         LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
+        LEFT JOIN users u ON i.corretor_fk = u.id
         WHERE ip.id_cliente = $1 AND i.ativo = true
         ORDER BY ip.created_at DESC`,
         [clienteUuidParam]

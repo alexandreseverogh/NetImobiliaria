@@ -15,9 +15,12 @@ export interface JWTPayload {
 }
 
 // Gerar token de acesso (versão Node.js)
-export function generateAccessTokenNode(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
-  // 24 horas em segundos
-  const expiresIn = 24 * 60 * 60
+export function generateAccessTokenNode(
+  payload: Omit<JWTPayload, 'iat' | 'exp'>,
+  customExpiresIn?: number // Tempo de expiração customizado em segundos
+): string {
+  // 24 horas em segundos (padrão) ou valor customizado
+  const expiresIn = customExpiresIn || 24 * 60 * 60
 
   return jwt.sign(payload, JWT_SECRET, {
     algorithm: 'HS256',

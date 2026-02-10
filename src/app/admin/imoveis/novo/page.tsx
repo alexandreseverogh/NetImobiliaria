@@ -22,6 +22,7 @@ export default function NovoImovelPage() {
   const [statusImovel, setStatusImovel] = useState<StatusImovel[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lockedProprietario, setLockedProprietario] = useState<{ uuid: string, nome: string } | null>(null)
 
   const loadTiposStatusEFinalidades = useCallback(async () => {
     try {
@@ -48,11 +49,39 @@ export default function NovoImovelPage() {
 
     } catch (err: any) {
       console.error('Erro ao carregar dados iniciais:', err)
-      setError(err.message || 'Erro ao carregar dados iniciais.')
+      setError(err.message || 'Erro ao carregar dados iniciais')
     } finally {
       setLoading(false)
     }
   }, [get])
+
+  // Detectar modo proprietário e carregar dados
+  useEffect(() => {
+    const fromProprietario = searchParams.get('fromProprietario')
+    const proprietarioUuid = searchParams.get('proprietario_uuid')
+
+    if (fromProprietario === 'true' && proprietarioUuid) {
+      // Carregar nome do proprietário
+      const loadProprietario = async () => {
+        try {
+          const response = await get(`/api/admin/proprietarios?uuid=${proprietarioUuid}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.proprietarios && data.proprietarios.length > 0) {
+              setLockedProprietario({
+                uuid: proprietarioUuid,
+                nome: data.proprietarios[0].nome
+              })
+            }
+          }
+        } catch (err) {
+          console.error('Erro ao carregar proprietário:', err)
+        }
+      }
+
+      loadProprietario()
+    }
+  }, [searchParams, get])
 
   useEffect(() => {
     loadTiposStatusEFinalidades()
@@ -65,12 +94,12 @@ export default function NovoImovelPage() {
   useEffect(() => {
     const finalidadeFromStorage = typeof window !== 'undefined' ? sessionStorage.getItem('finalidadeEscolhida') : null
     const id = finalidadeParam || finalidadeFromStorage
-    
+
     // Limpar sessionStorage após ler a finalidade
     if (typeof window !== 'undefined' && finalidadeFromStorage) {
       sessionStorage.removeItem('finalidadeEscolhida')
     }
-    
+
     setFinalidadeId(id)
   }, [finalidadeParam])
 
@@ -79,7 +108,7 @@ export default function NovoImovelPage() {
   const initialData = useMemo(() => {
     return finalidadeId ? { finalidade_fk: Number(finalidadeId) } : {}
   }, [finalidadeId])
-  
+
   // Verificar se a finalidade foi pré-selecionada (vem da página pública)
   const finalidadePreSelecionada = !!finalidadeId
 
@@ -138,6 +167,7 @@ export default function NovoImovelPage() {
           successRedirectTo={fromCorretorPortal ? corretorSuccessRedirectTo : undefined}
           onlyMineProprietarios={fromCorretorPortal}
           finalidadePreSelecionada={finalidadePreSelecionada}
+          lockedProprietario={lockedProprietario}
           onSave={async (data) => {
             console.log('🔍 onSave chamado com dados:', data)
             console.log('🔍 onSave - proximidades:', data.proximidades)
@@ -147,12 +177,12 @@ export default function NovoImovelPage() {
               // EXCEÇÃO: Não converter o arquivo do vídeo (body.video.arquivo) - a API espera um File object
               const convertFileToBase64 = async (obj: any, isVideoArquivo: boolean = false): Promise<any> => {
                 if (obj === null || obj === undefined) return obj
-                
+
                 // Se for o arquivo do vídeo, não converter para base64 - manter como File object
                 if (isVideoArquivo && obj instanceof File) {
                   return obj
                 }
-                
+
                 if (obj instanceof File) {
                   return new Promise((resolve) => {
                     const reader = new FileReader()
@@ -174,19 +204,20 @@ export default function NovoImovelPage() {
                 }
                 return obj
               }
-              
+
               // Detectar se é acesso público
               const noSidebar = searchParams?.get('noSidebar') === 'true'
               const fromPublic = noSidebar || (typeof document !== 'undefined' && document.referrer.includes('/landpaging'))
-              
+
               // Preparar requestBody convertendo todos os arquivos para base64
               const requestBody: any = {
                 ...data,
                 created_by: "1",
                 origemPublica: fromPublic, // Flag para indicar origem pública
-                fromCorretorPortal // Flag para gravar em imovel_corretor SOMENTE no fluxo do corretor
+                fromCorretorPortal, // Flag para gravar em imovel_corretor SOMENTE no fluxo do corretor
+                proprietario_uuid: lockedProprietario?.uuid || data.proprietario_uuid // Priorizar proprietário bloqueado (contexto proprietário)
               }
-              
+
               // Converter vídeo para base64 se for File object
               if (requestBody.video && requestBody.video.arquivo instanceof File) {
                 console.log('🔍 Convertendo arquivo de vídeo para base64:', requestBody.video.arquivo.name)
@@ -198,16 +229,16 @@ export default function NovoImovelPage() {
                 })
                 console.log('🔍 Arquivo de vídeo convertido para base64')
               }
-              
+
               // Converter imagens e documentos para base64
               if (requestBody.imagens && Array.isArray(requestBody.imagens)) {
                 requestBody.imagens = await Promise.all(requestBody.imagens.map((img: any) => convertFileToBase64(img, false)))
               }
-              
+
               if (requestBody.documentos && Array.isArray(requestBody.documentos)) {
                 requestBody.documentos = await Promise.all(requestBody.documentos.map((doc: any) => convertFileToBase64(doc, false)))
               }
-              
+
               console.log('🔍 Request body preparado:', requestBody)
               console.log('🔍 Request body - IMAGENS:', requestBody.imagens)
               console.log('🔍 Request body - IMAGENS count:', requestBody.imagens?.length)
@@ -216,7 +247,7 @@ export default function NovoImovelPage() {
               console.log('🔍 Request body - VIDEO:', requestBody.video)
               console.log('🔍 Request body - VIDEO.arquivo é File?', requestBody.video?.arquivo instanceof File)
               console.log('🔍 Request body - Primeira imagem detalhada:', requestBody.imagens?.[0])
-              
+
               const response = await post('/api/admin/imoveis', requestBody)
 
               console.log('🔍 Response status:', response.status)
@@ -225,11 +256,11 @@ export default function NovoImovelPage() {
               if (response.ok) {
                 const result = await response.json()
                 console.log('✅ Imóvel criado com sucesso, ID:', result.data.id)
-                
+
                 // Verificar origem para redirecionamento após sucesso
                 const noSidebar = searchParams?.get('noSidebar') === 'true'
                 const fromPublic = noSidebar || (typeof document !== 'undefined' && document.referrer.includes('/landpaging'))
-                
+
                 // Armazenar origem para uso no popup de sucesso
                 if (typeof window !== 'undefined') {
                   if (fromPublic) {
@@ -238,7 +269,7 @@ export default function NovoImovelPage() {
                     sessionStorage.removeItem('imovelCreatedFromPublic')
                   }
                 }
-                
+
                 return result.data // Retornar o imóvel criado para o popup
               } else {
                 const errorText = await response.text()
@@ -254,7 +285,7 @@ export default function NovoImovelPage() {
             // Verificar se veio da página pública (via noSidebar ou referrer)
             const noSidebar = searchParams?.get('noSidebar') === 'true'
             const fromPublic = noSidebar || document.referrer.includes('/landpaging')
-            
+
             if (fromPublic) {
               router.push('/landpaging')
             } else {

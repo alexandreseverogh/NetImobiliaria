@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export function middleware(request: NextRequest) {
+  console.log('⚡ SRC USER-MIDDLEWARE:', request.url)
   const { pathname } = request.nextUrl
-  
+
   // Páginas que não precisam de verificação de permissão
   const publicPages = [
     '/admin/login',
     '/admin/forgot-password',
     '/admin/reset-password'
   ]
-  
+
   // Se for uma página pública, apenas aplicar headers de segurança
   if (publicPages.includes(pathname)) {
     const response = NextResponse.next()
@@ -19,7 +20,7 @@ export function middleware(request: NextRequest) {
     response.headers.set('X-XSS-Protection', '1; mode=block')
     return response
   }
-  
+
   // Para outras páginas, aplicar headers e continuar
   const response = NextResponse.next()
   response.headers.set('X-Frame-Options', 'DENY')

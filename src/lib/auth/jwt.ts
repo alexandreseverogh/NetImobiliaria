@@ -128,10 +128,15 @@ export function parseDurationToSeconds(duration: string | number): number {
 }
 
 // Gerar token de acesso
-export async function generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
+export async function generateAccessToken(
+  payload: Omit<JWTPayload, 'iat' | 'exp'>,
+  customExpiresIn?: number | string
+): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
-  const exp = now + parseDurationToSeconds(JWT_EXPIRES_IN || '24h')
+
+  const expiration = customExpiresIn !== undefined ? customExpiresIn : (JWT_EXPIRES_IN || '24h')
+  const exp = now + parseDurationToSeconds(expiration)
 
   const payloadWithTime = {
     ...payload,
@@ -202,11 +207,26 @@ export async function generateTokens(payload: Omit<JWTPayload, 'iat' | 'exp'>): 
 
 // Verificar e decodificar token
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
+  const HEADER_DEBUG = `🔍 [JWT] verifyToken (${token.length} chars) - `
   try {
     const parts = token.split('.')
-    if (parts.length !== 3) return null
+    if (parts.length !== 3) {
+      console.warn(HEADER_DEBUG + '❌ Token inválido: partes != 3')
+      return null
+    }
 
     const [headerB64, payloadB64, signatureB64] = parts
+
+    // Log do payload decodificado (DEBUG)
+    try {
+      const payloadStr = arrayBufferToString(base64UrlToArrayBuffer(payloadB64))
+      const p = JSON.parse(payloadStr)
+      console.log(HEADER_DEBUG + '🔍 Decoded Payload:', JSON.stringify(p))
+      if (p.exp && p.exp < Math.floor(Date.now() / 1000)) {
+        console.warn(HEADER_DEBUG + '❌ Token expirado (exp < now)', p.exp, Math.floor(Date.now() / 1000))
+      }
+    } catch (e) { console.warn(HEADER_DEBUG + '❌ Payload não JSON parsable', e) }
+
 
     // Verificar assinatura
     const data = headerB64 + '.' + payloadB64
@@ -221,19 +241,23 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
     const signature = base64UrlToArrayBuffer(signatureB64)
     const isValid = await crypto.subtle.verify('HMAC', key, signature, stringToArrayBuffer(data))
 
-    if (!isValid) return null
+    if (!isValid) {
+      console.warn(HEADER_DEBUG + '❌ Assinatura inválida! Secret usada:', JWT_SECRET.substring(0, 5) + '...')
+      return null
+    }
 
     // Decodificar payload
     const payload = JSON.parse(arrayBufferToString(base64UrlToArrayBuffer(payloadB64)))
 
     // Verificar expiração
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      console.warn(HEADER_DEBUG + '❌ Token expirado (exp check da biblioteca)')
       return null
     }
 
     return payload
   } catch (error) {
-    console.error('Erro ao verificar token:', error)
+    console.error(HEADER_DEBUG + '❌ Erro ao verificar token:', error)
     return null
   }
 }

@@ -93,6 +93,8 @@ export async function GET(request: NextRequest) {
     console.log('  - tipo:', searchParams.get('tipo'), 'válido:', !!(searchParams.get('tipo') && searchParams.get('tipo') !== ''))
     console.log('  - finalidade:', searchParams.get('finalidade'), 'válido:', !!(searchParams.get('finalidade') && searchParams.get('finalidade') !== ''))
     console.log('  - status:', searchParams.get('status'), 'válido:', !!(searchParams.get('status') && searchParams.get('status') !== ''))
+    console.log('  - corretor:', searchParams.get('corretor'), 'válido:', !!(searchParams.get('corretor') && searchParams.get('corretor') !== ''))
+    console.log('  - proprietario_uuid:', searchParams.get('proprietario_uuid'), 'válido:', !!(searchParams.get('proprietario_uuid') && searchParams.get('proprietario_uuid') !== ''))
 
     // Verificar se há filtros com valores válidos (não vazios)
     const hasFilters = (searchParams.get('codigo') && searchParams.get('codigo') !== '') ||
@@ -102,7 +104,8 @@ export async function GET(request: NextRequest) {
       (searchParams.get('tipo') && searchParams.get('tipo') !== '') ||
       (searchParams.get('finalidade') && searchParams.get('finalidade') !== '') ||
       (searchParams.get('status') && searchParams.get('status') !== '') ||
-      (searchParams.get('corretor') && searchParams.get('corretor') !== '')
+      (searchParams.get('corretor') && searchParams.get('corretor') !== '') ||
+      (searchParams.get('proprietario_uuid') && searchParams.get('proprietario_uuid') !== '')
 
     console.log('🔍 API - hasFilters:', hasFilters)
     console.log('🔍 API - page:', page, 'limit:', limit)
@@ -171,6 +174,18 @@ export async function GET(request: NextRequest) {
       } else {
         console.warn('⚠️ Status filtro inválido:', statusValue)
       }
+    }
+
+    // Filtro de corretor
+    if (searchParams.get('corretor')) {
+      filtros.corretor_fk = safeParseInt(searchParams.get('corretor'), 0, 1)
+      console.log('🔍 Corretor filtro - ID recebido:', filtros.corretor_fk)
+    }
+
+    // Filtro de proprietário
+    if (searchParams.get('proprietario_uuid')) {
+      filtros.proprietario_uuid = searchParams.get('proprietario_uuid')
+      console.log('🔍 Proprietário filtro - UUID recebido:', filtros.proprietario_uuid)
     }
 
     // Filtros legados (manter compatibilidade)
@@ -464,12 +479,18 @@ export async function POST(request: NextRequest) {
 
     // Definir valores padrão para campos booleanos (mapeando nomes do frontend)
     dadosImovel.mobiliado = body.mobiliado === true
-    dadosImovel.aceita_permuta = body.aceitaPermuta === true
-    dadosImovel.aceita_financiamento = body.aceitaFinanciamento === true
+    dadosImovel.aceita_permuta = body.aceitaPermuta === true || body.aceita_permuta === true
+    dadosImovel.aceita_financiamento = body.aceitaFinanciamento === true || body.aceita_financiamento === true
 
     // Definir usuário logado e origem do cadastro
-    dadosImovel.created_by = currentUserId
-    dadosImovel.updated_by = currentUserId
+    // Se o usuário for um proprietário (não está na tabela 'users'), created_by e updated_by devem ser null,
+    // pois a FK aponta para 'users'. O vínculo com proprietário é feito via 'proprietario_uuid'.
+    const isOwner = currentUserRoleName.includes('proprietário') ||
+      currentUserRoleName.includes('proprietario') ||
+      (currentUser as any)?.userType === 'proprietario'
+
+    dadosImovel.created_by = isOwner ? null : currentUserId
+    dadosImovel.updated_by = isOwner ? null : currentUserId
     dadosImovel.origem_cadastro = origemCadastro
 
     // Fluxo do portal do corretor: garantir corretor_fk = corretor logado (e impedir spoof via body)
@@ -603,8 +624,8 @@ export async function POST(request: NextRequest) {
 
     // Criar imóvel
     // TODO: Implementar autenticação real e pegar o UUID do usuário logado
-    // Por enquanto, vamos usar NULL para created_by
-    const novoImovel = await createImovel(dadosImovel, currentUserId)
+    // Por enquanto, vamos usar NULL para created_by se for proprietário
+    const novoImovel = await createImovel(dadosImovel, isOwner ? null : currentUserId)
 
     // Registrar vínculo imovel_corretor SOMENTE quando o cadastro foi iniciado via portal do corretor
     // e o usuário logado for de fato um corretor.

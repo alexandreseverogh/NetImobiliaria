@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, X, User, Mail, Phone, MapPin, Building2, BadgeCheck, UserPlus, Users, List, Edit2, Save, XCircle, QrCode, Clock, CheckCircle2, RefreshCcw, Bell, Settings, ArrowUpRight, Bed, Bath, Car, Layers, DollarSign, CreditCard, ArrowLeftRight } from 'lucide-react'
+import { CheckCircle, X, User, Mail, Phone, MapPin, Building2, BadgeCheck, UserPlus, Users, List, Edit2, Save, XCircle, QrCode, Clock, CheckCircle2, RefreshCcw, Bell, Settings, ArrowUpRight, Bed, Bath, Car, Layers, DollarSign, CreditCard, ArrowLeftRight, Home } from 'lucide-react'
 import { formatCPF, validateCPF } from '@/lib/utils/formatters'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 
@@ -28,6 +28,8 @@ interface UserSuccessModalProps {
     estado_fk?: string
     foto?: string // Base64 puro
     foto_tipo_mime?: string
+    cep?: string
+    complemento?: string
   }
   redirectTo?: string
 }
@@ -853,13 +855,22 @@ export default function UserSuccessModal({
     }, 100)
   }
 
+  const handleMeusImoveis = () => {
+    onClose()
+    setTimeout(() => {
+      // Redirecionar para a página CRUD de imóveis com filtro de proprietário
+      const proprietarioUuid = userData.uuid || userData.id
+      window.location.href = `/admin/imoveis?fromProprietario=true&proprietario_uuid=${proprietarioUuid}`
+    }, 100)
+  }
+
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div
-        className={`relative w-full ${userData.userType === 'corretor' ? 'max-w-[80%]' : 'max-w-lg'
-          } bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-y-auto max-h-[95vh]`}
+        className={`relative w-full ${userData.userType === 'corretor' || userData.userType === 'proprietario' ? 'max-w-[90%] md:max-w-5xl' : 'max-w-lg'
+          } bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-y-auto max-h-[98vh]`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
@@ -993,32 +1004,35 @@ export default function UserSuccessModal({
 
                 {/* KPIs */}
                 {leadStats && (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-xs font-black text-slate-500 uppercase tracking-widest">Seus Índices - Leads</div>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <div className="rounded-xl bg-white border border-rose-200 p-3">
-                        <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Pendentes</div>
-                        <div className="mt-1 text-xl font-black text-rose-700">{leadsResumo.pendentes}</div>
+                  <div className="rounded-2xl border-2 border-slate-200 bg-white p-5 shadow-lg shadow-slate-100/50 relative overflow-hidden group hover:border-blue-200 transition-colors">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                    <div className="text-xs font-black text-slate-500 uppercase tracking-widest pl-2 mb-4 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                      Seu Dashboard - Leads
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* 1. Leads Atribuídos */}
+                      <div className="rounded-xl bg-white border border-blue-200 p-3">
+                        <div className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Leads Atribuídos</div>
+                        <div className="mt-1 text-xl font-black text-blue-700">{leadStats.recebidos}</div>
                       </div>
-                      <div className="rounded-xl bg-white border border-slate-200 p-3">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recebidos</div>
-                        <div className="mt-1 text-xl font-black text-slate-900">{leadStats.recebidos}</div>
-                      </div>
-                      <div className="rounded-xl bg-white border border-rose-200 p-3">
-                        <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Perdidos SLA</div>
-                        <div className="mt-1 text-xl font-black text-rose-700">{leadStats.perdidosSla}</div>
-                      </div>
+
+                      {/* 2. Leads aceitos */}
                       <div className="rounded-xl bg-white border border-emerald-200 p-3">
-                        <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Aceite no SLA</div>
-                        <div className="mt-1 text-xl font-black text-emerald-700">
-                          {(Number(leadStats.aceiteNoSlaPercent) || 0).toLocaleString('pt-BR', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                          })}%
-                        </div>
-                        <div className="mt-1 text-[11px] font-bold text-slate-500">
-                          {`${leadStats.aceiteNoSlaAceitos ?? 0}/${leadStats.aceiteNoSlaAvaliados ?? 0}`}
-                        </div>
+                        <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Leads aceitos</div>
+                        <div className="mt-1 text-xl font-black text-emerald-700">{leadsResumo.aceitos}</div>
+                      </div>
+
+                      {/* 3. Leads Perdidos */}
+                      <div className="rounded-xl bg-white border border-rose-200 p-3">
+                        <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Leads Perdidos</div>
+                        <div className="mt-1 text-xl font-black text-rose-700">{leadsResumo.perdidos}</div>
+                      </div>
+
+                      {/* 4. Negócios Fechados */}
+                      <div className="rounded-xl bg-white border border-purple-200 p-3">
+                        <div className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Negócios Fechados</div>
+                        <div className="mt-1 text-xl font-black text-purple-700">{leadsResumo.fechados}</div>
                       </div>
                     </div>
                   </div>
@@ -1379,22 +1393,132 @@ export default function UserSuccessModal({
                 </div>
               </div>
             </div>
+          ) : userData.userType === 'proprietario' ? (
+            /* Layout Detalhado para Proprietário */
+            <div className="space-y-8">
+              {/* Header com Tipo e Ações */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-sm text-green-600">
+                    <Building2 className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-gray-900">Área do Proprietário</h3>
+                    <p className="text-sm font-medium text-gray-500">Gerencie seus dados e imóveis</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleMeusImoveis}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
+                  >
+                    <Home className="w-4 h-4" />
+                    Meus Imóveis Cadastrados
+                  </button>
+                  <button
+                    onClick={handleCadastrarImovel}
+                    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-green-200 transition-all active:scale-95 flex items-center gap-2"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    Cadastrar Novo Imóvel
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid de Informações */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Coluna 1: Dados Pessoais */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                    <User className="w-5 h-5 text-green-600" />
+                    <h4 className="text-sm font-black text-gray-900 uppercase tracking-wider">Dados Pessoais</h4>
+                  </div>
+
+                  <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nome Completo</label>
+                      <div className="text-sm font-bold text-gray-900 mt-1">{userData.nome}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">CPF</label>
+                        <div className="text-sm font-bold text-gray-900 mt-1">{userData.cpf || '-'}</div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Telefone</label>
+                        <div className="text-sm font-bold text-gray-900 mt-1">{userData.telefone || '-'}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Email</label>
+                      <div className="text-sm font-bold text-gray-900 mt-1 break-all">{userData.email}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Coluna 2: Endereço */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                    <MapPin className="w-5 h-5 text-green-600" />
+                    <h4 className="text-sm font-black text-gray-900 uppercase tracking-wider">Endereço</h4>
+                  </div>
+
+                  <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Logradouro</label>
+                        <div className="text-sm font-bold text-gray-900 mt-1">{userData.endereco || '-'}</div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Número</label>
+                        <div className="text-sm font-bold text-gray-900 mt-1">{userData.numero || '-'}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Bairro</label>
+                        <div className="text-sm font-bold text-gray-900 mt-1">{userData.bairro || '-'}</div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">CEP</label>
+                        <div className="text-sm font-bold text-gray-900 mt-1">{userData.cep || '-'}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Cidade</label>
+                        <div className="text-sm font-bold text-gray-900 mt-1">{userData.cidade_fk || '-'}</div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Estado</label>
+                        <div className="text-sm font-bold text-gray-900 mt-1">{userData.estado_fk || '-'}</div>
+                      </div>
+                    </div>
+
+                    {userData.complemento && (
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Complemento</label>
+                        <div className="text-sm font-bold text-gray-900 mt-1">{userData.complemento}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
-            /* Layout Simplificado para Cliente/Proprietário (Original) */
+            /* Layout Simplificado para Cliente */
             <div className="space-y-6">
               {/* Tipo de Usuário */}
-              <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border border-blue-100">
-                <div
-                  className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg ${userData.userType === 'cliente' ? 'bg-blue-100' : 'bg-green-100'
-                    }`}
-                >
-                  <User className={`w-5 h-5 ${userData.userType === 'cliente' ? 'text-blue-600' : 'text-green-600'}`} />
+              <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-blue-100">
+                  <User className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Tipo de Conta</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {userData.userType === 'cliente' ? 'Cliente' : 'Proprietário'}
-                  </p>
+                  <p className="text-lg font-semibold text-gray-900">Cliente</p>
                 </div>
               </div>
 
@@ -1416,18 +1540,9 @@ export default function UserSuccessModal({
                 </div>
               </div>
 
-              {/* Footer para Clientes/Proprietários */}
+              {/* Footer para Clientes */}
               <div className="mt-6 pt-4 border-t border-gray-200">
                 <div className="flex flex-wrap items-center justify-end gap-3">
-                  {userData.userType === 'proprietario' && (
-                    <button
-                      onClick={handleCadastrarImovel}
-                      className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-md flex items-center gap-2"
-                    >
-                      <Building2 className="w-4 h-4" />
-                      Cadastrar Imóvel
-                    </button>
-                  )}
                   <button
                     onClick={handleFechar}
                     className="px-5 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-sm font-medium rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 shadow-md"
