@@ -45,7 +45,11 @@ export function useAuthenticatedFetch() {
 
     // Adicionar token automaticamente (exceto se skipAuth = true)
     if (!skipAuth) {
-      const token = localStorage.getItem('admin-auth-token')
+      // Tentar obter token: priorizar admin, depois público
+      const adminToken = localStorage.getItem('admin-auth-token')
+      const publicToken = localStorage.getItem('auth-token')
+      const token = adminToken || publicToken
+
       if (token) {
         requestHeaders.set('Authorization', `Bearer ${token}`)
       }

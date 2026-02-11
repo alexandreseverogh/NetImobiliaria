@@ -15,6 +15,7 @@ interface CorretorPlanData {
   qtde_anuncios_imoveis_corretor: number
   periodo_anuncio_corretor: number
   valor_mensal_imovel: number
+  cobranca_corretor_externo: boolean
 }
 
 function CorretorManifestoDrawer({
@@ -288,7 +289,8 @@ export default function CorretorPopup({ isOpen, onClose, onCadastrarClick, onLog
     valor_corretor: 0,
     qtde_anuncios_imoveis_corretor: 5,
     periodo_anuncio_corretor: 30,
-    valor_mensal_imovel: 0
+    valor_mensal_imovel: 0,
+    cobranca_corretor_externo: false
   })
   const [loading, setLoading] = useState(true)
   const [manifestoOpen, setManifestoOpen] = useState(false)
@@ -351,8 +353,8 @@ export default function CorretorPopup({ isOpen, onClose, onCadastrarClick, onLog
             </h2>
           </div>
 
-          {/* Duas colunas: Esquerda (texto) e Direita (valores) */}
-          <div className="grid md:grid-cols-2 gap-6">
+          {/* Layout responsivo: 2 colunas se tiver cobrança, 1 coluna centralizada se não tiver */}
+          <div className={`grid gap-6 ${planData.cobranca_corretor_externo ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-2xl mx-auto'}`}>
             {/* Coluna Esquerda: Proposta de valor */}
             <div className="space-y-3">
               {/* Introdução */}
@@ -395,46 +397,48 @@ export default function CorretorPopup({ isOpen, onClose, onCadastrarClick, onLog
               </div>
             </div>
 
-            {/* Coluna Direita: Como funciona - Valores */}
-            <div className="space-y-3">
-              {!loading && (
-                <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-4 h-full flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold text-amber-900 mb-3 flex items-center">
-                      <span className="mr-2">💼</span> Como funciona
-                    </h3>
+            {/* Coluna Direita: Como funciona - Valores (SOMENTE SE COBRANÇA ATIVA) */}
+            {planData.cobranca_corretor_externo && (
+              <div className="space-y-3">
+                {!loading && (
+                  <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-4 h-full flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-amber-900 mb-3 flex items-center">
+                        <span className="mr-2">💼</span> Como funciona
+                      </h3>
 
-                    <div className="space-y-2 text-gray-800 text-sm">
-                      <div className="bg-white/50 rounded-lg p-3">
-                        <p className="font-semibold text-gray-700 text-xs mb-1">Acesso mensal do corretor:</p>
-                        <p className="text-2xl font-black text-blue-700">{formatCurrency(planData.valor_corretor)}</p>
-                      </div>
+                      <div className="space-y-2 text-gray-800 text-sm">
+                        <div className="bg-white/50 rounded-lg p-3">
+                          <p className="font-semibold text-gray-700 text-xs mb-1">Acesso mensal do corretor:</p>
+                          <p className="text-2xl font-black text-blue-700">{formatCurrency(planData.valor_corretor)}</p>
+                        </div>
 
-                      <div className="bg-white/50 rounded-lg p-3">
-                        <p className="font-semibold text-gray-700 text-xs mb-1">Benefício inicial:</p>
-                        <p>
-                          Até <strong className="text-blue-700">{planData.qtde_anuncios_imoveis_corretor} imóveis</strong> incluídos por{' '}
-                          <strong className="text-blue-700">{planData.periodo_anuncio_corretor} dias</strong>
-                        </p>
-                      </div>
+                        <div className="bg-white/50 rounded-lg p-3">
+                          <p className="font-semibold text-gray-700 text-xs mb-1">Benefício inicial:</p>
+                          <p>
+                            Até <strong className="text-blue-700">{planData.qtde_anuncios_imoveis_corretor} imóveis</strong> incluídos por{' '}
+                            <strong className="text-blue-700">{planData.periodo_anuncio_corretor} dias</strong>
+                          </p>
+                        </div>
 
-                      <div className="bg-white/50 rounded-lg p-3">
-                        <p className="font-semibold text-gray-700 text-xs mb-1">Após o período inicial:</p>
-                        <p>
-                          <strong className="text-blue-700 text-lg">{formatCurrency(planData.valor_mensal_imovel)}</strong> <span className="text-gray-600">por imóvel/mês</span>
-                        </p>
+                        <div className="bg-white/50 rounded-lg p-3">
+                          <p className="font-semibold text-gray-700 text-xs mb-1">Após o período inicial:</p>
+                          <p>
+                            <strong className="text-blue-700 text-lg">{formatCurrency(planData.valor_mensal_imovel)}</strong> <span className="text-gray-600">por imóvel/mês</span>
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="mt-3 pt-3 border-t border-amber-300">
-                    <p className="text-xs text-amber-900 italic">
-                      Para manter o padrão de excelência e segurança da plataforma, o <strong>CRECI é obrigatório</strong> e passará por validação.
-                    </p>
+                    <div className="mt-3 pt-3 border-t border-amber-300">
+                      <p className="text-xs text-amber-900 italic">
+                        Para manter o padrão de excelência e segurança da plataforma, o <strong>CRECI é obrigatório</strong> e passará por validação.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Acesse agora + Footer combinados */}

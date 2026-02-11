@@ -78,18 +78,18 @@ export default function CorretorLoginModal({
 
         if (!isCorretor) {
           setError('Essa área é restrita ao perfil de Corretor.')
-          localStorage.removeItem('admin-auth-token')
-          localStorage.removeItem('admin-user-data')
-          localStorage.removeItem('admin-last-auth-user')
+          localStorage.removeItem('auth-token')
+          localStorage.removeItem('user-data')
+          localStorage.removeItem('last-auth-user')
           setLoading(false)
           return
         }
 
         if (data.data?.token) {
-          localStorage.setItem('admin-auth-token', data.data.token)
+          localStorage.setItem('auth-token', data.data.token)
         }
         if (u) {
-          localStorage.setItem('admin-user-data', JSON.stringify({
+          localStorage.setItem('user-data', JSON.stringify({
             ...u,
             at: Date.now()
           }))
@@ -99,14 +99,19 @@ export default function CorretorLoginModal({
         // Registrar "último login"
         try {
           localStorage.setItem(
-            'admin-last-auth-user',
+            'last-auth-user',
             JSON.stringify({
               nome: u?.nome || '',
               userType: 'corretor',
               at: Date.now()
             })
           )
-          window.dispatchEvent(new Event('admin-auth-changed'))
+          // REMOVER chave conflitante de sessão pública (cliente/proprietário)
+          localStorage.removeItem('public-last-auth-user')
+          localStorage.removeItem('public-auth-token')
+          localStorage.removeItem('public-user-data')
+
+          window.dispatchEvent(new Event('public-corretor-auth-changed'))
         } catch { }
 
         // Se esse modal foi aberto como "gate" de login...
@@ -186,7 +191,7 @@ export default function CorretorLoginModal({
             if (meResp.ok && meData?.success && meData?.user?.nome && meData?.user?.email) {
               // Garantir que user-data esteja atualizado
               try {
-                localStorage.setItem('admin-user-data', JSON.stringify(meData.user))
+                localStorage.setItem('user-data', JSON.stringify(meData.user))
               } catch { }
               buildSuccessAndRedirect(meData.user)
               return

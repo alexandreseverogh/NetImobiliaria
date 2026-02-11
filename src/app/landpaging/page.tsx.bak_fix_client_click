@@ -2238,10 +2238,10 @@ function LandingPageContent() {
 
               // Se é um cliente logado, não é permitido acessar painel de corretor
               // Deve fazer cadastro/login como corretor separadamente
-              // O cliente também deve ver as opções de cadastro/login de corretor,
-              // portanto removemos o return que bloqueava o fluxo.
               if (userType === 'cliente') {
-                console.log('✅ [LANDING PAGE] Cliente logado clicando em corretor - permitindo popup')
+                // Cliente logado clicando em "Sou Corretor": abrir modal de registro/login do corretor
+                // (não abrir o CorretorPopup que é para corretores já logados)
+                return // Não fazer nada - cliente precisa se cadastrar como corretor via fluxo normal
               }
             }
           } catch (e) {

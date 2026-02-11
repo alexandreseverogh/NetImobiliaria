@@ -25,6 +25,7 @@ interface Parametros {
   valor_ticket_alto: number
   proximos_corretores_recebem_leads_internos: number
   sla_minutos_aceite_lead_interno: number
+  cobranca_corretor_externo: boolean
 }
 
 export default function ParametrosPage() {
@@ -41,7 +42,8 @@ export default function ParametrosPage() {
     sla_minutos_aceite_lead: 5,
     valor_ticket_alto: 2000000.00,
     proximos_corretores_recebem_leads_internos: 3,
-    sla_minutos_aceite_lead_interno: 15
+    sla_minutos_aceite_lead_interno: 15,
+    cobranca_corretor_externo: false
   })
 
   // Estados locais para os inputs de número para evitar o problema do "zero à esquerda"
@@ -82,6 +84,7 @@ export default function ParametrosPage() {
         const vlTicketAlto = data.data.valor_ticket_alto || 2000000
         const proximosCorretoresInternos = data.data.proximos_corretores_recebem_leads_internos ?? 3
         const slaMinutosInterno = data.data.sla_minutos_aceite_lead_interno ?? 15
+        const cobrancaCorretorExterno = data.data.cobranca_corretor_externo || false
 
         setFormData({
           vl_destaque_nacional: vlDestaque,
@@ -95,7 +98,8 @@ export default function ParametrosPage() {
           sla_minutos_aceite_lead: Number(slaMinutos) || 5,
           valor_ticket_alto: vlTicketAlto,
           proximos_corretores_recebem_leads_internos: Number(proximosCorretoresInternos) || 3,
-          sla_minutos_aceite_lead_interno: Number(slaMinutosInterno) || 15
+          sla_minutos_aceite_lead_interno: Number(slaMinutosInterno) || 15,
+          cobranca_corretor_externo: cobrancaCorretorExterno
         })
 
         setInputDestaque(vlDestaque.toString())
@@ -303,6 +307,23 @@ export default function ParametrosPage() {
                 </div>
               </div>
               <div className="p-6 flex-1 space-y-6">
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800">Cobrança Corretor Externo</h3>
+                    <p className="text-[10px] text-slate-500 font-medium mt-1">Habilitar cobrança mensal para corretores externos</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={formData.cobranca_corretor_externo}
+                      onChange={(e) => setFormData({ ...formData, cobranca_corretor_externo: e.target.checked })}
+                      disabled={loading || saving}
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                  </label>
+                </div>
+
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Valor Mensal Corretor (R$)</label>
                   <div className="relative">

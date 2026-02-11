@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     // Buscar valores atuais
     const result = await pool.query(
       `SELECT 
+        cobranca_corretor_externo,
         vl_destaque_nacional, 
         valor_corretor, 
         chave_pix_corretor, 
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
       // Se não existir registro, criar com valores padrão
       await pool.query(
         `INSERT INTO parametros (
+          cobranca_corretor_externo,
           vl_destaque_nacional, 
           valor_corretor, 
           chave_pix_corretor, 
@@ -45,13 +47,14 @@ export async function GET(request: NextRequest) {
           valor_ticket_alto,
           proximos_corretores_recebem_leads_internos,
           sla_minutos_aceite_lead_interno
-        ) VALUES (0.00, 0.00, $1, $2, 0.00, 5, 30, 3, 5, 2000000.00, 3, 15)`,
+        ) VALUES (false, 0.00, 0.00, $1, $2, 0.00, 5, 30, 3, 5, 2000000.00, 3, 15)`,
         ['', 'BRASILIA']
       )
 
       return NextResponse.json({
         success: true,
         data: {
+          cobranca_corretor_externo: false,
           vl_destaque_nacional: 0.00,
           valor_corretor: 0.00,
           chave_pix_corretor: '',
@@ -71,6 +74,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
+        cobranca_corretor_externo: result.rows[0].cobranca_corretor_externo || false,
         vl_destaque_nacional: parseFloat(result.rows[0].vl_destaque_nacional) || 0.00,
         valor_corretor: parseFloat(result.rows[0].valor_corretor) || 0.00,
         chave_pix_corretor: result.rows[0].chave_pix_corretor || '',
@@ -96,6 +100,7 @@ export async function GET(request: NextRequest) {
 }
 
 interface ParametrosRequest {
+  cobranca_corretor_externo?: boolean;
   vl_destaque_nacional?: number;
   valor_corretor?: number;
   chave_pix_corretor?: string;
@@ -121,6 +126,7 @@ export async function PUT(request: NextRequest) {
 
     const body: ParametrosRequest = await request.json()
     const {
+      cobranca_corretor_externo,
       vl_destaque_nacional,
       valor_corretor,
       chave_pix_corretor,
@@ -139,6 +145,11 @@ export async function PUT(request: NextRequest) {
     const updates: string[] = []
     const values: any[] = []
     let paramCount = 1
+
+    if (cobranca_corretor_externo !== undefined) {
+      updates.push(`cobranca_corretor_externo = $${paramCount++}`)
+      values.push(cobranca_corretor_externo)
+    }
 
     if (vl_destaque_nacional !== undefined) {
       const valorNumerico = parseFloat(vl_destaque_nacional.toString())

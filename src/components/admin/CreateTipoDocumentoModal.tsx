@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 
 interface CreateTipoDocumentoModalProps {
   onClose: () => void
@@ -8,6 +9,7 @@ interface CreateTipoDocumentoModalProps {
 }
 
 export default function CreateTipoDocumentoModal({ onClose, onSuccess }: CreateTipoDocumentoModalProps) {
+  const { post } = useAuthenticatedFetch()
   const [formData, setFormData] = useState({
     descricao: '',
     consulta_imovel_internauta: false
@@ -30,22 +32,14 @@ export default function CreateTipoDocumentoModal({ onClose, onSuccess }: CreateT
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
       return
     }
 
     setLoading(true)
     try {
-      const token = localStorage.getItem('auth-token')
-      const response = await fetch('/api/admin/tipos-documentos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      })
+      const response = await post('/api/admin/tipos-documentos', formData)
 
       if (response.ok) {
         onSuccess()
@@ -100,9 +94,8 @@ export default function CreateTipoDocumentoModal({ onClose, onSuccess }: CreateT
                 id="descricao"
                 value={formData.descricao}
                 onChange={(e) => handleInputChange('descricao', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.descricao ? 'border-red-300' : 'border-gray-300'
-                }`}
+                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.descricao ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 placeholder="Ex: Planta Baixa, IPTU, etc."
                 disabled={loading}
               />

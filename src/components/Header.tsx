@@ -173,16 +173,16 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
     <>
       <header className="bg-white/95 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-gray-100">
         <div className="w-full">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-24">
             {/* Logo */}
             <div className="flex-shrink-0 pl-4 sm:pl-6 lg:pl-8">
               <Link href="/" className="flex items-center">
                 <Image
                   src="/imovtec-logo-definitive.png"
                   alt="Imovtec Logo"
-                  width={180}
-                  height={60}
-                  className="h-16 w-auto"
+                  width={250}
+                  height={85}
+                  className="h-20 w-auto object-contain"
                   priority
                 />
               </Link>

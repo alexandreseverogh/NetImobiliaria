@@ -41,7 +41,11 @@ export default function AuthButtons() {
 
   const refreshAdminUser = () => {
     try {
-      const raw = localStorage.getItem('admin-user-data')
+      // Verificar admin primeiro, depois corretor público
+      const adminRaw = localStorage.getItem('admin-user-data')
+      const publicRaw = localStorage.getItem('user-data')
+      const raw = adminRaw || publicRaw
+
       if (!raw) return setAdminUserNome(null)
       const parsed = JSON.parse(raw)
       setAdminUserNome(parsed.nome || null)
@@ -52,7 +56,8 @@ export default function AuthButtons() {
 
   const refreshLastAuthUser = () => {
     try {
-      const raw = localStorage.getItem('public-last-auth-user') || localStorage.getItem('admin-last-auth-user')
+      // Verificar public primeiro (mais recente), depois admin
+      const raw = localStorage.getItem('last-auth-user') || localStorage.getItem('public-last-auth-user') || localStorage.getItem('admin-last-auth-user')
       if (!raw) return setLastAuthUser(null)
       setLastAuthUser(JSON.parse(raw))
     } catch {
@@ -70,9 +75,11 @@ export default function AuthButtons() {
 
     window.addEventListener('public-auth-changed', handleAuthChange)
     window.addEventListener('admin-auth-changed', handleAuthChange)
+    window.addEventListener('public-corretor-auth-changed', handleAuthChange)
     return () => {
       window.removeEventListener('public-auth-changed', handleAuthChange)
       window.removeEventListener('admin-auth-changed', handleAuthChange)
+      window.removeEventListener('public-corretor-auth-changed', handleAuthChange)
     }
   }, [checkAuth])
 

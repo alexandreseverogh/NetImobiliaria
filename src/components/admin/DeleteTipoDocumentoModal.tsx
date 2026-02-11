@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 
 interface TipoDocumento {
   id: number
@@ -18,21 +19,16 @@ interface DeleteTipoDocumentoModalProps {
 }
 
 export default function DeleteTipoDocumentoModal({ tipoDocumento, onClose, onSuccess }: DeleteTipoDocumentoModalProps) {
+  const { delete: destroy } = useAuthenticatedFetch()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const handleDelete = async () => {
     setLoading(true)
     setError('')
-    
+
     try {
-      const token = localStorage.getItem('auth-token')
-      const response = await fetch(`/api/admin/tipos-documentos/${tipoDocumento.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
+      const response = await destroy(`/api/admin/tipos-documentos/${tipoDocumento.id}`)
 
       if (response.ok) {
         onSuccess()

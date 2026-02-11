@@ -85,6 +85,18 @@ export default function LoginForm({ userType, onBack, onSuccess, redirectTo }: L
           )
         } catch { }
 
+        // REMOVER chaves conflitantes de outros tipos de sessão (ex: corretor)
+        // Isso garante que o Header exiba apenas este usuário (o mais recente)
+        localStorage.removeItem('last-auth-user')
+        localStorage.removeItem('admin-last-auth-user')
+
+        // REMOVER tokens de sessão admin/corretor para evitar estado inconsistente
+        // (Isso previne o botão "Sou Corretor" de abrir o dashboard do usuário anterior)
+        localStorage.removeItem('auth-token')
+        localStorage.removeItem('user-data')
+        localStorage.removeItem('admin-auth-token')
+        localStorage.removeItem('admin-user-data')
+
         // Se for proprietário e houver redirectTo, usar autenticação admin primeiro
         if (userType === 'proprietario' && redirectTo) {
           // Fazer login na API admin também para acessar área admin
@@ -125,7 +137,21 @@ export default function LoginForm({ userType, onBack, onSuccess, redirectTo }: L
           }
         }
 
-        // Exibir modal de sucesso com dados do usuário
+        // Se for proprietário ou CLIENTE, pular o modal de sucesso (UserSuccessModal) e ir direto para o MeuPerfilModal (via evento/callback)
+        // Isso resolve o problema de "dois portais" e garante acesso à edição/imóveis de interesse
+        if (userType === 'proprietario' || userType === 'cliente') {
+          onSuccess()
+
+          // Disparar evento customizado para atualizar AuthButtons após um pequeno delay
+          if (typeof window !== 'undefined') {
+            setTimeout(() => {
+              window.dispatchEvent(new Event('public-auth-changed'))
+            }, 100)
+          }
+          return
+        }
+
+        // Exibir modal de sucesso com dados do usuário (Apenas para Clientes ou Corretores se aplicável)
         setLoggedInUser(data.data.user)
         setShowSuccessModal(true)
 

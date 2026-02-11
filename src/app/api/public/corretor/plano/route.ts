@@ -14,20 +14,22 @@ export async function GET(request: NextRequest) {
         periodo_anuncio_corretor,
         valor_mensal_imovel,
         proximos_corretores_recebem_leads,
-        sla_minutos_aceite_lead
+        sla_minutos_aceite_lead,
+        cobranca_corretor_externo
       FROM parametros LIMIT 1`
     )
 
     if (result.rows.length === 0) {
       return NextResponse.json({
         success: true,
-        data: { 
+        data: {
           valor_corretor: 0.00,
           qtde_anuncios_imoveis_corretor: 5,
           periodo_anuncio_corretor: 30,
           valor_mensal_imovel: 0.00,
           proximos_corretores_recebem_leads: 3,
-          sla_minutos_aceite_lead: 5
+          sla_minutos_aceite_lead: 5,
+          cobranca_corretor_externo: false
         }
       })
     }
@@ -40,7 +42,8 @@ export async function GET(request: NextRequest) {
         periodo_anuncio_corretor: parseInt(result.rows[0].periodo_anuncio_corretor) || 30,
         valor_mensal_imovel: parseFloat(result.rows[0].valor_mensal_imovel) || 0.00,
         proximos_corretores_recebem_leads: parseInt(result.rows[0].proximos_corretores_recebem_leads) || 3,
-        sla_minutos_aceite_lead: parseInt(result.rows[0].sla_minutos_aceite_lead) || 5
+        sla_minutos_aceite_lead: parseInt(result.rows[0].sla_minutos_aceite_lead) || 5,
+        cobranca_corretor_externo: result.rows[0].cobranca_corretor_externo || false
       }
     })
 
