@@ -20,7 +20,7 @@ services:
 
   prod_app:
     build:
-      context: .
+      context: ${PROD_CONTEXT:-.}
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     depends_on:
@@ -54,7 +54,7 @@ services:
 
   prod_feed:
     build:
-      context: .
+      context: ${PROD_CONTEXT:-.}
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     depends_on:
@@ -108,7 +108,7 @@ services:
 
   staging_app:
     build:
-      context: .
+      context: ${STAGING_CONTEXT:-.}
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     depends_on:
@@ -142,7 +142,7 @@ services:
 
   staging_feed:
     build:
-      context: .
+      context: ${STAGING_CONTEXT:-.}
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     depends_on:

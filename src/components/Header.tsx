@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Menu, X, Search, Phone, MapPin } from 'lucide-react'
@@ -21,8 +22,14 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
   const [contactForm, setContactForm] = useState({ nome: '', telefone: '', email: '', mensagem: '' })
   const [contactErrors, setContactErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
-  // Carregar localiza├º├úo do localStorage na inicializa├º├úo
+  // Hydration fix for Portals
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Carregar localização do localStorage na inicialização
   useEffect(() => {
     if (typeof window === 'undefined') return
 
@@ -34,7 +41,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
     }
   }, [])
 
-  // Atualizar localiza├º├úo exibida quando receber props
+  // Atualizar localização exibida quando receber props
   useEffect(() => {
     if (selectedCidade && selectedEstado) {
       const location = `${selectedCidade}, ${selectedEstado}`
@@ -44,7 +51,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
     }
   }, [selectedCidade, selectedEstado])
 
-  // Escutar eventos de mudan├ºa de localiza├º├úo (do modal de geolocaliza├º├úo)
+  // Escutar eventos de mudança de localização (do modal de geolocalização)
   useEffect(() => {
     const handleLocationChange = (event: CustomEvent) => {
       const { cidade, estado } = event.detail || {}
@@ -201,7 +208,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
               ))}
             </nav>
 
-            {/* ├ürea Direita: Contact Info e Bot├úo de Autentica├º├úo */}
+            {/* Área Direita: Contact Info e Botão de Autenticação */}
             <div className="hidden md:flex items-center gap-4 flex-shrink-0 pr-4 sm:pr-6 lg:pr-8">
               {/* Contact Info */}
               <div className="flex items-center space-x-4">
@@ -214,7 +221,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
                   <span>{displayLocation}</span>
                 </div>
               </div>
-              {/* Bot├úo de Autentica├º├úo - Separado e ├á direita */}
+              {/* Botão de Autenticação - Separado e á direita */}
               <div className="pl-4 border-l border-gray-300">
                 <AuthButtons />
               </div>
@@ -254,7 +261,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
                   <MapPin className="w-4 h-4 mr-2" />
                   <span>{displayLocation}</span>
                 </div>
-                {/* Bot├úo de Autentica├º├úo Mobile */}
+                {/* Botão de Autenticação Mobile */}
                 <div className="pt-2 border-t">
                   <AuthButtons />
                 </div>
@@ -262,11 +269,13 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
             </div>
           </div>
         )}
+      </header>
 
-        {/* Modal Quem Somos */}
-        {showAboutModal && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowAboutModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative" onClick={(e) => e.stopPropagation()}>
+      {/* Modal Quem Somos - Portal */}
+      {mounted && showAboutModal && createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/50 backdrop-blur-sm" onClick={() => setShowAboutModal(false)}>
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative my-8" onClick={(e) => e.stopPropagation()}>
               {/* Close Button */}
               <button
                 onClick={() => setShowAboutModal(false)}
@@ -334,12 +343,15 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
               </div>
             </div>
           </div>
-        )}
+        </div>,
+        document.body
+      )}
 
-        {/* Modal Contato */}
-        {showContactModal && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowContactModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 relative" onClick={(e) => e.stopPropagation()}>
+      {/* Modal Contato - Portal */}
+      {mounted && showContactModal && createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/50 backdrop-blur-sm" onClick={() => setShowContactModal(false)}>
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 relative my-8" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => setShowContactModal(false)}
                 className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
@@ -420,43 +432,42 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
               </form>
             </div>
           </div>
-        )}
+        </div>,
+        document.body
+      )}
 
-        {/* Modal Agradecimento */}
-        {showThankYouModal && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowThankYouModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center" onClick={(e) => e.stopPropagation()}>
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">Mensagem Enviada!</h2>
-              <p className="text-gray-600 mb-6">
-                Obrigado pelo contato! Recebemos sua mensagem e entraremos em contato em breve.
-              </p>
-              <button
-                onClick={() => setShowThankYouModal(false)}
-                className="px-8 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors shadow-lg"
-              >
-                Fechar
-              </button>
+      {/* Modal Agradecimento - Portal */}
+      {mounted && showThankYouModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowThankYouModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
             </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Mensagem Enviada!</h2>
+            <p className="text-gray-600 mb-6">
+              Obrigado pelo contato! Recebemos sua mensagem e entraremos em contato em breve.
+            </p>
+            <button
+              onClick={() => setShowThankYouModal(false)}
+              className="px-8 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors shadow-lg"
+            >
+              Fechar
+            </button>
           </div>
-        )}
+        </div>,
+        document.body
+      )}
 
-      </header>
       {/* Modal Dashboard do Corretor (Global) */}
-      {
-        corretorHomeSuccessOpen && corretorHomeUser && (
-          <UserSuccessModal
-            isOpen={corretorHomeSuccessOpen}
-            onClose={() => setCorretorHomeSuccessOpen(false)}
-            userData={corretorHomeUser}
-          />
-        )
-      }
+      {corretorHomeSuccessOpen && corretorHomeUser && (
+        <UserSuccessModal
+          isOpen={corretorHomeSuccessOpen}
+          onClose={() => setCorretorHomeSuccessOpen(false)}
+          userData={corretorHomeUser}
+        />
+      )}
     </>
   )
 }
-
