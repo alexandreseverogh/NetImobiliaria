@@ -327,8 +327,8 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-2 h-2 bg-primary-600 rounded-full mt-2 flex-shrink-0"></div>
-                    <a href="https://www.netimobiliaria.com.br" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-700 font-semibold transition-colors">
-                      www.netimobiliaria.com.br
+                    <a href="https://www.imovtec.com.br" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-700 font-semibold transition-colors">
+                      www.imovtec.com.br
                     </a>
                   </div>
                 </div>
