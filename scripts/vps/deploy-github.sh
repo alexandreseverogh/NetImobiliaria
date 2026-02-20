@@ -48,24 +48,30 @@ fi
 log "   ✅ Código atualizado: $(cd $TARGET_SOURCE && git log -1 --pretty='%h — %s')"
 
 # -------------------------------------------------------------
-# 2. Copiar .env da infraestrutura para as fontes (se necessário)
+# 2. Atualizar infraestrutura PRIMEIRO (Dockerfile, compose, scripts)
 # -------------------------------------------------------------
-log "[2/5] Verificando arquivos de ambiente..."
+log "[2/5] Atualizando infraestrutura (Dockerfile, compose, scripts)..."
 
+cd "$BASE_DIR"
+git fetch origin
+git reset --hard "origin/main"
+git clean -fd
+
+log "   ✅ Infraestrutura atualizada: $(git log -1 --pretty='%h — %s')"
+
+# Copiar .env da infraestrutura para as fontes (se necessário)
 if [ -f "$BASE_DIR/.env" ] && [ ! -f "$TARGET_SOURCE/.env" ]; then
   log "   → Copiando .env da infraestrutura para as fontes..."
   cp "$BASE_DIR/.env" "$TARGET_SOURCE/.env"
 fi
 
 # -------------------------------------------------------------
-# 3. Build da imagem Docker
+# 3. Build da imagem Docker (usando Dockerfile atualizado)
 # -------------------------------------------------------------
 log "[3/5] Construindo imagem Docker..."
 
-cd "$BASE_DIR"
-
 if [ "$AMBIENTE" == "producao" ]; then
-  log "   → Build para PRODUÇÃO..."
+  log "   → Build para PRODUÇÃO com Dockerfile de: $BASE_DIR/Dockerfile.prod"
   docker build \
     -t "net-imobiliaria-prod_app:latest" \
     -f "$BASE_DIR/Dockerfile.prod" \
@@ -75,16 +81,9 @@ if [ "$AMBIENTE" == "producao" ]; then
 fi
 
 # -------------------------------------------------------------
-# 4. Atualizar infraestrutura (compose, scripts, Caddyfile)
+# 4. (Infraestrutura já atualizada no step 2)
 # -------------------------------------------------------------
-log "[4/5] Atualizando infraestrutura..."
-
-cd "$BASE_DIR"
-git fetch origin
-git reset --hard "origin/main"
-git clean -fd
-
-log "   ✅ Infraestrutura atualizada"
+log "[4/5] Infraestrutura já atualizada anteriormente. Prosseguindo..."
 
 # -------------------------------------------------------------
 # 5. Reiniciar serviço
