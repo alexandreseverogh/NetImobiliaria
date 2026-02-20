@@ -2146,6 +2146,49 @@ function LandingPageContent() {
         }
       />
 
+      {/* ---- Botões mobile: visíveis apenas em telas < lg (abaixo do hero) ---- */}
+      <div className="lg:hidden flex flex-col sm:flex-row gap-3 px-4 py-4 bg-gray-900">
+        <button
+          onClick={handleVenderClick}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm rounded-xl transition-colors shadow-lg"
+        >
+          <ArrowTrendingUpIcon className="w-5 h-5 flex-shrink-0" />
+          <span className="text-center leading-tight">Anuncie seu Imóvel</span>
+        </button>
+
+        <button
+          onClick={() => {
+            const novoEstado = !mostrarDestaquesNacional
+            if (novoEstado === true) {
+              flushSync(() => { setMostrarDestaquesNacional(true) })
+              setFiltersActive(false)
+              setFilteredResults([])
+              setFilteredPagination({ page: 1, total: 0, totalPages: 1 })
+              setLastFilters(null)
+              setSearchFormEstado(undefined)
+              setSearchFormCidade(undefined)
+              setUsadoFallbackNacional(false)
+            } else {
+              flushSync(() => { setMostrarDestaquesNacional(false) })
+              setFiltersActive(false)
+              setFilteredResults([])
+              setFilteredPagination({ page: 1, total: 0, totalPages: 1 })
+              setLastFilters(null)
+              setSearchFormEstado(undefined)
+              setSearchFormCidade(undefined)
+            }
+            setCurrentPage(1)
+          }}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-white font-bold text-sm rounded-xl transition-colors shadow-lg ${mostrarDestaquesNacional
+            ? 'bg-purple-600 hover:bg-purple-700'
+            : 'bg-purple-500 hover:bg-purple-600'
+            }`}
+        >
+          <StarIcon className="w-5 h-5 flex-shrink-0" />
+          <span>{TITULO_DESTAQUE_NACIONAL}</span>
+        </button>
+      </div>
+
       {/* Banners por perfil (não conflita com o card lateral "Anuncie..." pois fica no fluxo principal) */}
       <ProfileBanners
         onProprietarioClick={handleVenderClick}

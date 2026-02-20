@@ -20,9 +20,9 @@ export default function HeroSection({ filterPanel, venderButton, destaquesNacion
         }} />
       </div>
 
-      {/* Botões posicionados na lateral direita */}
+      {/* Botões posicionados na lateral direita — visíveis apenas em desktop (lg+) */}
       {(venderButton || destaquesNacionalButton) && (
-        <div className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
+        <div className="hidden lg:flex absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 z-10 flex-col gap-3">
           {venderButton && (
             <div>
               {venderButton}
