@@ -185,6 +185,12 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
+  // Corrige o erro fatal "useSearchParams() should be wrapped in Suspense"
+  // que afeta muitas páginas admin no build de produção (Next.js 14.1+)
+  experimental: {
+    missingSuspenseWithCSRBailout: false,
+  },
+
   // Configurações de ambiente
   env: {
     ENVIRONMENT: isDevelopment ? 'development' : 'production',
