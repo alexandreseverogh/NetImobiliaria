@@ -1,37 +1,50 @@
-FROM node:20-bookworm-slim AS deps
-WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
-COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
+# =============================================================
+# Dockerfile.prod — Multi-stage build para CI/CD
+# Etapa 1 (builder): instala deps + compila Next.js
+# Etapa 2 (runner):  copia apenas artefatos finais
+# =============================================================
 
+# ---- Etapa 1: Builder ----
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
+
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1
-COPY --from=deps /app/node_modules ./node_modules
+
+# Instalar dependências (inclui devDeps necessárias para o build)
+COPY package.json package-lock.json ./
+RUN npm ci --legacy-peer-deps && npm cache clean --force
+
+# Copiar código fonte
 COPY . .
+
+# Compilar o Next.js
 RUN npm run build
 
+# ---- Etapa 2: Runner ----
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
+
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
-    HOSTNAME=0.0.0.0
+    PORT=3000
 
-# Instalar apenas deps de runtime
+# Instalar apenas dependências de produção
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 
-# App build + assets
+# Copiar artefatos do builder
+COPY --from=builder /app/next.config.js ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/next.config.js ./next.config.js
-
-# Scripts usados pelo worker de feed
 COPY --from=builder /app/scripts ./scripts
 
+# Criar usuário não-root
+RUN groupadd -r nodejs && useradd -r -g nodejs nextjs
+RUN chown -R nextjs:nodejs /app/.next
+
+USER nextjs
+
 EXPOSE 3000
-CMD ["npm", "run", "start", "--", "-p", "3000", "-H", "0.0.0.0"]
 
-
+CMD ["npm", "start"]
