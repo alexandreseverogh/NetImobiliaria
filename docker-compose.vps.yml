@@ -34,6 +34,7 @@ services:
       DB_NAME: ${PROD_DB_NAME:-net_imobiliaria}
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${PROD_DB_PASSWORD}
+      DB_SSL: "false"
       JWT_SECRET: ${PROD_JWT_SECRET}
       NEXT_PUBLIC_APP_URL: ${PROD_APP_URL}
       HEALTHCHECK_DB: "true"
@@ -70,6 +71,7 @@ services:
       DB_NAME: ${PROD_DB_NAME:-net_imobiliaria}
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${PROD_DB_PASSWORD}
+      DB_SSL: "false"
       NEXT_PUBLIC_API_URL: "http://prod_app:3000"
       CRON_SECRET: ${PROD_CRON_SECRET}
       LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-https://libretranslate.com}

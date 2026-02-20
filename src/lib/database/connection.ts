@@ -37,10 +37,13 @@ const poolConfig: PoolConfig = {
   // Configurações de encoding para UTF-8
   client_encoding: 'UTF8',
 
-  // SSL para produção
-  ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: false }
-    : false
+  // SSL: desabilitado se DB_SSL=false (para Docker interno sem SSL)
+  // Em produção com DB externo (RDS, Cloud SQL etc.), remover DB_SSL=false do .env
+  ssl: process.env.DB_SSL === 'false'
+    ? false
+    : process.env.NODE_ENV === 'production'
+      ? { rejectUnauthorized: false }
+      : false
 }
 
 // Criar pool de conexões
