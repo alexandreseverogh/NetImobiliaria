@@ -47,6 +47,8 @@ jobs:
 
             echo "🔄 Atualizando arquivos de infraestrutura do GitHub..."
             curl -fsSL "$REPO_RAW/Dockerfile.prod" -o ~/net-imobiliaria/Dockerfile.prod
+            curl -fsSL "$REPO_RAW/docker-compose.vps.yml" -o ~/net-imobiliaria/docker-compose.vps.yml
+            mkdir -p ~/net-imobiliaria/scripts/vps
             curl -fsSL "$REPO_RAW/scripts/vps/deploy-github.sh" -o ~/net-imobiliaria/scripts/vps/deploy-github.sh
             chmod +x ~/net-imobiliaria/scripts/vps/deploy-github.sh
             echo "   ✅ Infraestrutura atualizada!"

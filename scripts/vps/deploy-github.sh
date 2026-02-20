@@ -103,15 +103,24 @@ log "[4/5] Infraestrutura já atualizada anteriormente. Prosseguindo..."
 log "[5/5] Reiniciando container..."
 
 if [ "$AMBIENTE" == "producao" ]; then
-  docker compose -f "$BASE_DIR/docker-compose.vps.yml" up -d --no-build prod_app
-  
+  # A imagem foi buildada como "net-imobiliaria-prod_app:latest"
+  # O docker compose para prod_feed usa a mesma imagem (mesmo Dockerfile.prod)
+  # então criamos uma tag adicional para ele poder usar com --no-build
+  docker tag "net-imobiliaria-prod_app:latest" "net-imobiliaria-prod_feed:latest" 2>/dev/null || true
+
+  # Iniciar app e feed worker juntos
+  docker compose -f "$BASE_DIR/docker-compose.vps.yml" up -d --no-build prod_app prod_feed
+
   # Aguardar health check
   log "   → Aguardando health check do container..."
   sleep 15
-  
+
   STATUS=$(docker compose -f "$BASE_DIR/docker-compose.vps.yml" ps prod_app --format "{{.Status}}" 2>/dev/null || echo "unknown")
-  log "   → Status do container: $STATUS"
-  
+  log "   → Status prod_app: $STATUS"
+
+  FEED_STATUS=$(docker compose -f "$BASE_DIR/docker-compose.vps.yml" ps prod_feed --format "{{.Status}}" 2>/dev/null || echo "unknown")
+  log "   → Status prod_feed: $FEED_STATUS"
+
   if echo "$STATUS" | grep -q "healthy\|Up"; then
     log "   ✅ Container prod_app está saudável!"
   else
