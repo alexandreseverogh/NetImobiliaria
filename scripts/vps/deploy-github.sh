@@ -50,17 +50,32 @@ log "   ✅ Código atualizado: $(cd $TARGET_SOURCE && git log -1 --pretty='%h �
 # -------------------------------------------------------------
 # 2. Verificar .env (infraestrutura já atualizada pelo workflow)
 # -------------------------------------------------------------
-log "[2/5] Verificando arquivos de ambiente..."
+log "[2/5] Gerando .env de build com variáveis mapeadas..."
 
-# Copiar .env da infraestrutura para as fontes (necessário para o build)
+# O .env da VPS usa PROD_DB_NAME, PROD_DB_PASSWORD, etc.
+# O código Next.js espera DB_NAME, DB_PASSWORD, etc.
+# Geramos um .env de build com os nomes corretos mapeados.
 if [ -f "$BASE_DIR/.env" ]; then
-  log "   → Copiando .env para o contexto de build..."
-  cp "$BASE_DIR/.env" "$TARGET_SOURCE/.env"
-else
-  log "   ⚠️  AVISO: $BASE_DIR/.env não encontrado! O build pode falhar sem variáveis de ambiente."
-fi
+  set -o allexport
+  source "$BASE_DIR/.env"
+  set +o allexport
 
-log "   ✅ Ambiente verificado"
+  cat > "$TARGET_SOURCE/.env" << ENVEOF
+DB_HOST=prod_db
+DB_PORT=5432
+DB_NAME=${PROD_DB_NAME:-net_imobiliaria}
+DB_USER=${DB_USER:-postgres}
+DB_PASSWORD=${PROD_DB_PASSWORD:-}
+JWT_SECRET=${PROD_JWT_SECRET:-build_placeholder}
+NEXT_PUBLIC_APP_URL=${PROD_APP_URL:-https://www.imovtec.com.br}
+NEXT_TELEMETRY_DISABLED=1
+NODE_ENV=production
+ENVEOF
+
+  log "   ✅ .env de build gerado com variáveis mapeadas (DB_NAME, DB_PASSWORD, etc.)"
+else
+  log "   ⚠️  AVISO: $BASE_DIR/.env não encontrado! O build pode falhar."
+fi
 
 # -------------------------------------------------------------
 # 3. Build da imagem Docker (usando Dockerfile atualizado)
