@@ -9,8 +9,9 @@ build
 *.log
 logs
 
-# Env local
-.env
+# Env local (NÃO ignorar no Docker — necessário no builder stage do multi-stage build)
+# O .env NÃO vai para a imagem final (runner stage não o copia)
+# O .gitignore continua protegendo o .env do repositório Git
 .env.local
 .env.*.local
 

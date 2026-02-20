@@ -52,10 +52,12 @@ log "   ✅ Código atualizado: $(cd $TARGET_SOURCE && git log -1 --pretty='%h �
 # -------------------------------------------------------------
 log "[2/5] Verificando arquivos de ambiente..."
 
-# Copiar .env da infraestrutura para as fontes (se necessário)
-if [ -f "$BASE_DIR/.env" ] && [ ! -f "$TARGET_SOURCE/.env" ]; then
-  log "   → Copiando .env da infraestrutura para as fontes..."
+# Copiar .env da infraestrutura para as fontes (necessário para o build)
+if [ -f "$BASE_DIR/.env" ]; then
+  log "   → Copiando .env para o contexto de build..."
   cp "$BASE_DIR/.env" "$TARGET_SOURCE/.env"
+else
+  log "   ⚠️  AVISO: $BASE_DIR/.env não encontrado! O build pode falhar sem variáveis de ambiente."
 fi
 
 log "   ✅ Ambiente verificado"
