@@ -1,76 +1,118 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Script de Deploy Automatizado (chamado pelo GitHub Actions)
-# Uso: ./deploy-github.sh <branch>
+# =============================================================
+# Script de Deploy Automatizado — Net Imobiliária
+# Chamado pelo GitHub Actions via SSH
+# Uso: ./deploy-github.sh <branch> <ambiente>
+# =============================================================
 
 BRANCH=${1:-main}
+AMBIENTE=${2:-producao}
 BASE_DIR="$HOME/net-imobiliaria"
-INFRA_DIR="$BASE_DIR"  # Onde está o docker-compose.vps.yml
 SOURCES_DIR="$HOME/net-imobiliaria-sources"
+LOG_FILE="$BASE_DIR/deploy.log"
+TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
-# Garantir diretórios de código fonte
+log() {
+  echo "[$TIMESTAMP] $1" | tee -a "$LOG_FILE"
+}
+
+log "============================================"
+log "🚀 DEPLOY INICIADO"
+log "   Branch:   $BRANCH"
+log "   Ambiente: $AMBIENTE"
+log "============================================"
+
+# -------------------------------------------------------------
+# 1. Garantir diretório de fontes
+# -------------------------------------------------------------
 mkdir -p "$SOURCES_DIR"
-
 TARGET_SOURCE="$SOURCES_DIR/$BRANCH"
 
-echo "[*] Gerenciando source para: $BRANCH em $TARGET_SOURCE"
+log "[1/5] Atualizando código fonte da branch '$BRANCH'..."
 
-# 1. Atualizar o código fonte do branch específico
 if [ -d "$TARGET_SOURCE/.git" ]; then
-    echo "   -> Atualizando repositório existente..."
-    cd "$TARGET_SOURCE"
-    git fetch origin
-    git checkout "$BRANCH"
-    git pull origin "$BRANCH"
+  log "   → Repositório já existe, atualizando..."
+  cd "$TARGET_SOURCE"
+  git fetch origin
+  git checkout "$BRANCH"
+  # Força sincronização com o remoto (descarta mudanças locais não commitadas)
+  git reset --hard "origin/$BRANCH"
+  git clean -fd
 else
-    echo "   -> Clonando repositório do zero..."
-    git clone -b "$BRANCH" https://github.com/alexandreseverogh/NetImobiliaria.git "$TARGET_SOURCE"
+  log "   → Clonando repositório pela primeira vez..."
+  git clone -b "$BRANCH" https://github.com/alexandreseverogh/NetImobiliaria.git "$TARGET_SOURCE"
 fi
 
-# 2. Voltar para a infraestrutura para rodar o Docker
-cd "$INFRA_DIR"
+log "   ✅ Código atualizado: $(cd $TARGET_SOURCE && git log -1 --pretty='%h — %s')"
 
-# 3. Definir contextos para o docker-compose
-# Precisamos exportar essas variaveis para que o docker compose as veja (se o yml estiver configurado)
-# OU usamos um override.
-# Para simplificar e não exigir edição do yml original agora, usaremos docker build manuais e injeção de imagens.
+# -------------------------------------------------------------
+# 2. Copiar .env da infraestrutura para as fontes (se necessário)
+# -------------------------------------------------------------
+log "[2/5] Verificando arquivos de ambiente..."
 
-echo "[*] Construindo imagem para $BRANCH..."
-# Constrói a imagem explicitamente marcando-a
-docker build -t "net-imobiliaria:$BRANCH" -f Dockerfile.prod "$TARGET_SOURCE"
-
-echo "[*] Aplicando atualização no serviço..."
-
-if [ "$BRANCH" == "main" ]; then
-    # Produção
-    # Forçamos o serviço a usar a imagem que acabamos de criar, ignorando o 'build' do compose
-    # Isso requer que editemos o compose ou usemos uma tecnica de override.
-    # Vamos usar uma abordagem hibrida: definimos a variavel de imagem e forçamos recriação
-    
-    # Nota: O docker-compose.vps.yml original faz build: .
-    # Para usar nossa imagem construída, precisamos que ele aceite imagem externa ou build.
-    # A maneira mais limpa sem alterar o arquivo é reconstruir via compose apontando o contexto.
-    
-    export PROD_CONTEXT="$TARGET_SOURCE"
-    # Se o docker-compose.vps.yml não tiver variaveis, isso é ignorado e ele builda do . (que é o main repo "infra")
-    # Então vamos apenas garantir que a "Infra" (conteúdo do BASEO_DIR) esteja atualizada com o main também.
-    
-    # ATUALIZAR A INFRA TAMBÉM (Script, Composes, etc)
-    echo "   -> Atualizando infraestrutura (repo principal)..."
-    git pull origin main --ff-only
-    
-    # Build e Up especifico
-    # Se editarmos o docker-compose.vps.yml para aceitar variáveis, fica perfeito.
-    # Assumindo que o passo seguinte vai editar o docker-compose.vps.yml
-    
-    docker compose -f docker-compose.vps.yml up -d --build prod_app prod_feed
-    
-elif [ "$BRANCH" == "staging" ]; then
-    # Staging
-    export STAGING_CONTEXT="$TARGET_SOURCE"
-    
-    docker compose -f docker-compose.vps.yml up -d --build staging_app staging_feed
+if [ -f "$BASE_DIR/.env" ] && [ ! -f "$TARGET_SOURCE/.env" ]; then
+  log "   → Copiando .env da infraestrutura para as fontes..."
+  cp "$BASE_DIR/.env" "$TARGET_SOURCE/.env"
 fi
 
-echo "[✅] Deploy de $BRANCH concluído com sucesso!"
+# -------------------------------------------------------------
+# 3. Build da imagem Docker
+# -------------------------------------------------------------
+log "[3/5] Construindo imagem Docker..."
+
+cd "$BASE_DIR"
+
+if [ "$AMBIENTE" == "producao" ]; then
+  log "   → Build para PRODUÇÃO..."
+  docker build \
+    -t "net-imobiliaria-prod_app:latest" \
+    -f "$BASE_DIR/Dockerfile.prod" \
+    "$TARGET_SOURCE"
+
+  log "   ✅ Imagem construída: net-imobiliaria-prod_app:latest"
+fi
+
+# -------------------------------------------------------------
+# 4. Atualizar infraestrutura (compose, scripts, Caddyfile)
+# -------------------------------------------------------------
+log "[4/5] Atualizando infraestrutura..."
+
+cd "$BASE_DIR"
+git fetch origin
+git reset --hard "origin/main"
+git clean -fd
+
+log "   ✅ Infraestrutura atualizada"
+
+# -------------------------------------------------------------
+# 5. Reiniciar serviço
+# -------------------------------------------------------------
+log "[5/5] Reiniciando container..."
+
+if [ "$AMBIENTE" == "producao" ]; then
+  docker compose -f "$BASE_DIR/docker-compose.vps.yml" up -d --no-build prod_app
+  
+  # Aguardar health check
+  log "   → Aguardando health check do container..."
+  sleep 15
+  
+  STATUS=$(docker compose -f "$BASE_DIR/docker-compose.vps.yml" ps prod_app --format "{{.Status}}" 2>/dev/null || echo "unknown")
+  log "   → Status do container: $STATUS"
+  
+  if echo "$STATUS" | grep -q "healthy\|Up"; then
+    log "   ✅ Container prod_app está saudável!"
+  else
+    log "   ⚠️  Status inesperado: $STATUS"
+    docker compose -f "$BASE_DIR/docker-compose.vps.yml" logs --tail=30 prod_app
+    exit 1
+  fi
+fi
+
+log "============================================"
+log "✅ DEPLOY CONCLUÍDO COM SUCESSO!"
+log "   Branch:   $BRANCH"
+log "   Ambiente: $AMBIENTE"
+log "   Horário:  $TIMESTAMP"
+log "============================================"

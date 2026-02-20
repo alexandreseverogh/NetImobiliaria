@@ -1,34 +1,55 @@
-name: Deploy Automation
+name: 🚀 Deploy Manual
 
 on:
-  push:
-    branches:
-      - main
-      - staging
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch para fazer deploy'
+        required: true
+        default: 'main'
+        type: string
+      ambiente:
+        description: 'Ambiente de destino'
+        required: true
+        default: 'producao'
+        type: choice
+        options:
+          - producao
 
 jobs:
   deploy:
+    name: Deploy → ${{ github.event.inputs.ambiente }} (${{ github.event.inputs.branch }})
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Execute Deploy on VPS
+    steps:
+      - name: 📋 Informações do Deploy
+        run: |
+          echo "============================================"
+          echo "🌿 Branch:     ${{ github.event.inputs.branch }}"
+          echo "🎯 Ambiente:   ${{ github.event.inputs.ambiente }}"
+          echo "👤 Solicitado: ${{ github.actor }}"
+          echo "🕐 Horário:    $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "============================================"
+
+      - name: 🔐 Deploy via SSH na VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
+          port: ${{ secrets.VPS_PORT }}
+          command_timeout: 15m
           script: |
-            # Define branch logic
-            BRANCH="${{ github.ref_name }}"
-            echo "🚀 Iniciando deploy para branch: $BRANCH"
-            
-            # Navegar para o diretório de scripts e executar
-            # Assumes que o repositório principal já está clonado em ~/net-imobiliaria
-            # O script deploy-github.sh cuidará de clonar/atualizar as pastas específicas
-            
-            cd ~/net-imobiliaria || exit 1
+            set -e
+            BRANCH="${{ github.event.inputs.branch }}"
+            AMBIENTE="${{ github.event.inputs.ambiente }}"
+
+            echo "🚀 Iniciando deploy — Branch: $BRANCH | Ambiente: $AMBIENTE"
+
+            cd ~/net-imobiliaria
             chmod +x scripts/vps/deploy-github.sh
-            ./scripts/vps/deploy-github.sh "$BRANCH"
+            ./scripts/vps/deploy-github.sh "$BRANCH" "$AMBIENTE"
+
+      - name: ✅ Deploy Concluído
+        run: |
+          echo "Deploy de '${{ github.event.inputs.branch }}' para '${{ github.event.inputs.ambiente }}' concluído!"
