@@ -98,8 +98,8 @@ dist
 tmp/
 temp/
 
-# Logs
-logs
+# Logs (apenas pasta raiz /logs, para não ignorar src/**/logs/)
+/logs
 *.log
 
 # Runtime data
