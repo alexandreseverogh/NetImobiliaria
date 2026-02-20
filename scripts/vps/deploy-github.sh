@@ -48,22 +48,17 @@ fi
 log "   ✅ Código atualizado: $(cd $TARGET_SOURCE && git log -1 --pretty='%h — %s')"
 
 # -------------------------------------------------------------
-# 2. Atualizar infraestrutura PRIMEIRO (Dockerfile, compose, scripts)
+# 2. Verificar .env (infraestrutura já atualizada pelo workflow)
 # -------------------------------------------------------------
-log "[2/5] Atualizando infraestrutura (Dockerfile, compose, scripts)..."
-
-cd "$BASE_DIR"
-git fetch origin
-git reset --hard "origin/main"
-git clean -fd
-
-log "   ✅ Infraestrutura atualizada: $(git log -1 --pretty='%h — %s')"
+log "[2/5] Verificando arquivos de ambiente..."
 
 # Copiar .env da infraestrutura para as fontes (se necessário)
 if [ -f "$BASE_DIR/.env" ] && [ ! -f "$TARGET_SOURCE/.env" ]; then
   log "   → Copiando .env da infraestrutura para as fontes..."
   cp "$BASE_DIR/.env" "$TARGET_SOURCE/.env"
 fi
+
+log "   ✅ Ambiente verificado"
 
 # -------------------------------------------------------------
 # 3. Build da imagem Docker (usando Dockerfile atualizado)
