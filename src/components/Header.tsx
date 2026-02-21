@@ -273,9 +273,9 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
 
       {/* Modal Quem Somos - Portal */}
       {mounted && showAboutModal && createPortal(
-        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/50 backdrop-blur-sm" onClick={() => setShowAboutModal(false)}>
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative my-8" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm overflow-y-auto" onClick={() => setShowAboutModal(false)}>
+          <div className="flex min-h-full items-start sm:items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative my-auto" onClick={(e) => e.stopPropagation()}>
               {/* Close Button */}
               <button
                 onClick={() => setShowAboutModal(false)}
@@ -349,9 +349,9 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
 
       {/* Modal Contato - Portal */}
       {mounted && showContactModal && createPortal(
-        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/50 backdrop-blur-sm" onClick={() => setShowContactModal(false)}>
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 relative my-8" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm overflow-y-auto" onClick={() => setShowContactModal(false)}>
+          <div className="flex min-h-full items-start sm:items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 relative my-auto" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => setShowContactModal(false)}
                 className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
@@ -438,8 +438,8 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
 
       {/* Modal Agradecimento - Portal */}
       {mounted && showThankYouModal && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowThankYouModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto" onClick={() => setShowThankYouModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center my-auto" onClick={(e) => e.stopPropagation()}>
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

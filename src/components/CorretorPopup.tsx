@@ -328,8 +328,8 @@ export default function CorretorPopup({ isOpen, onClose, onCadastrarClick, onLog
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl p-6 my-8">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+      <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl p-6 my-auto">
         <CorretorManifestoDrawer
           isOpen={manifestoOpen}
           onClose={() => setManifestoOpen(false)}

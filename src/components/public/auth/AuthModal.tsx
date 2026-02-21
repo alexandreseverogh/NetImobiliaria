@@ -88,8 +88,8 @@ export default function AuthModal({
   const switchModeTarget: 'login' | 'register' = mode === 'login' ? 'register' : 'login'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl my-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
