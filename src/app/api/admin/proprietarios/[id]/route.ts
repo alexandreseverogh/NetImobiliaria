@@ -40,7 +40,7 @@ export async function GET(
         { status: 404 }
       )
     }
-    
+
     return NextResponse.json(proprietario)
   } catch (error) {
     console.error('Erro ao buscar proprietário:', error)
@@ -79,20 +79,21 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { nome, cpf, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, updated_by } = body
-    
+    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, updated_by } = body
+
     // Validação de campos obrigatórios
-    if (!nome || !cpf || !telefone || !email || !estado_fk || !cidade_fk || !endereco || !bairro || !numero) {
+    if (!nome || (!cpf && !cnpj) || !telefone || !email || !estado_fk || !cidade_fk || !endereco || !bairro || !numero) {
       return NextResponse.json(
-        { error: 'Nome, CPF, telefone, email, estado, cidade, endereço, bairro e número são obrigatórios' },
+        { error: 'Nome, CPF ou CNPJ, telefone, email, estado, cidade, endereço, bairro e número são obrigatórios' },
         { status: 400 }
       )
     }
-    
+
     // Buscar dados antigos para auditoria
     const proprietario = await updateProprietarioByUuid(params.id, {
       nome,
-      cpf,
+      cpf: cpf || undefined,
+      cnpj: cnpj || undefined,
       telefone,
       email,
       endereco,
@@ -103,13 +104,13 @@ export async function PUT(
       cidade_fk: cidade_fk || undefined,
       cep,
       updated_by
-    })
-    
+    }, true)
+
     // Log de auditoria (não crítico - falha não afeta operação)
     try {
       const { ipAddress, userAgent } = extractRequestData(request)
       const userId = extractUserIdFromToken(request)
-      
+
       await logAuditEvent({
         userId,
         action: 'UPDATE',
@@ -134,18 +135,18 @@ export async function PUT(
       // Log do erro mas não falha a operação principal
       console.error('❌ Erro na auditoria (não crítico):', auditError)
     }
-    
+
     return NextResponse.json(proprietario)
   } catch (error: any) {
     console.error('Erro ao atualizar proprietário:', error)
-    
-    if (error.message === 'CPF já cadastrado' || error.message === 'Email já cadastrado') {
+
+    if (error.message === 'CPF já cadastrado' || error.message === 'CNPJ já cadastrado' || error.message === 'Email já cadastrado') {
       return NextResponse.json(
         { error: error.message },
         { status: 409 }
       )
     }
-    
+
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
@@ -179,14 +180,14 @@ export async function DELETE(
         { status: 404 }
       )
     }
-    
+
     await deleteProprietarioByUuid(params.id)
-    
+
     // Log de auditoria (não crítico - falha não afeta operação)
     try {
       const { ipAddress, userAgent } = extractRequestData(request)
       const userId = extractUserIdFromToken(request)
-      
+
       await logAuditEvent({
         userId,
         action: 'DELETE',
@@ -206,18 +207,18 @@ export async function DELETE(
       // Log do erro mas não falha a operação principal
       console.error('❌ Erro na auditoria (não crítico):', auditError)
     }
-    
+
     return NextResponse.json({ message: 'Proprietário excluído com sucesso' })
   } catch (error: any) {
     console.error('Erro ao excluir proprietário:', error)
-    
+
     if (error.message === 'Proprietário não encontrado') {
       return NextResponse.json(
         { error: error.message },
         { status: 404 }
       )
     }
-    
+
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

@@ -11,7 +11,8 @@ interface Proprietario {
   id?: number
   uuid: string
   nome: string
-  cpf: string
+  cpf?: string
+  cnpj?: string
   telefone: string
   email: string
   endereco?: string
@@ -62,14 +63,14 @@ export default function VisualizarProprietarioPage() {
         }
 
         const response = await get(`/api/admin/proprietarios/${proprietarioUuid}`)
-        
+
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error('Proprietário não encontrado')
           }
           throw new Error('Erro ao carregar proprietário')
         }
-        
+
         const data = await response.json()
         setProprietario(data)
       } catch (err) {
@@ -87,7 +88,7 @@ export default function VisualizarProprietarioPage() {
 
   const handleDelete = async () => {
     if (!proprietario) return
-    
+
     const corretorLabel =
       proprietario.corretor_fk
         ? `\nCorretor: ${proprietario.corretor_nome || 'Corretor não encontrado'}`
@@ -207,23 +208,30 @@ export default function VisualizarProprietarioPage() {
                 <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
                   Informações Pessoais
                 </h3>
-                
+
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Nome Completo</label>
                     <p className="text-gray-900 font-medium">{proprietario.nome}</p>
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">CPF</label>
-                    <p className="text-gray-900 font-medium">{proprietario.cpf}</p>
-                  </div>
-                  
+
+                  {proprietario.cnpj ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">CNPJ</label>
+                      <p className="text-gray-900 font-medium">{proprietario.cnpj}</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">CPF</label>
+                      <p className="text-gray-900 font-medium">{proprietario.cpf}</p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Telefone</label>
                     <p className="text-gray-900 font-medium">{proprietario.telefone}</p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-500">E-mail</label>
                     <p className="text-gray-900 font-medium">{proprietario.email}</p>
@@ -236,38 +244,38 @@ export default function VisualizarProprietarioPage() {
                 <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
                   Endereço
                 </h3>
-                
+
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Endereço</label>
                     <p className="text-gray-900 font-medium">{proprietario.endereco || 'Não informado'}</p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Número</label>
                     <p className="text-gray-900 font-medium">{proprietario.numero || 'Não informado'}</p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Complemento</label>
                     <p className="text-gray-900 font-medium">{proprietario.complemento || 'Não informado'}</p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Bairro</label>
                     <p className="text-gray-900 font-medium">{proprietario.bairro || 'Não informado'}</p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Estado</label>
                     <p className="text-gray-900 font-medium">{proprietario.estado_fk || 'Não informado'}</p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Cidade</label>
                     <p className="text-gray-900 font-medium">{proprietario.cidade_fk || 'Não informado'}</p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-500">CEP</label>
                     <p className="text-gray-900 font-medium">{proprietario.cep || 'Não informado'}</p>
@@ -286,7 +294,7 @@ export default function VisualizarProprietarioPage() {
             {/* Informações do Sistema */}
             <div className="mt-8 pt-6 border-t border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Informações do Sistema</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-500">Origem do Cadastro</label>
@@ -302,26 +310,26 @@ export default function VisualizarProprietarioPage() {
                     )}
                   </p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-500">Data de Criação</label>
                   <p className="text-gray-900 font-medium">
                     {new Date(proprietario.created_at).toLocaleDateString('pt-BR')}
                   </p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-500">Criado por</label>
                   <p className="text-gray-900 font-medium">{proprietario.created_by || 'Sistema'}</p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-500">Última Atualização</label>
                   <p className="text-gray-900 font-medium">
                     {new Date(proprietario.updated_at).toLocaleDateString('pt-BR')}
                   </p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-500">Atualizado por</label>
                   <p className="text-gray-900 font-medium">{proprietario.updated_by || 'Sistema'}</p>

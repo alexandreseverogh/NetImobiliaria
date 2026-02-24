@@ -47,6 +47,10 @@ fi
 
 log "   ✅ Código atualizado: $(cd $TARGET_SOURCE && git log -1 --pretty='%h — %s')"
 
+# Sincronizar diretório de migrations para que o apply-migrations.sh as encontre
+mkdir -p "$BASE_DIR/database/migrations_docker"
+rsync -av --delete "$TARGET_SOURCE/database/migrations_docker/" "$BASE_DIR/database/migrations_docker/"
+
 # -------------------------------------------------------------
 # 2. Verificar .env (infraestrutura já atualizada pelo workflow)
 # -------------------------------------------------------------
@@ -110,6 +114,10 @@ if [ "$AMBIENTE" == "producao" ]; then
 
   # Iniciar app e feed worker juntos
   docker compose -f "$BASE_DIR/docker-compose.vps.yml" up -d --no-build prod_app prod_feed
+
+  # Aplicar migrations
+  log "   → Aplicando migrations de banco de dados..."
+  bash "$BASE_DIR/scripts/vps/apply-migrations.sh" producao || true
 
   # Aguardar health check
   log "   → Aguardando health check do container..."

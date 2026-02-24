@@ -50,7 +50,9 @@ jobs:
             curl -fsSL "$REPO_RAW/docker-compose.vps.yml" -o ~/net-imobiliaria/docker-compose.vps.yml
             mkdir -p ~/net-imobiliaria/scripts/vps
             curl -fsSL "$REPO_RAW/scripts/vps/deploy-github.sh" -o ~/net-imobiliaria/scripts/vps/deploy-github.sh
+            curl -fsSL "$REPO_RAW/scripts/vps/apply-migrations.sh" -o ~/net-imobiliaria/scripts/vps/apply-migrations.sh
             chmod +x ~/net-imobiliaria/scripts/vps/deploy-github.sh
+            chmod +x ~/net-imobiliaria/scripts/vps/apply-migrations.sh
             echo "   ✅ Infraestrutura atualizada!"
 
             echo "🚀 Iniciando deploy — Branch: $BRANCH | Ambiente: $AMBIENTE"

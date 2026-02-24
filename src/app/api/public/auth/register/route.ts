@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createCliente } from '@/lib/database/clientes'
 import { createProprietario } from '@/lib/database/proprietarios'
-import { validateCPF, validateEmail } from '@/lib/utils/formatters'
+import { validateCPF, validateEmail, validateCNPJ } from '@/lib/utils/formatters'
 import { logAuditEvent, extractRequestData } from '@/lib/audit/auditLogger'
 import pool from '@/lib/database/connection'
 
@@ -24,7 +24,8 @@ export const runtime = 'nodejs'
 interface RegisterRequest {
   userType: 'cliente' | 'proprietario'
   nome: string
-  cpf: string
+  cpf?: string
+  cnpj?: string
   email: string
   telefone: string
   password: string
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
   let email = ''
   let userType: 'cliente' | 'proprietario' = 'cliente'
   let cpf = ''
+  let cnpj = ''
   let createdUserUuid: string | null = null
 
   try {
@@ -120,7 +122,8 @@ export async function POST(request: NextRequest) {
     userType = body.userType
     const { nome, telefone, password, ...enderecoData } = body
     email = body.email
-    cpf = body.cpf
+    cpf = body.cpf || ''
+    cnpj = body.cnpj || ''
 
     console.log('📝 PUBLIC REGISTER - Tentativa de cadastro:', { email, userType })
 
@@ -135,16 +138,16 @@ export async function POST(request: NextRequest) {
         userType,
         ipAddress,
         userAgent,
-        extraDetails: { cpf }
+        extraDetails: { cpf, cnpj }
       })
     }
 
-    if (!userType || !nome || !cpf || !email || !telefone || !password) {
+    if (!userType || !nome || (!cpf && !cnpj) || !email || !telefone || !password) {
       await logFailure('Campos obrigatórios ausentes')
       return NextResponse.json(
         {
           success: false,
-          message: 'Campos obrigatórios: tipo de usuário, nome, CPF, email, telefone e senha'
+          message: 'Campos obrigatórios: tipo de usuário, nome, documento (CPF ou CNPJ), email, telefone e senha'
         },
         { status: 400 }
       )
@@ -158,10 +161,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!validateCPF(cpf)) {
+    if (cpf && !validateCPF(cpf, true)) {
       await logFailure('CPF inválido')
       return NextResponse.json(
         { success: false, message: 'CPF inválido' },
+        { status: 400 }
+      )
+    }
+
+    if (cnpj && !validateCNPJ(cnpj)) {
+      await logFailure('CNPJ inválido')
+      return NextResponse.json(
+        { success: false, message: 'CNPJ inválido' },
         { status: 400 }
       )
     }
@@ -200,12 +211,13 @@ export async function POST(request: NextRequest) {
     const estadoFk = rawEndereco.estado_fk ?? estado ?? null
     const cidadeFk = rawEndereco.cidade_fk ?? cidade ?? null
 
-    const userData = {
-       nome,
-       cpf,
-       email,
-       telefone,
-       password,
+    const userData: any = {
+      nome,
+      cpf: cpf || undefined,
+      cnpj: cnpj || undefined,
+      email,
+      telefone,
+      password,
       logradouro,
       bairro,
       cidade,
@@ -231,7 +243,7 @@ export async function POST(request: NextRequest) {
         console.log('✅ PUBLIC REGISTER - Cliente criado com sucesso:', newUser.uuid)
       } else {
         console.log('🏢 PUBLIC REGISTER - Criando proprietário...')
-        newUser = await createProprietario(userData)
+        newUser = await createProprietario(userData, true)
         console.log('✅ PUBLIC REGISTER - Proprietário criado com sucesso:', newUser.uuid)
       }
     } catch (error: any) {
@@ -242,6 +254,14 @@ export async function POST(request: NextRequest) {
         await logFailure('CPF já cadastrado')
         return NextResponse.json(
           { success: false, message: 'CPF já cadastrado' },
+          { status: 409 }
+        )
+      }
+
+      if (error.message?.includes('CNPJ já cadastrado')) {
+        await logFailure('CNPJ já cadastrado')
+        return NextResponse.json(
+          { success: false, message: 'CNPJ já cadastrado' },
           { status: 409 }
         )
       }
@@ -273,7 +293,7 @@ export async function POST(request: NextRequest) {
       userUuid: createdUserUuid,
       ipAddress,
       userAgent,
-      extraDetails: { cpf: newUser.cpf, origem: newUser.origem_cadastro }
+      extraDetails: { cpf: newUser.cpf, cnpj: (newUser as any).cnpj, origem: (newUser as any).origem_cadastro }
     })
 
     return NextResponse.json(
@@ -285,6 +305,7 @@ export async function POST(request: NextRequest) {
           nome: newUser.nome,
           email: newUser.email,
           cpf: newUser.cpf,
+          cnpj: (newUser as any).cnpj,
           userType
         }
       },

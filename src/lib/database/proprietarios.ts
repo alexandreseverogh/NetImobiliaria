@@ -13,7 +13,8 @@ import bcrypt from 'bcryptjs'
 export interface Proprietario {
   uuid: string
   nome: string
-  cpf: string
+  cpf?: string
+  cnpj?: string
   telefone: string
   endereco?: string
   numero?: string
@@ -35,7 +36,8 @@ export interface Proprietario {
 
 export interface CreateProprietarioData {
   nome: string
-  cpf: string
+  cpf?: string
+  cnpj?: string
   telefone: string
   endereco?: string
   numero?: string
@@ -54,6 +56,7 @@ export interface CreateProprietarioData {
 export interface UpdateProprietarioData {
   nome?: string
   cpf?: string
+  cnpj?: string
   telefone?: string
   endereco?: string
   numero?: string
@@ -71,6 +74,7 @@ export interface UpdateProprietarioData {
 export interface ProprietarioFilters {
   nome?: string
   cpf?: string
+  cnpj?: string
   estado?: string
   cidade?: string
   bairro?: string
@@ -81,10 +85,18 @@ export interface ProprietarioFilters {
 // FUNÇÕES DE VALIDAÇÃO
 // ========================================
 
-export function validateCPF(cpf: string): boolean {
+
+
+export function validateCPF(cpf: string, allowSpecialAdminCPF: boolean = false): boolean {
   const cleanCPF = cpf.replace(/\D/g, '')
 
   if (cleanCPF.length !== 11) return false
+
+  // Regra Especial: CPF com tudo 9 permitido apenas em contexto administrativo
+  if (allowSpecialAdminCPF && cleanCPF === '99999999999') {
+    return true
+  }
+
   if (/^(\d)\1{10}$/.test(cleanCPF)) return false
 
   let sum = 0
@@ -106,9 +118,48 @@ export function validateCPF(cpf: string): boolean {
   return parseInt(cleanCPF.charAt(10)) === secondDigit
 }
 
+export function validateCNPJ(cnpj: string): boolean {
+  const cleanCNPJ = cnpj.replace(/\D/g, '')
+
+  if (cleanCNPJ.length !== 14) return false
+  if (/^(\d)\1{13}$/.test(cleanCNPJ)) return false
+
+  let length = cleanCNPJ.length - 2
+  let numbers = cleanCNPJ.substring(0, length)
+  const digits = cleanCNPJ.substring(length)
+  let sum = 0
+  let pos = length - 7
+
+  for (let i = length; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(length - i)) * pos--
+    if (pos < 2) pos = 9
+  }
+
+  let result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+  if (result !== parseInt(digits.charAt(0))) return false
+
+  length = length + 1
+  numbers = cleanCNPJ.substring(0, length)
+  sum = 0
+  pos = length - 7
+
+  for (let i = length; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(length - i)) * pos--
+    if (pos < 2) pos = 9
+  }
+
+  result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+  return result === parseInt(digits.charAt(1))
+}
+
 export function formatCPF(value: string): string {
   const cleanValue = value.replace(/\D/g, '')
   return cleanValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+}
+
+export function formatCNPJ(value: string): string {
+  const cleanValue = value.replace(/\D/g, '')
+  return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
 }
 
 export function validateTelefone(telefone: string): boolean {
@@ -176,6 +227,13 @@ export async function findProprietariosPaginated(
       queryParams.push(`%${cleanCPF}%`)
     }
 
+    if (filters.cnpj) {
+      paramCount++
+      const cleanCNPJ = filters.cnpj.replace(/\D/g, '')
+      whereConditions.push(`REPLACE(REPLACE(REPLACE(p.cnpj, '.', ''), '/', ''), '-', '') ILIKE $${paramCount}`)
+      queryParams.push(`%${cleanCNPJ}%`)
+    }
+
     if (filters.estado) {
       paramCount++
       whereConditions.push(`p.estado_fk ILIKE $${paramCount}`)
@@ -215,6 +273,7 @@ export async function findProprietariosPaginated(
         p.uuid,
         p.nome,
         p.cpf,
+        p.cnpj,
         p.telefone,
         p.endereco,
         p.numero,
@@ -267,6 +326,7 @@ export async function findProprietarioByUuid(uuid: string): Promise<Proprietario
           p.uuid,
           p.nome,
           p.cpf,
+          p.cnpj,
           p.telefone,
           p.endereco,
           p.numero,
@@ -302,17 +362,39 @@ export async function findProprietarioByUuid(uuid: string): Promise<Proprietario
 }
 
 // Criar proprietário
-export async function createProprietario(data: CreateProprietarioData): Promise<Proprietario> {
+export async function createProprietario(data: CreateProprietarioData, isAdmin: boolean = false): Promise<Proprietario> {
   try {
-    // Validar CPF
-    if (!validateCPF(data.cpf)) {
-      throw new Error('CPF Inválido')
+    // Validar CPF ou CNPJ (devem ser excludentes)
+    if (data.cpf && data.cpf.trim() !== '') {
+      if (!validateCPF(data.cpf, isAdmin)) {
+        throw new Error('CPF Inválido')
+      }
+      // Se preencheu CPF, garantir que CNPJ seja nulo
+      data.cnpj = undefined
+    } else if (data.cnpj && data.cnpj.trim() !== '') {
+      if (!validateCNPJ(data.cnpj)) {
+        throw new Error('CNPJ Inválido')
+      }
+      // Se preencheu CNPJ, garantir que CPF seja nulo
+      data.cpf = undefined
+    } else {
+      throw new Error('CPF ou CNPJ deve ser informado')
     }
 
     // Verificar se CPF já existe
-    const existingCPF = await pool.query('SELECT 1 FROM proprietarios WHERE cpf = $1', [data.cpf])
-    if (existingCPF.rows.length > 0) {
-      throw new Error('CPF já cadastrado')
+    if (data.cpf) {
+      const existingCPF = await pool.query('SELECT 1 FROM proprietarios WHERE cpf = $1', [data.cpf])
+      if (existingCPF.rows.length > 0) {
+        throw new Error('CPF já cadastrado')
+      }
+    }
+
+    // Verificar se CNPJ já existe
+    if (data.cnpj) {
+      const existingCNPJ = await pool.query('SELECT 1 FROM proprietarios WHERE cnpj = $1', [data.cnpj])
+      if (existingCNPJ.rows.length > 0) {
+        throw new Error('CNPJ já cadastrado')
+      }
     }
 
     // Verificar se email já existe
@@ -328,14 +410,15 @@ export async function createProprietario(data: CreateProprietarioData): Promise<
 
     const result = await pool.query(`
       INSERT INTO proprietarios (
-        nome, cpf, telefone, endereco, numero, bairro, complemento,
+        nome, cpf, cnpj, telefone, endereco, numero, bairro, complemento,
         password, email, estado_fk, cidade_fk, cep, 
         origem_cadastro, created_by, corretor_fk
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
     `, [
       data.nome,
-      data.cpf,
+      data.cpf || null,
+      data.cnpj || null,
       data.telefone,
       data.endereco,
       data.numero,
@@ -359,11 +442,24 @@ export async function createProprietario(data: CreateProprietarioData): Promise<
 }
 
 // Atualizar proprietário por UUID
-export async function updateProprietarioByUuid(uuid: string, data: UpdateProprietarioData): Promise<Proprietario> {
+export async function updateProprietarioByUuid(uuid: string, data: UpdateProprietarioData, isAdmin: boolean = false): Promise<Proprietario> {
   try {
-    // Validar CPF se fornecido
-    if (data.cpf && !validateCPF(data.cpf)) {
-      throw new Error('CPF Inválido')
+    // Validar CPF se fornecido e não vazio
+    if (data.cpf && data.cpf.trim() !== '') {
+      if (!validateCPF(data.cpf, isAdmin)) {
+        throw new Error('CPF Inválido')
+      }
+      // Se estamos definindo um CPF, o CNPJ deve ser zerado
+      data.cnpj = null as any // Hack para permitir null no tipo se necessário, ou garantir que o campo será incluído como null no update
+    }
+
+    // Validar CNPJ se fornecido e não vazio
+    if (data.cnpj && data.cnpj.trim() !== '') {
+      if (!validateCNPJ(data.cnpj)) {
+        throw new Error('CNPJ Inválido')
+      }
+      // Se estamos definindo um CNPJ, o CPF deve ser zerado
+      data.cpf = null as any
     }
 
     // Verificar se CPF já existe (excluindo o próprio registro)
@@ -372,6 +468,15 @@ export async function updateProprietarioByUuid(uuid: string, data: UpdateProprie
       const existingCPF = await pool.query(cpfQuery, [data.cpf, uuid])
       if (existingCPF.rows.length > 0) {
         throw new Error('CPF já cadastrado')
+      }
+    }
+
+    // Verificar se CNPJ já existe (excluindo o próprio registro)
+    if (data.cnpj) {
+      const cnpjQuery = 'SELECT 1 FROM proprietarios WHERE cnpj = $1 AND uuid != $2::uuid'
+      const existingCNPJ = await pool.query(cnpjQuery, [data.cnpj, uuid])
+      if (existingCNPJ.rows.length > 0) {
+        throw new Error('CNPJ já cadastrado')
       }
     }
 
@@ -396,7 +501,12 @@ export async function updateProprietarioByUuid(uuid: string, data: UpdateProprie
 
     if (data.cpf !== undefined) {
       fields.push(`cpf = $${++paramCount}`)
-      values.push(data.cpf)
+      values.push(data.cpf || null)
+    }
+
+    if (data.cnpj !== undefined) {
+      fields.push(`cnpj = $${++paramCount}`)
+      values.push(data.cnpj || null)
     }
 
     if (data.telefone !== undefined) {
@@ -533,6 +643,29 @@ export async function checkEmailExists(email: string, excludeUuid?: string): Pro
     return result.rows.length > 0
   } catch (error) {
     console.error('❌ Erro ao verificar Email:', error)
+    throw error
+  }
+}
+
+// Verificar se CNPJ já existe
+export async function checkCNPJExists(cnpj: string, excludeUuid?: string): Promise<boolean> {
+  try {
+    const cnpjRaw = String(cnpj || '')
+    const cnpjDigits = cnpjRaw.replace(/\D/g, '')
+    const params: any[] = [cnpjRaw, cnpjDigits]
+
+    let query =
+      "SELECT 1 FROM proprietarios WHERE cnpj = $1 OR REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '/', ''), '-', '') = $2"
+
+    if (excludeUuid) {
+      query += ' AND uuid != $3::uuid'
+      params.push(excludeUuid)
+    }
+
+    const result = await pool.query(query, params)
+    return result.rows.length > 0
+  } catch (error) {
+    console.error('❌ Erro ao verificar CNPJ:', error)
     throw error
   }
 }

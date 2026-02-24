@@ -14,21 +14,26 @@ cd "$(dirname "$0")/../.."
 COMPOSE_FILE="docker-compose.vps.yml"
 ENV_FILE=".env.vps"
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "[ERRO] Arquivo $ENV_FILE não encontrado. Crie a partir de env.vps.example" >&2
+# Priorizar .env.vps, mas aceitar .env (usado pelo workflow do GitHub)
+if [[ -f ".env.vps" ]]; then
+  ENV_FILE=".env.vps"
+elif [[ -f ".env" ]]; then
+  ENV_FILE=".env"
+else
+  echo "[ERRO] Arquivo de ambiente (.env.vps ou .env) não encontrado." >&2
   exit 1
 fi
 
-if [[ "$ENV_NAME" == "prod" ]]; then
+if [[ "$ENV_NAME" == "prod" || "$ENV_NAME" == "producao" ]]; then
   DB_SERVICE="prod_db"
   DB_NAME="$(grep -E '^PROD_DB_NAME=' "$ENV_FILE" | cut -d= -f2 || true)"
-  DB_NAME="${DB_NAME:-net_imobiliaria_prod}"
-elif [[ "$ENV_NAME" == "staging" ]]; then
+  DB_NAME="${DB_NAME:-net_imobiliaria}"
+elif [[ "$ENV_NAME" == "staging" || "$ENV_NAME" == "homologacao" ]]; then
   DB_SERVICE="staging_db"
   DB_NAME="$(grep -E '^STAGING_DB_NAME=' "$ENV_FILE" | cut -d= -f2 || true)"
   DB_NAME="${DB_NAME:-net_imobiliaria_staging}"
 else
-  echo "[ERRO] Ambiente inválido: $ENV_NAME (use prod|staging)" >&2
+  echo "[ERRO] Ambiente inválido: $ENV_NAME (use prod/producao ou staging/homologacao)" >&2
   exit 1
 fi
 

@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
 
     const nome = searchParams.get('nome') || undefined
     const cpf = searchParams.get('cpf') || undefined
+    const cnpj = searchParams.get('cnpj') || undefined
     const estado = searchParams.get('estado') || undefined
     const cidade = searchParams.get('cidade') || undefined
     const bairro = searchParams.get('bairro') || undefined
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
     const result = await findProprietariosPaginated(page, limit, {
       nome,
       cpf,
+      cnpj,
       estado,
       cidade,
       bairro,
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { nome, cpf, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by } = body
+    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by } = body
 
     // Se quem está criando for um Corretor (login via modal público), gravar corretor_fk automaticamente.
     // (Não confiamos em payload do cliente para esse campo.)
@@ -139,16 +141,17 @@ export async function POST(request: NextRequest) {
     //   )
     // }
 
-    if (!nome || !cpf || !telefone || !email || !estado_fk || !cidade_fk || !endereco || !bairro || !numero) {
+    if (!nome || (!cpf && !cnpj) || !telefone || !email || !estado_fk || !cidade_fk || !endereco || !bairro || !numero) {
       return NextResponse.json(
-        { error: 'Nome, CPF, telefone, email, estado, cidade, endereço, bairro e número são obrigatórios' },
+        { error: 'Nome, CPF ou CNPJ, telefone, email, estado, cidade, endereço, bairro e número são obrigatórios' },
         { status: 400 }
       )
     }
 
     const proprietario = await createProprietario({
       nome,
-      cpf,
+      cpf: cpf || undefined,
+      cnpj: cnpj || undefined,
       telefone,
       email,
       endereco,
@@ -162,7 +165,7 @@ export async function POST(request: NextRequest) {
       corretor_fk,
       // Quando o proprietário é cadastrado via acesso do corretor, a senha padrão deve ser "Proprietario"
       ...(corretor_fk ? { password: 'Proprietario' } : {})
-    })
+    }, true) // Passando isAdmin = true para permitir CPF fake
 
     // Log de auditoria (não crítico - falha não afeta operação)
     try {
@@ -177,6 +180,7 @@ export async function POST(request: NextRequest) {
         details: {
           nome: proprietario.nome,
           cpf: proprietario.cpf,
+          cnpj: proprietario.cnpj,
           email: proprietario.email,
           telefone: proprietario.telefone,
           corretor_fk: (proprietario as any).corretor_fk || null
@@ -193,7 +197,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Erro ao criar proprietário:', error)
 
-    if (error.message === 'CPF já cadastrado' || error.message === 'Email já cadastrado') {
+    if (error.message === 'CPF já cadastrado' || error.message === 'CNPJ já cadastrado' || error.message === 'Email já cadastrado') {
       return NextResponse.json(
         { error: error.message },
         { status: 409 }

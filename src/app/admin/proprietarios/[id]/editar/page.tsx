@@ -11,7 +11,8 @@ import EstadoSelect from '@/components/shared/EstadoSelect'
 interface Proprietario {
   uuid: string
   nome: string
-  cpf: string
+  cpf?: string
+  cnpj?: string
   telefone: string
   endereco?: string
   numero?: string
@@ -37,15 +38,16 @@ export default function EditarProprietarioPage() {
   const proprietarioUuid = Array.isArray(params.id) ? params.id[0] : params.id
   const { user } = useAuth()
   const { hasPermission } = usePermissions()
-  
+
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [proprietario, setProprietario] = useState<Proprietario | null>(null)
-  
+
   const [formData, setFormData] = useState({
     nome: '',
     cpf: '',
+    cnpj: '',
     telefone: '',
     email: '',
     estado: '',
@@ -57,7 +59,7 @@ export default function EditarProprietarioPage() {
     complemento: '',
     origem_cadastro: ''
   })
-  
+
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [cpfValidating, setCpfValidating] = useState(false)
   const [cpfExists, setCpfExists] = useState(false)
@@ -66,10 +68,13 @@ export default function EditarProprietarioPage() {
   const [emailExists, setEmailExists] = useState(false)
   const [emailPendingValidation, setEmailPendingValidation] = useState(false)
   const [buscandoCep, setBuscandoCep] = useState(false)
+  const [cnpjValidating, setCnpjValidating] = useState(false)
+  const [cnpjExists, setCnpjExists] = useState(false)
+  const [cnpjPendingValidation, setCnpjPendingValidation] = useState(false)
   const [cepInicial, setCepInicial] = useState<string>('')
   const [estadosCidades, setEstadosCidades] = useState({
-    estados: [] as Array<{id: string, sigla: string, nome: string}>,
-    municipios: [] as Array<{id: string, nome: string}>
+    estados: [] as Array<{ id: string, sigla: string, nome: string }>,
+    municipios: [] as Array<{ id: string, nome: string }>
   })
 
   // Verificar permissões
@@ -89,22 +94,23 @@ export default function EditarProprietarioPage() {
   useEffect(() => {
     const loadProprietario = async () => {
       if (!proprietarioUuid) return
-      
+
       try {
         setLoading(true)
         const response = await get(`/api/admin/proprietarios/${proprietarioUuid}`)
-        
+
         if (!response.ok) {
           throw new Error('Proprietário não encontrado')
         }
-        
+
         const proprietarioData = await response.json()
         setProprietario(proprietarioData)
-        
+
         // Preencher formulário com dados do proprietário
         setFormData({
           nome: proprietarioData.nome || '',
           cpf: proprietarioData.cpf || '',
+          cnpj: proprietarioData.cnpj || '',
           telefone: proprietarioData.telefone || '',
           email: proprietarioData.email || '',
           estado: '', // Será preenchido baseado no estado_fk
@@ -116,10 +122,10 @@ export default function EditarProprietarioPage() {
           complemento: proprietarioData.complemento || '',
           origem_cadastro: proprietarioData.origem_cadastro || 'Plataforma'
         })
-        
+
         // Guardar CEP inicial para evitar busca automática no carregamento
         setCepInicial(proprietarioData.cep || '')
-        
+
       } catch (err) {
         console.error('Erro ao carregar proprietário:', err)
         setError('Erro ao carregar dados do proprietário')
@@ -136,8 +142,8 @@ export default function EditarProprietarioPage() {
     const loadEstados = async () => {
       try {
         const municipiosData = await import('@/lib/admin/municipios.json')
-        const estadosComId = municipiosData.estados?.map((estado, index) => ({
-          id: index.toString(),
+        const estadosComId = municipiosData.estados?.map((estado) => ({
+          id: estado.sigla, // Usar sigla como ID para consistência e compatibilidade com EstadoSelect
           sigla: estado.sigla,
           nome: estado.nome
         })) || []
@@ -155,10 +161,10 @@ export default function EditarProprietarioPage() {
       if (formData.estado) {
         try {
           const municipiosData = await import('@/lib/admin/municipios.json')
-          const estadoIndex = parseInt(formData.estado)
-          const estadoSelecionado = municipiosData.estados?.[estadoIndex]
+          // Buscar estado pela SIGLA (que agora é o ID)
+          const estadoSelecionado = municipiosData.estados?.find(e => e.sigla === formData.estado)
           const municipiosDoEstado = estadoSelecionado?.municipios?.map((municipio: string, index: number) => ({
-            id: index.toString(),
+            id: municipio, // Usar o próprio nome como ID
             nome: municipio
           })) || []
           setEstadosCidades(prev => ({ ...prev, municipios: municipiosDoEstado }))
@@ -278,18 +284,18 @@ export default function EditarProprietarioPage() {
   useEffect(() => {
     if (proprietario && estadosCidades.estados.length > 0 && !formData.estado) {
       console.log('🔍 Buscando estado para:', proprietario.estado_fk)
-      
+
       // Tentar encontrar por SIGLA primeiro (PE, SP, RJ, etc)
       let estadoEncontrado = estadosCidades.estados.find(e => e.sigla === proprietario.estado_fk)
-      
+
       // Se não encontrar por sigla, tentar por NOME (Pernambuco, São Paulo, etc)
       if (!estadoEncontrado) {
         console.log('🔄 Não encontrado por sigla, tentando por nome...')
         estadoEncontrado = estadosCidades.estados.find(e => e.nome === proprietario.estado_fk)
       }
-      
+
       console.log('✅ Estado encontrado:', estadoEncontrado)
-      
+
       if (estadoEncontrado) {
         setFormData(prev => ({ ...prev, estado: estadoEncontrado.id }))
       } else {
@@ -302,12 +308,12 @@ export default function EditarProprietarioPage() {
     if (proprietario && proprietario.cidade_fk && formData.estado && estadosCidades.municipios.length > 0 && !formData.cidade) {
       console.log('🔍 Buscando cidade para:', proprietario.cidade_fk)
       console.log('🔍 Municípios disponíveis:', estadosCidades.municipios.length)
-      
+
       // Encontrar cidade pelo nome
       const cidadeEncontrada = estadosCidades.municipios.find(m => m.nome === proprietario.cidade_fk)
-      
+
       console.log('✅ Cidade encontrada:', cidadeEncontrada)
-      
+
       if (cidadeEncontrada) {
         setFormData(prev => ({ ...prev, cidade: cidadeEncontrada.id }))
       } else {
@@ -320,27 +326,66 @@ export default function EditarProprietarioPage() {
   // Validação de CPF
   const validateCPF = (cpf: string): boolean => {
     const cleanCPF = cpf.replace(/\D/g, '')
-    
+
     if (cleanCPF.length !== 11) return false
+
+    // Regra Especial para Admin
+    if (cleanCPF === '99999999999') return true
+
     if (/^(\d)\1{10}$/.test(cleanCPF)) return false
-    
+
     let sum = 0
     for (let i = 0; i < 9; i++) {
       sum += parseInt(cleanCPF.charAt(i)) * (10 - i)
     }
     let remainder = sum % 11
     let firstDigit = remainder < 2 ? 0 : 11 - remainder
-    
+
     if (parseInt(cleanCPF.charAt(9)) !== firstDigit) return false
-    
+
     sum = 0
     for (let i = 0; i < 10; i++) {
       sum += parseInt(cleanCPF.charAt(i)) * (11 - i)
     }
     remainder = sum % 11
     let secondDigit = remainder < 2 ? 0 : 11 - remainder
-    
+
     return parseInt(cleanCPF.charAt(10)) === secondDigit
+  }
+
+  // Validação de CNPJ
+  const validateCNPJ = (cnpj: string): boolean => {
+    const cleanCNPJ = cnpj.replace(/\D/g, '')
+
+    if (cleanCNPJ.length !== 14) return false
+    if (/^(\d)\1{13}$/.test(cleanCNPJ)) return false
+
+    let length = cleanCNPJ.length - 2
+    let numbers = cleanCNPJ.substring(0, length)
+    const digits = cleanCNPJ.substring(length)
+    let sum = 0
+    let pos = length - 7
+
+    for (let i = length; i >= 1; i--) {
+      sum += parseInt(numbers.charAt(length - i)) * pos--
+      if (pos < 2) pos = 9
+    }
+
+    let result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+    if (result !== parseInt(digits.charAt(0))) return false
+
+    length = length + 1
+    numbers = cleanCNPJ.substring(0, length)
+    sum = 0
+    pos = length - 7
+
+    for (let i = length; i >= 1; i--) {
+      sum += parseInt(numbers.charAt(length - i)) * pos--
+      if (pos < 2) pos = 9
+    }
+
+    result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+    return result === parseInt(digits.charAt(1))
   }
 
   // Validação de telefone
@@ -359,6 +404,15 @@ export default function EditarProprietarioPage() {
   const formatCPF = (value: string): string => {
     const cleanValue = value.replace(/\D/g, '')
     return cleanValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  }
+
+  // Formatação de CNPJ
+  const formatCNPJ = (value: string): string => {
+    const cleanValue = value.replace(/\D/g, '')
+    if (cleanValue.length <= 14) {
+      return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+    }
+    return cleanValue.substring(0, 14).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
   }
 
   // Formatação de telefone
@@ -383,9 +437,9 @@ export default function EditarProprietarioPage() {
       setCpfPendingValidation(false)
       return
     }
-    
+
     setCpfPendingValidation(true)
-    
+
     try {
       setCpfValidating(true)
       // Enviar CPF formatado (com pontos e traço) pois o banco armazena assim
@@ -400,6 +454,28 @@ export default function EditarProprietarioPage() {
     }
   }
 
+  // Verificar CNPJ em tempo real
+  const checkCNPJExists = async (cnpj: string) => {
+    if (!cnpj || !validateCNPJ(cnpj)) {
+      setCnpjPendingValidation(false)
+      return
+    }
+
+    setCnpjPendingValidation(true)
+
+    try {
+      setCnpjValidating(true)
+      const response = await post('/api/admin/proprietarios/verificar-cnpj', { cnpj, excludeUuid: proprietarioUuid })
+      const data = await response.json()
+      setCnpjExists(data.exists)
+    } catch (error) {
+      console.error('Erro ao verificar CNPJ:', error)
+    } finally {
+      setCnpjValidating(false)
+      setCnpjPendingValidation(false)
+    }
+  }
+
   // Verificar Email com debounce usando useEffect (abaixo)
 
   // Prevenir avanço com Tab/Enter quando há erros ou duplicidade
@@ -409,7 +485,7 @@ export default function EditarProprietarioPage() {
       e.preventDefault()
       return
     }
-    
+
     // Bloquear campos obrigatórios vazios
     if (e.key === 'Tab' || e.key === 'Enter') {
       switch (field) {
@@ -421,8 +497,16 @@ export default function EditarProprietarioPage() {
           break
         case 'cpf':
           const cpfLimpo = formData.cpf.replace(/\D/g, '')
-          if (!formData.cpf || cpfValidating || cpfExists || cpfPendingValidation || 
-              cpfLimpo.length !== 11 || !validateCPF(formData.cpf)) {
+          if (formData.cpf && (cpfValidating || cpfExists || cpfPendingValidation ||
+            cpfLimpo.length !== 11 || !validateCPF(formData.cpf))) {
+            e.preventDefault()
+            return
+          }
+          break
+        case 'cnpj':
+          const cnpjLimpo = formData.cnpj.replace(/\D/g, '')
+          if (formData.cnpj && (cnpjValidating || cnpjExists || cnpjPendingValidation ||
+            cnpjLimpo.length !== 14 || !validateCNPJ(formData.cnpj))) {
             e.preventDefault()
             return
           }
@@ -434,8 +518,8 @@ export default function EditarProprietarioPage() {
           }
           break
         case 'email':
-          if (!formData.email || emailValidating || emailExists || emailPendingValidation || 
-              !validateEmail(formData.email)) {
+          if (!formData.email || emailValidating || emailExists || emailPendingValidation ||
+            !validateEmail(formData.email)) {
             e.preventDefault()
             return
           }
@@ -489,6 +573,9 @@ export default function EditarProprietarioPage() {
       case 'cpf':
         formattedValue = formatCPF(value)
         break
+      case 'cnpj':
+        formattedValue = formatCNPJ(value)
+        break
       case 'telefone':
         formattedValue = formatTelefone(value)
         break
@@ -505,7 +592,7 @@ export default function EditarProprietarioPage() {
 
     // Validação em tempo real
     const newErrors = { ...errors }
-    
+
     switch (field) {
       case 'nome':
         if (value.length < 2) {
@@ -520,9 +607,32 @@ export default function EditarProprietarioPage() {
         } else {
           delete newErrors.cpf
         }
-        // Verificar se CPF já existe (enviar valor FORMATADO)
-        if (formattedValue && validateCPF(formattedValue)) {
-          checkCPFExists(formattedValue)
+        // Se preencheu CPF, limpa CNPJ e seus erros/estados
+        if (formattedValue) {
+          setFormData(prev => ({ ...prev, cnpj: '' }))
+          setCnpjExists(false)
+          delete newErrors.cnpj
+          // Verificar se CPF já existe (enviar valor FORMATADO)
+          if (validateCPF(formattedValue)) {
+            checkCPFExists(formattedValue)
+          }
+        }
+        break
+      case 'cnpj':
+        if (formattedValue && !validateCNPJ(formattedValue)) {
+          newErrors.cnpj = 'CNPJ inválido'
+        } else {
+          delete newErrors.cnpj
+        }
+        // Se preencheu CNPJ, limpa CPF e seus erros/estados
+        if (formattedValue) {
+          setFormData(prev => ({ ...prev, cpf: '' }))
+          setCpfExists(false)
+          delete newErrors.cpf
+          // Verificar se CNPJ já existe
+          if (validateCNPJ(formattedValue)) {
+            checkCNPJExists(formattedValue)
+          }
         }
         break
       case 'telefone':
@@ -538,7 +648,8 @@ export default function EditarProprietarioPage() {
         } else {
           delete newErrors.email
         }
-        // A verificação de duplicidade é feita pelo useEffect acima
+        break
+      default:
         break
     }
 
@@ -547,22 +658,31 @@ export default function EditarProprietarioPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validações finais
     const finalErrors: ValidationErrors = {}
-    
+
     if (!formData.nome || formData.nome.length < 2) {
       finalErrors.nome = 'Nome é obrigatório'
     }
-    
-    if (!formData.cpf || !validateCPF(formData.cpf)) {
-      finalErrors.cpf = 'CPF é obrigatório e deve ser válido'
+
+    if ((!formData.cpf || !validateCPF(formData.cpf)) &&
+      (!formData.cnpj || !validateCNPJ(formData.cnpj))) {
+      finalErrors.cpf = 'CPF ou CNPJ é obrigatório e deve ser válido'
     }
-    
+
+    if (formData.cpf && cpfExists) {
+      finalErrors.cpf = 'CPF já cadastrado'
+    }
+
+    if (formData.cnpj && cnpjExists) {
+      finalErrors.cnpj = 'CNPJ já cadastrado'
+    }
+
     if (!formData.telefone || !validateTelefone(formData.telefone)) {
       finalErrors.telefone = 'Telefone é obrigatório'
     }
-    
+
     if (!formData.email || !validateEmail(formData.email)) {
       finalErrors.email = 'Email é obrigatório e deve ser válido'
     }
@@ -591,8 +711,12 @@ export default function EditarProprietarioPage() {
       finalErrors.cidade = 'Cidade é obrigatória'
     }
 
-    if (cpfExists) {
+    if (formData.cpf && cpfExists) {
       finalErrors.cpf = 'CPF já cadastrado'
+    }
+
+    if (formData.cnpj && cnpjExists) {
+      finalErrors.cnpj = 'CNPJ já cadastrado'
     }
 
     if (emailExists) {
@@ -606,7 +730,7 @@ export default function EditarProprietarioPage() {
 
     try {
       setSaving(true)
-      
+
       if (!proprietarioUuid) {
         alert('Identificador do proprietário inválido.')
         return
@@ -619,7 +743,8 @@ export default function EditarProprietarioPage() {
         },
         body: JSON.stringify({
           nome: formData.nome,
-          cpf: formData.cpf,
+          cpf: formData.cpf || null,
+          cnpj: formData.cnpj || null,
           telefone: formData.telefone,
           email: formData.email,
           endereco: formData.endereco,
@@ -693,9 +818,8 @@ export default function EditarProprietarioPage() {
             id="nome"
             value={formData.nome}
             onChange={(e) => handleInputChange('nome', e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.nome ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.nome ? 'border-red-500' : 'border-gray-300'
+              }`}
             placeholder="Nome completo"
           />
           {errors.nome && <p className="text-red-500 text-sm mt-1">{errors.nome}</p>}
@@ -719,24 +843,24 @@ export default function EditarProprietarioPage() {
           </p>
         </div>
 
+        {/* Documentos */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* CPF */}
           <div>
             <label htmlFor="cpf" className="block text-sm font-medium text-gray-700 mb-2">
-              CPF *
+              CPF
             </label>
             <input
               type="text"
               id="cpf"
               value={formData.cpf}
               onChange={(e) => handleInputChange('cpf', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.cpf || cpfExists ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${(errors.cpf || cpfExists) && !formData.cnpj ? 'border-red-500' : 'border-gray-300'
+                } ${formData.cnpj ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
               placeholder="000.000.000-00"
               maxLength={14}
+              disabled={!!formData.cnpj}
             />
-            {errors.cpf && <p className="text-red-500 text-sm mt-1">{errors.cpf}</p>}
+            {errors.cpf && !formData.cnpj && <p className="text-red-500 text-sm mt-1">{errors.cpf}</p>}
             {cpfValidating && <p className="text-blue-500 text-sm mt-1">Verificando CPF...</p>}
             {cpfExists && <p className="text-red-500 text-sm mt-1">CPF já cadastrado</p>}
             {formData.cpf && !cpfValidating && !cpfExists && validateCPF(formData.cpf) && (
@@ -744,7 +868,36 @@ export default function EditarProprietarioPage() {
             )}
           </div>
 
-          {/* Telefone */}
+          <div>
+            <label htmlFor="cnpj" className="block text-sm font-medium text-gray-700 mb-2">
+              CNPJ
+            </label>
+            <input
+              type="text"
+              id="cnpj"
+              value={formData.cnpj}
+              onChange={(e) => handleInputChange('cnpj', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${(errors.cnpj || cnpjExists) && !formData.cpf ? 'border-red-500' : 'border-gray-300'
+                } ${formData.cpf ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
+              placeholder="00.000.000/0000-00"
+              maxLength={18}
+              disabled={!!formData.cpf}
+            />
+            {errors.cnpj && !formData.cpf && <p className="text-red-500 text-sm mt-1">{errors.cnpj}</p>}
+            {cnpjValidating && <p className="text-blue-500 text-sm mt-1">Verificando CNPJ...</p>}
+            {cnpjExists && <p className="text-red-500 text-sm mt-1">CNPJ já cadastrado</p>}
+            {formData.cnpj && !cnpjValidating && !cnpjExists && validateCNPJ(formData.cnpj) && (
+              <p className="text-green-500 text-sm mt-1">✓ CNPJ disponível</p>
+            )}
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-500 italic -mt-4 mb-4">
+          * Preencha CPF ou CNPJ. Ao preencher um, o outro será bloqueado.
+        </p>
+
+        {/* Telefone */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label htmlFor="telefone" className="block text-sm font-medium text-gray-700 mb-2">
               Telefone *
@@ -754,9 +907,8 @@ export default function EditarProprietarioPage() {
               id="telefone"
               value={formData.telefone}
               onChange={(e) => handleInputChange('telefone', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.telefone ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.telefone ? 'border-red-500' : 'border-gray-300'
+                }`}
               placeholder="(00) 00000-0000"
               maxLength={15}
             />
@@ -767,16 +919,16 @@ export default function EditarProprietarioPage() {
         {/* Estado e Cidade */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label htmlFor="estado" className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Estado *
             </label>
             <EstadoSelect
               value={formData.estado}
               onChange={(estadoId) => handleInputChange('estado', estadoId)}
               placeholder="Selecione o estado"
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.estado ? 'border-red-500' : 'border-gray-300'
-              }`}
+              mode="all"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.estado ? 'border-red-500' : 'border-gray-300'
+                }`}
               format="sigla-nome"
               showAllOption={true}
               allOptionLabel="Selecione o estado"
@@ -793,9 +945,8 @@ export default function EditarProprietarioPage() {
               value={formData.cidade}
               onChange={(e) => handleInputChange('cidade', e.target.value)}
               onKeyDown={(e) => handleKeyDown(e, 'cidade')}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.cidade ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cidade ? 'border-red-500' : 'border-gray-300'
+                }`}
               disabled={!formData.estado}
             >
               <option value="">Selecione a cidade</option>
@@ -821,9 +972,8 @@ export default function EditarProprietarioPage() {
               value={formData.cep}
               onChange={(e) => handleInputChange('cep', e.target.value)}
               onKeyDown={(e) => handleKeyDown(e, 'cep')}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.cep ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cep ? 'border-red-500' : 'border-gray-300'
+                }`}
               placeholder="00000-000"
               maxLength={9}
               required
@@ -867,9 +1017,8 @@ export default function EditarProprietarioPage() {
             value={formData.endereco}
             onChange={(e) => handleInputChange('endereco', e.target.value)}
             onKeyDown={(e) => handleKeyDown(e, 'endereco')}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.endereco ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.endereco ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
+              }`}
             placeholder="Será preenchido automaticamente"
           />
           {errors.endereco && <p className="text-red-500 text-sm mt-1">{errors.endereco}</p>}
@@ -887,9 +1036,8 @@ export default function EditarProprietarioPage() {
             value={formData.bairro}
             onChange={(e) => handleInputChange('bairro', e.target.value)}
             onKeyDown={(e) => handleKeyDown(e, 'bairro')}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.bairro ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.bairro ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
+              }`}
             placeholder="Será preenchido automaticamente"
           />
           {errors.bairro && <p className="text-red-500 text-sm mt-1">{errors.bairro}</p>}
@@ -908,9 +1056,8 @@ export default function EditarProprietarioPage() {
               value={formData.numero}
               onChange={(e) => handleInputChange('numero', e.target.value)}
               onKeyDown={(e) => handleKeyDown(e, 'numero')}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.numero ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.numero ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
               placeholder="123"
             />
             {errors.numero && <p className="text-red-500 text-sm mt-1">{errors.numero}</p>}
@@ -941,9 +1088,8 @@ export default function EditarProprietarioPage() {
             id="email"
             value={formData.email}
             onChange={(e) => handleInputChange('email', e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.email || emailExists ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email || emailExists ? 'border-red-500' : 'border-gray-300'
+              }`}
             placeholder="email@exemplo.com"
           />
           {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}

@@ -17,6 +17,7 @@ interface EstadosCidades {
 interface FormData {
   nome: string
   cpf: string
+  cnpj: string
   telefone: string
   email: string
   estado: string
@@ -46,6 +47,7 @@ export default function NovoProprietarioPage() {
   const [formData, setFormData] = useState<FormData>({
     nome: '',
     cpf: '',
+    cnpj: '',
     telefone: '',
     email: '',
     estado: '',
@@ -65,15 +67,17 @@ export default function NovoProprietarioPage() {
   const [emailExists, setEmailExists] = useState(false)
   const [emailPendingValidation, setEmailPendingValidation] = useState(false)
   const [buscandoCep, setBuscandoCep] = useState(false)
+  const [cnpjValidating, setCnpjValidating] = useState(false)
+  const [cnpjExists, setCnpjExists] = useState(false)
+  const [cnpjPendingValidation, setCnpjPendingValidation] = useState(false)
 
   // Carregar estados
   useEffect(() => {
     const loadEstados = async () => {
       try {
         const municipiosData = await import('@/lib/admin/municipios.json')
-        // Usar SIGLA como ID, não o índice, para compatibilidade com EstadoSelect
         const estadosComId = municipiosData.estados?.map((estado) => ({
-          id: estado.sigla, // Usar sigla como ID (ex: "SP", "RJ")
+          id: estado.sigla, // Usar sigla como ID para consistência
           sigla: estado.sigla,
           nome: estado.nome
         })) || []
@@ -100,8 +104,8 @@ export default function NovoProprietarioPage() {
         const estadoEncontrado = municipiosData.estados.find(e => e.sigla === formData.estado)
         const municipiosDoEstado = estadoEncontrado?.municipios || []
 
-        const municipiosComId = municipiosDoEstado.map((municipio, index) => ({
-          id: index.toString(),
+        const municipiosComId = municipiosDoEstado.map((municipio) => ({
+          id: municipio,
           nome: municipio
         }))
 
@@ -218,6 +222,10 @@ export default function NovoProprietarioPage() {
     const cleanCPF = cpf.replace(/\D/g, '')
 
     if (cleanCPF.length !== 11) return false
+
+    // Regra Especial para Admin
+    if (cleanCPF === '99999999999') return true
+
     if (/^(\d)\1{10}$/.test(cleanCPF)) return false
 
     let sum = 0
@@ -239,6 +247,41 @@ export default function NovoProprietarioPage() {
     return parseInt(cleanCPF.charAt(10)) === secondDigit
   }
 
+  // Validação de CNPJ
+  const validateCNPJ = (cnpj: string): boolean => {
+    const cleanCNPJ = cnpj.replace(/\D/g, '')
+
+    if (cleanCNPJ.length !== 14) return false
+    if (/^(\d)\1{13}$/.test(cleanCNPJ)) return false
+
+    let length = cleanCNPJ.length - 2
+    let numbers = cleanCNPJ.substring(0, length)
+    const digits = cleanCNPJ.substring(length)
+    let sum = 0
+    let pos = length - 7
+
+    for (let i = length; i >= 1; i--) {
+      sum += parseInt(numbers.charAt(length - i)) * pos--
+      if (pos < 2) pos = 9
+    }
+
+    let result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+    if (result !== parseInt(digits.charAt(0))) return false
+
+    length = length + 1
+    numbers = cleanCNPJ.substring(0, length)
+    sum = 0
+    pos = length - 7
+
+    for (let i = length; i >= 1; i--) {
+      sum += parseInt(numbers.charAt(length - i)) * pos--
+      if (pos < 2) pos = 9
+    }
+
+    result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+    return result === parseInt(digits.charAt(1))
+  }
+
   // Validação de telefone
   const validateTelefone = (telefone: string): boolean => {
     const cleanTelefone = telefone.replace(/\D/g, '')
@@ -255,6 +298,15 @@ export default function NovoProprietarioPage() {
   const formatCPF = (value: string): string => {
     const cleanValue = value.replace(/\D/g, '')
     return cleanValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  }
+
+  // Formatação de CNPJ
+  const formatCNPJ = (value: string): string => {
+    const cleanValue = value.replace(/\D/g, '')
+    if (cleanValue.length <= 14) {
+      return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+    }
+    return cleanValue.substring(0, 14).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
   }
 
   // Formatação de telefone
@@ -299,6 +351,31 @@ export default function NovoProprietarioPage() {
     }
   }
 
+  // Verificar CNPJ em tempo real
+  const checkCNPJExists = async (cnpj: string) => {
+    if (!cnpj || !validateCNPJ(cnpj)) {
+      setCnpjPendingValidation(false)
+      return
+    }
+
+    setCnpjPendingValidation(true)
+
+    try {
+      setCnpjValidating(true)
+      const response = await post('/api/admin/proprietarios/verificar-cnpj', { cnpj })
+
+      if (response.ok) {
+        const data = await response.json()
+        setCnpjExists(data.exists)
+      }
+    } catch (error) {
+      console.error('Erro ao verificar CNPJ:', error)
+    } finally {
+      setCnpjValidating(false)
+      setCnpjPendingValidation(false)
+    }
+  }
+
   // Verificar Email com debounce usando useEffect (abaixo)
 
   // Manipular mudanças nos campos
@@ -309,6 +386,9 @@ export default function NovoProprietarioPage() {
     switch (field) {
       case 'cpf':
         formattedValue = formatCPF(value)
+        break
+      case 'cnpj':
+        formattedValue = formatCNPJ(value)
         break
       case 'telefone':
         formattedValue = formatTelefone(value)
@@ -341,9 +421,32 @@ export default function NovoProprietarioPage() {
         } else {
           delete newErrors.cpf
         }
-        // Verificar se CPF já existe (enviar valor FORMATADO)
-        if (formattedValue && validateCPF(formattedValue)) {
-          checkCPFExists(formattedValue)
+        // Se preencheu CPF, limpa CNPJ e seus erros/estados
+        if (formattedValue) {
+          setFormData(prev => ({ ...prev, cnpj: '' }))
+          setCnpjExists(false)
+          delete newErrors.cnpj
+          // Verificar se CPF já existe (enviar valor FORMATADO)
+          if (validateCPF(formattedValue)) {
+            checkCPFExists(formattedValue)
+          }
+        }
+        break
+      case 'cnpj':
+        if (formattedValue && !validateCNPJ(formattedValue)) {
+          newErrors.cnpj = 'CNPJ inválido'
+        } else {
+          delete newErrors.cnpj
+        }
+        // Se preencheu CNPJ, limpa CPF e seus erros/estados
+        if (formattedValue) {
+          setFormData(prev => ({ ...prev, cpf: '' }))
+          setCpfExists(false)
+          delete newErrors.cpf
+          // Verificar se CNPJ já existe
+          if (validateCNPJ(formattedValue)) {
+            checkCNPJExists(formattedValue)
+          }
         }
         break
       case 'telefone':
@@ -359,7 +462,6 @@ export default function NovoProprietarioPage() {
         } else {
           delete newErrors.email
         }
-        // A verificação de duplicidade é feita pelo useEffect acima
         break
     }
 
@@ -385,8 +487,16 @@ export default function NovoProprietarioPage() {
           break
         case 'cpf':
           const cpfLimpo = formData.cpf.replace(/\D/g, '')
-          if (!formData.cpf || cpfValidating || cpfExists || cpfPendingValidation ||
-            cpfLimpo.length !== 11 || !validateCPF(formData.cpf)) {
+          if (formData.cpf && (cpfValidating || cpfExists || cpfPendingValidation ||
+            cpfLimpo.length !== 11 || !validateCPF(formData.cpf))) {
+            e.preventDefault()
+            return
+          }
+          break
+        case 'cnpj':
+          const cnpjLimpo = formData.cnpj.replace(/\D/g, '')
+          if (formData.cnpj && (cnpjValidating || cnpjExists || cnpjPendingValidation ||
+            cnpjLimpo.length !== 14 || !validateCNPJ(formData.cnpj))) {
             e.preventDefault()
             return
           }
@@ -456,8 +566,17 @@ export default function NovoProprietarioPage() {
       finalErrors.nome = 'Nome é obrigatório'
     }
 
-    if (!formData.cpf || !validateCPF(formData.cpf)) {
-      finalErrors.cpf = 'CPF é obrigatório e deve ser válido'
+    if ((!formData.cpf || !validateCPF(formData.cpf)) &&
+      (!formData.cnpj || !validateCNPJ(formData.cnpj))) {
+      finalErrors.cpf = 'CPF ou CNPJ é obrigatório e deve ser válido'
+    }
+
+    if (formData.cpf && cpfExists) {
+      finalErrors.cpf = 'CPF já cadastrado'
+    }
+
+    if (formData.cnpj && cnpjExists) {
+      finalErrors.cnpj = 'CNPJ já cadastrado'
     }
 
     if (!formData.telefone || !validateTelefone(formData.telefone)) {
@@ -536,7 +655,8 @@ export default function NovoProprietarioPage() {
 
       const payload = {
         nome: formData.nome,
-        cpf: formData.cpf,
+        cpf: formData.cpf || undefined,
+        cnpj: formData.cnpj || undefined,
         telefone: formData.telefone,
         email: formData.email,
         endereco: formData.endereco,
@@ -667,11 +787,12 @@ export default function NovoProprietarioPage() {
               )}
             </div>
 
-            {/* CPF e Telefone */}
+            {/* Documentos */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* CPF */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  CPF *
+                  CPF
                 </label>
                 <div className="relative">
                   <input
@@ -680,9 +801,10 @@ export default function NovoProprietarioPage() {
                     onChange={(e) => handleInputChange('cpf', e.target.value)}
                     onKeyDown={(e) => handleKeyDown(e, 'cpf')}
                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.cpf ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      } ${formData.cnpj ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
                     placeholder="000.000.000-00"
                     maxLength={14}
+                    disabled={!!formData.cnpj}
                   />
                   {cpfValidating && (
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -695,7 +817,7 @@ export default function NovoProprietarioPage() {
                     </div>
                   )}
                 </div>
-                {errors.cpf && (
+                {errors.cpf && !formData.cnpj && (
                   <p className="mt-1 text-sm text-red-600 flex items-center">
                     <XMarkIcon className="h-4 w-4 mr-1" />
                     {errors.cpf}
@@ -709,6 +831,55 @@ export default function NovoProprietarioPage() {
                 )}
               </div>
 
+              {/* CNPJ */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  CNPJ
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.cnpj}
+                    onChange={(e) => handleInputChange('cnpj', e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(e, 'cnpj')}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.cnpj ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                      } ${formData.cpf ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
+                    placeholder="00.000.000/0000-00"
+                    maxLength={18}
+                    disabled={!!formData.cpf}
+                  />
+                  {cnpjValidating && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                    </div>
+                  )}
+                  {formData.cnpj && !cnpjValidating && validateCNPJ(formData.cnpj) && !cnpjExists && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <CheckIcon className="h-5 w-5 text-green-500" />
+                    </div>
+                  )}
+                </div>
+                {errors.cnpj && !formData.cpf && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center">
+                    <XMarkIcon className="h-4 w-4 mr-1" />
+                    {errors.cnpj}
+                  </p>
+                )}
+                {cnpjExists && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center">
+                    <XMarkIcon className="h-4 w-4 mr-1" />
+                    CNPJ já cadastrado
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-500 italic -mt-4 mb-4">
+              * Preencha CPF ou CNPJ. Ao preencher um, o outro será bloqueado.
+            </p>
+
+            {/* Telefone */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Telefone *
@@ -742,6 +913,7 @@ export default function NovoProprietarioPage() {
                   value={formData.estado}
                   onChange={(estadoId) => handleInputChange('estado', estadoId)}
                   placeholder="Selecione o estado"
+                  mode="all"
                   className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.estado ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
                   format="sigla-nome"

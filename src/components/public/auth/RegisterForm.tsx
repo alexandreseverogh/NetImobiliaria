@@ -14,11 +14,12 @@ interface RegisterFormProps {
 
 export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFormProps) {
   const { estados, getCidadesPorEstado } = useEstadosCidadesPublic()
-  
+
   // Estados do formulário
   const [formData, setFormData] = useState({
     nome: '',
     cpf: '',
+    cnpj: '',
     estado_fk: '',
     cidade_fk: '',
     cep: '',
@@ -45,18 +46,25 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
   const [emailValidating, setEmailValidating] = useState(false)
   const [emailExists, setEmailExists] = useState(false)
   const [emailPendingValidation, setEmailPendingValidation] = useState(false)
+  const [cnpjValidating, setCnpjValidating] = useState(false)
+  const [cnpjExists, setCnpjExists] = useState(false)
+  const [cnpjInvalid, setCnpjInvalid] = useState(false)
+  const [cnpjPendingValidation, setCnpjPendingValidation] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  
+
   // Ref para rastrear o último CEP buscado e evitar buscas duplicadas
   const ultimoCepBuscadoRef = useRef<string>('')
   const cpfInputRef = useRef<HTMLInputElement | null>(null)
   const emailInputRef = useRef<HTMLInputElement | null>(null)
   const lastValidatedEmailRef = useRef<string>('') // email já verificado (valor atual)
   const lastValidatedCpfRef = useRef<string>('') // cpf já verificado (somente dígitos)
+  const lastValidatedCnpjRef = useRef<string>('') // cnpj já verificado
   const cpfAbortRef = useRef<AbortController | null>(null)
+  const cnpjAbortRef = useRef<AbortController | null>(null)
   const cpfExistsCacheRef = useRef<Map<string, boolean>>(new Map()) // cpfDigits -> exists
+  const cnpjExistsCacheRef = useRef<Map<string, boolean>>(new Map())
 
   const cidades = formData.estado_fk ? getCidadesPorEstado(formData.estado_fk) : []
 
@@ -88,7 +96,7 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
     const buscarEndereco = async () => {
       // Marcar que este CEP está sendo buscado
       ultimoCepBuscadoRef.current = cepLimpo
-      
+
       setBuscandoCep(true)
       setCepValid(null)
       setCepValidationMessage(null)
@@ -107,10 +115,10 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
           // Preencher campos automaticamente apenas se ainda não estiverem preenchidos
           setFormData(prev => {
             // Verificar se os campos já estão preenchidos com os mesmos valores
-            if (prev.endereco === enderecoData.logradouro && 
-                prev.bairro === enderecoData.bairro &&
-                prev.estado_fk === enderecoData.uf &&
-                prev.cidade_fk === enderecoData.localidade) {
+            if (prev.endereco === enderecoData.logradouro &&
+              prev.bairro === enderecoData.bairro &&
+              prev.estado_fk === enderecoData.uf &&
+              prev.cidade_fk === enderecoData.localidade) {
               return prev // Não atualizar se já estão corretos
             }
 
@@ -128,7 +136,7 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
           console.log('⚠️ CEP não encontrado na ViaCEP')
           setCepValid(false)
           setCepValidationMessage('CEP não encontrado na base do Correios (ViaCEP)')
-          
+
           // Limpar campos de endereço se CEP inválido
           setFormData(prev => ({
             ...prev,
@@ -153,7 +161,7 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
 
     // Debounce de 500ms
     const timeoutId = setTimeout(buscarEndereco, 500)
-    
+
     return () => {
       cancelled = true
       clearTimeout(timeoutId)
@@ -179,7 +187,7 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
     }
 
     // Validar formato do CPF
-    const isValid = validateCPF(cpf)
+    const isValid = validateCPF(cpf, true)
     if (!isValid) {
       setCpfInvalid(true)
       setCpfExists(false)
@@ -242,6 +250,83 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
     return () => clearTimeout(timeoutId)
   }, [formData.cpf, userType])
 
+  // Verificar CNPJ com debounce
+  useEffect(() => {
+    const cnpj = formData.cnpj
+    if (!cnpj) {
+      setCnpjExists(false)
+      setCnpjInvalid(false)
+      setCnpjPendingValidation(false)
+      return
+    }
+
+    const cnpjLimpo = cnpj.replace(/\D/g, '')
+    if (cnpjLimpo.length !== 14) {
+      setCnpjExists(false)
+      setCnpjInvalid(false)
+      setCnpjPendingValidation(false)
+      return
+    }
+
+    // Validar formato do CNPJ
+    const isValid = validateCNPJ(cnpj)
+    if (!isValid) {
+      setCnpjInvalid(true)
+      setCnpjExists(false)
+      setCnpjValidating(false)
+      setCnpjPendingValidation(false)
+      return
+    } else {
+      setCnpjInvalid(false)
+      setCnpjPendingValidation(true)
+    }
+
+    // Cache
+    const cached = cnpjExistsCacheRef.current.get(cnpjLimpo)
+    if (cached !== undefined) {
+      setCnpjExists(cached)
+      setCnpjValidating(false)
+      setCnpjPendingValidation(false)
+      lastValidatedCnpjRef.current = cnpjLimpo
+      return
+    }
+
+    if (cnpjAbortRef.current) {
+      cnpjAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    cnpjAbortRef.current = controller
+
+    const verificarCNPJ = async () => {
+      setCnpjValidating(true)
+      try {
+        const response = await fetch('/api/public/check-cnpj', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cnpj, userType }),
+          signal: controller.signal
+        })
+        if (response.ok) {
+          const data = await response.json()
+          const exists = !!data.exists
+          setCnpjExists(exists)
+          cnpjExistsCacheRef.current.set(cnpjLimpo, exists)
+          lastValidatedCnpjRef.current = cnpjLimpo
+        }
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          console.error('Erro ao verificar CNPJ:', error)
+        }
+      } finally {
+        setCnpjValidating(false)
+        setCnpjPendingValidation(false)
+      }
+    }
+
+    const timeoutId = setTimeout(verificarCNPJ, 200)
+    return () => clearTimeout(timeoutId)
+  }, [formData.cnpj, userType])
+
   // Verificar Email com debounce
   useEffect(() => {
     const email = formData.email
@@ -293,13 +378,24 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
         case 'cpf':
           const cpfLimpoKeyDown = formData.cpf.replace(/\D/g, '')
           // Bloquear se: vazio, validando, existe, inválido, incompleto, OU aguardando validação
-          if (!formData.cpf || cpfValidating || cpfExists || cpfInvalid || cpfPendingValidation || cpfLimpoKeyDown.length !== 11 || !validateCPF(formData.cpf)) {
+          if (formData.cpf && (cpfValidating || cpfExists || cpfInvalid || cpfPendingValidation || cpfLimpoKeyDown.length !== 11 || !validateCPF(formData.cpf, true))) {
             e.preventDefault()
             setErrors(prev => ({
               ...prev,
               cpf: cpfPendingValidation || cpfValidating ? 'Aguarde a validação do CPF' : (cpfExists ? 'CPF já cadastrado' : 'CPF inválido')
             }))
             setTimeout(() => cpfInputRef.current?.focus(), 0)
+            return
+          }
+          break
+        case 'cnpj':
+          const cnpjLimpoKeyDown = formData.cnpj.replace(/\D/g, '')
+          if (formData.cnpj && (cnpjValidating || cnpjExists || cnpjInvalid || cnpjPendingValidation || cnpjLimpoKeyDown.length !== 14 || !validateCNPJ(formData.cnpj))) {
+            e.preventDefault()
+            setErrors(prev => ({
+              ...prev,
+              cnpj: cnpjPendingValidation || cnpjValidating ? 'Aguarde a validação do CNPJ' : (cnpjExists ? 'CNPJ já cadastrado' : 'CNPJ inválido')
+            }))
             return
           }
           break
@@ -381,6 +477,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
     let formattedValue = value
     if (name === 'cpf') {
       formattedValue = formatCPF(value)
+    } else if (name === 'cnpj') {
+      formattedValue = formatCNPJ(value)
     } else if (name === 'telefone') {
       formattedValue = formatTelefone(value)
     } else if (name === 'cep') {
@@ -405,8 +503,22 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
     }
     if (name === 'cpf') {
       const cpfDigits = String(formattedValue || '').replace(/\D/g, '')
-      if (cpfDigits.length === 11 && validateCPF(cpfDigits) && cpfDigits !== lastValidatedCpfRef.current) {
+      if (cpfDigits.length === 11 && validateCPF(cpfDigits, true) && cpfDigits !== lastValidatedCpfRef.current) {
         setCpfPendingValidation(true)
+        // Se preencheu CPF, limpa CNPJ
+        setFormData(prev => ({ ...prev, cnpj: '' }))
+        setCnpjExists(false)
+        setCnpjInvalid(false)
+      }
+    }
+    if (name === 'cnpj') {
+      const cnpjDigits = String(formattedValue || '').replace(/\D/g, '')
+      if (cnpjDigits.length === 14 && validateCNPJ(cnpjDigits) && cnpjDigits !== lastValidatedCnpjRef.current) {
+        setCnpjPendingValidation(true)
+        // Se preencheu CNPJ, limpa CPF
+        setFormData(prev => ({ ...prev, cpf: '' }))
+        setCpfExists(false)
+        setCpfInvalid(false)
       }
     }
 
@@ -438,11 +550,14 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
     if (!formData.nome || formData.nome.trim().length === 0) {
       validationErrors.nome = 'Nome é obrigatório'
     }
-    if (!formData.cpf) {
-      validationErrors.cpf = 'CPF é obrigatório'
-    } else if (formData.cpf.replace(/\D/g, '').length !== 11) {
+    if (!formData.cpf && !formData.cnpj) {
+      validationErrors.cpf = 'CPF ou CNPJ é obrigatório'
+    } else if (formData.cpf && formData.cpf.replace(/\D/g, '').length !== 11) {
       validationErrors.cpf = 'CPF deve ter 11 dígitos'
+    } else if (formData.cnpj && formData.cnpj.replace(/\D/g, '').length !== 14) {
+      validationErrors.cnpj = 'CNPJ deve ter 14 dígitos'
     }
+
     if (!formData.telefone) {
       validationErrors.telefone = 'Telefone é obrigatório'
     }
@@ -476,13 +591,19 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
     }
 
     // Validações de formato
-    if (cpfInvalid || !validateCPF(formData.cpf)) {
+    if (formData.cpf && !validateCPF(formData.cpf, true)) {
       validationErrors.cpf = 'CPF inválido'
     }
-    
+    if (formData.cnpj && !validateCNPJ(formData.cnpj)) {
+      validationErrors.cnpj = 'CNPJ inválido'
+    }
+
     // Validações de duplicidade
-    if (cpfExists) {
+    if (formData.cpf && cpfExists) {
       validationErrors.cpf = 'CPF já cadastrado'
+    }
+    if (formData.cnpj && cnpjExists) {
+      validationErrors.cnpj = 'CNPJ já cadastrado'
     }
     if (emailExists) {
       validationErrors.email = 'Email já cadastrado'
@@ -507,7 +628,7 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
     try {
       // Preparar dados para envio (remover confirmPassword e complemento se vazio)
       const { confirmPassword, complemento, ...dataToSend } = formData
-      
+
       // Adicionar complemento de volta apenas se não estiver vazio
       if (complemento) {
         Object.assign(dataToSend, { complemento })
@@ -529,7 +650,7 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
       if (response.ok && data.success) {
         // Cadastro bem-sucedido
         setSuccessMessage(data.message)
-        
+
         // Aguardar 2 segundos e fechar modal
         setTimeout(() => {
           onSuccess()
@@ -585,63 +706,73 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
           required
           autoComplete="off"
           placeholder="Nome completo"
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            errors.nome ? 'border-red-500 bg-red-50' : 'border-gray-300'
-          }`}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.nome ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            }`}
           value={formData.nome}
           onChange={handleChange}
           onKeyDown={(e) => handleKeyDown(e, 'nome')}
         />
       </div>
 
-      {/* CPF */}
+      {/* CPF / CNPJ */}
       <div>
         <label htmlFor="cpf" className="block text-sm font-medium text-gray-700 mb-1">
-          CPF *
+          {userType === 'proprietario' ? 'CPF ou CNPJ *' : 'CPF *'}
         </label>
-        <div className="relative">
-          <input
-            id="cpf"
-            name="cpf"
-            type="text"
-            required
-            autoComplete="off"
-            placeholder="000.000.000-00"
-            maxLength={14}
-            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.cpf || cpfExists || cpfInvalid ? 'border-red-500 bg-red-50' : 'border-gray-300'
-            }`}
-            value={formData.cpf}
-            onChange={handleChange}
-            onKeyDown={(e) => handleKeyDown(e, 'cpf')}
-            onBlur={() => {
-              const cpfDigits = formData.cpf.replace(/\D/g, '')
-              const invalid =
-                !cpfDigits ||
-                cpfDigits.length !== 11 ||
-                !validateCPF(formData.cpf) ||
-                cpfExists ||
-                cpfPendingValidation ||
-                cpfValidating
-              if (invalid) {
-                setErrors(prev => ({
-                  ...prev,
-                  cpf: cpfPendingValidation || cpfValidating ? 'Aguarde a validação do CPF' : (cpfExists ? 'CPF já cadastrado' : 'CPF inválido')
-                }))
-                setTimeout(() => cpfInputRef.current?.focus(), 0)
-              }
-            }}
-            ref={cpfInputRef}
-          />
-          {cpfValidating && (
-            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-            </div>
+        <div className="space-y-3">
+          <div className="relative">
+            <input
+              id="cpf"
+              name="cpf"
+              type="text"
+              required={!formData.cnpj}
+              autoComplete="off"
+              placeholder="000.000.000-00 (CPF)"
+              maxLength={14}
+              disabled={!!formData.cnpj}
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cpf || cpfExists || cpfInvalid ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                } ${formData.cnpj ? 'bg-gray-100 opacity-60' : ''}`}
+              value={formData.cpf}
+              onChange={handleChange}
+              onKeyDown={(e) => handleKeyDown(e, 'cpf')}
+              ref={cpfInputRef}
+            />
+            {cpfValidating && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+              </div>
+            )}
+          </div>
+          {errors.cpf && !formData.cnpj && <p className="text-red-500 text-sm mt-1">{errors.cpf}</p>}
+
+          {userType === 'proprietario' && (
+            <>
+              <div className="relative">
+                <input
+                  id="cnpj"
+                  name="cnpj"
+                  type="text"
+                  required={!formData.cpf}
+                  autoComplete="off"
+                  placeholder="00.000.000/0000-00 (CNPJ)"
+                  maxLength={18}
+                  disabled={!!formData.cpf}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cnpj || cnpjExists || cnpjInvalid ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                    } ${formData.cpf ? 'bg-gray-100 opacity-60' : ''}`}
+                  value={formData.cnpj}
+                  onChange={handleChange}
+                  onKeyDown={(e) => handleKeyDown(e, 'cnpj')}
+                />
+                {cnpjValidating && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  </div>
+                )}
+              </div>
+              {errors.cnpj && !formData.cpf && <p className="text-red-500 text-sm mt-1">{errors.cnpj}</p>}
+            </>
           )}
         </div>
-        {errors.cpf && <p className="text-red-500 text-sm mt-1">{errors.cpf}</p>}
-        {cpfInvalid && <p className="text-red-500 text-sm mt-1">CPF inválido</p>}
-        {cpfExists && !cpfInvalid && <p className="text-red-500 text-sm mt-1">CPF já cadastrado</p>}
       </div>
 
       {/* Seção de Endereço (Opcional) */}
@@ -656,9 +787,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
           <select
             id="estado_fk"
             name="estado_fk"
-            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.estado_fk ? 'border-red-500 bg-red-50' : 'border-gray-300'
-            }`}
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.estado_fk ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
             value={formData.estado_fk}
             onChange={handleChange}
             onKeyDown={(e) => handleKeyDown(e, 'estado_fk')}
@@ -682,9 +812,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
             id="cidade_fk"
             name="cidade_fk"
             disabled={!formData.estado_fk}
-            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.cidade_fk ? 'border-red-500 bg-red-50' : 'border-gray-300'
-            } disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed`}
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cidade_fk ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              } disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed`}
             value={formData.cidade_fk}
             onChange={handleChange}
             onKeyDown={(e) => handleKeyDown(e, 'cidade_fk')}
@@ -713,9 +842,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
               type="text"
               placeholder="00000-000"
               maxLength={9}
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.cep || cepValid === false ? 'border-red-500 bg-red-50' : cepValid === true ? 'border-green-500 bg-green-50' : 'border-gray-300'
-              }`}
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cep || cepValid === false ? 'border-red-500 bg-red-50' : cepValid === true ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                }`}
               value={formData.cep}
               onChange={handleChange}
               onKeyDown={(e) => handleKeyDown(e, 'cep')}
@@ -745,10 +873,10 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
             <p className="text-red-500 text-sm mt-1">{cepValidationMessage}</p>
           )}
           <p className="text-xs text-gray-500 mt-1">
-            {buscandoCep 
-              ? 'Buscando endereço...' 
-              : cepValid === true 
-                ? 'CEP válido - Endereço preenchido automaticamente' 
+            {buscandoCep
+              ? 'Buscando endereço...'
+              : cepValid === true
+                ? 'CEP válido - Endereço preenchido automaticamente'
                 : 'Informe o CEP para preencher automaticamente'}
           </p>
         </div>
@@ -763,9 +891,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
             name="endereco"
             type="text"
             placeholder="Será preenchido automaticamente"
-            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.endereco ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
-            }`}
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.endereco ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
+              }`}
             value={formData.endereco}
             onChange={handleChange}
             onKeyDown={(e) => handleKeyDown(e, 'endereco')}
@@ -783,9 +910,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
             name="bairro"
             type="text"
             placeholder="Será preenchido automaticamente"
-            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.bairro ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
-            }`}
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.bairro ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
+              }`}
             value={formData.bairro}
             onChange={handleChange}
             onKeyDown={(e) => handleKeyDown(e, 'bairro')}
@@ -804,9 +930,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
               name="numero"
               type="text"
               placeholder="Ex: 123"
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.numero ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.numero ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
               value={formData.numero}
               onChange={handleChange}
               onKeyDown={(e) => handleKeyDown(e, 'numero')}
@@ -843,9 +968,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
             required
             autoComplete="off"
             placeholder="seu@email.com"
-            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.email || emailExists ? 'border-red-500 bg-red-50' : 'border-gray-300'
-            }`}
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email || emailExists ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
             value={formData.email}
             onChange={handleChange}
             onKeyDown={(e) => handleKeyDown(e, 'email')}
@@ -891,9 +1015,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
           placeholder="(00) 00000-0000"
           maxLength={15}
           disabled={emailExists || cpfExists || cpfInvalid}
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            errors.telefone ? 'border-red-500 bg-red-50' : 'border-gray-300'
-          } ${emailExists || cpfExists || cpfInvalid ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.telefone ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            } ${emailExists || cpfExists || cpfInvalid ? 'bg-gray-100 cursor-not-allowed' : ''}`}
           value={formData.telefone}
           onChange={handleChange}
           onKeyDown={(e) => handleKeyDown(e, 'telefone')}
@@ -918,9 +1041,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
             autoComplete="new-password"
             placeholder="Mínimo 8 caracteres"
             disabled={emailExists || cpfExists || cpfInvalid}
-            className={`w-full px-4 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300'
-            } ${emailExists || cpfExists || cpfInvalid ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+            className={`w-full px-4 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              } ${emailExists || cpfExists || cpfInvalid ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             value={formData.password}
             onChange={handleChange}
             onKeyDown={(e) => handleKeyDown(e, 'password')}
@@ -956,9 +1078,8 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
             autoComplete="new-password"
             placeholder="Repita a senha"
             disabled={emailExists || cpfExists || cpfInvalid}
-            className={`w-full px-4 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.confirmPassword ? 'border-red-500 bg-red-50' : 'border-gray-300'
-            } ${emailExists || cpfExists || cpfInvalid ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+            className={`w-full px-4 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.confirmPassword ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              } ${emailExists || cpfExists || cpfInvalid ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             value={formData.confirmPassword}
             onChange={handleChange}
             onKeyDown={(e) => handleKeyDown(e, 'confirmPassword')}

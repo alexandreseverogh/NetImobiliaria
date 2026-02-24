@@ -13,7 +13,8 @@ import { CreateGuard, UpdateGuard, DeleteGuard } from '@/components/admin/Permis
 interface Proprietario {
   uuid: string
   nome: string
-  cpf: string
+  cpf?: string
+  cnpj?: string
   telefone: string
   email: string
   endereco?: string
@@ -48,6 +49,7 @@ export default function ProprietariosPage() {
   const [filters, setFilters] = useState({
     nome: '',
     cpf: '',
+    cnpj: '',
     estado: '',
     cidade: '',
     bairro: ''
@@ -97,6 +99,7 @@ export default function ProprietariosPage() {
       // Adicionar filtros à query
       if (filtersToUse.nome) queryParams.append('nome', filtersToUse.nome)
       if (filtersToUse.cpf) queryParams.append('cpf', filtersToUse.cpf)
+      if (filtersToUse.cnpj) queryParams.append('cnpj', filtersToUse.cnpj)
 
       // Converter estado para nome usando o hook
       if (filtersToUse.estado) {
@@ -180,6 +183,7 @@ export default function ProprietariosPage() {
     setFilters({
       nome: '',
       cpf: '',
+      cnpj: '',
       estado: '',
       cidade: '',
       bairro: ''
@@ -234,6 +238,11 @@ export default function ProprietariosPage() {
   const formatCPF = (cpf: string | undefined) => {
     if (!cpf) return 'Não informado'
     return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  }
+
+  const formatCNPJ = (cnpj: string | undefined) => {
+    if (!cnpj) return 'Não informado'
+    return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
   }
 
   const formatTelefone = (telefone: string | undefined) => {
@@ -333,6 +342,20 @@ export default function ProprietariosPage() {
               placeholder="000.000.000-00"
               value={filters.cpf}
               onChange={(e) => handleFilterChange('cpf', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            />
+          </div>
+
+          {/* CNPJ */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              CNPJ
+            </label>
+            <input
+              type="text"
+              placeholder="00.000.000/0000-00"
+              value={filters.cnpj}
+              onChange={(e) => handleFilterChange('cnpj', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             />
           </div>
@@ -491,10 +514,17 @@ export default function ProprietariosPage() {
 
                 {/* Informações do Proprietário */}
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">CPF:</span>
-                    <span className="text-sm text-gray-900">{formatCPF(proprietario.cpf)}</span>
-                  </div>
+                  {proprietario.cnpj ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">CNPJ:</span>
+                      <span className="text-sm text-gray-900">{formatCNPJ(proprietario.cnpj)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-500">CPF:</span>
+                      <span className="text-sm text-gray-900">{formatCPF(proprietario.cpf)}</span>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">Telefone:</span>
