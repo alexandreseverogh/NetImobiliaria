@@ -43,7 +43,7 @@ jobs:
             set -e
             BRANCH="${{ github.event.inputs.branch }}"
             AMBIENTE="${{ github.event.inputs.ambiente }}"
-            REPO_RAW="https://raw.githubusercontent.com/alexandreseverogh/NetImobiliaria/main"
+            REPO_RAW="https://raw.githubusercontent.com/alexandreseverogh/NetImobiliaria/$BRANCH"
 
             echo "🔄 Atualizando arquivos de infraestrutura do GitHub..."
             curl -fsSL "$REPO_RAW/Dockerfile.prod" -o ~/net-imobiliaria/Dockerfile.prod
