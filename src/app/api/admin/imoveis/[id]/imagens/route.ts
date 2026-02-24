@@ -3,15 +3,15 @@ import { checkApiPermission } from '@/lib/middleware/permissionMiddleware'
 
 // Forçar uso do Node.js runtime
 export const runtime = 'nodejs'
-import { 
-  findImovelById, 
-  findImovelImagens, 
-  findImovelImagem, 
-  insertImovelImagem, 
-  updateImovelImagensOrdem, 
-  deleteImovelImagem, 
+import {
+  findImovelById,
+  findImovelImagens,
+  findImovelImagem,
+  insertImovelImagem,
+  updateImovelImagensOrdem,
+  deleteImovelImagem,
   deleteImovelImagemPermanente,
-  setImovelImagemPrincipal 
+  setImovelImagemPrincipal
 } from '@/lib/database/imoveis'
 import { writeFile, mkdir, unlink } from 'fs/promises'
 import { join } from 'path'
@@ -66,7 +66,7 @@ export async function GET(
     const imagens = await findImovelImagens(id)
     console.log('🔍 API Imagens - Imagens encontradas:', imagens.length)
     console.log('🔍 API Imagens - Dados das imagens:', imagens)
-    
+
     return NextResponse.json({
       success: true,
       data: imagens
@@ -114,7 +114,7 @@ export async function POST(
     // Processar formulário multipart
     const formData = await request.formData()
     const files = formData.getAll('images') as File[]
-    
+
     if (!files || files.length === 0) {
       return NextResponse.json(
         { error: 'Nenhuma imagem fornecida' },
@@ -122,20 +122,20 @@ export async function POST(
       )
     }
 
-    if (files.length > 10) {
+    if (files.length > 20) {
       return NextResponse.json(
-        { error: 'Máximo de 10 imagens permitido' },
+        { error: 'Máximo de 20 imagens permitido' },
         { status: 400 }
       )
     }
 
     // Garantir diretório de upload
     const imovelDir = await ensureUploadDir(id)
-    
+
     // Buscar imagens existentes para determinar a próxima ordem
     const existingImages = await findImovelImagens(id)
     let nextOrdem = existingImages.length > 0 ? Math.max(...existingImages.map(img => img.ordem || 0)) + 1 : 1
-    
+
     const uploadedImages: any[] = []
 
     for (const file of files) {
@@ -176,9 +176,9 @@ export async function POST(
         tamanhoBytes: file.size,
         imagem: buffer
       })
-      
+
       nextOrdem++ // Incrementar para a próxima imagem
-      
+
       uploadedImages.push({
         id: imagemId,
         nome_arquivo: filename,
@@ -282,7 +282,7 @@ export async function DELETE(
 
     const { searchParams } = new URL(request.url)
     const imagemId = searchParams.get('id')
-    
+
     console.log('🔍 API DELETE imagem - URL:', request.url)
     console.log('🔍 API DELETE imagem - SearchParams:', searchParams.toString())
     console.log('🔍 API DELETE imagem - ImagemId extraído:', imagemId)
@@ -298,7 +298,7 @@ export async function DELETE(
     // Buscar informações da imagem no banco
     console.log('🔍 API DELETE imagem - Buscando imagem no banco com ID:', parseInt(imagemId))
     const imagem = await findImovelImagem(parseInt(imagemId))
-    
+
     if (!imagem) {
       return NextResponse.json(
         { error: 'Imagem não encontrada' },

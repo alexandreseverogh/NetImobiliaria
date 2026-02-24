@@ -588,7 +588,7 @@ export default function ImovelWizard({
                 </p>
 
                 <p className="text-base leading-relaxed">
-                  Capriche também no envio das fotos: você pode fazer upload de até <span className="font-semibold text-blue-600">10 imagens em alta qualidade</span> e escolher aquela que representará o imóvel na lista principal de resultados. Boas fotos, somadas às informações corretas, potencializam a visibilidade do seu anúncio e aumentam as chances de venda ou locação em menos tempo.
+                  Capriche também no envio das fotos: você pode fazer upload de até <span className="font-semibold text-blue-600">20 imagens em alta qualidade</span> e escolher aquela que representará o imóvel na lista principal de resultados. Boas fotos, somadas às informações corretas, potencializam a visibilidade do seu anúncio e aumentam as chances de venda ou locação em menos tempo.
                 </p>
               </div>
 
