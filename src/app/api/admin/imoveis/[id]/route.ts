@@ -1,13 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-// Aumentar o limite de tamanho para uploads (Imagens/Base64)
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb',
-    },
-  },
-}
 import { findImovelById, findImovelByIdentifier } from '@/lib/database/imoveis'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import { findAmenidadesByImovel } from '@/lib/database/amenidades'
