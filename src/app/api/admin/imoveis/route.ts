@@ -3,6 +3,15 @@ import { NextRequest, NextResponse } from 'next/server'
 // Forçar uso do Node.js runtime
 export const runtime = 'nodejs'
 
+// Aumentar o limite de tamanho para uploads (Imagens/Base64)
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+  },
+}
+
 import { listImoveis, getImoveisStats, createImovel, findAllImoveis } from '@/lib/database/imoveis'
 import { saveImovelDocumentos } from '@/lib/database/imovel-documentos'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
