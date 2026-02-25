@@ -202,8 +202,8 @@ export default function ImovelDetalhes() {
           </p>
         </div>
 
-        {/* Dois Containers Lado a Lado */}
-        <div className="grid grid-cols-2 gap-6 mb-10" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+        {/* Dois Containers Lado a Lado (Responsivo: um abaixo do outro no mobile) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10" style={{ maxWidth: '1400px', margin: '0 auto' }}>
           {/* Container Esquerdo - Imagem */}
           <div className="relative bg-white rounded-xl shadow-lg border-2 border-gray-400 overflow-hidden" style={{ height: '350px' }}>
             <div className="relative w-full h-full overflow-hidden">
@@ -412,8 +412,8 @@ export default function ImovelDetalhes() {
         {/* Container em branco para espaçamento */}
         <div className="w-full" style={{ maxWidth: '1400px', margin: '0 auto', height: '12px' }}></div>
 
-        {/* Botões de Ação */}
-        <div className="flex gap-3 mb-4" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+        {/* Botões de Ação (Responsivo: um abaixo do outro no mobile) */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-4" style={{ maxWidth: '1400px', margin: '0 auto' }}>
           {/* Atrativos */}
           {dadosBasicos.total_amenidades > 0 && (
             <button
