@@ -381,6 +381,7 @@ export default function NovoProprietarioPage() {
   // Manipular mudanças nos campos
   const handleInputChange = (field: keyof FormData, value: string) => {
     let formattedValue = value
+    const newErrors = { ...errors }
 
     // Formatação específica por campo
     switch (field) {
@@ -399,14 +400,16 @@ export default function NovoProprietarioPage() {
       case 'estado':
         // Reset cidade quando estado muda
         setFormData(prev => ({ ...prev, estado: value, cidade: '' }))
-        return
+        // Limpar erro de estado se houver
+        if (value) delete newErrors.estado
+        // Limpar erro de cidade (será revalidado quando selecionada)
+        delete newErrors.cidade
+        break
     }
 
     setFormData(prev => ({ ...prev, [field]: formattedValue }))
 
     // Validação em tempo real
-    const newErrors = { ...errors }
-
     switch (field) {
       case 'nome':
         if (value.length < 2) {
@@ -462,6 +465,21 @@ export default function NovoProprietarioPage() {
         } else {
           delete newErrors.email
         }
+        break
+      case 'cidade':
+        if (value) delete newErrors.cidade
+        break
+      case 'cep':
+        if (value.replace(/\D/g, '').length === 8) delete newErrors.cep
+        break
+      case 'endereco':
+        if (value.trim().length > 0) delete newErrors.endereco
+        break
+      case 'bairro':
+        if (value.trim().length > 0) delete newErrors.bairro
+        break
+      case 'numero':
+        if (value.trim().length > 0) delete newErrors.numero
         break
     }
 

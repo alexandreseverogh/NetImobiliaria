@@ -2,9 +2,9 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { 
-  PhotoIcon, 
-  XMarkIcon, 
+import {
+  PhotoIcon,
+  XMarkIcon,
   EyeIcon,
   TrashIcon,
   CloudArrowUpIcon,
@@ -30,11 +30,11 @@ interface ImageUploadAdvancedProps {
   className?: string
 }
 
-export default function ImageUploadAdvanced({ 
-  maxImages = 10,
+export default function ImageUploadAdvanced({
+  maxImages = 20,
   maxFileSize = 5 * 1024 * 1024, // 5MB
   onImagesChange,
-  className = '' 
+  className = ''
 }: ImageUploadAdvancedProps) {
   const [images, setImages] = useState<ImagemCarregada[]>([])
   const [loading, setLoading] = useState(false)
@@ -53,14 +53,14 @@ export default function ImageUploadAdvanced({
   // Verificar se arquivo já existe
   const checkDuplicate = useCallback(async (newFile: File): Promise<boolean> => {
     const newHash = await calculateFileHash(newFile)
-    
+
     for (const existingImage of images) {
       const existingHash = await calculateFileHash(existingImage.file)
       if (newHash === existingHash) {
         return true
       }
     }
-    
+
     return false
   }, [images])
 
@@ -75,11 +75,11 @@ export default function ImageUploadAdvanced({
 
     // Processar arquivos aceitos
     const newImages: ImagemCarregada[] = []
-    
+
     for (const file of acceptedFiles) {
       // Verificar duplicata
       const isDuplicate = await checkDuplicate(file)
-      
+
       if (isDuplicate) {
         setError(`A imagem "${file.name}" já foi carregada anteriormente!`)
         continue
@@ -99,7 +99,7 @@ export default function ImageUploadAdvanced({
 
       // Criar preview
       const preview = URL.createObjectURL(file)
-      
+
       newImages.push({
         file,
         preview,
@@ -120,7 +120,7 @@ export default function ImageUploadAdvanced({
         }
         return `"${file.name}" não pôde ser processado`
       })
-      
+
       if (rejectedErrors.length > 0) {
         setError(rejectedErrors.join(', '))
       }
@@ -130,7 +130,7 @@ export default function ImageUploadAdvanced({
     if (newImages.length > 0) {
       const updatedImages = [...images, ...newImages]
       setImages(updatedImages)
-      
+
       if (onImagesChange) {
         onImagesChange(updatedImages)
       }
@@ -150,10 +150,10 @@ export default function ImageUploadAdvanced({
   const removeImage = (index: number) => {
     const imageToRemove = images[index]
     URL.revokeObjectURL(imageToRemove.preview) // Limpar memória
-    
+
     const newImages = images.filter((_, i) => i !== index)
     setImages(newImages)
-    
+
     if (onImagesChange) {
       onImagesChange(newImages)
     }
@@ -193,23 +193,23 @@ export default function ImageUploadAdvanced({
         {...getRootProps()}
         className={`
           relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-          ${isDragActive 
-            ? 'border-blue-400 bg-blue-50' 
+          ${isDragActive
+            ? 'border-blue-400 bg-blue-50'
             : 'border-gray-300 hover:border-gray-400'
           }
           ${images.length >= maxImages ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
         <input {...getInputProps()} ref={fileInputRef} disabled={images.length >= maxImages} />
-        
+
         <PhotoIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-        
+
         <div className="space-y-2">
           <p className="text-lg font-medium text-gray-900">
-            {images.length >= maxImages 
+            {images.length >= maxImages
               ? 'Limite de imagens atingido'
-              : isDragActive 
-                ? 'Solte as imagens aqui' 
+              : isDragActive
+                ? 'Solte as imagens aqui'
                 : 'Clique para selecionar ou arraste imagens'
             }
           </p>
@@ -246,7 +246,7 @@ export default function ImageUploadAdvanced({
           <h4 className="text-md font-medium text-gray-900">
             Imagens Selecionadas ({images.length})
           </h4>
-          
+
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {images.map((image, index) => (
               <div
@@ -262,7 +262,7 @@ export default function ImageUploadAdvanced({
                     className="object-cover"
                     unoptimized
                   />
-                  
+
                   {/* Overlay com ações */}
                   <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
                     <div className="opacity-0 hover:opacity-100 flex space-x-2 transition-opacity">
@@ -283,7 +283,7 @@ export default function ImageUploadAdvanced({
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Informações da imagem */}
                 <div className="p-3">
                   <p className="text-xs font-medium text-gray-900 truncate" title={image.nome_arquivo}>

@@ -15,7 +15,7 @@ interface ImageUploadProps {
 
 export default function ImageUpload({
   onImagesChange,
-  maxImages = 10,
+  maxImages = 20,
   maxFileSize = 10 * 1024 * 1024, // 10MB
   acceptedTypes = ['image/jpeg', 'image/png', 'image/webp'],
   className = ''
@@ -26,7 +26,7 @@ export default function ImageUpload({
   const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
     // Processar arquivos aceitos
     const newImages = [...images, ...acceptedFiles]
-    
+
     if (newImages.length > maxImages) {
       setErrors([`Máximo de ${maxImages} imagens permitido`])
       return
@@ -81,17 +81,17 @@ export default function ImageUpload({
         {...getRootProps()}
         className={`
           border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-          ${isDragActive 
-            ? 'border-blue-500 bg-blue-50' 
+          ${isDragActive
+            ? 'border-blue-500 bg-blue-50'
             : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
           }
           ${images.length >= maxImages ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
         <input {...getInputProps()} disabled={images.length >= maxImages} />
-        
+
         <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-        
+
         {isDragActive ? (
           <p className="text-lg font-medium text-blue-600">
             Solte as imagens aqui...
@@ -129,7 +129,7 @@ export default function ImageUpload({
           <h3 className="text-lg font-medium text-gray-900 mb-4">
             Imagens Selecionadas ({images.length}/{maxImages})
           </h3>
-          
+
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {images.map((image, index) => (
               <div key={index} className="relative group">
@@ -141,7 +141,7 @@ export default function ImageUpload({
                     className="object-cover"
                     unoptimized
                   />
-                  
+
                   {/* Overlay com botão de remover */}
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
                     <button
@@ -153,7 +153,7 @@ export default function ImageUpload({
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Informações da imagem */}
                 <div className="mt-2 text-xs text-gray-500">
                   <p className="font-medium truncate">{image.name}</p>

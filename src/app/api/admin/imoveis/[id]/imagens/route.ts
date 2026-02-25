@@ -13,6 +13,7 @@ import {
   deleteImovelImagemPermanente,
   setImovelImagemPrincipal
 } from '@/lib/database/imoveis'
+import { UPLOAD_CONFIG } from '@/lib/config/constants'
 import { writeFile, mkdir, unlink } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
@@ -122,9 +123,9 @@ export async function POST(
       )
     }
 
-    if (files.length > 20) {
+    if (files.length > UPLOAD_CONFIG.MAX_IMAGES_PER_IMOVEL) {
       return NextResponse.json(
-        { error: 'Máximo de 20 imagens permitido' },
+        { error: `Máximo de ${UPLOAD_CONFIG.MAX_IMAGES_PER_IMOVEL} imagens permitido` },
         { status: 400 }
       )
     }

@@ -1212,7 +1212,7 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
                   </button>
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  PNG, JPG, JPEG até 10MB cada. Máximo 10 imagens.
+                  PNG, JPG, JPEG até 10MB cada. Máximo {MAX_IMAGES} imagens.
                 </p>
               </div>
             </div>
