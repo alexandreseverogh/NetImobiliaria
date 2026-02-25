@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by } = body
+    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, created_by } = body
 
     // Se quem está criando for um Corretor (login via modal público), gravar corretor_fk automaticamente.
     // (Não confiamos em payload do cliente para esse campo.)
@@ -157,6 +157,7 @@ export async function POST(request: NextRequest) {
       endereco,
       numero,
       bairro,
+      complemento,
       estado_fk: estado_fk || undefined,
       cidade_fk: cidade_fk || undefined,
       cep,

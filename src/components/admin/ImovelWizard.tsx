@@ -237,7 +237,7 @@ export default function ImovelWizard({
           ? (typeof data.finalidade_fk === 'string' ? Number(data.finalidade_fk) : data.finalidade_fk)
           : null
 
-        const isValid = !!(data.titulo && data.tipo_fk && finalidadeFk && data.preco)
+        const isValid = !!(data.titulo && data.tipo_fk && finalidadeFk)
         console.log('🔍 Validação Step 2:', {
           titulo: data.titulo,
           tipo_fk: data.tipo_fk,

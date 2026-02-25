@@ -32,7 +32,7 @@ interface ValidationErrors {
 }
 
 export default function EditarProprietarioPage() {
-  const { get, post } = useAuthenticatedFetch()
+  const { get, post, put } = useAuthenticatedFetch()
   const router = useRouter()
   const params = useParams()
   const proprietarioUuid = Array.isArray(params.id) ? params.id[0] : params.id
@@ -754,26 +754,20 @@ export default function EditarProprietarioPage() {
         return
       }
 
-      const response = await fetch(`/api/admin/proprietarios/${proprietarioUuid}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          nome: formData.nome,
-          cpf: formData.cpf || null,
-          cnpj: formData.cnpj || null,
-          telefone: formData.telefone,
-          email: formData.email,
-          endereco: formData.endereco,
-          numero: formData.numero,
-          bairro: formData.bairro,
-          complemento: formData.complemento || null,
-          estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.sigla || null : null,
-          cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,
-          cep: formData.cep,
-          updated_by: user?.nome || 'system'
-        })
+      const response = await put(`/api/admin/proprietarios/${proprietarioUuid}`, {
+        nome: formData.nome,
+        cpf: formData.cpf || null,
+        cnpj: formData.cnpj || null,
+        telefone: formData.telefone,
+        email: formData.email,
+        endereco: formData.endereco,
+        numero: formData.numero,
+        bairro: formData.bairro,
+        complemento: formData.complemento || null,
+        estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.sigla || null : null,
+        cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,
+        cep: formData.cep,
+        updated_by: user?.nome || 'system'
       })
 
       if (response.ok) {

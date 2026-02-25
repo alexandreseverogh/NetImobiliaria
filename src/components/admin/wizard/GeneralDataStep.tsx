@@ -632,10 +632,10 @@ export default function GeneralDataStep({
                   (isCorretorFlow && loadingTodosProprietarios)
                 }
                 className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true'
+                  ? 'bg-gray-100 cursor-not-allowed'
+                  : isCorretorFlow && loadingTodosProprietarios
                     ? 'bg-gray-100 cursor-not-allowed'
-                    : isCorretorFlow && loadingTodosProprietarios
-                      ? 'bg-gray-100 cursor-not-allowed'
-                      : ''
+                    : ''
                   }`}
               />
               {(loadingProprietarios || (isCorretorFlow && loadingTodosProprietarios)) && (
@@ -689,8 +689,8 @@ export default function GeneralDataStep({
               }}
               disabled={proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true'}
               className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${proprietarioPublicoCarregado && searchParams?.get('noSidebar') === 'true'
-                  ? 'bg-gray-100 cursor-not-allowed'
-                  : ''
+                ? 'bg-gray-100 cursor-not-allowed'
+                : ''
                 }`}
             >
               <option value="">Selecione um proprietário</option>
@@ -773,7 +773,7 @@ export default function GeneralDataStep({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div>
             <label htmlFor="preco" className="block text-sm font-medium text-gray-700 mb-2">
-              Preço Principal *
+              Preço Principal
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -790,7 +790,6 @@ export default function GeneralDataStep({
                 }}
                 placeholder="0,00"
                 className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                required
               />
             </div>
           </div>
