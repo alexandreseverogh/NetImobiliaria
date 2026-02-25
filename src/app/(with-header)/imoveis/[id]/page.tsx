@@ -142,7 +142,7 @@ export default function ImovelDetalhes() {
 
   // Função para formatar preço
   const formatarPreco = (valor: any) => {
-    if (!valor || valor === '0' || valor === 0) return 'N/A'
+    if (!valor || valor === '0' || valor === 0) return ''
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
@@ -198,7 +198,7 @@ export default function ImovelDetalhes() {
             {dadosBasicos.titulo}
           </h1>
           <p className="text-lg text-gray-600">
-            Informações do Imóvel: {dadosBasicos.id}
+            Código do Imóvel: {dadosBasicos.id}
           </p>
         </div>
 
