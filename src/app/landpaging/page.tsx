@@ -2417,9 +2417,9 @@ function LandingPageContent() {
 
           <div className="relative min-h-[400px] bg-white overflow-x-visible -mx-4 sm:-mx-6">
             {filtersActive && (
-              <div className="lg:absolute lg:inset-0 relative z-10 bg-white">
-                <div className="relative lg:h-full h-auto w-full bg-white lg:rounded-3xl lg:border lg:border-blue-100 lg:shadow-2xl overflow-visible lg:overflow-hidden">
-                  <div className="relative lg:h-full h-auto p-2 sm:p-4 lg:p-6 lg:overflow-y-auto lg:overflow-x-visible overflow-visible">
+              <div className="relative z-10 bg-white w-full">
+                <div className="relative h-auto w-full bg-white lg:rounded-3xl lg:border lg:border-blue-100 lg:shadow-2xl overflow-visible">
+                  <div className="relative h-auto p-2 sm:p-4 lg:p-6 overflow-visible">
                     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
                       <div className="flex-1">
                         <h3 className="text-2xl font-bold text-gray-900">
