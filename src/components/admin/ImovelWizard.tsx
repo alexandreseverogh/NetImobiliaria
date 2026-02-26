@@ -453,6 +453,16 @@ export default function ImovelWizard({
       console.log('🟡 [WIZARD] formData.endereco.numero:', formData.endereco?.numero)
       console.log('🟡 [WIZARD] Tipo do numero:', typeof formData.endereco?.numero)
 
+      // Validação da Imagem Principal (Obrigatório antes de salvar)
+      const imagens = formData.imagens || []
+      const temImagemPrincipal = Array.isArray(imagens) && imagens.some((img: any) => img.principal === true || img.is_principal === true)
+
+      if (!temImagemPrincipal) {
+        alert('Imagem Principal deverá ser selecionada')
+        setIsSaving(false)
+        return // Bloquear gravação e permanencer no step 5
+      }
+
       try {
         // Converter para string para comparação (evita problemas de tipo)
         const finalidade = finalidadesImovel.find(f => String(f.id) === String(formData.finalidade_fk))

@@ -366,7 +366,7 @@ export default function EditarImovelPage() {
 
       // Limpar campos de mídia pesados que não são salvos via PUT para evitar erro 413
       // Imagens e Documentos na edição são salvos via MediaStep (chamadas individuais)
-      const { imagens, documentos, ...propertyData } = data as any
+      const { imagens: _, documentos, ...propertyData } = data as any
       const requestBody: any = { ...propertyData }
 
       if (data.video?.arquivo instanceof File) {

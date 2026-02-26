@@ -14,7 +14,7 @@ import { StatusImovel } from '@/lib/database/status-imovel'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function NovoImovelPage() {
-  const { get, post, put, delete: del } = useAuthenticatedFetch()
+  const { fetch: authFetch, get, post, put, delete: del } = useAuthenticatedFetch()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [tiposImovel, setTiposImovel] = useState<TipoImovel[]>([])
@@ -170,10 +170,11 @@ export default function NovoImovelPage() {
           lockedProprietario={lockedProprietario}
           onSave={async (data) => {
             console.log('🔍 onSave chamado com dados:', data)
-            try {
-              // 1. Separar dados de mídia para upload posterior
-              const { imagens, documentos, video, ...propertyData } = data as any
 
+            // 1. Separar dados de mídia para upload posterior
+            const { imagens, documentos, video, ...propertyData } = data as any
+
+            try {
               // 2. Preparar dados básicos do imóvel
               const noSidebar = searchParams?.get('noSidebar') === 'true'
               const fromPublic = noSidebar || (typeof document !== 'undefined' && document.referrer.includes('/landpaging'))
@@ -215,7 +216,7 @@ export default function NovoImovelPage() {
                 })
 
                 uploadPromises.push(
-                  fetch(`/api/admin/imoveis/${imovelId}/imagens`, {
+                  authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
                     method: 'POST',
                     body: imagesFormData
                   }).then(async r => {
@@ -235,7 +236,7 @@ export default function NovoImovelPage() {
                   docFormData.append('tipo_documento_id', doc.tipoDocumentoId.toString())
 
                   uploadPromises.push(
-                    fetch(`/api/admin/imoveis/${imovelId}/documentos`, {
+                    authFetch(`/api/admin/imoveis/${imovelId}/documentos`, {
                       method: 'POST',
                       body: docFormData
                     }).then(async r => {
@@ -253,7 +254,7 @@ export default function NovoImovelPage() {
                 videoFormData.append('video', video.arquivo)
 
                 uploadPromises.push(
-                  fetch(`/api/admin/imoveis/${imovelId}/video`, {
+                  authFetch(`/api/admin/imoveis/${imovelId}/video`, {
                     method: 'POST',
                     body: videoFormData
                   }).then(async r => {

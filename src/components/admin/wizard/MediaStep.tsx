@@ -365,9 +365,16 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
         urlLength: img.url?.length || 0
       })))
 
-      // Combinar imagens carregadas + novas imagens
-      const imagensData = [...loadedImages, ...novasImagensData]
-      console.log('🔍 MediaStep - updateData - imagensData FINAL:', imagensData.length)
+      // Combinar imagens carregadas + novas imagens e marcar a principal
+      const imagensData = [...loadedImages, ...novasImagensData].map(img => ({
+        ...img,
+        principal: img.id === selectedPrincipalId || img.id.toString() === selectedPrincipalId?.toString()
+      }))
+      console.log('🔍 MediaStep - updateData - imagensData FINAL com principal marcada:', {
+        total: imagensData.length,
+        principalId: selectedPrincipalId,
+        hasPrincipal: imagensData.some(img => img.principal)
+      })
 
       // Converter documentos para base64
       console.log('🔍 MediaStep - Documentos selecionados:', selectedDocuments.length)
