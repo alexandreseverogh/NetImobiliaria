@@ -2417,9 +2417,9 @@ function LandingPageContent() {
 
           <div className="relative min-h-[400px] bg-white overflow-x-visible -mx-4 sm:-mx-6">
             {filtersActive && (
-              <div className="absolute inset-0 z-10 bg-white">
-                <div className="relative h-full w-full bg-white rounded-3xl border border-blue-100 shadow-2xl overflow-hidden">
-                  <div className="relative h-full p-6 overflow-y-auto overflow-x-visible">
+              <div className="lg:absolute lg:inset-0 relative z-10 bg-white">
+                <div className="relative lg:h-full h-auto w-full bg-white lg:rounded-3xl lg:border lg:border-blue-100 lg:shadow-2xl overflow-visible lg:overflow-hidden">
+                  <div className="relative lg:h-full h-auto p-2 sm:p-4 lg:p-6 lg:overflow-y-auto lg:overflow-x-visible overflow-visible">
                     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
                       <div className="flex-1">
                         <h3 className="text-2xl font-bold text-gray-900">
@@ -2571,7 +2571,7 @@ function LandingPageContent() {
               </div>
             )}
 
-            {loadingFeatured ? (
+            {!filtersActive && (loadingFeatured ? (
               <div className="p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
@@ -2714,7 +2714,7 @@ function LandingPageContent() {
               <div className="text-center py-12">
                 <p className="text-gray-600">Nenhum imóvel em destaque no momento</p>
               </div>
-            )}
+            ))}
           </div>
         </div>
       </section>
