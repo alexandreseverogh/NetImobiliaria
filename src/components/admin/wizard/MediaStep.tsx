@@ -558,6 +558,78 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
     }
   }, [get])
 
+  /**
+   * Função para comprimir imagem no cliente (Browser)
+   * Reduz largura/altura para no máximo 1920px e qualidade para 0.85
+   * Isso reduz drasticamente o tempo de upload sem perda visível de qualidade.
+   */
+  const compressImage = async (file: File): Promise<File> => {
+    // Se o arquivo for muito pequeno (menos de 300KB), não precisa comprimir
+    if (file.size < 300 * 1024) return file;
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const MAX_SIZE = 1920; // Limite Full HD
+
+          // Calcular novas dimensões mantendo o aspect ratio
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+
+          if (!ctx) {
+            resolve(file); // Fallback caso canvas falhe
+            return;
+          }
+
+          // Desenhar imagem no canvas (isso já remove metadados pesados e aplica redimensionamento)
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Converter canvas para Blob (formato original ou JPEG por padrão para compressão)
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                resolve(file);
+                return;
+              }
+              // Criar novo arquivo a partir do blob comprimido
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg', // Sempre JPEG para melhor compressão web
+                lastModified: Date.now(),
+              });
+
+              console.log(`📊 Compressão: ${file.name} | Original: ${(file.size / 1024 / 1024).toFixed(2)}MB | Comprimido: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+              resolve(compressedFile);
+            },
+            'image/jpeg',
+            0.85 // Qualidade profissional para web (quase imperceptível perda de detalhe)
+          );
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
   const handleImageUpload = async (files: FileList) => {
     if (!files || files.length === 0) {
       return
@@ -598,14 +670,27 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
     if (!imovelId) {
       const newImages: UploadedFile[] = []
 
-      Array.from(files).forEach((file, index) => {
-        if (!file.type.startsWith('image/')) {
+      // Processar e comprimir imagens em paralelo
+      const processedFiles = await Promise.all(
+        Array.from(files).map(async (f) => {
+          if (!f.type.startsWith('image/')) return f;
+          try {
+            return await compressImage(f);
+          } catch (e) {
+            console.error('Falha ao comprimir imagem:', f.name, e);
+            return f; // Se falhar, usa original
+          }
+        })
+      );
+
+      processedFiles.forEach((file, index) => {
+        if (!(file instanceof File) || !file.type.startsWith('image/')) {
           return
         }
 
-        // Validação de tamanho (10MB)
+        // Validação de tamanho com base no arquivo JÁ COMPRIMIDO
         if (file.size > UPLOAD_CONFIG.MAX_FILE_SIZE) {
-          alert(`A imagem "${file.name}" é muito grande (${(file.size / 1024 / 1024).toFixed(2)} MB). O limite máximo é 10MB.`)
+          alert(`A imagem "${file.name}" é muito grande (${(file.size / 1024 / 1024).toFixed(2)} MB) após compressão. O limite máximo é 10MB.`)
           return
         }
 
@@ -658,10 +743,23 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
       return
     }
 
+    // Aplicar compressão nas imagens para o modo edição
+    const processedFiles = await Promise.all(
+      Array.from(files).map(async (f) => {
+        if (!f.type.startsWith('image/')) return f;
+        try {
+          return await compressImage(f);
+        } catch (e) {
+          console.error('Falha ao comprimir imagem:', f.name, e);
+          return f;
+        }
+      })
+    );
+
     const validFiles: File[] = []
 
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) {
+    processedFiles.forEach((file) => {
+      if (!(file instanceof File) || !file.type.startsWith('image/')) {
         return
       }
 
