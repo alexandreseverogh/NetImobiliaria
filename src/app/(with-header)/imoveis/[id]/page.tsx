@@ -142,11 +142,12 @@ export default function ImovelDetalhes() {
 
   // Função para formatar preço
   const formatarPreco = (valor: any) => {
-    if (!valor || valor === '0' || valor === 0) return ''
+    const num = Number(valor)
+    if (!num || num <= 0) return 'Preço sob consulta'
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    }).format(Number(valor))
+    }).format(num)
   }
 
   // Estados de loading e erro

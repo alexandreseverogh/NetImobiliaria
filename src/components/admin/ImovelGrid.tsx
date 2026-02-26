@@ -96,10 +96,10 @@ function Pagination({ currentPage, totalPages, onPageChange, totalItems, itemsPe
                 onClick={() => typeof page === 'number' ? onPageChange(page) : undefined}
                 disabled={typeof page !== 'number'}
                 className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${page === currentPage
-                    ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                    : page === '...'
-                      ? 'border-gray-300 bg-white text-gray-700 cursor-default'
-                      : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50'
+                  ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                  : page === '...'
+                    ? 'border-gray-300 bg-white text-gray-700 cursor-default'
+                    : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50'
                   }`}
               >
                 {page}
@@ -211,7 +211,12 @@ function ImovelCard({ imovel }: { imovel: Imovel }) {
           <div className="bg-green-50 rounded p-2">
             <div className="text-[10px] text-green-600 font-medium uppercase">Preço</div>
             <div className="text-xs font-bold text-green-700 truncate">
-              R$ {imovel.preco ? Number(imovel.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}
+              {(() => {
+                const preco = Number(imovel.preco);
+                return preco > 0
+                  ? `R$ ${preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : 'Preço sob consulta';
+              })()}
             </div>
           </div>
           <div className="bg-blue-50 rounded p-2">

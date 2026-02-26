@@ -1161,8 +1161,9 @@ function LandingPageContent() {
     const estadoNome = estado?.nome || imovel.estado_fk || ''
 
 
-    const precoFormatado = imovel.preco
-      ? `R$ ${Number(imovel.preco).toLocaleString('pt-BR', {
+    const precoValue = Number(imovel.preco)
+    const precoFormatado = precoValue > 0
+      ? `R$ ${precoValue.toLocaleString('pt-BR', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       })}`

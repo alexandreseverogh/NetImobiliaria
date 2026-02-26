@@ -114,8 +114,10 @@ export function formatCEP(value: string): string {
   return cleanValue.replace(/(\d{5})(\d{3})/, '$1-$2')
 }
 
-export function formatCurrency(value: number): string {
-  return value.toLocaleString('pt-BR', {
+export function formatCurrency(value: number | string | null | undefined): string {
+  const num = Number(value)
+  if (!num || num <= 0) return 'Preço sob consulta'
+  return num.toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL'
   })
