@@ -66,7 +66,7 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
     console.log('🔍 AmenidadesStep - data.amenidades recebido:', data.amenidades)
     console.log('🔍 AmenidadesStep - data.amenidades length:', data.amenidades?.length)
     console.log('🔍 AmenidadesStep - data.amenidades type:', typeof data.amenidades)
-    
+
     if (data.amenidades && data.amenidades.length > 0) {
       console.log('🔍 AmenidadesStep - Atualizando amenidades selecionadas:', data.amenidades)
 
@@ -89,7 +89,7 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
     if (updateTimeoutRef.current) {
       clearTimeout(updateTimeoutRef.current)
     }
-    
+
     updateTimeoutRef.current = setTimeout(() => {
       if (amenidades.length > 0 && !loading && !isInitialLoad.current) {
         // Enviar apenas os IDs, como as proximidades fazem
@@ -118,25 +118,25 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      
+
       console.log('🔍 AmenidadesStep - Iniciando carregamento de dados...')
       console.log('🔍 AmenidadesStep - URL Categorias:', API_ENDPOINTS.AMENITIES.CATEGORIES)
       console.log('🔍 AmenidadesStep - URL Amenidades:', API_ENDPOINTS.AMENITIES.LIST)
-      
+
       // Carregar categorias
       const categoriasResponse = await get(API_ENDPOINTS.AMENITIES.CATEGORIES)
       console.log('🔍 AmenidadesStep - Resposta categorias status:', categoriasResponse.status)
       console.log('🔍 AmenidadesStep - Resposta categorias ok:', categoriasResponse.ok)
-      
+
       if (categoriasResponse.ok) {
         const categoriasData = await categoriasResponse.json()
         console.log('🔍 AmenidadesStep - Categorias recebidas (raw):', categoriasData)
         console.log('🔍 AmenidadesStep - É array?', Array.isArray(categoriasData))
-        
-        const categoriasAtivas = Array.isArray(categoriasData) 
+
+        const categoriasAtivas = Array.isArray(categoriasData)
           ? categoriasData.filter((c: any) => c.ativo === true)
           : categoriasData.data?.filter((c: any) => c.ativo === true) || []
-        
+
         console.log('🔍 AmenidadesStep - Categorias ativas filtradas:', categoriasAtivas.length)
         setCategorias(categoriasAtivas)
       } else {
@@ -149,15 +149,15 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
       // Carregar amenidades
       const amenidadesResponse = await get(API_ENDPOINTS.AMENITIES.LIST)
       console.log('🔍 AmenidadesStep - Resposta amenidades status:', amenidadesResponse.status)
-      
+
       if (amenidadesResponse.ok) {
         const amenidadesData = await amenidadesResponse.json()
         console.log('🔍 AmenidadesStep - Amenidades recebidas (raw):', amenidadesData)
-        
+
         const amenidadesAtivas = Array.isArray(amenidadesData)
           ? amenidadesData.filter((a: any) => a.ativo === true)
           : amenidadesData.data?.filter((a: any) => a.ativo === true) || []
-        
+
         console.log('🔍 AmenidadesStep - Amenidades ativas filtradas:', amenidadesAtivas.length)
         setAmenidades(amenidadesAtivas)
       } else {
@@ -252,10 +252,10 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
       const newSelection = prev.includes(amenidadeId)
         ? prev.filter(id => id !== amenidadeId)
         : [...prev, amenidadeId]
-      
+
       // Atualizar dados do pai com debounce
       updateParentData(newSelection)
-      
+
       return newSelection
     })
   }, [updateParentData])
@@ -264,17 +264,17 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
     const amenidadesInCategory = amenidades
       .filter(a => a.categoria_id === categoriaId)
       .map(a => a.id)
-    
+
     const allSelected = amenidadesInCategory.every(id => selectedAmenidades.includes(id))
-    
+
     setSelectedAmenidades(prev => {
       const newSelection = allSelected
         ? prev.filter(id => !amenidadesInCategory.includes(id)) // Desmarcar todas
         : Array.from(new Set([...prev, ...amenidadesInCategory])) // Marcar todas
-      
+
       // Atualizar dados do pai com debounce
       updateParentData(newSelection)
-      
+
       return newSelection
     })
   }, [amenidades, selectedAmenidades, updateParentData])
@@ -282,7 +282,7 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
   const filteredAmenidades = amenidades.filter(amenidade => {
     if (!searchTerm) return true
     return amenidade.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           amenidade.categoria_nome.toLowerCase().includes(searchTerm.toLowerCase())
+      amenidade.categoria_nome.toLowerCase().includes(searchTerm.toLowerCase())
   })
 
   const getAmenidadesByCategoria = (categoriaId: number) => {
@@ -309,7 +309,7 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Amenidades do Imóvel</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Atrativos do Imóvel</h2>
         <p className="text-gray-600">
           Selecione as amenidades disponíveis no imóvel. Você pode marcar categorias inteiras ou amenidades individuais.
         </p>
@@ -360,13 +360,13 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
         {categorias.map((categoria) => {
           const amenidadesInCategory = getAmenidadesByCategoria(categoria.id)
           const stats = getCategoriaStats(categoria.id)
-          
+
           if (amenidadesInCategory.length === 0) return null
 
           return (
             <div key={categoria.id} className="border border-gray-400 rounded-lg">
               {/* Cabeçalho da Categoria */}
-              <div 
+              <div
                 className="px-4 py-3 border-b border-gray-400"
                 style={{ backgroundColor: `${categoria.cor}15` }}
               >
@@ -386,21 +386,20 @@ export default function AmenidadesStep({ data, onUpdate, mode }: AmenidadesStepP
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <span className="text-sm text-gray-500">
                       {stats.selected}/{stats.total} selecionadas
                     </span>
                     <button
                       onClick={() => handleSelectAllInCategory(categoria.id)}
-                      className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all duration-200 transform hover:scale-105 ${
-                        stats.selected === stats.total
+                      className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all duration-200 transform hover:scale-105 ${stats.selected === stats.total
                           ? 'bg-green-500 text-white hover:bg-green-600 shadow-green-200'
                           : 'bg-blue-500 text-white hover:bg-blue-600 shadow-blue-200'
-                      }`}
+                        }`}
                       style={{
-                        boxShadow: stats.selected === stats.total 
-                          ? `0 4px 14px 0 ${categoria.cor}40` 
+                        boxShadow: stats.selected === stats.total
+                          ? `0 4px 14px 0 ${categoria.cor}40`
                           : `0 4px 14px 0 ${categoria.cor}40`
                       }}
                     >

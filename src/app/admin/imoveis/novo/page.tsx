@@ -206,24 +206,34 @@ export default function NovoImovelPage() {
               // 3. Step 2: Upload de arquivos de mídia se existirem
               const uploadPromises: Promise<any>[] = []
 
-              // A. Upload de Imagens (via FormData - Lote)
+              // A. Upload de Imagens (Individuais para evitar payload too large)
               const imagensParaUpload = imagens?.filter((img: any) => img.file instanceof File) || []
               if (imagensParaUpload.length > 0) {
-                console.log(`🚀 Step 2A: Fazendo upload de ${imagensParaUpload.length} imagens...`)
-                const imagesFormData = new FormData()
-                imagensParaUpload.forEach((img: any) => {
-                  imagesFormData.append('images', img.file)
-                })
+                console.log(`🚀 Step 2A: Iniciando upload de ${imagensParaUpload.length} imagens individualmente...`)
 
-                uploadPromises.push(
-                  authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
-                    method: 'POST',
-                    body: imagesFormData
-                  }).then(async r => {
-                    if (!r.ok) console.error('❌ Erro no upload de imagens:', await r.text())
-                    return r
-                  })
-                )
+                imagensParaUpload.forEach((img: any, idx: number) => {
+                  const imageFormData = new FormData()
+                  imageFormData.append('images', img.file)
+                  // Se a imagem tiver a flag principal, avisamos o backend (opcional se o backend automatizar a primeira)
+                  if (img.principal) {
+                    imageFormData.append('principal', 'true')
+                  }
+
+                  uploadPromises.push(
+                    authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
+                      method: 'POST',
+                      body: imageFormData
+                    }).then(async r => {
+                      if (!r.ok) {
+                        const err = await r.text()
+                        console.error(`❌ Erro no upload da imagem ${idx + 1}:`, err)
+                      } else {
+                        console.log(`✅ Upload da imagem ${idx + 1} concluído`)
+                      }
+                      return r
+                    })
+                  )
+                })
               }
 
               // B. Upload de Documentos (Individuais)

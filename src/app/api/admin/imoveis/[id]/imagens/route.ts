@@ -112,9 +112,14 @@ export async function POST(
       )
     }
 
+    // Buscar imagens existentes para determinar a próxima ordem
+    const existingImages = await findImovelImagens(id)
+    let nextOrdem = existingImages.length > 0 ? Math.max(...existingImages.map(img => img.ordem || 0)) + 1 : 1
+
     // Processar formulário multipart
     const formData = await request.formData()
     const files = formData.getAll('images') as File[]
+    const forcePrincipal = formData.get('principal') === 'true'
 
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -129,13 +134,6 @@ export async function POST(
         { status: 400 }
       )
     }
-
-    // Garantir diretório de upload
-    const imovelDir = await ensureUploadDir(id)
-
-    // Buscar imagens existentes para determinar a próxima ordem
-    const existingImages = await findImovelImagens(id)
-    let nextOrdem = existingImages.length > 0 ? Math.max(...existingImages.map(img => img.ordem || 0)) + 1 : 1
 
     const uploadedImages: any[] = []
 
@@ -156,23 +154,30 @@ export async function POST(
         )
       }
 
-      // Gerar nome único
-      const timestamp = Date.now()
-      const random = Math.random().toString(36).substring(2)
-      const extension = file.name.split('.').pop()
-      const filename = `${timestamp}_${random}.${extension}`
-      const filepath = join(imovelDir, filename)
-
-      // Salvar arquivo
+      // Obter buffer do arquivo
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
-      await writeFile(filepath, buffer)
 
-      // Salvar informações no banco de dados
+      // Tentar salvar arquivo físico (opcional - não bloqueante)
+      try {
+        const imovelDir = await ensureUploadDir(id)
+        const timestamp = Date.now()
+        const random = Math.random().toString(36).substring(2)
+        const extension = file.name.split('.').pop()
+        const filename = `${timestamp}_${random}.${extension}`
+        const filepath = join(imovelDir, filename)
+        await writeFile(filepath, buffer)
+        console.log(`✅ Arquivo físico salvo: ${filepath}`)
+      } catch (fsError) {
+        console.warn(`⚠️ Falha ao salvar arquivo físico (permissão ou diretório), prosseguindo com banco de dados:`, fsError)
+      }
+
+      // Salvar informações no banco de dados (OBRIGATÓRIO)
       const imagemId = await insertImovelImagem({
         imovelId: id,
         ordem: nextOrdem,
-        principal: existingImages.length === 0 && uploadedImages.length === 0, // Primeira imagem será principal
+        // Lógica: se o frontend forçou ou se for a primeira imagem de todas
+        principal: forcePrincipal || (existingImages.length === 0 && uploadedImages.length === 0),
         tipoMime: file.type,
         tamanhoBytes: file.size,
         imagem: buffer
@@ -182,8 +187,7 @@ export async function POST(
 
       uploadedImages.push({
         id: imagemId,
-        nome_arquivo: filename,
-        url: `/uploads/imoveis/${id}/${filename}`,
+        url: `/api/public/imagens/${imagemId}`, // Usar API de streaming do banco de dados
         tamanho: file.size,
         tipo: file.type,
         ordem: uploadedImages.length
