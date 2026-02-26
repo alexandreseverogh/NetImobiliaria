@@ -364,8 +364,10 @@ export default function EditarImovelPage() {
       console.log('🟢 [EDIÇÃO] Campo NUMERO especificamente:', data.endereco?.numero)
       console.log('🟢 [EDIÇÃO] Tipo do numero:', typeof data.endereco?.numero)
 
-      // Converter apenas vídeo para base64 se necessário
-      const requestBody = { ...data }
+      // Limpar campos de mídia pesados que não são salvos via PUT para evitar erro 413
+      // Imagens e Documentos na edição são salvos via MediaStep (chamadas individuais)
+      const { imagens, documentos, ...propertyData } = data as any
+      const requestBody: any = { ...propertyData }
 
       if (data.video?.arquivo instanceof File) {
         console.log('🔍 Convertendo vídeo File para base64...')
@@ -380,6 +382,11 @@ export default function EditarImovelPage() {
           arquivo: base64Video
         }
         console.log('🔍 Vídeo convertido para base64')
+      } else {
+        // Se o vídeo não mudou ou não é um novo arquivo, remover arquivo base64 existente para poupar payload
+        if (requestBody.video) {
+          delete requestBody.video.arquivo
+        }
       }
 
       console.log('🟢 [EDIÇÃO] requestBody FINAL antes do PUT:', requestBody)

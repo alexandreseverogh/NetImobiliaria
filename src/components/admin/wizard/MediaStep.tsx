@@ -345,6 +345,7 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
           return {
             id: img.id,
             url: base64,
+            file: img.file, // Preservar o arquivo original
             nome: img.file.name,
             descricao: '',
             ordem: selectedImages.indexOf(img) + 1,
@@ -426,6 +427,7 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
             tipoDocumentoDescricao: doc.tipoDocumentoDescricao || '',
             nomeArquivo: doc.preview || doc.file.name,
             arquivo: base64, // Enviar como base64
+            file: doc.file, // Preservar o arquivo original
             tipoMime: doc.file.type,
             tamanhoBytes: doc.file.size,
             dataUpload: new Date().toISOString()
@@ -591,6 +593,12 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
 
       Array.from(files).forEach((file, index) => {
         if (!file.type.startsWith('image/')) {
+          return
+        }
+
+        // Validação de tamanho (10MB)
+        if (file.size > UPLOAD_CONFIG.MAX_FILE_SIZE) {
+          alert(`A imagem "${file.name}" é muito grande (${(file.size / 1024 / 1024).toFixed(2)} MB). O limite máximo é 10MB.`)
           return
         }
 
@@ -793,6 +801,12 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
         isPDF: file.type === 'application/pdf',
         isImage: file.type.startsWith('image/')
       })
+
+      // Validação de tamanho (10MB)
+      if (file.size > UPLOAD_CONFIG.MAX_FILE_SIZE) {
+        alert(`O documento "${file.name}" é muito grande (${(file.size / 1024 / 1024).toFixed(2)} MB). O limite máximo é 10MB.`)
+        return
+      }
 
       // TEMPORARIAMENTE DESABILITADO: Verificar se o arquivo já não foi adicionado
       // const arquivoJaExiste = selectedDocuments.some(doc => 

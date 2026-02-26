@@ -170,114 +170,118 @@ export default function NovoImovelPage() {
           lockedProprietario={lockedProprietario}
           onSave={async (data) => {
             console.log('🔍 onSave chamado com dados:', data)
-            console.log('🔍 onSave - proximidades:', data.proximidades)
-            console.log('🔍 onSave - video:', data.video)
             try {
-              // Função para converter File objects para base64 antes do JSON.stringify
-              // EXCEÇÃO: Não converter o arquivo do vídeo (body.video.arquivo) - a API espera um File object
-              const convertFileToBase64 = async (obj: any, isVideoArquivo: boolean = false): Promise<any> => {
-                if (obj === null || obj === undefined) return obj
+              // 1. Separar dados de mídia para upload posterior
+              const { imagens, documentos, video, ...propertyData } = data as any
 
-                // Se for o arquivo do vídeo, não converter para base64 - manter como File object
-                if (isVideoArquivo && obj instanceof File) {
-                  return obj
-                }
-
-                if (obj instanceof File) {
-                  return new Promise((resolve) => {
-                    const reader = new FileReader()
-                    reader.onload = () => resolve(reader.result)
-                    reader.readAsDataURL(obj)
-                  })
-                }
-                if (Array.isArray(obj)) {
-                  return Promise.all(obj.map(item => convertFileToBase64(item, false)))
-                }
-                if (typeof obj === 'object') {
-                  const converted: any = {}
-                  for (const [key, value] of Object.entries(obj)) {
-                    // Se for o arquivo do vídeo, não converter para base64
-                    const isVideoArquivoField = key === 'arquivo' && obj === data.video
-                    converted[key] = await convertFileToBase64(value, isVideoArquivoField)
-                  }
-                  return converted
-                }
-                return obj
-              }
-
-              // Detectar se é acesso público
+              // 2. Preparar dados básicos do imóvel
               const noSidebar = searchParams?.get('noSidebar') === 'true'
               const fromPublic = noSidebar || (typeof document !== 'undefined' && document.referrer.includes('/landpaging'))
 
-              // Preparar requestBody convertendo todos os arquivos para base64
-              const requestBody: any = {
-                ...data,
+              const requestBody = {
+                ...propertyData,
                 created_by: "1",
-                origemPublica: fromPublic, // Flag para indicar origem pública
-                fromCorretorPortal, // Flag para gravar em imovel_corretor SOMENTE no fluxo do corretor
-                proprietario_uuid: lockedProprietario?.uuid || data.proprietario_uuid // Priorizar proprietário bloqueado (contexto proprietário)
+                origemPublica: fromPublic,
+                fromCorretorPortal,
+                proprietario_uuid: lockedProprietario?.uuid || data.proprietario_uuid,
+                // Enviar arrays vazios para evitar processamento pesado de base64 no body
+                imagens: [],
+                documentos: [],
+                video: null
               }
 
-              // Converter vídeo para base64 se for File object
-              if (requestBody.video && requestBody.video.arquivo instanceof File) {
-                console.log('🔍 Convertendo arquivo de vídeo para base64:', requestBody.video.arquivo.name)
-                const videoFile = requestBody.video.arquivo
-                requestBody.video.arquivo = await new Promise((resolve) => {
-                  const reader = new FileReader()
-                  reader.onload = () => resolve(reader.result)
-                  reader.readAsDataURL(videoFile)
-                })
-                console.log('🔍 Arquivo de vídeo convertido para base64')
-              }
-
-              // Converter imagens e documentos para base64
-              if (requestBody.imagens && Array.isArray(requestBody.imagens)) {
-                requestBody.imagens = await Promise.all(requestBody.imagens.map((img: any) => convertFileToBase64(img, false)))
-              }
-
-              if (requestBody.documentos && Array.isArray(requestBody.documentos)) {
-                requestBody.documentos = await Promise.all(requestBody.documentos.map((doc: any) => convertFileToBase64(doc, false)))
-              }
-
-              console.log('🔍 Request body preparado:', requestBody)
-              console.log('🔍 Request body - IMAGENS:', requestBody.imagens)
-              console.log('🔍 Request body - IMAGENS count:', requestBody.imagens?.length)
-              console.log('🔍 Request body - PROXIMIDADES:', requestBody.proximidades)
-              console.log('🔍 Request body - PROXIMIDADES count:', requestBody.proximidades?.length)
-              console.log('🔍 Request body - VIDEO:', requestBody.video)
-              console.log('🔍 Request body - VIDEO.arquivo é File?', requestBody.video?.arquivo instanceof File)
-              console.log('🔍 Request body - Primeira imagem detalhada:', requestBody.imagens?.[0])
-
+              console.log('🚀 Step 1: Salvando dados básicos do imóvel...')
               const response = await post('/api/admin/imoveis', requestBody)
 
-              console.log('🔍 Response status:', response.status)
-              console.log('🔍 Response ok:', response.ok)
-
-              if (response.ok) {
-                const result = await response.json()
-                console.log('✅ Imóvel criado com sucesso, ID:', result.data.id)
-
-                // Verificar origem para redirecionamento após sucesso
-                const noSidebar = searchParams?.get('noSidebar') === 'true'
-                const fromPublic = noSidebar || (typeof document !== 'undefined' && document.referrer.includes('/landpaging'))
-
-                // Armazenar origem para uso no popup de sucesso
-                if (typeof window !== 'undefined') {
-                  if (fromPublic) {
-                    sessionStorage.setItem('imovelCreatedFromPublic', 'true')
-                  } else {
-                    sessionStorage.removeItem('imovelCreatedFromPublic')
-                  }
-                }
-
-                return result.data // Retornar o imóvel criado para o popup
-              } else {
+              if (!response.ok) {
                 const errorText = await response.text()
-                console.log('❌ Erro response:', errorText)
                 throw new Error(`Erro ao criar imóvel: ${response.status} - ${errorText}`)
               }
+
+              const result = await response.json()
+              const imovelId = result.data.id
+              console.log('✅ Imóvel criado com sucesso, ID:', imovelId)
+
+              // 3. Step 2: Upload de arquivos de mídia se existirem
+              const uploadPromises: Promise<any>[] = []
+
+              // A. Upload de Imagens (via FormData - Lote)
+              const imagensParaUpload = imagens?.filter((img: any) => img.file instanceof File) || []
+              if (imagensParaUpload.length > 0) {
+                console.log(`🚀 Step 2A: Fazendo upload de ${imagensParaUpload.length} imagens...`)
+                const imagesFormData = new FormData()
+                imagensParaUpload.forEach((img: any) => {
+                  imagesFormData.append('images', img.file)
+                })
+
+                uploadPromises.push(
+                  fetch(`/api/admin/imoveis/${imovelId}/imagens`, {
+                    method: 'POST',
+                    body: imagesFormData
+                  }).then(async r => {
+                    if (!r.ok) console.error('❌ Erro no upload de imagens:', await r.text())
+                    return r
+                  })
+                )
+              }
+
+              // B. Upload de Documentos (Individuais)
+              const documentosParaUpload = documentos?.filter((doc: any) => doc.file instanceof File) || []
+              if (documentosParaUpload.length > 0) {
+                console.log(`🚀 Step 2B: Fazendo upload de ${documentosParaUpload.length} documentos...`)
+                documentosParaUpload.forEach((doc: any) => {
+                  const docFormData = new FormData()
+                  docFormData.append('documento', doc.file)
+                  docFormData.append('tipo_documento_id', doc.tipoDocumentoId.toString())
+
+                  uploadPromises.push(
+                    fetch(`/api/admin/imoveis/${imovelId}/documentos`, {
+                      method: 'POST',
+                      body: docFormData
+                    }).then(async r => {
+                      if (!r.ok) console.error(`❌ Erro no upload do documento ${doc.nomeArquivo}:`, await r.text())
+                      return r
+                    })
+                  )
+                })
+              }
+
+              // C. Upload de Vídeo
+              if (video && video.arquivo instanceof File) {
+                console.log('🚀 Step 2C: Fazendo upload de vídeo...')
+                const videoFormData = new FormData()
+                videoFormData.append('video', video.arquivo)
+
+                uploadPromises.push(
+                  fetch(`/api/admin/imoveis/${imovelId}/video`, {
+                    method: 'POST',
+                    body: videoFormData
+                  }).then(async r => {
+                    if (!r.ok) console.error('❌ Erro no upload de vídeo:', await r.text())
+                    return r
+                  })
+                )
+              }
+
+              // Aguardar todos os uploads (opcionalmente poderíamos lidar com falhas parciais aqui)
+              if (uploadPromises.length > 0) {
+                console.log('⏳ Aguardando uploads de mídia...')
+                await Promise.allSettled(uploadPromises)
+                console.log('✅ Processo de uploads finalizado')
+              }
+
+              // 4. Redirecionamento e Finalização
+              if (typeof window !== 'undefined') {
+                if (fromPublic) {
+                  sessionStorage.setItem('imovelCreatedFromPublic', 'true')
+                } else {
+                  sessionStorage.removeItem('imovelCreatedFromPublic')
+                }
+              }
+
+              return result.data
             } catch (error) {
-              console.error('❌ Erro ao salvar imóvel:', error)
+              console.error('❌ Erro no fluxo de salvamento:', error)
               throw error
             }
           }}

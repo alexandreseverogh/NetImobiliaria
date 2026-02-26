@@ -153,6 +153,7 @@ export interface Imovel {
 export interface Imagem {
   id: string
   url: string
+  file?: File // Objeto File original para upload via FormData
   nome: string
   descricao?: string
   ordem: number
@@ -169,6 +170,7 @@ export interface ImovelDocumento {
   tipoDocumentoDescricao: string
   nomeArquivo: string
   arquivo: string
+  file?: File // Objeto File original para upload via FormData
   tipoMime: string
   tamanhoBytes: number
   dataUpload: string
