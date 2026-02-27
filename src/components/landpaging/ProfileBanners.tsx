@@ -24,10 +24,10 @@ export default function ProfileBanners({
             </div>
           </div>
 
-          {/* Mobile: carrossel horizontal (snap) | Desktop: grid */}
-          <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory md:grid md:grid-cols-3 md:overflow-visible">
+          {/* Mobile: empilhamento vertical | Desktop: grid 3 colunas */}
+          <div className="grid grid-cols-1 gap-4 md:grid md:grid-cols-3">
             {/* Proprietário */}
-            <div className="min-w-[280px] snap-start md:min-w-0">
+            <div className="w-full md:min-w-0">
               <div className="h-full rounded-2xl border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm">
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center border border-primary-200 flex-shrink-0">
@@ -60,7 +60,7 @@ export default function ProfileBanners({
             </div>
 
             {/* Cliente */}
-            <div className="min-w-[280px] snap-start md:min-w-0">
+            <div className="w-full md:min-w-0">
               <div className="h-full rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm">
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center border border-blue-200 flex-shrink-0">
@@ -93,7 +93,7 @@ export default function ProfileBanners({
             </div>
 
             {/* Corretor */}
-            <div className="min-w-[280px] snap-start md:min-w-0">
+            <div className="w-full md:min-w-0">
               <div className="h-full rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-white p-5 shadow-sm">
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center border border-purple-200 flex-shrink-0">
