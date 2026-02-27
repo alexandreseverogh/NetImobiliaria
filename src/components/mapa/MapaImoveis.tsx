@@ -206,7 +206,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
           className: 'custom-price-marker',
           html: `
             <div style="position: relative; width: 44px; height: 56px; display: flex; flex-direction: column; align-items: center;">
-              <svg viewBox="0 0 24 24" style="width: 44px; height: 56px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));" fill="#DC2626" stroke="white" stroke-width="1.5">
+              <svg viewBox="0 0 24 24" style="width: 44px; height: 56px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));" fill="#2563EB" stroke="white" stroke-width="1.5">
                 <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8z"/>
               </svg>
               <div style="
