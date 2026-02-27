@@ -44,7 +44,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
 
     const latSum = imoveis.reduce((sum, i) => sum + i.latitude, 0)
     const lngSum = imoveis.reduce((sum, i) => sum + i.longitude, 0)
-    
+
     return [latSum / imoveis.length, lngSum / imoveis.length] as [number, number]
   }, [imoveis])
 
@@ -64,7 +64,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
   // Função para calcular raio do círculo baseado no preço (em pixels)
   const calcularRaio = (preco: number): number => {
     if (maxPreco === minPreco) return 15 // Raio padrão se todos têm o mesmo preço
-    
+
     const normalizado = (preco - minPreco) / (maxPreco - minPreco)
     // Raio entre 10px e 30px (muito menor para não sobrepor)
     return 10 + (normalizado * 20)
@@ -72,6 +72,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
 
   // Formatar preço para exibição
   const formatarPreco = (preco: number): string => {
+    if (!preco || preco <= 0) return 'Sob Consulta'
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
@@ -180,7 +181,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
         const coordKey = `${imovel.latitude.toFixed(6)}_${imovel.longitude.toFixed(6)}`
         const count = coordenadasMap.get(coordKey) || 0
         coordenadasMap.set(coordKey, count + 1)
-        
+
         // Aplicar pequeno offset aleatório se houver duplicatas (máximo 0.001 graus ≈ 111 metros)
         let latOffset = 0
         let lngOffset = 0
@@ -190,7 +191,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
           latOffset = Math.cos(angle) * radius
           lngOffset = Math.sin(angle) * radius
         }
-        
+
         return {
           ...imovel,
           latitude: imovel.latitude + latOffset,
@@ -200,37 +201,37 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
 
       // Adicionar marcadores para cada imóvel
       imoveisComOffset.forEach((imovel) => {
-        const raio = calcularRaio(imovel.preco)
-        
-        // Criar ícone customizado com valor dentro
-        const fontSize = Math.max(8, Math.min(11, Math.floor(raio / 2)))
+        // Criar ícone customizado com formato de Pin tradicional e valor dentro
         const customIcon = L.divIcon({
           className: 'custom-price-marker',
           html: `
-            <div style="
-              width: ${raio * 2}px;
-              height: ${raio * 2}px;
-              border-radius: 50%;
-              background-color: rgba(220, 38, 38, 0.7);
-              border: 2px solid #DC2626;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: white;
-              font-weight: bold;
-              font-size: ${fontSize}px;
-              text-align: center;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-              line-height: 1;
-              padding: 1px;
-              white-space: nowrap;
-              overflow: hidden;
-            ">
-              ${formatarPreco(imovel.preco).replace('R$', '').trim()}
+            <div style="position: relative; width: 44px; height: 56px; display: flex; flex-direction: column; align-items: center;">
+              <svg viewBox="0 0 24 24" style="width: 44px; height: 56px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));" fill="#DC2626" stroke="white" stroke-width="1.5">
+                <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              <div style="
+                position: absolute;
+                top: 8px;
+                width: 32px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-size: ${imovel.preco > 0 ? '9px' : '7px'};
+                font-weight: 800;
+                line-height: 1;
+                text-align: center;
+                pointer-events: none;
+                word-wrap: break-word;
+                padding: 0 2px;
+              ">
+                ${formatarPreco(imovel.preco).replace('R$', '').trim()}
+              </div>
             </div>
           `,
-          iconSize: [raio * 2, raio * 2],
-          iconAnchor: [raio, raio]
+          iconSize: [44, 56],
+          iconAnchor: [22, 56] // Ponta do Pin no centro inferior
         })
 
         // Criar marcador
@@ -288,7 +289,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
             setPopupImovel(imovel)
           }
         })
-        
+
         // Garantir que nenhum popup do Leaflet seja aberto
         marker.off('popupopen')
         marker.off('popupclose')
@@ -301,7 +302,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
         const bounds = L.latLngBounds(
           imoveisComOffset.map(i => [i.latitude, i.longitude] as [number, number])
         )
-        
+
         // Ajustar bounds com padding de 10% nas bordas
         map.fitBounds(bounds, {
           padding: [50, 50], // Padding em pixels nas bordas
@@ -368,7 +369,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
   }
 
   const modalContent = popupImovel && mounted ? (
-    <div 
+    <div
       id="modal-overlay-custom"
       style={{
         position: 'fixed',
@@ -388,7 +389,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
       }}
       onClick={() => setPopupImovel(null)}
     >
-      <div 
+      <div
         id="modal-content-custom"
         style={{
           backgroundColor: 'white',
@@ -425,7 +426,7 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
             ×
           </button>
         </div>
-        <div 
+        <div
           style={{ fontSize: '14px', display: 'flex', flexDirection: 'column' }}
           dangerouslySetInnerHTML={{ __html: criarLinhasModal(popupImovel) }}
         />
@@ -435,11 +436,11 @@ export default function MapaImoveis({ imoveis, onImovelClick }: MapaImoveisProps
 
   return (
     <>
-      <div 
+      <div
         ref={mapRef}
         className="w-full h-full"
-        style={{ 
-          height: '100%', 
+        style={{
+          height: '100%',
           width: '100%',
           minHeight: '400px',
           position: 'relative',
