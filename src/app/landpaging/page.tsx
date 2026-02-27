@@ -715,21 +715,20 @@ function LandingPageContent() {
       }
     }
 
-    // Regra do produto: se NÃO estiver logado como cliente, NÃO abrir nenhum modal aqui.
-    // Apenas instruir o usuário a usar os botões do topo (Criar conta / Entrar).
-    try {
-      window.dispatchEvent(
-        new CustomEvent('ui-toast', {
-          detail: {
-            type: 'warning',
-            position: 'center',
-            durationMs: 0,
-            message:
-              'Apenas clientes logados podem registrar interesse. Você poderá acessar a sua conta ou criar um novo cadastro, acessando os botões Criar Conta ou Entrar, localizados no menu superior à direita'
-          }
-        })
-      )
-    } catch { }
+    // Se NÃO estiver logado como cliente, abrir modal de cadastro/login de cliente
+    console.log('🔍 [LANDING PAGE] Usuário não logado, abrindo modal de autenticação para cliente')
+
+    // Armazenar dados para continuar após login
+    setPendingImovelId(imovelId)
+    sessionStorage.setItem('pendingImovelId', imovelId.toString())
+    if (imovelTitulo) {
+      setPendingImovelTitulo(imovelTitulo)
+      sessionStorage.setItem('pendingImovelTitulo', imovelTitulo)
+    }
+
+    setAuthUserType('cliente')
+    setAuthModalMode('register') // Abre no modo cadastro, mas permite alternar para login
+    setAuthModalOpen(true)
     return
   }
 

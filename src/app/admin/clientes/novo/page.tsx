@@ -6,13 +6,9 @@ import { ArrowLeftIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
+import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import { buscarEnderecoPorCep } from '@/lib/utils/geocoding'
 import EstadoSelect from '@/components/shared/EstadoSelect'
-
-interface EstadosCidades {
-  estados: Array<{id: string, nome: string, sigla: string}>
-  municipios: Array<{id: string, nome: string}>
-}
 
 interface FormData {
   nome: string
@@ -34,13 +30,14 @@ export default function NovoClientePage() {
   const { get, post, put, delete: del } = useAuthenticatedFetch()
   const router = useRouter()
   const { user } = useAuth()
-  const [loading, setLoading] = useState(false)
+  const {
+    estados,
+    municipios,
+    loadMunicipios,
+    loading: loadingLocais
+  } = useEstadosCidades('all')
   const [saving, setSaving] = useState(false)
-  const [estadosCidades, setEstadosCidades] = useState<EstadosCidades>({
-    estados: [],
-    municipios: []
-  })
-  
+
   const [formData, setFormData] = useState<FormData>({
     nome: '',
     cpf: '',
@@ -54,7 +51,7 @@ export default function NovoClientePage() {
     numero: '',
     complemento: ''
   })
-  
+
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [cpfValidating, setCpfValidating] = useState(false)
   const [cpfExists, setCpfExists] = useState(false)
@@ -64,51 +61,12 @@ export default function NovoClientePage() {
   const [emailPendingValidation, setEmailPendingValidation] = useState(false)
   const [buscandoCep, setBuscandoCep] = useState(false)
 
-  // Carregar estados
-  useEffect(() => {
-    const loadEstados = async () => {
-      try {
-        const municipiosData = await import('@/lib/admin/municipios.json')
-        const estadosComId = municipiosData.estados?.map((estado, index) => ({
-          id: index.toString(),
-          sigla: estado.sigla,
-          nome: estado.nome
-        })) || []
-        setEstadosCidades(prev => ({ ...prev, estados: estadosComId }))
-      } catch (err) {
-        console.error('Erro ao carregar estados:', err)
-      }
-    }
-    loadEstados()
-  }, [])
-
   // Carregar municípios quando estado mudar
   useEffect(() => {
-    const loadMunicipios = async () => {
-      if (!formData.estado) {
-        setEstadosCidades(prev => ({ ...prev, municipios: [] }))
-        return
-      }
-
-      try {
-        const municipiosData = await import('@/lib/admin/municipios.json')
-        const estadoIndex = parseInt(formData.estado)
-        const municipiosDoEstado = municipiosData.estados[estadoIndex]?.municipios || []
-        
-        const municipiosComId = municipiosDoEstado.map((municipio, index) => ({
-          id: index.toString(),
-          nome: municipio
-        }))
-        
-        setEstadosCidades(prev => ({ ...prev, municipios: municipiosComId }))
-      } catch (err) {
-        console.error('Erro ao carregar municípios:', err)
-        setEstadosCidades(prev => ({ ...prev, municipios: [] }))
-      }
+    if (formData.estado) {
+      loadMunicipios(formData.estado)
     }
-
-    loadMunicipios()
-  }, [formData.estado])
+  }, [formData.estado, loadMunicipios])
 
   // Buscar endereço automaticamente quando CEP for informado (8 dígitos)
   useEffect(() => {
@@ -128,8 +86,8 @@ export default function NovoClientePage() {
         if (enderecoData) {
           console.log('✅ Endereço encontrado:', enderecoData)
 
-          // Encontrar ID do estado pela sigla
-          const estadoEncontrado = estadosCidades.estados.find(e => e.sigla === enderecoData.uf)
+          // Encontrar estado pela sigla (o hook usa sigla como id no modo 'all')
+          const estadoEncontrado = estados.find(e => e.sigla === enderecoData.uf)
 
           setFormData(prev => ({
             ...prev,
@@ -144,7 +102,7 @@ export default function NovoClientePage() {
           setTimeout(() => {
             setFormData(prev => {
               // Recarregar municípios para o estado
-              const municipioEncontrado = estadosCidades.municipios.find(m => m.nome === enderecoData.localidade)
+              const municipioEncontrado = municipios.find(m => m.nome === enderecoData.localidade)
               return {
                 ...prev,
                 cidade: municipioEncontrado?.id || ''
@@ -164,7 +122,7 @@ export default function NovoClientePage() {
     // Debounce de 500ms
     const timeoutId = setTimeout(buscarEndereco, 500)
     return () => clearTimeout(timeoutId)
-  }, [formData.cep, estadosCidades.estados, estadosCidades.municipios])
+  }, [formData.cep, estados, municipios])
 
   // Verificar Email com debounce (igual ao CEP)
   useEffect(() => {
@@ -214,26 +172,26 @@ export default function NovoClientePage() {
   // Validação de CPF
   const validateCPF = (cpf: string): boolean => {
     const cleanCPF = cpf.replace(/\D/g, '')
-    
+
     if (cleanCPF.length !== 11) return false
     if (/^(\d)\1{10}$/.test(cleanCPF)) return false
-    
+
     let sum = 0
     for (let i = 0; i < 9; i++) {
       sum += parseInt(cleanCPF.charAt(i)) * (10 - i)
     }
     let remainder = sum % 11
     let firstDigit = remainder < 2 ? 0 : 11 - remainder
-    
+
     if (parseInt(cleanCPF.charAt(9)) !== firstDigit) return false
-    
+
     sum = 0
     for (let i = 0; i < 10; i++) {
       sum += parseInt(cleanCPF.charAt(i)) * (11 - i)
     }
     remainder = sum % 11
     let secondDigit = remainder < 2 ? 0 : 11 - remainder
-    
+
     return parseInt(cleanCPF.charAt(10)) === secondDigit
   }
 
@@ -326,7 +284,7 @@ export default function NovoClientePage() {
 
     // Validação em tempo real
     const newErrors = { ...errors }
-    
+
     switch (field) {
       case 'nome':
         if (value.length < 2) {
@@ -373,7 +331,7 @@ export default function NovoClientePage() {
       e.preventDefault()
       return
     }
-    
+
     // Bloquear campos obrigatórios vazios
     if (e.key === 'Tab' || e.key === 'Enter') {
       switch (field) {
@@ -386,8 +344,8 @@ export default function NovoClientePage() {
         case 'cpf':
           const cpfLimpo = formData.cpf.replace(/\D/g, '')
           // Bloquear se: vazio, validando, existe, pendente validação, incompleto ou inválido
-          if (!formData.cpf || cpfValidating || cpfExists || cpfPendingValidation || 
-              cpfLimpo.length !== 11 || !validateCPF(formData.cpf)) {
+          if (!formData.cpf || cpfValidating || cpfExists || cpfPendingValidation ||
+            cpfLimpo.length !== 11 || !validateCPF(formData.cpf)) {
             e.preventDefault()
             return
           }
@@ -400,8 +358,8 @@ export default function NovoClientePage() {
           break
         case 'email':
           // Bloquear se: vazio, validando, existe, pendente validação ou inválido
-          if (!formData.email || emailValidating || emailExists || emailPendingValidation || 
-              !validateEmail(formData.email)) {
+          if (!formData.email || emailValidating || emailExists || emailPendingValidation ||
+            !validateEmail(formData.email)) {
             e.preventDefault()
             return
           }
@@ -450,22 +408,22 @@ export default function NovoClientePage() {
   // Submissão do formulário
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validações finais
     const finalErrors: ValidationErrors = {}
-    
+
     if (!formData.nome || formData.nome.length < 2) {
       finalErrors.nome = 'Nome é obrigatório'
     }
-    
+
     if (!formData.cpf || !validateCPF(formData.cpf)) {
       finalErrors.cpf = 'CPF é obrigatório e deve ser válido'
     }
-    
+
     if (!formData.telefone || !validateTelefone(formData.telefone)) {
       finalErrors.telefone = 'Telefone é obrigatório'
     }
-    
+
     if (!formData.email || !validateEmail(formData.email)) {
       finalErrors.email = 'Email é obrigatório e deve ser válido'
     }
@@ -509,33 +467,33 @@ export default function NovoClientePage() {
 
     try {
       setSaving(true)
-      
+
       // Buscar SIGLA do estado e NOME da cidade
-      const estadoSigla = formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.sigla : null
-      const cidadeNome = formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome : null
-      
+      const estadoSigla = formData.estado // O ID é a sigla no hook
+      const cidadeNome = formData.cidade // O ID é o nome no hook
+
       console.log('🔍 DEBUG Submit:', {
         'formData.estado': formData.estado,
         'formData.cidade': formData.cidade,
-        'estadosCidades.estados': estadosCidades.estados.length,
-        'estadosCidades.municipios': estadosCidades.municipios.length,
+        'estados.length': estados.length,
+        'municipios.length': municipios.length,
         'estadoSigla': estadoSigla,
         'cidadeNome': cidadeNome
       })
-      
+
       // Validar se conseguiu encontrar os nomes
       if (!estadoSigla) {
         alert('Erro: Estado não encontrado. Por favor, selecione o estado novamente.')
         setSaving(false)
         return
       }
-      
+
       if (!cidadeNome) {
         alert('Erro: Cidade não encontrada. Por favor, selecione a cidade novamente.')
         setSaving(false)
         return
       }
-      
+
       const payload = {
         nome: formData.nome,
         cpf: formData.cpf,
@@ -550,9 +508,9 @@ export default function NovoClientePage() {
         cep: formData.cep,
         created_by: user?.nome || 'system'
       }
-      
+
       console.log('📤 Enviando payload:', payload)
-      
+
       const response = await fetch('/api/admin/clientes', {
         method: 'POST',
         headers: {
@@ -575,12 +533,12 @@ export default function NovoClientePage() {
     }
   }
 
-  if (loading) {
+  if (loadingLocais) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando...</p>
+          <p className="mt-4 text-gray-600">Carregando locais...</p>
         </div>
       </div>
     )
@@ -617,9 +575,8 @@ export default function NovoClientePage() {
                 value={formData.nome}
                 onChange={(e) => handleInputChange('nome', e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, 'nome')}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                  errors.nome ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.nome ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
                 placeholder="Digite o nome completo"
               />
               {errors.nome && (
@@ -642,9 +599,8 @@ export default function NovoClientePage() {
                     value={formData.cpf}
                     onChange={(e) => handleInputChange('cpf', e.target.value)}
                     onKeyDown={(e) => handleKeyDown(e, 'cpf')}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                      errors.cpf ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.cpf ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                      }`}
                     placeholder="000.000.000-00"
                     maxLength={14}
                   />
@@ -682,9 +638,8 @@ export default function NovoClientePage() {
                   value={formData.telefone}
                   onChange={(e) => handleInputChange('telefone', e.target.value)}
                   onKeyDown={(e) => handleKeyDown(e, 'telefone')}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    errors.telefone ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.telefone ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                   placeholder="(00) 00000-0000"
                   maxLength={15}
                 />
@@ -707,9 +662,8 @@ export default function NovoClientePage() {
                   value={formData.estado}
                   onChange={(estadoId) => handleInputChange('estado', estadoId)}
                   placeholder="Selecione o estado"
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    errors.estado ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.estado ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                   format="sigla-nome"
                   showAllOption={true}
                   allOptionLabel="Selecione o estado"
@@ -730,13 +684,12 @@ export default function NovoClientePage() {
                   value={formData.cidade}
                   onChange={(e) => handleInputChange('cidade', e.target.value)}
                   onKeyDown={(e) => handleKeyDown(e, 'cidade')}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    errors.cidade ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.cidade ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                   disabled={!formData.estado}
                 >
                   <option value="">Selecione a cidade</option>
-                  {estadosCidades.municipios.map(municipio => (
+                  {municipios.map(municipio => (
                     <option key={municipio.id} value={municipio.id}>
                       {municipio.nome}
                     </option>
@@ -762,9 +715,8 @@ export default function NovoClientePage() {
                   value={formData.cep}
                   onChange={(e) => handleInputChange('cep', e.target.value)}
                   onKeyDown={(e) => handleKeyDown(e, 'cep')}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    errors.cep ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.cep ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                   placeholder="00000-000"
                   maxLength={9}
                   required
@@ -796,9 +748,8 @@ export default function NovoClientePage() {
                 value={formData.endereco}
                 onChange={(e) => handleInputChange('endereco', e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, 'endereco')}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                  errors.endereco ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-gray-50'
-                }`}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.endereco ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-gray-50'
+                  }`}
                 placeholder="Será preenchido automaticamente"
               />
               {errors.endereco && (
@@ -820,9 +771,8 @@ export default function NovoClientePage() {
                 value={formData.bairro}
                 onChange={(e) => handleInputChange('bairro', e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, 'bairro')}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                  errors.bairro ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-gray-50'
-                }`}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.bairro ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-gray-50'
+                  }`}
                 placeholder="Será preenchido automaticamente"
               />
               {errors.bairro && (
@@ -845,9 +795,8 @@ export default function NovoClientePage() {
                   value={formData.numero}
                   onChange={(e) => handleInputChange('numero', e.target.value)}
                   onKeyDown={(e) => handleKeyDown(e, 'numero')}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    errors.numero ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.numero ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                   placeholder="123"
                 />
                 {errors.numero && (
@@ -883,9 +832,8 @@ export default function NovoClientePage() {
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
                   onKeyDown={(e) => handleKeyDown(e, 'email')}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    errors.email || emailExists ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.email || emailExists ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                   placeholder="exemplo@email.com"
                 />
                 {emailValidating && (
