@@ -176,6 +176,34 @@ function LandingPageContent() {
         router.replace(url.pathname + (url.search ? url.search : ''))
       } catch { }
     }
+
+    // Verificar se vem de um link de redefinição de senha
+    const resetEmail = searchParams?.get('reset_email')
+    const resetCode = searchParams?.get('reset_code')
+    const resetType = searchParams?.get('reset_type')
+
+    if (resetEmail && resetCode && resetType) {
+      console.log('🔗 [LANDING PAGE] Detectado link de redefinição de senha para:', resetEmail)
+      setAuthUserType(resetType as any)
+      setAuthModalMode('login')
+      setAuthModalOpen(true)
+
+      // Armazenar no sessionStorage para o LoginForm capturar
+      sessionStorage.setItem('pendingResetParams', JSON.stringify({
+        email: resetEmail,
+        code: resetCode,
+        type: resetType
+      }))
+
+      // Limpar URL para não re-abrir em caso de reload acidental
+      try {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('reset_email')
+        url.searchParams.delete('reset_code')
+        url.searchParams.delete('reset_type')
+        router.replace(url.pathname + (url.search ? url.search : ''))
+      } catch { }
+    }
   }, [searchParams, router])
 
   // Listeners para abrir modal de perfil

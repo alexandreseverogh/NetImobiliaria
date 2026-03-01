@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { User, Mail, Phone, MapPin, LogOut, Save, Building2, X, Home } from 'lucide-react'
+import { User, Mail, Phone, MapPin, LogOut, Save, Building2, X, Home, Eye, EyeOff } from 'lucide-react'
 import { useEstadosCidadesPublic } from '@/hooks/useEstadosCidadesPublic'
+import { usePublicAuth } from '@/hooks/usePublicAuth'
 import { formatCPF, formatTelefone, formatCEP, validateEmail } from '@/lib/utils/formatters'
 import { buscarEnderecoPorCep } from '@/lib/utils/geocoding'
 
@@ -15,6 +16,7 @@ interface MeuPerfilModalProps {
 
 export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details' }: MeuPerfilModalProps) {
   const { estados, getCidadesPorEstado } = useEstadosCidadesPublic()
+  const { logout } = usePublicAuth()
 
   const [userData, setUserData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -36,6 +38,8 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
   const [loadingInteresse, setLoadingInteresse] = useState(false)
   const [errorInteresse, setErrorInteresse] = useState('')
   const [showNoImoveisModal, setShowNoImoveisModal] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -48,7 +52,8 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
     bairro: '',
     numero: '',
     complemento: '',
-    password: ''
+    password: '',
+    confirmPassword: ''
   })
 
   const cidades = formData.estado_fk ? getCidadesPorEstado(formData.estado_fk) : []
@@ -96,7 +101,8 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
             bairro: localData.bairro || '',
             numero: localData.numero || '',
             complemento: localData.complemento || '',
-            password: ''
+            password: '',
+            confirmPassword: ''
           })
           setLoading(false)
           return
@@ -130,7 +136,8 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
               bairro: data.data.bairro || '',
               numero: data.data.numero || '',
               complemento: data.data.complemento || '',
-              password: ''
+              password: '',
+              confirmPassword: ''
             })
           } else if (userDataLocal) {
             // Fallback para dados locais
@@ -147,7 +154,8 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
               bairro: localData.bairro || '',
               numero: localData.numero || '',
               complemento: localData.complemento || '',
-              password: ''
+              password: '',
+              confirmPassword: ''
             })
           } else {
             setError('Erro ao carregar dados do perfil')
@@ -167,7 +175,8 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
               bairro: localData.bairro || '',
               numero: localData.numero || '',
               complemento: localData.complemento || '',
-              password: ''
+              password: '',
+              confirmPassword: ''
             })
             setError('Erro ao atualizar dados do perfil. Dados locais exibidos.')
           } else if (response.status === 401) {
@@ -197,7 +206,8 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
               bairro: localData.bairro || '',
               numero: localData.numero || '',
               complemento: localData.complemento || '',
-              password: ''
+              password: '',
+              confirmPassword: ''
             })
             setError('Erro de conexão. Dados locais exibidos.')
           } catch (e) {
@@ -352,6 +362,14 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
       validationErrors.cidade_fk = 'Cidade é obrigatória'
     }
 
+    if (formData.password && formData.password.length < 6) {
+      validationErrors.password = 'A senha deve ter no mínimo 6 caracteres'
+    }
+
+    if (formData.password && formData.password !== formData.confirmPassword) {
+      validationErrors.confirmPassword = 'As senhas não coincidem'
+    }
+
     if (emailExists) {
       validationErrors.email = 'Email já cadastrado'
     }
@@ -401,14 +419,15 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
       setError('Erro de conexão. Tente novamente.')
     } finally {
       setSaving(false)
+      setShowPassword(false)
+      setShowConfirmPassword(false)
     }
   }
 
-  const handleLogout = () => {
-    // Botão "Sair" agora apenas fecha o modal, mantendo o usuário logado
-    // (mesmo comportamento do botão "X")
-    console.log('🔍 [MEU PERFIL MODAL] Botão Sair clicado - apenas fechando modal, mantendo usuário logado')
+  const handleLogout = async () => {
+    console.log('🔍 [MEU PERFIL MODAL] Executando Logout Completo via Hook...')
     onClose()
+    await logout()
   }
 
 
@@ -600,57 +619,44 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
-        <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl my-8 max-h-[90vh] overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 border-b border-gray-200 flex-shrink-0">
+        <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl my-8 max-h-[95vh] overflow-hidden flex flex-col">
+          {/* Header Compacto */}
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex-shrink-0 w-16 h-16 flex items-center justify-center bg-green-100 rounded-full">
-                  <User className={`w-8 h-8 ${userData?.userType === 'cliente' ? 'text-blue-600' : 'text-green-600'
-                    }`} />
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-green-100 rounded-full border border-green-200 shadow-sm text-green-600">
+                  <User className="w-6 h-6" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    {userData?.userType === 'cliente' ? 'Meu Perfil' : 'Meu Portal de Negócios Imobiliários'}
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-bold text-gray-900 leading-tight">
+                      {userData?.userType === 'cliente' ? 'Meu Perfil' : 'Portal do Proprietário'}
+                    </h1>
+                    {userData && (
+                      <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full border ${userData.userType === 'cliente'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'bg-green-50 text-green-700 border-green-200'
+                        }`}>
+                        {userData.userType === 'cliente' ? 'Cliente' : 'Proprietário'}
+                      </span>
+                    )}
+                  </div>
                   {userData && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      Bem-vindo(a), {userData.nome}
-                    </p>
+                    <p className="text-sm text-gray-600 font-medium">{userData.nome}</p>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg transition-all"
                 >
                   <LogOut className="w-4 h-4" />
                   Sair
                 </button>
-                {/* Botão Fechar - apenas fecha o modal, mantém usuário logado */}
                 <button
-                  onClick={() => {
-                    console.log('🔍 [MEU PERFIL MODAL] Botão Fechar clicado - verificando localStorage antes de fechar')
-                    const token = localStorage.getItem('public-auth-token')
-                    const userData = localStorage.getItem('public-user-data')
-                    console.log('🔍 [MEU PERFIL MODAL] Token existe?', !!token)
-                    console.log('🔍 [MEU PERFIL MODAL] UserData existe?', !!userData)
-                    // Apenas fechar modal - não fazer logout
-                    onClose()
-                    // Verificar novamente após fechar para garantir que não foi limpo
-                    setTimeout(() => {
-                      const tokenAfter = localStorage.getItem('public-auth-token')
-                      const userDataAfter = localStorage.getItem('public-user-data')
-                      console.log('🔍 [MEU PERFIL MODAL] Após fechar - Token existe?', !!tokenAfter)
-                      console.log('🔍 [MEU PERFIL MODAL] Após fechar - UserData existe?', !!userDataAfter)
-                      if (!tokenAfter || !userDataAfter) {
-                        console.error('❌ [MEU PERFIL MODAL] ERRO: localStorage foi limpo ao fechar modal!')
-                      }
-                    }, 100)
-                  }}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Fechar (permanecer logado)"
+                  onClick={onClose}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -659,784 +665,529 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
           </div>
 
           {/* Content - Scrollable */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="mt-4 text-gray-600">Carregando...</p>
-                </div>
+              <div className="flex items-center justify-center py-20">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
               </div>
             ) : error && !userData ? (
-              <div className="text-center py-12 text-red-600">
+              <div className="text-center py-20 text-red-600 font-medium">
                 <p>{error}</p>
               </div>
             ) : userData ? (
-              <>
-                {/* Tipo de Usuário */}
-                <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border border-blue-100 mb-6">
-                  <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg ${userData.userType === 'cliente' ? 'bg-blue-100' : 'bg-green-100'
+              <div className="space-y-4">
+                {(successMessage || error) && (
+                  <div className={`p-3 rounded-lg text-xs font-medium border animate-in fade-in slide-in-from-top-2 ${successMessage ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'
                     }`}>
-                    <User className={`w-5 h-5 ${userData.userType === 'cliente' ? 'text-blue-600' : 'text-green-600'
-                      }`} />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Tipo de Conta</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {userData.userType === 'cliente' ? 'Cliente' : 'Proprietário'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Mensagens */}
-                {successMessage && (
-                  <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
-                    {successMessage}
-                  </div>
-                )}
-                {error && (
-                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
-                    {error}
+                    {successMessage || error}
                   </div>
                 )}
 
-                {/* Formulário */}
-                <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-6">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50/50 border-b border-gray-100">
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900 mb-1">Meus Dados</h2>
-                      <p className="text-sm text-gray-600">Visualize e edite suas informações pessoais</p>
+                      <h2 className="text-sm font-bold text-gray-900 uppercase tracking-tight">Dados Cadastrais</h2>
                     </div>
                     {!isEditing && (
                       <button
                         onClick={() => setIsEditing(true)}
-                        className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+                        className="px-3 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition-all border border-blue-200 flex items-center gap-1.5 shadow-sm"
                       >
-                        Editar
+                        <Save className="w-3.5 h-3.5" />
+                        Editar Dados
                       </button>
                     )}
                   </div>
 
-                  {/* Exibição dos dados quando não está editando */}
-                  {!isEditing && (
-                    <div className="space-y-3 mb-6">
-                      {/* Nome */}
-                      <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                        <User className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">Nome</p>
-                          <p className="text-sm font-medium text-gray-900 break-words">{userData.nome}</p>
+                  <div className="p-4">
+                    {!isEditing ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                          <div className="flex items-center gap-2 p-2 bg-gray-50/50 rounded-lg hover:bg-white border border-transparent hover:border-blue-100 transition-all">
+                            <User className="w-4 h-4 text-gray-400" />
+                            <div className="min-w-0">
+                              <p className="text-[9px] text-gray-400 uppercase font-bold">Nome</p>
+                              <p className="text-xs font-semibold text-gray-800 truncate">{userData.nome}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 p-2 bg-gray-50/50 rounded-lg hover:bg-white border border-transparent hover:border-blue-100 transition-all">
+                            <Mail className="w-4 h-4 text-gray-400" />
+                            <div className="min-w-0">
+                              <p className="text-[9px] text-gray-400 uppercase font-bold">Email</p>
+                              <p className="text-xs font-semibold text-gray-800 truncate">{userData.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 p-2 bg-gray-50/50 rounded-lg hover:bg-white border border-transparent hover:border-blue-100 transition-all">
+                            <Phone className="w-4 h-4 text-gray-400" />
+                            <div className="min-w-0">
+                              <p className="text-[9px] text-gray-400 uppercase font-bold">WhatsApp</p>
+                              <p className="text-xs font-semibold text-gray-800">{userData.telefone || '-'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 p-2 bg-gray-50/50 rounded-lg">
+                            <User className="w-4 h-4 text-gray-400" />
+                            <div className="min-w-0">
+                              <p className="text-[9px] text-gray-400 uppercase font-bold">CPF</p>
+                              <p className="text-xs font-semibold text-gray-800">{userData.cpf ? formatCPF(userData.cpf) : '-'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 p-2 bg-gray-50/50 rounded-lg">
+                            <MapPin className="w-4 h-4 text-gray-400" />
+                            <div className="min-w-0">
+                              <p className="text-[9px] text-gray-400 uppercase font-bold">Cidade/Estado</p>
+                              <p className="text-xs font-semibold text-gray-800 truncate">{userData.cidade_fk || '-'} / {userData.estado_fk || '-'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 p-2 bg-gray-50/50 rounded-lg">
+                            <Save className="w-4 h-4 text-gray-400" />
+                            <div className="min-w-0">
+                              <p className="text-[9px] text-gray-400 uppercase font-bold">Senha</p>
+                              <p className="text-xs font-semibold text-gray-800">••••••••</p>
+                            </div>
+                          </div>
+                          {(userData.endereco || userData.bairro) && (
+                            <div className="flex items-start gap-2 p-2 bg-gray-50/80 rounded-lg md:col-span-2 lg:col-span-3 border border-gray-100">
+                              <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                              <div>
+                                <p className="text-[9px] text-gray-400 uppercase font-bold">Endereço Completo</p>
+                                <p className="text-xs font-semibold text-gray-800">
+                                  {userData.endereco && `${userData.endereco}`}
+                                  {userData.numero && `, ${userData.numero}`}
+                                  {userData.complemento && ` - ${userData.complemento}`}
+                                  {userData.bairro && ` - ${userData.bairro}`}
+                                  {userData.cep && ` • CEP: ${userData.cep}`}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
+
+                        {(userData.userType === 'proprietario' || userData.userType === 'cliente') && (
+                          <div className="pt-3 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                            {userData.userType === 'proprietario' && (
+                              <>
+                                <button onClick={handleCadastrarImovel} className="px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 hover:from-green-700 transition-all">
+                                  <Building2 className="w-4 h-4" /> Cadastrar Imóvel
+                                </button>
+                                <button onClick={handleVerImoveis} className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 hover:from-blue-700 transition-all">
+                                  <Home className="w-4 h-4" /> Meus Imóveis
+                                </button>
+                              </>
+                            )}
+                            {userData.userType === 'cliente' && (
+                              <button onClick={handleVerImoveisInteresse} className="col-span-1 sm:col-span-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 hover:from-blue-700 transition-all">
+                                <Home className="w-4 h-4" /> Imóveis de Interesse
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-
-                      {/* Email */}
-                      <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                        <Mail className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">Email</p>
-                          <p className="text-sm font-medium text-gray-900 break-words">{userData.email}</p>
-                        </div>
-                      </div>
-
-                      {/* Telefone */}
-                      {userData.telefone && (
-                        <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                          <Phone className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-500 uppercase tracking-wide">Telefone</p>
-                            <p className="text-sm font-medium text-gray-900">{userData.telefone}</p>
+                    ) : (
+                      <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="md:col-span-1">
+                            <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5 ml-1">Nome *</label>
+                            <input name="nome" type="text" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 transition-all" value={formData.nome} onChange={handleChange} />
+                          </div>
+                          <div className="md:col-span-1">
+                            <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5 ml-1">Email *</label>
+                            <input name="email" type="email" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 transition-all" value={formData.email} onChange={handleChange} />
+                          </div>
+                          <div className="md:col-span-1">
+                            <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5 ml-1">Telefone *</label>
+                            <input name="telefone" type="text" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 transition-all" value={formData.telefone} onChange={handleChange} />
+                          </div>
+                          <div className="md:col-span-1">
+                            <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5 ml-1">CEP *</label>
+                            <input name="cep" type="text" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 transition-all" value={formData.cep} onChange={handleChange} />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5 ml-1">Endereço *</label>
+                            <input name="endereco" type="text" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 transition-all" value={formData.endereco} onChange={handleChange} />
+                          </div>
+                          <div className="md:col-span-1">
+                            <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5 ml-1">Bairro *</label>
+                            <input name="bairro" type="text" className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 transition-all" value={formData.bairro} onChange={handleChange} />
+                          </div>
+                          <div className="md:col-span-1">
+                            <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5 ml-1 text-blue-600">Nova Senha</label>
+                            <div className="relative">
+                              <input name="password" type={showPassword ? 'text' : 'password'} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg pr-10" value={formData.password} onChange={handleChange} />
+                              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors">
+                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="md:col-span-1">
+                            <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5 ml-1 text-blue-600">Confirmar</label>
+                            <div className="relative">
+                              <input name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} className={`w-full px-3 py-1.5 text-sm border rounded-lg pr-10 ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'}`} value={formData.confirmPassword} onChange={handleChange} />
+                              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors">
+                                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      )}
-
-                      {/* CPF */}
-                      {userData.cpf && (
-                        <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                          <User className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-500 uppercase tracking-wide">CPF</p>
-                            <p className="text-sm font-medium text-gray-900">{formatCPF(userData.cpf)}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Endereço */}
-                      {(userData.endereco || userData.bairro) && (
-                        <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                          <MapPin className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-500 uppercase tracking-wide">Endereço</p>
-                            <p className="text-sm font-medium text-gray-900 break-words">
-                              {userData.endereco && `${userData.endereco}`}
-                              {userData.numero && `, ${userData.numero}`}
-                              {userData.complemento && ` - ${userData.complemento}`}
-                              {userData.bairro && ` - ${userData.bairro}`}
-                              {userData.cidade_fk && `, ${userData.cidade_fk}`}
-                              {userData.estado_fk && ` - ${userData.estado_fk}`}
-                              {userData.cep && ` • CEP: ${userData.cep}`}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Botões para proprietários */}
-                      {userData.userType === 'proprietario' && (
-                        <div className="pt-4 border-t border-gray-200">
-                          <div className="flex flex-col sm:flex-row gap-3">
-                            <button
-                              onClick={handleCadastrarImovel}
-                              className="flex-1 px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                            >
-                              <Building2 className="w-4 h-4" />
-                              Cadastrar Imóvel
-                            </button>
-                            <button
-                              onClick={handleVerImoveis}
-                              className="flex-1 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                            >
-                              <Home className="w-4 h-4" />
-                              Imóveis Cadastrados
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Botão para clientes */}
-                      {userData.userType === 'cliente' && (
-                        <div className="pt-4 border-t border-gray-200">
-                          <button
-                            onClick={handleVerImoveisInteresse}
-                            className="w-full px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-indigo-800 transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                          >
-                            <Home className="w-4 h-4" />
-                            Imóveis de meu interesse
+                        <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                          <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-2 text-[10px] font-bold text-gray-500 uppercase">Cancelar</button>
+                          <button type="submit" disabled={saving} className="px-6 py-2 bg-blue-600 text-white text-[10px] font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 uppercase tracking-widest shadow-sm">
+                            {saving ? 'Gravando...' : 'Salvar'}
                           </button>
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Formulário de edição */}
-                  {isEditing && (
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                      {/* Informações Pessoais */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Nome */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Nome Completo *
-                          </label>
-                          <input
-                            name="nome"
-                            type="text"
-                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.nome ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                              }`}
-                            value={formData.nome}
-                            onChange={handleChange}
-                          />
-                          {errors.nome && <p className="text-red-500 text-sm mt-1">{errors.nome}</p>}
-                        </div>
-
-                        {/* CPF (não editável) */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            CPF
-                          </label>
-                          <input
-                            type="text"
-                            disabled
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                            value={userData.cpf ? formatCPF(userData.cpf) : ''}
-                          />
-                        </div>
-
-                        {/* Email */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Email *
-                          </label>
-                          <div className="relative">
-                            <input
-                              name="email"
-                              type="email"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email || emailExists ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                                }`}
-                              value={formData.email}
-                              onChange={handleChange}
-                            />
-                            {emailPendingValidation && (
-                              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                              </div>
-                            )}
-                            {emailExists && !emailPendingValidation && (
-                              <p className="text-red-500 text-sm mt-1">Email já cadastrado</p>
-                            )}
-                          </div>
-                          {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
-                        </div>
-
-                        {/* Telefone */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Telefone *
-                          </label>
-                          <input
-                            name="telefone"
-                            type="text"
-                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.telefone ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                              }`}
-                            value={formData.telefone}
-                            onChange={handleChange}
-                          />
-                          {errors.telefone && <p className="text-red-500 text-sm mt-1">{errors.telefone}</p>}
-                        </div>
-                      </div>
-
-                      {/* Endereço */}
-                      <div className="border-t pt-4">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Endereço</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* CEP */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              CEP *
-                            </label>
-                            <div className="relative">
-                              <input
-                                name="cep"
-                                type="text"
-                                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cep ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                                  }`}
-                                value={formData.cep}
-                                onChange={handleChange}
-                              />
-                              {buscandoCep && (
-                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                                </div>
-                              )}
-                            </div>
-                            {errors.cep && <p className="text-red-500 text-sm mt-1">{errors.cep}</p>}
-                          </div>
-
-                          {/* Endereço */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Endereço *
-                            </label>
-                            <input
-                              name="endereco"
-                              type="text"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.endereco ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                                }`}
-                              value={formData.endereco}
-                              onChange={handleChange}
-                            />
-                            {errors.endereco && <p className="text-red-500 text-sm mt-1">{errors.endereco}</p>}
-                          </div>
-
-                          {/* Número */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Número *
-                            </label>
-                            <input
-                              name="numero"
-                              type="text"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.numero ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                                }`}
-                              value={formData.numero}
-                              onChange={handleChange}
-                            />
-                            {errors.numero && <p className="text-red-500 text-sm mt-1">{errors.numero}</p>}
-                          </div>
-
-                          {/* Complemento */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Complemento
-                            </label>
-                            <input
-                              name="complemento"
-                              type="text"
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              value={formData.complemento}
-                              onChange={handleChange}
-                            />
-                          </div>
-
-                          {/* Bairro */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Bairro *
-                            </label>
-                            <input
-                              name="bairro"
-                              type="text"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.bairro ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                                }`}
-                              value={formData.bairro}
-                              onChange={handleChange}
-                            />
-                            {errors.bairro && <p className="text-red-500 text-sm mt-1">{errors.bairro}</p>}
-                          </div>
-
-                          {/* Estado */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Estado *
-                            </label>
-                            <select
-                              name="estado_fk"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.estado_fk ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                                }`}
-                              value={formData.estado_fk}
-                              onChange={handleChange}
-                            >
-                              <option value="">Selecione o estado</option>
-                              {estados.map((estado) => (
-                                <option key={estado.sigla} value={estado.sigla}>
-                                  {estado.nome}
-                                </option>
-                              ))}
-                            </select>
-                            {errors.estado_fk && <p className="text-red-500 text-sm mt-1">{errors.estado_fk}</p>}
-                          </div>
-
-                          {/* Cidade */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Cidade *
-                            </label>
-                            <select
-                              name="cidade_fk"
-                              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cidade_fk ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                                }`}
-                              value={formData.cidade_fk}
-                              onChange={handleChange}
-                              disabled={!formData.estado_fk}
-                            >
-                              <option value="">Selecione a cidade</option>
-                              {cidades.map((cidade) => (
-                                <option key={cidade} value={cidade}>
-                                  {cidade}
-                                </option>
-                              ))}
-                            </select>
-                            {errors.cidade_fk && <p className="text-red-500 text-sm mt-1">{errors.cidade_fk}</p>}
-                          </div>
-
-                          {/* Senha */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Nova Senha (opcional)
-                            </label>
-                            <input
-                              name="password"
-                              type="password"
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              value={formData.password}
-                              onChange={handleChange}
-                              placeholder="Deixe em branco para manter a senha atual"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Botões */}
-                      <div className="flex items-center justify-end gap-3 pt-4 border-t">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsEditing(false)
-                            setErrors({})
-                            setError('')
-                            setSuccessMessage('')
-                            // Reset form data to userData
-                            setFormData({
-                              nome: userData.nome || '',
-                              email: userData.email || '',
-                              telefone: userData.telefone || '',
-                              estado_fk: userData.estado_fk || '',
-                              cidade_fk: userData.cidade_fk || '',
-                              cep: userData.cep || '',
-                              endereco: userData.endereco || '',
-                              bairro: userData.bairro || '',
-                              numero: userData.numero || '',
-                              complemento: userData.complemento || '',
-                              password: ''
-                            })
-                          }}
-                          className="px-5 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={saving}
-                          className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                          {saving ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                              Salvando...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="w-4 h-4" />
-                              Salvar Alterações
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </form>
-                  )}
+                      </form>
+                    )}
+                  </div>
                 </div>
-              </>
+              </div>
             ) : null}
           </div>
         </div>
       </div>
 
       {/* Modal de Imóveis Cadastrados */}
-      {showImoveisModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="relative w-full max-w-[95vw] xl:max-w-[98vw] bg-white rounded-3xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 border-b border-gray-200 flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-white">
-                    Meus Imóveis Cadastrados
-                  </h2>
-                  <p className="text-sm text-blue-100 mt-1">
-                    {imoveis.length} {imoveis.length === 1 ? 'imóvel encontrado' : 'imóveis encontrados'}
-                  </p>
+      {
+        showImoveisModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="relative w-full max-w-[95vw] xl:max-w-[98vw] bg-white rounded-3xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 border-b border-gray-200 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">
+                      Meus Imóveis Cadastrados
+                    </h2>
+                    <p className="text-sm text-blue-100 mt-1">
+                      {imoveis.length} {imoveis.length === 1 ? 'imóvel encontrado' : 'imóveis encontrados'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowImoveisModal(false)}
+                    className="p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setShowImoveisModal(false)}
-                  className="p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
-            </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {loadingImoveis && (
-                <div className="text-center py-12 text-gray-500">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  Carregando imóveis...
-                </div>
-              )}
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {loadingImoveis && (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    Carregando imóveis...
+                  </div>
+                )}
 
-              {errorImoveis && (
-                <div className="text-center py-12 text-red-500">
-                  <p>{errorImoveis}</p>
-                </div>
-              )}
+                {errorImoveis && (
+                  <div className="text-center py-12 text-red-500">
+                    <p>{errorImoveis}</p>
+                  </div>
+                )}
 
-              {!loadingImoveis && !errorImoveis && imoveis.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  <p>Nenhum imóvel cadastrado ainda.</p>
-                </div>
-              )}
+                {!loadingImoveis && !errorImoveis && imoveis.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    <p>Nenhum imóvel cadastrado ainda.</p>
+                  </div>
+                )}
 
-              {!loadingImoveis && !errorImoveis && imoveis.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 rounded-xl overflow-hidden">
-                    <thead className="bg-gradient-to-r from-blue-600 to-indigo-700">
-                      <tr>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-xl">Estado</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Cidade</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Finalidade</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Preço</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Condomínio</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">IPTU</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Taxa Extra</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Área Total</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Quartos</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Suítes</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Banheiros</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Garagens</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Varanda</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Andar</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Total Andares</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tr-xl">Data Cadastro</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
-                      {imoveis.map((imovel: any, index: number) => (
-                        <>
-                          <tr
-                            key={imovel.id || index}
-                            className={`transition-all duration-200 ${index % 2 === 0
-                              ? 'bg-gradient-to-r from-blue-50/50 to-indigo-50/30 hover:from-blue-100/70 hover:to-indigo-100/50'
-                              : 'bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30'
-                              }`}
-                          >
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{imovel.estado || '-'}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{imovel.cidade || '-'}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{imovel.finalidade || '-'}</td>
-                            <td className="px-2 py-2.5 text-sm font-semibold text-green-600">{formatCurrency(imovel.preco)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(imovel.condominio)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(imovel.iptu)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(imovel.taxa_extra)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.area_total)} m²</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.quartos)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.suites)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.banheiros)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.vagas_garagem)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{imovel.varanda ? 'Sim' : 'Não'}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.andar)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.total_andares)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatDate(imovel.created_at)}</td>
-                          </tr>
-                          {/* Linha de endereço completo */}
-                          <tr className={`transition-all duration-200 border-t border-gray-200/50 ${index % 2 === 0
-                            ? 'bg-gradient-to-r from-gray-50/70 to-blue-50/40'
-                            : 'bg-gray-50/40'
-                            }`}>
-                            <td colSpan={16} className="px-4 py-2.5 text-sm text-gray-700">
-                              <div className="flex items-center gap-2">
-                                <MapPin className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                                <span className="font-semibold text-gray-700">Endereço:</span>
-                                <span className="text-gray-800 break-words">
-                                  {formatEnderecoCompleto(imovel)}
-                                  {imovel.finalidade && ` - ${imovel.finalidade}`}
-                                </span>
-                              </div>
-                            </td>
-                          </tr>
-                        </>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="border-t border-gray-200 p-6 bg-gray-50 flex-shrink-0">
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setShowImoveisModal(false)}
-                  className="px-6 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-sm font-medium rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 shadow-md hover:shadow-lg"
-                >
-                  Fechar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Imóveis de Interesse (Clientes) */}
-      {showInteresseModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="relative w-full max-w-[95vw] xl:max-w-[98vw] bg-white rounded-3xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 border-b border-gray-200 flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-white">
-                    Imóveis de meu interesse
-                  </h2>
-                  <p className="text-sm text-blue-100 mt-1">
-                    {imoveisInteresse.length} {imoveisInteresse.length === 1 ? 'imóvel encontrado' : 'imóveis encontrados'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowInteresseModal(false)}
-                  className="p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {loadingInteresse && (
-                <div className="text-center py-12 text-gray-500">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  Carregando imóveis de interesse...
-                </div>
-              )}
-
-              {errorInteresse && (
-                <div className="text-center py-12 text-red-500">
-                  <p>{errorInteresse}</p>
-                </div>
-              )}
-
-              {!loadingInteresse && !errorInteresse && imoveisInteresse.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  <p>Você ainda não demonstrou interesse em nenhum imóvel.</p>
-                </div>
-              )}
-
-              {!loadingInteresse && !errorInteresse && imoveisInteresse.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 rounded-xl overflow-hidden">
-                    <thead className="bg-gradient-to-r from-slate-700 to-slate-800">
-                      <tr>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-xl">Estado</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Cidade</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Finalidade</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Preço</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Condomínio</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">IPTU</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Taxa Extra</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Área Total</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Quartos</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Suítes</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Banheiros</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Garagens</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Varanda</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Andar</th>
-                        <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Total Andares</th>
-                        <th className="px-2 py-3 text-center text-xs font-bold text-white uppercase tracking-wider rounded-tr-xl">Data de Interesse</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
-                      {imoveisInteresse.map((item: any, index: number) => (
-                        <React.Fragment key={item.id || `interesse-${index}`}>
-                          <tr
-                            className={`transition-all duration-200 ${index % 2 === 0
-                              ? 'bg-gradient-to-r from-blue-50/50 to-indigo-50/30 hover:from-blue-100/70 hover:to-indigo-100/50'
-                              : 'bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30'
-                              }`}
-                          >
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{item.estado_fk || '-'}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{item.cidade_fk || '-'}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{item.finalidade || '-'}</td>
-                            <td className="px-2 py-2.5 text-sm font-semibold text-green-600">{formatCurrency(item.preco)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(item.condominio)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(item.iptu)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(item.taxa_extra)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.area_total)} m²</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.quartos)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.suites)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.banheiros)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.vagas_garagem)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.varanda)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.andar)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.total_andares)}</td>
-                            <td className="px-2 py-2.5 text-sm text-gray-900 text-center">{formatDate(item.created_at)}</td>
-                          </tr>
-                          {/* Linha de endereço completo */}
-                          <tr className={`transition-all duration-200 border-t border-gray-200/50 ${index % 2 === 0
-                            ? 'bg-gradient-to-r from-gray-50/70 to-blue-50/40'
-                            : 'bg-gray-50/40'
-                            }`}>
-                            <td colSpan={16} className="px-4 py-2.5 text-sm text-gray-700">
-                              <div className="flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                {!loadingImoveis && !errorImoveis && imoveis.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 rounded-xl overflow-hidden">
+                      <thead className="bg-gradient-to-r from-blue-600 to-indigo-700">
+                        <tr>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-xl">Estado</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Cidade</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Finalidade</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Preço</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Condomínio</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">IPTU</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Taxa Extra</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Área Total</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Quartos</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Suítes</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Banheiros</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Garagens</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Varanda</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Andar</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Total Andares</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tr-xl">Data Cadastro</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-100">
+                        {imoveis.map((imovel: any, index: number) => (
+                          <React.Fragment key={imovel.id || `imovel-${index}`}>
+                            <tr
+                              key={imovel.id || index}
+                              className={`transition-all duration-200 ${index % 2 === 0
+                                ? 'bg-gradient-to-r from-blue-50/50 to-indigo-50/30 hover:from-blue-100/70 hover:to-indigo-100/50'
+                                : 'bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30'
+                                }`}
+                            >
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{imovel.estado || '-'}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{imovel.cidade || '-'}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{imovel.finalidade || '-'}</td>
+                              <td className="px-2 py-2.5 text-sm font-semibold text-green-600">{formatCurrency(imovel.preco)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(imovel.condominio)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(imovel.iptu)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(imovel.taxa_extra)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.area_total)} m²</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.quartos)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.suites)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.banheiros)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.vagas_garagem)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{imovel.varanda ? 'Sim' : 'Não'}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.andar)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(imovel.total_andares)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatDate(imovel.created_at)}</td>
+                            </tr>
+                            {/* Linha de endereço completo */}
+                            <tr className={`transition-all duration-200 border-t border-gray-200/50 ${index % 2 === 0
+                              ? 'bg-gradient-to-r from-gray-50/70 to-blue-50/40'
+                              : 'bg-gray-50/40'
+                              }`}>
+                              <td colSpan={16} className="px-4 py-2.5 text-sm text-gray-700">
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="w-4 h-4 text-indigo-600 flex-shrink-0" />
                                   <span className="font-semibold text-gray-700">Endereço:</span>
                                   <span className="text-gray-800 break-words">
-                                    {item.endereco || ''}
-                                    {item.numero && `, ${item.numero}`}
-                                    {item.complemento && ` - ${item.complemento}`}
-                                    {item.bairro && ` - ${item.bairro}`}
-                                    {item.cidade_fk && `, ${item.cidade_fk}`}
-                                    {item.estado_fk && ` - ${item.estado_fk}`}
-                                    {item.cep && ` • CEP: ${item.cep}`}
-                                    {item.finalidade && ` - ${item.finalidade}`}
-                                    {item.corretor_nome && (
-                                      <>
-                                        {' • '}
-                                        <span className="font-semibold text-blue-700">Corretor:</span>
-                                        {` ${item.corretor_nome}`}
-                                        {item.corretor_email && (
-                                          <>
-                                            {' • '}
-                                            <span className="font-semibold text-blue-700">Email:</span>
-                                            {` ${item.corretor_email}`}
-                                          </>
-                                        )}
-                                        {item.corretor_telefone && (
-                                          <>
-                                            {' • '}
-                                            <span className="font-semibold text-blue-700">Tel:</span>
-                                            {` ${formatTelefone(item.corretor_telefone)}`}
-                                          </>
-                                        )}
-                                      </>
-                                    )}
+                                    {formatEnderecoCompleto(imovel)}
+                                    {imovel.finalidade && ` - ${imovel.finalidade}`}
                                   </span>
                                 </div>
-                                <button
-                                  onClick={() => window.open(`/imoveis/${item.id_imovel}`, '_blank')}
-                                  className="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg"
-                                >
-                                  Ver Detalhes
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        </React.Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
 
-            {/* Footer */}
-            <div className="border-t border-gray-200 p-6 bg-gray-50 flex-shrink-0">
-              <div className="flex justify-end">
+              {/* Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50 flex-shrink-0">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowImoveisModal(false)}
+                    className="px-6 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-sm font-medium rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 shadow-md hover:shadow-lg"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Modal de Imóveis de Interesse (Clientes) */}
+      {
+        showInteresseModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="relative w-full max-w-[95vw] xl:max-w-[98vw] bg-white rounded-3xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 border-b border-gray-200 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">
+                      Imóveis de meu interesse
+                    </h2>
+                    <p className="text-sm text-blue-100 mt-1">
+                      {imoveisInteresse.length} {imoveisInteresse.length === 1 ? 'imóvel encontrado' : 'imóveis encontrados'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowInteresseModal(false)}
+                    className="p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {loadingInteresse && (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    Carregando imóveis de interesse...
+                  </div>
+                )}
+
+                {errorInteresse && (
+                  <div className="text-center py-12 text-red-500">
+                    <p>{errorInteresse}</p>
+                  </div>
+                )}
+
+                {!loadingInteresse && !errorInteresse && imoveisInteresse.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    <p>Você ainda não demonstrou interesse em nenhum imóvel.</p>
+                  </div>
+                )}
+
+                {!loadingInteresse && !errorInteresse && imoveisInteresse.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 rounded-xl overflow-hidden">
+                      <thead className="bg-gradient-to-r from-slate-700 to-slate-800">
+                        <tr>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-xl">Estado</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Cidade</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Finalidade</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Preço</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Condomínio</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">IPTU</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Taxa Extra</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Área Total</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Quartos</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Suítes</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Banheiros</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Garagens</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Varanda</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Andar</th>
+                          <th className="px-2 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Total Andares</th>
+                          <th className="px-2 py-3 text-center text-xs font-bold text-white uppercase tracking-wider rounded-tr-xl">Data de Interesse</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-100">
+                        {imoveisInteresse.map((item: any, index: number) => (
+                          <React.Fragment key={item.id || `interesse-${index}`}>
+                            <tr
+                              className={`transition-all duration-200 ${index % 2 === 0
+                                ? 'bg-gradient-to-r from-blue-50/50 to-indigo-50/30 hover:from-blue-100/70 hover:to-indigo-100/50'
+                                : 'bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30'
+                                }`}
+                            >
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{item.estado_fk || '-'}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{item.cidade_fk || '-'}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{item.finalidade || '-'}</td>
+                              <td className="px-2 py-2.5 text-sm font-semibold text-green-600">{formatCurrency(item.preco)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(item.condominio)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(item.iptu)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatCurrency(item.taxa_extra)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.area_total)} m²</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.quartos)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.suites)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.banheiros)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.vagas_garagem)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.varanda)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.andar)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900">{formatNumber(item.total_andares)}</td>
+                              <td className="px-2 py-2.5 text-sm text-gray-900 text-center">{formatDate(item.created_at)}</td>
+                            </tr>
+                            {/* Linha de endereço completo */}
+                            <tr className={`transition-all duration-200 border-t border-gray-200/50 ${index % 2 === 0
+                              ? 'bg-gradient-to-r from-gray-50/70 to-blue-50/40'
+                              : 'bg-gray-50/40'
+                              }`}>
+                              <td colSpan={16} className="px-4 py-2.5 text-sm text-gray-700">
+                                <div className="flex items-center justify-between gap-4">
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                    <span className="font-semibold text-gray-700">Endereço:</span>
+                                    <span className="text-gray-800 break-words">
+                                      {item.endereco || ''}
+                                      {item.numero && `, ${item.numero}`}
+                                      {item.complemento && ` - ${item.complemento}`}
+                                      {item.bairro && ` - ${item.bairro}`}
+                                      {item.cidade_fk && `, ${item.cidade_fk}`}
+                                      {item.estado_fk && ` - ${item.estado_fk}`}
+                                      {item.cep && ` • CEP: ${item.cep}`}
+                                      {item.finalidade && ` - ${item.finalidade}`}
+                                      {item.corretor_nome && (
+                                        <>
+                                          {' • '}
+                                          <span className="font-semibold text-blue-700">Corretor:</span>
+                                          {` ${item.corretor_nome}`}
+                                          {item.corretor_email && (
+                                            <>
+                                              {' • '}
+                                              <span className="font-semibold text-blue-700">Email:</span>
+                                              {` ${item.corretor_email}`}
+                                            </>
+                                          )}
+                                          {item.corretor_telefone && (
+                                            <>
+                                              {' • '}
+                                              <span className="font-semibold text-blue-700">Tel:</span>
+                                              {` ${formatTelefone(item.corretor_telefone)}`}
+                                            </>
+                                          )}
+                                        </>
+                                      )}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => window.open(`/imoveis/${item.id_imovel}`, '_blank')}
+                                    className="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg"
+                                  >
+                                    Ver Detalhes
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50 flex-shrink-0">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowInteresseModal(false)}
+                    className="px-6 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-sm font-medium rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 shadow-md hover:shadow-lg"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Modal de Nenhum Imóvel Cadastrado */}
+      {
+        showNoImoveisModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+              {/* Header com gradiente */}
+              <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6">
+                <div className="flex items-center justify-center">
+                  <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                    <Building2 className="w-8 h-8 text-white" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-8 text-center">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  Nenhum Imóvel Cadastrado
+                </h2>
+                <p className="text-gray-600 text-lg mb-6">
+                  Ainda não existem imóveis cadastrados para você
+                </p>
+                <p className="text-sm text-gray-500 mb-8">
+                  Comece cadastrando seu primeiro imóvel clicando no botão "Cadastrar Imóvel"
+                </p>
+
+                {/* Botão Fechar */}
                 <button
-                  onClick={() => setShowInteresseModal(false)}
-                  className="px-6 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-sm font-medium rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 shadow-md hover:shadow-lg"
+                  onClick={() => setShowNoImoveisModal(false)}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-base font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
                   Fechar
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Modal de Nenhum Imóvel Cadastrado */}
-      {showNoImoveisModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
-            {/* Header com gradiente */}
-            <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6">
-              <div className="flex items-center justify-center">
-                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                  <Building2 className="w-8 h-8 text-white" />
-                </div>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="p-8 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                Nenhum Imóvel Cadastrado
-              </h2>
-              <p className="text-gray-600 text-lg mb-6">
-                Ainda não existem imóveis cadastrados para você
-              </p>
-              <p className="text-sm text-gray-500 mb-8">
-                Comece cadastrando seu primeiro imóvel clicando no botão "Cadastrar Imóvel"
-              </p>
-
-              {/* Botão Fechar */}
-              <button
-                onClick={() => setShowNoImoveisModal(false)}
-                className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-base font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )
+      }
     </>
   )
 }

@@ -28,6 +28,7 @@ export default function AuthModal({
   const router = useRouter()
   const [userType, setUserType] = useState<'cliente' | 'proprietario' | null>(initialUserType)
   const [step, setStep] = useState<'choose-type' | 'form'>(initialUserType ? 'form' : 'choose-type')
+  const [isRecovering, setIsRecovering] = useState(false)
 
   // Se o mode mudar (ex.: Entrar -> Criar conta), resetar para escolha de perfil
   // (a não ser que o chamador tenha fixado initialUserType).
@@ -93,7 +94,7 @@ export default function AuthModal({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className={`text-2xl font-bold text-gray-900 ${isRecovering ? 'hidden' : ''}`}>
               {title}
             </h2>
             {step === 'choose-type' && (
@@ -102,7 +103,7 @@ export default function AuthModal({
               </p>
             )}
             {step === 'form' && userType && (
-              <p className="text-sm text-gray-600 mt-1">
+              <p className={`text-sm text-gray-600 mt-1 ${isRecovering ? 'hidden' : ''}`}>
                 {formSubtitle}
               </p>
             )}
@@ -205,6 +206,7 @@ export default function AuthModal({
                   userType={userType}
                   onBack={handleBack}
                   onSuccess={onClose}
+                  onViewChange={(recovering) => setIsRecovering(recovering)}
                   redirectTo={redirectTo}
                 />
               )}
@@ -216,7 +218,7 @@ export default function AuthModal({
                 />
               )}
 
-              {onChangeMode && (
+              {onChangeMode && !isRecovering && (
                 <div className="pt-4">
                   <button
                     type="button"

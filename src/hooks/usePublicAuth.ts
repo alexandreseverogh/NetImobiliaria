@@ -110,10 +110,8 @@ export function usePublicAuth() {
       window.dispatchEvent(new Event('public-auth-changed'))
       window.dispatchEvent(new Event('admin-auth-changed'))
 
-      router.push('/landpaging')
-
-      // Forçar reload opcional para limpar qualquer estado pendente em componentes complexos
-      window.location.reload()
+      // 3. Redirecionar para a landing page limpando todo o estado do navegador
+      window.location.href = '/landpaging'
     }
   }
 
