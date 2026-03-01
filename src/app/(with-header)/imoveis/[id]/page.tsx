@@ -21,7 +21,8 @@ import {
   BuildingOffice2Icon,
   MapIcon,
   SparklesIcon,
-  VideoCameraIcon
+  VideoCameraIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline'
 import { Square, Car, Bed, BedDouble, Bath, Home, Building, Layers } from 'lucide-react'
 import useFichaCompleta from '@/hooks/useFichaCompleta'
@@ -67,6 +68,24 @@ export default function ImovelDetalhes() {
 
   const temDadosDetalhados = dadosDetalhados && dadosDetalhados.amenidades && dadosDetalhados.proximidades
   const temDadosCompletos = dadosCompletos && dadosCompletos.imagens && dadosCompletos.videos && dadosCompletos.documentos
+
+  // Função para scroll suave até a seção aberta
+  const scrollToSection = (sectionId: string) => {
+    // Timeout ligeiramente maior para garantir que o layout do React se estabilizou
+    setTimeout(() => {
+      const element = document.getElementById(`section-${sectionId}`)
+      if (element) {
+        const headerOffset = 120 // Margem de segurança para o header fixo
+        const elementPosition = element.getBoundingClientRect().top
+        const offsetPosition = elementPosition + window.pageYOffset - headerOffset
+
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        })
+      }
+    }, 200)
+  }
 
   // Funções auxiliares para gerenciar seções ativas
   const toggleSection = (section: string) => {
@@ -419,9 +438,11 @@ export default function ImovelDetalhes() {
           {dadosBasicos.total_amenidades > 0 && (
             <button
               onClick={() => {
+                const isOpening = !isSectionActive('amenidades')
                 toggleSection('amenidades')
-                if (!isSectionActive('amenidades') && !temDadosDetalhados) {
-                  carregarDetalhados()
+                if (isOpening) {
+                  if (!temDadosDetalhados) carregarDetalhados()
+                  scrollToSection('amenidades')
                 }
               }}
               className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center space-x-2"
@@ -435,9 +456,11 @@ export default function ImovelDetalhes() {
           {dadosBasicos.total_proximidades > 0 && (
             <button
               onClick={() => {
+                const isOpening = !isSectionActive('proximidades')
                 toggleSection('proximidades')
-                if (!isSectionActive('proximidades') && !temDadosDetalhados) {
-                  carregarDetalhados()
+                if (isOpening) {
+                  if (!temDadosDetalhados) carregarDetalhados()
+                  scrollToSection('proximidades')
                 }
               }}
               className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center space-x-2"
@@ -451,9 +474,11 @@ export default function ImovelDetalhes() {
           {dadosBasicos.total_imagens > 0 && (
             <button
               onClick={() => {
+                const isOpening = !isSectionActive('galeria')
                 toggleSection('galeria')
-                if (!isSectionActive('galeria') && !temDadosCompletos) {
-                  carregarCompletos()
+                if (isOpening) {
+                  if (!temDadosCompletos) carregarCompletos()
+                  scrollToSection('galeria')
                 }
               }}
               className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center space-x-2"
@@ -478,9 +503,11 @@ export default function ImovelDetalhes() {
           {dadosBasicos.total_documentos !== undefined && dadosBasicos.total_documentos > 0 ? (
             <button
               onClick={() => {
+                const isOpening = !isSectionActive('documentos')
                 toggleSection('documentos')
-                if (!isSectionActive('documentos') && !temDadosCompletos) {
-                  carregarCompletos()
+                if (isOpening) {
+                  if (!temDadosCompletos) carregarCompletos()
+                  scrollToSection('documentos')
                 }
               }}
               className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center space-x-2"
@@ -505,11 +532,20 @@ export default function ImovelDetalhes() {
           <div className="w-full space-y-6 mt-4">
             {/* Atrativos */}
             {isSectionActive('amenidades') && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                  <SparklesIcon className="w-6 h-6 mr-3 text-primary-600" />
-                  Atrativos
-                </h3>
+              <div id="section-amenidades" className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
+                <div className="flex justify-between items-start mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                    <SparklesIcon className="w-6 h-6 mr-3 text-primary-600" />
+                    Atrativos
+                  </h3>
+                  <button
+                    onClick={() => removeSection('amenidades')}
+                    className="flex items-center space-x-1 text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-200 bg-gray-50 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all text-sm font-medium shadow-sm"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Fechar</span>
+                  </button>
+                </div>
                 {temDadosDetalhados ? (
                   <AmenidadesLista
                     amenidades={dadosDetalhados.amenidades}
@@ -526,11 +562,20 @@ export default function ImovelDetalhes() {
 
             {/* Proximidades */}
             {isSectionActive('proximidades') && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                  <MapIcon className="w-6 h-6 mr-3 text-primary-600" />
-                  Proximidades
-                </h3>
+              <div id="section-proximidades" className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
+                <div className="flex justify-between items-start mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                    <MapIcon className="w-6 h-6 mr-3 text-primary-600" />
+                    Proximidades
+                  </h3>
+                  <button
+                    onClick={() => removeSection('proximidades')}
+                    className="flex items-center space-x-1 text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-200 bg-gray-50 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all text-sm font-medium shadow-sm"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Fechar</span>
+                  </button>
+                </div>
                 {temDadosDetalhados ? (
                   <ProximidadesLista
                     proximidades={dadosDetalhados.proximidades}
@@ -547,11 +592,20 @@ export default function ImovelDetalhes() {
 
             {/* Galeria de Imagens */}
             {isSectionActive('galeria') && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                  <PhotoIcon className="w-6 h-6 mr-3 text-primary-600" />
-                  Galeria de Imagens
-                </h3>
+              <div id="section-galeria" className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
+                <div className="flex justify-between items-start mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                    <PhotoIcon className="w-6 h-6 mr-3 text-primary-600" />
+                    Galeria de Imagens
+                  </h3>
+                  <button
+                    onClick={() => removeSection('galeria')}
+                    className="flex items-center space-x-1 text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-200 bg-gray-50 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all text-sm font-medium shadow-sm"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Fechar</span>
+                  </button>
+                </div>
                 {temDadosCompletos ? (
                   <ImagensLista
                     imagens={dadosCompletos.imagens}
@@ -568,11 +622,20 @@ export default function ImovelDetalhes() {
 
             {/* Documentos */}
             {isSectionActive('documentos') && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                  <DocumentTextIcon className="w-6 h-6 mr-3 text-primary-600" />
-                  Documentos
-                </h3>
+              <div id="section-documentos" className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
+                <div className="flex justify-between items-start mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                    <DocumentTextIcon className="w-6 h-6 mr-3 text-primary-600" />
+                    Documentos
+                  </h3>
+                  <button
+                    onClick={() => removeSection('documentos')}
+                    className="flex items-center space-x-1 text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-200 bg-gray-50 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all text-sm font-medium shadow-sm"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Fechar</span>
+                  </button>
+                </div>
                 {temDadosCompletos ? (
                   <DocumentosLista
                     documentos={dadosCompletos.documentos}

@@ -68,7 +68,7 @@ function AdminLayoutPrivateContent({
 
   // Sistema de aviso de sessão (somente admin privado)
   const { showWarning, timeRemaining, renewSession, logout: sessionLogout, dismissWarning } = useSessionWarning({
-    warningMinutes: 5,
+    warningMinutes: 30,
     onSessionExpired: () => {
       logout()
       router.push('/admin/login')

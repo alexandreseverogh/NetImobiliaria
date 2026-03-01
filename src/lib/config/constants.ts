@@ -140,8 +140,8 @@ export const SECURITY_CONFIG = {
   // Configurações de sessão
   SESSION: {
     MAX_ACTIVE_SESSIONS: 5,
-    SESSION_TIMEOUT: 30 * 60 * 1000, // 30 minutos
-    REFRESH_THRESHOLD: 5 * 60 * 1000 // 5 minutos
+    SESSION_TIMEOUT: 24 * 60 * 60 * 1000, // 24 horas
+    REFRESH_THRESHOLD: 30 * 60 * 1000 // 30 minutos (avisar 30 min antes)
   },
 
   // Configurações de rate limiting (será sobrescrito pelas configurações de ambiente)

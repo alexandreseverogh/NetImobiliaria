@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { 
-  ExclamationTriangleIcon, 
-  ArrowPathIcon, 
+import {
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
   ArrowRightOnRectangleIcon,
   XMarkIcon,
   ClockIcon
@@ -120,12 +120,11 @@ export default function SessionWarningModal({
               <span>{formatTime(timeRemaining)}</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className={`h-2 rounded-full transition-all duration-1000 ${
-                  timeRemaining <= 2 ? 'bg-red-500' : 
-                  timeRemaining <= 5 ? 'bg-yellow-500' : 'bg-green-500'
-                }`}
-                style={{ width: `${Math.max(0, Math.min(100, (timeRemaining / 30) * 100))}%` }}
+              <div
+                className={`h-2 rounded-full transition-all duration-1000 ${timeRemaining <= 2 ? 'bg-red-500' :
+                    timeRemaining <= 5 ? 'bg-yellow-500' : 'bg-green-500'
+                  }`}
+                style={{ width: `${Math.max(0, Math.min(100, (timeRemaining / (24 * 60)) * 100))}%` }}
               ></div>
             </div>
           </div>
@@ -139,7 +138,7 @@ export default function SessionWarningModal({
           >
             Ignorar
           </button>
-          
+
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
