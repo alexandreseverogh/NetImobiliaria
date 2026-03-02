@@ -754,7 +754,7 @@ export default function GeneralDataStep({
             </label>
             <textarea
               id="descricao"
-              rows={2}
+              rows={12}
               value={data.descricao || ''}
               onChange={(e) => handleInputChange('descricao', e.target.value)}
               placeholder="Descreva o imóvel, suas características e diferenciais..."
