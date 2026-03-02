@@ -403,6 +403,15 @@ export default function NovoClientePage() {
           break
       }
     }
+
+    // Comportamento especial: Enter no CEP pula para o Numero
+    if (e.key === 'Enter' && field === 'cep') {
+      e.preventDefault()
+      const nextInput = document.getElementById('numero')
+      if (nextInput) {
+        nextInput.focus()
+      }
+    }
   }
 
   // Submissão do formulário
@@ -791,6 +800,7 @@ export default function NovoClientePage() {
                   Número *
                 </label>
                 <input
+                  id="numero"
                   type="text"
                   value={formData.numero}
                   onChange={(e) => handleInputChange('numero', e.target.value)}

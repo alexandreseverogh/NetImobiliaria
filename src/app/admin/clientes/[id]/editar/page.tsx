@@ -34,12 +34,12 @@ export default function EditarClientePage() {
   const params = useParams()
   const { user } = useAuth()
   const { hasPermission } = usePermissions()
-  
+
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [cliente, setCliente] = useState<Cliente | null>(null)
-  
+
   const [formData, setFormData] = useState({
     nome: '',
     cpf: '',
@@ -54,7 +54,7 @@ export default function EditarClientePage() {
     complemento: '',
     origem_cadastro: ''
   })
-  
+
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [cpfValidating, setCpfValidating] = useState(false)
   const [cpfExists, setCpfExists] = useState(false)
@@ -65,8 +65,8 @@ export default function EditarClientePage() {
   const [buscandoCep, setBuscandoCep] = useState(false)
   const [cepInicial, setCepInicial] = useState<string>('')
   const [estadosCidades, setEstadosCidades] = useState({
-    estados: [] as Array<{id: string, sigla: string, nome: string}>,
-    municipios: [] as Array<{id: string, nome: string}>
+    estados: [] as Array<{ id: string, sigla: string, nome: string }>,
+    municipios: [] as Array<{ id: string, nome: string }>
   })
 
   // Verificar permissões
@@ -86,17 +86,17 @@ export default function EditarClientePage() {
   useEffect(() => {
     const loadCliente = async () => {
       if (!params.id) return
-      
+
       try {
         setLoading(true)
         console.log('🔄 [EDITAR CLIENTE] Carregando dados para ID/UUID:', params.id)
-        
+
         const response = await get(`/api/admin/clientes/${params.id}`)
-        
+
         if (!response.ok) {
           throw new Error('Cliente não encontrado')
         }
-        
+
         const clienteData = await response.json()
         console.log('✅ [EDITAR CLIENTE] Dados recebidos:', {
           uuid: clienteData.uuid,
@@ -105,9 +105,9 @@ export default function EditarClientePage() {
           cidade_fk: clienteData.cidade_fk,
           cep: clienteData.cep
         })
-        
+
         setCliente(clienteData)
-        
+
         // Preencher formulário com dados do cliente
         setFormData({
           nome: clienteData.nome || '',
@@ -123,10 +123,10 @@ export default function EditarClientePage() {
           complemento: clienteData.complemento || '',
           origem_cadastro: clienteData.origem_cadastro || 'Plataforma'
         })
-        
+
         // Guardar CEP inicial para evitar busca automática no carregamento
         setCepInicial(clienteData.cep || '')
-        
+
       } catch (err) {
         console.error('❌ [EDITAR CLIENTE] Erro ao carregar cliente:', err)
         setError('Erro ao carregar dados do cliente')
@@ -287,18 +287,18 @@ export default function EditarClientePage() {
       console.log('🔍 [EDITAR CLIENTE] Buscando estado para:', cliente.estado_fk)
       console.log('🔍 [EDITAR CLIENTE] Estados disponíveis:', estadosCidades.estados.length)
       console.log('🔍 [EDITAR CLIENTE] Primeiros estados:', estadosCidades.estados.slice(0, 5).map(e => `${e.sigla} - ${e.nome}`))
-      
+
       // Tentar encontrar por SIGLA primeiro (PE, SP, RJ, etc)
       let estadoEncontrado = estadosCidades.estados.find(e => e.sigla === cliente.estado_fk)
-      
+
       // Se não encontrar por sigla, tentar por NOME (Pernambuco, São Paulo, etc)
       if (!estadoEncontrado) {
         console.log('🔄 [EDITAR CLIENTE] Não encontrado por sigla, tentando por nome...')
         estadoEncontrado = estadosCidades.estados.find(e => e.nome === cliente.estado_fk)
       }
-      
+
       console.log('✅ [EDITAR CLIENTE] Estado encontrado:', estadoEncontrado)
-      
+
       if (estadoEncontrado) {
         setFormData(prev => ({ ...prev, estado: estadoEncontrado.id }))
       } else {
@@ -311,12 +311,12 @@ export default function EditarClientePage() {
     if (cliente && cliente.cidade_fk && formData.estado && estadosCidades.municipios.length > 0 && !formData.cidade) {
       console.log('🔍 Buscando cidade para:', cliente.cidade_fk)
       console.log('🔍 Municípios disponíveis:', estadosCidades.municipios.length)
-      
+
       // Encontrar cidade pelo nome
       const cidadeEncontrada = estadosCidades.municipios.find(m => m.nome === cliente.cidade_fk)
-      
+
       console.log('✅ Cidade encontrada:', cidadeEncontrada)
-      
+
       if (cidadeEncontrada) {
         setFormData(prev => ({ ...prev, cidade: cidadeEncontrada.id }))
       } else {
@@ -329,26 +329,26 @@ export default function EditarClientePage() {
   // Validação de CPF
   const validateCPF = (cpf: string): boolean => {
     const cleanCPF = cpf.replace(/\D/g, '')
-    
+
     if (cleanCPF.length !== 11) return false
     if (/^(\d)\1{10}$/.test(cleanCPF)) return false
-    
+
     let sum = 0
     for (let i = 0; i < 9; i++) {
       sum += parseInt(cleanCPF.charAt(i)) * (10 - i)
     }
     let remainder = sum % 11
     let firstDigit = remainder < 2 ? 0 : 11 - remainder
-    
+
     if (parseInt(cleanCPF.charAt(9)) !== firstDigit) return false
-    
+
     sum = 0
     for (let i = 0; i < 10; i++) {
       sum += parseInt(cleanCPF.charAt(i)) * (11 - i)
     }
     remainder = sum % 11
     let secondDigit = remainder < 2 ? 0 : 11 - remainder
-    
+
     return parseInt(cleanCPF.charAt(10)) === secondDigit
   }
 
@@ -392,9 +392,9 @@ export default function EditarClientePage() {
       setCpfPendingValidation(false)
       return
     }
-    
+
     setCpfPendingValidation(true)
-    
+
     try {
       setCpfValidating(true)
       // Enviar CPF formatado (com pontos e traço) pois o banco armazena assim
@@ -418,7 +418,7 @@ export default function EditarClientePage() {
       e.preventDefault()
       return
     }
-    
+
     // Bloquear campos obrigatórios vazios
     if (e.key === 'Tab' || e.key === 'Enter') {
       switch (field) {
@@ -430,8 +430,8 @@ export default function EditarClientePage() {
           break
         case 'cpf':
           const cpfLimpo = formData.cpf.replace(/\D/g, '')
-          if (!formData.cpf || cpfValidating || cpfExists || cpfPendingValidation || 
-              cpfLimpo.length !== 11 || !validateCPF(formData.cpf)) {
+          if (!formData.cpf || cpfValidating || cpfExists || cpfPendingValidation ||
+            cpfLimpo.length !== 11 || !validateCPF(formData.cpf)) {
             e.preventDefault()
             return
           }
@@ -443,8 +443,8 @@ export default function EditarClientePage() {
           }
           break
         case 'email':
-          if (!formData.email || emailValidating || emailExists || emailPendingValidation || 
-              !validateEmail(formData.email)) {
+          if (!formData.email || emailValidating || emailExists || emailPendingValidation ||
+            !validateEmail(formData.email)) {
             e.preventDefault()
             return
           }
@@ -488,6 +488,15 @@ export default function EditarClientePage() {
           break
       }
     }
+
+    // Comportamento especial: Enter no CEP pula para o Numero
+    if (e.key === 'Enter' && field === 'cep') {
+      e.preventDefault()
+      const nextInput = document.getElementById('numero')
+      if (nextInput) {
+        nextInput.focus()
+      }
+    }
   }
 
   const handleInputChange = (field: string, value: string) => {
@@ -514,7 +523,7 @@ export default function EditarClientePage() {
 
     // Validação em tempo real
     const newErrors = { ...errors }
-    
+
     switch (field) {
       case 'nome':
         if (value.length < 2) {
@@ -556,22 +565,22 @@ export default function EditarClientePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validações finais
     const finalErrors: ValidationErrors = {}
-    
+
     if (!formData.nome || formData.nome.length < 2) {
       finalErrors.nome = 'Nome é obrigatório'
     }
-    
+
     if (!formData.cpf || !validateCPF(formData.cpf)) {
       finalErrors.cpf = 'CPF é obrigatório e deve ser válido'
     }
-    
+
     if (!formData.telefone || !validateTelefone(formData.telefone)) {
       finalErrors.telefone = 'Telefone é obrigatório'
     }
-    
+
     if (!formData.email || !validateEmail(formData.email)) {
       finalErrors.email = 'Email é obrigatório e deve ser válido'
     }
@@ -615,7 +624,7 @@ export default function EditarClientePage() {
 
     try {
       setSaving(true)
-      
+
       const response = await fetch(`/api/admin/clientes/${params.id}`, {
         method: 'PUT',
         headers: {
@@ -697,9 +706,8 @@ export default function EditarClientePage() {
             id="nome"
             value={formData.nome}
             onChange={(e) => handleInputChange('nome', e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.nome ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.nome ? 'border-red-500' : 'border-gray-300'
+              }`}
             placeholder="Nome completo"
           />
           {errors.nome && <p className="text-red-500 text-sm mt-1">{errors.nome}</p>}
@@ -734,9 +742,8 @@ export default function EditarClientePage() {
               id="cpf"
               value={formData.cpf}
               onChange={(e) => handleInputChange('cpf', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.cpf || cpfExists ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cpf || cpfExists ? 'border-red-500' : 'border-gray-300'
+                }`}
               placeholder="000.000.000-00"
               maxLength={14}
             />
@@ -758,9 +765,8 @@ export default function EditarClientePage() {
               id="telefone"
               value={formData.telefone}
               onChange={(e) => handleInputChange('telefone', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.telefone ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.telefone ? 'border-red-500' : 'border-gray-300'
+                }`}
               placeholder="(00) 00000-0000"
               maxLength={15}
             />
@@ -778,9 +784,8 @@ export default function EditarClientePage() {
               value={formData.estado}
               onChange={(estadoId) => handleInputChange('estado', estadoId)}
               placeholder="Selecione o estado"
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.estado ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.estado ? 'border-red-500' : 'border-gray-300'
+                }`}
               format="sigla-nome"
               showAllOption={true}
               allOptionLabel="Selecione o estado"
@@ -797,9 +802,8 @@ export default function EditarClientePage() {
               value={formData.cidade}
               onChange={(e) => handleInputChange('cidade', e.target.value)}
               onKeyDown={(e) => handleKeyDown(e, 'cidade')}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.cidade ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cidade ? 'border-red-500' : 'border-gray-300'
+                }`}
               disabled={!formData.estado}
             >
               <option value="">Selecione a cidade</option>
@@ -825,9 +829,8 @@ export default function EditarClientePage() {
               value={formData.cep}
               onChange={(e) => handleInputChange('cep', e.target.value)}
               onKeyDown={(e) => handleKeyDown(e, 'cep')}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.cep ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cep ? 'border-red-500' : 'border-gray-300'
+                }`}
               placeholder="00000-000"
               maxLength={9}
               required
@@ -855,9 +858,8 @@ export default function EditarClientePage() {
             value={formData.endereco}
             onChange={(e) => handleInputChange('endereco', e.target.value)}
             onKeyDown={(e) => handleKeyDown(e, 'endereco')}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.endereco ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.endereco ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
+              }`}
             placeholder="Será preenchido automaticamente"
           />
           {errors.endereco && <p className="text-red-500 text-sm mt-1">{errors.endereco}</p>}
@@ -875,9 +877,8 @@ export default function EditarClientePage() {
             value={formData.bairro}
             onChange={(e) => handleInputChange('bairro', e.target.value)}
             onKeyDown={(e) => handleKeyDown(e, 'bairro')}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.bairro ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.bairro ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
+              }`}
             placeholder="Será preenchido automaticamente"
           />
           {errors.bairro && <p className="text-red-500 text-sm mt-1">{errors.bairro}</p>}
@@ -896,9 +897,8 @@ export default function EditarClientePage() {
               value={formData.numero}
               onChange={(e) => handleInputChange('numero', e.target.value)}
               onKeyDown={(e) => handleKeyDown(e, 'numero')}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.numero ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.numero ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
               placeholder="123"
             />
             {errors.numero && <p className="text-red-500 text-sm mt-1">{errors.numero}</p>}
@@ -929,9 +929,8 @@ export default function EditarClientePage() {
             id="email"
             value={formData.email}
             onChange={(e) => handleInputChange('email', e.target.value)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.email || emailExists ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email || emailExists ? 'border-red-500' : 'border-gray-300'
+              }`}
             placeholder="email@exemplo.com"
           />
           {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
