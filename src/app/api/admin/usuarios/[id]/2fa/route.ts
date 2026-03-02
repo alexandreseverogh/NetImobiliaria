@@ -11,7 +11,7 @@ export async function PATCH(
 ) {
   try {
     console.log('🔐 API 2FA - Iniciando...')
-    
+
     // 1. Buscar dados do usuário-alvo
     const userId = params.id
     console.log('🔐 API 2FA - User ID:', userId)
@@ -19,7 +19,7 @@ export async function PATCH(
     // Buscar email do usuário-alvo
     console.log('🔐 API 2FA - Buscando usuário...')
     const userQuery = await pool.query(
-      'SELECT id, email, nome, username FROM users WHERE id = $1',
+      'SELECT id, email, nome, username, two_fa_enabled FROM users WHERE id = $1',
       [userId]
     )
     console.log('🔐 API 2FA - Usuário encontrado:', userQuery.rows.length)
@@ -35,13 +35,17 @@ export async function PATCH(
     console.log('🔐 API 2FA - Dados do usuário:', user)
 
     // 3. Buscar configuração atual de 2FA
-    console.log('🔐 API 2FA - Buscando configuração 2FA...')
     const configQuery = await pool.query(
       'SELECT is_enabled FROM user_2fa_config WHERE user_id = $1::uuid AND method = $2',
       [userId, 'email']
     )
-    const currentState = configQuery.rows.length > 0 && configQuery.rows[0].is_enabled
-    console.log('🔐 API 2FA - Estado atual:', currentState)
+
+    // O estado atual é o da config específica (se existir) ou o da tabela users
+    const currentState = configQuery.rows.length > 0
+      ? configQuery.rows[0].is_enabled
+      : (user.two_fa_enabled === true)
+
+    console.log('🔐 API 2FA - Estado atual (config ou users):', currentState)
 
     // 4. Buscar dados do body (toggle)
     console.log('🔐 API 2FA - Lendo body...')
@@ -65,7 +69,7 @@ export async function PATCH(
     // 5. Atualizar configuração 2FA
     if (newState) {
       // Habilitar 2FA
-      const backupCodes = Array.from({ length: 10 }, () => 
+      const backupCodes = Array.from({ length: 10 }, () =>
         Math.floor(100000 + Math.random() * 900000).toString()
       )
 
@@ -76,19 +80,20 @@ export async function PATCH(
 
       // Atualizar tabela user_2fa_config
       await pool.query(
-        `INSERT INTO user_2fa_config (user_id, method, is_enabled, backup_codes, created_at, updated_at)
-         VALUES ($1::uuid, 'email', true, $2, NOW(), NOW())
+        `INSERT INTO user_2fa_config (user_id, method, is_enabled, backup_codes, user_type, created_at, updated_at)
+         VALUES ($1::uuid, 'email', true, $2, 'admin', NOW(), NOW())
          ON CONFLICT (user_id, method) 
          DO UPDATE SET 
            is_enabled = true,
            backup_codes = $2,
+           user_type = 'admin',
            updated_at = NOW()`,
         [userId, hashedBackupCodes]
       )
 
       // Atualizar tabela users também
       await pool.query(
-        'UPDATE users SET two_fa_enabled = true WHERE id = $1',
+        'UPDATE users SET two_fa_enabled = true WHERE id = $1::uuid',
         [userId]
       )
 
@@ -112,7 +117,7 @@ export async function PATCH(
 
       // Atualizar tabela users também
       await pool.query(
-        'UPDATE users SET two_fa_enabled = false WHERE id = $1',
+        'UPDATE users SET two_fa_enabled = false WHERE id = $1::uuid',
         [userId]
       )
 
