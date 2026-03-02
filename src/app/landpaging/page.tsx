@@ -2514,7 +2514,7 @@ function LandingPageContent() {
                     ) : (
                       <>
                         <div className="w-full">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start relative">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-stretch relative">
                             {filteredResults.map((property) => (
                               <LandingPropertyCard
                                 key={property.id}
@@ -2670,7 +2670,7 @@ function LandingPageContent() {
                 )}
                 <div className="p-6">
                   <div className="w-full">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-stretch">
                       {currentProperties.map((property) => (
                         <LandingPropertyCard
                           key={property.id}

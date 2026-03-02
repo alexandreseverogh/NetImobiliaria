@@ -30,7 +30,7 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
   const [showTenhoInteresseModal, setShowTenhoInteresseModal] = useState(false)
 
   return (
-    <div className="card overflow-hidden group w-full relative" style={{ position: 'relative' }}>
+    <div className="card overflow-hidden group w-full relative flex flex-col h-full" style={{ position: 'relative' }}>
       {/* Image Container */}
       <div className="relative h-64 overflow-hidden bg-gray-100" style={{ position: 'relative' }}>
         {property.image && (property.image.startsWith('data:') || property.image.startsWith('http') || property.image.startsWith('/')) ? (
@@ -79,7 +79,7 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
       </div>
 
       {/* Content */}
-      <div className="p-3 sm:p-4" style={{ width: '100%', boxSizing: 'border-box' }}>
+      <div className="p-3 sm:p-4 flex flex-col flex-grow" style={{ width: '100%', boxSizing: 'border-box' }}>
         {/* Price */}
         <div className="mb-3">
           <span className="text-2xl font-bold text-primary-600">
@@ -87,15 +87,15 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
           </span>
         </div>
 
-        {/* Title - Altura fixa de 2 linhas para padronizar todos os cards */}
-        <h3 className="text-lg font-semibold text-gray-900 mb-2 h-[3.5rem] overflow-hidden break-words leading-tight">
+        {/* Title - Padronizado para 3 linhas fixas */}
+        <h3 className="text-lg font-semibold text-gray-900 mb-2 h-[4.5rem] line-clamp-3 overflow-hidden break-words leading-tight">
           {property.title}
         </h3>
 
-        {/* Location */}
-        <div className="flex items-center text-gray-600 mb-4">
-          <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-          <span className="text-sm">{property.location}</span>
+        {/* Location - Altura fixa e truncado */}
+        <div className="flex items-center text-gray-600 mb-4 h-5">
+          <MapPin className="w-4 h-4 mr-2 text-gray-400 flex-shrink-0" />
+          <span className="text-sm truncate">{property.location}</span>
         </div>
 
         {/* Property Details */}
@@ -131,7 +131,7 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
         </div>
 
         {/* Action Buttons */}
-        <div className="mt-6 flex gap-2">
+        <div className="mt-auto pt-6 flex gap-2">
           <Link
             href={`/imoveis/${property.id}`}
             target="_blank"
