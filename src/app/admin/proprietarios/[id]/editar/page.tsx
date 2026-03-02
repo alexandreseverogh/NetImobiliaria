@@ -563,6 +563,15 @@ export default function EditarProprietarioPage() {
           break
       }
     }
+
+    // Comportamento especial: Enter no CEP pula para o Numero
+    if (e.key === 'Enter' && field === 'cep') {
+      e.preventDefault()
+      const nextInput = document.getElementById('numero')
+      if (nextInput) {
+        nextInput.focus()
+      }
+    }
   }
 
   const handleInputChange = (field: string, value: string) => {
