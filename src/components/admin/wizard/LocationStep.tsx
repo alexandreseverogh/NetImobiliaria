@@ -76,6 +76,18 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
 
   const viacepControllerRef = useRef<AbortController | null>(null)
   const initialCepValidatedRef = useRef(false)
+  const originalCepRef = useRef<string | null>(null)
+
+  // Capturar o CEP original ao carregar (modo edição)
+  useEffect(() => {
+    if (mode === 'edit' && data.endereco?.cep && !originalCepRef.current) {
+      const digits = data.endereco.cep.replace(/\D/g, '')
+      if (digits.length === 8) {
+        console.log('📌 [LocationStep] CEP original capturado:', digits)
+        originalCepRef.current = digits
+      }
+    }
+  }, [data.endereco?.cep, mode])
 
   // Busca automática de endereço por CEP
   useEffect(() => {
@@ -87,6 +99,14 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
 
     if (cepValue.length !== 8) {
       setCepState({ valid: false, message: 'CEP deve conter 8 dígitos.' })
+      return
+    }
+
+    // NOVA LÓGICA: Se o CEP for o mesmo do banco de dados, não Re-validar no ViaCEP
+    if (mode === 'edit' && cepValue === originalCepRef.current) {
+      console.log('⏭️ [LocationStep] CEP idêntico ao original do banco - pulando busca automática')
+      // Marcar como válido imediatamente para liberar o step
+      setCepState({ valid: true, message: null })
       return
     }
 
@@ -140,7 +160,7 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
       clearTimeout(timeoutId)
       controller.abort()
     }
-  }, [data.endereco?.cep, mergeEndereco, onUpdate, selectedMunicipio, selectedEstado])
+  }, [data.endereco?.cep, mergeEndereco, onUpdate, selectedMunicipio, selectedEstado, mode, cepState.valid])
 
   const isCepMaskOk = (value: string) => /^[0-9]{5}-[0-9]{3}$/.test(value)
 
@@ -195,7 +215,7 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
   useEffect(() => {
     console.log('🔍 LocationStep - data.endereco recebido:', data.endereco)
     console.log('🔍 LocationStep - municipiosData carregado:', !!municipiosData)
-    
+
     if (data.endereco?.estado) {
       console.log('🔍 LocationStep - Atualizando selectedEstado para:', data.endereco.estado)
       setSelectedEstado(data.endereco.estado)
@@ -211,7 +231,7 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
   // A função updateEndereco já faz merge corretamente (linha 163-174)
 
   const estados = municipiosData ? municipiosData.estados.sort((a, b) => a.nome.localeCompare(b.nome)) : []
-  const municipios = selectedEstado && municipiosData 
+  const municipios = selectedEstado && municipiosData
     ? municipiosData.estados.find(e => e.sigla === selectedEstado)?.municipios.sort() || []
     : []
 
@@ -297,7 +317,7 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
               readOnly={true}
             />
             <p className="text-xs text-blue-700 mt-1">
-              {mode === 'create' 
+              {mode === 'create'
                 ? 'Formato: [FINALIDADE]_[TIPO]_[STATUS]_[ID]'
                 : 'Código gerado automaticamente no cadastro'
               }
@@ -362,7 +382,7 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
           <p className="text-xs text-blue-700 mb-4">
             💡 Digite o CEP e os campos de Bairro e Endereço serão preenchidos automaticamente
           </p>
-          
+
           {/* NOVA ORDEM: 1. CEP */}
           <div className="mb-4">
             <label htmlFor="cep" className="block text-sm font-medium text-gray-700 mb-1">
@@ -376,12 +396,12 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
                 value={data.endereco?.cep || ''}
                 onChange={(e) => {
                   let value = e.target.value.replace(/[^\d]/g, '')
-                  
+
                   // Aplicar máscara
                   if (value.length > 5) {
                     value = value.substring(0, 5) + '-' + value.substring(5, 8)
                   }
-                  
+
                   updateEndereco('cep', value)
                   setCepState({ valid: false, message: 'Valide o CEP para continuar.' })
                 }}
@@ -390,11 +410,10 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
                 required
                 pattern="[0-9]{5}-[0-9]{3}"
                 title="CEP deve estar no formato 99999-999"
-                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
-                  data.endereco?.cep && !/^[0-9]{5}-[0-9]{3}$/.test(data.endereco.cep)
+                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${data.endereco?.cep && !/^[0-9]{5}-[0-9]{3}$/.test(data.endereco.cep)
                     ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
                     : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                }`}
+                  }`}
                 onKeyDown={(e) => {
                   if (e.key === 'Tab') {
                     // Bloquear tab se CEP não estiver validado
@@ -471,11 +490,10 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
                 placeholder="Digite o número"
                 maxLength={10}
                 required
-                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
-                  !data.endereco?.numero
+                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${!data.endereco?.numero
                     ? 'border-red-300 focus:ring-red-500 focus:border-red-500 bg-red-50'
                     : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                }`}
+                  }`}
               />
               {!data.endereco?.numero && (
                 <p className="mt-1 text-sm text-red-600">
@@ -483,7 +501,7 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
                 </p>
               )}
             </div>
-            
+
             <div>
               <label htmlFor="complemento" className="block text-sm font-medium text-gray-700 mb-1">
                 Complemento
@@ -511,9 +529,9 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
               </svg>
             </div>
             <div className="ml-3">
-                             <p className="text-sm font-medium text-green-800">
-                 Localização selecionada: {selectedMunicipio}, {municipiosData?.estados.find(e => e.sigla === selectedEstado)?.nome || selectedEstado}
-               </p>
+              <p className="text-sm font-medium text-green-800">
+                Localização selecionada: {selectedMunicipio}, {municipiosData?.estados.find(e => e.sigla === selectedEstado)?.nome || selectedEstado}
+              </p>
             </div>
           </div>
         </div>
