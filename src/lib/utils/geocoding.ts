@@ -24,31 +24,42 @@ interface NominatimResponse {
 }
 
 /**
- * Busca informações do endereço por CEP usando ViaCEP
+ * Busca informações do endereço por CEP usando a API interna (proxy para ViaCEP)
+ * A chamada passa pelo servidor Next.js, evitando bloqueios no browser.
  */
 export async function buscarEnderecoPorCep(cep: string): Promise<ViaCepResponse | null> {
   try {
-    // Remove formatação do CEP
     const cepLimpo = cep.replace(/\D/g, '')
-    
+
     if (cepLimpo.length !== 8) {
       console.error('❌ CEP inválido:', cep)
       return null
     }
 
-    console.log('🔍 Buscando endereço para CEP:', cepLimpo)
-    
-    const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
-    
+    console.log('🔍 Buscando endereço para CEP via proxy interno:', cepLimpo)
+
+    // No browser (CSR): usa window.location.origin (ex: https://www.imovtec.com.br)
+    // No servidor (SSR): usa localhost porque a chamada é interna ao próprio container Next.js
+    const baseUrl = typeof window !== 'undefined'
+      ? window.location.origin
+      : 'http://localhost:3000'
+
+    const response = await fetch(`${baseUrl}/api/cep/${cepLimpo}`)
+
+    if (response.status === 404) {
+      console.error('❌ CEP não encontrado:', cepLimpo)
+      return null
+    }
+
     if (!response.ok) {
-      console.error('❌ Erro na API ViaCEP:', response.status)
+      console.error('❌ Erro na API de CEP interna:', response.status)
       return null
     }
 
     const data = await response.json()
-    
-    if (data.erro) {
-      console.error('❌ CEP não encontrado:', cep)
+
+    if (data.error) {
+      console.error('❌ CEP não encontrado:', cepLimpo, data.error)
       return null
     }
 
@@ -66,9 +77,9 @@ export async function buscarEnderecoPorCep(cep: string): Promise<ViaCepResponse 
 export async function buscarCoordenadasPorEndereco(endereco: string, cidade: string, estado: string, pais: string = 'Brazil'): Promise<{ lat: number; lon: number } | null> {
   try {
     const enderecoCompleto = `${endereco}, ${cidade}, ${estado}, ${pais}`
-    
+
     console.log('🔍 Buscando coordenadas para endereço:', enderecoCompleto)
-    
+
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(enderecoCompleto)}&format=json&limit=1`,
       {
@@ -77,14 +88,14 @@ export async function buscarCoordenadasPorEndereco(endereco: string, cidade: str
         }
       }
     )
-    
+
     if (!response.ok) {
       console.error('❌ Erro na API Nominatim:', response.status)
       return null
     }
 
     const data: NominatimResponse[] = await response.json()
-    
+
     if (!data || data.length === 0) {
       console.error('❌ Coordenadas não encontradas para endereço:', enderecoCompleto)
       return null
@@ -109,10 +120,10 @@ export async function buscarCoordenadasPorEndereco(endereco: string, cidade: str
 export async function buscarCoordenadasPorCep(cep: string): Promise<{ lat: number; lon: number; endereco?: string } | null> {
   try {
     console.log('🔍 Iniciando busca de coordenadas para CEP:', cep)
-    
+
     // 1. Buscar endereço por CEP
     const enderecoData = await buscarEnderecoPorCep(cep)
-    
+
     if (!enderecoData) {
       console.error('❌ Não foi possível obter endereço para o CEP:', cep)
       return null
@@ -162,15 +173,15 @@ export async function buscarCoordenadasPorEnderecoCompleto(
     console.log('🔍 Cidade:', cidade)
     console.log('🔍 Estado:', estado)
     console.log('🔍 CEP:', cep)
-    
+
     // Montar endereço completo
     let enderecoCompleto = endereco
     if (numero) enderecoCompleto += `, ${numero}`
     if (complemento) enderecoCompleto += `, ${complemento}`
     if (bairro) enderecoCompleto += `, ${bairro}`
-    
+
     console.log('🔍 Endereço completo montado:', enderecoCompleto)
-    
+
     const coordenadas = await buscarCoordenadasPorEndereco(
       enderecoCompleto,
       cidade,
@@ -189,7 +200,7 @@ export async function buscarCoordenadasPorEnderecoCompleto(
         }
       }
       console.log('⚠️ Busca por CEP também falhou.')
-      
+
       // Fallback 2: tentar buscar apenas por BAIRRO (funciona bem no Brasil)
       if (bairro) {
         console.log('🔄 Tentando busca por BAIRRO como último recurso...')
@@ -204,7 +215,7 @@ export async function buscarCoordenadasPorEnderecoCompleto(
           return coordenadasPorBairro
         }
       }
-      
+
       console.log('⚠️ Todas as tentativas falharam. Nenhuma coordenada encontrada.')
     } else {
       console.log('✅ SUCESSO via endereço completo! Coordenadas:', coordenadas)
