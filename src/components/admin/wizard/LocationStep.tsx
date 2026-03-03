@@ -90,6 +90,8 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
   }, [data.endereco?.cep, mode])
 
   // Busca automática de endereço por CEP
+  // IMPORTANTE: cepState.valid NÃO está nas dependências para evitar loop:
+  // quando a busca retorna sucesso, seta valid:true → re-executaria o efeito → abortaria a requisição completada.
   useEffect(() => {
     const cepValue = data.endereco?.cep?.replace(/\D/g, '')
     if (!cepValue) {
@@ -102,26 +104,33 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
       return
     }
 
-    // NOVA LÓGICA: Se o CEP for o mesmo do banco de dados, não Re-validar no ViaCEP
+    // NOVA LÓGICA: Se o CEP for o mesmo do banco de dados, não re-validar no ViaCEP
     if (mode === 'edit' && cepValue === originalCepRef.current) {
       console.log('⏭️ [LocationStep] CEP idêntico ao original do banco - pulando busca automática')
-      // Marcar como válido imediatamente para liberar o step
       setCepState({ valid: true, message: null })
       return
     }
 
+    // Abort qualquer requisição anterior para o mesmo ciclo
     if (viacepControllerRef.current) {
       viacepControllerRef.current.abort()
     }
     const controller = new AbortController()
     viacepControllerRef.current = controller
 
+    let cancelled = false
+
     const buscarEndereco = async () => {
+      if (cancelled) return
       setBuscandoCep(true)
       console.log('🔍 [LocationStep] Buscando endereço automaticamente para CEP:', cepValue)
 
       try {
         const enderecoData = await buscarEnderecoPorCep(cepValue)
+
+        // Se foi cancelado enquanto a requisição estava em voo, ignorar resultado
+        if (cancelled) return
+
         if (!enderecoData) {
           setCepState({ valid: false, message: 'CEP não encontrado na base do Correios (ViaCEP).' })
           onUpdate({ endereco: mergeEndereco({ cep: data.endereco?.cep || '' }) })
@@ -144,23 +153,30 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
 
         onUpdate({ endereco: enderecoAtualizado })
         setCepState({ valid: true, message: null })
-      } catch (error) {
+      } catch (error: any) {
+        if (cancelled || error?.name === 'AbortError') return
         console.error('❌ [LocationStep] Erro ao buscar CEP:', error)
         setCepState({ valid: false, message: 'Não foi possível validar o CEP no momento.' })
       } finally {
-        setBuscandoCep(false)
-        if (viacepControllerRef.current === controller) {
-          viacepControllerRef.current = null
+        if (!cancelled) {
+          setBuscandoCep(false)
+          if (viacepControllerRef.current === controller) {
+            viacepControllerRef.current = null
+          }
         }
       }
     }
 
     const timeoutId = setTimeout(buscarEndereco, 500)
+
+    // O cleanup só seta 'cancelled' e limpa o timeout — NÃO aborta o controller
+    // para não cancelar uma requisição já em voo quando cepState.valid mudar.
     return () => {
+      cancelled = true
       clearTimeout(timeoutId)
-      controller.abort()
     }
-  }, [data.endereco?.cep, mergeEndereco, onUpdate, selectedMunicipio, selectedEstado, mode, cepState.valid])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.endereco?.cep, mode])
 
   const isCepMaskOk = (value: string) => /^[0-9]{5}-[0-9]{3}$/.test(value)
 
@@ -411,8 +427,8 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
                 pattern="[0-9]{5}-[0-9]{3}"
                 title="CEP deve estar no formato 99999-999"
                 className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${data.endereco?.cep && !/^[0-9]{5}-[0-9]{3}$/.test(data.endereco.cep)
-                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                    : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                   }`}
                 onKeyDown={(e) => {
                   if (e.key === 'Tab') {
@@ -491,8 +507,8 @@ export default function LocationStep({ data, onUpdate, mode, onCepValidationChan
                 maxLength={10}
                 required
                 className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${!data.endereco?.numero
-                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500 bg-red-50'
-                    : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500 bg-red-50'
+                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                   }`}
               />
               {!data.endereco?.numero && (
