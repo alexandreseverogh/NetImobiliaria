@@ -211,29 +211,48 @@ export default function NovoImovelPage() {
               if (imagensParaUpload.length > 0) {
                 console.log(`🚀 Step 2A: Iniciando upload de ${imagensParaUpload.length} imagens individualmente...`)
 
-                imagensParaUpload.forEach((img: any, idx: number) => {
+                // Identificar exatamente qual imagem é a principal
+                // Apenas UMA deve ter principal=true para evitar conflitos no backend
+                const indicePrincipal = imagensParaUpload.findIndex((img: any) => img.principal === true)
+                const indiceDefinitivo = indicePrincipal >= 0 ? indicePrincipal : 0
+                console.log(`🔍 Imagem principal: índice ${indiceDefinitivo} de ${imagensParaUpload.length}`)
+
+                // Fazer uploads das imagens NÃO-principais em paralelo
+                const imagensNaoPrincipais = imagensParaUpload.filter((_: any, idx: number) => idx !== indiceDefinitivo)
+                const imagemPrincipal = imagensParaUpload[indiceDefinitivo]
+
+                // Upload paralelo das imagens não-principais (sem flag principal)
+                const uploadsNaoPrincipais = imagensNaoPrincipais.map((img: any, idx: number) => {
                   const imageFormData = new FormData()
                   imageFormData.append('images', img.file)
-                  // Se a imagem tiver a flag principal, avisamos o backend (opcional se o backend automatizar a primeira)
-                  if (img.principal) {
-                    imageFormData.append('principal', 'true')
-                  }
-
-                  uploadPromises.push(
-                    authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
-                      method: 'POST',
-                      body: imageFormData
-                    }).then(async r => {
-                      if (!r.ok) {
-                        const err = await r.text()
-                        console.error(`❌ Erro no upload da imagem ${idx + 1}:`, err)
-                      } else {
-                        console.log(`✅ Upload da imagem ${idx + 1} concluído`)
-                      }
-                      return r
-                    })
-                  )
+                  // NÃO enviar 'principal=true' aqui
+                  return authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
+                    method: 'POST',
+                    body: imageFormData
+                  }).then(async r => {
+                    if (!r.ok) console.error(`❌ Erro no upload da imagem ${idx + 1}:`, await r.text())
+                    else console.log(`✅ Upload da imagem não-principal ${idx + 1} concluído`)
+                    return r
+                  })
                 })
+
+                uploadPromises.push(
+                  // Primeiro fazer todos os uploads não-principais, depois o principal
+                  Promise.allSettled(uploadsNaoPrincipais).then(async () => {
+                    // Agora fazer o upload da imagem PRINCIPAL por último
+                    if (imagemPrincipal) {
+                      const imageFormData = new FormData()
+                      imageFormData.append('images', imagemPrincipal.file)
+                      imageFormData.append('principal', 'true') // Apenas para a imagem principal
+                      const r = await authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
+                        method: 'POST',
+                        body: imageFormData
+                      })
+                      if (!r.ok) console.error(`❌ Erro no upload da imagem principal:`, await r.text())
+                      else console.log(`✅ Upload da imagem principal concluído`)
+                    }
+                  })
+                )
               }
 
               // B. Upload de Documentos (Individuais)

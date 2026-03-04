@@ -529,7 +529,7 @@ export default function GeneralDataStep({
       [field]: sanitized
     }))
 
-    const numericValue = sanitized === '' ? undefined : Number(sanitized)
+    const numericValue = sanitized === '' ? (field === 'suites' ? 0 : undefined) : Number(sanitized)
     onUpdate({
       [field]: numericValue
     } as any)

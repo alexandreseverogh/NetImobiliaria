@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkApiPermission } from '@/lib/middleware/permissionMiddleware'
+import { createHash } from 'crypto'
 
 // Forçar uso do Node.js runtime
 export const runtime = 'nodejs'
@@ -158,6 +159,26 @@ export async function POST(
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
+      // Calcular hash SHA-256 completo do buffer para detectar duplicatas com 100% de precisão
+      const fileHash = createHash('sha256').update(buffer).digest('hex')
+      console.log(`🔍 API Imagens - Hash SHA-256 de ${file.name}: ${fileHash.substring(0, 16)}...`)
+
+      // Verificar se já existe imagem com o mesmo hash (mesmo conteúdo binário exato)
+      // existingImages já foi carregado, então é O(1) sem query adicional
+      const imagemExistente = existingImages.find((img: any) => img.hash_arquivo === fileHash)
+      if (imagemExistente) {
+        console.log(`⚠️ API Imagens - Duplicata detectada por hash SHA-256, ignorando upload: ${file.name}`)
+        uploadedImages.push({
+          id: imagemExistente.id,
+          url: `/api/public/imagens/${imagemExistente.id}`,
+          tamanho: imagemExistente.tamanho_bytes,
+          tipo: imagemExistente.tipo_mime,
+          ordem: imagemExistente.ordem,
+          duplicata: true
+        })
+        continue
+      }
+
       // Tentar salvar arquivo físico (opcional - não bloqueante)
       try {
         const imovelDir = await ensureUploadDir(id)
@@ -173,21 +194,31 @@ export async function POST(
       }
 
       // Salvar informações no banco de dados (OBRIGATÓRIO)
+      // SEMPRE inserir com principal=false — setImovelImagemPrincipal é chamado após o INSERT se necessário
       const imagemId = await insertImovelImagem({
         imovelId: id,
         ordem: nextOrdem,
-        // Lógica: se o frontend forçou ou se for a primeira imagem de todas
-        principal: forcePrincipal || (existingImages.length === 0 && uploadedImages.length === 0),
+        principal: false, // ← SEMPRE false, nunca true aqui
         tipoMime: file.type,
         tamanhoBytes: file.size,
-        imagem: buffer
+        imagem: buffer,
+        hashArquivo: fileHash
       })
 
-      nextOrdem++ // Incrementar para a próxima imagem
+      // Definir como principal SOMENTE se: o frontend sinalizou via 'principal=true' na requisição
+      // OU se for a primeira imagem do imóvel (nenhuma imagem existia antes)
+      // setImovelImagemPrincipal garante: UPDATE todas para false, depois UPDATE só esta para true
+      const deveSerPrincipal = forcePrincipal || (existingImages.length === 0 && uploadedImages.length === 0)
+      if (deveSerPrincipal) {
+        await setImovelImagemPrincipal(id, imagemId)
+        console.log(`✅ API Imagens - Imagem ${imagemId} definida como principal (forcePrincipal=${forcePrincipal})`)
+      }
+
+      nextOrdem++
 
       uploadedImages.push({
         id: imagemId,
-        url: `/api/public/imagens/${imagemId}`, // Usar API de streaming do banco de dados
+        url: `/api/public/imagens/${imagemId}`,
         tamanho: file.size,
         tipo: file.type,
         ordem: uploadedImages.length

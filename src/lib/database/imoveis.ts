@@ -479,7 +479,7 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
       imovel.codigo, imovel.titulo, imovel.descricao, imovel.tipo_fk, imovel.finalidade_fk, imovel.status_fk,
       proprietarioUuid,
       imovel.preco, imovel.preco_condominio, imovel.preco_iptu, imovel.taxa_extra, imovel.area_total,
-      imovel.area_construida, imovel.quartos, imovel.banheiros, imovel.suites,
+      imovel.area_construida, imovel.quartos, imovel.banheiros, imovel.suites ?? 0,
       imovel.vagas_garagem, imovel.varanda, imovel.endereco, imovel.numero, imovel.complemento, imovel.bairro, imovel.cidade_fk,
       imovel.estado_fk, imovel.cep, imovel.latitude, imovel.longitude,
       imovel.ano_construcao, imovel.andar, imovel.total_andares, imovel.mobiliado,
@@ -545,6 +545,11 @@ export async function updateImovel(id: number, imovel: Partial<Imovel>, userId: 
 
     // Remover qualquer resquício de campo legado para evitar updates indevidos
     delete (imovelAtualizado as any).proprietario_fk
+
+    // Garantir que suites nunca seja null se fornecido
+    if ('suites' in imovelAtualizado && (imovelAtualizado.suites === null || imovelAtualizado.suites === undefined)) {
+      imovelAtualizado.suites = 0
+    }
 
     const fields: string[] = []
     const values: any[] = []
@@ -775,6 +780,7 @@ export async function findImovelImagens(imovelId: number) {
         principal,
         tipo_mime,
         tamanho_bytes,
+        hash_arquivo,
         NULL::text AS nome_arquivo,
         created_at
       FROM imovel_imagens 
@@ -791,6 +797,7 @@ export async function findImovelImagens(imovelId: number) {
       is_principal: row.principal, // Mapear 'principal' para 'is_principal'
       tipo_mime: row.tipo_mime,
       tamanho_bytes: row.tamanho_bytes,
+      hash_arquivo: row.hash_arquivo, // Hash SHA-256 para deduplicação
       // URL apontando para a nova API de streaming
       url: `/api/public/imagens/${row.id}`,
       descricao: null,
@@ -867,20 +874,13 @@ export async function insertImovelImagem(imagemData: {
   tipoMime?: string
   tamanhoBytes?: number
   imagem: Buffer
+  hashArquivo?: string // Hash SHA-256 para deduplicação
 }) {
   try {
-    // Se esta imagem será principal, desmarcar outras como principais
-    if (imagemData.principal) {
-      await pool.query(
-        'UPDATE imovel_imagens SET principal = false WHERE imovel_id = $1',
-        [imagemData.imovelId]
-      )
-    }
-
     const query = `
       INSERT INTO imovel_imagens (
-        imovel_id, ordem, principal, tipo_mime, tamanho_bytes, imagem
-      ) VALUES ($1, $2, $3, $4, $5, $6)
+        imovel_id, ordem, principal, tipo_mime, tamanho_bytes, imagem, hash_arquivo
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
     `
 
@@ -890,7 +890,8 @@ export async function insertImovelImagem(imagemData: {
       imagemData.principal,
       imagemData.tipoMime || null,
       imagemData.tamanhoBytes || null,
-      imagemData.imagem
+      imagemData.imagem,
+      imagemData.hashArquivo || null
     ]
 
     const result = await pool.query(query, values)

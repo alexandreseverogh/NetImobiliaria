@@ -63,6 +63,7 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
   const { fetch: authFetch, get, post, delete: del } = useAuthenticatedFetch()
   const [tiposDocumentos, setTiposDocumentos] = useState<TipoDocumento[]>([])
   const [selectedImages, setSelectedImages] = useState<UploadedFile[]>([])
+  const [deletedImageIds, setDeletedImageIds] = useState<Set<string>>(new Set()) // IDs de imagens excluídas nesta sessão
   const [duplicateImageWarning, setDuplicateImageWarning] = useState<string | null>(null)
   const [video, setVideo] = useState<ImovelVideo | null>(null)
   const [selectedVideo, setSelectedVideo] = useState<VideoUploadData | null>(null)
@@ -139,50 +140,52 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
 
 
       // Converter imagens dos dados para o formato esperado pelo hook
-      const imagensFormatadas = data.imagens.map((img: any) => {
-        console.log('🔍 MediaStep - Processando imagem:', {
-          id: img.id,
-          tipo_mime: img.tipo_mime,
-          tem_url: !!img.url,
-          tem_imagem: !!img.imagem,
-          tipo_imagem: typeof img.imagem,
-          tamanho_imagem: img.imagem ? img.imagem.length : 0
-        })
+      const imagensFormatadas = data.imagens
+        .filter((img: any) => !deletedImageIds.has(img.id?.toString())) // ignorar já excluídas
+        .map((img: any) => {
+          console.log('🔍 MediaStep - Processando imagem:', {
+            id: img.id,
+            tipo_mime: img.tipo_mime,
+            tem_url: !!img.url,
+            tem_imagem: !!img.imagem,
+            tipo_imagem: typeof img.imagem,
+            tamanho_imagem: img.imagem ? img.imagem.length : 0
+          })
 
-        // Se a imagem já vem com URL (da API), usar direto
-        let imageUrl = ''
-        if (img.url) {
-          imageUrl = img.url
-        } else if (img.imagem) {
-          // Converter Buffer para base64 (fallback)
-          let base64String = ''
-          if (Buffer.isBuffer(img.imagem)) {
-            base64String = img.imagem.toString('base64')
-          } else if (typeof img.imagem === 'object' && img.imagem.data) {
-            base64String = Buffer.from(img.imagem.data).toString('base64')
+          // Se a imagem já vem com URL (da API), usar direto
+          let imageUrl = ''
+          if (img.url) {
+            imageUrl = img.url
+          } else if (img.imagem) {
+            // Converter Buffer para base64 (fallback)
+            let base64String = ''
+            if (Buffer.isBuffer(img.imagem)) {
+              base64String = img.imagem.toString('base64')
+            } else if (typeof img.imagem === 'object' && img.imagem.data) {
+              base64String = Buffer.from(img.imagem.data).toString('base64')
+            }
+            imageUrl = `data:${img.tipo_mime};base64,${base64String}`
           }
-          imageUrl = `data:${img.tipo_mime};base64,${base64String}`
-        }
 
-        return {
-          id: img.id.toString(),
-          url: imageUrl,
-          nome: `imagem_${img.id}`,
-          descricao: '',
-          ordem: img.ordem,
-          principal: img.principal || img.is_principal,
-          dataUpload: img.created_at,
-          tamanho: img.tamanho_bytes,
-          tipo: img.tipo_mime
-        }
-      })
+          return {
+            id: img.id.toString(),
+            url: imageUrl,
+            nome: `imagem_${img.id}`,
+            descricao: '',
+            ordem: img.ordem,
+            principal: img.principal || img.is_principal,
+            dataUpload: img.created_at,
+            tamanho: img.tamanho_bytes,
+            tipo: img.tipo_mime
+          }
+        })
 
       console.log('🔍 MediaStep - Imagens formatadas:', imagensFormatadas)
 
       // Atualizar o estado das imagens carregadas
       setLoadedImages(imagensFormatadas)
     }
-  }, [mode, data.imagens]) // Incluído data.imagens mas com verificação loadedImages.length === 0 para evitar loop
+  }, [mode, data.imagens, deletedImageIds]) // re-executa se deletedImageIds mudar
 
   // Carregar documentos existentes no modo de edição
   useEffect(() => {
@@ -366,13 +369,19 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
       })))
 
       // Combinar imagens carregadas + novas imagens e marcar a principal
+      // Se selectedPrincipalId está definido, ele tem precedência absoluta.
+      // Se não está (estado inicial ou após remoção), preservar o campo 'principal' original.
+      const hasPrincipalSelection = selectedPrincipalId && selectedPrincipalId !== ''
       const imagensData = [...loadedImages, ...novasImagensData].map(img => ({
         ...img,
-        principal: img.id === selectedPrincipalId || img.id.toString() === selectedPrincipalId?.toString()
+        principal: hasPrincipalSelection
+          ? (img.id === selectedPrincipalId || img.id.toString() === selectedPrincipalId?.toString())
+          : (img.principal === true) // Preservar valor original se não há seleção explícita
       }))
       console.log('🔍 MediaStep - updateData - imagensData FINAL com principal marcada:', {
         total: imagensData.length,
         principalId: selectedPrincipalId,
+        hasPrincipalSelection,
         hasPrincipal: imagensData.some(img => img.principal)
       })
 
@@ -647,7 +656,17 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
       existingSignatures.add(anySignature(name))
     }
 
-    loadedImages.forEach((img) => addSignature(img.nome, img.tamanho))
+    // Detectar duplicatas por TAMANHO DE ARQUIVO para imagens já gravadas no banco
+    // (seus nomes são gerados pelo sistema como 'imagem_123', não o nome original)
+    const existingSizeSignatures = new Set<number>()
+    loadedImages.forEach((img) => {
+      if (img.tamanho && img.tamanho > 0) {
+        existingSizeSignatures.add(img.tamanho)
+      }
+      addSignature(img.nome, img.tamanho)
+    })
+
+    // Para imagens já selecionadas nesta sessão, comparar por nome (nome original preservado)
     selectedImages.forEach((img) => {
       if (img.file) {
         addSignature(img.file.name, img.file.size)
@@ -697,7 +716,11 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
         const signatureExact = makeSignature(file.name, file.size)
         const signatureAnyKey = anySignature(file.name)
 
-        if (existingSignatures.has(signatureExact) || existingSignatures.has(signatureAnyKey)) {
+        // Verificar duplicata por nome (sessão atual) OU por tamanho (imagens do banco)
+        const isDuplicateByName = existingSignatures.has(signatureExact) || existingSignatures.has(signatureAnyKey)
+        const isDuplicateBySize = existingSizeSignatures.has(file.size)
+
+        if (isDuplicateByName || isDuplicateBySize) {
           duplicateNames.push(file.name)
           return
         }
@@ -733,7 +756,7 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
       if (duplicateNames.length > 0) {
         const uniqueNames = Array.from(new Set(duplicateNames))
         messages.push(
-          `As imagens ${uniqueNames.join(', ')} já estavam adicionadas e foram ignoradas.`
+          `As imagens ${uniqueNames.join(', ')} já existem no imóvel (mesma imagem já cadastrada) e foram ignoradas.`
         )
       }
       if (limitReached) {
@@ -743,22 +766,11 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
       return
     }
 
-    // Aplicar compressão nas imagens para o modo edição
-    const processedFiles = await Promise.all(
-      Array.from(files).map(async (f) => {
-        if (!f.type.startsWith('image/')) return f;
-        try {
-          return await compressImage(f);
-        } catch (e) {
-          console.error('Falha ao comprimir imagem:', f.name, e);
-          return f;
-        }
-      })
-    );
+    // Modo edição: verificar duplicatas ANTES da compressão (usando tamanho original do disco)
+    // O banco armazena o tamanho ANTES da compressão, então a comparação deve ser com o original
+    const originalFilesForUpload: File[] = []
 
-    const validFiles: File[] = []
-
-    processedFiles.forEach((file) => {
+    Array.from(files).forEach((file) => {
       if (!(file instanceof File) || !file.type.startsWith('image/')) {
         return
       }
@@ -766,7 +778,11 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
       const signatureExact = makeSignature(file.name, file.size)
       const signatureAnyKey = anySignature(file.name)
 
-      if (existingSignatures.has(signatureExact) || existingSignatures.has(signatureAnyKey)) {
+      // Verificar duplicata por nome (sessão atual) OU por tamanho original (imagens do banco)
+      const isDuplicateByName = existingSignatures.has(signatureExact) || existingSignatures.has(signatureAnyKey)
+      const isDuplicateBySize = existingSizeSignatures.has(file.size)
+
+      if (isDuplicateByName || isDuplicateBySize) {
         duplicateNames.push(file.name)
         return
       }
@@ -778,14 +794,14 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
 
       currentImageCount += 1
       addSignature(file.name, file.size)
-      validFiles.push(file)
+      originalFilesForUpload.push(file)
     })
 
     const messages: string[] = []
     if (duplicateNames.length > 0) {
       const uniqueNames = Array.from(new Set(duplicateNames))
       messages.push(
-        `As imagens ${uniqueNames.join(', ')} já estavam adicionadas e foram ignoradas.`
+        `As imagens ${uniqueNames.join(', ')} já existem no imóvel (mesma imagem já cadastrada) e foram ignoradas.`
       )
     }
     if (limitReached) {
@@ -793,14 +809,42 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
     }
     setDuplicateImageWarning(messages.length > 0 ? messages.join(' ') : null)
 
-    if (validFiles.length === 0) {
+    if (originalFilesForUpload.length === 0) {
       return
     }
+
+    // Comprimir apenas os arquivos que passaram no filtro de duplicatas
+    const validFiles = await Promise.all(
+      originalFilesForUpload.map(async (f) => {
+        if (!f.type.startsWith('image/')) return f
+        try {
+          return await compressImage(f)
+        } catch (e) {
+          console.error('Falha ao comprimir imagem:', f.name, e)
+          return f
+        }
+      })
+    )
+
+    // Filtrar arquivos muito grandes após compressão
+    const validFilesFiltered = validFiles.filter((file): file is File => {
+      if (!(file instanceof File)) return false
+      if (file.size > UPLOAD_CONFIG.MAX_FILE_SIZE) {
+        alert(`A imagem "${file.name}" é muito grande após compressão. O limite máximo é 10MB.`)
+        return false
+      }
+      return true
+    })
+
+    if (validFilesFiltered.length === 0) {
+      return
+    }
+
 
     // Modo edição - upload direto com authFetch
     try {
       const formData = new FormData()
-      validFiles.forEach((file) => {
+      validFilesFiltered.forEach((file) => {
         formData.append('images', file)
       })
 
@@ -809,12 +853,21 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
         body: formData
       })
 
+      const uploadResult = await uploadResponse.json()
       if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json()
+        const errorData = uploadResult
         throw new Error(errorData.error || 'Erro ao fazer upload das imagens')
       }
 
       console.log('✅ MediaStep - Upload concluído com sucesso')
+
+      // Verificar se o backend detectou imagens duplicadas
+      const duplicatasDetectadas = (uploadResult.data || []).filter((img: any) => img.duplicata === true)
+      if (duplicatasDetectadas.length > 0) {
+        setDuplicateImageWarning(
+          `${duplicatasDetectadas.length} imagem(ns) ignorada(s): já existem no imóvel com o mesmo conteúdo.`
+        )
+      }
 
       // Após upload bem-sucedido, recarregar TODAS as imagens da API
       console.log('🔍 MediaStep - Recarregando imagens da API após upload')
@@ -823,9 +876,11 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
         const data = await response.json()
         const imagensDoBanco = data.data || []
 
-        // Encontrar apenas as imagens que não estão já carregadas
+        // Encontrar apenas as imagens que não estão já carregadas E não foram excluídas nesta sessão
         const idsCarregados = loadedImages.map((img) => parseInt(img.id))
-        const novasImagens = imagensDoBanco.filter((img: any) => !idsCarregados.includes(img.id))
+        const novasImagens = imagensDoBanco.filter((img: any) =>
+          !idsCarregados.includes(img.id) && !deletedImageIds.has(img.id.toString())
+        )
 
         console.log('🔍 MediaStep - Imagens já carregadas:', idsCarregados)
         console.log('🔍 MediaStep - Novas imagens encontradas:', novasImagens.map((img: any) => img.id))
@@ -855,7 +910,11 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
 
         // Adicionar apenas as novas imagens ao estado existente
         setLoadedImages((prev) => {
-          const imagensAtivas = prev.filter((img) => !imagensRemovidasRascunho.includes(img.id))
+          // Filtrar: remover excluídas desta sessão E do rascunho (dupla proteção)
+          const imagensRemovidasRascunho = rascunho?.alteracoes?.imagens?.removidas || []
+          const imagensAtivas = prev.filter(
+            (img) => !imagensRemovidasRascunho.includes(img.id) && !deletedImageIds.has(img.id)
+          )
           const todasImagens = [...imagensAtivas, ...novasImagensFormatadas]
           return todasImagens.sort((a, b) => {
             if (a.ordem !== b.ordem) {
@@ -1091,6 +1150,14 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
   const removeImage = async (id: string) => {
     console.log('🔍 removeImage - ID:', id, 'Mode:', mode, 'ImovelId:', imovelId)
 
+    // Adicionar ao Set de exclusões da sessão IMEDIATAMENTE (antes de qualquer await)
+    setDeletedImageIds(prev => new Set([...Array.from(prev), id]))
+
+    // Se a imagem é a principal atual, resetar seleção
+    if (selectedPrincipalId === id) {
+      setSelectedPrincipalId('')
+    }
+
     // Se é uma imagem existente (não temporária)
     if (imovelId && !id.startsWith('temp-')) {
       // Registrar no rascunho se for modo de edição (NÃO excluir do banco ainda)
@@ -1099,13 +1166,7 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
         await registrarAlteracaoRascunho('imagem', 'remover', id)
 
         // Remover imediatamente da interface para feedback visual
-        setLoadedImages(prev => {
-          const image = prev.find(img => img.id === id)
-          if (image) {
-            URL.revokeObjectURL(image.url)
-          }
-          return prev.filter(img => img.id !== id)
-        })
+        setLoadedImages(prev => prev.filter(img => img.id !== id))
       } else {
         // Modo criação ou sem rascunho - excluir imediatamente
         try {
@@ -1116,15 +1177,15 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
           console.log('✅ removeImage - Imagem deletada com sucesso')
 
           // Remover da interface após exclusão no banco
-          setLoadedImages(prev => {
-            const image = prev.find(img => img.id === id)
-            if (image) {
-              URL.revokeObjectURL(image.url)
-            }
-            return prev.filter(img => img.id !== id)
-          })
+          setLoadedImages(prev => prev.filter(img => img.id !== id))
         } catch (error) {
           console.error('❌ removeImage - Erro ao deletar imagem:', error)
+          // Reverter a exclusão do Set em caso de erro
+          setDeletedImageIds(prev => {
+            const next = new Set(prev)
+            next.delete(id)
+            return next
+          })
         }
       }
     } else {

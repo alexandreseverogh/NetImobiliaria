@@ -8,7 +8,7 @@ import { saveImovelDocumentos } from '@/lib/database/imovel-documentos'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import { updateImovelAmenidades } from '@/lib/database/amenidades'
 import { updateImovelProximidades } from '@/lib/database/proximidades'
-import { insertImovelImagem } from '@/lib/database/imoveis'
+import { insertImovelImagem, setImovelImagemPrincipal } from '@/lib/database/imoveis'
 import { saveImovelVideo } from '@/lib/database/imovel-video'
 import { buscarCoordenadasPorEnderecoCompleto } from '@/lib/utils/geocoding'
 import { safeParseInt, safeParseFloat } from '@/lib/utils/safeParser'
@@ -863,38 +863,67 @@ export async function POST(request: NextRequest) {
       if (body.imagens && Array.isArray(body.imagens) && body.imagens.length > 0) {
         console.log('✅ API - ENTRANDO no bloco de salvamento de imagens')
         try {
+          // Identificar o índice da imagem principal ANTES de iterar
+          // Se nenhuma for marcada como principal, usar a primeira (índice 0)
+          const indicePrincipal = body.imagens.findIndex((img: any) => img.principal === true)
+          const indiceDefinitivo = indicePrincipal >= 0 ? indicePrincipal : 0
+          console.log(`🔍 API - Imagem principal: índice ${indiceDefinitivo} (marcada no body: ${indicePrincipal})`)
+
+          const imagensInseridaIds: number[] = []
+          const { createHash } = await import('crypto')
+
+          // Passo 1: Inserir TODAS as imagens com principal=false
           for (let i = 0; i < body.imagens.length; i++) {
             const imagem = body.imagens[i]
-            console.log(`🔍 Processando imagem ${i + 1}:`, {
+            console.log(`🔍 Processando imagem ${i + 1}/${body.imagens.length}:`, {
               id: imagem.id,
               nome: imagem.nome,
-              url_type: typeof imagem.url,
-              url_length: imagem.url?.length,
-              ordem: imagem.ordem,
-              principal: imagem.principal
+              principal_body: imagem.principal,
+              ehPrincipal: i === indiceDefinitivo
             })
 
-            // Converter base64 para Buffer
-            let imagemBuffer: Buffer
-            if (typeof imagem.url === 'string') {
-              // Remover o prefixo data:image/...;base64, se existir
-              const base64Data = imagem.url.includes(',') ? imagem.url.split(',')[1] : imagem.url
-              imagemBuffer = Buffer.from(base64Data, 'base64')
-            } else {
+            if (typeof imagem.url !== 'string') {
               console.log(`⚠️ Imagem ${i + 1}: Formato não suportado, pulando...`)
+              imagensInseridaIds.push(-1) // Marcador de imagem pulada
               continue
             }
 
-            await insertImovelImagem({
+            // Converter base64 para Buffer
+            const base64Data = imagem.url.includes(',') ? imagem.url.split(',')[1] : imagem.url
+            const imagemBuffer = Buffer.from(base64Data, 'base64')
+
+            // Calcular hash SHA-256 para deduplicação futura
+            const fileHash = createHash('sha256').update(imagemBuffer).digest('hex')
+
+            // SEMPRE inserir com principal=false — a definição da principal acontece DEPOIS do loop
+            const imagemId = await insertImovelImagem({
               imovelId: novoImovel.id!,
               ordem: imagem.ordem || i + 1,
-              principal: imagem.principal || (i === 0), // Primeira imagem é principal
-              tipoMime: 'image/jpeg', // Tipo padrão, pode ser melhorado
+              principal: false, // ← SEMPRE false aqui
+              tipoMime: imagem.tipo || 'image/jpeg',
               tamanhoBytes: imagemBuffer.length,
-              imagem: imagemBuffer
+              imagem: imagemBuffer,
+              hashArquivo: fileHash
             })
+            imagensInseridaIds.push(imagemId)
           }
-          console.log('✅ Imagens salvas com sucesso:', body.imagens.length)
+
+          // Passo 2: Definir a imagem principal com UMA única chamada após todos os INSERTs
+          // Isso garante que EXATAMENTE UMA imagem fique com principal=true
+          const idImagemPrincipal = imagensInseridaIds[indiceDefinitivo]
+          if (idImagemPrincipal && idImagemPrincipal > 0) {
+            await setImovelImagemPrincipal(novoImovel.id!, idImagemPrincipal)
+            console.log(`✅ API - Imagem principal definida: ID ${idImagemPrincipal} (índice ${indiceDefinitivo})`)
+          } else {
+            // Fallback: usar a primeira imagem inserida com sucesso
+            const primeiroIdValido = imagensInseridaIds.find(id => id > 0)
+            if (primeiroIdValido) {
+              await setImovelImagemPrincipal(novoImovel.id!, primeiroIdValido)
+              console.log(`✅ API - Imagem principal definida (fallback): ID ${primeiroIdValido}`)
+            }
+          }
+
+          console.log('✅ Imagens salvas com sucesso:', imagensInseridaIds.filter(id => id > 0).length)
         } catch (imgError) {
           console.error('⚠️ Erro ao salvar imagens (não crítico):', imgError)
         }
