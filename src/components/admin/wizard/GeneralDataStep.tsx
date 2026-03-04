@@ -435,15 +435,15 @@ export default function GeneralDataStep({
     })
   }
 
-  const parseCurrencyToNumber = (value: string): number | undefined => {
+  const parseCurrencyToNumber = (value: string): number => {
     const digits = value.replace(/\D/g, '')
 
     if (!digits) {
-      return undefined
+      return 0
     }
 
     const numericValue = Number(digits) / 100
-    return Number.isNaN(numericValue) ? undefined : numericValue
+    return Number.isNaN(numericValue) ? 0 : numericValue
   }
 
   // Função para formatar área com separação de milhares
@@ -529,7 +529,8 @@ export default function GeneralDataStep({
       [field]: sanitized
     }))
 
-    const numericValue = sanitized === '' ? (field === 'suites' ? 0 : undefined) : Number(sanitized)
+    const fieldsToDefaultZero = ['suites', 'quartos', 'banheiros', 'vagasGaragem', 'varanda']
+    const numericValue = sanitized === '' ? (fieldsToDefaultZero.includes(field) ? 0 : undefined) : Number(sanitized)
     onUpdate({
       [field]: numericValue
     } as any)

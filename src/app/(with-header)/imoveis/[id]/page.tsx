@@ -532,7 +532,7 @@ export default function ImovelDetalhes() {
           <div className="w-full space-y-6 mt-4">
             {/* Atrativos */}
             {isSectionActive('amenidades') && (
-              <div id="section-amenidades" className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
+              <div id="section-amenidades" className="bg-white rounded-xl shadow-lg border border-gray-400 p-4 sm:p-6">
                 <div className="flex justify-between items-start mb-6">
                   <h3 className="text-xl font-bold text-gray-900 flex items-center">
                     <SparklesIcon className="w-6 h-6 mr-3 text-primary-600" />
@@ -562,7 +562,7 @@ export default function ImovelDetalhes() {
 
             {/* Proximidades */}
             {isSectionActive('proximidades') && (
-              <div id="section-proximidades" className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
+              <div id="section-proximidades" className="bg-white rounded-xl shadow-lg border border-gray-400 p-4 sm:p-6">
                 <div className="flex justify-between items-start mb-6">
                   <h3 className="text-xl font-bold text-gray-900 flex items-center">
                     <MapIcon className="w-6 h-6 mr-3 text-primary-600" />
@@ -592,7 +592,7 @@ export default function ImovelDetalhes() {
 
             {/* Galeria de Imagens */}
             {isSectionActive('galeria') && (
-              <div id="section-galeria" className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
+              <div id="section-galeria" className="bg-white rounded-xl shadow-lg border border-gray-400 p-4 sm:p-6">
                 <div className="flex justify-between items-start mb-6">
                   <h3 className="text-xl font-bold text-gray-900 flex items-center">
                     <PhotoIcon className="w-6 h-6 mr-3 text-primary-600" />
@@ -622,7 +622,7 @@ export default function ImovelDetalhes() {
 
             {/* Documentos */}
             {isSectionActive('documentos') && (
-              <div id="section-documentos" className="bg-white rounded-xl shadow-lg border border-gray-400 p-6">
+              <div id="section-documentos" className="bg-white rounded-xl shadow-lg border border-gray-400 p-4 sm:p-6">
                 <div className="flex justify-between items-start mb-6">
                   <h3 className="text-xl font-bold text-gray-900 flex items-center">
                     <DocumentTextIcon className="w-6 h-6 mr-3 text-primary-600" />

@@ -43,7 +43,7 @@ export default function AmenidadesLista({
                 {getCategoriaIcon(categoria)}
                 {categoria}
               </h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                 {items.map((item: any) => (
                   <div
                     key={item.id}
@@ -52,7 +52,7 @@ export default function AmenidadesLista({
                     <span className="text-xl">{item.icone}</span>
                     <div className="flex-1 min-w-0">
                       {item.descricao && (
-                        <p className="text-sm font-medium text-gray-700 truncate leading-tight">
+                        <p className="text-sm font-medium text-gray-700 leading-tight">
                           {item.descricao}
                         </p>
                       )}
@@ -93,7 +93,7 @@ function SkeletonAmenidades() {
         {[1, 2].map((categoria) => (
           <div key={categoria}>
             <div className="h-6 bg-gray-300 rounded animate-pulse w-32 mb-3"></div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {[1, 2, 3, 4].map((item) => (
                 <div key={item} className="flex items-center space-x-3 p-3 bg-gray-100 rounded-lg">
                   <div className="h-6 w-6 bg-gray-300 rounded animate-pulse"></div>

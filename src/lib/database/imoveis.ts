@@ -478,9 +478,9 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
     const values = [
       imovel.codigo, imovel.titulo, imovel.descricao, imovel.tipo_fk, imovel.finalidade_fk, imovel.status_fk,
       proprietarioUuid,
-      imovel.preco, imovel.preco_condominio, imovel.preco_iptu, imovel.taxa_extra, imovel.area_total,
-      imovel.area_construida, imovel.quartos, imovel.banheiros, imovel.suites ?? 0,
-      imovel.vagas_garagem, imovel.varanda, imovel.endereco, imovel.numero, imovel.complemento, imovel.bairro, imovel.cidade_fk,
+      imovel.preco ?? 0, imovel.preco_condominio ?? 0, imovel.preco_iptu ?? 0, imovel.taxa_extra, imovel.area_total ?? 0,
+      imovel.area_construida ?? 0, imovel.quartos ?? 0, imovel.banheiros ?? 0, imovel.suites ?? 0,
+      imovel.vagas_garagem ?? 0, imovel.varanda, imovel.endereco, imovel.numero, imovel.complemento, imovel.bairro, imovel.cidade_fk,
       imovel.estado_fk, imovel.cep, imovel.latitude, imovel.longitude,
       imovel.ano_construcao, imovel.andar, imovel.total_andares, imovel.mobiliado,
       imovel.aceita_permuta, imovel.aceita_financiamento, imovel.destaque, imovel.lancamento || false,
@@ -546,10 +546,13 @@ export async function updateImovel(id: number, imovel: Partial<Imovel>, userId: 
     // Remover qualquer resquício de campo legado para evitar updates indevidos
     delete (imovelAtualizado as any).proprietario_fk
 
-    // Garantir que suites nunca seja null se fornecido
-    if ('suites' in imovelAtualizado && (imovelAtualizado.suites === null || imovelAtualizado.suites === undefined)) {
-      imovelAtualizado.suites = 0
-    }
+    // Garantir que campos numéricos nunca sejam null se fornecido
+    const numericFields = ['suites', 'preco', 'preco_condominio', 'preco_iptu', 'area_total', 'area_construida', 'quartos', 'banheiros', 'vagas_garagem']
+    numericFields.forEach(field => {
+      if (field in imovelAtualizado && (imovelAtualizado[field as keyof Imovel] === null || imovelAtualizado[field as keyof Imovel] === undefined)) {
+        ; (imovelAtualizado as any)[field] = 0
+      }
+    })
 
     const fields: string[] = []
     const values: any[] = []
