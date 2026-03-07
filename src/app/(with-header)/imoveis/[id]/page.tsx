@@ -225,7 +225,7 @@ export default function ImovelDetalhes() {
         {/* Dois Containers Lado a Lado (Responsivo: um abaixo do outro no mobile) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10" style={{ maxWidth: '1400px', margin: '0 auto' }}>
           {/* Container Esquerdo - Imagem */}
-          <div className="relative bg-white rounded-xl shadow-lg border-2 border-gray-400 overflow-hidden" style={{ height: '350px' }}>
+          <div className="relative bg-white rounded-xl shadow-lg border-2 border-gray-400 overflow-hidden" style={{ height: '420px' }}>
             <div className="relative w-full h-full overflow-hidden">
               {dadosBasicos.imagem_principal?.url ? (
                 <>
@@ -293,7 +293,7 @@ export default function ImovelDetalhes() {
           </div>
 
           {/* Container Direito - Informações */}
-          <div className="bg-white rounded-xl shadow-lg border-2 border-gray-400 p-6 overflow-y-auto" style={{ height: '350px' }}>
+          <div className="bg-white rounded-xl shadow-lg border-2 border-gray-400 p-6 overflow-y-auto" style={{ height: '420px' }}>
             {/* Linha 1 - Preço */}
             <div className="mb-2">
               <span className="text-2xl font-bold text-primary-600">
@@ -325,7 +325,7 @@ export default function ImovelDetalhes() {
             </div>
 
             {/* Linha 4 - Características, Custos e Áreas em Grid */}
-            <div className="grid grid-cols-3 gap-2 mb-2">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-2">
               {/* Coluna 1 - Características */}
               <div className="space-y-1">
                 {dadosBasicos.quartos !== null && dadosBasicos.quartos !== undefined && (
