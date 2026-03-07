@@ -295,11 +295,13 @@ export default function ImovelDetalhes() {
           {/* Container Direito - Informações */}
           <div className="bg-white rounded-xl shadow-lg border-2 border-gray-400 p-6 overflow-y-auto" style={{ height: '420px' }}>
             {/* Linha 1 - Preço */}
-            <div className="mb-2">
-              <span className="text-2xl font-bold text-primary-600">
-                {formatarPreco(dadosBasicos.preco)}
-              </span>
-            </div>
+            {Number(dadosBasicos.preco) > 0 && (
+              <div className="mb-2">
+                <span className="text-2xl font-bold text-primary-600">
+                  {formatarPreco(dadosBasicos.preco)}
+                </span>
+              </div>
+            )}
 
             {/* Linha 2 - Descrição */}
             {dadosBasicos.descricao && dadosBasicos.descricao.trim() && (
@@ -324,35 +326,35 @@ export default function ImovelDetalhes() {
               </span>
             </div>
 
-            {/* Linha 4 - Características, Custos e Áreas em Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-2">
-              {/* Coluna 1 - Características */}
+            {/* Linha 4 - Características, Custos e Áreas em Grid de 2 Colunas */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-2">
+              {/* Coluna 1 - Características Físicas */}
               <div className="space-y-1">
-                {dadosBasicos.quartos !== null && dadosBasicos.quartos !== undefined && (
+                {Number(dadosBasicos.quartos) > 0 && (
                   <div className="flex items-center text-xs">
                     <Bed className="w-3.5 h-3.5 mr-1 text-blue-500 flex-shrink-0" />
                     <span className="text-gray-700 truncate">{dadosBasicos.quartos} quartos</span>
                   </div>
                 )}
-                {dadosBasicos.suites !== null && dadosBasicos.suites !== undefined && (
+                {Number(dadosBasicos.suites) > 0 && (
                   <div className="flex items-center text-xs">
                     <BedDouble className="w-3.5 h-3.5 mr-1 text-purple-500 flex-shrink-0" />
                     <span className="text-gray-700 truncate">{dadosBasicos.suites} suítes</span>
                   </div>
                 )}
-                {dadosBasicos.banheiros !== null && dadosBasicos.banheiros !== undefined && (
+                {Number(dadosBasicos.banheiros) > 0 && (
                   <div className="flex items-center text-xs">
                     <Bath className="w-3.5 h-3.5 mr-1 text-cyan-500 flex-shrink-0" />
                     <span className="text-gray-700 truncate">{dadosBasicos.banheiros} banheiros</span>
                   </div>
                 )}
-                {dadosBasicos.varanda !== null && dadosBasicos.varanda !== undefined && (
+                {Number(dadosBasicos.varanda) > 0 && (
                   <div className="flex items-center text-xs">
                     <Home className="w-3.5 h-3.5 mr-1 text-green-500 flex-shrink-0" />
                     <span className="text-gray-700 truncate">{dadosBasicos.varanda} varanda</span>
                   </div>
                 )}
-                {dadosBasicos.vagas_garagem !== null && dadosBasicos.vagas_garagem !== undefined && (
+                {Number(dadosBasicos.vagas_garagem) > 0 && (
                   <div className="flex items-center text-xs">
                     <Car className="w-3.5 h-3.5 mr-1 text-orange-500 flex-shrink-0" />
                     <span className="text-gray-700 truncate">{dadosBasicos.vagas_garagem} garagem</span>
@@ -360,49 +362,50 @@ export default function ImovelDetalhes() {
                 )}
               </div>
 
-              {/* Coluna 2 - Custos */}
+              {/* Coluna 2 - Custos, Áreas e Andares */}
               <div className="space-y-1">
-                {dadosBasicos.preco_condominio && (
+                {/* Custos (Ocultar se 0) */}
+                {Number(dadosBasicos.preco_condominio) > 0 && (
                   <div className="flex items-center text-xs">
                     <CurrencyDollarIcon className="w-3.5 h-3.5 mr-1 text-emerald-500 flex-shrink-0" />
                     <span className="text-gray-700 truncate">Condomínio: {formatarPreco(dadosBasicos.preco_condominio)}</span>
                   </div>
                 )}
-                {dadosBasicos.preco_iptu && (
+                {Number(dadosBasicos.preco_iptu) > 0 && (
                   <div className="flex items-center text-xs">
                     <CurrencyDollarIcon className="w-3.5 h-3.5 mr-1 text-emerald-600 flex-shrink-0" />
                     <span className="text-gray-700 truncate">IPTU: {formatarPreco(dadosBasicos.preco_iptu)}</span>
                   </div>
                 )}
-                {dadosBasicos.taxa_extra && (
+                {Number(dadosBasicos.taxa_extra) > 0 && (
                   <div className="flex items-center text-xs">
                     <CurrencyDollarIcon className="w-3.5 h-3.5 mr-1 text-emerald-700 flex-shrink-0" />
                     <span className="text-gray-700 truncate">Taxa Extra: {formatarPreco(dadosBasicos.taxa_extra)}</span>
                   </div>
                 )}
-              </div>
 
-              {/* Coluna 3 - Áreas e Andares */}
-              <div className="space-y-1">
-                {dadosBasicos.area_total !== null && dadosBasicos.area_total !== undefined && (
+                {/* Áreas (Sempre exibir se informado) */}
+                {dadosBasicos.area_total !== null && dadosBasicos.area_total !== undefined && Number(dadosBasicos.area_total) > 0 && (
                   <div className="flex items-center text-xs">
                     <Square className="w-3.5 h-3.5 mr-1 text-indigo-500 flex-shrink-0" />
                     <span className="text-gray-700 truncate">{dadosBasicos.area_total}m² total</span>
                   </div>
                 )}
-                {dadosBasicos.area_construida !== null && dadosBasicos.area_construida !== undefined && (
+                {dadosBasicos.area_construida !== null && dadosBasicos.area_construida !== undefined && Number(dadosBasicos.area_construida) > 0 && (
                   <div className="flex items-center text-xs">
                     <Square className="w-3.5 h-3.5 mr-1 text-indigo-600 flex-shrink-0" />
                     <span className="text-gray-700 truncate">{dadosBasicos.area_construida}m² const.</span>
                   </div>
                 )}
+
+                {/* Outros Detalhes */}
                 {dadosBasicos.andar !== null && dadosBasicos.andar !== undefined && (
                   <div className="flex items-center text-xs">
                     <Layers className="w-3.5 h-3.5 mr-1 text-pink-500 flex-shrink-0" />
                     <span className="text-gray-700 truncate">Andar: {dadosBasicos.andar}</span>
                   </div>
                 )}
-                {dadosBasicos.total_andares !== null && dadosBasicos.total_andares !== undefined && (
+                {dadosBasicos.total_andares !== null && dadosBasicos.total_andares !== undefined && Number(dadosBasicos.total_andares) > 0 && (
                   <div className="flex items-center text-xs">
                     <Building className="w-3.5 h-3.5 mr-1 text-rose-500 flex-shrink-0" />
                     <span className="text-gray-700 truncate">{dadosBasicos.total_andares} andares</span>
