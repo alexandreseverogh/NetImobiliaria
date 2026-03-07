@@ -162,7 +162,7 @@ export default function ImovelDetalhes() {
   // Função para formatar preço
   const formatarPreco = (valor: any) => {
     const num = Number(valor)
-    if (!num || num <= 0) return 'Preço sob consulta'
+    if (!num || num <= 0) return 'Preço sob Consulta'
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
@@ -295,13 +295,14 @@ export default function ImovelDetalhes() {
           {/* Container Direito - Informações */}
           <div className="bg-white rounded-xl shadow-lg border-2 border-gray-400 p-6 overflow-y-auto" style={{ height: '420px' }}>
             {/* Linha 1 - Preço */}
-            {Number(dadosBasicos.preco) > 0 && (
-              <div className="mb-2">
-                <span className="text-2xl font-bold text-primary-600">
-                  {formatarPreco(dadosBasicos.preco)}
-                </span>
-              </div>
-            )}
+            <div className="mb-4 flex items-center bg-gray-50 p-2 rounded-lg">
+              <CurrencyDollarIcon className="w-7 h-7 mr-2 text-primary-600" />
+              <span className="text-2xl font-bold text-primary-600">
+                {Number(dadosBasicos.preco) > 0
+                  ? formatarPreco(dadosBasicos.preco)
+                  : 'Preço sob Consulta'}
+              </span>
+            </div>
 
             {/* Linha 2 - Descrição */}
             {dadosBasicos.descricao && dadosBasicos.descricao.trim() && (
