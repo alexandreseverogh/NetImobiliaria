@@ -40,14 +40,11 @@ export default function HeroSection({ filterPanel, venderButton, destaquesNacion
       <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12">
         <div className="flex flex-col items-center gap-6 mb-8">
           <div className="flex-1 text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Encontre seu Imóvel dos Sonhos
+            <h1 className="text-4xl md:text-5xl font-bold mb-6">
+              Anuncie seu imóvel ou encontre oportunidades para comprar ou alugar
             </h1>
-            <p className="text-xl md:text-2xl text-gray-300 mb-2">
-              A Imovtec oferece os melhores imóveis para você.
-            </p>
-            <p className="text-xl md:text-2xl text-gray-300">
-              Comprar, Vender ou Alugar nunca foi tão fácil.
+            <p className="text-lg md:text-xl text-gray-300">
+              A Imovtec conecta proprietários, compradores e corretores em uma plataforma digital para anunciar, vender, comprar ou alugar imóveis com mais visibilidade.
             </p>
           </div>
         </div>

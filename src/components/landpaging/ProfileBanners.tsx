@@ -36,14 +36,15 @@ export default function ProfileBanners({
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-primary-800">Sou proprietário</div>
                     <div className="text-lg font-bold text-gray-900 leading-tight mt-1">
-                      Anuncie seu imóvel
+                      Quer vender ou alugar seu imóvel?
                     </div>
                     <p className="text-sm text-gray-600 mt-2">
-                      Venda ou alugue com mais alcance e encontre interessados.
+                      Anuncie gratuitamente na Imovtec e conecte seu imóvel a compradores e interessados em aluguel.
                     </p>
                     <ul className="text-xs text-gray-600 mt-3 space-y-1">
-                      <li>• Cadastro rápido</li>
-                      <li>• Mais visibilidade</li>
+                      <li>• Cadastro rápido do imóvel</li>
+                      <li>• Mais visibilidade online</li>
+                      <li>• Interessados entrando em contato</li>
                     </ul>
                   </div>
                 </div>
@@ -72,11 +73,12 @@ export default function ProfileBanners({
                       Encontre o imóvel ideal
                     </div>
                     <p className="text-sm text-gray-600 mt-2">
-                      Cadastre-se e receba oportunidades compatíveis com seu perfil.
+                      Cadastre-se na Imovtec e descubra oportunidades de imóveis que realmente combinam com o que você procura.
                     </p>
                     <ul className="text-xs text-gray-600 mt-3 space-y-1">
-                      <li>• Alertas de novidades</li>
-                      <li>• Atendimento agilizado</li>
+                      <li>• Alertas de novos imóveis no mercado</li>
+                      <li>• Oportunidades alinhadas ao seu perfil</li>
+                      <li>• Contato rápido para agendar visitas</li>
                     </ul>
                   </div>
                 </div>
@@ -102,14 +104,15 @@ export default function ProfileBanners({
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-purple-800">Sou corretor</div>
                     <div className="text-lg font-bold text-gray-900 leading-tight mt-1">
-                      Seja corretor parceiro
+                      Seja um corretor parceiro
                     </div>
                     <p className="text-sm text-gray-600 mt-2">
-                      Acesse o painel e trabalhe com proprietários e clientes da plataforma.
+                      Cadastre-se na Imovtec e conecte-se a proprietários e compradores interessados em vender, comprar ou alugar imóveis.
                     </p>
                     <ul className="text-xs text-gray-600 mt-3 space-y-1">
-                      <li>• Leads e oportunidades</li>
-                      <li>• Visibilidade e gestão</li>
+                      <li>• Receba leads e novas oportunidades de negócios</li>
+                      <li>• Mais visibilidade para seus imóveis e serviços</li>
+                      <li>• Painel de gestão para acompanhar clientes e negociações</li>
                     </ul>
                   </div>
                 </div>
