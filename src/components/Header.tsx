@@ -122,8 +122,8 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
 
   const navigation = [
     { name: 'Início', action: 'scroll-top' },
-    { name: 'Imóveis', action: 'scroll-imoveis' },
     { name: 'Anunciar Imóveis', action: 'navigate-anunciar' },
+    { name: 'Procurar Imóvel', action: 'navigate-procurar' },
     { name: 'Quem Somos', action: 'modal-about' },
     { name: 'Contato', action: 'modal-contact' },
   ]
@@ -139,15 +139,8 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
           router.push('/landpaging')
         }
         break
-      case 'scroll-imoveis':
-        if (isLandingPage) {
-          const filtrosElement = document.getElementById('filtros-imoveis')
-          if (filtrosElement) {
-            filtrosElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
-        } else {
-          router.push('/landpaging#filtros-imoveis')
-        }
+      case 'navigate-procurar':
+        router.push('/procurar-imovel')
         break
       case 'navigate-anunciar':
         router.push('/anunciar-imovel')
