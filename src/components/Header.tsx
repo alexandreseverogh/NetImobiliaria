@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Menu, X, Search, Phone, MapPin } from 'lucide-react'
 import AuthButtons from '@/components/public/auth/AuthButtons'
 import UserSuccessModal from '@/components/public/auth/UserSuccessModal'
@@ -14,6 +15,8 @@ interface HeaderProps {
 }
 
 export default function Header({ selectedCidade, selectedEstado }: HeaderProps = {}) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [displayLocation, setDisplayLocation] = useState<string>('Recife, PE')
   const [showAboutModal, setShowAboutModal] = useState(false)
@@ -74,10 +77,26 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
   const [corretorHomeUser, setCorretorHomeUser] = useState<any>(null)
 
   useEffect(() => {
-    // Verificar se há parâmetro na URL para abrir o dashboard do corretor
-    const searchParams = new URLSearchParams(window.location.search)
-    const shouldOpen = searchParams.get('corretor_home') === 'true'
-    if (!shouldOpen) return
+    // Abrir modais via parâmetro de consulta (Quem Somos / Contato)
+    const openModalParam = searchParams.get('openModal')
+    if (openModalParam === 'about') {
+      setShowAboutModal(true)
+      // Limpar parâmetro da URL de forma limpa usando router
+      const url = new URL(window.location.href)
+      url.searchParams.delete('openModal')
+      router.replace(url.pathname + url.search)
+    } else if (openModalParam === 'contact') {
+      setShowContactModal(true)
+      setContactForm({ nome: '', telefone: '', email: '', mensagem: '' })
+      setContactErrors({})
+      // Limpar parâmetro da URL de forma limpa usando router
+      const url = new URL(window.location.href)
+      url.searchParams.delete('openModal')
+      router.replace(url.pathname + url.search)
+    }
+
+    const shouldOpenCorretor = searchParams.get('corretor_home') === 'true'
+    if (!shouldOpenCorretor) return
 
     // Tentar recuperar do sessionStorage (onde CorretorLoginModal salva na landpaging padrão)
     const raw = sessionStorage.getItem('corretor_success_user')
@@ -99,33 +118,55 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
         }
       } catch { }
     }
-  }, [])
+  }, [searchParams, router])
 
   const navigation = [
     { name: 'Início', action: 'scroll-top' },
     { name: 'Imóveis', action: 'scroll-imoveis' },
+    { name: 'Anunciar Imóveis', action: 'navigate-anunciar' },
     { name: 'Quem Somos', action: 'modal-about' },
     { name: 'Contato', action: 'modal-contact' },
   ]
 
   const handleNavigation = (action: string) => {
+    const isLandingPage = typeof window !== 'undefined' && window.location.pathname === '/landpaging'
+
     switch (action) {
       case 'scroll-top':
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-        break
-      case 'scroll-imoveis':
-        const filtrosElement = document.getElementById('filtros-imoveis')
-        if (filtrosElement) {
-          filtrosElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        if (isLandingPage) {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        } else {
+          router.push('/landpaging')
         }
         break
+      case 'scroll-imoveis':
+        if (isLandingPage) {
+          const filtrosElement = document.getElementById('filtros-imoveis')
+          if (filtrosElement) {
+            filtrosElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        } else {
+          router.push('/landpaging#filtros-imoveis')
+        }
+        break
+      case 'navigate-anunciar':
+        router.push('/anunciar-imovel')
+        break
       case 'modal-about':
-        setShowAboutModal(true)
+        if (isLandingPage) {
+          setShowAboutModal(true)
+        } else {
+          router.push('/landpaging?openModal=about')
+        }
         break
       case 'modal-contact':
-        setShowContactModal(true)
-        setContactForm({ nome: '', telefone: '', email: '', mensagem: '' })
-        setContactErrors({})
+        if (isLandingPage) {
+          setShowContactModal(true)
+          setContactForm({ nome: '', telefone: '', email: '', mensagem: '' })
+          setContactErrors({})
+        } else {
+          router.push('/landpaging?openModal=contact')
+        }
         break
     }
     setIsMenuOpen(false)
