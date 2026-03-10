@@ -206,99 +206,88 @@ export default function NovoImovelPage() {
               // 3. Step 2: Upload de arquivos de mídia se existirem
               const uploadPromises: Promise<any>[] = []
 
-              // A. Upload de Imagens (Individuais para evitar payload too large)
+              // A. Upload de Imagens SEQUENCIAL para preservar a ordem do Wizard
               const imagensParaUpload = imagens?.filter((img: any) => img.file instanceof File) || []
               if (imagensParaUpload.length > 0) {
-                console.log(`🚀 Step 2A: Iniciando upload de ${imagensParaUpload.length} imagens individualmente...`)
+                console.log(`🚀 Step 2A: Iniciando upload de ${imagensParaUpload.length} imagens sequencialmente...`)
 
                 // Identificar exatamente qual imagem é a principal
-                // Apenas UMA deve ter principal=true para evitar conflitos no backend
                 const indicePrincipal = imagensParaUpload.findIndex((img: any) => img.principal === true)
                 const indiceDefinitivo = indicePrincipal >= 0 ? indicePrincipal : 0
-                console.log(`🔍 Imagem principal: índice ${indiceDefinitivo} de ${imagensParaUpload.length}`)
 
-                // Fazer uploads das imagens NÃO-principais em paralelo
-                const imagensNaoPrincipais = imagensParaUpload.filter((_: any, idx: number) => idx !== indiceDefinitivo)
-                const imagemPrincipal = imagensParaUpload[indiceDefinitivo]
+                // Fazemos o upload uma por uma para garantir a ordem de chegada no backend (nextOrdem)
+                const uploadImagensSequencial = (async () => {
+                  for (let i = 0; i < imagensParaUpload.length; i++) {
+                    const img = imagensParaUpload[i]
+                    const isPrincipal = (i === indiceDefinitivo)
 
-                // Upload paralelo das imagens não-principais (sem flag principal)
-                const uploadsNaoPrincipais = imagensNaoPrincipais.map((img: any, idx: number) => {
-                  const imageFormData = new FormData()
-                  imageFormData.append('images', img.file)
-                  // NÃO enviar 'principal=true' aqui
-                  return authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
-                    method: 'POST',
-                    body: imageFormData
-                  }).then(async r => {
-                    if (!r.ok) console.error(`❌ Erro no upload da imagem ${idx + 1}:`, await r.text())
-                    else console.log(`✅ Upload da imagem não-principal ${idx + 1} concluído`)
-                    return r
-                  })
-                })
-
-                uploadPromises.push(
-                  // Primeiro fazer todos os uploads não-principais, depois o principal
-                  Promise.allSettled(uploadsNaoPrincipais).then(async () => {
-                    // Agora fazer o upload da imagem PRINCIPAL por último
-                    if (imagemPrincipal) {
-                      const imageFormData = new FormData()
-                      imageFormData.append('images', imagemPrincipal.file)
-                      imageFormData.append('principal', 'true') // Apenas para a imagem principal
-                      const r = await authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
-                        method: 'POST',
-                        body: imageFormData
-                      })
-                      if (!r.ok) console.error(`❌ Erro no upload da imagem principal:`, await r.text())
-                      else console.log(`✅ Upload da imagem principal concluído`)
+                    const imageFormData = new FormData()
+                    imageFormData.append('images', img.file)
+                    if (isPrincipal) {
+                      imageFormData.append('principal', 'true')
                     }
-                  })
-                )
+
+                    console.log(`📸 Uploading image ${i + 1}/${imagensParaUpload.length} (Principal: ${isPrincipal})...`)
+                    const r = await authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
+                      method: 'POST',
+                      body: imageFormData
+                    })
+
+                    if (!r.ok) {
+                      const err = await r.text()
+                      console.error(`❌ Erro no upload da imagem ${i + 1}:`, err)
+                    } else {
+                      console.log(`✅ Upload da imagem ${i + 1} concluído`)
+                    }
+                  }
+                })()
+
+                uploadPromises.push(uploadImagensSequencial)
               }
 
               // B. Upload de Documentos (Individuais)
               const documentosParaUpload = documentos?.filter((doc: any) => doc.file instanceof File) || []
+              // B. Upload de Documentos Sequencial
               if (documentosParaUpload.length > 0) {
-                console.log(`🚀 Step 2B: Fazendo upload de ${documentosParaUpload.length} documentos...`)
-                documentosParaUpload.forEach((doc: any) => {
+                console.log(`🚀 Step 2B: Fazendo upload sequencial de ${documentosParaUpload.length} documentos...`)
+                for (const doc of documentosParaUpload) {
                   const docFormData = new FormData()
                   docFormData.append('documento', doc.file)
                   docFormData.append('tipo_documento_id', doc.tipoDocumentoId.toString())
 
-                  uploadPromises.push(
-                    authFetch(`/api/admin/imoveis/${imovelId}/documentos`, {
-                      method: 'POST',
-                      body: docFormData
-                    }).then(async r => {
-                      if (!r.ok) console.error(`❌ Erro no upload do documento ${doc.nomeArquivo}:`, await r.text())
-                      return r
-                    })
-                  )
-                })
+                  console.log(`📄 Enviando documento: ${doc.nomeArquivo || doc.file.name}`)
+                  const r = await authFetch(`/api/admin/imoveis/${imovelId}/documentos`, {
+                    method: 'POST',
+                    body: docFormData
+                  })
+
+                  if (!r.ok) {
+                    console.error(`❌ Erro no upload do documento ${doc.nomeArquivo}:`, await r.text())
+                  } else {
+                    console.log(`✅ Documento ${doc.nomeArquivo} enviado`)
+                  }
+                }
               }
 
-              // C. Upload de Vídeo
+              // C. Upload de Vídeo Sequencial
               if (video && video.arquivo instanceof File) {
                 console.log('🚀 Step 2C: Fazendo upload de vídeo...')
                 const videoFormData = new FormData()
                 videoFormData.append('video', video.arquivo)
 
-                uploadPromises.push(
-                  authFetch(`/api/admin/imoveis/${imovelId}/video`, {
-                    method: 'POST',
-                    body: videoFormData
-                  }).then(async r => {
-                    if (!r.ok) console.error('❌ Erro no upload de vídeo:', await r.text())
-                    return r
-                  })
-                )
+                const r = await authFetch(`/api/admin/imoveis/${imovelId}/video`, {
+                  method: 'POST',
+                  body: videoFormData
+                })
+
+                if (!r.ok) {
+                  console.error('❌ Erro no upload de vídeo:', await r.text())
+                } else {
+                  console.log('✅ Vídeo enviado com sucesso')
+                }
               }
 
-              // Aguardar todos os uploads (opcionalmente poderíamos lidar com falhas parciais aqui)
-              if (uploadPromises.length > 0) {
-                console.log('⏳ Aguardando uploads de mídia...')
-                await Promise.allSettled(uploadPromises)
-                console.log('✅ Processo de uploads finalizado')
-              }
+              console.log('✅ Todos os processos de mídia sequenciais finalizados')
 
               // 4. Redirecionamento e Finalização
               if (typeof window !== 'undefined') {

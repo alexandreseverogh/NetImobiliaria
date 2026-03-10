@@ -8,8 +8,26 @@ import VideoUpload from './VideoUpload'
 import VideoPreview from './VideoPreview'
 import VideoModal from './VideoModal'
 import { ImovelVideo, VideoUploadData } from '@/lib/types/video'
-import { EyeIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { EyeIcon, TrashIcon, ArrowsUpDownIcon } from '@heroicons/react/24/outline'
 import { UPLOAD_CONFIG } from '@/lib/config/constants'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  TouchSensor,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface TipoDocumento {
   id: number
@@ -59,6 +77,86 @@ interface LoadedImage {
 
 const MAX_IMAGES = UPLOAD_CONFIG.MAX_IMAGES_PER_IMOVEL
 
+// Componente para cada item da lista ordenável
+function SortableImageItem({ id, image, onRemove, isPrincipal, mode }: {
+  id: string;
+  image: any;
+  onRemove: (id: string) => void;
+  isPrincipal: boolean;
+  mode: 'create' | 'edit';
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const imageUrl = mode === 'create' ? (image.preview || image.url) : image.url;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative group ${isDragging ? 'shadow-2xl' : 'shadow-sm'}`}
+    >
+      <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+        <img
+          src={imageUrl}
+          alt={`Imagem ${id}`}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            e.currentTarget.src = 'https://via.placeholder.com/300x200?text=Erro'
+          }}
+        />
+
+        {/* Alça de arraste (Drag Handle) */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute inset-0 cursor-move flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all"
+        >
+          <ArrowsUpDownIcon className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+        </div>
+
+        {/* Indicador de imagem principal */}
+        {isPrincipal && (
+          <div className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10">
+            CAPA
+          </div>
+        )}
+
+        {/* Botão de remover */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(id);
+          }}
+          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 shadow-md z-20 group-hover:scale-110 transition-transform"
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Informações da imagem */}
+      <div className="mt-1 flex flex-col">
+        <span className="text-[10px] text-gray-500 truncate" title={image.nome || image.file?.name}>
+          {image.nome || image.file?.name || `Foto ${id}`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho, registrarVideoAlteracaoRascunho, substituirVideoRascunho, registrarImagemPrincipalRascunho, rascunho }: MediaStepProps) {
   const { fetch: authFetch, get, post, delete: del } = useAuthenticatedFetch()
   const [tiposDocumentos, setTiposDocumentos] = useState<TipoDocumento[]>([])
@@ -94,6 +192,55 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
   const [selectedPrincipalId, setSelectedPrincipalId] = useState<string>('')
   const [isImageModalOpen, setIsImageModalOpen] = useState(false)
   const [selectedImageForPreview, setSelectedImageForPreview] = useState<string>('')
+
+  // Configuração dos sensores para DND
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Evita disparar o arraste ao apenas clicar para remover
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      if (mode === 'edit') {
+        setLoadedImages((items) => {
+          const oldIndex = items.findIndex((i) => i.id === active.id);
+          const newIndex = items.findIndex((i) => i.id === over.id);
+          const newOrderedItems = arrayMove(items, oldIndex, newIndex);
+
+          // Sincronizar com o backend
+          const imageIds = newOrderedItems.map(img => parseInt(img.id));
+          authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
+            method: 'PUT',
+            body: JSON.stringify({ imagens: imageIds })
+          }).then(res => {
+            if (res.ok) console.log('✅ Ordem sincronizada com sucesso');
+          });
+
+          return newOrderedItems;
+        });
+      } else {
+        setSelectedImages((items) => {
+          const oldIndex = items.findIndex((i) => i.id === active.id);
+          const newIndex = items.findIndex((i) => i.id === over.id);
+          return arrayMove(items, oldIndex, newIndex);
+        });
+      }
+    }
+  };
 
 
   console.log('🔍 MediaStep - Props recebidas:', { mode, imovelId, hasData: !!data, dataKeys: Object.keys(data || {}) })
@@ -841,55 +988,55 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
     }
 
 
-    // Modo edição - upload direto com authFetch
+    // Modo edição - Upload SEQUENCIAL para garantir ordem e evitar Payload Too Large
     try {
-      const formData = new FormData()
-      validFilesFiltered.forEach((file) => {
+      console.log(`🚀 MediaStep - Iniciando upload sequencial de ${validFilesFiltered.length} imagens...`)
+
+      for (let i = 0; i < validFilesFiltered.length; i++) {
+        const file = validFilesFiltered[i]
+        const formData = new FormData()
         formData.append('images', file)
-      })
 
-      const uploadResponse = await authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
-        method: 'POST',
-        body: formData
-      })
+        console.log(`📸 Enviando imagem ${i + 1}/${validFilesFiltered.length}: ${file.name}`)
+        const uploadResponse = await authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
+          method: 'POST',
+          body: formData
+        })
 
-      const uploadResult = await uploadResponse.json()
-      if (!uploadResponse.ok) {
-        const errorData = uploadResult
-        throw new Error(errorData.error || 'Erro ao fazer upload das imagens')
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json()
+          console.error(`❌ Erro no upload da imagem ${i + 1}:`, errorData)
+          // Opcional: alert(`Erro na imagem ${file.name}: ${errorData.error}`)
+          // Continuamos com as próximas imagens
+          continue
+        }
+
+        const uploadResult = await uploadResponse.json()
+        console.log(`✅ Imagem ${i + 1} enviada com sucesso`)
+
+        // Verificar se houve duplicata no backend
+        const duplicata = uploadResult.data?.some((img: any) => img.duplicata === true)
+        if (duplicata) {
+          console.log(`⚠️ Imagem ${i + 1} identificada como duplicata pelo backend`)
+        }
       }
 
-      console.log('✅ MediaStep - Upload concluído com sucesso')
+      console.log('✅ MediaStep - Todos os uploads individuais concluídos')
 
-      // Verificar se o backend detectou imagens duplicadas
-      const duplicatasDetectadas = (uploadResult.data || []).filter((img: any) => img.duplicata === true)
-      if (duplicatasDetectadas.length > 0) {
-        setDuplicateImageWarning(
-          `${duplicatasDetectadas.length} imagem(ns) ignorada(s): já existem no imóvel com o mesmo conteúdo.`
-        )
-      }
-
-      // Após upload bem-sucedido, recarregar TODAS as imagens da API
-      console.log('🔍 MediaStep - Recarregando imagens da API após upload')
-      const response = await get(`/api/admin/imoveis/${imovelId}/imagens`)
-      if (response.ok) {
-        const data = await response.json()
+      // Após TODOS os uploads individuais, recarregar TODAS as imagens da API de uma vez
+      console.log('🔍 MediaStep - Recarregando lista completa de imagens da API')
+      const imagesResponse = await get(`/api/admin/imoveis/${imovelId}/imagens`)
+      if (imagesResponse.ok) {
+        const data = await imagesResponse.json()
         const imagensDoBanco = data.data || []
 
-        // Encontrar apenas as imagens que não estão já carregadas E não foram excluídas nesta sessão
-        const idsCarregados = loadedImages.map((img) => parseInt(img.id))
+        // Identificar IDs já presentes no estado para saber o que é novo
+        const idsCarregados = new Set(loadedImages.map((img) => parseInt(img.id)))
         const novasImagens = imagensDoBanco.filter((img: any) =>
-          !idsCarregados.includes(img.id) && !deletedImageIds.has(img.id.toString())
+          !idsCarregados.has(img.id) && !deletedImageIds.has(img.id.toString())
         )
 
-        console.log('🔍 MediaStep - Imagens já carregadas:', idsCarregados)
-        console.log('🔍 MediaStep - Novas imagens encontradas:', novasImagens.map((img: any) => img.id))
-
-        // Verificar se há imagens marcadas para remoção no rascunho
-        const imagensRemovidasRascunho = rascunho?.alteracoes?.imagens?.removidas || []
-        console.log('🔍 MediaStep - Imagens removidas no rascunho:', imagensRemovidasRascunho)
-
-        // Registrar no rascunho apenas as novas imagens adicionadas
+        // Registrar no rascunho apenas as novas imagens
         if (registrarAlteracaoRascunho && novasImagens.length > 0) {
           for (const img of novasImagens) {
             await registrarAlteracaoRascunho('imagem', 'adicionar', img.id.toString())
@@ -908,23 +1055,20 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
           tipo: img.tipo_mime
         }))
 
-        // Adicionar apenas as novas imagens ao estado existente
+        // Atualizar estado com as novas imagens, mantendo as antigas e re-ordenando
         setLoadedImages((prev) => {
-          // Filtrar: remover excluídas desta sessão E do rascunho (dupla proteção)
           const imagensRemovidasRascunho = rascunho?.alteracoes?.imagens?.removidas || []
           const imagensAtivas = prev.filter(
             (img) => !imagensRemovidasRascunho.includes(img.id) && !deletedImageIds.has(img.id)
           )
-          const todasImagens = [...imagensAtivas, ...novasImagensFormatadas]
-          return todasImagens.sort((a, b) => {
-            if (a.ordem !== b.ordem) {
-              return a.ordem - b.ordem
-            }
+
+          return [...imagensAtivas, ...novasImagensFormatadas].sort((a, b) => {
+            if (a.ordem !== b.ordem) return a.ordem - b.ordem
             return parseInt(a.id) - parseInt(b.id)
           })
         })
       } else {
-        console.error('❌ MediaStep - Erro ao recarregar imagens após upload:', response.status)
+        console.error('❌ MediaStep - Erro ao recarregar imagens após upload:', imagesResponse.status)
       }
     } catch (error) {
       console.error('❌ MediaStep - Erro no upload de imagens:', error)
@@ -1054,70 +1198,6 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
           const result = await response.json()
           console.log('✅ handleDocumentUpload - Upload realizado com sucesso:', result)
 
-          // Após upload bem-sucedido, recarregar documentos da API
-          console.log('🔍 MediaStep - Upload de documento concluído, recarregando documentos da API')
-          try {
-            const response = await get(`/api/admin/imoveis/${imovelId}/documentos`)
-            if (response.ok) {
-              const data = await response.json()
-              const documentosDoBanco = data.data || []
-
-              // Encontrar apenas os documentos que não estão já carregados
-              const idsCarregados = selectedDocuments.map(doc => parseInt(doc.id))
-              const novosDocumentos = documentosDoBanco.filter((doc: any) => !idsCarregados.includes(doc.id))
-
-              console.log('🔍 MediaStep - Documentos já carregados:', idsCarregados)
-              console.log('🔍 MediaStep - Novos documentos encontrados:', novosDocumentos.map((doc: any) => doc.id))
-
-              // Verificar se há documentos marcados para remoção no rascunho
-              const documentosRemovidosRascunho = rascunho?.alteracoes?.documentos?.removidos || []
-              console.log('🔍 MediaStep - Documentos removidos no rascunho:', documentosRemovidosRascunho)
-
-              // Registrar no rascunho apenas os novos documentos adicionados
-              if (registrarAlteracaoRascunho && novosDocumentos.length > 0) {
-                for (const doc of novosDocumentos) {
-                  await registrarAlteracaoRascunho('documento', 'adicionar', doc.id.toString())
-                }
-              }
-
-              const novosDocumentosFormatados = novosDocumentos.map((doc: any) => {
-                console.log('🔍 MediaStep - Processando novo documento da API:', {
-                  id: doc.id,
-                  nome_arquivo: doc.nome_arquivo,
-                  tipo_documento_descricao: doc.tipo_documento_descricao
-                })
-
-                const nomeArquivo = doc.nome_arquivo || `documento_${doc.id}`
-                const file = new File([], nomeArquivo, { type: doc.tipo_mime || 'application/octet-stream' })
-
-                return {
-                  id: doc.id.toString(),
-                  file: file,
-                  preview: nomeArquivo,
-                  progress: 100,
-                  status: 'completed' as const,
-                  tipoDocumentoId: doc.tipo_documento_id,
-                  tipoDocumentoDescricao: doc.tipo_documento_descricao
-                }
-              })
-
-              // Adicionar apenas os novos documentos ao estado existente
-              setSelectedDocuments(prev => {
-                // Filtrar documentos que foram removidos no rascunho
-                const documentosAtivos = prev.filter(doc => !documentosRemovidosRascunho.includes(doc.id))
-                const todosDocumentos = [...documentosAtivos, ...novosDocumentosFormatados]
-
-                console.log('🔍 MediaStep - Documentos ativos após filtrar removidos:', documentosAtivos.map((doc: any) => doc.id))
-                console.log('🔍 MediaStep - Novos documentos formatados:', novosDocumentosFormatados.map((doc: any) => doc.id))
-
-                return todosDocumentos
-              })
-
-              console.log('🔍 MediaStep - Novos documentos adicionados:', novosDocumentosFormatados.length)
-            }
-          } catch (error) {
-            console.error('Erro ao recarregar documentos após upload:', error)
-          }
         } else {
           // Modo criação - apenas simular (será processado depois)
           console.log('🔍 handleDocumentUpload - Modo criação: marcando documento como concluído:', document.id)
@@ -1143,6 +1223,50 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
             ? { ...doc, status: 'error' as const, error: error instanceof Error ? error.message : 'Erro no upload' }
             : doc
         ))
+      }
+    }
+
+    // Após todos os uploads de documentos, recarregar a lista da API (Modo Edição)
+    if (mode === 'edit' && imovelId && newDocuments.length > 0) {
+      console.log('🔍 MediaStep - Todos os documentos enviados, recarregando da API...')
+      try {
+        const response = await get(`/api/admin/imoveis/${imovelId}/documentos`)
+        if (response.ok) {
+          const data = await response.json()
+          const documentosDoBanco = data.data || []
+
+          const idsCarregados = new Set(selectedDocuments.map(doc => parseInt(doc.id)))
+          const novosDocumentos = documentosDoBanco.filter((doc: any) => !idsCarregados.has(doc.id))
+
+          if (registrarAlteracaoRascunho && novosDocumentos.length > 0) {
+            for (const doc of novosDocumentos) {
+              await registrarAlteracaoRascunho('documento', 'adicionar', doc.id.toString())
+            }
+          }
+
+          const novosDocumentosFormatados = novosDocumentos.map((doc: any) => {
+            const nomeArquivo = doc.nome_arquivo || `documento_${doc.id}`
+            const file = new File([], nomeArquivo, { type: doc.tipo_mime || 'application/octet-stream' })
+
+            return {
+              id: doc.id.toString(),
+              file: file,
+              preview: nomeArquivo,
+              progress: 100,
+              status: 'completed' as const,
+              tipoDocumentoId: doc.id_tipo_documento,
+              tipoDocumentoDescricao: doc.tipo_documento_descricao
+            }
+          })
+
+          setSelectedDocuments(prev => {
+            const documentosRemovidosRascunho = rascunho?.alteracoes?.documentos?.removidas || []
+            const documentosAtivas = prev.filter(doc => !documentosRemovidosRascunho.includes(doc.id))
+            return [...documentosAtivas, ...novosDocumentosFormatados]
+          })
+        }
+      } catch (error) {
+        console.error('Erro ao recarregar documentos:', error)
       }
     }
   }
@@ -1413,120 +1537,50 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
             </div>
           )}
 
-          {/* Lista de Imagens */}
+          {/* Lista de Imagens com Drag and Drop */}
           {(selectedImages.length > 0 || loadedImages.length > 0) && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {/* Imagens temporárias (apenas no modo criação) */}
-              {(() => {
-                console.log('🔍 MediaStep - Renderizando selectedImages:', selectedImages.length, 'loadedImages:', loadedImages.length)
-                return null
-              })()}
-              {mode === 'create' && selectedImages.map((image) => (
-                <div key={image.id} className="relative group">
-                  <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
-                    <img
-                      src={image.preview || image.url}
-                      alt={`Imagem ${image.id}`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        console.log('🔍 MediaStep - Erro ao carregar imagem:', image.id)
-                        e.currentTarget.src = 'https://via.placeholder.com/300x200?text=Imagem+Não+Encontrada'
-                      }}
-                    />
+            <div className="space-y-2">
+              <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-100 flex items-center gap-2">
+                <ArrowsUpDownIcon className="w-4 h-4" />
+                Dica premium: Arraste as fotos para definir a ordem de exibição no site.
+              </p>
 
-                    {/* Indicador de imagem principal */}
-                    {image.principal && (
-                      <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
-                        Principal
-                      </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 py-2">
+                  <SortableContext
+                    items={mode === 'edit' ? loadedImages.map(img => img.id) : selectedImages.map(img => img.id)}
+                    strategy={rectSortingStrategy}
+                  >
+                    {mode === 'edit' ? (
+                      loadedImages.map((image) => (
+                        <SortableImageItem
+                          key={image.id}
+                          id={image.id}
+                          image={image}
+                          onRemove={removeImage}
+                          isPrincipal={image.principal}
+                          mode="edit"
+                        />
+                      ))
+                    ) : (
+                      selectedImages.map((image) => (
+                        <SortableImageItem
+                          key={image.id}
+                          id={image.id}
+                          image={image}
+                          onRemove={removeImage}
+                          isPrincipal={image.principal}
+                          mode="create"
+                        />
+                      ))
                     )}
-                  </div>
-
-                  {/* Botão de remover */}
-                  <button
-                    onClick={() => removeImage(image.id)}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    ×
-                  </button>
-
-                  {/* Tipo do arquivo */}
-                  <p className="text-xs text-gray-600 mt-1 truncate">
-                    {image.tipo}
-                  </p>
+                  </SortableContext>
                 </div>
-              ))}
-
-              {/* Imagens carregadas dos dados do imóvel */}
-              {(() => {
-                console.log('🔍 MediaStep - Renderizando loadedImages:', loadedImages.length, loadedImages.map(img => ({ id: img.id, url: img.url?.substring(0, 50) + '...' })))
-                return null
-              })()}
-              {loadedImages.map((image) => (
-                <div key={image.id} className="relative group">
-                  <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
-                    <img
-                      src={image.url}
-                      alt={`Imagem ${image.id}`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        console.log('🔍 MediaStep - Erro ao carregar imagem:', image.id)
-                        e.currentTarget.src = 'https://via.placeholder.com/300x200?text=Imagem+Não+Encontrada'
-                      }}
-                    />
-
-                    {/* Indicador de imagem principal */}
-                    {image.principal && (
-                      <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
-                        Principal
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Botão de remover */}
-                  <button
-                    onClick={() => removeImage(image.id)}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    ×
-                  </button>
-
-                  {/* Tipo do arquivo */}
-                  <p className="text-xs text-gray-600 mt-1 truncate">
-                    {image.tipo}
-                  </p>
-                </div>
-              ))}
-
-              {/* Imagens temporárias (modo edição - novas uploads) */}
-              {mode === 'edit' && selectedImages.map((image) => (
-                <div key={image.id} className="relative group">
-                  <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
-                    <img
-                      src={image.preview}
-                      alt={image.file.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        console.log('🔍 MediaStep - Erro ao carregar imagem:', image.preview)
-                        e.currentTarget.src = 'https://via.placeholder.com/300x200?text=Imagem+Não+Encontrada'
-                      }}
-                    />
-                  </div>
-
-                  {/* Botão de remover */}
-                  <button
-                    onClick={() => removeImage(image.id)}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    ×
-                  </button>
-
-                  {/* Nome do arquivo */}
-                  <p className="text-xs text-gray-600 mt-1 truncate">
-                    {image.file.name}
-                  </p>
-                </div>
-              ))}
+              </DndContext>
             </div>
           )}
 

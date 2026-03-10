@@ -121,9 +121,9 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
   }, [searchParams, router])
 
   const navigation = [
-    { name: 'Início', action: 'scroll-top' },
-    { name: 'Anunciar Imóveis', action: 'navigate-anunciar' },
-    { name: 'Procurar Imóvel', action: 'navigate-procurar' },
+    { name: 'Anunciar Im\u00F3veis', action: 'navigate-anunciar' },
+    { name: 'Procurar Im\u00F3veis', action: 'navigate-procurar' },
+    { name: 'In\u00EDcio', action: 'scroll-top' },
     { name: 'Quem Somos', action: 'modal-about' },
     { name: 'Contato', action: 'modal-contact' },
   ]

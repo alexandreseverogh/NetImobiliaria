@@ -10,6 +10,7 @@ import {
     PhoneIcon,
     HomeIcon,
     BuildingOfficeIcon,
+    BuildingOffice2Icon,
     MapIcon,
     BriefcaseIcon,
     Square2StackIcon,
@@ -180,22 +181,23 @@ export default function AnunciarImovelPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                     {[
                         { name: 'Casas', icon: HomeIcon },
-                        { name: 'Apartamentos', icon: BuildingOfficeIcon },
+                        { name: 'Apartamentos', icon: BuildingOffice2Icon },
                         { name: 'Terrenos', icon: MapIcon },
-                        { name: 'Comerciais', icon: BriefcaseIcon },
+                        { name: 'Comerciais', icon: BuildingOfficeIcon },
                         { name: 'Salas', icon: Square2StackIcon },
                         { name: 'Lojas', icon: ShoppingBagIcon },
-                        { name: 'Galpões', icon: TruckIcon },
+                        { name: 'Galp\u00F5es', icon: TruckIcon },
                         { name: 'E muito mais', icon: PlusCircleIcon }
                     ].map((type, idx) => (
                         <div
                             key={idx}
-                            className="group bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-2xl hover:scale-105 hover:border-blue-200 transition-all duration-300 cursor-default"
+                            className="group bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-2xl hover:scale-110 hover:border-blue-300 transition-all duration-500 cursor-pointer relative overflow-hidden"
                         >
-                            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-blue-600 group-hover:rotate-6 transition-all duration-300">
-                                <type.icon className="w-8 h-8 text-blue-600 group-hover:text-white transition-colors duration-300" />
+                            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/0 to-blue-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                            <div className="relative z-10 w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-blue-600 group-hover:rotate-12 transition-all duration-500">
+                                <type.icon className="w-8 h-8 text-blue-600 group-hover:text-white transition-colors duration-500" />
                             </div>
-                            <span className="font-bold text-gray-800 text-lg group-hover:text-blue-600 transition-colors">{type.name}</span>
+                            <span className="relative z-10 font-bold text-gray-800 text-lg group-hover:text-blue-600 transition-colors duration-300">{type.name}</span>
                         </div>
                     ))}
                 </div>

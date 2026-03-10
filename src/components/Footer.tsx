@@ -35,29 +35,39 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Quick Links */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Links Rápidos</h3>
+            <h3 className="text-lg font-semibold mb-4">Links R\u00E1pidos</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/" className="text-gray-300 hover:text-white transition-colors">
-                  Início
+                <Link href="/landpaging" className="text-gray-300 hover:text-white transition-colors">
+                  In\u00EDcio
                 </Link>
               </li>
               <li>
-                <Link href="/imoveis" className="text-gray-300 hover:text-white transition-colors">
-                  Imóveis
+                <Link href="/anunciar-imovel" className="text-gray-300 hover:text-white transition-colors">
+                  Anunciar Im\u00F3veis
                 </Link>
               </li>
               <li>
-                <Link href="/sobre" className="text-gray-300 hover:text-white transition-colors">
-                  Sobre Nós
+                <Link href="/procurar-imovel" className="text-gray-300 hover:text-white transition-colors">
+                  Procurar Im\u00F3veis
                 </Link>
               </li>
               <li>
-                <Link href="/contato" className="text-gray-300 hover:text-white transition-colors">
+                <button
+                  onClick={() => window.location.href = '/landpaging?openModal=about'}
+                  className="text-gray-300 hover:text-white transition-colors text-left"
+                >
+                  Quem Somos
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => window.location.href = '/landpaging?openModal=contact'}
+                  className="text-gray-300 hover:text-white transition-colors text-left"
+                >
                   Contato
-                </Link>
+                </button>
               </li>
             </ul>
           </div>

@@ -10,6 +10,7 @@ import {
     ShieldCheckIcon,
     HomeIcon,
     BuildingOfficeIcon,
+    BuildingOffice2Icon,
     MapIcon,
     BriefcaseIcon,
     Square2StackIcon,
@@ -74,35 +75,35 @@ export default function ProcurarImovelPage() {
                         {[
                             {
                                 title: 'Busca Inteligente',
-                                desc: 'Filtros avançados por localidade, preço e características específicas.',
+                                desc: 'Filtros avan\u00E7ados por localidade, pre\u00E7o e caracter\u00EDsticas espec\u00EDficas.',
                                 icon: MapPinIcon,
                                 color: 'text-blue-600',
                                 bg: 'bg-blue-50'
                             },
                             {
                                 title: 'Oportunidades Reais',
-                                desc: 'Anúncios verificados e atualizados diariamente para evitar frustrações.',
+                                desc: 'An\u00FAncios verificados e atualizados diariamente para evitar frustra\u00E7\u00F5es.',
                                 icon: SparklesIcon,
                                 color: 'text-purple-600',
                                 bg: 'bg-purple-50'
                             },
                             {
                                 title: 'Alertas no Perfil',
-                                desc: 'Receba avisos instantâneos quando um imóvel do seu interesse entrar no mercado.',
+                                desc: 'Receba avisos instant\u00E2neos quando um im\u00F3vel do seu interesse entrar no mercado.',
                                 icon: BellIcon,
                                 color: 'text-orange-600',
                                 bg: 'bg-orange-50'
                             },
                             {
-                                title: 'Segurança Total',
-                                desc: 'Sua privacidade e dados estão protegidos em nossa plataforma moderna.',
+                                title: 'Seguran\u00E7a Total',
+                                desc: 'Sua privacidade e dados est\u00E3o protegidos em nossa plataforma moderna.',
                                 icon: ShieldCheckIcon,
                                 color: 'text-green-600',
                                 bg: 'bg-green-50'
                             }
                         ].map((item, idx) => (
-                            <div key={idx} className="flex flex-col items-center text-center p-6 rounded-2xl hover:bg-gray-50 transition-colors">
-                                <div className={`w-14 h-14 ${item.bg} rounded-xl flex items-center justify-center mb-6`}>
+                            <div key={idx} className="group flex flex-col items-center text-center p-6 rounded-2xl hover:bg-white hover:shadow-xl transition-all duration-300 border border-transparent hover:border-gray-100">
+                                <div className={`w-14 h-14 ${item.bg} rounded-xl flex items-center justify-center mb-6 transition-transform duration-500 group-hover:rotate-[360deg] group-hover:scale-110`}>
                                     <item.icon className={`w-8 h-8 ${item.color}`} />
                                 </div>
                                 <h3 className="text-lg font-bold text-gray-900 mb-3">{item.title}</h3>
@@ -123,9 +124,9 @@ export default function ProcurarImovelPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                     {[
                         { name: 'Casas', icon: HomeIcon },
-                        { name: 'Apartamentos', icon: BuildingOfficeIcon },
+                        { name: 'Apartamentos', icon: BuildingOffice2Icon },
                         { name: 'Terrenos', icon: MapIcon },
-                        { name: 'Comerciais', icon: BriefcaseIcon },
+                        { name: 'Comerciais', icon: BuildingOfficeIcon },
                         { name: 'Salas', icon: Square2StackIcon },
                         { name: 'Lojas', icon: ShoppingBagIcon },
                         { name: 'Galpões', icon: TruckIcon },
@@ -133,13 +134,14 @@ export default function ProcurarImovelPage() {
                     ].map((type, idx) => (
                         <div
                             key={idx}
-                            className="group bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-2xl hover:scale-105 hover:border-blue-200 transition-all duration-300 cursor-pointer"
+                            className="group bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center text-center hover:shadow-2xl hover:scale-110 hover:border-blue-300 transition-all duration-500 cursor-pointer relative overflow-hidden"
                             onClick={handleIrParaBusca}
                         >
-                            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-blue-600 group-hover:rotate-6 transition-all duration-300">
-                                <type.icon className="w-8 h-8 text-blue-600 group-hover:text-white transition-colors duration-300" />
+                            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/0 to-blue-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                            <div className="relative z-10 w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-blue-600 group-hover:rotate-12 transition-all duration-500">
+                                <type.icon className="w-8 h-8 text-blue-600 group-hover:text-white transition-colors duration-500" />
                             </div>
-                            <span className="font-bold text-gray-800 text-lg group-hover:text-blue-600 transition-colors">{type.name}</span>
+                            <span className="relative z-10 font-bold text-gray-800 text-lg group-hover:text-blue-600 transition-colors duration-300">{type.name}</span>
                         </div>
                     ))}
                 </div>
@@ -155,27 +157,27 @@ export default function ProcurarImovelPage() {
                                 {[
                                     {
                                         title: 'Defina suas prioridades',
-                                        desc: 'Determine o número de quartos, vagas e a localidade essencial antes de começar.'
+                                        desc: 'Determine o n\u00FAmero de quartos, vagas e a localidade essencial antes de come\u00E7ar.'
                                     },
                                     {
-                                        title: 'Use os filtros de preço',
-                                        desc: 'Economize tempo filtrando apenas imóveis que cabem no seu planejamento financeiro.'
+                                        title: 'Use os filtros de pre\u00E7o',
+                                        desc: 'Economize tempo filtrando apenas im\u00F3veis que cabem no seu planejamento financeiro.'
                                     },
                                     {
                                         title: 'Salve seus favoritos',
-                                        desc: 'Crie uma conta para salvar os imóveis que mais gostou e receber alertas.'
+                                        desc: 'Crie uma conta para salvar os im\u00F3veis que mais gostou e receber alertas.'
                                     },
                                     {
                                         title: 'Solicite uma visita',
-                                        desc: 'Gostou? Entre em contato rápido pelo botão de interesse para agendar sua visita.'
+                                        desc: 'Gostou? Entre em contato r\u00E1pido pelo bot\u00E3o de interesse para agendar sua visita.'
                                     }
                                 ].map((step, idx) => (
-                                    <div key={idx} className="flex gap-6">
-                                        <div className="flex-shrink-0 w-10 h-10 bg-blue-100 text-blue-600 font-bold rounded-full flex items-center justify-center">
+                                    <div key={idx} className="flex gap-6 group/step">
+                                        <div className="flex-shrink-0 w-10 h-10 bg-blue-100 text-blue-600 font-bold rounded-full flex items-center justify-center group-hover/step:bg-blue-600 group-hover/step:text-white transition-colors duration-300">
                                             {idx + 1}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-gray-900 mb-1">{step.title}</h4>
+                                            <h4 className="font-bold text-gray-900 mb-1 group-hover/step:text-blue-600 transition-colors">{step.title}</h4>
                                             <p className="text-gray-600">{step.desc}</p>
                                         </div>
                                     </div>
