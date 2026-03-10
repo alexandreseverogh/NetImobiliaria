@@ -221,13 +221,17 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
           const newIndex = items.findIndex((i) => i.id === over.id);
           const newOrderedItems = arrayMove(items, oldIndex, newIndex);
 
-          // Sincronizar com o backend
-          const imageIds = newOrderedItems.map(img => parseInt(img.id));
+          // Sincronizar com o backend — envia array de { id, ordem } conforme esperado por updateImovelImagensOrdem
+          const imagensComOrdem = newOrderedItems.map((img, index) => ({
+            id: parseInt(img.id),
+            ordem: index
+          }));
           authFetch(`/api/admin/imoveis/${imovelId}/imagens`, {
             method: 'PUT',
-            body: JSON.stringify({ imagens: imageIds })
+            body: JSON.stringify({ imagens: imagensComOrdem })
           }).then(res => {
             if (res.ok) console.log('✅ Ordem sincronizada com sucesso');
+            else console.error('❌ Erro ao sincronizar ordem das imagens');
           });
 
           return newOrderedItems;
