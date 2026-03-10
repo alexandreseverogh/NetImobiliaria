@@ -27,7 +27,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
 
 # Criar usuário não-root
 RUN groupadd -r nodejs && useradd -r -g nodejs nextjs
