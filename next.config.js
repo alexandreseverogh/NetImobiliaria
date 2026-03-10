@@ -5,6 +5,13 @@ const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'
 
 const nextConfig = {
+  // Timeout para geração de páginas estáticas (SSG) - evita timeout do build Docker
+  // O builder tenta conectar ao banco durante SSG (o que é esperado e tratado como 404)
+  staticPageGenerationTimeout: 180,
+
+  // Output standalone para builds Docker otimizados
+  output: 'standalone',
+
   // Configurações de imagens
   images: {
     remotePatterns: [

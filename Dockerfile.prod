@@ -1,7 +1,7 @@
 # =============================================================
 # Dockerfile.prod — Multi-stage build para CI/CD
 # Etapa 1 (builder): instala deps + compila Next.js
-# Etapa 2 (runner):  copia apenas artefatos finais
+# Etapa 2 (runner):  copia standalone output (sem reinstalar node_modules)
 # =============================================================
 
 # ---- Etapa 1: Builder ----
@@ -18,7 +18,7 @@ RUN npm ci --legacy-peer-deps && npm cache clean --force
 # Copiar código fonte
 COPY . .
 
-# Compilar o Next.js
+# Compilar o Next.js (gera .next/standalone graças ao output: 'standalone' no next.config.js)
 RUN npm run build
 
 # ---- Etapa 2: Runner ----
@@ -29,22 +29,19 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000
 
-# Instalar apenas dependências de produção
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
-
-# Copiar artefatos do builder
-COPY --from=builder /app/next.config.js ./
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/scripts ./scripts
-
 # Criar usuário não-root
 RUN groupadd -r nodejs && useradd -r -g nodejs nextjs
-RUN chown -R nextjs:nodejs /app/.next
+
+# Copiar artefatos do standalone build (já inclui node_modules mínimas necessárias)
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copiar scripts auxiliares
+COPY --from=builder /app/scripts ./scripts
 
 USER nextjs
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["node", "server.js"]

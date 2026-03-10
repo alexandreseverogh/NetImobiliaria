@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkCNPJExists } from '@/lib/database/proprietarios'
-import { UnifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 
 export async function POST(request: NextRequest) {
     // Verificar permissão
-    const permissionError = await UnifiedPermissionMiddleware(request, 'proprietarios', 'READ')
+    const permissionError = await unifiedPermissionMiddleware(request)
     if (permissionError) return permissionError
 
     try {
