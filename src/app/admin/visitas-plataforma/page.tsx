@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import PermissionGuard from '@/components/admin/PermissionGuard'
-import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
+import { useApi } from '@/hooks/useApi'
 import {
     ChartBarIcon,
     DevicePhoneMobileIcon,
@@ -155,7 +155,7 @@ function KPICard({ label, value, sub, icon, color, variacao }: {
 export default function VisitasPlataformaPage() {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const { get } = useAuthenticatedFetch()
+    const { get } = useApi()
 
     const [data, setData] = useState<DashboardData | null>(null)
     const [loading, setLoading] = useState(true)

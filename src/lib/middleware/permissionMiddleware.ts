@@ -196,6 +196,9 @@ const routePermissions: Record<string, PermissionConfig> = {
   '/api/admin/perfis/create': { resource: null, action: null },
   '/api/admin/perfis/update': { resource: null, action: null },
   '/api/admin/perfis/delete': { resource: null, action: null },
+
+  // APIs de analytics de visitas — recurso usa o slug da feature (singular)
+  '/api/admin/visitas-plataforma': { resource: 'visita-plataforma', action: 'READ' },
 }
 
 // Função para verificar permissões em rotas de API
