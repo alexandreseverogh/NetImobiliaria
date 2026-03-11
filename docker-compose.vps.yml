@@ -58,7 +58,7 @@ services:
   prod_feed:
     build:
       context: ${PROD_CONTEXT:-.}
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.feed
     restart: unless-stopped
     depends_on:
       prod_db:
@@ -147,7 +147,7 @@ services:
   staging_feed:
     build:
       context: ${STAGING_CONTEXT:-.}
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.feed
     restart: unless-stopped
     depends_on:
       staging_db:

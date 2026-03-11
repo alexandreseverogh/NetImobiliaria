@@ -1,0 +1,29 @@
+# =============================================================
+# Dockerfile.feed — Container dedicado ao cron de feed
+# Propósito: rodar scripts/feed-cron-scheduler.js
+# NÃO contém Next.js nem .next/ — apenas node_modules de produção
+# e a pasta scripts/
+# =============================================================
+
+FROM node:20-bookworm-slim AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
+
+# Instalar apenas dependências de produção
+# (node-cron, rss-parser, pg, dotenv e demais prod deps do package.json)
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
+
+# Copiar apenas os scripts — sem código-fonte Next.js, sem .next/
+COPY scripts ./scripts
+
+# Criar usuário não-root
+RUN groupadd -r nodejs && useradd -r -g nodejs feedworker
+
+USER feedworker
+
+# O scheduler roda o cron continuamente (não tem porta exposta)
+CMD ["node", "scripts/feed-cron-scheduler.js"]

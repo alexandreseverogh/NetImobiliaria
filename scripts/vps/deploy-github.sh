@@ -87,13 +87,19 @@ fi
 log "[3/5] Construindo imagem Docker..."
 
 if [ "$AMBIENTE" == "producao" ]; then
-  log "   → Build para PRODUÇÃO com Dockerfile de: $BASE_DIR/Dockerfile.prod"
+  log "   → Build APP para PRODUÇÃO com Dockerfile de: $BASE_DIR/Dockerfile.prod"
   docker build \
     -t "net-imobiliaria-prod_app:latest" \
     -f "$BASE_DIR/Dockerfile.prod" \
     "$TARGET_SOURCE"
+  log "   ✅ Imagem APP construída: net-imobiliaria-prod_app:latest"
 
-  log "   ✅ Imagem construída: net-imobiliaria-prod_app:latest"
+  log "   → Build FEED para PRODUÇÃO com Dockerfile de: $BASE_DIR/Dockerfile.feed"
+  docker build \
+    -t "net-imobiliaria-prod_feed:latest" \
+    -f "$BASE_DIR/Dockerfile.feed" \
+    "$TARGET_SOURCE"
+  log "   ✅ Imagem FEED construída: net-imobiliaria-prod_feed:latest"
 fi
 
 # -------------------------------------------------------------
@@ -107,12 +113,7 @@ log "[4/5] Infraestrutura já atualizada anteriormente. Prosseguindo..."
 log "[5/5] Reiniciando container..."
 
 if [ "$AMBIENTE" == "producao" ]; then
-  # A imagem foi buildada como "net-imobiliaria-prod_app:latest"
-  # O docker compose para prod_feed usa a mesma imagem (mesmo Dockerfile.prod)
-  # então criamos uma tag adicional para ele poder usar com --no-build
-  docker tag "net-imobiliaria-prod_app:latest" "net-imobiliaria-prod_feed:latest" 2>/dev/null || true
-
-  # Iniciar app e feed worker juntos
+  # Iniciar app e feed worker juntos (cada um com sua imagem dedicada)
   docker compose -f "$BASE_DIR/docker-compose.vps.yml" up -d --no-build prod_app prod_feed
 
   # Aplicar migrations
