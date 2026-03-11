@@ -10,29 +10,31 @@ export interface AnalyticsFilters {
 }
 
 // Monta cláusulas WHERE dinâmicas a partir dos filtros
-function buildWhereClause(filters: AnalyticsFilters, startParam = 1): { clause: string; params: any[] } {
+// alias: prefixo de tabela para queries com JOIN (ex: 'ap' → 'ap.created_at')
+function buildWhereClause(filters: AnalyticsFilters, startParam = 1, alias = ''): { clause: string; params: any[] } {
+    const a = alias ? `${alias}.` : ''
     const conditions: string[] = [
-        `created_at >= $${startParam}`,
-        `created_at <= $${startParam + 1}`,
-        `device_type != 'bot'`,
+        `${a}created_at >= $${startParam}`,
+        `${a}created_at <= $${startParam + 1}`,
+        `${a}device_type != 'bot'`,
     ]
     const params: any[] = [filters.from, filters.to]
     let idx = startParam + 2
 
     if (filters.device_type) {
-        conditions.push(`device_type = $${idx++}`)
+        conditions.push(`${a}device_type = $${idx++}`)
         params.push(filters.device_type)
     }
     if (filters.page_type) {
-        conditions.push(`page_type = $${idx++}`)
+        conditions.push(`${a}page_type = $${idx++}`)
         params.push(filters.page_type)
     }
     if (filters.referrer_type) {
-        conditions.push(`referrer_type = $${idx++}`)
+        conditions.push(`${a}referrer_type = $${idx++}`)
         params.push(filters.referrer_type)
     }
     if (filters.utm_campaign) {
-        conditions.push(`utm_campaign ILIKE $${idx++}`)
+        conditions.push(`${a}utm_campaign ILIKE $${idx++}`)
         params.push(`%${filters.utm_campaign}%`)
     }
 
@@ -102,7 +104,8 @@ export async function getVisitasPorDia(filters: AnalyticsFilters) {
 
 // ----- Top Imóveis Visitados -----
 export async function getTopImoveis(filters: AnalyticsFilters, limit = 10) {
-    const { clause, params } = buildWhereClause(filters)
+    // Usa alias 'ap' para evitar ambiguidade de colunas no JOIN com imoveis
+    const { clause, params } = buildWhereClause(filters, 1, 'ap')
     const limitParam = params.length + 1
 
     const result = await pool.query(
