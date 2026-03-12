@@ -13,6 +13,7 @@ import {
     ArrowTrendingDownIcon,
     FunnelIcon,
     XMarkIcon,
+    MapPinIcon,
 } from '@heroicons/react/24/outline'
 import { Square, Car, Bed, BedDouble, Bath } from 'lucide-react'
 
@@ -488,9 +489,10 @@ export default function VisitasPlataformaPage() {
 
                                                         {/* Endereço */}
                                                         {im.endereco && (
-                                                            <p className="text-xs text-gray-500 mb-2 truncate">
-                                                                📍 {im.endereco}
-                                                            </p>
+                                                            <div className="flex items-center text-xs text-gray-500 mb-2 truncate">
+                                                                <MapPinIcon className="w-4 h-4 mr-1 text-gray-400 flex-shrink-0" />
+                                                                <span className="truncate">{im.endereco}</span>
+                                                            </div>
                                                         )}
 
                                                         {/* Preço */}

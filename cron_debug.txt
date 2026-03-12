@@ -9073,3 +9073,7 @@
 [2026-03-12T20:30:00.469Z] GET /api/cron/transbordo called
 [2026-03-12T20:30:00.507Z] Found 0 expired assignments
 [2026-03-12T20:30:00.510Z] Found 0 expired assignments
+[2026-03-12T20:35:00.095Z] GET /api/cron/transbordo called
+[2026-03-12T20:35:00.096Z] GET /api/cron/transbordo called
+[2026-03-12T20:35:00.114Z] Found 0 expired assignments
+[2026-03-12T20:35:00.133Z] Found 0 expired assignments
