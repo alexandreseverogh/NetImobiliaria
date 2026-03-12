@@ -14,6 +14,7 @@ import {
     FunnelIcon,
     XMarkIcon,
 } from '@heroicons/react/24/outline'
+import { Square, Car, Bed, BedDouble, Bath } from 'lucide-react'
 
 // ─── Tipos ────────────────────────────────────────────────
 interface Resumo {
@@ -24,11 +25,34 @@ interface Resumo {
     variacao_sinal: string | null
 }
 interface DiaData { data: string; visitas: number; unicos: number }
-interface ImovelData { imovel_id: number; codigo: string; titulo: string; visitas: number; visitantes_unicos: number }
+interface ImovelData {
+    imovel_id: number
+    codigo: string
+    titulo: string
+    endereco: string
+    preco: number | null
+    quartos: number | null
+    banheiros: number | null
+    suites: number | null
+    vagas_garagem: number | null
+    area_total: number | null
+    visitas: number
+    visitantes_unicos: number
+    ultimo_acesso: string | null
+    ultima_origem: string | null
+}
 interface DispositivoData { device_type: string; visitas: number; percentual: number }
 interface OrigemData { referrer_type: string; visitas: number; percentual: number }
 interface TipoPaginaData { page_type: string; visitas: number; visitantes_unicos: number }
 interface PaginaData { page_path: string; page_type: string; visitas: number; visitantes_unicos: number }
+interface AcessoRecenteData {
+    id: number
+    page_path: string
+    page_type: string
+    referrer_type: string
+    device_type: string
+    created_at: string
+}
 
 interface DashboardData {
     resumo: Resumo
@@ -38,6 +62,7 @@ interface DashboardData {
     por_origem: OrigemData[]
     por_tipo_pagina: TipoPaginaData[]
     top_paginas: PaginaData[]
+    acessos_recentes: AcessoRecenteData[]
 }
 
 interface Filters {
@@ -76,6 +101,27 @@ const DEVICE_ICONS: Record<string, string> = {
 function formatNumber(n: number): string {
     if (n >= 1000) return (n / 1000).toFixed(1) + 'k'
     return n.toString()
+}
+
+function formatPreco(v: number | null): string {
+    if (!v) return '—'
+    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+}
+
+function formatDateTime(iso: string | null): string {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+    })
+}
+
+function formatTime(iso: string | null): string {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+    })
 }
 
 function BarChart({ data, labelKey, valueKey, labelMap, colorClass = 'bg-blue-500' }: {
@@ -386,8 +432,10 @@ export default function VisitasPlataformaPage() {
                             />
                             <KPICard
                                 label="Média Diária"
-                                value={data.resumo.media_diaria.toLocaleString('pt-BR')}
-                                sub="visitas por dia"
+                                value={data.resumo.media_diaria < 1
+                                    ? data.resumo.media_diaria.toFixed(1)
+                                    : data.resumo.media_diaria.toLocaleString('pt-BR')}
+                                sub="visitas por dia (média)"
                                 icon={<ArrowTrendingUpIcon className="w-6 h-6" />}
                                 color="border-purple-500"
                             />
@@ -396,7 +444,9 @@ export default function VisitasPlataformaPage() {
                                 value={data.por_dispositivo[0]
                                     ? `${DEVICE_ICONS[data.por_dispositivo[0].device_type] || '📊'} ${data.por_dispositivo[0].percentual}%`
                                     : '—'}
-                                sub={data.por_dispositivo[0] ? DEVICE_LABELS[data.por_dispositivo[0].device_type] || data.por_dispositivo[0].device_type : ''}
+                                sub={data.por_dispositivo[0]
+                                    ? `${DEVICE_LABELS[data.por_dispositivo[0].device_type] || data.por_dispositivo[0].device_type}${data.por_dispositivo.length > 1 && data.por_dispositivo[0].percentual === data.por_dispositivo[1].percentual ? ' (empate)' : ''}`
+                                    : ''}
                                 icon={<DevicePhoneMobileIcon className="w-6 h-6" />}
                                 color="border-orange-500"
                             />
@@ -422,21 +472,86 @@ export default function VisitasPlataformaPage() {
                                     🏠 Top 10 Imóveis Mais Visitados
                                 </h2>
                                 {data.top_imoveis.length > 0 ? (
-                                    <div className="space-y-2">
+                                    <div className="space-y-4">
                                         {data.top_imoveis.map((im, i) => (
-                                            <div key={im.imovel_id} className="flex items-center gap-3">
-                                                <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
-                                                    {i + 1}
-                                                </span>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-800 truncate">
-                                                        {im.titulo || `Imóvel #${im.imovel_id}`}
-                                                    </p>
-                                                    <p className="text-xs text-gray-400">{im.codigo}</p>
+                                            <div key={im.imovel_id} className="border border-gray-100 rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                                                <div className="flex items-start gap-3">
+                                                    <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        {i + 1}
+                                                    </span>
+                                                    <div className="flex-1 min-w-0">
+                                                        {/* Título e Código */}
+                                                        <p className="text-sm font-semibold text-gray-800 truncate">
+                                                            {im.titulo || `Imóvel #${im.imovel_id}`}
+                                                        </p>
+                                                        <p className="text-xs text-blue-600 font-mono mb-1">{im.codigo}</p>
+
+                                                        {/* Endereço */}
+                                                        {im.endereco && (
+                                                            <p className="text-xs text-gray-500 mb-2 truncate">
+                                                                📍 {im.endereco}
+                                                            </p>
+                                                        )}
+
+                                                        {/* Preço */}
+                                                        {im.preco && (
+                                                            <p className="text-sm font-bold text-green-700 mb-2">
+                                                                {formatPreco(im.preco)}
+                                                            </p>
+                                                        )}
+
+                                                        {/* Atributos do Imóvel */}
+                                                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-700 mb-3 bg-gray-50 p-2 rounded-lg inline-flex">
+                                                            {im.quartos != null && (
+                                                                <div className="flex items-center">
+                                                                    <Bed className="w-4 h-4 mr-1 text-blue-500" />
+                                                                    <span>{im.quartos} quarto{im.quartos !== 1 ? 's' : ''}</span>
+                                                                </div>
+                                                            )}
+                                                            {im.suites != null && im.suites > 0 && (
+                                                                <div className="flex items-center">
+                                                                    <BedDouble className="w-4 h-4 mr-1 text-purple-500" />
+                                                                    <span>{im.suites} suíte{im.suites !== 1 ? 's' : ''}</span>
+                                                                </div>
+                                                            )}
+                                                            {im.banheiros != null && (
+                                                                <div className="flex items-center">
+                                                                    <Bath className="w-4 h-4 mr-1 text-cyan-500" />
+                                                                    <span>{im.banheiros} banheiro{im.banheiros !== 1 ? 's' : ''}</span>
+                                                                </div>
+                                                            )}
+                                                            {im.vagas_garagem != null && (
+                                                                <div className="flex items-center">
+                                                                    <Car className="w-4 h-4 mr-1 text-orange-500" />
+                                                                    <span>{im.vagas_garagem} vaga{im.vagas_garagem !== 1 ? 's' : ''}</span>
+                                                                </div>
+                                                            )}
+                                                            {im.area_total != null && (
+                                                                <div className="flex items-center">
+                                                                    <Square className="w-4 h-4 mr-1 text-indigo-500" />
+                                                                    <span>{im.area_total}m²</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Visitas + Último acesso + Origem */}
+                                                        <div className="flex flex-wrap gap-2 text-xs">
+                                                            <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                                                                {im.visitas} visita{im.visitas !== 1 ? 's' : ''}
+                                                            </span>
+                                                            {im.ultimo_acesso && (
+                                                                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                                                    🕓 {formatTime(im.ultimo_acesso)}
+                                                                </span>
+                                                            )}
+                                                            {im.ultima_origem && (
+                                                                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                                                    {ORIGEM_LABELS[im.ultima_origem] || im.ultima_origem}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <span className="text-sm font-bold text-blue-600 flex-shrink-0">
-                                                    {im.visitas.toLocaleString('pt-BR')}
-                                                </span>
                                             </div>
                                         ))}
                                     </div>
@@ -511,6 +626,49 @@ export default function VisitasPlataformaPage() {
                                 </div>
                             ) : <p className="text-sm text-gray-400 text-center py-4">Sem dados de páginas</p>}
                         </div>
+
+                        {/* Acessos Recentes */}
+                        {data.acessos_recentes && data.acessos_recentes.length > 0 && (
+                            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                                <h2 className="font-semibold text-gray-800 mb-4">🕒 Últimos 20 Acessos (Detalhe por Visita)</h2>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full text-sm">
+                                        <thead>
+                                            <tr className="text-left text-xs text-gray-500 border-b">
+                                                <th className="pb-2 font-medium">Hora</th>
+                                                <th className="pb-2 font-medium">Página</th>
+                                                <th className="pb-2 font-medium">Tipo</th>
+                                                <th className="pb-2 font-medium">Dispositivo</th>
+                                                <th className="pb-2 font-medium">Origem</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {data.acessos_recentes.map((ac) => (
+                                                <tr key={ac.id} className="border-b border-gray-50 hover:bg-gray-50">
+                                                    <td className="py-2 text-xs text-gray-500 whitespace-nowrap font-mono">
+                                                        {formatDateTime(ac.created_at)}
+                                                    </td>
+                                                    <td className="py-2 font-mono text-xs text-gray-700 max-w-[200px] truncate">
+                                                        {ac.page_path}
+                                                    </td>
+                                                    <td className="py-2">
+                                                        <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">
+                                                            {PAGE_LABELS[ac.page_type] || ac.page_type}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2 text-xs text-gray-600">
+                                                        {DEVICE_ICONS[ac.device_type] || '❓'} {DEVICE_LABELS[ac.device_type] || ac.device_type}
+                                                    </td>
+                                                    <td className="py-2 text-xs text-gray-600">
+                                                        {ORIGEM_LABELS[ac.referrer_type] || ac.referrer_type}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </>
                 )}
             </div>

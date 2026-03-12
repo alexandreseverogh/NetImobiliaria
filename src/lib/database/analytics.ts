@@ -71,10 +71,14 @@ export async function getVisitasSummary(filters: AnalyticsFilters, prevFrom: str
         (new Date(filters.to).getTime() - new Date(filters.from).getTime()) / (1000 * 60 * 60 * 24)
     ))
 
+    const mediaDiaria = totalAtual / diffDays
+
     return {
         total_visitas: totalAtual,
         visitantes_unicos: parseInt(current.rows[0]?.visitantes_unicos || '0'),
-        media_diaria: Math.round(totalAtual / diffDays),
+        media_diaria: mediaDiaria >= 1
+            ? Math.round(mediaDiaria)
+            : parseFloat(mediaDiaria.toFixed(1)), // ex: 0.1 para períodos longos com poucas visitas
         variacao_percentual: variacao ? parseFloat(variacao) : null,
         variacao_sinal: variacao ? (parseFloat(variacao) >= 0 ? '+' : '') : null,
     }
@@ -102,9 +106,8 @@ export async function getVisitasPorDia(filters: AnalyticsFilters) {
     }))
 }
 
-// ----- Top Imóveis Visitados -----
+// ----- Top Imóveis Visitados (com detalhes completos do imóvel) -----
 export async function getTopImoveis(filters: AnalyticsFilters, limit = 10) {
-    // Usa alias 'ap' para evitar ambiguidade de colunas no JOIN com imoveis
     const { clause, params } = buildWhereClause(filters, 1, 'ap')
     const limitParam = params.length + 1
 
@@ -113,12 +116,33 @@ export async function getTopImoveis(filters: AnalyticsFilters, limit = 10) {
        ap.imovel_id,
        i.codigo,
        i.titulo,
+       i.endereco,
+       i.numero,
+       i.complemento,
+       i.bairro,
+       i.cidade_fk         AS cidade,
+       i.estado_fk         AS estado,
+       i.preco,
+       i.quartos,
+       i.banheiros,
+       i.suites,
+       i.vagas_garagem,
+       i.area_total,
        COUNT(*) AS visitas,
-       COUNT(DISTINCT ap.session_id) AS visitantes_unicos
+       COUNT(DISTINCT ap.session_id) AS visitantes_unicos,
+       MAX(ap.created_at)  AS ultimo_acesso,
+       (SELECT ap2.referrer_type
+          FROM public.analytics_pageviews ap2
+          WHERE ap2.imovel_id = ap.imovel_id
+          ORDER BY ap2.created_at DESC
+          LIMIT 1
+       ) AS ultima_origem
      FROM public.analytics_pageviews ap
      LEFT JOIN public.imoveis i ON i.id = ap.imovel_id
      ${clause} AND ap.imovel_id IS NOT NULL
-     GROUP BY ap.imovel_id, i.codigo, i.titulo
+     GROUP BY ap.imovel_id, i.codigo, i.titulo, i.endereco, i.numero, i.complemento,
+              i.bairro, i.cidade_fk, i.estado_fk, i.preco, i.quartos,
+              i.banheiros, i.suites, i.vagas_garagem, i.area_total
      ORDER BY visitas DESC
      LIMIT $${limitParam}`,
         [...params, limit]
@@ -128,8 +152,24 @@ export async function getTopImoveis(filters: AnalyticsFilters, limit = 10) {
         imovel_id: r.imovel_id,
         codigo: r.codigo,
         titulo: r.titulo,
+        endereco: [
+            r.endereco,
+            r.numero ? `nº ${r.numero}` : null,
+            r.complemento || null,
+            r.bairro,
+            r.cidade,
+            r.estado,
+        ].filter(Boolean).join(', '),
+        preco: r.preco ? parseFloat(r.preco) : null,
+        quartos: r.quartos,
+        banheiros: r.banheiros,
+        suites: r.suites,
+        vagas_garagem: r.vagas_garagem,
+        area_total: r.area_total ? parseFloat(r.area_total) : null,
         visitas: parseInt(r.visitas),
         visitantes_unicos: parseInt(r.visitantes_unicos),
+        ultimo_acesso: r.ultimo_acesso,
+        ultima_origem: r.ultima_origem,
     }))
 }
 
@@ -201,7 +241,7 @@ export async function getVisitasPorTipoPagina(filters: AnalyticsFilters) {
     }))
 }
 
-// ----- Top Páginas Visitadas -----
+// ----- Top Páginas Visitadas (agregado) -----
 export async function getTopPaginas(filters: AnalyticsFilters, limit = 10) {
     const { clause, params } = buildWhereClause(filters)
     const limitParam = params.length + 1
@@ -224,5 +264,34 @@ export async function getTopPaginas(filters: AnalyticsFilters, limit = 10) {
         page_type: r.page_type,
         visitas: parseInt(r.visitas),
         visitantes_unicos: parseInt(r.visitantes_unicos),
+    }))
+}
+
+// ----- Acessos Recentes (com hora e origem — últimos N registros) -----
+export async function getAcessosRecentes(filters: AnalyticsFilters, limit = 20) {
+    const { clause, params } = buildWhereClause(filters)
+    const limitParam = params.length + 1
+
+    const result = await pool.query(
+        `SELECT
+       id,
+       page_path,
+       page_type,
+       referrer_type,
+       device_type,
+       created_at
+     FROM public.analytics_pageviews ${clause}
+     ORDER BY created_at DESC
+     LIMIT $${limitParam}`,
+        [...params, limit]
+    )
+
+    return result.rows.map(r => ({
+        id: r.id,
+        page_path: r.page_path,
+        page_type: r.page_type,
+        referrer_type: r.referrer_type || 'direct',
+        device_type: r.device_type,
+        created_at: r.created_at,
     }))
 }

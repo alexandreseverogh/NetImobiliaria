@@ -8,6 +8,7 @@ import {
     getVisitasPorOrigem,
     getVisitasPorTipoPagina,
     getTopPaginas,
+    getAcessosRecentes,
     type AnalyticsFilters,
 } from '@/lib/database/analytics'
 
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Executar todas as queries em paralelo para máxima velocidade
-        const [summary, porDia, topImoveis, porDispositivo, porOrigem, porTipoPagina, topPaginas] = await Promise.all([
+        const [summary, porDia, topImoveis, porDispositivo, porOrigem, porTipoPagina, topPaginas, acessosRecentes] = await Promise.all([
             getVisitasSummary(filters, prevFrom, prevTo),
             getVisitasPorDia(filters),
             getTopImoveis(filters, 10),
@@ -84,6 +85,7 @@ export async function GET(request: NextRequest) {
             getVisitasPorOrigem(filters),
             getVisitasPorTipoPagina(filters),
             getTopPaginas(filters, 10),
+            getAcessosRecentes(filters, 20),
         ])
 
         return NextResponse.json({
@@ -95,6 +97,7 @@ export async function GET(request: NextRequest) {
             por_origem: porOrigem,
             por_tipo_pagina: porTipoPagina,
             top_paginas: topPaginas,
+            acessos_recentes: acessosRecentes,
         })
     } catch (error) {
         console.error('Erro ao buscar analytics de visitas:', error)
