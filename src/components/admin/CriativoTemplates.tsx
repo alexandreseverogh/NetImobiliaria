@@ -226,10 +226,13 @@ export const CriativoCarrossel2 = forwardRef<HTMLDivElement, any>(({ basico, det
 
     return (
         <div ref={ref} className="bg-slate-900 relative flex flex-col items-center justify-center" style={{ width: '1080px', height: '1080px', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
-            {/* Background */}
-            <div className="absolute inset-0 z-0">
-                <img src={secondaryImage} alt="Secondary" style={{ width: '100%', height: '100%', objectFit: 'cover' }} crossOrigin="anonymous" />
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+            {/* Background Illustration (Architectural Blueprint Style) */}
+            <div className="absolute inset-0 z-0 bg-slate-950 overflow-hidden">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-900/30 via-slate-900 to-black"></div>
+                <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px)', backgroundSize: '60px 60px' }}></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-5 pointer-events-none">
+                    <Sparkles className="w-[800px] h-[800px] text-white" strokeWidth={0.5} />
+                </div>
             </div>
 
             <div className="z-10 w-full px-20">
@@ -272,10 +275,13 @@ export const CriativoCarrossel3 = forwardRef<HTMLDivElement, any>(({ basico, det
 
     return (
         <div ref={ref} className="bg-slate-900 relative flex flex-col justify-between" style={{ width: '1080px', height: '1080px', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
-            {/* Background */}
-            <div className="absolute inset-0 z-0">
-                <img src={thirdImage} alt="Third" style={{ width: '100%', height: '100%', objectFit: 'cover' }} crossOrigin="anonymous" />
-                <div className="absolute inset-0 bg-slate-900/80"></div>
+            {/* Background Illustration (Topographic/Map Style) */}
+            <div className="absolute inset-0 z-0 bg-slate-950 overflow-hidden">
+                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-indigo-900/30 via-slate-900 to-black"></div>
+                 <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(circle at center, white 2px, transparent 2px)', backgroundSize: '36px 36px' }}></div>
+                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] opacity-5 pointer-events-none">
+                    <MapPin className="w-[800px] h-[800px] text-white" strokeWidth={0.5} />
+                </div>
             </div>
 
             <div className="z-10 pt-32 px-20">
