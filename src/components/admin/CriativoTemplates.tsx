@@ -227,19 +227,24 @@ export const CriativoCarrossel2 = forwardRef<HTMLDivElement, any>(({ basico, det
                 <h1 className="text-white text-6xl font-black leading-tight tracking-tight text-center mb-16">Seu Novo Estilo de Vida</h1>
 
                 {amenidadesArray.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-x-12 gap-y-10">
+                    <div className="flex flex-wrap items-center justify-center gap-4">
                         {mainAmenidades.map((amenidade: any, index: number) => (
-                            <div key={index} className="flex items-center space-x-6 bg-white/5 border border-white/10 p-6 rounded-2xl backdrop-blur-md">
-                                <Sparkles className="w-10 h-10 text-blue-400 flex-shrink-0" />
-                                <span className="text-white text-2xl font-medium tracking-wide">{amenidade.nome}</span>
+                            <div key={index} className="flex items-center space-x-3 bg-white/10 border border-white/20 px-6 py-4 rounded-full backdrop-blur-md shadow-lg">
+                                <Sparkles className="w-6 h-6 text-blue-400 flex-shrink-0" />
+                                <span className="text-white text-2xl font-medium tracking-wide">{amenidade.nome || amenidade}</span>
                             </div>
                         ))}
+                        {amenidadesArray.length > 8 && (
+                            <div className="flex items-center space-x-3 bg-white/5 border border-white/10 px-6 py-4 rounded-full backdrop-blur-md">
+                                <span className="text-white/70 text-2xl font-medium tracking-wide">+{amenidadesArray.length - 8}</span>
+                            </div>
+                        )}
                     </div>
-                ) : (
+                ) : detalhado ? (
                     <div className="text-center text-white/50 text-3xl font-light">
                         Descubra todos os detalhes exclusivos no nosso site.
                     </div>
-                )}
+                ) : null}
             </div>
             {/* Branding Final */}
             <div className="absolute top-12 left-12 bg-white/95 backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl flex items-center">
@@ -268,19 +273,24 @@ export const CriativoCarrossel3 = forwardRef<HTMLDivElement, any>(({ basico, det
                 <h1 className="text-white text-7xl font-black leading-tight tracking-tight mb-16">Tudo a Poucos<br/>Passos de Você</h1>
 
                 {proximidadesArray.length > 0 ? (
-                    <div className="space-y-8">
+                    <div className="flex flex-wrap items-center gap-4">
                         {mainProximidades.map((prox: any, index: number) => (
-                            <div key={index} className="flex items-center space-x-6 border-l-4 border-blue-500 pl-6">
-                                <MapPin className="w-8 h-8 text-white/80" strokeWidth={1.5} />
-                                <span className="text-white text-3xl font-medium">{prox.nome}</span>
+                            <div key={index} className="flex items-center space-x-3 bg-blue-600/20 border border-blue-500/30 px-6 py-4 rounded-3xl backdrop-blur-md">
+                                <MapPin className="w-6 h-6 text-blue-400" strokeWidth={2} />
+                                <span className="text-white text-2xl font-medium">{prox.nome || prox}</span>
                             </div>
                         ))}
+                        {proximidadesArray.length > 6 && (
+                            <div className="flex items-center space-x-3 bg-white/5 border border-white/10 px-6 py-4 rounded-3xl backdrop-blur-md">
+                                <span className="text-white/70 text-2xl font-medium tracking-wide">e mais +{proximidadesArray.length - 6}</span>
+                            </div>
+                        )}
                     </div>
-                ) : (
+                ) : detalhado ? (
                     <div className="text-white/60 text-3xl font-light max-w-2xl">
                         Localização privilegiada no coração da cidade. Onde o melhor se encontra com o seu novo lar.
                     </div>
-                )}
+                ) : null}
             </div>
 
             {/* Bottom Call to Action */}

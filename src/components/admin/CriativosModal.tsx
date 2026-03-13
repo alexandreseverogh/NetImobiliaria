@@ -194,7 +194,7 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                         {/* Botão Principal de Exportação */}
                                         <button
                                             onClick={handleDownload}
-                                            disabled={isGenerating || !dadosBasicos || loading.basico}
+                                            disabled={isGenerating || !dadosBasicos || loading.basico || loading.detalhado || loading.completo || !dadosDetalhados || !dadosCompletos}
                                             className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all hover:-translate-y-1 hover:shadow-xl flex items-center justify-center space-x-2"
                                         >
                                             {isGenerating ? (
@@ -246,9 +246,19 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                             </div>
                                         ) : (
                                             <div className="text-center">
-                                                <SparklesIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-                                                <h3 className="text-xl font-bold text-slate-700">Preview do Estúdio</h3>
-                                                <p className="text-slate-500">O esqueleto do design arquitetural será processado aqui.</p>
+                                                {(loading.basico || loading.detalhado || loading.completo) ? (
+                                                    <>
+                                                        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+                                                        <h3 className="text-xl font-bold text-slate-700">Carregando Estúdio...</h3>
+                                                        <p className="text-slate-500">Montando os dados do imóvel...</p>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <SparklesIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+                                                        <h3 className="text-xl font-bold text-slate-700">Preview do Estúdio</h3>
+                                                        <p className="text-slate-500">O esqueleto do design arquitetural será processado aqui.</p>
+                                                    </>
+                                                )}
                                             </div>
                                         )}
                                     </div>
