@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Imovel } from '@/lib/database/imoveis'
+import CriativosModal from './CriativosModal'
 
 interface ImovelGridProps {
   imoveis: Imovel[]
@@ -123,41 +124,13 @@ function Pagination({ currentPage, totalPages, onPageChange, totalItems, itemsPe
   )
 }
 
-function ImovelCard({ imovel }: { imovel: Imovel }) {
+function ImovelCard({ imovel, onOpenCriativos }: { imovel: Imovel; onOpenCriativos: (id: number) => void }) {
   return (
     <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 overflow-hidden group">
       {/* Header do Card com Código */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-3 py-2">
-        <div className="flex items-center justify-between">
-          <div className="flex-1 flex justify-center">
-            <div className="bg-white/20 rounded px-2 py-0.5">
-              <span className="text-white font-bold text-xs">{imovel.codigo || String(imovel.id).slice(-8)}</span>
-            </div>
-          </div>
-          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            {/* Ícone de Lupa - Visualização Pública */}
-            <Link
-              href={`/imoveis/${imovel.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded transition-colors duration-200"
-              title="Visualizar página pública"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </Link>
-            {/* Ícone de Edição */}
-            <Link
-              href={`/admin/imoveis/${imovel.id}/edicao`}
-              className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded transition-colors duration-200"
-              title="Editar imóvel"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </Link>
-          </div>
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-3 py-2 flex justify-center">
+        <div className="bg-white/20 rounded px-2 py-0.5">
+          <span className="text-white font-bold text-xs">{imovel.codigo || String(imovel.id).slice(-8)}</span>
         </div>
       </div>
 
@@ -274,12 +247,66 @@ function ImovelCard({ imovel }: { imovel: Imovel }) {
           </div>
         )}
       </div>
+
+      {/* Footer do Card - Ações */}
+      <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-3 py-2">
+        <div className="flex items-center justify-center space-x-4">
+          {/* Lupa - Visualização Pública */}
+          <Link
+            href={`/imoveis/${imovel.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded transition-colors duration-200"
+            title="Visualizar página pública"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </Link>
+
+          {/* Lápis - Edição */}
+          <Link
+            href={`/admin/imoveis/${imovel.id}/edicao`}
+            className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded transition-colors duration-200"
+            title="Editar imóvel"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </Link>
+
+          {/* Impressora - Imprimir Ficha */}
+          <button
+            onClick={() => { /* TODO: Implementar Impressão */ }}
+            className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded transition-colors duration-200"
+            title="Imprimir Imóvel"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+          </button>
+
+          {/* Varinha Mágica - Gerar Criativos (Mídias Sociais) */}
+          <button
+            onClick={() => onOpenCriativos(imovel.id!)}
+            className="bg-gradient-to-r from-pink-500/80 to-purple-500/80 hover:from-pink-500 hover:to-purple-500 text-white p-1.5 rounded shadow-sm hover:shadow transition-all duration-200"
+            title="Gerar Criativos (Instagram/Redes)"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
 
 export default function ImovelGrid({ imoveis, loading, error, onRetry }: ImovelGridProps) {
   const [currentPage, setCurrentPage] = useState(1)
+  const [criativosModalOpen, setCriativosModalOpen] = useState(false)
+  const [selectedImovelId, setSelectedImovelId] = useState<number | null>(null)
+  
   const itemsPerPage = 20
 
   // Calcular paginação
@@ -364,7 +391,14 @@ export default function ImovelGrid({ imoveis, loading, error, onRetry }: ImovelG
       <div className="p-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {currentImoveis.map((imovel) => (
-            <ImovelCard key={imovel.id} imovel={imovel} />
+            <ImovelCard 
+              key={imovel.id} 
+              imovel={imovel} 
+              onOpenCriativos={(id) => {
+                setSelectedImovelId(id)
+                setCriativosModalOpen(true)
+              }}
+            />
           ))}
         </div>
       </div>
@@ -379,6 +413,16 @@ export default function ImovelGrid({ imoveis, loading, error, onRetry }: ImovelG
           itemsPerPage={itemsPerPage}
         />
       )}
+
+      {/* Modal de Criativos */}
+      <CriativosModal
+        isOpen={criativosModalOpen}
+        onClose={() => {
+            setCriativosModalOpen(false)
+            setSelectedImovelId(null)
+        }}
+        imovelId={selectedImovelId}
+      />
     </div>
   )
 }
