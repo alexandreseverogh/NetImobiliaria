@@ -54,35 +54,40 @@ export const CriativoFeed = forwardRef<HTMLDivElement, any>(({ basico }, ref) =>
             <div className="z-20 mx-12 mb-20 flex flex-col justify-end">
                 <div className="flex items-end justify-between border-t-2 border-white/30 pt-8">
                     {/* Attributes */}
-                    <div className="flex space-x-8">
+                    <div className="flex space-x-6">
                         {basico?.quartos > 0 && (
-                            <div className="flex flex-col items-center">
+                            <div className="flex flex-col items-center justify-center text-center w-20">
                                 <Bed className="w-10 h-10 text-white/90 mb-2" strokeWidth={1.5} />
-                                <span className="text-white text-xl font-bold">{basico.quartos} Quarto{basico.quartos > 1 ? 's' : ''}</span>
+                                <span className="text-white text-2xl font-bold leading-none">{basico.quartos}</span>
+                                <span className="text-white/80 text-sm font-semibold mt-1">Quarto{basico.quartos > 1 ? 's' : ''}</span>
                             </div>
                         )}
                         {basico?.banheiros > 0 && (
-                            <div className="flex flex-col items-center">
+                            <div className="flex flex-col items-center justify-center text-center w-20">
                                 <Bath className="w-10 h-10 text-white/90 mb-2" strokeWidth={1.5} />
-                                <span className="text-white text-xl font-bold">{basico.banheiros} Banh.</span>
+                                <span className="text-white text-2xl font-bold leading-none">{basico.banheiros}</span>
+                                <span className="text-white/80 text-sm font-semibold mt-1">Banh.</span>
                             </div>
                         )}
                         {basico?.suites > 0 && (
-                            <div className="flex flex-col items-center">
+                            <div className="flex flex-col items-center justify-center text-center w-20">
                                 <BedDouble className="w-10 h-10 text-white/90 mb-2" strokeWidth={1.5} />
-                                <span className="text-white text-xl font-bold">{basico.suites} Suíte{basico.suites > 1 ? 's' : ''}</span>
+                                <span className="text-white text-2xl font-bold leading-none">{basico.suites}</span>
+                                <span className="text-white/80 text-sm font-semibold mt-1">Suíte{basico.suites > 1 ? 's' : ''}</span>
                             </div>
                         )}
                         {basico?.vagas_garagem > 0 && (
-                            <div className="flex flex-col items-center">
+                            <div className="flex flex-col items-center justify-center text-center w-20">
                                 <Car className="w-10 h-10 text-white/90 mb-2" strokeWidth={1.5} />
-                                <span className="text-white text-xl font-bold">{basico.vagas_garagem} Vaga{basico.vagas_garagem > 1 ? 's' : ''}</span>
+                                <span className="text-white text-2xl font-bold leading-none">{basico.vagas_garagem}</span>
+                                <span className="text-white/80 text-sm font-semibold mt-1">Vaga{basico.vagas_garagem > 1 ? 's' : ''}</span>
                             </div>
                         )}
                         {basico?.area_total > 0 && (
-                            <div className="flex flex-col items-center">
+                            <div className="flex flex-col items-center justify-center text-center w-24">
                                 <Square className="w-10 h-10 text-white/90 mb-2" strokeWidth={1.5} />
-                                <span className="text-white text-xl font-bold">{basico.area_total}m²</span>
+                                <span className="text-white text-2xl font-bold leading-none">{basico.area_total}</span>
+                                <span className="text-white/80 text-sm font-semibold mt-1">m²</span>
                             </div>
                         )}
                     </div>
@@ -153,33 +158,38 @@ export const CriativoStories = forwardRef<HTMLDivElement, any>(({ basico }, ref)
             <div className="z-20 mx-12 mb-48 flex flex-col">
                 <div className="grid grid-cols-3 gap-y-12 gap-x-6">
                     {basico?.quartos > 0 && (
-                        <div className="flex flex-col items-center text-center">
+                        <div className="flex flex-col items-center justify-center text-center">
                             <Bed className="w-12 h-12 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-2xl font-medium">{basico.quartos} Quartos</span>
+                            <span className="text-white text-3xl font-bold leading-none">{basico.quartos}</span>
+                            <span className="text-white/80 text-lg font-medium mt-1">Quartos</span>
                         </div>
                     )}
                     {basico?.banheiros > 0 && (
-                        <div className="flex flex-col items-center text-center">
+                        <div className="flex flex-col items-center justify-center text-center">
                             <Bath className="w-12 h-12 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-2xl font-medium">{basico.banheiros} Banheiros</span>
+                            <span className="text-white text-3xl font-bold leading-none">{basico.banheiros}</span>
+                            <span className="text-white/80 text-lg font-medium mt-1">Banheiros</span>
                         </div>
                     )}
                     {basico?.suites > 0 && (
-                        <div className="flex flex-col items-center text-center">
+                        <div className="flex flex-col items-center justify-center text-center">
                             <BedDouble className="w-12 h-12 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-2xl font-medium">{basico.suites} Suítes</span>
+                            <span className="text-white text-3xl font-bold leading-none">{basico.suites}</span>
+                            <span className="text-white/80 text-lg font-medium mt-1">Suítes</span>
                         </div>
                     )}
                     {basico?.vagas_garagem > 0 && (
-                        <div className="flex flex-col items-center text-center">
+                        <div className="flex flex-col items-center justify-center text-center">
                             <Car className="w-12 h-12 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-2xl font-medium">{basico.vagas_garagem} Vagas</span>
+                            <span className="text-white text-3xl font-bold leading-none">{basico.vagas_garagem}</span>
+                            <span className="text-white/80 text-lg font-medium mt-1">Vagas</span>
                         </div>
                     )}
                     {basico?.area_total > 0 && (
-                        <div className="flex flex-col items-center text-center">
+                        <div className="flex flex-col items-center justify-center text-center">
                             <Square className="w-12 h-12 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-2xl font-medium">{basico.area_total}m²</span>
+                            <span className="text-white text-3xl font-bold leading-none">{basico.area_total}</span>
+                            <span className="text-white/80 text-lg font-medium mt-1">m²</span>
                         </div>
                     )}
                 </div>
