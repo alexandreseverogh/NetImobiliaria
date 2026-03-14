@@ -221,11 +221,11 @@ export default function ImovelPDFPage() {
                     <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Atrativos</h2>
                 </div>
                 {amenidadesArray.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                         {amenidadesArray.map((item: any, idx: number) => (
                             <div key={idx} className="flex items-center bg-slate-50 border border-slate-100 p-3 rounded-lg">
                                 <CheckCircleIcon className="h-5 w-5 text-emerald-500 mr-2 flex-shrink-0" />
-                                <span className="text-sm font-medium text-slate-700 truncate">{item.nome}</span>
+                                <span className="text-sm font-medium text-slate-700">{item.nome}</span>
                             </div>
                         ))}
                     </div>
@@ -241,11 +241,11 @@ export default function ImovelPDFPage() {
                     <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Proximidades</h2>
                 </div>
                 {proximidadesArray.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                         {proximidadesArray.map((item: any, idx: number) => (
                             <div key={idx} className="flex items-center bg-slate-50 border border-slate-100 p-3 rounded-lg">
                                 <MapPinIcon className="h-5 w-5 text-rose-400 mr-2 flex-shrink-0" />
-                                <span className="text-sm font-medium text-slate-700 truncate">{item.nome}</span>
+                                <span className="text-sm font-medium text-slate-700">{item.nome}</span>
                             </div>
                         ))}
                     </div>
