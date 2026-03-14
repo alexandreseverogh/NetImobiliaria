@@ -29,16 +29,40 @@ export default function ImovelPDFPage() {
 
     useEffect(() => {
         if (dadosBasicos && dadosDetalhados && dadosCompletos) {
-            // Give layout a brief moment to render and images to load natively
-            const timer = setTimeout(() => {
-                setIsReadyForPrint(true)
-                // Use a proper event listener for after printing to close the window
-                window.onafterprint = () => {
-                    window.close();
-                };
-                window.print()
-            }, 1000)
-            return () => clearTimeout(timer)
+            let isCancelled = false;
+            let timer: any;
+            
+            const waitForImages = async () => {
+                const images = Array.from(document.querySelectorAll('img'));
+                
+                await Promise.all(images.map(img => {
+                    if (img.complete) return Promise.resolve();
+                    return new Promise(resolve => {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                    });
+                }));
+
+                if (isCancelled) return;
+                
+                // Allow browser to physically paint the decoded pixels
+                timer = setTimeout(() => {
+                    if (isCancelled) return;
+                    setIsReadyForPrint(true);
+                    window.onafterprint = () => { window.close(); };
+                    window.print();
+                }, 800);
+            };
+
+            // Allow React to mount the <img> elements to the DOM first
+            setTimeout(() => {
+                if (!isCancelled) waitForImages();
+            }, 200);
+
+            return () => {
+                isCancelled = true;
+                clearTimeout(timer);
+            };
         }
     }, [dadosBasicos, dadosDetalhados, dadosCompletos])
 
@@ -115,18 +139,12 @@ export default function ImovelPDFPage() {
 
                     {/* Detalhes Técnicos */}
                     <div className="w-1/2 flex flex-col justify-start">
-                        <div className="mb-6">
+                        <div className="mb-4">
                             <h3 className="text-3xl font-black leading-tight text-slate-900 mb-2">{dadosBasicos.titulo}</h3>
-                            <div className="text-sm bg-blue-600 text-white inline-block px-3 py-1 rounded-full font-bold mb-4">
+                            <div className="text-sm bg-blue-600 text-white inline-block px-3 py-1 rounded-full font-bold mb-2">
                                 {dadosBasicos.tipo_nome} - {dadosBasicos.finalidade_nome}
                             </div>
-                            {dadosBasicos.descricao && (
-                                <p className="text-[13px] text-slate-600 leading-relaxed mt-2 mb-4 text-justify pr-4">
-                                    {dadosBasicos.descricao}
-                                </p>
-                            )}
                         </div>
-                        
                         <div className="grid grid-cols-4 gap-2 mb-6 text-center">
                             <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-center">
                                 <span className="block text-[10px] uppercase font-bold text-slate-400 mb-0.5">Preço</span>
@@ -184,6 +202,16 @@ export default function ImovelPDFPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Descrição em Largura Total */}
+                {dadosBasicos.descricao && (
+                    <div className="mt-8 pt-6 border-t border-slate-200">
+                        <p className="font-bold text-slate-800 mb-2">Sobre o Imóvel:</p>
+                        <p className="text-[13px] text-slate-600 leading-relaxed text-justify">
+                            {dadosBasicos.descricao}
+                        </p>
+                    </div>
+                )}
             </section>
 
             {/* SEÇÃO 2: Atrativos (Amenidades) */}
