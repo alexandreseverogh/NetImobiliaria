@@ -9,6 +9,7 @@ import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import EstadoSelect from '@/components/shared/EstadoSelect'
 import { useApi } from '@/hooks/useApi'
 import ImovelGrid from '@/components/admin/ImovelGrid'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 
 export default function ImoveisPage() {
   '  '
@@ -28,7 +29,21 @@ export default function ImoveisPage() {
     status: '',
     corretor: '',
     proprietario: '',
-    proprietario_uuid: searchParams.get('proprietario_uuid') || ''
+    proprietario_uuid: searchParams.get('proprietario_uuid') || '',
+    // Filtros avançados
+    endereco: '',
+    preco_min: '',
+    preco_max: '',
+    area_min: '',
+    area_max: '',
+    quartos_min: '',
+    quartos_max: '',
+    banheiros_min: '',
+    banheiros_max: '',
+    suites_min: '',
+    suites_max: '',
+    vagas_min: '',
+    vagas_max: ''
   })
   const [appliedFilters, setAppliedFilters] = useState({
     codigo: '',
@@ -40,8 +55,23 @@ export default function ImoveisPage() {
     status: '',
     corretor: '',
     proprietario: '',
-    proprietario_uuid: searchParams.get('proprietario_uuid') || ''
+    proprietario_uuid: searchParams.get('proprietario_uuid') || '',
+    // Filtros avançados
+    endereco: '',
+    preco_min: '',
+    preco_max: '',
+    area_min: '',
+    area_max: '',
+    quartos_min: '',
+    quartos_max: '',
+    banheiros_min: '',
+    banheiros_max: '',
+    suites_min: '',
+    suites_max: '',
+    vagas_min: '',
+    vagas_max: ''
   })
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [tipos, setTipos] = useState<Array<{ id: string, nome: string }>>([])
   const [finalidades, setFinalidades] = useState<Array<{ id: string, nome: string }>>([])
   const [statusOptions, setStatusOptions] = useState<Array<{ id: string, nome: string }>>([])
@@ -231,7 +261,20 @@ export default function ImoveisPage() {
       status: '',
       corretor: '',
       proprietario: '',
-      proprietario_uuid: ''
+      proprietario_uuid: '',
+      endereco: '',
+      preco_min: '',
+      preco_max: '',
+      area_min: '',
+      area_max: '',
+      quartos_min: '',
+      quartos_max: '',
+      banheiros_min: '',
+      banheiros_max: '',
+      suites_min: '',
+      suites_max: '',
+      vagas_min: '',
+      vagas_max: ''
     }
     setFilters(emptyFilters)
     setAppliedFilters(emptyFilters)
@@ -444,23 +487,181 @@ export default function ImoveisPage() {
           </div>
 
           {/* Botões */}
-          <div className="col-span-1 flex gap-2">
+          <div className="col-span-1 flex flex-col gap-2">
             <button
               onClick={handleApplyFilters}
-              className="flex-1 bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-bold"
+              className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-bold"
               title="Filtrar"
             >
               OK
             </button>
             <button
               onClick={handleClearFilters}
-              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-md hover:bg-gray-300 transition-colors text-sm font-bold"
+              className="w-full bg-gray-200 text-gray-700 py-2 rounded-md hover:bg-gray-300 transition-colors text-sm font-bold"
               title="Limpar"
             >
               X
             </button>
           </div>
         </div>
+        
+        {/* Toggle Filtros Avançados */}
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-semibold transition-colors focus:outline-none"
+          >
+            {showAdvancedFilters ? (
+              <>Ocultar Filtros Avançados <ChevronUp className="w-4 h-4" /></>
+            ) : (
+              <>Filtros Avançados <ChevronDown className="w-4 h-4" /></>
+            )}
+          </button>
+        </div>
+
+        {/* Filtros Avançados Panel */}
+        {showAdvancedFilters && (
+          <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            {/* Preço */}
+            <div className="col-span-1 space-y-1">
+              <label className="block text-xs font-bold text-gray-700">Preço (Min/Max)</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={filters.preco_min}
+                  onChange={(e) => handleFilterChange('preco_min', e.target.value)}
+                  placeholder="Min"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <input
+                  type="number"
+                  value={filters.preco_max}
+                  onChange={(e) => handleFilterChange('preco_max', e.target.value)}
+                  placeholder="Max"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Área */}
+            <div className="col-span-1 space-y-1">
+              <label className="block text-xs font-bold text-gray-700">Área m² (Min/Max)</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={filters.area_min}
+                  onChange={(e) => handleFilterChange('area_min', e.target.value)}
+                  placeholder="Min"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <input
+                  type="number"
+                  value={filters.area_max}
+                  onChange={(e) => handleFilterChange('area_max', e.target.value)}
+                  placeholder="Max"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Quartos */}
+            <div className="col-span-1 space-y-1">
+              <label className="block text-xs font-bold text-gray-700">Quartos (Min/Max)</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={filters.quartos_min}
+                  onChange={(e) => handleFilterChange('quartos_min', e.target.value)}
+                  placeholder="Min"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <input
+                  type="number"
+                  value={filters.quartos_max}
+                  onChange={(e) => handleFilterChange('quartos_max', e.target.value)}
+                  placeholder="Max"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Banheiros */}
+            <div className="col-span-1 space-y-1">
+              <label className="block text-xs font-bold text-gray-700">Banheiros (Min/Max)</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={filters.banheiros_min}
+                  onChange={(e) => handleFilterChange('banheiros_min', e.target.value)}
+                  placeholder="Min"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <input
+                  type="number"
+                  value={filters.banheiros_max}
+                  onChange={(e) => handleFilterChange('banheiros_max', e.target.value)}
+                  placeholder="Max"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Suítes */}
+            <div className="col-span-1 space-y-1">
+              <label className="block text-xs font-bold text-gray-700">Suítes (Min/Max)</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={filters.suites_min}
+                  onChange={(e) => handleFilterChange('suites_min', e.target.value)}
+                  placeholder="Min"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <input
+                  type="number"
+                  value={filters.suites_max}
+                  onChange={(e) => handleFilterChange('suites_max', e.target.value)}
+                  placeholder="Max"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Vagas */}
+            <div className="col-span-1 space-y-1">
+              <label className="block text-xs font-bold text-gray-700">Garagem (Min/Max)</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={filters.vagas_min}
+                  onChange={(e) => handleFilterChange('vagas_min', e.target.value)}
+                  placeholder="Min"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <input
+                  type="number"
+                  value={filters.vagas_max}
+                  onChange={(e) => handleFilterChange('vagas_max', e.target.value)}
+                  placeholder="Max"
+                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Endereço */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-2 space-y-1">
+              <label className="block text-xs font-bold text-gray-700">Endereço (Rua, Av, Complemento)</label>
+              <input
+                type="text"
+                value={filters.endereco}
+                onChange={(e) => handleFilterChange('endereco', e.target.value)}
+                placeholder="Ex R. Augusta, 1500"
+                className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Grid de Imóveis */}

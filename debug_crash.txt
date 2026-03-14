@@ -201,3 +201,148 @@ Stack: error: column ic.cidade_nome does not exist
 URL: http://localhost:3001/api/admin/imoveis?bairro=Casa+Amarela&estado=PE&municipio=Recife
 ===================================
 
+
+=== ERROR 2026-03-14T19:20:31.880Z ===
+Message: column reference "quartos" is ambiguous
+Stack: error: column reference "quartos" is ambiguous
+    at C:\NetImobiliária\net-imobiliaria\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async listImoveis (webpack-internal:///(rsc)/./src/lib/database/imoveis.ts:361:28)
+    at async GET (webpack-internal:///(rsc)/./src/app/api/admin/imoveis/route.ts:229:25)
+    at async C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:818:17)
+    at async C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\start-server.js:141:13)
+URL: http://localhost:3000/api/admin/imoveis?quartos_min=3
+===================================
+
+
+=== ERROR 2026-03-14T19:20:42.949Z ===
+Message: column reference "quartos" is ambiguous
+Stack: error: column reference "quartos" is ambiguous
+    at C:\NetImobiliária\net-imobiliaria\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async listImoveis (webpack-internal:///(rsc)/./src/lib/database/imoveis.ts:361:28)
+    at async GET (webpack-internal:///(rsc)/./src/app/api/admin/imoveis/route.ts:229:25)
+    at async C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:818:17)
+    at async C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\start-server.js:141:13)
+URL: http://localhost:3000/api/admin/imoveis?quartos_min=3&quartos_max=3
+===================================
+
+
+=== ERROR 2026-03-14T19:21:08.247Z ===
+Message: column reference "banheiros" is ambiguous
+Stack: error: column reference "banheiros" is ambiguous
+    at C:\NetImobiliária\net-imobiliaria\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async listImoveis (webpack-internal:///(rsc)/./src/lib/database/imoveis.ts:361:28)
+    at async GET (webpack-internal:///(rsc)/./src/app/api/admin/imoveis/route.ts:229:25)
+    at async C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:818:17)
+    at async C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\start-server.js:141:13)
+URL: http://localhost:3000/api/admin/imoveis?banheiros_min=2&banheiros_max=2
+===================================
+
+
+=== ERROR 2026-03-14T19:21:21.437Z ===
+Message: column reference "banheiros" is ambiguous
+Stack: error: column reference "banheiros" is ambiguous
+    at C:\NetImobiliária\net-imobiliaria\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async listImoveis (webpack-internal:///(rsc)/./src/lib/database/imoveis.ts:361:28)
+    at async GET (webpack-internal:///(rsc)/./src/app/api/admin/imoveis/route.ts:229:25)
+    at async C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:818:17)
+    at async C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\start-server.js:141:13)
+URL: http://localhost:3000/api/admin/imoveis?banheiros_min=2&banheiros_max=2
+===================================
+
+
+=== ERROR 2026-03-14T19:21:31.056Z ===
+Message: column reference "banheiros" is ambiguous
+Stack: error: column reference "banheiros" is ambiguous
+    at C:\NetImobiliária\net-imobiliaria\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async listImoveis (webpack-internal:///(rsc)/./src/lib/database/imoveis.ts:361:28)
+    at async GET (webpack-internal:///(rsc)/./src/app/api/admin/imoveis/route.ts:229:25)
+    at async C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\base-server.js:818:17)
+    at async C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (C:\NetImobiliária\net-imobiliaria\node_modules\next\dist\server\lib\start-server.js:141:13)
+URL: http://localhost:3000/api/admin/imoveis?banheiros_min=2&banheiros_max=2
+===================================
+

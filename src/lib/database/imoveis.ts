@@ -87,6 +87,15 @@ export interface FiltroImovel {
   preco_max?: number
   quartos_min?: number
   area_min?: number
+  area_max?: number
+  quartos_max?: number
+  banheiros_min?: number
+  banheiros_max?: number
+  suites_min?: number
+  suites_max?: number
+  vagas_min?: number
+  vagas_max?: number
+  endereco?: string
   cidade?: string
   destaque?: boolean
   ativo?: boolean
@@ -216,38 +225,93 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
     let paramIndex = 1
 
     if (filtros.tipo_id) {
-      query += ` AND tipo_id = $${paramIndex}`
+      query += ` AND ic.tipo_id = $${paramIndex}`
       params.push(filtros.tipo_id)
       paramIndex++
     }
 
     if (filtros.status_id) {
-      query += ` AND status_id = $${paramIndex}`
+      query += ` AND ic.status_id = $${paramIndex}`
       params.push(filtros.status_id)
       paramIndex++
     }
 
     if (filtros.preco_min) {
-      query += ` AND preco >= $${paramIndex}`
+      query += ` AND i.preco >= $${paramIndex}`
       params.push(filtros.preco_min)
       paramIndex++
     }
 
     if (filtros.preco_max) {
-      query += ` AND preco <= $${paramIndex}`
+      query += ` AND i.preco <= $${paramIndex}`
       params.push(filtros.preco_max)
       paramIndex++
     }
 
     if (filtros.quartos_min) {
-      query += ` AND quartos >= $${paramIndex}`
+      query += ` AND i.quartos >= $${paramIndex}`
       params.push(filtros.quartos_min)
       paramIndex++
     }
 
+    if (filtros.quartos_max) {
+      query += ` AND i.quartos <= $${paramIndex}`
+      params.push(filtros.quartos_max)
+      paramIndex++
+    }
+
+    if (filtros.banheiros_min) {
+      query += ` AND i.banheiros >= $${paramIndex}`
+      params.push(filtros.banheiros_min)
+      paramIndex++
+    }
+
+    if (filtros.banheiros_max) {
+      query += ` AND i.banheiros <= $${paramIndex}`
+      params.push(filtros.banheiros_max)
+      paramIndex++
+    }
+
+    if (filtros.suites_min) {
+      query += ` AND i.suites >= $${paramIndex}`
+      params.push(filtros.suites_min)
+      paramIndex++
+    }
+
+    if (filtros.suites_max) {
+      query += ` AND i.suites <= $${paramIndex}`
+      params.push(filtros.suites_max)
+      paramIndex++
+    }
+
+    if (filtros.vagas_min) {
+      query += ` AND i.vagas_garagem >= $${paramIndex}`
+      params.push(filtros.vagas_min)
+      paramIndex++
+    }
+
+    if (filtros.vagas_max) {
+      query += ` AND i.vagas_garagem <= $${paramIndex}`
+      params.push(filtros.vagas_max)
+      paramIndex++
+    }
+
     if (filtros.area_min) {
-      query += ` AND area_total >= $${paramIndex}`
+      query += ` AND i.area_total >= $${paramIndex}`
       params.push(filtros.area_min)
+      paramIndex++
+    }
+
+    if (filtros.area_max) {
+      query += ` AND i.area_total <= $${paramIndex}`
+      params.push(filtros.area_max)
+      paramIndex++
+    }
+
+    if (filtros.endereco) {
+      // busca isolada em endereco e complemento usando ILIKE
+      query += ` AND (i.endereco ILIKE $${paramIndex} OR i.complemento ILIKE $${paramIndex})`
+      params.push(`%${filtros.endereco}%`)
       paramIndex++
     }
 
@@ -332,55 +396,55 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
 
     // Filtros legados (manter compatibilidade)
     if (filtros.codigo) {
-      query += ` AND codigo ILIKE $${paramIndex}`
+      query += ` AND i.codigo ILIKE $${paramIndex}`
       params.push(`%${filtros.codigo}%`)
       paramIndex++
     }
 
     if (filtros.estado) {
-      query += ` AND estado_nome = $${paramIndex}`
+      query += ` AND ic.estado_nome = $${paramIndex}`
       params.push(filtros.estado)
       paramIndex++
     }
 
     if (filtros.municipio) {
-      query += ` AND cidade_nome = $${paramIndex}`
+      query += ` AND ic.cidade_nome = $${paramIndex}`
       params.push(filtros.municipio)
       paramIndex++
     }
 
     if (filtros.tipo) {
-      query += ` AND tipo_nome = $${paramIndex}`
+      query += ` AND ic.tipo_nome = $${paramIndex}`
       params.push(filtros.tipo)
       paramIndex++
     }
 
     if (filtros.finalidade) {
-      query += ` AND finalidade_nome = $${paramIndex}`
+      query += ` AND ic.finalidade_nome = $${paramIndex}`
       params.push(filtros.finalidade)
       paramIndex++
     }
 
     if (filtros.status) {
-      query += ` AND status_nome = $${paramIndex}`
+      query += ` AND ic.status_nome = $${paramIndex}`
       params.push(filtros.status)
       paramIndex++
     }
 
     if (filtros.tipo_id) {
-      query += ` AND tipo_fk = $${paramIndex}`
+      query += ` AND i.tipo_fk = $${paramIndex}`
       params.push(filtros.tipo_id)
       paramIndex++
     }
 
     if (filtros.finalidade_id) {
-      query += ` AND finalidade_fk = $${paramIndex}`
+      query += ` AND i.finalidade_fk = $${paramIndex}`
       params.push(filtros.finalidade_id)
       paramIndex++
     }
 
     if (filtros.status_id) {
-      query += ` AND status_fk = $${paramIndex}`
+      query += ` AND i.status_fk = $${paramIndex}`
       params.push(filtros.status_id)
       paramIndex++
     }

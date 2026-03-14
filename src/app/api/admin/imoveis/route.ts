@@ -105,7 +105,20 @@ export async function GET(request: NextRequest) {
       (searchParams.get('finalidade') && searchParams.get('finalidade') !== '') ||
       (searchParams.get('status') && searchParams.get('status') !== '') ||
       (searchParams.get('corretor') && searchParams.get('corretor') !== '') ||
-      (searchParams.get('proprietario_uuid') && searchParams.get('proprietario_uuid') !== '')
+      (searchParams.get('proprietario_uuid') && searchParams.get('proprietario_uuid') !== '') ||
+      (searchParams.get('endereco') && searchParams.get('endereco') !== '') ||
+      (searchParams.get('quartos_min') && searchParams.get('quartos_min') !== '') ||
+      (searchParams.get('quartos_max') && searchParams.get('quartos_max') !== '') ||
+      (searchParams.get('banheiros_min') && searchParams.get('banheiros_min') !== '') ||
+      (searchParams.get('banheiros_max') && searchParams.get('banheiros_max') !== '') ||
+      (searchParams.get('suites_min') && searchParams.get('suites_min') !== '') ||
+      (searchParams.get('suites_max') && searchParams.get('suites_max') !== '') ||
+      (searchParams.get('vagas_min') && searchParams.get('vagas_min') !== '') ||
+      (searchParams.get('vagas_max') && searchParams.get('vagas_max') !== '') ||
+      (searchParams.get('preco_min') && searchParams.get('preco_min') !== '') ||
+      (searchParams.get('preco_max') && searchParams.get('preco_max') !== '') ||
+      (searchParams.get('area_min') && searchParams.get('area_min') !== '') ||
+      (searchParams.get('area_max') && searchParams.get('area_max') !== '')
 
     console.log('🔍 API - hasFilters:', hasFilters)
     console.log('🔍 API - page:', page, 'limit:', limit)
@@ -209,8 +222,44 @@ export async function GET(request: NextRequest) {
       filtros.quartos_min = safeParseInt(searchParams.get('quartos_min'), 0, 0)
     }
 
+    if (searchParams.get('quartos_max')) {
+      filtros.quartos_max = safeParseInt(searchParams.get('quartos_max'), 0, 0)
+    }
+
+    if (searchParams.get('banheiros_min')) {
+      filtros.banheiros_min = safeParseInt(searchParams.get('banheiros_min'), 0, 0)
+    }
+
+    if (searchParams.get('banheiros_max')) {
+      filtros.banheiros_max = safeParseInt(searchParams.get('banheiros_max'), 0, 0)
+    }
+
+    if (searchParams.get('suites_min')) {
+      filtros.suites_min = safeParseInt(searchParams.get('suites_min'), 0, 0)
+    }
+
+    if (searchParams.get('suites_max')) {
+      filtros.suites_max = safeParseInt(searchParams.get('suites_max'), 0, 0)
+    }
+
+    if (searchParams.get('vagas_min')) {
+      filtros.vagas_min = safeParseInt(searchParams.get('vagas_min'), 0, 0)
+    }
+
+    if (searchParams.get('vagas_max')) {
+      filtros.vagas_max = safeParseInt(searchParams.get('vagas_max'), 0, 0)
+    }
+
     if (searchParams.get('area_min')) {
       filtros.area_min = safeParseFloat(searchParams.get('area_min'), 0, 0)
+    }
+
+    if (searchParams.get('area_max')) {
+      filtros.area_max = safeParseFloat(searchParams.get('area_max'), 0, 0)
+    }
+
+    if (searchParams.get('endereco')) {
+      filtros.endereco = searchParams.get('endereco')
     }
 
     if (searchParams.get('cidade')) {
