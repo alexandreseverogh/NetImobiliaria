@@ -44,7 +44,7 @@ export default function HeroSection({ filterPanel, venderButton, destaquesNacion
               Anuncie seu imóvel ou encontre oportunidades para comprar ou alugar
             </h1>
             <p className="text-lg md:text-xl text-gray-300">
-              A Imovtec conecta proprietários, compradores e corretores em uma plataforma digital para anunciar, vender, comprar ou alugar imóveis com mais visibilidade.
+              A Imovitec conecta proprietários, compradores e corretores em uma plataforma digital para anunciar, vender, comprar ou alugar imóveis com mais visibilidade.
             </p>
           </div>
         </div>

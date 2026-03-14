@@ -77,7 +77,7 @@ class EmailServiceHybrid {
     this.templates.set('2fa-code', {
       id: 0,
       name: '2fa-code',
-      subject: 'Código de Verificação - Imovtec',
+      subject: 'Código de Verificação - Imovitec',
       html_content: `<!DOCTYPE html>
 <html>
 <head>

@@ -13,7 +13,7 @@ export default function Footer() {
           <div className="md:col-span-2">
             <div className="flex items-center mb-4">
               <Image
-                src="/imovtec-logo-definitive.png"
+                src="/imovitec-logo-definitive.png"
                 alt="Imovtec"
                 width={180}
                 height={60}
@@ -21,7 +21,7 @@ export default function Footer() {
               />
             </div>
             <p className="text-gray-300 mb-6 max-w-md">
-              A Imovtec é referência no mercado imobiliário de Recife,
+              A Imovitec é referência no mercado imobiliário de Recife,
               oferecendo os melhores imóveis com atendimento personalizado e profissional.
             </p>
 
@@ -38,21 +38,21 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-lg font-semibold mb-4">Links R\u00E1pidos</h3>
+            <h3 className="text-lg font-semibold mb-4">Links Rápidos</h3>
             <ul className="space-y-2">
               <li>
                 <Link href="/landpaging" className="text-gray-300 hover:text-white transition-colors">
-                  In\u00EDcio
+                  Início
                 </Link>
               </li>
               <li>
                 <Link href="/anunciar-imovel" className="text-gray-300 hover:text-white transition-colors">
-                  Anunciar Im\u00F3veis
+                  Anunciar Imóveis
                 </Link>
               </li>
               <li>
                 <Link href="/procurar-imovel" className="text-gray-300 hover:text-white transition-colors">
-                  Procurar Im\u00F3veis
+                  Procurar Imóveis
                 </Link>
               </li>
               <li>
@@ -98,7 +98,7 @@ export default function Footer() {
         <div className="border-t border-gray-800 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-400 text-sm">
-              © 2026 Imovtec. Todos os direitos reservados.
+              © 2026 Imovitec. Todos os direitos reservados.
             </p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <Link href="/privacidade" className="text-gray-400 hover:text-white text-sm transition-colors">

@@ -39,7 +39,7 @@ export default function ProfileBanners({
                       Quer vender ou alugar seu imóvel?
                     </div>
                     <p className="text-sm text-gray-600 mt-2">
-                      Anuncie gratuitamente na Imovtec e conecte seu imóvel a compradores e interessados em aluguel.
+                      Anuncie gratuitamente na Imovitec e conecte seu imóvel a compradores e interessados em aluguel.
                     </p>
                     <ul className="text-xs text-gray-600 mt-3 space-y-1">
                       <li>• Cadastro rápido do imóvel</li>
@@ -73,7 +73,7 @@ export default function ProfileBanners({
                       Encontre o imóvel ideal
                     </div>
                     <p className="text-sm text-gray-600 mt-2">
-                      Cadastre-se na Imovtec e descubra oportunidades de imóveis que realmente combinam com o que você procura.
+                      Cadastre-se na Imovitec e descubra oportunidades de imóveis que realmente combinam com o que você procura.
                     </p>
                     <ul className="text-xs text-gray-600 mt-3 space-y-1">
                       <li>• Alertas de novos imóveis no mercado</li>
@@ -107,7 +107,7 @@ export default function ProfileBanners({
                       Seja um corretor parceiro
                     </div>
                     <p className="text-sm text-gray-600 mt-2">
-                      Cadastre-se na Imovtec e conecte-se a proprietários e compradores interessados em vender, comprar ou alugar imóveis.
+                      Cadastre-se na Imovitec e conecte-se a proprietários e compradores interessados em vender, comprar ou alugar imóveis.
                     </p>
                     <ul className="text-xs text-gray-600 mt-3 space-y-1">
                       <li>• Receba leads e novas oportunidades de negócios</li>

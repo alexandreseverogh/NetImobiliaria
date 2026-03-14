@@ -36,7 +36,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
             <Link href="/admin/logo">
-              <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
             </Link>
           </div>
           <div className="flex-1 px-2 py-4">
@@ -257,7 +257,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
             <Link href="/admin/logo">
-              <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
             </Link>
           </div>
           <div className="flex-1 px-2 py-4">
@@ -276,7 +276,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
             <Link href="/admin/logo">
-              <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
             </Link>
           </div>
           <div className="flex-1 px-2 py-4">
@@ -308,7 +308,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
           <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
             <div className="flex h-16 items-center justify-between px-4">
               <Link href="/admin/logo">
-                <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-10 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+                <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-10 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
               </Link>
               <button
                 type="button"
@@ -368,7 +368,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
             <Link href="/admin/logo">
-              <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
             </Link>
           </div>
           <nav className="mt-8 flex-1 px-2 space-y-1">

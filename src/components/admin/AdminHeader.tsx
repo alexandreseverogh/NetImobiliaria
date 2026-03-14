@@ -21,7 +21,7 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
           <div className="flex justify-between items-center h-16">
             <div className="flex-1 flex items-center space-x-3">
               <Link href="/admin/logo">
-                <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+                <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
               </Link>
               <h1 className="text-lg font-semibold text-gray-900">
                 Área Administrativa
@@ -57,7 +57,7 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
           {/* Título da página */}
           <div className="flex-1 lg:flex-none flex items-center space-x-3">
             <Link href="/admin/logo">
-              <img src="/imovtec-logo-definitive.png" alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
             </Link>
             <h1 className="text-lg font-semibold text-gray-900">
               Área Administrativa

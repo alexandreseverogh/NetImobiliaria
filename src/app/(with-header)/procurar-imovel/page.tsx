@@ -44,7 +44,7 @@ export default function ProcurarImovelPage() {
                     </h1>
                     <div className="max-w-3xl mx-auto space-y-6">
                         <p className="text-xl md:text-2xl text-gray-300 font-medium">
-                            Descubra as melhores oportunidades do mercado imobiliário com a Imovtec.
+                            Descubra as melhores oportunidades do mercado imobiliário com a Imovitec.
                         </p>
                         <p className="text-lg text-gray-400">
                             Conectamos você a uma vasta seleção de casas, apartamentos e terrenos, garantindo uma experiência de busca moderna, rápida e segura.
@@ -67,7 +67,7 @@ export default function ProcurarImovelPage() {
             <section className="max-w-7xl mx-auto px-4 -mt-12">
                 <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 border border-gray-100">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-4">Por que buscar seu imóvel na Imovtec</h2>
+                        <h2 className="text-3xl font-bold text-gray-900 mb-4">Por que buscar seu imóvel na Imovitec</h2>
                         <p className="text-gray-600 max-w-2xl mx-auto">Nossa plataforma foi desenhada para facilitar cada etapa da sua jornada de compra ou aluguel.</p>
                     </div>
 
@@ -226,7 +226,7 @@ export default function ProcurarImovelPage() {
                     <div className="relative z-10">
                         <h2 className="text-4xl font-bold mb-6">O seu novo lar está aqui</h2>
                         <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-                            Milhares de pessoas utilizam a Imovtec todos os meses para realizar o sonho da casa própria ou encontrar o investimento perfeito.
+                            Milhares de pessoas utilizam a Imovitec todos os meses para realizar o sonho da casa própria ou encontrar o investimento perfeito.
                         </p>
                         <button
                             onClick={handleIrParaBusca}

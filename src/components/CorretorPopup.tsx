@@ -150,7 +150,7 @@ function CorretorManifestoDrawer({
                   </div>
 
                   <div className="rounded-2xl border border-gray-200 p-4">
-                    <h3 className="text-sm font-extrabold text-gray-900">O que a Imovtec acredita</h3>
+                    <h3 className="text-sm font-extrabold text-gray-900">O que a Imovitec acredita</h3>
                     <ul className="mt-2 space-y-2 text-sm text-gray-700 leading-relaxed">
                       <li className="flex gap-2">
                         <span className="text-blue-700 font-bold">•</span>

@@ -34,7 +34,7 @@ export const CriativoFeed = forwardRef<HTMLDivElement, any>(({ basico }, ref) =>
                 )}
                 {/* Logo */}
                 <div className="bg-white/95 backdrop-blur-md px-5 py-3 rounded-2xl shadow-2xl flex items-center">
-                    <img src="/imovtec-logo-definitive.png" alt="Imovtec" className="h-8 w-auto object-contain" crossOrigin="anonymous" />
+                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-8 w-auto object-contain" crossOrigin="anonymous" />
                 </div>
             </div>
 
@@ -137,7 +137,7 @@ export const CriativoStories = forwardRef<HTMLDivElement, any>(({ basico }, ref)
                 )}
                 {/* Logo Image */}
                 <div className="bg-white/95 backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl flex items-center">
-                    <img src="/imovtec-logo-definitive.png" alt="Imovtec" className="h-10 w-auto object-contain" crossOrigin="anonymous" />
+                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-10 w-auto object-contain" crossOrigin="anonymous" />
                 </div>
             </div>
 
@@ -261,7 +261,7 @@ export const CriativoCarrossel2 = forwardRef<HTMLDivElement, any>(({ basico, det
             </div>
             {/* Branding Final */}
             <div className="absolute top-12 left-12 bg-white/95 backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl flex items-center">
-                <img src="/imovtec-logo-definitive.png" alt="Imovtec" className="h-8 w-auto object-contain" crossOrigin="anonymous" />
+                <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-8 w-auto object-contain" crossOrigin="anonymous" />
             </div>
         </div>
     )

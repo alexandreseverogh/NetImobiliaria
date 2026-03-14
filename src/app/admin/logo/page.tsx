@@ -8,7 +8,7 @@ export default function AdminLogoPage() {
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
                 <div className="bg-gradient-to-r from-blue-700 to-indigo-800 p-8 text-white">
                     <h1 className="text-3xl font-bold">Gerenciamento de Identidade</h1>
-                    <p className="text-blue-100 mt-2">Visualize e gerencie as logos oficiais da plataforma Imovtec.</p>
+                    <p className="text-blue-100 mt-2">Visualize e gerencie as logos oficiais da plataforma Imovitec.</p>
                 </div>
 
                 <div className="p-8 space-y-12">
@@ -21,7 +21,7 @@ export default function AdminLogoPage() {
                         <div className="bg-slate-50 rounded-xl p-12 flex items-center justify-center border-2 border-dashed border-gray-200">
                             <div className="bg-white p-6 rounded-lg shadow-sm">
                                 <img
-                                    src="/imovtec-logo-definitive.png"
+                                    src="/imovitec-logo-definitive.png"
                                     alt="Imovtec Definitive Logo"
                                     className="max-h-48 w-auto h-auto object-contain"
                                 />
@@ -30,7 +30,7 @@ export default function AdminLogoPage() {
                         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded-lg">
                                 <p className="font-semibold text-gray-700 mb-1">Caminho do Arquivo:</p>
-                                <code>/public/imovtec-logo-definitive.png</code>
+                                <code>/public/imovitec-logo-definitive.png</code>
                             </div>
                             <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded-lg">
                                 <p className="font-semibold text-gray-700 mb-1">Uso Recomendado:</p>

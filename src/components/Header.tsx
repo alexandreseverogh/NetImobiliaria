@@ -219,7 +219,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
             <div className="flex-shrink-0 pl-4 sm:pl-6 lg:pl-8">
               <Link href="/" className="flex items-center">
                 <Image
-                  src="/imovtec-logo-definitive.png"
+                  src="/imovitec-logo-definitive.png"
                   alt="Imovtec Logo"
                   width={250}
                   height={85}
@@ -323,7 +323,7 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
                 {/* Logo */}
                 <div className="flex justify-center mb-6">
                   <Image
-                    src="/imovtec-logo-definitive.png"
+                    src="/imovitec-logo-definitive.png"
                     alt="Imovtec"
                     width={180}
                     height={60}

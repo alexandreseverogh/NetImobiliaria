@@ -31,7 +31,7 @@ class EmailServiceSimple {
       const mailOptions = {
         from: 'alexandreseverog@gmail.com',
         to: to,
-        subject: 'Código de Verificação - Imovtec',
+        subject: 'Código de Verificação - Imovitec',
         html: `
           <!DOCTYPE html>
           <html>

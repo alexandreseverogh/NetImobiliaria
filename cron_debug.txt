@@ -9421,3 +9421,35 @@
 [2026-03-14T17:50:02.415Z] GET /api/cron/transbordo called
 [2026-03-14T17:50:02.452Z] Found 0 expired assignments
 [2026-03-14T17:50:02.457Z] Found 0 expired assignments
+[2026-03-14T17:55:00.848Z] GET /api/cron/transbordo called
+[2026-03-14T17:55:00.849Z] GET /api/cron/transbordo called
+[2026-03-14T17:55:00.892Z] Found 0 expired assignments
+[2026-03-14T17:55:00.898Z] Found 0 expired assignments
+[2026-03-14T18:00:01.065Z] GET /api/cron/transbordo called
+[2026-03-14T18:00:01.067Z] GET /api/cron/transbordo called
+[2026-03-14T18:00:01.128Z] Found 0 expired assignments
+[2026-03-14T18:00:01.136Z] Found 0 expired assignments
+[2026-03-14T18:05:01.036Z] GET /api/cron/transbordo called
+[2026-03-14T18:05:01.039Z] GET /api/cron/transbordo called
+[2026-03-14T18:05:01.088Z] Found 0 expired assignments
+[2026-03-14T18:05:01.113Z] Found 0 expired assignments
+[2026-03-14T18:10:01.117Z] GET /api/cron/transbordo called
+[2026-03-14T18:10:01.120Z] GET /api/cron/transbordo called
+[2026-03-14T18:10:01.163Z] Found 0 expired assignments
+[2026-03-14T18:10:01.175Z] Found 0 expired assignments
+[2026-03-14T18:15:01.469Z] GET /api/cron/transbordo called
+[2026-03-14T18:15:01.472Z] GET /api/cron/transbordo called
+[2026-03-14T18:15:01.531Z] Found 0 expired assignments
+[2026-03-14T18:15:01.538Z] Found 0 expired assignments
+[2026-03-14T18:20:01.863Z] GET /api/cron/transbordo called
+[2026-03-14T18:20:01.868Z] GET /api/cron/transbordo called
+[2026-03-14T18:20:01.939Z] Found 0 expired assignments
+[2026-03-14T18:20:01.950Z] Found 0 expired assignments
+[2026-03-14T18:25:00.627Z] GET /api/cron/transbordo called
+[2026-03-14T18:25:00.628Z] GET /api/cron/transbordo called
+[2026-03-14T18:25:00.669Z] Found 0 expired assignments
+[2026-03-14T18:25:00.675Z] Found 0 expired assignments
+[2026-03-14T18:30:00.390Z] GET /api/cron/transbordo called
+[2026-03-14T18:30:00.392Z] GET /api/cron/transbordo called
+[2026-03-14T18:30:00.431Z] Found 0 expired assignments
+[2026-03-14T18:30:00.437Z] Found 0 expired assignments

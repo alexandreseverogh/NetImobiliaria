@@ -238,7 +238,7 @@ export default function GerarQRCodePage() {
                 <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
                   <h3 className="text-sm font-bold text-blue-800 mb-1">Como funciona?</h3>
                   <p className="text-xs text-blue-600 leading-relaxed">
-                    Este QR Code é gerado com base nos parâmetros oficiais da Imovtec.
+                    Este QR Code é gerado com base nos parâmetros oficiais da Imovitec.
                     Apresente-o ao cliente para realização do sinal de reserva ou taxas administrativas.
                   </p>
                 </div>
@@ -273,7 +273,7 @@ export default function GerarQRCodePage() {
                 {/* Topo do Recibo */}
                 <div className="bg-slate-900 p-8 text-white flex items-center justify-between">
                   <div>
-                    <img src="/imovtec-logo-definitive.png" alt="Imovtec" className="h-12 w-auto mx-auto" />
+                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-12 w-auto mx-auto" />
                     <p className="text-[10px] font-bold text-white/50 uppercase tracking-[0.3em] mt-3">Comprovante de Intenção</p>
                   </div>
                   <div className="text-right">
@@ -292,7 +292,7 @@ export default function GerarQRCodePage() {
                         level="H"
                         includeMargin={false}
                         imageSettings={{
-                          src: "/imovtec-logo-definitive.png",
+                          src: "/imovitec-logo-definitive.png",
                           x: undefined,
                           y: undefined,
                           height: 40,
@@ -344,7 +344,7 @@ export default function GerarQRCodePage() {
                 <div className="bg-slate-50 p-6 text-center border-t border-slate-100">
                   <div className="flex items-center justify-center gap-2 text-slate-400">
                     <Building2 className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Imovtec - Inteligência Imobiliária</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Imovitec - Inteligência Imobiliária</span>
                   </div>
                 </div>
               </div>

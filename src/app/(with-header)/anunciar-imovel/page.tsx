@@ -117,7 +117,7 @@ export default function AnunciarImovelPage() {
                             Quer anunciar seu imóvel para vender ou alugar com mais visibilidade?
                         </p>
                         <p className="text-lg text-gray-400">
-                            Na Imovtec, proprietários podem cadastrar casas, apartamentos, terrenos e imóveis comerciais de forma simples e rápida.
+                            Na Imovitec, proprietários podem cadastrar casas, apartamentos, terrenos e imóveis comerciais de forma simples e rápida.
                         </p>
                     </div>
 
@@ -141,14 +141,14 @@ export default function AnunciarImovelPage() {
                                 Nossa plataforma conecta proprietários, compradores, interessados em aluguel e corretores, facilitando o processo de negociação e ampliando as oportunidades de venda ou locação.
                             </p>
                             <p className="text-lg text-gray-700 leading-relaxed">
-                                Se você deseja vender um imóvel mais rápido ou alugar sua propriedade com mais alcance, anunciar na Imovtec pode ajudar você a encontrar interessados de forma eficiente.
+                                Se você deseja vender um imóvel mais rápido ou alugar sua propriedade com mais alcance, anunciar na Imovitec pode ajudar você a encontrar interessados de forma eficiente.
                             </p>
                         </div>
 
                         <div className="bg-gray-50 rounded-2xl p-8 border border-gray-100">
                             <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                                 <CheckBadgeIcon className="w-8 h-8 text-blue-600" />
-                                Por que anunciar na Imovtec
+                                Por que anunciar na Imovitec
                             </h2>
                             <ul className="space-y-4">
                                 {[

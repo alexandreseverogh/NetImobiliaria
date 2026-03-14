@@ -279,7 +279,7 @@ export default function VisitasPlataformaPage() {
                             <ChartBarIcon className="w-8 h-8 text-blue-600" />
                             Visitas Plataforma
                         </h1>
-                        <p className="text-gray-500 mt-1">Analytics de acesso ao site público www.imovtec.com.br</p>
+                        <p className="text-gray-500 mt-1">Analytics de acesso ao site público www.imovitec.com.br</p>
                     </div>
                     <button
                         onClick={() => setShowFilters(v => !v)}
