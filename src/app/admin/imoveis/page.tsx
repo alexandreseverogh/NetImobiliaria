@@ -202,9 +202,19 @@ export default function ImoveisPage() {
       const queryParams = new URLSearchParams()
       Object.entries(appliedFilters).forEach(([key, value]) => {
         if (value) {
+          let cleanValue = value as string
+          
+          // Se for filtro de preço, remover formatação (pontos e R$) para enviar apenas o número para a API
+          if (key === 'preco_min' || key === 'preco_max') {
+            const digits = cleanValue.replace(/\D/g, '')
+            if (digits) {
+              cleanValue = (Number(digits) / 100).toString()
+            }
+          }
+
           // Mapear 'proprietario' para 'proprietario_uuid' para a API
           const apiKey = key === 'proprietario' ? 'proprietario_uuid' : key
-          queryParams.append(apiKey, value as string)
+          queryParams.append(apiKey, cleanValue)
         }
       })
 
@@ -240,6 +250,25 @@ export default function ImoveisPage() {
 
   const handleFilterChange = (field: string, value: string) => {
     console.log('🔍 Filter change:', field, '=', value)
+    
+    // Se for um campo de preço, aplicar máscara de moeda brasileira
+    if (field === 'preco_min' || field === 'preco_max') {
+      const digits = value.replace(/\D/g, '')
+      if (!digits) {
+        setFilters(prev => ({ ...prev, [field]: '' }))
+        return
+      }
+      
+      const numericValue = Number(digits) / 100
+      const formatted = numericValue.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })
+      
+      setFilters(prev => ({ ...prev, [field]: formatted }))
+      return
+    }
+
     setFilters(prev => ({
       ...prev,
       [field]: value
@@ -527,20 +556,30 @@ export default function ImoveisPage() {
             <div className="col-span-1 space-y-1">
               <label className="block text-xs font-bold text-gray-700">Preço (Min/Max)</label>
               <div className="flex gap-2">
-                <input
-                  type="number"
-                  value={filters.preco_min}
-                  onChange={(e) => handleFilterChange('preco_min', e.target.value)}
-                  placeholder="Min"
-                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-                <input
-                  type="number"
-                  value={filters.preco_max}
-                  onChange={(e) => handleFilterChange('preco_max', e.target.value)}
-                  placeholder="Max"
-                  className="w-full px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
+                <div className="relative w-full">
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <span className="text-gray-400 text-xs font-bold">R$</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={filters.preco_min}
+                    onChange={(e) => handleFilterChange('preco_min', e.target.value)}
+                    placeholder="Min"
+                    className="w-full pl-7 pr-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+                <div className="relative w-full">
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <span className="text-gray-400 text-xs font-bold">R$</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={filters.preco_max}
+                    onChange={(e) => handleFilterChange('preco_max', e.target.value)}
+                    placeholder="Max"
+                    className="w-full pl-7 pr-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
               </div>
             </div>
 
