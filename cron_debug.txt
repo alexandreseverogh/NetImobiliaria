@@ -9453,3 +9453,11 @@
 [2026-03-14T18:30:00.392Z] GET /api/cron/transbordo called
 [2026-03-14T18:30:00.431Z] Found 0 expired assignments
 [2026-03-14T18:30:00.437Z] Found 0 expired assignments
+[2026-03-14T18:35:00.776Z] GET /api/cron/transbordo called
+[2026-03-14T18:35:00.779Z] GET /api/cron/transbordo called
+[2026-03-14T18:35:00.842Z] Found 0 expired assignments
+[2026-03-14T18:35:00.852Z] Found 0 expired assignments
+[2026-03-14T18:40:00.391Z] GET /api/cron/transbordo called
+[2026-03-14T18:40:00.394Z] GET /api/cron/transbordo called
+[2026-03-14T18:40:00.436Z] Found 0 expired assignments
+[2026-03-14T18:40:00.442Z] Found 0 expired assignments
