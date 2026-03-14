@@ -309,20 +309,20 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
     }
 
     if (filtros.endereco) {
-      // busca isolada em endereco e complemento usando ILIKE
-      query += ` AND (i.endereco ILIKE $${paramIndex} OR i.complemento ILIKE $${paramIndex})`
+      // busca isolada em endereco e complemento usando ILIKE e unaccent para ignorar acentos
+      query += ` AND (unaccent(i.endereco) ILIKE unaccent($${paramIndex}) OR unaccent(i.complemento) ILIKE unaccent($${paramIndex}))`
       params.push(`%${filtros.endereco}%`)
       paramIndex++
     }
 
     if (filtros.cidade) {
-      query += ` AND cidade_nome ILIKE $${paramIndex}`
+      query += ` AND unaccent(cidade_nome) ILIKE unaccent($${paramIndex})`
       params.push(`%${filtros.cidade}%`)
       paramIndex++
     }
 
     if (filtros.bairro) {
-      query += ` AND ic.bairro ILIKE $${paramIndex}`
+      query += ` AND unaccent(ic.bairro) ILIKE unaccent($${paramIndex})`
       params.push(`%${filtros.bairro}%`)
       paramIndex++
     }
