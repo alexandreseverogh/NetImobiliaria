@@ -126,16 +126,16 @@ function Pagination({ currentPage, totalPages, onPageChange, totalItems, itemsPe
 
 function ImovelCard({ imovel, onOpenCriativos }: { imovel: Imovel; onOpenCriativos: (id: number) => void }) {
   return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 overflow-hidden group">
+    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 overflow-hidden group flex flex-col h-full">
       {/* Header do Card com Código */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-3 py-2 flex justify-center">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-3 py-2 flex justify-center flex-shrink-0">
         <div className="bg-white/20 rounded px-2 py-0.5">
           <span className="text-white font-bold text-xs">{imovel.codigo || String(imovel.id).slice(-8)}</span>
         </div>
       </div>
 
       {/* Conteúdo do Card */}
-      <div className="p-3 space-y-2">
+      <div className="p-3 flex flex-col space-y-2 flex-grow">
         {/* Corretor */}
         <div className="flex items-center space-x-1 text-gray-600 text-xs">
           <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -232,24 +232,11 @@ function ImovelCard({ imovel, onOpenCriativos }: { imovel: Imovel; onOpenCriativ
           </div>
         </div>
 
-        {/* Detalhes Adicionais */}
-        {((imovel.varanda && imovel.varanda > 0) || imovel.andar || imovel.total_andares) && (
-          <div className="flex justify-between text-[10px] text-gray-600 truncate">
-            <div>
-              {imovel.varanda && imovel.varanda > 0 && (
-                <span>Varanda: {imovel.varanda}</span>
-              )}
-            </div>
-            <div className="flex space-x-1">
-              {imovel.andar && <span>Andar: {imovel.andar}</span>}
-              {imovel.total_andares && <span>de {imovel.total_andares}</span>}
-            </div>
-          </div>
-        )}
+
       </div>
 
       {/* Footer do Card - Ações */}
-      <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-3 py-2">
+      <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-3 py-2 mt-auto flex-shrink-0">
         <div className="flex items-center justify-center space-x-4">
           {/* Lupa - Visualização Pública */}
           <Link
@@ -276,15 +263,16 @@ function ImovelCard({ imovel, onOpenCriativos }: { imovel: Imovel; onOpenCriativ
           </Link>
 
           {/* Impressora - Imprimir Ficha */}
-          <button
-            onClick={() => { /* TODO: Implementar Impressão */ }}
+          <Link
+            href={`/imovel-pdf/${imovel.id}`}
+            target="_blank"
             className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded transition-colors duration-200"
             title="Imprimir Imóvel"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
-          </button>
+          </Link>
 
           {/* Varinha Mágica - Gerar Criativos (Mídias Sociais) */}
           <button
