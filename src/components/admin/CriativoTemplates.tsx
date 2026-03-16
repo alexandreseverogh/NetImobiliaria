@@ -102,24 +102,25 @@ export const CriativoFeed = forwardRef<HTMLDivElement, any>(({ basico }, ref) =>
                 </div>
             </div>
             {/* Footer */}
-            <div className="absolute bottom-6 inset-x-12 flex justify-between items-center z-20">
-                <div className="text-left bg-black/40 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/10">
-                    <p className="text-white/70 text-xs tracking-widest font-bold uppercase transition-all">
-                        REF: {basico?.codigo || basico?.id}
-                    </p>
-                    <p className="text-white text-sm font-black tracking-tight">
-                        imovtec.com.br/imoveis/{basico?.id}
-                    </p>
-                </div>
-                
-                {/* QR Code para facilitar o acesso */}
-                <div className="bg-white p-2 rounded-xl shadow-2xl border-2 border-white/20">
-                    <QRCodeCanvas 
-                        value={`https://www.imovtec.com.br/imoveis/${basico?.id}`} 
-                        size={80}
-                        level="H"
-                        includeMargin={false}
-                    />
+            <div className="absolute bottom-8 inset-x-12 flex justify-between items-end z-20">
+                <div className="flex items-center space-x-4">
+                    {/* QR Code na esquerda para não bater no preço */}
+                    <div className="bg-white p-2 rounded-xl shadow-2xl border-2 border-white/20">
+                        <QRCodeCanvas 
+                            value={`https://www.imovtec.com.br/imoveis/${basico?.id}`} 
+                            size={100}
+                            level="H"
+                            includeMargin={false}
+                        />
+                    </div>
+                    <div className="text-left bg-black/40 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10">
+                        <p className="text-white/70 text-xs tracking-widest font-bold uppercase">
+                            REF: {basico?.codigo || basico?.id}
+                        </p>
+                        <p className="text-white text-sm font-black tracking-tight">
+                            imovtec.com.br/imoveis/{basico?.id}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -226,23 +227,25 @@ export const CriativoStories = forwardRef<HTMLDivElement, any>(({ basico }, ref)
                     <ExternalLink className="w-10 h-10 text-white" />
                 </div>
                 
-                {/* Link Visível e QR Code Box */}
-                <div className="bg-white/95 backdrop-blur-md p-6 rounded-[2rem] shadow-2xl border-2 border-white/20 flex flex-col items-center max-w-[80%] mx-auto">
-                    <div className="mb-4">
+                {/* Link Visível e QR Code Box - Movido para não sobrepor o preço */}
+                <div className="bg-white/95 backdrop-blur-md p-8 rounded-[2.5rem] shadow-2xl border-2 border-white/20 flex items-center space-x-8 max-w-[90%] mx-auto">
+                    <div className="bg-white p-2 rounded-xl shadow-inner border border-slate-100">
                         <QRCodeCanvas 
                             value={`https://www.imovtec.com.br/imoveis/${basico?.id}`} 
-                            size={140}
+                            size={180}
                             level="H"
                         />
                     </div>
-                    <p className="text-slate-900 text-3xl font-black tracking-tight uppercase">
-                        Acesse agora pelo Link
-                    </p>
-                    <p className="text-blue-600 text-xl font-bold mt-1">
-                        imovtec.com.br/imoveis/{basico?.id}
-                    </p>
+                    <div className="text-left">
+                        <p className="text-blue-600 text-3xl font-black tracking-tight uppercase">
+                            Acesse o Site
+                        </p>
+                        <p className="text-slate-900 text-2xl font-bold mt-1">
+                            imovtec.com.br/imoveis/{basico?.id}
+                        </p>
+                        <p className="text-slate-500 text-xl mt-2 font-medium">Ref: {basico?.codigo}</p>
+                    </div>
                 </div>
-                <p className="text-white/80 text-lg mt-6 font-medium">Ref: {basico?.codigo}</p>
             </div>
         </div>
     )
