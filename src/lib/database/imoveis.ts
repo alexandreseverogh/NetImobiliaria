@@ -7,6 +7,7 @@ export interface Imovel {
   codigo: string
   titulo: string
   descricao?: string
+  observacoes?: string
   tipo_fk: number
   finalidade_fk: number
   status_fk: number
@@ -309,20 +310,22 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
     }
 
     if (filtros.endereco) {
-      // busca isolada em endereco e complemento usando ILIKE e unaccent para ignorar acentos
-      query += ` AND (unaccent(i.endereco) ILIKE unaccent($${paramIndex}) OR unaccent(i.complemento) ILIKE unaccent($${paramIndex}))`
+      // busca isolada em endereco e complemento usando ILIKE e nossa função otimizada para usar os índices da VPS
+      query += ` AND (immutable_unaccent(i.endereco::text) ILIKE immutable_unaccent($${paramIndex}::text) OR immutable_unaccent(i.complemento::text) ILIKE immutable_unaccent($${paramIndex}::text))`
       params.push(`%${filtros.endereco}%`)
       paramIndex++
     }
 
     if (filtros.cidade) {
-      query += ` AND unaccent(cidade_nome) ILIKE unaccent($${paramIndex})`
+      // Usando i.cidade_fk (coluna indexada) em vez da view para garantir performance
+      query += ` AND immutable_unaccent(i.cidade_fk::text) ILIKE immutable_unaccent($${paramIndex}::text)`
       params.push(`%${filtros.cidade}%`)
       paramIndex++
     }
 
     if (filtros.bairro) {
-      query += ` AND unaccent(ic.bairro) ILIKE unaccent($${paramIndex})`
+      // Usando i.bairro (coluna indexada) para usar o índice da VPS
+      query += ` AND immutable_unaccent(i.bairro::text) ILIKE immutable_unaccent($${paramIndex}::text)`
       params.push(`%${filtros.bairro}%`)
       paramIndex++
     }
@@ -527,20 +530,20 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
 
     const query = `
       INSERT INTO imoveis (
-        codigo, titulo, descricao, tipo_fk, finalidade_fk, status_fk, proprietario_uuid, preco, preco_condominio, 
+        codigo, titulo, descricao, observacoes, tipo_fk, finalidade_fk, status_fk, proprietario_uuid, preco, preco_condominio, 
         preco_iptu, taxa_extra, area_total, area_construida, quartos, banheiros, suites, 
         vagas_garagem, varanda, endereco, numero, complemento, bairro, cidade_fk, estado_fk, cep, latitude, longitude,
         ano_construcao, andar, total_andares, mobiliado, aceita_permuta, 
         aceita_financiamento, destaque, lancamento, origem_cadastro, created_by, corretor_fk
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 
-        $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, 
-        $31, $32, $33, $34, $35, $36, $37, $38
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 
+        $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, 
+        $31, $32, $33, $34, $35, $36, $37, $38, $39
       ) RETURNING *
     `
 
     const values = [
-      imovel.codigo, imovel.titulo, imovel.descricao, imovel.tipo_fk, imovel.finalidade_fk, imovel.status_fk,
+      imovel.codigo, imovel.titulo, imovel.descricao, imovel.observacoes, imovel.tipo_fk, imovel.finalidade_fk, imovel.status_fk,
       proprietarioUuid,
       imovel.preco ?? 0, imovel.preco_condominio ?? 0, imovel.preco_iptu ?? 0, imovel.taxa_extra, imovel.area_total ?? 0,
       imovel.area_construida ?? 0, imovel.quartos ?? 0, imovel.banheiros ?? 0, imovel.suites ?? 0,

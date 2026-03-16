@@ -226,6 +226,7 @@ export default function EditarImovelPage() {
         codigo: imovel.codigo,
         titulo: imovel.titulo,
         descricao: imovel.descricao,
+        observacoes: imovel.observacoes,
         endereco: {
           endereco: imovel.endereco,
           numero: imovel.numero,

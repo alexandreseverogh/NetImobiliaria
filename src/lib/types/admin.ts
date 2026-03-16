@@ -82,6 +82,7 @@ export interface Imovel {
   codigo?: string
   titulo: string
   descricao: string
+  observacoes?: string
   tipo: 'CASA' | 'APARTAMENTO' | 'COBERTURA' | 'TERRENO' | 'COMERCIAL' | 'RURAL'
   finalidade: 'VENDA' | 'ALUGUEL' | 'TEMPORADA'
   tipo_fk?: string | number

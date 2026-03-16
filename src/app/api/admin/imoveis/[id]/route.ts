@@ -873,51 +873,53 @@ export async function PUT(
       UPDATE imoveis SET
         titulo = $1,
         descricao = $2,
-        endereco = $3,
-        numero = $4,
-        complemento = $5,
-        bairro = $6,
-        cidade_fk = $7,
-        estado_fk = $8,
-        cep = $9,
-        latitude = $10,
-        longitude = $11,
-        preco = $12,
-        preco_condominio = $13,
-        preco_iptu = $14,
-        taxa_extra = $15,
-        area_total = $16,
-        area_construida = $17,
-        quartos = $18,
-        banheiros = $19,
-        suites = $20,
-        varanda = $21,
-        vagas_garagem = $22,
-        andar = $23,
-        total_andares = $24,
-        mobiliado = $25,
-        aceita_permuta = $26,
-        aceita_financiamento = $27,
-        tipo_fk = $28,
-        finalidade_fk = $29,
-        status_fk = $30,
-        proprietario_uuid = $31,
-        destaque = $32,
-        lancamento = $33,
-        updated_by = $34,
+        observacoes = $3,
+        endereco = $4,
+        numero = $5,
+        complemento = $6,
+        bairro = $7,
+        cidade_fk = $8,
+        estado_fk = $9,
+        cep = $10,
+        latitude = $11,
+        longitude = $12,
+        preco = $13,
+        preco_condominio = $14,
+        preco_iptu = $15,
+        taxa_extra = $16,
+        area_total = $17,
+        area_construida = $18,
+        quartos = $19,
+        banheiros = $20,
+        suites = $21,
+        varanda = $22,
+        vagas_garagem = $23,
+        andar = $24,
+        total_andares = $25,
+        mobiliado = $26,
+        aceita_permuta = $27,
+        aceita_financiamento = $28,
+        tipo_fk = $29,
+        finalidade_fk = $30,
+        status_fk = $31,
+        proprietario_uuid = $32,
+        destaque = $33,
+        lancamento = $34,
+        updated_by = $35,
         updated_at = NOW()
-      WHERE id = $35
+      WHERE id = $36
     `
 
     console.log('🔍 ========== PREPARANDO UPDATE NO BANCO ==========')
-    console.log('🔍 Latitude que será salva ($10):', latitude)
-    console.log('🔍 Longitude que será salva ($11):', longitude)
+    console.log('🔍 Latitude que será salva ($11):', latitude)
+    console.log('🔍 Longitude que será salva ($12):', longitude)
     console.log('🔍 Tipo de latitude:', typeof latitude)
     console.log('🔍 Tipo de longitude:', typeof longitude)
 
     const values = [
       data.titulo,
       data.descricao,
+      data.observacoes,
       data.endereco?.endereco,
       data.endereco?.numero,
       data.endereco?.complemento,
@@ -925,32 +927,32 @@ export async function PUT(
       data.endereco?.cidade,
       data.endereco?.estado,
       data.endereco?.cep,
-      latitude, // $10 - latitude
-      longitude, // $11 - longitude
-      converterValorNumerico(data.preco), // $12 - Convertido
-      converterValorNumerico(data.precoCondominio), // $13 - Convertido
-      converterValorNumerico(data.precoIPTU), // $14 - Convertido
-      converterValorNumerico(data.taxaExtra), // $15 - Convertido
-      converterValorNumerico(data.areaTotal), // $16 - Convertido
-      converterValorNumerico(data.areaConstruida), // $17 - Convertido
-      converterValorNumerico(data.quartos), // $18 - Convertido
-      converterValorNumerico(data.banheiros), // $19 - Convertido
-      converterValorNumerico(data.suites), // $20 - Convertido
-      converterValorNumerico(data.varanda), // $21 - Convertido
-      converterValorNumerico(data.vagasGaragem), // $22 - Convertido
-      converterValorNumerico(data.andar), // $23 - Convertido
-      converterValorNumerico(data.totalAndares), // $24 - Convertido
+      latitude, // $11 - latitude
+      longitude, // $12 - longitude
+      converterValorNumerico(data.preco), // $13 - Convertido
+      converterValorNumerico(data.precoCondominio), // $14 - Convertido
+      converterValorNumerico(data.precoIPTU), // $15 - Convertido
+      converterValorNumerico(data.taxaExtra), // $16 - Convertido
+      converterValorNumerico(data.areaTotal), // $17 - Convertido
+      converterValorNumerico(data.areaConstruida), // $18 - Convertido
+      converterValorNumerico(data.quartos), // $19 - Convertido
+      converterValorNumerico(data.banheiros), // $20 - Convertido
+      converterValorNumerico(data.suites), // $21 - Convertido
+      converterValorNumerico(data.varanda), // $22 - Convertido
+      converterValorNumerico(data.vagasGaragem), // $23 - Convertido
+      converterValorNumerico(data.andar), // $24 - Convertido
+      converterValorNumerico(data.totalAndares), // $25 - Convertido
       data.mobiliado,
       data.aceita_permuta ?? data.aceitaPermuta,
       data.aceita_financiamento ?? data.aceitaFinanciamento,
       data.tipo_fk,
       data.finalidade_fk,
       data.status_fk,
-      proprietarioUuidNormalizado, // $31
-      data.destaque !== undefined ? data.destaque : destaqueAtual, // $32
-      data.lancamento !== undefined ? data.lancamento : false, // $33 - lancamento (default false)
-      isOwner ? null : currentUserId, // $34 - updated_by
-      imovelId // $35 - WHERE id
+      proprietarioUuidNormalizado, // $32
+      data.destaque !== undefined ? data.destaque : destaqueAtual, // $33
+      data.lancamento !== undefined ? data.lancamento : false, // $34 - lancamento (default false)
+      isOwner ? null : currentUserId, // $35 - updated_by
+      imovelId // $36 - WHERE id
     ]
 
     // Executar todas as operações em paralelo para melhor performance

@@ -1875,6 +1875,28 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
         </div>
       )}
 
+      {/* Observações Internas */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <span className="bg-blue-100 text-blue-600 p-2 rounded-lg mr-3">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </span>
+          Observações Internas
+        </h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Espaço destinado para anotações internas sobre o imóvel. Este campo não será exibido no site público.
+        </p>
+        <textarea
+          value={data.observacoes || ''}
+          onChange={(e) => onUpdate({ observacoes: e.target.value })}
+          rows={5}
+          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
+          placeholder="Digite aqui observações relevantes sobre o imóvel (ex: chaves com vizinho, urgência na venda, etc...)"
+        />
+      </div>
+
       {/* Resumo */}
       <div className="bg-gray-50 rounded-lg p-4">
         <h4 className="text-sm font-medium text-gray-900 mb-2">Resumo da Mídia</h4>
