@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import pool from '@/lib/database/connection'

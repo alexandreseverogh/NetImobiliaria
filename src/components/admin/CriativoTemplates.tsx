@@ -1,6 +1,5 @@
 import React, { forwardRef } from 'react'
-import { Bed, BedDouble, Bath, Car, Square, Sparkles, MapPin, ExternalLink } from 'lucide-react'
-import { QRCodeCanvas } from 'qrcode.react'
+import { Bed, BedDouble, Bath, Car, Square, Sparkles, MapPin } from 'lucide-react'
 
 // Util function to format money
 const formatMoney = (val: number | undefined) => {
@@ -102,25 +101,11 @@ export const CriativoFeed = forwardRef<HTMLDivElement, any>(({ basico }, ref) =>
                 </div>
             </div>
             {/* Footer */}
-            <div className="absolute bottom-8 inset-x-12 flex justify-between items-end z-20">
-                <div className="flex items-center space-x-4">
-                    {/* QR Code na esquerda para não bater no preço */}
-                    <div className="bg-white p-2 rounded-xl shadow-2xl border-2 border-white/20">
-                        <QRCodeCanvas 
-                            value={`https://www.imovtec.com.br/imoveis/${basico?.id}`} 
-                            size={100}
-                            level="H"
-                            includeMargin={false}
-                        />
-                    </div>
-                    <div className="text-left bg-black/40 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10">
-                        <p className="text-white/70 text-xs tracking-widest font-bold uppercase">
-                            REF: {basico?.codigo || basico?.id}
-                        </p>
-                        <p className="text-white text-sm font-black tracking-tight">
-                            imovtec.com.br/imoveis/{basico?.id}
-                        </p>
-                    </div>
+            <div className="absolute bottom-10 inset-x-0 text-center z-20">
+                <div className="inline-block bg-black/40 backdrop-blur-md px-6 py-2 rounded-full border border-white/10">
+                    <p className="text-white/90 text-sm tracking-[0.2em] font-bold uppercase">
+                        {basico?.codigo || basico?.id} • IMOVTEC.COM.BR
+                    </p>
                 </div>
             </div>
         </div>
@@ -221,31 +206,12 @@ export const CriativoStories = forwardRef<HTMLDivElement, any>(({ basico }, ref)
                 </div>
             </div>
 
-            {/* Instruction for Sticker / Link */}
-            <div className="absolute bottom-16 inset-x-0 text-center z-20 flex flex-col items-center">
-                <div className="animate-bounce w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-6 shadow-2xl border-4 border-white">
-                    <ExternalLink className="w-10 h-10 text-white" />
-                </div>
-                
-                {/* Link Visível e QR Code Box - Movido para não sobrepor o preço */}
-                <div className="bg-white/95 backdrop-blur-md p-8 rounded-[2.5rem] shadow-2xl border-2 border-white/20 flex items-center space-x-8 max-w-[90%] mx-auto">
-                    <div className="bg-white p-2 rounded-xl shadow-inner border border-slate-100">
-                        <QRCodeCanvas 
-                            value={`https://www.imovtec.com.br/imoveis/${basico?.id}`} 
-                            size={180}
-                            level="H"
-                        />
-                    </div>
-                    <div className="text-left">
-                        <p className="text-blue-600 text-3xl font-black tracking-tight uppercase">
-                            Acesse o Site
-                        </p>
-                        <p className="text-slate-900 text-2xl font-bold mt-1">
-                            imovtec.com.br/imoveis/{basico?.id}
-                        </p>
-                        <p className="text-slate-500 text-xl mt-2 font-medium">Ref: {basico?.codigo}</p>
-                    </div>
-                </div>
+            {/* Footer Instruction (Clean) */}
+            <div className="absolute bottom-20 inset-x-0 text-center z-20">
+                <p className="text-white text-3xl font-black tracking-widest uppercase drop-shadow-md">
+                    imovtec.com.br
+                </p>
+                <p className="text-white/70 text-xl mt-2 font-medium">Ref: {basico?.codigo}</p>
             </div>
         </div>
     )
@@ -342,21 +308,11 @@ export const CriativoCarrossel3 = forwardRef<HTMLDivElement, any>(({ basico, det
                 ) : null}
             </div>
 
-            {/* Bottom Call to Action */}
-            <div className="z-10 w-full bg-blue-600/95 backdrop-blur-md p-12 flex items-center justify-between shadow-2xl border-t border-white/20">
-                <div className="flex items-center space-x-8">
-                    <div className="bg-white p-3 rounded-2xl shadow-xl">
-                        <QRCodeCanvas 
-                            value={`https://www.imovtec.com.br/imoveis/${basico?.id}`} 
-                            size={120}
-                            level="H"
-                        />
-                    </div>
-                    <div>
-                         <p className="text-white/90 text-2xl uppercase tracking-widest font-bold mb-1">Ref: {basico?.codigo}</p>
-                         <p className="text-white text-4xl font-black">Escaneie ou acesse pelo link:</p>
-                         <p className="text-blue-100 text-2xl font-medium mt-1">imovtec.com.br/imoveis/{basico?.id}</p>
-                    </div>
+            {/* Bottom Call to Action (Design Clean) */}
+            <div className="z-10 w-full bg-blue-600/95 backdrop-blur-md p-10 flex items-center justify-center shadow-2xl border-t border-white/20">
+                <div className="text-center">
+                     <p className="text-white/80 text-xl uppercase tracking-[0.3em] font-bold mb-2">Imovtec Imobiliária Digital</p>
+                     <p className="text-white text-4xl font-black">Consulte este imóvel em nosso site usando a REF: {basico?.codigo}</p>
                 </div>
             </div>
         </div>

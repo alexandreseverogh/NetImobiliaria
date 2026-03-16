@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'

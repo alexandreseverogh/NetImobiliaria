@@ -228,85 +228,101 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                         <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 space-y-4">
                                             <h4 className="text-blue-900 font-bold text-sm flex items-center">
                                                 <ShareIcon className="w-4 h-4 mr-2" />
-                                                Compartilhar Acesso Direto
+                                                Compartilhar Imóvel
                                             </h4>
                                             <p className="text-blue-800 text-xs leading-relaxed">
-                                                Imagens são estáticas. Para que os clientes cliquem e acessem o site, **copie o link abaixo** e cole na legenda ao enviar as fotos.
+                                                Para que os clientes acessem o site, envie este link junto com a foto:
                                             </p>
                                             
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <button
-                                                    onClick={handleCopyLink}
-                                                    className="flex items-center justify-center space-x-2 bg-white border border-blue-200 text-blue-700 hover:bg-blue-100 px-3 py-2.5 rounded-lg text-xs font-bold transition-colors"
-                                                >
-                                                    <ClipboardDocumentIcon className="w-4 h-4" />
-                                                    <span>Copiar Link</span>
-                                                </button>
-                                                <button
-                                                    onClick={handleShareWhatsApp}
-                                                    className="flex items-center justify-center space-x-2 bg-green-500 text-white hover:bg-green-600 px-3 py-2.5 rounded-lg text-xs font-bold transition-colors shadow-sm"
-                                                >
-                                                    <ShareIcon className="w-4 h-4" />
-                                                    <span>WhatsApp</span>
-                                                </button>
-                                            </div>
-
-                                            <div className="pt-2">
-                                                <p className="text-[10px] text-blue-600 text-center font-medium italic">
-                                                    * O link acompanha o QR Code gerado na imagem.
-                                                </p>
-                                            </div>
+                                            <button
+                                                onClick={handleShareWhatsApp}
+                                                className="w-full flex items-center justify-center space-x-2 bg-green-500 text-white hover:bg-green-600 px-4 py-3 rounded-lg text-sm font-bold transition-colors shadow-md"
+                                            >
+                                                <ShareIcon className="w-5 h-5" />
+                                                <span>Enviar pelo WhatsApp</span>
+                                            </button>
                                         </div>
                                     </div>
 
                                     {/* Preview Area Central */}
-                                    <div className="w-full md:w-2/3 bg-slate-200/50 rounded-xl overflow-auto flex items-center justify-center p-4 md:p-8 border border-slate-300 relative min-h-[600px] custom-scrollbar">
-                                        {dadosBasicos ? (
-                                            <div 
-                                                style={{ 
-                                                    width: (formato === 'stories' ? 1080 : formato === 'carrossel' ? (1080 * 3) + 96 : 1080) * (formato === 'carrossel' ? 0.25 : 0.35), 
-                                                    height: (formato === 'stories' ? 1920 : 1080) * (formato === 'carrossel' ? 0.25 : 0.35), 
-                                                    position: 'relative' 
-                                                }}
-                                                className="pointer-events-none mx-auto"
-                                            >
+                                    <div className="w-full md:w-2/3 flex flex-col gap-4">
+                                        <div className="bg-slate-200/50 rounded-xl overflow-auto flex items-center justify-center p-4 md:p-8 border border-slate-300 relative min-h-[600px] custom-scrollbar">
+                                            {dadosBasicos ? (
                                                 <div 
                                                     style={{ 
-                                                        transform: `scale(${formato === 'carrossel' ? 0.25 : 0.35})`, 
-                                                        transformOrigin: 'top left',
-                                                        width: formato === 'stories' ? 1080 : formato === 'carrossel' ? (1080 * 3) + 96 : 1080,
-                                                        height: formato === 'stories' ? 1920 : 1080,
-                                                        position: 'absolute',
-                                                        top: 0,
-                                                        left: 0
+                                                        width: (formato === 'stories' ? 1080 : formato === 'carrossel' ? (1080 * 3) + 96 : 1080) * (formato === 'carrossel' ? 0.25 : 0.35), 
+                                                        height: (formato === 'stories' ? 1920 : 1080) * (formato === 'carrossel' ? 0.25 : 0.35), 
+                                                        position: 'relative' 
                                                     }}
+                                                    className="pointer-events-none mx-auto"
                                                 >
-                                                    {formato === 'feed' && <CriativoFeed basico={dadosBasicos} />}
-                                                    {formato === 'stories' && <CriativoStories basico={dadosBasicos} />}
-                                                    {formato === 'carrossel' && (
-                                                        <div className="flex space-x-12">
-                                                            <CriativoFeed basico={dadosBasicos} />
-                                                            <CriativoCarrossel2 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} />
-                                                            <CriativoCarrossel3 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} />
-                                                        </div>
+                                                    <div 
+                                                        style={{ 
+                                                            transform: `scale(${formato === 'carrossel' ? 0.25 : 0.35})`, 
+                                                            transformOrigin: 'top left',
+                                                            width: formato === 'stories' ? 1080 : formato === 'carrossel' ? (1080 * 3) + 96 : 1080,
+                                                            height: formato === 'stories' ? 1920 : 1080,
+                                                            position: 'absolute',
+                                                            top: 0,
+                                                            left: 0
+                                                        }}
+                                                    >
+                                                        {formato === 'feed' && <CriativoFeed basico={dadosBasicos} />}
+                                                        {formato === 'stories' && <CriativoStories basico={dadosBasicos} />}
+                                                        {formato === 'carrossel' && (
+                                                            <div className="flex space-x-12">
+                                                                <CriativoFeed basico={dadosBasicos} />
+                                                                <CriativoCarrossel2 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} />
+                                                                <CriativoCarrossel3 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="text-center">
+                                                    {(loading.basico || loading.detalhado || loading.completo) ? (
+                                                        <>
+                                                            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+                                                            <h3 className="text-xl font-bold text-slate-700">Carregando Estúdio...</h3>
+                                                            <p className="text-slate-500">Montando os dados do imóvel...</p>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <SparklesIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+                                                            <h3 className="text-xl font-bold text-slate-700">Preview do Estúdio</h3>
+                                                            <p className="text-slate-500">O esqueleto do design arquitetural será processado aqui.</p>
+                                                        </>
                                                     )}
                                                 </div>
-                                            </div>
-                                        ) : (
-                                            <div className="text-center">
-                                                {(loading.basico || loading.detalhado || loading.completo) ? (
-                                                    <>
-                                                        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-                                                        <h3 className="text-xl font-bold text-slate-700">Carregando Estúdio...</h3>
-                                                        <p className="text-slate-500">Montando os dados do imóvel...</p>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <SparklesIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-                                                        <h3 className="text-xl font-bold text-slate-700">Preview do Estúdio</h3>
-                                                        <p className="text-slate-500">O esqueleto do design arquitetural será processado aqui.</p>
-                                                    </>
-                                                )}
+                                            )}
+                                        </div>
+
+                                        {/* Barra de Link Clicável (Proposta do Usuário) */}
+                                        {dadosBasicos && (
+                                            <div className="bg-white border-2 border-slate-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
+                                                <div className="flex items-center space-x-3 overflow-hidden">
+                                                    <div className="bg-blue-100 p-2 rounded-lg shrink-0">
+                                                        <ShareIcon className="w-5 h-5 text-blue-600" />
+                                                    </div>
+                                                    <div className="truncate">
+                                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Link Público do Imóvel</p>
+                                                        <p className="text-sm font-medium text-blue-600 truncate">{publicUrl}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex space-x-2">
+                                                    <button 
+                                                        onClick={() => window.open(publicUrl, '_blank')}
+                                                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors border border-slate-200 whitespace-nowrap"
+                                                    >
+                                                        Abrir Link
+                                                    </button>
+                                                    <button 
+                                                        onClick={handleCopyLink}
+                                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm whitespace-nowrap"
+                                                    >
+                                                        Copiar Link
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
