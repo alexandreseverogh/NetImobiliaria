@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { Fragment } from 'react'
-import { XMarkIcon, SparklesIcon, ArrowDownTrayIcon, ShareIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, SparklesIcon, ArrowDownTrayIcon, ShareIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline'
 import { Bed, BedDouble, Bath, Car, Square } from 'lucide-react'
 import { toPng } from 'html-to-image'
 import JSZip from 'jszip'
@@ -87,6 +87,20 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
             alert("Ocorreu um erro ao gerar a imagem. Verifique se sua conexão está estável.")
             setIsGenerating(false)
         }
+    }
+
+    const publicUrl = dadosBasicos ? `https://www.imovtec.com.br/imoveis/${dadosBasicos.id}` : ''
+
+    const handleCopyLink = () => {
+        if (!publicUrl) return
+        navigator.clipboard.writeText(publicUrl)
+        alert('Link copiado para a área de transferência!')
+    }
+
+    const handleShareWhatsApp = () => {
+        if (!publicUrl || !dadosBasicos) return
+        const text = encodeURIComponent(`Confira este imóvel incrível no Imovtec: ${dadosBasicos.bairro}, ${dadosBasicos.cidade_fk}\n\nLink: ${publicUrl}`)
+        window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank')
     }
 
     if (!isOpen) return null
@@ -209,6 +223,40 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                                 </>
                                             )}
                                         </button>
+
+                                        {/* Opções de Compartilhamento de Link */}
+                                        <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 space-y-4">
+                                            <h4 className="text-blue-900 font-bold text-sm flex items-center">
+                                                <ShareIcon className="w-4 h-4 mr-2" />
+                                                Compartilhar Acesso Direto
+                                            </h4>
+                                            <p className="text-blue-800 text-xs leading-relaxed">
+                                                Imagens são estáticas. Para que os clientes cliquem e acessem o site, **copie o link abaixo** e cole na legenda ao enviar as fotos.
+                                            </p>
+                                            
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button
+                                                    onClick={handleCopyLink}
+                                                    className="flex items-center justify-center space-x-2 bg-white border border-blue-200 text-blue-700 hover:bg-blue-100 px-3 py-2.5 rounded-lg text-xs font-bold transition-colors"
+                                                >
+                                                    <ClipboardDocumentIcon className="w-4 h-4" />
+                                                    <span>Copiar Link</span>
+                                                </button>
+                                                <button
+                                                    onClick={handleShareWhatsApp}
+                                                    className="flex items-center justify-center space-x-2 bg-green-500 text-white hover:bg-green-600 px-3 py-2.5 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                                >
+                                                    <ShareIcon className="w-4 h-4" />
+                                                    <span>WhatsApp</span>
+                                                </button>
+                                            </div>
+
+                                            <div className="pt-2">
+                                                <p className="text-[10px] text-blue-600 text-center font-medium italic">
+                                                    * O link acompanha o QR Code gerado na imagem.
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* Preview Area Central */}
