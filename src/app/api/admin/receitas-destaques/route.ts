@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
     
     // Calcular total geral
     const totalGeral = receitasPorEstado.reduce((sum, estado) => sum + estado.receita_total, 0) + 
-                       parseFloat(receitaNacional.receita_total || 0)
+                       (receitaNacional.receita_total || 0)
 
     // Calcular total de imóveis com destaque (SOMA de nacional + local, não único)
     // Somar todos os imóveis com destaque_nacional = true + todos com destaque = true
@@ -214,9 +214,9 @@ export async function GET(request: NextRequest) {
 
     const responseData = {
       receita_nacional: {
-        total_imoveis: parseInt(receitaNacional.total_imoveis) || 0,
-        valor_unitario: parseFloat(receitaNacional.valor_unitario) || 0,
-        receita_total: parseFloat(receitaNacional.receita_total) || 0,
+        total_imoveis: (receitaNacional.total_imoveis || 0),
+        valor_unitario: (receitaNacional.valor_unitario || 0),
+        receita_total: (receitaNacional.receita_total || 0),
         por_finalidade: receitaNacional.por_finalidade || []
       },
       receitas_por_estado: receitasPorEstado,

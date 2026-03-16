@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { useEstadosCidadesPublic } from '@/hooks/useEstadosCidadesPublic'
-import { formatCPF, formatTelefone, formatCEP, validateCPF, validateTelefone, validateEmail } from '@/lib/utils/formatters'
+import { formatCPF, formatCNPJ, formatTelefone, formatCEP, validateCPF, validateCNPJ, validateTelefone, validateEmail } from '@/lib/utils/formatters'
 import { buscarEnderecoPorCep } from '@/lib/utils/geocoding'
 
 interface RegisterFormProps {
