@@ -33,8 +33,8 @@ export const CriativoFeed = forwardRef<HTMLDivElement, any>(({ basico }, ref) =>
                     </div>
                 )}
                 {/* Logo */}
-                <div className="bg-white/95 backdrop-blur-md px-5 py-3 rounded-2xl shadow-2xl flex items-center">
-                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-8 w-auto object-contain" crossOrigin="anonymous" />
+                <div className="bg-white rounded-xl shadow-2xl flex items-center justify-center overflow-hidden border border-slate-200" style={{ width: '120px', height: '120px' }}>
+                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} crossOrigin="anonymous" />
                 </div>
             </div>
 
@@ -138,13 +138,13 @@ export const CriativoStories = forwardRef<HTMLDivElement, any>(({ basico }, ref)
                     </div>
                 )}
                 {/* Logo Image */}
-                <div className="bg-white/95 backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl flex items-center">
-                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-10 w-auto object-contain" crossOrigin="anonymous" />
+                <div className="bg-white rounded-2xl shadow-2xl flex items-center justify-center overflow-hidden border-2 border-slate-200" style={{ width: '160px', height: '160px' }}>
+                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '12px' }} crossOrigin="anonymous" />
                 </div>
             </div>
 
             {/* Top Info Panel (Split from bottom) */}
-            <div className="absolute top-48 left-12 right-12 z-20 drop-shadow-2xl">
+            <div className="absolute top-72 left-12 right-12 z-20 drop-shadow-2xl">
                 <h1 className="text-white text-8xl font-black leading-[1.1] tracking-tight">
                     {basico?.bairro}
                 </h1>
@@ -158,40 +158,40 @@ export const CriativoStories = forwardRef<HTMLDivElement, any>(({ basico }, ref)
 
             {/* Bottom Panel (Icons and Price only, no glass box) */}
             <div className="z-20 mx-12 mb-48 flex flex-col">
-                <div className="grid grid-cols-3 gap-y-12 gap-x-6">
+                <div className="grid grid-cols-3 gap-y-16 gap-x-6">
                     {basico?.quartos > 0 && (
                         <div className="flex flex-col items-center justify-center text-center">
-                            <Bed className="w-12 h-12 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-3xl font-bold leading-none">{basico.quartos}</span>
-                            <span className="text-white/80 text-lg font-medium mt-1">Quartos</span>
+                            <Bed className="w-16 h-16 text-white/90 mb-3" strokeWidth={1.5} />
+                            <span className="text-white text-4xl font-bold leading-none">{basico.quartos}</span>
+                            <span className="text-white/80 text-xl font-medium mt-1">Quartos</span>
                         </div>
                     )}
                     {basico?.banheiros > 0 && (
                         <div className="flex flex-col items-center justify-center text-center">
-                            <Bath className="w-12 h-12 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-3xl font-bold leading-none">{basico.banheiros}</span>
-                            <span className="text-white/80 text-lg font-medium mt-1">Banheiros</span>
+                            <Bath className="w-16 h-16 text-white/90 mb-3" strokeWidth={1.5} />
+                            <span className="text-white text-4xl font-bold leading-none">{basico.banheiros}</span>
+                            <span className="text-white/80 text-xl font-medium mt-1">Banh.</span>
                         </div>
                     )}
                     {basico?.suites > 0 && (
                         <div className="flex flex-col items-center justify-center text-center">
-                            <BedDouble className="w-12 h-12 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-3xl font-bold leading-none">{basico.suites}</span>
-                            <span className="text-white/80 text-lg font-medium mt-1">Suítes</span>
+                            <BedDouble className="w-16 h-16 text-white/90 mb-3" strokeWidth={1.5} />
+                            <span className="text-white text-4xl font-bold leading-none">{basico.suites}</span>
+                            <span className="text-white/80 text-xl font-medium mt-1">Suítes</span>
                         </div>
                     )}
                     {basico?.vagas_garagem > 0 && (
                         <div className="flex flex-col items-center justify-center text-center">
-                            <Car className="w-12 h-12 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-3xl font-bold leading-none">{basico.vagas_garagem}</span>
-                            <span className="text-white/80 text-lg font-medium mt-1">Vagas</span>
+                            <Car className="w-16 h-16 text-white/90 mb-3" strokeWidth={1.5} />
+                            <span className="text-white text-4xl font-bold leading-none">{basico.vagas_garagem}</span>
+                            <span className="text-white/80 text-xl font-medium mt-1">Vagas</span>
                         </div>
                     )}
                     {basico?.area_total > 0 && (
                         <div className="flex flex-col items-center justify-center text-center">
-                            <Square className="w-12 h-12 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-3xl font-bold leading-none">{basico.area_total}</span>
-                            <span className="text-white/80 text-lg font-medium mt-1">m²</span>
+                            <Square className="w-16 h-16 text-white/90 mb-3" strokeWidth={1.5} />
+                            <span className="text-white text-4xl font-bold leading-none">{basico.area_total}</span>
+                            <span className="text-white/80 text-xl font-medium mt-1">m² Total</span>
                         </div>
                     )}
                 </div>
@@ -259,8 +259,8 @@ export const CriativoCarrossel2 = forwardRef<HTMLDivElement, any>(({ basico, det
                 ) : null}
             </div>
             {/* Branding Final */}
-            <div className="absolute top-12 left-12 bg-white/95 backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl flex items-center">
-                <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-8 w-auto object-contain" crossOrigin="anonymous" />
+            <div className="absolute top-12 left-12 bg-white px-2 py-1 rounded-xl shadow-2xl flex items-center border border-slate-200">
+                <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-28 w-auto object-contain" crossOrigin="anonymous" />
             </div>
         </div>
     )

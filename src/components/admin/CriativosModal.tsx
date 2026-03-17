@@ -99,8 +99,16 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
 
     const handleShareWhatsApp = () => {
         if (!publicUrl || !dadosBasicos) return
-        const text = encodeURIComponent(`Confira este imóvel incrível no Imovtec: ${dadosBasicos.bairro}, ${dadosBasicos.cidade_fk}\n\nLink: ${publicUrl}`)
-        window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank')
+        
+        const message = encodeURIComponent(
+            `🏠 *Confira este imóvel exclusivo na Imovtec!*\n\n` +
+            `📍 ${dadosBasicos.bairro}, ${dadosBasicos.cidade_fk}\n` +
+            `💰 Investimento: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dadosBasicos.preco || 0)}\n\n` +
+            `🔗 *Acesse os detalhes completos aqui:* \n${publicUrl}\n\n` +
+            `REF: ${dadosBasicos.codigo || dadosBasicos.id}`
+        )
+        
+        window.open(`https://api.whatsapp.com/send?text=${message}`, '_blank')
     }
 
     if (!isOpen) return null
@@ -225,22 +233,35 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                         </button>
 
                                         {/* Opções de Compartilhamento de Link */}
-                                        <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 space-y-4">
-                                            <h4 className="text-blue-900 font-bold text-sm flex items-center">
+                                        <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100 space-y-4">
+                                            <h4 className="text-indigo-900 font-bold text-sm flex items-center">
                                                 <ShareIcon className="w-4 h-4 mr-2" />
-                                                Compartilhar Imóvel
+                                                Link Clicável (Importante)
                                             </h4>
-                                            <p className="text-blue-800 text-xs leading-relaxed">
-                                                Para que os clientes acessem o site, envie este link junto com a foto:
+                                            <p className="text-indigo-800 text-[11px] leading-relaxed">
+                                                🚨 <b>Atenção:</b> Arquivos de imagem (PNG) não permitem cliques. 
+                                                Para que o cliente possa clicar e abrir o site, você deve usar o botão abaixo:
                                             </p>
                                             
-                                            <button
-                                                onClick={handleShareWhatsApp}
-                                                className="w-full flex items-center justify-center space-x-2 bg-green-500 text-white hover:bg-green-600 px-4 py-3 rounded-lg text-sm font-bold transition-colors shadow-md"
-                                            >
-                                                <ShareIcon className="w-5 h-5" />
-                                                <span>Enviar pelo WhatsApp</span>
-                                            </button>
+                                            <div className="space-y-2">
+                                                <button
+                                                    onClick={handleShareWhatsApp}
+                                                    className="w-full flex items-center justify-center space-x-2 bg-green-500 text-white hover:bg-green-600 px-4 py-3 rounded-lg text-sm font-bold transition-all shadow-md active:scale-95 animate-pulse"
+                                                >
+                                                    <span>Enviar como Link Clicável</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={handleCopyLink}
+                                                    className="w-full flex items-center justify-center space-x-2 bg-slate-800 text-white hover:bg-slate-900 px-4 py-3 rounded-lg text-sm font-bold transition-all shadow-md active:scale-95"
+                                                >
+                                                    <ClipboardDocumentIcon className="w-5 h-5" />
+                                                    <span>Copiar Link para Legenda</span>
+                                                </button>
+                                            </div>
+                                            <p className="text-slate-500 text-[10px] italic">
+                                                * Ao enviar pelo WhatsApp como link, o aplicativo gera automaticamente um card com a foto que é clicável.
+                                            </p>
                                         </div>
                                     </div>
 
