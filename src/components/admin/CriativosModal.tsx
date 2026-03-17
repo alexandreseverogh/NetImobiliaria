@@ -288,11 +288,11 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                                             left: 0
                                                         }}
                                                     >
-                                                        {formato === 'feed' && <CriativoFeed basico={dadosBasicos} />}
-                                                        {formato === 'stories' && <CriativoStories basico={dadosBasicos} />}
+                                                        {formato === 'feed' && <CriativoFeed basico={dadosBasicos} publicUrl={publicUrl} />}
+                                                        {formato === 'stories' && <CriativoStories basico={dadosBasicos} publicUrl={publicUrl} />}
                                                         {formato === 'carrossel' && (
                                                             <div className="flex space-x-12">
-                                                                <CriativoFeed basico={dadosBasicos} />
+                                                                <CriativoFeed basico={dadosBasicos} publicUrl={publicUrl} />
                                                                 <CriativoCarrossel2 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} />
                                                                 <CriativoCarrossel3 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} />
                                                             </div>
@@ -353,8 +353,8 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                 <div style={{ position: 'absolute', top: '-10000px', left: '-10000px', pointerEvents: 'none' }}>
                                     {dadosBasicos && (
                                         <div ref={containerRef}>
-                                            <div id="imv-feed"><CriativoFeed basico={dadosBasicos} /></div>
-                                            <div id="imv-stories"><CriativoStories basico={dadosBasicos} /></div>
+                                            <div id="imv-feed"><CriativoFeed basico={dadosBasicos} publicUrl={publicUrl} /></div>
+                                            <div id="imv-stories"><CriativoStories basico={dadosBasicos} publicUrl={publicUrl} /></div>
                                             <div id="imv-carro2"><CriativoCarrossel2 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} /></div>
                                             <div id="imv-carro3"><CriativoCarrossel3 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} /></div>
                                         </div>

@@ -1,5 +1,6 @@
 import React, { forwardRef } from 'react'
 import { Bed, BedDouble, Bath, Car, Square, Sparkles, MapPin } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 
 // Util function to format money
 const formatMoney = (val: number | undefined) => {
@@ -7,44 +8,45 @@ const formatMoney = (val: number | undefined) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
 }
 
-export const CriativoFeed = forwardRef<HTMLDivElement, any>(({ basico }, ref) => {
+export const CriativoFeed = forwardRef<HTMLDivElement, { basico: any; publicUrl?: string }>(({ basico, publicUrl }, ref) => {
     const coverImage = basico?.imagem_principal?.url || '/Assets/logo.png';
 
     return (
         <div ref={ref} className="bg-slate-900 relative flex flex-col justify-end" style={{ width: '1080px', height: '1080px', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
             {/* Background Image */}
             <div className="absolute inset-0 z-0">
-                <img src={coverImage} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} crossOrigin="anonymous" />
+                <img src={coverImage} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'contrast(1.05) brightness(0.95)' }} crossOrigin="anonymous" />
             </div>
 
             {/* Gradient Overlay for Top (Badges) and Bottom (Info) */}
-            <div className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-black/60 to-transparent z-10" />
-            <div className="absolute inset-x-0 bottom-0 h-96 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-10" />
+            <div className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-black/70 to-transparent z-10" />
+            <div className="absolute inset-x-0 bottom-0 h-[450px] bg-gradient-to-t from-black via-black/80 to-transparent z-10" />
 
             {/* Top Bar: Badge and Logo */}
             <div className="absolute top-12 left-12 right-12 flex justify-between items-start z-20">
                 {basico?.lancamento ? (
-                    <div className="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold tracking-widest uppercase text-lg shadow-xl">
+                    <div className="bg-blue-600/90 backdrop-blur-md border border-white/20 text-white px-8 py-3 rounded-2xl font-black tracking-widest uppercase text-2xl shadow-2xl">
                         🚀 Lançamento
                     </div>
                 ) : (
-                    <div className="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold tracking-widest uppercase text-lg shadow-xl">
+                    <div className="bg-white/20 backdrop-blur-md border border-white/30 text-white px-8 py-3 rounded-2xl font-black tracking-widest uppercase text-2xl shadow-2xl">
                         💎 Oportunidade
                     </div>
                 )}
                 {/* Logo */}
-                <div className="bg-white rounded-xl shadow-2xl flex items-center justify-center overflow-hidden border border-slate-200" style={{ width: '120px', height: '120px' }}>
-                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} crossOrigin="anonymous" />
+                <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-center overflow-hidden border border-white/40 group" style={{ width: '150px', height: '150px' }}>
+                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '6px' }} crossOrigin="anonymous" />
                 </div>
             </div>
 
             {/* Top Info Panel (Split from bottom) */}
-            <div className="absolute top-36 left-12 right-12 z-20 drop-shadow-2xl">
-                <h1 className="text-white text-6xl font-black leading-tight drop-shadow-lg tracking-tight">
-                    {basico?.bairro || 'Localização Não Info.'}, <span className="font-light">{basico?.cidade_fk || ''}</span>
+            <div className="absolute top-36 left-12 right-12 z-20 drop-shadow-2xl mt-4">
+                <h1 className="text-white text-7xl font-black leading-[1.1] drop-shadow-2xl tracking-tight">
+                    {basico?.bairro || 'Localização'}, <span className="font-light text-white/80 shrink-0">{basico?.cidade_fk || ''}</span>
                 </h1>
-                <div className="mt-4 inline-block bg-white/20 backdrop-blur-md px-6 py-2 rounded-lg border border-white/20">
-                    <p className="text-white text-2xl font-medium tracking-wide">
+                <div className="mt-6 inline-flex items-center space-x-3 bg-white/10 backdrop-blur-md px-6 py-2 rounded-xl border border-white/20">
+                    <Sparkles className="w-5 h-5 text-blue-400" />
+                    <p className="text-white text-2xl font-bold tracking-wide">
                         {basico?.tipo_nome || 'Tipo'} • {basico?.finalidade_nome || 'Finalidade'}
                     </p>
                 </div>
@@ -52,172 +54,192 @@ export const CriativoFeed = forwardRef<HTMLDivElement, any>(({ basico }, ref) =>
 
             {/* Bottom Panel (Icons and Price only, no glass box) */}
             <div className="z-20 mx-12 mb-20 flex flex-col justify-end">
-                <div className="flex items-end justify-between border-t-2 border-white/30 pt-8">
+                <div className="flex items-end justify-between border-t border-white/30 pt-10">
                     {/* Attributes */}
-                    <div className="flex space-x-6">
+                    <div className="flex space-x-8">
                         {basico?.quartos > 0 && (
-                            <div className="flex flex-col items-center justify-center text-center w-20">
-                                <Bed className="w-10 h-10 text-white/90 mb-2" strokeWidth={1.5} />
-                                <span className="text-white text-2xl font-bold leading-none">{basico.quartos}</span>
-                                <span className="text-white/80 text-sm font-semibold mt-1">Quarto{basico.quartos > 1 ? 's' : ''}</span>
-                            </div>
-                        )}
-                        {basico?.banheiros > 0 && (
-                            <div className="flex flex-col items-center justify-center text-center w-20">
-                                <Bath className="w-10 h-10 text-white/90 mb-2" strokeWidth={1.5} />
-                                <span className="text-white text-2xl font-bold leading-none">{basico.banheiros}</span>
-                                <span className="text-white/80 text-sm font-semibold mt-1">Banh.</span>
+                            <div className="flex flex-col items-center justify-center text-center">
+                                <div className="bg-white/10 p-4 rounded-2xl mb-3 border border-white/10">
+                                    <Bed className="w-10 h-10 text-white" strokeWidth={1.5} />
+                                </div>
+                                <span className="text-white text-3xl font-black leading-none">{basico.quartos}</span>
+                                <span className="text-white/60 text-sm font-bold uppercase tracking-widest mt-2 px-1">Dorms</span>
                             </div>
                         )}
                         {basico?.suites > 0 && (
-                            <div className="flex flex-col items-center justify-center text-center w-20">
-                                <BedDouble className="w-10 h-10 text-white/90 mb-2" strokeWidth={1.5} />
-                                <span className="text-white text-2xl font-bold leading-none">{basico.suites}</span>
-                                <span className="text-white/80 text-sm font-semibold mt-1">Suíte{basico.suites > 1 ? 's' : ''}</span>
+                            <div className="flex flex-col items-center justify-center text-center">
+                                <div className="bg-white/10 p-4 rounded-2xl mb-3 border border-white/10">
+                                    <BedDouble className="w-10 h-10 text-blue-400" strokeWidth={1.5} />
+                                </div>
+                                <span className="text-white text-3xl font-black leading-none">{basico.suites}</span>
+                                <span className="text-white/60 text-sm font-bold uppercase tracking-widest mt-2 px-1">Suítes</span>
                             </div>
                         )}
                         {basico?.vagas_garagem > 0 && (
-                            <div className="flex flex-col items-center justify-center text-center w-20">
-                                <Car className="w-10 h-10 text-white/90 mb-2" strokeWidth={1.5} />
-                                <span className="text-white text-2xl font-bold leading-none">{basico.vagas_garagem}</span>
-                                <span className="text-white/80 text-sm font-semibold mt-1">Vaga{basico.vagas_garagem > 1 ? 's' : ''}</span>
+                            <div className="flex flex-col items-center justify-center text-center">
+                                <div className="bg-white/10 p-4 rounded-2xl mb-3 border border-white/10">
+                                    <Car className="w-10 h-10 text-white" strokeWidth={1.5} />
+                                </div>
+                                <span className="text-white text-3xl font-black leading-none">{basico.vagas_garagem}</span>
+                                <span className="text-white/60 text-sm font-bold uppercase tracking-widest mt-2 px-1">Vagas</span>
                             </div>
                         )}
                         {basico?.area_total > 0 && (
-                            <div className="flex flex-col items-center justify-center text-center w-24">
-                                <Square className="w-10 h-10 text-white/90 mb-2" strokeWidth={1.5} />
-                                <span className="text-white text-2xl font-bold leading-none">{basico.area_total}</span>
-                                <span className="text-white/80 text-sm font-semibold mt-1">m²</span>
+                            <div className="flex flex-col items-center justify-center text-center">
+                                <div className="bg-white/10 p-4 rounded-2xl mb-3 border border-white/10">
+                                    <Square className="w-10 h-10 text-white" strokeWidth={1.5} />
+                                </div>
+                                <span className="text-white text-3xl font-black leading-none">{Math.round(basico.area_total)}</span>
+                                <span className="text-white/60 text-sm font-bold uppercase tracking-widest mt-2 px-1">m²</span>
                             </div>
                         )}
                     </div>
-                    {/* Price */}
-                    <div className="text-right">
-                        <p className="text-white/80 text-lg uppercase tracking-widest font-bold mb-1">Investimento</p>
-                        <p className="text-white text-5xl font-black drop-shadow-lg leading-none">
-                            {formatMoney(basico?.preco)}
-                        </p>
+
+                    {/* QR Code & Price */}
+                    <div className="flex items-end space-x-8">
+                        {publicUrl && (
+                            <div className="bg-white p-3 rounded-2xl shadow-2xl border border-white/20 mb-2">
+                                <QRCodeSVG value={publicUrl} size={110} level="H" includeMargin={false} />
+                            </div>
+                        )}
+                        <div className="text-right">
+                            <p className="text-white/60 text-xl uppercase tracking-[0.4em] font-black mb-2 drop-shadow-md">Investimento</p>
+                            <p className="text-white text-7xl font-black drop-shadow-2xl leading-none tracking-tighter">
+                                {formatMoney(basico?.preco)}
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
+
             {/* Footer */}
-            <div className="absolute bottom-10 inset-x-0 text-center z-20">
-                <div className="inline-block bg-black/40 backdrop-blur-md px-6 py-2 rounded-full border border-white/10">
-                    <p className="text-white/90 text-sm tracking-[0.2em] font-bold uppercase">
-                        {basico?.codigo || basico?.id} • IMOVTEC.COM.BR
-                    </p>
-                </div>
+            <div className="absolute bottom-10 inset-x-0 px-12 z-20 flex justify-between items-center opacity-80">
+                <p className="text-white/90 text-sm tracking-[0.2em] font-black uppercase">
+                   Ref: {basico?.codigo || basico?.id}
+                </p>
+                <div className="h-[1px] flex-grow mx-8 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+                <p className="text-white/90 text-sm tracking-[0.2em] font-black uppercase">
+                    IMOVTEC.COM.BR
+                </p>
             </div>
         </div>
     )
 })
 
-export const CriativoStories = forwardRef<HTMLDivElement, any>(({ basico }, ref) => {
+export const CriativoStories = forwardRef<HTMLDivElement, { basico: any; publicUrl?: string }>(({ basico, publicUrl }, ref) => {
     const coverImage = basico?.imagem_principal?.url || '/Assets/logo.png';
 
     return (
         <div ref={ref} className="bg-slate-900 relative flex flex-col justify-end" style={{ width: '1080px', height: '1920px', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
             {/* Background Image */}
-            <div className="absolute inset-0 z-0">
-                <img src={coverImage} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} crossOrigin="anonymous" />
+            <div className="absolute inset-0 z-0 text-white">
+                <img src={coverImage} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'contrast(1.05) brightness(0.9)' }} crossOrigin="anonymous" />
             </div>
 
             {/* Top/Bottom Overlay for better readability */}
-            <div className="absolute inset-x-0 top-0 h-96 bg-gradient-to-b from-black/70 to-transparent z-10" />
-            <div className="absolute inset-x-0 bottom-0 h-[800px] bg-gradient-to-t from-black via-black/60 to-transparent z-10" />
+            <div className="absolute inset-x-0 top-0 h-[600px] bg-gradient-to-b from-black/80 via-black/40 to-transparent z-10" />
+            <div className="absolute inset-x-0 bottom-0 h-[900px] bg-gradient-to-t from-black via-black/80 to-transparent z-10" />
 
             {/* Top Bar */}
             <div className="absolute top-24 left-12 right-12 flex justify-between items-start z-20">
                 {basico?.lancamento ? (
-                    <div className="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-3 rounded-full font-bold tracking-widest uppercase text-xl shadow-xl">
+                    <div className="bg-blue-600/90 backdrop-blur-md border border-white/20 text-white px-8 py-4 rounded-2xl font-black tracking-widest uppercase text-3xl shadow-2xl">
                         🚀 Lançamento
                     </div>
                 ) : (
-                    <div className="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-3 rounded-full font-bold tracking-widest uppercase text-xl shadow-xl">
+                    <div className="bg-white/20 backdrop-blur-md border border-white/30 text-white px-8 py-4 rounded-2xl font-black tracking-widest uppercase text-3xl shadow-2xl">
                         💎 Oportunidade
                     </div>
                 )}
                 {/* Logo Image */}
-                <div className="bg-white rounded-2xl shadow-2xl flex items-center justify-center overflow-hidden border-2 border-slate-200" style={{ width: '160px', height: '160px' }}>
-                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '12px' }} crossOrigin="anonymous" />
+                <div className="bg-white/95 backdrop-blur-sm rounded-[2rem] shadow-[0_30px_60px_rgba(0,0,0,0.4)] flex items-center justify-center overflow-hidden border-2 border-white/50" style={{ width: '200px', height: '200px' }}>
+                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} crossOrigin="anonymous" />
                 </div>
             </div>
 
             {/* Top Info Panel (Split from bottom) */}
-            <div className="absolute top-72 left-12 right-12 z-20 drop-shadow-2xl">
-                <h1 className="text-white text-8xl font-black leading-[1.1] tracking-tight">
+            <div className="absolute top-72 left-12 right-12 z-20 drop-shadow-2xl mt-10">
+                <h1 className="text-white text-[120px] font-black leading-[0.95] tracking-tighter">
                     {basico?.bairro}
                 </h1>
-                <h2 className="text-white/90 text-5xl font-light mt-3">{basico?.cidade_fk}</h2>
-                <div className="mt-8 inline-block bg-white/20 backdrop-blur-md px-6 py-2 rounded-lg border border-white/20">
-                    <p className="text-white text-3xl font-medium tracking-wide">
+                <h2 className="text-blue-400 text-6xl font-black mt-4 uppercase tracking-wider">{basico?.cidade_fk}</h2>
+                <div className="mt-12 inline-flex items-center space-x-4 bg-white/10 backdrop-blur-md px-8 py-4 rounded-2xl border border-white/20">
+                    <Sparkles className="w-8 h-8 text-blue-400" />
+                    <p className="text-white text-4xl font-bold tracking-wide">
                         {basico?.tipo_nome} • {basico?.finalidade_nome}
                     </p>
                 </div>
             </div>
 
             {/* Bottom Panel (Icons and Price only, no glass box) */}
-            <div className="z-20 mx-12 mb-48 flex flex-col">
-                <div className="grid grid-cols-3 gap-y-16 gap-x-6">
+            <div className="z-20 mx-12 mb-40 flex flex-col">
+                <div className="grid grid-cols-2 gap-y-12 gap-x-8">
                     {basico?.quartos > 0 && (
-                        <div className="flex flex-col items-center justify-center text-center">
-                            <Bed className="w-16 h-16 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-4xl font-bold leading-none">{basico.quartos}</span>
-                            <span className="text-white/80 text-xl font-medium mt-1">Quartos</span>
-                        </div>
-                    )}
-                    {basico?.banheiros > 0 && (
-                        <div className="flex flex-col items-center justify-center text-center">
-                            <Bath className="w-16 h-16 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-4xl font-bold leading-none">{basico.banheiros}</span>
-                            <span className="text-white/80 text-xl font-medium mt-1">Banh.</span>
+                        <div className="flex items-center space-x-4 bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-sm">
+                            <Bed className="w-16 h-16 text-white" strokeWidth={1.5} />
+                            <div>
+                                <span className="block text-white text-5xl font-black leading-none">{basico.quartos}</span>
+                                <span className="text-white/60 text-xl font-bold uppercase tracking-widest">Dormitórios</span>
+                            </div>
                         </div>
                     )}
                     {basico?.suites > 0 && (
-                        <div className="flex flex-col items-center justify-center text-center">
-                            <BedDouble className="w-16 h-16 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-4xl font-bold leading-none">{basico.suites}</span>
-                            <span className="text-white/80 text-xl font-medium mt-1">Suítes</span>
+                        <div className="flex items-center space-x-4 bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-sm">
+                            <BedDouble className="w-16 h-16 text-blue-400" strokeWidth={1.5} />
+                            <div>
+                                <span className="block text-white text-5xl font-black leading-none">{basico.suites}</span>
+                                <span className="text-white/60 text-xl font-bold uppercase tracking-widest">Suítes Master</span>
+                            </div>
                         </div>
                     )}
                     {basico?.vagas_garagem > 0 && (
-                        <div className="flex flex-col items-center justify-center text-center">
-                            <Car className="w-16 h-16 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-4xl font-bold leading-none">{basico.vagas_garagem}</span>
-                            <span className="text-white/80 text-xl font-medium mt-1">Vagas</span>
+                        <div className="flex items-center space-x-4 bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-sm">
+                            <Car className="w-16 h-16 text-white" strokeWidth={1.5} />
+                            <div>
+                                <span className="block text-white text-5xl font-black leading-none">{basico.vagas_garagem}</span>
+                                <span className="text-white/60 text-xl font-bold uppercase tracking-widest">Vagas Cobertas</span>
+                            </div>
                         </div>
                     )}
                     {basico?.area_total > 0 && (
-                        <div className="flex flex-col items-center justify-center text-center">
-                            <Square className="w-16 h-16 text-white/90 mb-3" strokeWidth={1.5} />
-                            <span className="text-white text-4xl font-bold leading-none">{basico.area_total}</span>
-                            <span className="text-white/80 text-xl font-medium mt-1">m² Total</span>
+                        <div className="flex items-center space-x-4 bg-white/5 border border-white/10 p-6 rounded-[2rem] backdrop-blur-sm">
+                            <Square className="w-16 h-16 text-white" strokeWidth={1.5} />
+                            <div>
+                                <span className="block text-white text-5xl font-black leading-none">{Math.round(basico.area_total)}</span>
+                                <span className="text-white/60 text-xl font-bold uppercase tracking-widest">m² Privativos</span>
+                            </div>
                         </div>
                     )}
                 </div>
 
-                <div className="mt-14 pt-10 border-t-2 border-white/30 flex items-end justify-between">
-                    <div>
-                        <p className="text-white/80 text-2xl uppercase tracking-widest font-bold mb-2">Investimento</p>
-                        <p className="text-white text-7xl font-black drop-shadow-lg leading-none">
-                            {formatMoney(basico?.preco)}
-                        </p>
-                    </div>
+                <div className="mt-20 pt-16 border-t-2 border-white/20 flex flex-col items-center text-center">
+                    <p className="text-white/60 text-3xl uppercase tracking-[0.5em] font-black mb-6 drop-shadow-md">Investimento</p>
+                    <p className="text-white text-[130px] font-black drop-shadow-2xl leading-none tracking-tighter mb-12">
+                        {formatMoney(basico?.preco)}
+                    </p>
+                    
+                    {publicUrl && (
+                        <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl border-4 border-white/20 flex flex-col items-center">
+                            <QRCodeSVG value={publicUrl} size={280} level="H" />
+                            <p className="mt-4 text-slate-900 text-2xl font-black uppercase tracking-widest">Escaneie para detalhes</p>
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Footer Instruction (Clean) */}
-            <div className="absolute bottom-20 inset-x-0 text-center z-20">
-                <p className="text-white text-3xl font-black tracking-widest uppercase drop-shadow-md">
+            <div className="absolute bottom-12 inset-x-0 text-center z-20 flex flex-col items-center">
+                <div className="w-32 h-1.5 bg-blue-500 rounded-full mb-6"></div>
+                <p className="text-white text-4xl font-black tracking-[0.2em] uppercase drop-shadow-md">
                     imovtec.com.br
                 </p>
-                <p className="text-white/70 text-xl mt-2 font-medium">Ref: {basico?.codigo}</p>
+                <p className="text-white/50 text-2xl mt-3 font-bold tracking-widest">REF: {basico?.codigo}</p>
             </div>
         </div>
     )
 })
 
-export const CriativoCarrossel2 = forwardRef<HTMLDivElement, any>(({ basico, detalhado, completo }, ref) => {
+export const CriativoCarrossel2 = forwardRef<HTMLDivElement, { basico: any; detalhado: any; completo: any }>(({ basico, detalhado, completo }, ref) => {
     // Amenidades (Secondary photo or standard hero image but darkened)
     const secondaryImage = completo?.imagens?.[1]?.url || basico?.imagem_principal?.url || '/Assets/logo.png';
     const amenidadesArray = detalhado?.amenidades?.lista || [];
@@ -259,14 +281,14 @@ export const CriativoCarrossel2 = forwardRef<HTMLDivElement, any>(({ basico, det
                 ) : null}
             </div>
             {/* Branding Final */}
-            <div className="absolute top-12 left-12 bg-white px-2 py-1 rounded-xl shadow-2xl flex items-center border border-slate-200">
-                <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-28 w-auto object-contain" crossOrigin="anonymous" />
+            <div className="absolute top-12 left-12 bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-2xl flex items-center border border-white/50">
+                <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-[120px] w-auto object-contain" crossOrigin="anonymous" />
             </div>
         </div>
     )
 })
 
-export const CriativoCarrossel3 = forwardRef<HTMLDivElement, any>(({ basico, detalhado, completo }, ref) => {
+export const CriativoCarrossel3 = forwardRef<HTMLDivElement, { basico: any; detalhado: any; completo: any }>(({ basico, detalhado, completo }, ref) => {
     // Proximidades (Third photo or texture)
     const thirdImage = completo?.imagens?.[2]?.url || basico?.imagem_principal?.url || '/Assets/logo.png';
     const proximidadesArray = detalhado?.proximidades?.lista || [];
@@ -311,6 +333,11 @@ export const CriativoCarrossel3 = forwardRef<HTMLDivElement, any>(({ basico, det
             {/* Bottom Call to Action (Design Clean) */}
             <div className="z-10 w-full bg-blue-600/95 backdrop-blur-md p-10 flex items-center justify-center shadow-2xl border-t border-white/20">
                 <div className="text-center">
+                     <div className="mb-6 flex justify-center">
+                        <div className="bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-xl border border-white/50">
+                            <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-16 w-auto" crossOrigin="anonymous" />
+                        </div>
+                     </div>
                      <p className="text-white/80 text-xl uppercase tracking-[0.3em] font-bold mb-2">Imovtec Imobiliária Digital</p>
                      <p className="text-white text-4xl font-black">Consulte este imóvel em nosso site usando a REF: {basico?.codigo}</p>
                 </div>
