@@ -1,4 +1,4 @@
-﻿/* eslint-disable */
+/* eslint-disable */
 import { StarIcon, MapPinIcon } from '@heroicons/react/24/outline'
 
 interface AmenidadesProximidadesProps {
@@ -53,11 +53,6 @@ export default function AmenidadesProximidades({
                         <p className="text-sm font-medium text-gray-700 truncate">
                           {item.nome}
                         </p>
-                        {item.descricao && (
-                          <p className="text-xs text-gray-500 truncate">
-                            {item.descricao}
-                          </p>
-                        )}
                       </div>
                       {item.popular && (
                         <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
@@ -107,11 +102,6 @@ export default function AmenidadesProximidades({
                           <p className="text-sm font-medium text-gray-700">
                             {item.nome}
                           </p>
-                          {item.descricao && (
-                            <p className="text-xs text-gray-500">
-                              {item.descricao}
-                            </p>
-                          )}
                           {item.observacoes && (
                             <p className="text-xs text-blue-600 mt-1">
                               {item.observacoes}

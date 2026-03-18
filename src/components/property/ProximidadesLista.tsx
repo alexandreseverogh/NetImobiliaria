@@ -50,9 +50,9 @@ export default function ProximidadesLista({
                     <div className="flex items-start gap-2 min-w-0">
                       <span className="text-lg leading-none mt-0.5">{item.icone}</span>
                       <div className="flex-1 min-w-0">
-                        {item.descricao && (
+                        {item.nome && (
                           <p className="text-sm font-medium text-gray-700 leading-tight">
-                            {item.descricao}
+                            {item.nome}
                           </p>
                         )}
                       </div>

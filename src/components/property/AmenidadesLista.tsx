@@ -51,9 +51,9 @@ export default function AmenidadesLista({
                   >
                     <span className="text-xl">{item.icone}</span>
                     <div className="flex-1 min-w-0">
-                      {item.descricao && (
+                      {item.nome && (
                         <p className="text-sm font-medium text-gray-700 leading-tight">
-                          {item.descricao}
+                          {item.nome}
                         </p>
                       )}
                     </div>

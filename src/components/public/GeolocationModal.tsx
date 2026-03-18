@@ -203,7 +203,7 @@ export default function GeolocationModal({
               <MapPin className="w-6 h-6 text-blue-600" />
             </div>
             <h2>
-              🏠 Imovtec
+              🏠 Imovitec
             </h2>
           </div>
 
