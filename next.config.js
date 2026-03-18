@@ -282,21 +282,7 @@ const nextConfig = {
   // Configurações de redirecionamento
   async redirects() {
     return [
-      // Redirecionar HTTP para HTTPS em produção
-      ...(isProduction ? [
-        {
-          source: '/(.*)',
-          has: [
-            {
-              type: 'header',
-              key: 'x-forwarded-proto',
-              value: 'http',
-            },
-          ],
-          destination: 'https://netimobiliaria.com.br/:path*',
-          permanent: true,
-        },
-      ] : []),
+      // Redirecionar HTTP para HTTPS em produção (Middleware já faz isso dinamicamente)
     ]
   },
 }

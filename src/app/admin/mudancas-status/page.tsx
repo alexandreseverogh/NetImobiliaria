@@ -353,7 +353,7 @@ export default function MudancasStatusPage() {
                   {/* Preço */}
                   <div className="mb-2">
                     <span className="text-2xl font-bold text-blue-600">
-                      {dadosBasicos.preco ? `R$ ${dadosBasicos.preco.toLocaleString('pt-BR')}` : 'Preço sob consulta'}
+                      {dadosBasicos.preco ? `R$ ${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(dadosBasicos.preco))}` : 'Preço sob consulta'}
                     </span>
                   </div>
 
@@ -418,19 +418,19 @@ export default function MudancasStatusPage() {
                       {dadosBasicos.preco_condominio && (
                         <div className="flex items-center text-xs">
                           <DocumentTextIcon className="w-3.5 h-3.5 mr-1 text-emerald-500 flex-shrink-0" />
-                          <span className="text-gray-700 truncate">Condomínio: R$ {dadosBasicos.preco_condominio.toLocaleString('pt-BR')}</span>
+                          <span className="text-gray-700 truncate">Condomínio: R$ {new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(Number(dadosBasicos.preco_condominio))}</span>
                         </div>
                       )}
                       {dadosBasicos.preco_iptu && (
                         <div className="flex items-center text-xs">
                           <DocumentTextIcon className="w-3.5 h-3.5 mr-1 text-emerald-600 flex-shrink-0" />
-                          <span className="text-gray-700 truncate">IPTU: R$ {dadosBasicos.preco_iptu.toLocaleString('pt-BR')}</span>
+                          <span className="text-gray-700 truncate">IPTU: R$ {new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(Number(dadosBasicos.preco_iptu))}</span>
                         </div>
                       )}
                       {dadosBasicos.taxa_extra && (
                         <div className="flex items-center text-xs">
                           <DocumentTextIcon className="w-3.5 h-3.5 mr-1 text-emerald-700 flex-shrink-0" />
-                          <span className="text-gray-700 truncate">Taxa Extra: R$ {dadosBasicos.taxa_extra.toLocaleString('pt-BR')}</span>
+                          <span className="text-gray-700 truncate">Taxa Extra: R$ {new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(Number(dadosBasicos.taxa_extra))}</span>
                         </div>
                       )}
                     </div>

@@ -105,6 +105,12 @@ export const useFichaCompleta = (imovelId: string) => {
 
     setError(prev => ({ ...prev, basico: null }))
 
+    if (!imovelId || imovelId === 'undefined' || imovelId === 'null') {
+      console.log('⚠️ useFichaCompleta - imovelId inválido, ignorando carregamento básico')
+      setLoading(prev => ({ ...prev, basico: false }))
+      return
+    }
+
     try {
       const response = await fetch(`/api/public/imoveis/${imovelId}/ficha-completa?nivel=basico`)
       const data = await response.json()
@@ -132,6 +138,11 @@ export const useFichaCompleta = (imovelId: string) => {
   const carregarDetalhados = useCallback(async () => {
     setLoading(prev => ({ ...prev, detalhado: true }))
     setError(prev => ({ ...prev, detalhado: null }))
+
+    if (!imovelId || imovelId === 'undefined' || imovelId === 'null') {
+      setLoading(prev => ({ ...prev, detalhado: false }))
+      return
+    }
 
     try {
       const response = await fetch(`/api/public/imoveis/${imovelId}/ficha-completa?nivel=detalhado`)

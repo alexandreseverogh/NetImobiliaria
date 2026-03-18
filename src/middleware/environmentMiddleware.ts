@@ -21,7 +21,7 @@ export function environmentMiddleware(request: NextRequest) {
     
     // Logs de debug
     if (envConfig.DEBUG.ENABLED) {
-      console.log(`🔧 [DEV] ${request.method} ${request.url}`)
+//      console.log(`🔧 [DEV] ${request.method} ${request.url}`)
     }
   }
   
@@ -88,8 +88,8 @@ export function developmentLogging(request: NextRequest) {
     const startTime = Date.now()
     
     // Log da requisição
-    console.log(`🔍 [DEV LOG] ${request.method} ${request.url}`)
-    console.log(`   Headers:`, Object.fromEntries(request.headers.entries()))
+//    console.log(`🔍 [DEV LOG] ${request.method} ${request.url}`)
+//    console.log(`   Headers:`, Object.fromEntries(request.headers.entries()))
     
     // Log de performance se habilitado
     if (envConfig.DEBUG.PERFORMANCE_LOGS) {

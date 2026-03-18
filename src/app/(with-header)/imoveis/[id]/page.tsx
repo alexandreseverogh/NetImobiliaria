@@ -41,12 +41,8 @@ export default function ImovelDetalhes() {
   const router = useRouter()
   const pathname = usePathname()
 
-  // Extrair ID da URL atual para garantir que seja o correto
-  const urlPath = pathname || ''
-  const urlImovelId = urlPath.split('/').pop() || ''
-
-  // Usar o ID da URL em vez do params (que pode estar cached)
-  const imovelId = urlImovelId
+  // Obter ID do imóvel dos parâmetros da rota
+  const imovelId = params.id as string || (pathname?.split('/').pop() || '')
 
   const {
     dadosBasicos,
@@ -340,7 +336,7 @@ export default function ImovelDetalhes() {
                 {Number(dadosBasicos.suites) > 0 && (
                   <div className="flex items-center text-xs">
                     <BedDouble className="w-3.5 h-3.5 mr-1 text-purple-500 flex-shrink-0" />
-                    <span className="text-gray-700 truncate">{dadosBasicos.suites} suítes</span>
+                    <span className="text-gray-700 truncate">{dadosBasicos.suites} {Number(dadosBasicos.suites) > 1 ? 'suítes' : 'suíte'}</span>
                   </div>
                 )}
                 {Number(dadosBasicos.banheiros) > 0 && (
@@ -358,7 +354,7 @@ export default function ImovelDetalhes() {
                 {Number(dadosBasicos.vagas_garagem) > 0 && (
                   <div className="flex items-center text-xs">
                     <Car className="w-3.5 h-3.5 mr-1 text-orange-500 flex-shrink-0" />
-                    <span className="text-gray-700 truncate">{dadosBasicos.vagas_garagem} garagem</span>
+                    <span className="text-gray-700 truncate">{dadosBasicos.vagas_garagem} {Number(dadosBasicos.vagas_garagem) > 1 ? 'vagas' : 'vaga'} garagem</span>
                   </div>
                 )}
               </div>
@@ -675,6 +671,43 @@ export default function ImovelDetalhes() {
             )}
           </div>
         )}
+
+        {/* --- SEÇÃO PREMIUM DE REDIRECIONAMENTO (UPSELL/CONTINUIDADE) --- */}
+        <div className="mt-20 mb-10 overflow-hidden rounded-3xl bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-950 p-1 shadow-2xl">
+          <div className="bg-white/10 backdrop-blur-md rounded-[22px] px-8 py-12 text-center text-white relative overflow-hidden group">
+            {/* Elementos decorativos de fundo */}
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl group-hover:bg-blue-400/30 transition-all duration-700"></div>
+            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl group-hover:bg-indigo-400/30 transition-all duration-700"></div>
+            
+            <div className="relative z-10 max-w-2xl mx-auto space-y-6">
+              <div className="inline-flex items-center justify-center p-3 bg-white/20 rounded-2xl mb-4 animate-bounce">
+                <SparklesIcon className="w-8 h-8 text-yellow-300" />
+              </div>
+              
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
+                Gostou deste imóvel, mas quer ver <span className="text-blue-300">outras opções?</span>
+              </h2>
+              
+              <p className="text-lg text-blue-100/90 leading-relaxed font-medium">
+                Temos centenas de outras oportunidades exclusivas esperando por você em nossa plataforma principal.
+              </p>
+              
+              <div className="pt-6">
+                <button
+                  onClick={() => router.push('/landpaging')}
+                  className="inline-flex items-center gap-3 px-10 py-5 bg-white text-blue-900 rounded-full text-xl font-bold shadow-xl hover:bg-blue-50 transition-all duration-300 hover:scale-105 active:scale-95 group/btn"
+                >
+                  <HomeIcon className="w-6 h-6 text-blue-600 group-hover/btn:rotate-12 transition-transform" />
+                  Explorar mais Imóveis
+                </button>
+              </div>
+              
+              <p className="text-sm text-blue-200/60 pt-4 italic">
+                Acesse filtros inteligentes, mapas e consultoria personalizada.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Modal de Vídeo */}

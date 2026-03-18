@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  console.log('⚡ SRC USER-MIDDLEWARE:', request.url)
+//  console.log('⚡ SRC USER-MIDDLEWARE:', request.url)
   const { pathname } = request.nextUrl
 
   // Páginas que não precisam de verificação de permissão

@@ -19,8 +19,9 @@ interface CriativosModalProps {
 }
 
 export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosModalProps) {
-    const [formato, setFormato] = useState<'feed' | 'stories' | 'carrossel'>('feed')
+    const [formato, setFormato] = useState<'copy' | 'feed' | 'stories' | 'carrossel'>('copy')
     const [isGenerating, setIsGenerating] = useState(false)
+    const [socialCaption, setSocialCaption] = useState('')
     const containerRef = useRef<HTMLDivElement>(null)
 
     // Usar o hook já existente para buscar TUDO do imóvel (fotos, amenidades, etc)
@@ -40,6 +41,51 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
         }
     }, [isOpen, dadosBasicos, dadosCompletos, loading.completo, carregarDetalhados, carregarCompletos])
 
+    const publicUrl = dadosBasicos ? `https://www.imovitec.com.br/imoveis/${dadosBasicos.id}` : ''
+
+    // Função para gerar a legenda social (Copywriting)
+    useEffect(() => {
+        if (dadosBasicos && dadosDetalhados) {
+            const precoFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dadosBasicos.preco || 0);
+            const finalidade = dadosBasicos.finalidade_nome?.toLowerCase() === 'aluguel' ? 'Locação' : 'Venda';
+            const titulo = dadosBasicos.titulo || `${dadosBasicos.tipo_nome} em ${dadosBasicos.bairro}`;
+            
+            // Lógica para suítes: Exibir apenas se > 0
+            const suitesCount = Number(dadosBasicos.suites || 0);
+            const suitesText = suitesCount > 0 ? ` (${suitesCount} ${suitesCount > 1 ? 'Suítes' : 'Suíte'})` : '';
+
+            // Lógica para supressão de campos zerados/nulos
+            const q = Number(dadosBasicos.quartos || 0);
+            const b = Number(dadosBasicos.banheiros || 0);
+            const v = Number(dadosBasicos.vagas_garagem || 0);
+            const a = Math.round(dadosBasicos.area_total || 0);
+
+            const configText = [
+                q > 0 ? `🛌 ${q} Dormitório${q > 1 ? 's' : ''}${suitesText}` : '',
+                b > 0 ? `🚿 ${b} Banheiro${b > 1 ? 's' : ''}` : '',
+                v > 0 ? `🚗 ${v} Vaga${v > 1 ? 's' : ''} de Garagem` : '',
+                a > 0 ? `📐 ${a}m² de Área Útil` : ''
+            ].filter(Boolean).join('\n');
+
+            const text = `🏠 *${titulo.toUpperCase()}*\n` +
+                `💎 *Oportunidade Exclusiva | IMOVITEC*\n\n` +
+                `Sua busca pelo lar dos sonhos acaba de encontrar uma resposta! Este incrível ${dadosBasicos.tipo_nome} combina design moderno, alto conforto e uma localização de destaque.\n\n` +
+                `🏢 *IMOVITEC - Inteligência em Soluções Imobiliárias* 🏘️\n\n` +
+                `📍 *Localização:* ${dadosBasicos.bairro}, ${dadosBasicos.cidade_fk} - ${dadosBasicos.estado_fk || 'SP'}\n\n` +
+                (configText ? `*Configurações:*\n${configText}\n\n` : '') +
+                `💰 *Investimento:* ${precoFormatado} (${finalidade})\n\n` +
+                `✨ *Diferenciais de Destaque:* Ambientes integrados, acabamento premium e localização privilegiada.\n\n` +
+                `🚀 Garanta sua exclusividade! Imóveis com este perfil são raros e de alta liquidez.\n\n` +
+                `🔗 *Acesse agora todos os detalhes e fotos em HD:* \n${publicUrl}\n\n` +
+                `---\n` +
+                `🏢 *Imovitec - Inteligência em Soluções Imobiliárias*\n` +
+                `🌐 imovitec.com.br\n\n` +
+                `#Imovitec #SolucoesImobiliarias #MercadoImobiliario #Oportunidade #${dadosBasicos.cidade_fk?.replace(/\s/g, '')} #${dadosBasicos.bairro?.replace(/\s/g, '')}`;
+
+            setSocialCaption(text);
+        }
+    }, [dadosBasicos, dadosDetalhados, publicUrl])
+
     const handleDownload = async () => {
         if (!containerRef.current || !dadosBasicos) return
         try {
@@ -50,7 +96,7 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                 style: { transform: 'scale(1)', transformOrigin: 'top left' }
             })
 
-            const prefix = `imovtec-${dadosBasicos.codigo || dadosBasicos.id}`
+            const prefix = `imovitec-${dadosBasicos.codigo || dadosBasicos.id}`
 
             if (formato === 'feed') {
                 const node = document.getElementById('imv-feed')
@@ -63,19 +109,28 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                 const dataUrl = await toPng(node, getOptions(1080, 1920))
                 saveAs(dataUrl, `${prefix}-stories.png`)
             } else if (formato === 'carrossel') {
-                const n1 = document.getElementById('imv-feed')
-                const n2 = document.getElementById('imv-carro2')
-                const n3 = document.getElementById('imv-carro3')
-                if (!n1 || !n2 || !n3) throw new Error("Templates não encontrados")
-
-                const d1 = await toPng(n1, getOptions(1080, 1080))
-                const d2 = await toPng(n2, getOptions(1080, 1080))
-                const d3 = await toPng(n3, getOptions(1080, 1080))
-
                 const zip = new JSZip()
-                zip.file(`01-capa.png`, d1.split(',')[1], {base64: true})
-                zip.file(`02-amenidades.png`, d2.split(',')[1], {base64: true})
-                zip.file(`03-proximidades.png`, d3.split(',')[1], {base64: true})
+                
+                // 1. Gerar Capa
+                const nodeFeed = document.getElementById('imv-feed')
+                if (nodeFeed) {
+                    const data = await toPng(nodeFeed, getOptions(1080, 1080))
+                    zip.file(`01-capa.png`, data.split(',')[1], {base64: true})
+                }
+
+                // 2. Gerar Amenidades (Pode ter múltiplos)
+                const amenidadesNodes = document.querySelectorAll('[id^="imv-carro2-"]')
+                for (let i = 0; i < amenidadesNodes.length; i++) {
+                    const data = await toPng(amenidadesNodes[i] as HTMLElement, getOptions(1080, 1080))
+                    zip.file(`02-amenidades-${i+1}.png`, data.split(',')[1], {base64: true})
+                }
+
+                // 3. Gerar Proximidades (Pode ter múltiplos)
+                const proximidadesNodes = document.querySelectorAll('[id^="imv-carro3-"]')
+                for (let i = 0; i < proximidadesNodes.length; i++) {
+                    const data = await toPng(proximidadesNodes[i] as HTMLElement, getOptions(1080, 1080))
+                    zip.file(`03-proximidades-${i+1}.png`, data.split(',')[1], {base64: true})
+                }
 
                 const blob = await zip.generateAsync({type: "blob"})
                 saveAs(blob, `${prefix}-carrossel.zip`)
@@ -89,7 +144,7 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
         }
     }
 
-    const publicUrl = dadosBasicos ? `https://www.imovtec.com.br/imoveis/${dadosBasicos.id}` : ''
+
 
     const handleCopyLink = () => {
         if (!publicUrl) return
@@ -98,17 +153,14 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
     }
 
     const handleShareWhatsApp = () => {
-        if (!publicUrl || !dadosBasicos) return
-        
-        const message = encodeURIComponent(
-            `🏠 *Confira este imóvel exclusivo na Imovtec!*\n\n` +
-            `📍 ${dadosBasicos.bairro}, ${dadosBasicos.cidade_fk}\n` +
-            `💰 Investimento: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dadosBasicos.preco || 0)}\n\n` +
-            `🔗 *Acesse os detalhes completos aqui:* \n${publicUrl}\n\n` +
-            `REF: ${dadosBasicos.codigo || dadosBasicos.id}`
-        )
-        
-        window.open(`https://api.whatsapp.com/send?text=${message}`, '_blank')
+        if (!socialCaption) return
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(socialCaption)}`, '_blank')
+    }
+
+    const handleCopyCaption = () => {
+        if (!socialCaption) return
+        navigator.clipboard.writeText(socialCaption)
+        alert('Legenda profissional copiada com sucesso!')
     }
 
     if (!isOpen) return null
@@ -185,8 +237,16 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
 
                                         {/* Seleção de Formato */}
                                         <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                                            <h4 className="font-bold text-slate-800 mb-4">Escolha o Formato</h4>
+                                            <h4 className="font-bold text-slate-800 mb-4">Escolha a Opção</h4>
                                             <div className="space-y-3">
+                                                <label className={`flex items-start p-3 rounded-lg border-2 cursor-pointer transition-all ${formato === 'copy' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}>
+                                                    <input type="radio" className="mt-1" name="formato" checked={formato === 'copy'} onChange={() => setFormato('copy')} />
+                                                    <div className="ml-3">
+                                                        <span className="block font-bold text-slate-900 text-sm">Legenda Social (Copywriting)</span>
+                                                        <span className="block text-slate-500 text-xs mt-0.5">Texto persuasivo com emojis e link pronto para Bio/Post</span>
+                                                    </div>
+                                                </label>
+
                                                 <label className={`flex items-start p-3 rounded-lg border-2 cursor-pointer transition-all ${formato === 'feed' ? 'border-primary-500 bg-primary-50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}>
                                                     <input type="radio" className="mt-1" name="formato" checked={formato === 'feed'} onChange={() => setFormato('feed')} />
                                                     <div className="ml-3">
@@ -207,30 +267,40 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                                     <input type="radio" className="mt-1" name="formato" checked={formato === 'carrossel'} onChange={() => setFormato('carrossel')} />
                                                     <div className="ml-3">
                                                         <span className="block font-bold text-slate-900 text-sm">Carrossel Completo (ZIP)</span>
-                                                        <span className="block text-slate-500 text-xs mt-0.5">A jornada: Capa, Estilo de Vida e Conveniência (3 imagens)</span>
+                                                        <span className="block text-slate-500 text-xs mt-0.5">Capa, Amenidades e Proximidades (Múltiplos Cards)</span>
                                                     </div>
                                                 </label>
                                             </div>
                                         </div>
 
                                         {/* Botão Principal de Exportação */}
-                                        <button
-                                            onClick={handleDownload}
-                                            disabled={isGenerating || !dadosBasicos || loading.basico || loading.detalhado || loading.completo || !dadosDetalhados || !dadosCompletos}
-                                            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all hover:-translate-y-1 hover:shadow-xl flex items-center justify-center space-x-2"
-                                        >
-                                            {isGenerating ? (
-                                                <>
-                                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                                    <span>Gerando Arte Final...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <ArrowDownTrayIcon className="w-6 h-6" />
-                                                    <span>Exportar Mídia Premium</span>
-                                                </>
-                                            )}
-                                        </button>
+                                        {formato === 'copy' ? (
+                                            <button
+                                                onClick={handleCopyCaption}
+                                                className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all hover:-translate-y-1 hover:shadow-xl flex items-center justify-center space-x-2"
+                                            >
+                                                <ClipboardDocumentIcon className="w-6 h-6" />
+                                                <span>Copiar Legenda Estratégica</span>
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={handleDownload}
+                                                disabled={isGenerating || !dadosBasicos || loading.basico || loading.detalhado || loading.completo || !dadosDetalhados || !dadosCompletos}
+                                                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all hover:-translate-y-1 hover:shadow-xl flex items-center justify-center space-x-2"
+                                            >
+                                                {isGenerating ? (
+                                                    <>
+                                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                                                        <span>Gerando Arte Final...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <ArrowDownTrayIcon className="w-6 h-6" />
+                                                        <span>Exportar Mídia Premium</span>
+                                                    </>
+                                                ) }
+                                            </button>
+                                        )}
 
                                         {/* Opções de Compartilhamento de Link */}
                                         <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100 space-y-4">
@@ -240,27 +310,19 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                             </h4>
                                             <p className="text-indigo-800 text-[11px] leading-relaxed">
                                                 🚨 <b>Atenção:</b> Arquivos de imagem (PNG) não permitem cliques. 
-                                                Para que o cliente possa clicar e abrir o site, você deve usar o botão abaixo:
+                                                Para que o cliente possa clicar e abrir o site, use a <b>Legenda Social</b> acima ou o botão abaixo:
                                             </p>
                                             
                                             <div className="space-y-2">
                                                 <button
                                                     onClick={handleShareWhatsApp}
-                                                    className="w-full flex items-center justify-center space-x-2 bg-green-500 text-white hover:bg-green-600 px-4 py-3 rounded-lg text-sm font-bold transition-all shadow-md active:scale-95 animate-pulse"
+                                                    className="w-full flex items-center justify-center space-x-2 bg-green-500 text-white hover:bg-green-600 px-4 py-3 rounded-lg text-sm font-bold transition-all shadow-md active:scale-95"
                                                 >
-                                                    <span>Enviar como Link Clicável</span>
-                                                </button>
-
-                                                <button
-                                                    onClick={handleCopyLink}
-                                                    className="w-full flex items-center justify-center space-x-2 bg-slate-800 text-white hover:bg-slate-900 px-4 py-3 rounded-lg text-sm font-bold transition-all shadow-md active:scale-95"
-                                                >
-                                                    <ClipboardDocumentIcon className="w-5 h-5" />
-                                                    <span>Copiar Link para Legenda</span>
+                                                    <span>Enviar no WhatsApp</span>
                                                 </button>
                                             </div>
                                             <p className="text-slate-500 text-[10px] italic">
-                                                * Ao enviar pelo WhatsApp como link, o aplicativo gera automaticamente um card com a foto que é clicável.
+                                                * O envio pelo WhatsApp já inclui a legenda profissional com o seu link clicável.
                                             </p>
                                         </div>
                                     </div>
@@ -279,22 +341,49 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                                 >
                                                     <div 
                                                         style={{ 
-                                                            transform: `scale(${formato === 'carrossel' ? 0.25 : 0.35})`, 
+                                                            transform: `scale(${formato === 'carrossel' ? 0.22 : 0.35})`, 
                                                             transformOrigin: 'top left',
-                                                            width: formato === 'stories' ? 1080 : formato === 'carrossel' ? (1080 * 3) + 96 : 1080,
+                                                            width: formato === 'stories' ? 1080 : formato === 'carrossel' ? (1080 * 10) : 1080,
                                                             height: formato === 'stories' ? 1920 : 1080,
                                                             position: 'absolute',
                                                             top: 0,
                                                             left: 0
                                                         }}
                                                     >
+                                                        {formato === 'copy' && (
+                                                            <div className="bg-white p-8 rounded-2xl shadow-xl w-[1080px] h-full overflow-y-auto text-left" style={{ fontFamily: 'monospace' }}>
+                                                                <h3 className="text-2xl font-black text-slate-900 mb-6 border-b pb-4">Visualização da Legenda (IMOVITEC)</h3>
+                                                                <pre className="whitespace-pre-wrap text-2xl text-slate-800 leading-relaxed font-sans">
+                                                                    {socialCaption || 'Buscando informações do imóvel...'}
+                                                                </pre>
+                                                            </div>
+                                                        )}
                                                         {formato === 'feed' && <CriativoFeed basico={dadosBasicos} publicUrl={publicUrl} />}
                                                         {formato === 'stories' && <CriativoStories basico={dadosBasicos} publicUrl={publicUrl} />}
                                                         {formato === 'carrossel' && (
                                                             <div className="flex space-x-12">
                                                                 <CriativoFeed basico={dadosBasicos} publicUrl={publicUrl} />
-                                                                <CriativoCarrossel2 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} />
-                                                                <CriativoCarrossel3 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} />
+                                                                {/* Renderização dinâmica de múltiplos cards conforme Proposal C */}
+                                                                {(() => {
+                                                                    const amens = dadosDetalhados?.amenidades?.lista || [];
+                                                                    const chunks = [];
+                                                                    for (let i = 0; i < amens.length; i += 16) {
+                                                                        chunks.push(amens.slice(i, i + 16));
+                                                                    }
+                                                                    return chunks.map((chunk, idx) => (
+                                                                        <CriativoCarrossel2 key={`amen-${idx}`} customItems={chunk} basico={dadosBasicos} />
+                                                                    ));
+                                                                })()}
+                                                                {(() => {
+                                                                    const proxs = dadosDetalhados?.proximidades?.lista || [];
+                                                                    const chunks = [];
+                                                                    for (let i = 0; i < proxs.length; i += 12) {
+                                                                        chunks.push(proxs.slice(i, i + 12));
+                                                                    }
+                                                                    return chunks.map((chunk, idx) => (
+                                                                        <CriativoCarrossel3 key={`prox-${idx}`} customItems={chunk} basico={dadosBasicos} />
+                                                                    ));
+                                                                })()}
                                                             </div>
                                                         )}
                                                     </div>
@@ -355,8 +444,31 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
                                         <div ref={containerRef}>
                                             <div id="imv-feed"><CriativoFeed basico={dadosBasicos} publicUrl={publicUrl} /></div>
                                             <div id="imv-stories"><CriativoStories basico={dadosBasicos} publicUrl={publicUrl} /></div>
-                                            <div id="imv-carro2"><CriativoCarrossel2 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} /></div>
-                                            <div id="imv-carro3"><CriativoCarrossel3 basico={dadosBasicos} detalhado={dadosDetalhados} completo={dadosCompletos} /></div>
+                                            {/* Containers ocultos para renderização de múltiplos cards */}
+                                            {(() => {
+                                                const amens = dadosDetalhados?.amenidades?.lista || [];
+                                                const chunks = [];
+                                                for (let i = 0; i < amens.length; i += 16) {
+                                                    chunks.push(amens.slice(i, i + 16));
+                                                }
+                                                return chunks.map((chunk, idx) => (
+                                                    <div id={`imv-carro2-${idx+1}`} key={`render-amen-${idx}`}>
+                                                        <CriativoCarrossel2 customItems={chunk} basico={dadosBasicos} />
+                                                    </div>
+                                                ));
+                                            })()}
+                                            {(() => {
+                                                const proxs = dadosDetalhados?.proximidades?.lista || [];
+                                                const chunks = [];
+                                                for (let i = 0; i < proxs.length; i += 12) {
+                                                    chunks.push(proxs.slice(i, i + 12));
+                                                }
+                                                return chunks.map((chunk, idx) => (
+                                                    <div id={`imv-carro3-${idx+1}`} key={`render-prox-${idx}`}>
+                                                        <CriativoCarrossel3 customItems={chunk} basico={dadosBasicos} />
+                                                    </div>
+                                                ));
+                                            })()}
                                         </div>
                                     )}
                                 </div>

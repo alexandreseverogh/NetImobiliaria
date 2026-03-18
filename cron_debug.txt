@@ -9941,3 +9941,65 @@
 [2026-03-17T14:45:06.296Z] GET /api/cron/transbordo called
 [2026-03-17T14:45:06.878Z] Found 0 expired assignments
 [2026-03-17T14:45:06.911Z] Found 0 expired assignments
+[2026-03-18T19:20:00.647Z] GET /api/cron/transbordo called
+[2026-03-18T19:20:00.728Z] Found 0 expired assignments
+[2026-03-18T19:25:00.430Z] GET /api/cron/transbordo called
+[2026-03-18T19:25:00.496Z] Found 0 expired assignments
+[2026-03-18T19:30:00.821Z] GET /api/cron/transbordo called
+[2026-03-18T19:30:00.972Z] Found 0 expired assignments
+[2026-03-18T19:35:00.282Z] GET /api/cron/transbordo called
+[2026-03-18T19:35:00.322Z] Found 0 expired assignments
+[2026-03-18T19:40:00.442Z] GET /api/cron/transbordo called
+[2026-03-18T19:40:00.477Z] Found 0 expired assignments
+[2026-03-18T19:45:00.098Z] GET /api/cron/transbordo called
+[2026-03-18T19:45:00.128Z] Found 0 expired assignments
+[2026-03-18T19:50:00.151Z] GET /api/cron/transbordo called
+[2026-03-18T19:50:00.197Z] Found 0 expired assignments
+[2026-03-18T19:55:00.738Z] GET /api/cron/transbordo called
+[2026-03-18T19:55:00.773Z] Found 0 expired assignments
+[2026-03-18T20:00:00.701Z] GET /api/cron/transbordo called
+[2026-03-18T20:00:00.738Z] Found 0 expired assignments
+[2026-03-18T20:05:01.111Z] GET /api/cron/transbordo called
+[2026-03-18T20:05:01.164Z] Found 0 expired assignments
+[2026-03-18T20:10:00.098Z] GET /api/cron/transbordo called
+[2026-03-18T20:10:00.117Z] Found 0 expired assignments
+[2026-03-18T20:15:00.917Z] GET /api/cron/transbordo called
+[2026-03-18T20:15:00.970Z] Found 0 expired assignments
+[2026-03-18T20:33:24.961Z] GET /api/cron/transbordo called
+[2026-03-18T20:33:25.062Z] Found 0 expired assignments
+[2026-03-18T20:35:00.664Z] GET /api/cron/transbordo called
+[2026-03-18T20:35:00.934Z] GET /api/cron/transbordo called
+[2026-03-18T20:35:00.995Z] Found 0 expired assignments
+[2026-03-18T20:35:01.000Z] Found 0 expired assignments
+[2026-03-18T20:40:00.970Z] GET /api/cron/transbordo called
+[2026-03-18T20:40:01.334Z] GET /api/cron/transbordo called
+[2026-03-18T20:40:01.416Z] Found 0 expired assignments
+[2026-03-18T20:40:01.837Z] Found 0 expired assignments
+[2026-03-18T20:45:00.563Z] GET /api/cron/transbordo called
+[2026-03-18T20:45:00.565Z] GET /api/cron/transbordo called
+[2026-03-18T20:45:00.606Z] Found 0 expired assignments
+[2026-03-18T20:45:00.610Z] Found 0 expired assignments
+[2026-03-18T20:50:00.111Z] GET /api/cron/transbordo called
+[2026-03-18T20:50:00.112Z] GET /api/cron/transbordo called
+[2026-03-18T20:50:00.154Z] Found 0 expired assignments
+[2026-03-18T20:50:00.157Z] Found 0 expired assignments
+[2026-03-18T20:55:00.107Z] GET /api/cron/transbordo called
+[2026-03-18T20:55:00.147Z] GET /api/cron/transbordo called
+[2026-03-18T20:55:00.169Z] Found 0 expired assignments
+[2026-03-18T20:55:00.186Z] Found 0 expired assignments
+[2026-03-18T21:00:00.989Z] GET /api/cron/transbordo called
+[2026-03-18T21:00:00.992Z] GET /api/cron/transbordo called
+[2026-03-18T21:00:01.062Z] Found 0 expired assignments
+[2026-03-18T21:00:01.070Z] Found 0 expired assignments
+[2026-03-18T21:05:00.625Z] GET /api/cron/transbordo called
+[2026-03-18T21:05:00.627Z] GET /api/cron/transbordo called
+[2026-03-18T21:05:00.669Z] Found 0 expired assignments
+[2026-03-18T21:05:00.673Z] Found 0 expired assignments
+[2026-03-18T21:10:00.176Z] GET /api/cron/transbordo called
+[2026-03-18T21:10:00.178Z] GET /api/cron/transbordo called
+[2026-03-18T21:10:00.214Z] Found 0 expired assignments
+[2026-03-18T21:10:00.216Z] Found 0 expired assignments
+[2026-03-18T21:15:00.123Z] GET /api/cron/transbordo called
+[2026-03-18T21:15:00.124Z] GET /api/cron/transbordo called
+[2026-03-18T21:15:00.156Z] Found 0 expired assignments
+[2026-03-18T21:15:00.159Z] Found 0 expired assignments

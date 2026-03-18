@@ -35,7 +35,7 @@ export const CriativoFeed = forwardRef<HTMLDivElement, { basico: any; publicUrl?
                 )}
                 {/* Logo */}
                 <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-center overflow-hidden border border-white/40 group" style={{ width: '150px', height: '150px' }}>
-                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '6px' }} crossOrigin="anonymous" />
+                    <img src="/imovitec-logo-definitive.png" alt="Imovitec" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '6px' }} crossOrigin="anonymous" />
                 </div>
             </div>
 
@@ -119,7 +119,7 @@ export const CriativoFeed = forwardRef<HTMLDivElement, { basico: any; publicUrl?
                 </p>
                 <div className="h-[1px] flex-grow mx-8 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
                 <p className="text-white/90 text-sm tracking-[0.2em] font-black uppercase">
-                    IMOVTEC.COM.BR
+                    IMOVITEC.COM.BR
                 </p>
             </div>
         </div>
@@ -153,7 +153,7 @@ export const CriativoStories = forwardRef<HTMLDivElement, { basico: any; publicU
                 )}
                 {/* Logo Image */}
                 <div className="bg-white/95 backdrop-blur-sm rounded-[2rem] shadow-[0_30px_60px_rgba(0,0,0,0.4)] flex items-center justify-center overflow-hidden border-2 border-white/50" style={{ width: '200px', height: '200px' }}>
-                    <img src="/imovitec-logo-definitive.png" alt="Imovtec" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} crossOrigin="anonymous" />
+                    <img src="/imovitec-logo-definitive.png" alt="Imovitec" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} crossOrigin="anonymous" />
                 </div>
             </div>
 
@@ -231,7 +231,7 @@ export const CriativoStories = forwardRef<HTMLDivElement, { basico: any; publicU
             <div className="absolute bottom-12 inset-x-0 text-center z-20 flex flex-col items-center">
                 <div className="w-32 h-1.5 bg-blue-500 rounded-full mb-6"></div>
                 <p className="text-white text-4xl font-black tracking-[0.2em] uppercase drop-shadow-md">
-                    imovtec.com.br
+                    imovitec.com.br
                 </p>
                 <p className="text-white/50 text-2xl mt-3 font-bold tracking-widest">REF: {basico?.codigo}</p>
             </div>
@@ -239,107 +239,99 @@ export const CriativoStories = forwardRef<HTMLDivElement, { basico: any; publicU
     )
 })
 
-export const CriativoCarrossel2 = forwardRef<HTMLDivElement, { basico: any; detalhado: any; completo: any }>(({ basico, detalhado, completo }, ref) => {
-    // Amenidades (Secondary photo or standard hero image but darkened)
-    const secondaryImage = completo?.imagens?.[1]?.url || basico?.imagem_principal?.url || '/Assets/logo.png';
-    const amenidadesArray = detalhado?.amenidades?.lista || [];
-    const mainAmenidades = amenidadesArray.slice(0, 8); // Top 8
-
+export const CriativoCarrossel2 = forwardRef<HTMLDivElement, { customItems?: any[]; basico?: any }>(({ customItems, basico }, ref) => {
     return (
-        <div ref={ref} className="bg-slate-900 relative flex flex-col items-center justify-center" style={{ width: '1080px', height: '1080px', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
-            {/* Background Illustration (Architectural Blueprint Style) */}
+        <div ref={ref} className="bg-slate-900 relative flex flex-col" style={{ width: '1080px', height: '1080px', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
+            {/* Background Illustration */}
             <div className="absolute inset-0 z-0 bg-slate-950 overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-900/30 via-slate-900 to-black"></div>
                 <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px)', backgroundSize: '60px 60px' }}></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-5 pointer-events-none">
-                    <Sparkles className="w-[800px] h-[800px] text-white" strokeWidth={0.5} />
+            </div>
+
+            {/* Top Bar Branding */}
+            <div className="absolute top-12 left-12 right-12 flex justify-between items-center z-20">
+                <div className="bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-2xl flex items-center border border-white/50">
+                    <img src="/imovitec-logo-definitive.png" alt="Imovitec" className="h-[120px] w-auto object-contain" crossOrigin="anonymous" />
+                </div>
+                <div className="text-right">
+                    <h2 className="text-blue-400 text-3xl font-black tracking-[0.2em] uppercase">UM NOVO NÍVEL</h2>
+                    <p className="text-white/60 text-xl font-bold tracking-widest uppercase">DE EXCLUSIVIDADE</p>
                 </div>
             </div>
 
-            <div className="z-10 w-full px-20">
-                <h2 className="text-blue-400 text-3xl font-bold tracking-widest uppercase mb-4 text-center">Um Novo Nível de Exclusividade</h2>
-                <h1 className="text-white text-6xl font-black leading-tight tracking-tight text-center mb-16">Seu Novo Estilo de Vida</h1>
+            <div className="z-10 w-full px-20 mt-48">
+                <h1 className="text-white text-6xl font-black leading-tight tracking-tight mb-12">Seu Novo Estilo de Vida</h1>
 
-                {amenidadesArray.length > 0 ? (
-                    <div className="flex flex-wrap items-center justify-center gap-4">
-                        {mainAmenidades.map((amenidade: any, index: number) => (
-                            <div key={index} className="flex items-center space-x-3 bg-white/10 border border-white/20 px-6 py-4 rounded-full backdrop-blur-md shadow-lg">
+                {customItems && customItems.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-y-6 gap-x-4">
+                        {customItems.map((item: any, index: number) => (
+                            <div key={index} className="flex items-center space-x-3 bg-white/10 border border-white/20 px-5 py-3.5 rounded-2xl backdrop-blur-md shadow-lg">
                                 <Sparkles className="w-6 h-6 text-blue-400 flex-shrink-0" />
-                                <span className="text-white text-2xl font-medium tracking-wide">{amenidade.nome || amenidade}</span>
+                                <span className="text-white text-xl font-medium tracking-wide truncate">{item.nome || item}</span>
                             </div>
                         ))}
-                        {amenidadesArray.length > 8 && (
-                            <div className="flex items-center space-x-3 bg-white/5 border border-white/10 px-6 py-4 rounded-full backdrop-blur-md">
-                                <span className="text-white/70 text-2xl font-medium tracking-wide">+{amenidadesArray.length - 8}</span>
-                            </div>
-                        )}
                     </div>
-                ) : detalhado ? (
-                    <div className="text-center text-white/50 text-3xl font-light">
+                ) : (
+                    <div className="text-center text-white/50 text-3xl font-light py-20">
                         Descubra todos os detalhes exclusivos no nosso site.
                     </div>
-                ) : null}
+                )}
             </div>
-            {/* Branding Final */}
-            <div className="absolute top-12 left-12 bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-2xl flex items-center border border-white/50">
-                <img src="/imovitec-logo-definitive.png" alt="Imovtec" className="h-[120px] w-auto object-contain" crossOrigin="anonymous" />
+
+            {/* Footer Branding Slogan */}
+            <div className="absolute bottom-10 inset-x-0 text-center z-20 flex flex-col items-center opacity-70">
+                <p className="text-white/80 text-xl uppercase tracking-[0.4em] font-black">
+                    IMOVITEC • Inteligência em Soluções Imobiliárias
+                </p>
             </div>
         </div>
     )
 })
 
-export const CriativoCarrossel3 = forwardRef<HTMLDivElement, { basico: any; detalhado: any; completo: any }>(({ basico, detalhado, completo }, ref) => {
-    // Proximidades (Third photo or texture)
-    const thirdImage = completo?.imagens?.[2]?.url || basico?.imagem_principal?.url || '/Assets/logo.png';
-    const proximidadesArray = detalhado?.proximidades?.lista || [];
-    const mainProximidades = proximidadesArray.slice(0, 6); // Top 6
-
+export const CriativoCarrossel3 = forwardRef<HTMLDivElement, { customItems?: any[]; basico?: any }>(({ customItems, basico }, ref) => {
     return (
-        <div ref={ref} className="bg-slate-900 relative flex flex-col justify-between" style={{ width: '1080px', height: '1080px', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
-            {/* Background Illustration (Topographic/Map Style) */}
+        <div ref={ref} className="bg-slate-900 relative flex flex-col" style={{ width: '1080px', height: '1080px', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
+            {/* Background Illustration */}
             <div className="absolute inset-0 z-0 bg-slate-950 overflow-hidden">
                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-indigo-900/30 via-slate-900 to-black"></div>
                  <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(circle at center, white 2px, transparent 2px)', backgroundSize: '36px 36px' }}></div>
-                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] opacity-5 pointer-events-none">
-                    <MapPin className="w-[800px] h-[800px] text-white" strokeWidth={0.5} />
+            </div>
+
+            {/* Top Bar Branding */}
+            <div className="absolute top-12 left-12 right-12 flex justify-between items-center z-20">
+                <div className="bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-2xl flex items-center border border-white/50">
+                    <img src="/imovitec-logo-definitive.png" alt="Imovitec" className="h-[120px] w-auto object-contain" crossOrigin="anonymous" />
+                </div>
+                <div className="text-right">
+                    <h2 className="text-blue-400 text-3xl font-black tracking-[0.2em] uppercase">CONVENIÊNCIA</h2>
+                    <p className="text-white/60 text-xl font-bold tracking-widest uppercase">MÁXIMA</p>
                 </div>
             </div>
 
-            <div className="z-10 pt-32 px-20">
-                <h2 className="text-blue-400 text-3xl font-bold tracking-widest uppercase mb-4">Conveniência Máxima</h2>
-                <h1 className="text-white text-7xl font-black leading-tight tracking-tight mb-16">Tudo a Poucos<br/>Passos de Você</h1>
+            <div className="z-10 w-full px-20 mt-48">
+                <h1 className="text-white text-7xl font-black leading-tight tracking-tight mb-12">Tudo a Poucos<br/>Passos de Você</h1>
 
-                {proximidadesArray.length > 0 ? (
-                    <div className="flex flex-wrap items-center gap-4">
-                        {mainProximidades.map((prox: any, index: number) => (
-                            <div key={index} className="flex items-center space-x-3 bg-blue-600/20 border border-blue-500/30 px-6 py-4 rounded-3xl backdrop-blur-md">
-                                <MapPin className="w-6 h-6 text-blue-400" strokeWidth={2} />
-                                <span className="text-white text-2xl font-medium">{prox.nome || prox}</span>
+                {customItems && customItems.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-y-6 gap-x-6">
+                        {customItems.map((item: any, index: number) => (
+                            <div key={index} className="flex items-center space-x-4 bg-blue-600/20 border border-blue-500/30 px-6 py-5 rounded-[2rem] backdrop-blur-md">
+                                <MapPin className="w-7 h-7 text-blue-400" strokeWidth={2.5} />
+                                <span className="text-white text-2xl font-semibold truncate">{item.nome || item}</span>
                             </div>
                         ))}
-                        {proximidadesArray.length > 6 && (
-                            <div className="flex items-center space-x-3 bg-white/5 border border-white/10 px-6 py-4 rounded-3xl backdrop-blur-md">
-                                <span className="text-white/70 text-2xl font-medium tracking-wide">e mais +{proximidadesArray.length - 6}</span>
-                            </div>
-                        )}
                     </div>
-                ) : detalhado ? (
-                    <div className="text-white/60 text-3xl font-light max-w-2xl">
-                        Localização privilegiada no coração da cidade. Onde o melhor se encontra com o seu novo lar.
+                ) : (
+                    <div className="text-white/40 text-3xl font-light py-20">
+                        Localização privilegiada no coração da cidade.
                     </div>
-                ) : null}
+                )}
             </div>
 
-            {/* Bottom Call to Action (Design Clean) */}
-            <div className="z-10 w-full bg-blue-600/95 backdrop-blur-md p-10 flex items-center justify-center shadow-2xl border-t border-white/20">
+            {/* Bottom Call to Action (Design Clean) - Bottom Sticky */}
+            <div className="absolute bottom-0 inset-x-0 z-20 bg-blue-600/95 backdrop-blur-md p-12 flex items-center justify-center shadow-2xl border-t border-white/20">
                 <div className="text-center">
-                     <div className="mb-6 flex justify-center">
-                        <div className="bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-xl border border-white/50">
-                            <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-16 w-auto" crossOrigin="anonymous" />
-                        </div>
-                     </div>
-                     <p className="text-white/80 text-xl uppercase tracking-[0.3em] font-bold mb-2">Imovtec Imobiliária Digital</p>
-                     <p className="text-white text-4xl font-black">Consulte este imóvel em nosso site usando a REF: {basico?.codigo}</p>
+                     <p className="text-white/80 text-xl uppercase tracking-[0.3em] font-bold mb-3">Imovitec Imobiliária Digital</p>
+                     <p className="text-white text-4xl font-black">Consulte este imóvel em nosso site usando a REF: {basico?.codigo || basico?.id}</p>
                 </div>
             </div>
         </div>
