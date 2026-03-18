@@ -259,8 +259,8 @@ export const CriativoCarrossel2 = forwardRef<HTMLDivElement, { customItems?: any
                 </div>
             </div>
 
-            <div className="z-10 w-full px-20 mt-48">
-                <h1 className="text-white text-6xl font-black leading-tight tracking-tight mb-12">Seu Novo Estilo de Vida</h1>
+            <div className="z-10 w-full px-20 mt-44">
+                <h1 className="text-white text-5xl font-black leading-tight tracking-tight mb-8">Seu Novo Estilo de Vida</h1>
 
                 {customItems && customItems.length > 0 ? (
                     <div className="grid grid-cols-3 gap-y-6 gap-x-4">
@@ -281,7 +281,7 @@ export const CriativoCarrossel2 = forwardRef<HTMLDivElement, { customItems?: any
             {/* Footer Branding Slogan */}
             <div className="absolute bottom-10 inset-x-0 text-center z-20 flex flex-col items-center opacity-70">
                 <p className="text-white/80 text-xl uppercase tracking-[0.4em] font-black">
-                    IMOVITEC • Inteligência em Soluções Imobiliárias
+                    IMOVTEC • Inteligência em Soluções Imobiliárias
                 </p>
             </div>
         </div>
@@ -308,13 +308,13 @@ export const CriativoCarrossel3 = forwardRef<HTMLDivElement, { customItems?: any
                 </div>
             </div>
 
-            <div className="z-10 w-full px-20 mt-48">
-                <h1 className="text-white text-7xl font-black leading-tight tracking-tight mb-12">Tudo a Poucos<br/>Passos de Você</h1>
+            <div className="z-10 w-full px-20 mt-44">
+                <h1 className="text-white text-5xl font-black leading-tight tracking-tight mb-6">Tudo a Poucos<br/>Passos de Você</h1>
 
                 {customItems && customItems.length > 0 ? (
                     <div className="grid grid-cols-2 gap-y-6 gap-x-6">
                         {customItems.map((item: any, index: number) => (
-                            <div key={index} className="flex items-center space-x-4 bg-blue-600/20 border border-blue-500/30 px-6 py-5 rounded-[2rem] backdrop-blur-md">
+                            <div key={index} className="flex items-center space-x-4 bg-blue-600/20 border border-blue-500/30 px-6 py-3.5 rounded-[2rem] backdrop-blur-md">
                                 <MapPin className="w-7 h-7 text-blue-400" strokeWidth={2.5} />
                                 <span className="text-white text-2xl font-semibold truncate">{item.nome || item}</span>
                             </div>
@@ -328,10 +328,10 @@ export const CriativoCarrossel3 = forwardRef<HTMLDivElement, { customItems?: any
             </div>
 
             {/* Bottom Call to Action (Design Clean) - Bottom Sticky */}
-            <div className="absolute bottom-0 inset-x-0 z-20 bg-blue-600/95 backdrop-blur-md p-12 flex items-center justify-center shadow-2xl border-t border-white/20">
+            <div className="absolute bottom-0 inset-x-0 z-20 bg-blue-600/95 backdrop-blur-md p-8 flex items-center justify-center shadow-2xl border-t border-white/20">
                 <div className="text-center">
-                     <p className="text-white/80 text-xl uppercase tracking-[0.3em] font-bold mb-3">Imovitec Imobiliária Digital</p>
-                     <p className="text-white text-4xl font-black">Consulte este imóvel em nosso site usando a REF: {basico?.codigo || basico?.id}</p>
+                     <p className="text-white/80 text-lg uppercase tracking-[0.3em] font-bold mb-2">Imovtec Imobiliária Digital</p>
+                     <p className="text-white text-3xl font-black">Consulte este imóvel em nosso site usando a REF: {basico?.codigo || basico?.id}</p>
                 </div>
             </div>
         </div>
