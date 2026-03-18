@@ -96,7 +96,7 @@ export default function ImovelPDFPage() {
                             {/* Header branding repeated on all pages during print */}
                             <div className="flex justify-between items-center mb-8 border-b-2 border-slate-200 pb-4 print:mt-4 print:mb-8 pt-4">
                                 <h1 className="text-sm uppercase tracking-widest text-slate-500 font-bold">Ficha Técnica Oficial</h1>
-                                <span className="text-sm font-black text-blue-600 tracking-wider">www.imovitec.com.br</span>
+                                <span className="text-sm font-black text-blue-600 tracking-wider">www.imovtec.com.br</span>
                             </div>
                         </td>
                     </tr>
@@ -284,7 +284,7 @@ export default function ImovelPDFPage() {
 
                             {/* Rodapé de Página de Impressão */}
                             <div className="text-center pt-8 border-t border-slate-200 mt-12 text-slate-400 text-xs hidden print:block break-inside-avoid">
-                                Documento gerado oficialmente pela Imovitec. &copy; {new Date().getFullYear()} Todos os direitos reservados.
+                                Documento gerado oficialmente pela Imovtec. &copy; {new Date().getFullYear()} Todos os direitos reservados.
                             </div>
                         </td>
                     </tr>

@@ -41,7 +41,7 @@ export default function CriativosModal({ isOpen, onClose, imovelId }: CriativosM
         }
     }, [isOpen, dadosBasicos, dadosCompletos, loading.completo, carregarDetalhados, carregarCompletos])
 
-    const publicUrl = dadosBasicos ? `https://www.imovitec.com.br/imoveis/${dadosBasicos.id}` : ''
+    const publicUrl = dadosBasicos ? `https://www.imovtec.com.br/imoveis/${dadosBasicos.id}` : ''
 
     // Função para gerar a legenda social (Copywriting)
     useEffect(() => {

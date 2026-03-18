@@ -673,38 +673,30 @@ export default function ImovelDetalhes() {
         )}
 
         {/* --- SEÇÃO PREMIUM DE REDIRECIONAMENTO (UPSELL/CONTINUIDADE) --- */}
-        <div className="mt-20 mb-10 overflow-hidden rounded-3xl bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-950 p-1 shadow-2xl">
-          <div className="bg-white/10 backdrop-blur-md rounded-[22px] px-8 py-12 text-center text-white relative overflow-hidden group">
+        <div className="mt-12 mb-8 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-950 p-0.5 shadow-xl">
+          <div className="bg-white/10 backdrop-blur-md rounded-[14px] px-6 py-8 text-center text-white relative overflow-hidden group">
             {/* Elementos decorativos de fundo */}
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl group-hover:bg-blue-400/30 transition-all duration-700"></div>
-            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl group-hover:bg-indigo-400/30 transition-all duration-700"></div>
+            <div className="absolute -top-16 -right-16 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl group-hover:bg-blue-400/30 transition-all duration-700"></div>
+            <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl group-hover:bg-indigo-400/30 transition-all duration-700"></div>
             
-            <div className="relative z-10 max-w-2xl mx-auto space-y-6">
-              <div className="inline-flex items-center justify-center p-3 bg-white/20 rounded-2xl mb-4 animate-bounce">
-                <SparklesIcon className="w-8 h-8 text-yellow-300" />
+            <div className="relative z-10 max-w-xl mx-auto space-y-4">
+              <div className="inline-flex items-center justify-center p-2 bg-white/20 rounded-xl mb-2 animate-bounce">
+                <SparklesIcon className="w-6 h-6 text-yellow-300" />
               </div>
               
-              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
+              <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight leading-tight">
                 Gostou deste imóvel, mas quer ver <span className="text-blue-300">outras opções?</span>
               </h2>
               
-              <p className="text-lg text-blue-100/90 leading-relaxed font-medium">
-                Temos centenas de outras oportunidades exclusivas esperando por você em nossa plataforma principal.
-              </p>
-              
-              <div className="pt-6">
+              <div className="pt-4">
                 <button
                   onClick={() => router.push('/landpaging')}
-                  className="inline-flex items-center gap-3 px-10 py-5 bg-white text-blue-900 rounded-full text-xl font-bold shadow-xl hover:bg-blue-50 transition-all duration-300 hover:scale-105 active:scale-95 group/btn"
+                  className="inline-flex items-center gap-3 px-8 py-4 bg-white text-blue-900 rounded-full text-lg font-bold shadow-lg hover:bg-blue-50 transition-all duration-300 hover:scale-105 active:scale-95 group/btn"
                 >
-                  <HomeIcon className="w-6 h-6 text-blue-600 group-hover/btn:rotate-12 transition-transform" />
+                  <HomeIcon className="w-5 h-5 text-blue-600 group-hover/btn:rotate-12 transition-transform" />
                   Explorar mais Imóveis
                 </button>
               </div>
-              
-              <p className="text-sm text-blue-200/60 pt-4 italic">
-                Acesse filtros inteligentes, mapas e consultoria personalizada.
-              </p>
             </div>
           </div>
         </div>

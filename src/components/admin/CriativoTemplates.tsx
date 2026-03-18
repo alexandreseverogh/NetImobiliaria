@@ -119,7 +119,7 @@ export const CriativoFeed = forwardRef<HTMLDivElement, { basico: any; publicUrl?
                 </p>
                 <div className="h-[1px] flex-grow mx-8 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
                 <p className="text-white/90 text-sm tracking-[0.2em] font-black uppercase">
-                    IMOVITEC.COM.BR
+                    IMOVTEC.COM.BR
                 </p>
             </div>
         </div>
@@ -231,7 +231,7 @@ export const CriativoStories = forwardRef<HTMLDivElement, { basico: any; publicU
             <div className="absolute bottom-12 inset-x-0 text-center z-20 flex flex-col items-center">
                 <div className="w-32 h-1.5 bg-blue-500 rounded-full mb-6"></div>
                 <p className="text-white text-4xl font-black tracking-[0.2em] uppercase drop-shadow-md">
-                    imovitec.com.br
+                    imovtec.com.br
                 </p>
                 <p className="text-white/50 text-2xl mt-3 font-bold tracking-widest">REF: {basico?.codigo}</p>
             </div>
