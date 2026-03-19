@@ -650,12 +650,44 @@ export default function RegisterForm({ userType, onBack, onSuccess }: RegisterFo
 
       if (response.ok && data.success) {
         // Cadastro bem-sucedido
-        setSuccessMessage(data.message)
 
-        // Aguardar 2 segundos e fechar modal
+        // Se a API retornou token diretamente (clientes), fazer auto-login imediato
+        if (data.data?.token) {
+          const userData = {
+            uuid: data.data.uuid,
+            nome: data.data.nome,
+            email: data.data.email,
+            cpf: data.data.cpf,
+            telefone: data.data.telefone || '',
+            userType: data.data.userType || userType,
+            at: Date.now()
+          }
+          localStorage.setItem('public-auth-token', data.data.token)
+          localStorage.setItem('public-user-data', JSON.stringify(userData))
+          localStorage.setItem('public-last-auth-user', JSON.stringify({
+            nome: data.data.nome || '',
+            userType: data.data.userType || userType,
+            at: Date.now()
+          }))
+
+          // Disparar evento (antes de fechar modal, listeners ainda ativos)
+          window.dispatchEvent(new Event('public-auth-changed'))
+
+          // Fechar modal
+          onSuccess()
+
+          // Re-disparar para cobrir re-renders do React
+          setTimeout(() => window.dispatchEvent(new Event('public-auth-changed')), 200)
+          setTimeout(() => window.dispatchEvent(new Event('public-auth-changed')), 600)
+          return
+        }
+
+        // Fluxo padrão (proprietário, ou sem token): mostrar mensagem e fechar
+        setSuccessMessage(data.message)
         setTimeout(() => {
           onSuccess()
         }, 2000)
+
       } else {
         setError(data.message || 'Erro ao realizar cadastro')
       }

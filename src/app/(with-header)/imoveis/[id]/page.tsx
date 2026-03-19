@@ -35,6 +35,7 @@ import VideosLista from '@/components/property/VideosLista'
 import VideoModal from '@/components/admin/wizard/VideoModal'
 import MapaModal from '@/components/property/MapaModal'
 import SafeImage from '@/components/common/SafeImage'
+import TenhoInteresseButton from '@/components/TenhoInteresseButton'
 
 export default function ImovelDetalhes() {
   const params = useParams()
@@ -429,8 +430,25 @@ export default function ImovelDetalhes() {
           </div>
         </div>
 
-        {/* Container em branco para espaçamento */}
-        <div className="w-full" style={{ maxWidth: '1400px', margin: '0 auto', height: '12px' }}></div>
+        {/* ── BARRA DE AÇÃO: Tenho Interesse ─────────────────────────────── */}
+        <div className="w-full my-5">
+          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+            <div className="text-center sm:text-left">
+              <p className="text-emerald-800 font-bold text-lg leading-tight">
+                ❤ Ficou interessado neste imóvel?
+              </p>
+              <p className="text-emerald-600 text-sm mt-0.5">
+                Registre seu interesse e nossa equipe entrará em contato.
+              </p>
+            </div>
+            <TenhoInteresseButton
+              imovelId={Number(dadosBasicos.id)}
+              imovelTitulo={dadosBasicos.titulo}
+              onSuccess={() => router.push('/landpaging')}
+              className="px-8 py-3 text-base rounded-full whitespace-nowrap flex-shrink-0"
+            />
+          </div>
+        </div>
 
         {/* Botões de Ação (Responsivo: um abaixo do outro no mobile) */}
         <div className="flex flex-col sm:flex-row gap-3 mb-4" style={{ maxWidth: '1400px', margin: '0 auto' }}>
@@ -688,7 +706,7 @@ export default function ImovelDetalhes() {
                 Gostou deste imóvel, mas quer ver <span className="text-blue-300">outras opções?</span>
               </h2>
               
-              <div className="pt-4">
+              <div className="pt-4 flex justify-center">
                 <button
                   onClick={() => router.push('/landpaging')}
                   className="inline-flex items-center gap-3 px-8 py-4 bg-white text-blue-900 rounded-full text-lg font-bold shadow-lg hover:bg-blue-50 transition-all duration-300 hover:scale-105 active:scale-95 group/btn"

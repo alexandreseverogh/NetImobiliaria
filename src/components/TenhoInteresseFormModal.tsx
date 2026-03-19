@@ -55,39 +55,29 @@ export default function TenhoInteresseFormModal({
   // Verificar se o cliente está logado quando o modal é aberto e preencher telefone padrão
   useEffect(() => {
     if (isOpen) {
-      if (!publicToken || !userData) {
+      // Reler localStorage agora (evita valores capturados antes do login)
+      const currentToken = localStorage.getItem('public-auth-token')
+      const currentUserData = localStorage.getItem('public-user-data')
+
+      if (!currentToken || !currentUserData) {
         setError('Você precisa estar logado para registrar interesse')
-        // Fechar modal após 2 segundos se não estiver logado
-        setTimeout(() => {
-          onClose()
-        }, 2000)
+        setTimeout(() => { onClose() }, 2000)
         return
       }
 
       try {
-        const parsedUser = JSON.parse(userData)
+        const parsedUser = JSON.parse(currentUserData)
         if (parsedUser.userType !== 'cliente' || !parsedUser.uuid) {
           setError('Apenas clientes podem registrar interesse')
-          // Fechar modal após 2 segundos se não for cliente
-          setTimeout(() => {
-            onClose()
-          }, 2000)
+          setTimeout(() => { onClose() }, 2000)
           return
         }
 
-        // Preencher telefone padrão do usuário se disponível
-        if (parsedUser.telefone) {
-          setFormData(prev => {
-            // Só atualizar se ainda não tiver telefone preenchido
-            if (!prev.telefone) {
-              return {
-                ...prev,
-                telefone: parsedUser.telefone
-              }
-            }
-            return prev
-          })
-        }
+        // Pré-preencher telefone com o dado do cliente (sempre que abrir)
+        setFormData(prev => ({
+          ...prev,
+          telefone: parsedUser.telefone || prev.telefone || ''
+        }))
 
         // Pré-preencher preferencia/mensagem caso já exista registro em imovel_prospects (mesmo id_cliente + id_imovel)
         ;(async () => {

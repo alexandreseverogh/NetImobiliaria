@@ -296,6 +296,51 @@ export async function POST(request: NextRequest) {
       extraDetails: { cpf: newUser.cpf, cnpj: (newUser as any).cnpj, origem: (newUser as any).origem_cadastro }
     })
 
+    // Para clientes: gerar token JWT diretamente (auto-login sem chamada extra)
+    if (userType === 'cliente') {
+      try {
+        const jwtSecret = process.env.JWT_SECRET || 'fallback-secret'
+        const jwtPayload = {
+          userUuid: newUser.uuid,
+          userType: 'cliente',
+          email: newUser.email,
+          nome: newUser.nome,
+          cpf: newUser.cpf,
+          telefone: newUser.telefone,
+          is2FAEnabled: false
+        }
+        const jwt = await import('jsonwebtoken')
+        const token = jwt.default.sign(jwtPayload, jwtSecret, { expiresIn: '24h' })
+
+        const regResponse = NextResponse.json(
+          {
+            success: true,
+            message: 'Cadastro realizado com sucesso!',
+            data: {
+              uuid: newUser.uuid,
+              nome: newUser.nome,
+              email: newUser.email,
+              cpf: newUser.cpf,
+              telefone: newUser.telefone,
+              userType,
+              token  // ← token JWT incluído para auto-login imediato
+            }
+          },
+          { status: 201 }
+        )
+        regResponse.cookies.set('public_auth_token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24,
+          path: '/'
+        })
+        return regResponse
+      } catch {
+        // Se falhar ao gerar token, retornar sem token (fluxo normal de login)
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,

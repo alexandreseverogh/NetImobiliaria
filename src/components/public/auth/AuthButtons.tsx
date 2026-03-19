@@ -19,6 +19,7 @@ export default function AuthButtons() {
   const { user, loading, logout, checkAuth } = usePublicAuth()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'login' | 'register'>('login')
+  const [forcedUserType, setForcedUserType] = useState<'cliente' | null>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [corretorLoginOpen, setCorretorLoginOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -137,6 +138,27 @@ export default function AuthButtons() {
     }
 
     return () => window.removeEventListener('open-corretor-login-modal', open)
+  }, [])
+
+  // Global: qualquer componente (ex: TenhoInteresseButton em páginas públicas) pode
+  // abrir o modal de auth de cliente via evento 'open-auth-modal'.
+  // Passa initialUserType='cliente' diretamente, pulando a tela de escolha de perfil.
+  useEffect(() => {
+    const handleOpenAuthModal = (event: Event) => {
+      const detail = (event as CustomEvent).detail || {}
+      const { mode, userType } = detail
+
+      // Só agir para userType cliente
+      if (userType && userType !== 'cliente') return
+
+      // Definir modo e FORCÇAR tipo cliente — assim o AuthModal pula o choose-type
+      setModalMode(mode === 'login' ? 'login' : 'register')
+      setForcedUserType('cliente')
+      setIsModalOpen(true)
+    }
+
+    window.addEventListener('open-auth-modal', handleOpenAuthModal)
+    return () => window.removeEventListener('open-auth-modal', handleOpenAuthModal)
   }, [])
 
   const openLogin = () => {
@@ -272,13 +294,19 @@ export default function AuthButtons() {
         <AuthModal
           mode={modalMode}
           onChangeMode={setModalMode}
-          onClose={() => setIsModalOpen(false)}
+          initialUserType={forcedUserType}
+          onClose={() => {
+            setIsModalOpen(false)
+            setForcedUserType(null)  // limpar contexto forçado ao fechar
+          }}
           onCorretorLoginClick={() => {
             setIsModalOpen(false)
+            setForcedUserType(null)
             setCorretorLoginOpen(true)
           }}
           onCorretorRegisterClick={() => {
             setIsModalOpen(false)
+            setForcedUserType(null)
             router.push('/corretor/cadastro')
           }}
         />,

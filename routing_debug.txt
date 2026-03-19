@@ -250,3 +250,11 @@
 [2026-01-30T22:41:35.051Z] Location: Recife/PE
 [2026-01-30T22:41:35.078Z] Broker selected: QuartoCorretorExterno (9c95dfb0-3bff-4270-9364-d944631b821b)
 [2026-01-30T22:41:35.097Z] Success: Assignment created
+[2026-03-19T22:35:36.909Z] Starting routing for prospect 1
+[2026-03-19T22:35:36.939Z] Location: Recife/PE
+[2026-03-19T22:35:37.006Z] Broker selected: Plantonista (50ca3bce-e57b-4fb3-beec-87b9a8f76685)
+[2026-03-19T22:35:37.186Z] Success: Assignment created
+[2026-03-19T23:28:40.247Z] Starting routing for prospect 2
+[2026-03-19T23:28:40.301Z] Location: Recife/PE
+[2026-03-19T23:28:40.562Z] Broker selected: Plantonista (50ca3bce-e57b-4fb3-beec-87b9a8f76685)
+[2026-03-19T23:28:40.914Z] Success: Assignment created
