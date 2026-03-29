@@ -68,7 +68,7 @@ services:
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
-      DB_HOST: db
+      DB_HOST: prod_db
       DB_PORT: "5432"
       DB_NAME: ${PROD_DB_NAME:-net_imobiliaria}
       DB_USER: ${DB_USER:-postgres}
@@ -76,8 +76,22 @@ services:
       DB_SSL: "false"
       NEXT_PUBLIC_API_URL: "http://prod_app:3000"
       CRON_SECRET: ${PROD_CRON_SECRET}
-      LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-https://libretranslate.com}
+      # Usar tradutor local próprio
+      LIBRETRANSLATE_URL: "http://libretranslate:5000"
     command: ["node", "scripts/feed-cron-scheduler.js"]
+    depends_on:
+      prod_db:
+        condition: service_healthy
+      libretranslate:
+        condition: service_started
+
+  # Tradutor gratuito e sem limites (self-hosted)
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    restart: unless-stopped
+    environment:
+      - LT_LOAD_ONLY=en,pt
+    # Não precisa expor portas na VPS (acesso interno via rede docker)
     healthcheck:
       test:
         [
