@@ -74,6 +74,17 @@ services:
       timeout: 5s
       retries: 10
 
+  # Tradutor gratuito e sem limites (self-hosted)
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    container_name: netimobiliaria-translator
+    restart: unless-stopped
+    environment:
+      - LT_LOAD_ONLY=en,pt
+    # porta 5000 interna
+    expose:
+      - "5000"
+
   # Worker do FEED (scheduler + processamento) dentro do Docker
   # Isso garante que os conteúdos do schema "feed" sejam coletados e gravados
   # no MESMO Postgres do container (db), evitando divergência entre máquinas.
@@ -86,6 +97,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      libretranslate:
+        condition: service_started
     environment:
       DB_HOST: db
       DB_PORT: "5432"
@@ -94,6 +107,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       NODE_ENV: development
       NEXT_TELEMETRY_DISABLED: "1"
+      # Usar tradutor local (sem limites)
+      LIBRETRANSLATE_URL: "http://libretranslate:5000"
       # Usado apenas se cair no fallback HTTP (idealmente não precisa)
       NEXT_PUBLIC_API_URL: "http://app:3000"
       # Windows/Docker: garante que scripts/watchers (se existirem) detectem mudanças
