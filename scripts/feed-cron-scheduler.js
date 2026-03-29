@@ -130,52 +130,23 @@ async function processAllPendingJobs() {
 // Configurar cron jobs
 console.log('⏰ Configurando agendador de feeds...\n');
 
-// 1. Criar novos jobs UMA VEZ AO DIA (às 03:00 da manhã)
+// 1. Criar e processar jobs uma única vez ao dia (às 03:00 da manhã)
 cron.schedule('0 3 * * *', async () => {
-  console.log(`\n🕐 [${new Date().toISOString()}] Executando criação diária de jobs...`);
-  await createJobs();
-  // Após criar jobs, processar imediatamente
-  await processAllPendingJobs();
+  console.log(`\n🕐 [${new Date().toISOString()}] Executando sincronização diária de feeds...`);
+  try {
+    await createJobs();
+    await processAllPendingJobs();
+    console.log(`✅ [${new Date().toISOString()}] Sincronização diária concluída.`);
+  } catch (error) {
+    console.error(`❌ [${new Date().toISOString()}] Erro na sincronização diária:`, error);
+  }
 }, {
   scheduled: true,
   timezone: 'America/Sao_Paulo'
 });
 
-// 2. Tentar processar jobs pendentes a cada 1 hora (caso algum tenha falhado ou o servidor tenha acabado de subir)
-cron.schedule('0 * * * *', async () => {
-  console.log(`\n🕐 [${new Date().toISOString()}] Verificando jobs pendentes (hora em hora)...`);
-  await processAllPendingJobs();
-}, {
-  scheduled: true,
-  timezone: 'America/Sao_Paulo'
-});
-
-console.log('✅ Agendador configurado:');
-console.log('   📅 Criação de jobs: A cada hora (minuto 0)');
-console.log('   📅 Processamento: A cada 15 minutos');
+console.log('✅ Agendador configurado para execução diária às 03:00 (America/Sao_Paulo).');
 console.log('\n🚀 Agendador rodando... (Ctrl+C para parar)\n');
 
-// Rodar uma sincronização imediata ao subir o container.
-// Isso evita que uma nova máquina fique "parada" até o próximo tick do cron.
-(async () => {
-  try {
-    console.log('🔄 [Cron] Inicialização: criando jobs agora (boot sync)...');
-    await createJobs();
-  } catch (e) {
-    console.warn('⚠️ [Cron] Inicialização: falha ao criar jobs (continuando mesmo assim):', e?.message || e);
-  }
-
-  try {
-    console.log('🔄 [Cron] Inicialização: processando jobs pendentes (boot sync)...');
-    const count = await processAllPendingJobs();
-    if (count > 0) {
-      console.log('✅ [Cron] Inicialização concluída (jobs processados)\n');
-    } else {
-      console.log('ℹ️ [Cron] Inicialização concluída (nenhum job pendente)\n');
-    }
-  } catch (error) {
-    console.error('❌ [Cron] Erro ao processar jobs iniciais:', error?.message || error);
-    console.log('💡 Verifique se o banco de dados está acessível\n');
-  }
-})();
+// Removido o boot sync imediato para respeitar a janela das 03:00h conforme solicitado pelo usuário.
 
