@@ -134,9 +134,16 @@ console.log('⏰ Configurando agendador de feeds...\n');
 cron.schedule('0 3 * * *', async () => {
   console.log(`\n🕐 [${new Date().toISOString()}] Executando sincronização diária de feeds...`);
   try {
+    const { processAllPendingJobs: processDirect, cleanupOldFeeds } = require('./feed-cron-processor.js');
+    
+    // Passo 1: Limpar feeds antigos (mais de 7 dias) para manter histórico enxuto
+    await cleanupOldFeeds(7);
+    
+    // Passo 2: Criar e processar novos jobs
     await createJobs();
-    await processAllPendingJobs();
-    console.log(`✅ [${new Date().toISOString()}] Sincronização diária concluída.`);
+    await processDirect();
+    
+    console.log(`✅ [${new Date().toISOString()}] Sincronização e limpeza concluídas.`);
   } catch (error) {
     console.error(`❌ [${new Date().toISOString()}] Erro na sincronização diária:`, error);
   }

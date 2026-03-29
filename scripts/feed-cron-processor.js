@@ -414,11 +414,30 @@ async function processAllPendingJobs() {
   return processedCount;
 }
 
+// Limpar feeds antigos (mais de 7 dias)
+async function cleanupOldFeeds(days = 7) {
+  const client = await pool.connect();
+  try {
+    console.log(`🧹 [Cleanup] Removendo feeds com mais de ${days} dias...`);
+    const result = await client.query(
+      `DELETE FROM feed.feed_conteudos WHERE data_publicacao < NOW() - INTERVAL '${days} days'`
+    );
+    console.log(`✅ [Cleanup] Removidos ${result.rowCount} feeds antigos.`);
+    return result.rowCount;
+  } catch (error) {
+    console.error('❌ [Cleanup] Erro ao limpar feeds antigos:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 // Executar
 if (require.main === module) {
   processAllPendingJobs()
-    .then(() => {
-      console.log('✅ Processamento concluído');
+    .then(async () => {
+      await cleanupOldFeeds();
+      console.log('✅ Tudo concluído');
       process.exit(0);
     })
     .catch((error) => {
@@ -427,5 +446,5 @@ if (require.main === module) {
     });
 }
 
-module.exports = { processAllPendingJobs, processJob };
+module.exports = { processAllPendingJobs, processJob, cleanupOldFeeds };
 
