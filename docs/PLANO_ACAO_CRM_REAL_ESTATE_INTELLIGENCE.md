@@ -1985,6 +1985,95 @@ CREATE INDEX idx_leads_tarefas_pendentes ON leads_tarefas(agendada_para) WHERE c
 - [ ] Criar “catálogo de templates” (admin) com nome, texto, placeholders, categoria e status (aprovado/rascunho)
 - [ ] Submeter templates na Meta e versionar `policy_version`/templates no CRM
 
+#### 3.7. INTEGRAÇÃO PREMIUM COM CHATWOOT (HUB DE ATENDIMENTO)
+
+**Objetivo:** Utilizar o Chatwoot como a "Interface de Guerra" dos corretores, conectando o motor de IA e o banco de dados da Net Imobiliária em uma plataforma omnichannel de alto nível.
+
+##### 3.7.1. Arquitetura da Integração (Full Sync)
+
+A integração não será apenas um webhook básico, mas uma sincronia bidirecional de contexto:
+
+*   **IA de Qualificação -> Chatwoot:** A IA atende no WhatsApp/Insta. Assim que detecta uma intenção real (SQL), ela cria a conversa no Chatwoot e envia uma **Nota Privada** com o resumo do "Sonho", preferências de lazer e match de imóveis.
+*   **Chatwoot -> CRM (Kanban):** Quando um corretor resolve uma conversa ou altera um status no Chatwoot, o card no Kanban da Net Imobiliária é movido automaticamente.
+*   **Dashboard Interno (Net Widget):** Implementar um *Dashboard App* (iframe) dentro da barra lateral do Chatwoot que mostra a ficha técnica e o score de match dos imóveis diretamente para o corretor enquanto ele digita.
+
+##### 3.7.2. Funcionalidades Premium da Integração
+
+1.  **Contextual Handover (Transbordo Inteligente):**
+    *   O corretor não pergunta "O que você busca?". Ele lê o resumo da IA: *"Lead busca sair do aluguel, prioriza segurança para filha de 5 anos e precisa de proximidade com escola X. Score de Match Alta no imóvel ID 45."*
+2.  **Sincronização de Atributos Customizados:**
+    *   Campos como `tag_sonho`, `faixa_preco` e `area_atuacao` são sincronizados como atributos do contato no Chatwoot, permitindo filtros avançados de busca por lá também.
+3.  **Automação por Área de Atuação:**
+    *   Leads que buscam imóveis no bairro "X" são automaticamente atribuídos à "Equipe X" no Chatwoot (Teams), garantindo que o corretor especialista receba o lead primeiro.
+4.  **Central de Mídia Binária:**
+    *   Os criativos de imóveis gerados pelo nosso sistema podem ser disparados pelo corretor via Chatwoot através de um atalho de comando (ex: `/imovel 45`).
+
+##### 3.7.3. Fluxo Técnico de Implementação
+
+*   **Webhook de Entrada:** Conectar o Chatwoot à nossa API de Orquestração.
+*   **Custom Attribute Mapper:** Script para garantir que os dados de `leads_staging` reflitam nos campos do Chatwoot.
+*   **Agent Bot:** Integrar nossa IA Concierge como um "Agent Bot" no Chatwoot, para que ela inicie as conversas antes do humano intervir.
+*   **API de Notificações:** Notificar o corretor via Push (App Chatwoot) assim que a IA termina a qualificação.
+
+**Ações de Implementação:**
+- [ ] Configurar instância do Chatwoot (Docker/Self-hosted).
+- [ ] Implementar `NetImobiliariaBot` como Agent Bot no Chatwoot.
+- [ ] Desenvolver "Sidebar Widget" para visualização de imóveis dentro do Chatwoot.
+- [ ] Implementar webhook bidirecional (CRM <-> Chatwoot) para sincronia de status/label.
+
+#### 3.8. INTELIGÊNCIA DE ÁUDIO E VOZ (NÍVEL 1)
+
+**Objetivo:** Permitir que o lead se comunique por voz no WhatsApp/Instagram e receba respostas humanizadas, aumentando a acessibilidade e o engajamento emocional.
+
+##### 3.8.1. Processamento de Áudio Recebido (STT)
+
+*   **Tecnologia:** OpenAI Whisper (modelo `whisper-1`).
+*   **Fluxo:** O webhook recebe o arquivo `.ogg/.m4a` -> Transcodificação (se necessário) -> Transcrição via Whisper -> O texto alimentado no motor de IA (Concierge).
+*   **Benefício:** O lead pode enviar detalhes complexos do seu "sonho" por áudio enquanto dirige ou caminha, sem barreiras de digitação.
+
+##### 3.8.2. Geração de Áudio de Resposta (TTS)
+
+*   **Tecnologia:** OpenAI TTS (modelo `tts-1-hd`) ou ElevenLabs (Alta Fidelidade).
+*   **Fluxo:** IA gera a resposta em texto -> Conversão em áudio com voz humana pré-definida -> Envio do arquivo de áudio no WhatsApp/Instagram.
+*   **Persona:** Definir uma voz acolhedora, madura e profissional que represente a Net Imobiliária.
+
+**Ações de Implementação:**
+- [ ] Implementar script de transcodificação de áudio (FFmpeg).
+- [ ] Integrar API do Whisper para transcrição automática de mensagens recebidas.
+- [ ] Implementar serviço de geração de áudio (TTS) para respostas curtas e impactantes.
+- [ ] Adicionar player de áudio no painel de controle do CRM para o corretor ouvir as mensagens originais.
+
+#### 3.9. MOTOR DE CAMPANHAS (PÚBLICO‑ALVO, CUSTO, PERÍODO, RETORNO)
+
+**Objetivo:** Gerenciar campanhas de marketing em escala nacional, segmentando por cidade, bairro e perfil de lead, controlando orçamento, datas de veiculação e mensurando retorno (KPIs).  
+
+**Componentes principais:**
+- **Tabela `crm_campanhas`** (nome, criativo, custo_estimado, custo_real, datas, status).
+- **Tabela `crm_campanha_segmentos`** (JSONB com filtros: cidade, bairro, faixa de preço, tipo de imóvel, etc.).
+- **Tabela `crm_campanha_metrics`** (impressões, cliques, leads, receita por dia).
+- **Scheduler/Worker** que, diariamente, consulta os segmentos, gera listas de leads e dispara mensagens ou anúncios via Meta Ads API/Chatwoot.
+- **Dashboard** (React + Recharts ou Grafana) exibindo CPL, CTR, taxa de conversão, ROI e custo por bairro.
+
+**Fluxo resumido:**
+```mermaid
+flowchart TD
+    A[UI → Nova campanha] --> B[Formulário: nome, datas, orçamento, criativo]
+    B --> C[Seleção de Segmentos (cidade/bairro/filters)]
+    C --> D[Salvar nas tabelas de campanha]
+    D --> E[Scheduler cria tasks diárias]
+    E --> F[Worker gera leads e envia mensagens/ads]
+    F --> G[Coleta métricas (Meta Insights, webhook de cliques)]
+    G --> H[Atualiza crm_campanha_metrics]
+    H --> I[Dashboard de ROI]
+```
+
+**Integrações:**
+- **Kanban:** Leads originados de campanha são criados automaticamente na coluna *Leads – Campanha* com tag `campanha_id`.
+- **Chatwoot:** Notas privadas contendo `campanha_id` permitem ao corretor saber a origem do lead.
+- **Segurança:** Apenas usuários com role `marketing_manager` podem criar/editar campanhas; auditoria em `crm_campanha_log`.
+
+**Estimativa de esforço:** ~ 50 pontos (5 sprints) – detalhado no roadmap interno.
+
 ## 4. GESTÃO DE LEADS COM KANBAN
 
 ### 4.1. Arquitetura do Sistema Kanban

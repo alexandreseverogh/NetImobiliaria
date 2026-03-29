@@ -408,6 +408,46 @@ CREATE TABLE email_logs (
 - [ ] **Dia 79**: Documentação de produção
 - [ ] **Dia 80**: Treinamento da equipe
 
+### **FASE 8: COMUNICAÇÃO OMNICHANNEL (CHATWOOT) (Semana 15-16)**
+
+#### **8.1 Configuração e Infraestrutura**
+- [ ] **Dia 81**: Instalação do Chatwoot via Docker na VPS
+- [ ] **Dia 82**: Configuração de Inboxes (WhatsApp e Instagram)
+- [ ] **Dia 83**: Criação de Equipes por Área de Atuação
+
+#### **8.2 Integração com Motor de IA**
+- [ ] **Dia 84**: Conexão da Orquestração Concierge ao Agent Bot
+- [ ] **Dia 85**: Implementação de Notas Privadas para Handover
+- [ ] **Dia 86**: Sincronização de Atributos Customizados (Sonho/Preço)
+
+#### **8.3 Dashboards e Automações**
+- [ ] **Dia 87**: Desenvolvimento do Dashboard App (Net Widget na sidebar)
+- [ ] **Dia 88**: Webhooks de Sincronia de Status Kanban
+- [ ] **Dia 89**: Implementação de Módulo de Áudio (Whisper/TTS)
+- [ ] **Dia 90**: Testes de ponta a ponta (Lead -> Áudio -> IA -> Chatwoot -> Humano)
+- [ ] **Dia 91**: Go-Live Atendimento Omnichannel (+ Voz Nível 1)
+
+#### 9.1 Fluxo Operacional de Campanhas (Proprietários ↔ Imóveis ↔ Compradores)
+
+**Objetivo:** Disparar campanhas somente quando houver imóveis disponíveis para o público‑alvo, garantindo alta relevância e ROI.
+
+**Etapas automatizadas:**
+1. **Scheduler (cron, duas vezes ao dia)** verifica todas as campanhas ativas.
+2. **Validação de Inventário** – consulta `imoveis` filtrados por cidade, bairro, faixa de preço etc. Se `count >= MIN_LEADS` a campanha continua; caso contrário, entra em estado *pendente*.
+3. **Segmentação de Proprietários** – identifica usuários sem imóvel cadastrado (`last_property_created_at IS NULL OR >30d`) e gera lista de convite.
+4. **Segmentação de Compradores** – gera lista de leads que atendem aos filtros da campanha e que têm imóveis correspondentes.
+5. **Enfileiramento (BullMQ)** – cria jobs para disparo via Meta Ads API ou Chatwoot.
+6. **Envio** – mensagens/ads são enviadas; webhook captura métricas (impressões, cliques, leads).
+7. **Atualização de Métricas** – grava em `crm_campanha_metrics`; dashboard exibe CPL, CTR, ROI.
+8. **Feedback Loop** – ajustes automáticos (expandir segmento, pausar campanha) baseados em CTR < 1 % ou leads < MIN_LEADS por 3 dias.
+
+**Integrações:**
+- **Kanban:** Leads criados a partir de campanha são inseridos na coluna *Leads – Campanha* com tag `campanha_id`.
+- **Chatwoot:** Notas privadas contendo `campanha_id` permitem ao corretor rastrear a origem.
+- **Segurança:** Role `marketing_manager` para criação/edição; auditoria em `crm_campanha_log`.
+
+---
+
 ---
 
 ## **⚙️ CONFIGURAÇÕES POR AMBIENTE**
@@ -711,6 +751,23 @@ export const productionConfig = {
 - Total mensal: R$ 100/mês
 
 💰 Total mensal produção: R$ 234/mês
+
+### **CUSTOS CHATWOOT (OPCIONAL PREMIUM)**
+```
+💬 Atendimento Omnichannel:
+- Instância Chatwoot (Self-hosted na VPS): R$ 0 (incluso na VPS)
+- API WhatsApp (Meta Cloud): Centavos por conversão (custo direto Meta)
+- Notificações de IA (OpenAI API): Variável pelo volume
+- Total adicional estimado: R$ 50 - R$ 100/mês (dependendo do volume)
+
+### **CUSTOS INTELIGÊNCIA DE VOZ (NÍVEL 1)**
+```
+🎙️ Processamento de Áudio:
+- Transcrição (Whisper API): $0.006 / minuto
+- Geração de Voz (OpenAI TTS): $0.015 / 1k caracteres
+- Total adicional estimado: R$ 20 - R$ 40/mês (uso moderado)
+```
+```
 ```
 
 

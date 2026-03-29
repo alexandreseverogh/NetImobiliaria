@@ -130,9 +130,9 @@ async function processAllPendingJobs() {
 // Configurar cron jobs
 console.log('⏰ Configurando agendador de feeds...\n');
 
-// 1. Criar novos jobs a cada hora (no minuto 0)
-cron.schedule('0 * * * *', async () => {
-  console.log(`\n🕐 [${new Date().toISOString()}] Executando criação de jobs...`);
+// 1. Criar novos jobs UMA VEZ AO DIA (às 03:00 da manhã)
+cron.schedule('0 3 * * *', async () => {
+  console.log(`\n🕐 [${new Date().toISOString()}] Executando criação diária de jobs...`);
   await createJobs();
   // Após criar jobs, processar imediatamente
   await processAllPendingJobs();
@@ -141,9 +141,9 @@ cron.schedule('0 * * * *', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
-// 2. Processar jobs pendentes a cada 15 minutos (caso algum tenha falhado)
-cron.schedule('*/15 * * * *', async () => {
-  console.log(`\n🕐 [${new Date().toISOString()}] Verificando jobs pendentes...`);
+// 2. Tentar processar jobs pendentes a cada 1 hora (caso algum tenha falhado ou o servidor tenha acabado de subir)
+cron.schedule('0 * * * *', async () => {
+  console.log(`\n🕐 [${new Date().toISOString()}] Verificando jobs pendentes (hora em hora)...`);
   await processAllPendingJobs();
 }, {
   scheduled: true,
