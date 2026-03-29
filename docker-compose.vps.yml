@@ -68,7 +68,7 @@ services:
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
-      DB_HOST: prod_db
+      DB_HOST: db
       DB_PORT: "5432"
       DB_NAME: ${PROD_DB_NAME:-net_imobiliaria}
       DB_USER: ${DB_USER:-postgres}
