@@ -29,6 +29,14 @@ function getDbConfig() {
 
 const pool = new Pool(getDbConfig());
 
+// Adicionar tratamento de erro ao pool para evitar crashes fatais em caso de desconexão (ex.: erro 57P01)
+pool.on('error', (err) => {
+    console.error('❌ [DB-Utils] Erro inesperado no pool do PostgreSQL:', err.message);
+    if (err.code === '57P01') {
+        console.warn('⚠️ [DB-Utils] Conexão encerrada pelo administrador. O pool tentará reconectar na próxima requisição.');
+    }
+});
+
 module.exports = {
     pool,
     getDbConfig

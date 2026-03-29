@@ -161,8 +161,6 @@ export async function GET(
         resumo: row.resumo || '',
         url_original: row.url_original,
         url_imagem: row.url_imagem || null,
-        // data_publicacao vem como texto sem timezone (timestamp do banco),
-        // para evitar "shift" de dia/ano por conversão UTC/local no browser.
         data_publicacao: row.data_publicacao || new Date().toISOString(),
         categoria_nome: row.categoria_nome,
         categoria_cor: row.categoria_cor || '#3B82F6',
@@ -218,4 +216,3 @@ export async function GET(
     );
   }
 }
-

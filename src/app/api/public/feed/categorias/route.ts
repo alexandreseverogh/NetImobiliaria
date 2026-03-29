@@ -11,6 +11,9 @@ export async function GET() {
   try {
     const client = await pool.connect();
     
+    let query: string = '';
+    let queryParams: any[] = [];
+
     try {
       // Buscar IDs dos 8 feeds mais recentes (independente de categoria)
       const topFeedsResult = await client.query(`
@@ -23,8 +26,6 @@ export async function GET() {
 
       // Buscar categorias que possuem pelo menos um feed ativo
       // Excluindo os 8 mais recentes que já aparecem no topo
-      let query: string;
-      let queryParams: any[];
 
       // Verificar se a coluna 'ordem' existe na tabela
       let hasOrdemColumn = false;

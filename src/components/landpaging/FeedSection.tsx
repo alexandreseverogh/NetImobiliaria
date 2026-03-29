@@ -21,9 +21,10 @@ async function getLatestFeedPosts() {
       cat.icone as categoria_icone,
       f.nome as fonte_nome
     FROM feed.feed_conteudos c
-    JOIN feed.feed_categorias cat ON c.categoria_fk = cat.id
-    JOIN feed.feed_fontes f ON c.fonte_fk = f.id
+    LEFT JOIN feed.feed_categorias cat ON c.categoria_fk = cat.id
+    LEFT JOIN feed.feed_fontes f ON c.fonte_fk = f.id
     WHERE c.ativo = true
+      AND (f.ativo = true OR f.id IS NULL)
     ORDER BY c.data_publicacao DESC
     LIMIT 8
   `;
