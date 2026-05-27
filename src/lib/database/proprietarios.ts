@@ -28,10 +28,12 @@ export interface Proprietario {
   origem_cadastro?: string
   corretor_fk?: string | null
   corretor_nome?: string | null
+  tenant_id: string
   created_at: Date
   created_by?: string
   updated_at: Date
   updated_by?: string
+  semantic_data?: any
 }
 
 export interface CreateProprietarioData {
@@ -50,7 +52,9 @@ export interface CreateProprietarioData {
   cep?: string
   origem_cadastro?: string
   corretor_fk?: string | null
+  tenant_id: string
   created_by?: string
+  semantic_data?: any
 }
 
 export interface UpdateProprietarioData {
@@ -68,6 +72,7 @@ export interface UpdateProprietarioData {
   cidade_fk?: string
   cep?: string
   updated_by?: string
+  semantic_data?: any
 }
 
 // Interface para filtros
@@ -79,6 +84,7 @@ export interface ProprietarioFilters {
   cidade?: string
   bairro?: string
   corretor_fk?: string
+  tenant_id: string
 }
 
 // ========================================
@@ -212,6 +218,11 @@ export async function findProprietariosPaginated(
     const whereConditions: string[] = []
     const queryParams: any[] = []
     let paramCount = 0
+    
+    // Filtro obrigatório de tenant_id
+    paramCount++
+    whereConditions.push(`p.tenant_id = $${paramCount}`)
+    queryParams.push(filters.tenant_id)
 
     if (filters.nome) {
       paramCount++
@@ -286,10 +297,12 @@ export async function findProprietariosPaginated(
         p.cep,
         p.corretor_fk,
         ucor.nome AS corretor_nome,
+        p.tenant_id,
         p.created_at,
         p.created_by,
         p.updated_at,
-        p.updated_by
+        p.updated_by,
+        p.semantic_data
       FROM proprietarios p
       LEFT JOIN users ucor ON ucor.id = p.corretor_fk
       ${whereClause}
@@ -340,10 +353,12 @@ export async function findProprietarioByUuid(uuid: string): Promise<Proprietario
           p.origem_cadastro,
           p.corretor_fk,
           ucor.nome AS corretor_nome,
+          p.tenant_id,
           p.created_at,
           p.created_by,
           p.updated_at,
-          p.updated_by
+          p.updated_by,
+          p.semantic_data
         FROM proprietarios p
         LEFT JOIN users ucor ON ucor.id = p.corretor_fk
         WHERE p.uuid = $1::uuid
@@ -381,27 +396,27 @@ export async function createProprietario(data: CreateProprietarioData, isAdmin: 
       throw new Error('CPF ou CNPJ deve ser informado')
     }
 
-    // Verificar se CPF já existe
+    // Verificar se CPF já existe no mesmo tenant
     if (data.cpf) {
-      const existingCPF = await pool.query('SELECT 1 FROM proprietarios WHERE cpf = $1', [data.cpf])
+      const existingCPF = await pool.query('SELECT 1 FROM proprietarios WHERE cpf = $1 AND tenant_id = $2', [data.cpf, data.tenant_id])
       if (existingCPF.rows.length > 0) {
-        throw new Error('CPF já cadastrado')
+        throw new Error('CPF já cadastrado nesta imobiliária')
       }
     }
 
-    // Verificar se CNPJ já existe
+    // Verificar se CNPJ já existe no mesmo tenant
     if (data.cnpj) {
-      const existingCNPJ = await pool.query('SELECT 1 FROM proprietarios WHERE cnpj = $1', [data.cnpj])
+      const existingCNPJ = await pool.query('SELECT 1 FROM proprietarios WHERE cnpj = $1 AND tenant_id = $2', [data.cnpj, data.tenant_id])
       if (existingCNPJ.rows.length > 0) {
-        throw new Error('CNPJ já cadastrado')
+        throw new Error('CNPJ já cadastrado nesta imobiliária')
       }
     }
 
-    // Verificar se email já existe
+    // Verificar se email já existe no mesmo tenant
     if (data.email) {
-      const existingEmail = await pool.query('SELECT 1 FROM proprietarios WHERE email = $1', [data.email])
+      const existingEmail = await pool.query('SELECT 1 FROM proprietarios WHERE email = $1 AND tenant_id = $2', [data.email, data.tenant_id])
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado')
+        throw new Error('Email já cadastrado nesta imobiliária')
       }
     }
 
@@ -412,8 +427,8 @@ export async function createProprietario(data: CreateProprietarioData, isAdmin: 
       INSERT INTO proprietarios (
         nome, cpf, cnpj, telefone, endereco, numero, bairro, complemento,
         password, email, estado_fk, cidade_fk, cep, 
-        origem_cadastro, created_by, corretor_fk
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        origem_cadastro, created_by, corretor_fk, tenant_id, semantic_data
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
     `, [
       data.nome,
@@ -431,7 +446,9 @@ export async function createProprietario(data: CreateProprietarioData, isAdmin: 
       data.cep,
       data.origem_cadastro || 'Plataforma',
       data.created_by || 'system',
-      data.corretor_fk || null
+      data.corretor_fk || null,
+      data.tenant_id,
+      JSON.stringify(data.semantic_data || {})
     ])
 
     return result.rows[0]
@@ -442,7 +459,7 @@ export async function createProprietario(data: CreateProprietarioData, isAdmin: 
 }
 
 // Atualizar proprietário por UUID
-export async function updateProprietarioByUuid(uuid: string, data: UpdateProprietarioData, isAdmin: boolean = false): Promise<Proprietario> {
+export async function updateProprietarioByUuid(uuid: string, tenantId: string, data: UpdateProprietarioData, isAdmin: boolean = false): Promise<Proprietario> {
   try {
     // Validar CPF se fornecido e não vazio
     if (data.cpf && data.cpf.trim() !== '') {
@@ -462,30 +479,36 @@ export async function updateProprietarioByUuid(uuid: string, data: UpdateProprie
       data.cpf = null as any
     }
 
-    // Verificar se CPF já existe (excluindo o próprio registro)
+    // Verificar se CPF já existe no mesmo tenant (excluindo o próprio registro)
     if (data.cpf) {
-      const cpfQuery = 'SELECT 1 FROM proprietarios WHERE cpf = $1 AND uuid != $2::uuid'
-      const existingCPF = await pool.query(cpfQuery, [data.cpf, uuid])
+      const existingCPF = await pool.query(
+        'SELECT 1 FROM proprietarios WHERE cpf = $1 AND tenant_id = $2 AND uuid != $3',
+        [data.cpf, tenantId, uuid]
+      )
       if (existingCPF.rows.length > 0) {
-        throw new Error('CPF já cadastrado')
+        throw new Error('CPF já cadastrado nesta imobiliária')
       }
     }
 
-    // Verificar se CNPJ já existe (excluindo o próprio registro)
+    // Verificar se CNPJ já existe no mesmo tenant (excluindo o próprio registro)
     if (data.cnpj) {
-      const cnpjQuery = 'SELECT 1 FROM proprietarios WHERE cnpj = $1 AND uuid != $2::uuid'
-      const existingCNPJ = await pool.query(cnpjQuery, [data.cnpj, uuid])
+      const existingCNPJ = await pool.query(
+        'SELECT 1 FROM proprietarios WHERE cnpj = $1 AND tenant_id = $2 AND uuid != $3',
+        [data.cnpj, tenantId, uuid]
+      )
       if (existingCNPJ.rows.length > 0) {
-        throw new Error('CNPJ já cadastrado')
+        throw new Error('CNPJ já cadastrado nesta imobiliária')
       }
     }
 
-    // Verificar se email já existe (excluindo o próprio registro)
+    // Verificar se email já existe no mesmo tenant (excluindo o próprio registro)
     if (data.email) {
-      const emailQuery = 'SELECT 1 FROM proprietarios WHERE LOWER(email) = LOWER($1) AND uuid != $2::uuid'
-      const existingEmail = await pool.query(emailQuery, [data.email, uuid])
+      const existingEmail = await pool.query(
+        'SELECT 1 FROM proprietarios WHERE email = $1 AND tenant_id = $2 AND uuid != $3',
+        [data.email, tenantId, uuid]
+      )
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado')
+        throw new Error('Email já cadastrado nesta imobiliária')
       }
     }
 
@@ -565,6 +588,11 @@ export async function updateProprietarioByUuid(uuid: string, data: UpdateProprie
       values.push(data.updated_by)
     }
 
+    if (data.semantic_data !== undefined) {
+      fields.push(`semantic_data = $${++paramCount}`)
+      values.push(JSON.stringify(data.semantic_data))
+    }
+
     if (fields.length === 0) {
       throw new Error('Nenhum campo para atualizar')
     }
@@ -572,11 +600,11 @@ export async function updateProprietarioByUuid(uuid: string, data: UpdateProprie
     const query = `
       UPDATE proprietarios 
       SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE uuid = $${paramCount + 1}::uuid
+      WHERE uuid = $${paramCount + 1}::uuid AND tenant_id = $${paramCount + 2}::uuid
       RETURNING *
     `
 
-    values.push(uuid)
+    values.push(uuid, tenantId)
 
     const result = await pool.query(query, values)
 
@@ -592,9 +620,9 @@ export async function updateProprietarioByUuid(uuid: string, data: UpdateProprie
 }
 
 // Deletar proprietário por UUID
-export async function deleteProprietarioByUuid(uuid: string): Promise<void> {
+export async function deleteProprietarioByUuid(uuid: string, tenantId: string): Promise<void> {
   try {
-    const result = await pool.query('DELETE FROM proprietarios WHERE uuid = $1::uuid', [uuid])
+    const result = await pool.query('DELETE FROM proprietarios WHERE uuid = $1::uuid AND tenant_id = $2::uuid', [uuid, tenantId])
 
     if (result.rowCount === 0) {
       throw new Error('Proprietário não encontrado')
@@ -605,18 +633,17 @@ export async function deleteProprietarioByUuid(uuid: string): Promise<void> {
   }
 }
 
-// Verificar se CPF já existe
-export async function checkCPFExists(cpf: string, excludeUuid?: string): Promise<boolean> {
+// Verificar se CPF já existe no tenant
+export async function checkCPFExists(cpf: string, tenantId: string, excludeUuid?: string): Promise<boolean> {
   try {
     const cpfRaw = String(cpf || '')
     const cpfDigits = cpfRaw.replace(/\D/g, '')
-    const params: any[] = [cpfRaw, cpfDigits]
-    // Preferir match exato e ter fallback por dígitos para cobrir CPFs armazenados com/sem máscara.
+    const params: any[] = [cpfRaw, cpfDigits, tenantId]
     let query =
-      "SELECT 1 FROM proprietarios WHERE cpf = $1 OR REPLACE(REPLACE(cpf, '.', ''), '-', '') = $2"
+      "SELECT 1 FROM proprietarios WHERE (cpf = $1 OR REPLACE(REPLACE(cpf, '.', ''), '-', '') = $2) AND tenant_id = $3"
 
     if (excludeUuid) {
-      query += ' AND uuid != $3::uuid'
+      query += ' AND uuid != $4::uuid'
       params.push(excludeUuid)
     }
 
@@ -628,14 +655,14 @@ export async function checkCPFExists(cpf: string, excludeUuid?: string): Promise
   }
 }
 
-// Verificar se Email já existe
-export async function checkEmailExists(email: string, excludeUuid?: string): Promise<boolean> {
+// Verificar se Email já existe no tenant
+export async function checkEmailExists(email: string, tenantId: string, excludeUuid?: string): Promise<boolean> {
   try {
-    const params: any[] = [email]
-    let query = 'SELECT 1 FROM proprietarios WHERE LOWER(email) = LOWER($1)'
+    const params: any[] = [email, tenantId]
+    let query = 'SELECT 1 FROM proprietarios WHERE LOWER(email) = LOWER($1) AND tenant_id = $2'
 
     if (excludeUuid) {
-      query += ' AND uuid != $2::uuid'
+      query += ' AND uuid != $3::uuid'
       params.push(excludeUuid)
     }
 
@@ -647,18 +674,18 @@ export async function checkEmailExists(email: string, excludeUuid?: string): Pro
   }
 }
 
-// Verificar se CNPJ já existe
-export async function checkCNPJExists(cnpj: string, excludeUuid?: string): Promise<boolean> {
+// Verificar se CNPJ já existe no tenant
+export async function checkCNPJExists(cnpj: string, tenantId: string, excludeUuid?: string): Promise<boolean> {
   try {
     const cnpjRaw = String(cnpj || '')
     const cnpjDigits = cnpjRaw.replace(/\D/g, '')
-    const params: any[] = [cnpjRaw, cnpjDigits]
+    const params: any[] = [cnpjRaw, cnpjDigits, tenantId]
 
     let query =
-      "SELECT 1 FROM proprietarios WHERE cnpj = $1 OR REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '/', ''), '-', '') = $2"
+      "SELECT 1 FROM proprietarios WHERE (cnpj = $1 OR REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '/', ''), '-', '') = $2) AND tenant_id = $3"
 
     if (excludeUuid) {
-      query += ' AND uuid != $3::uuid'
+      query += ' AND uuid != $4::uuid'
       params.push(excludeUuid)
     }
 

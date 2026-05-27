@@ -1,4 +1,4 @@
-﻿/* eslint-disable */
+/* eslint-disable */
 // ImplementaÃ§Ã£o JWT compatÃ­vel com Node.js para middleware
 import { AUTH_CONFIG } from '@/lib/config/auth'
 import crypto from 'crypto'
@@ -10,7 +10,20 @@ const JWT_SECRET = AUTH_CONFIG.JWT.SECRET
 export interface JWTPayload {
   userId: string
   username: string
-  cargo: string
+  cargo?: string
+  role_name?: string
+  role_level?: number
+  is_system_role?: boolean
+  sessionId?: string
+  twoFAVerified?: boolean
+  is2FAEnabled?: boolean
+  userUuid?: string
+  userType?: string
+  nome?: string
+  email?: string
+  permissoes?: any
+  tenantId?: string
+  tenantSlug?: string
   iat?: number
   exp?: number
 }

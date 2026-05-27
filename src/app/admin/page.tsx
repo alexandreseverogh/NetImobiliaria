@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { SkillRenderer } from '@/components/shared/SkillRenderer'
 
 export default function AdminDashboard() {
   // Home do Admin: vitrine visual (4 cards grandes com fotos de imóveis).
@@ -36,7 +37,7 @@ export default function AdminDashboard() {
     }
   ] as const
 
-  return (
+  const standardView = (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Hero */}
       <div className="relative overflow-hidden">
@@ -101,6 +102,13 @@ export default function AdminDashboard() {
         </section>
       </div>
     </div>
+  )
+
+  return (
+    <SkillRenderer 
+      slug="dashboards" 
+      fallback={standardView} 
+    />
   )
 }
 

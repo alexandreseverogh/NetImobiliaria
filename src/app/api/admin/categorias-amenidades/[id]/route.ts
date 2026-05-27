@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { findCategoriaAmenidadeById, updateCategoriaAmenidade, deleteCategoriaAmenidade } from '@/lib/database/amenidades'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
@@ -17,7 +18,14 @@ export async function GET(
       )
     }
 
-    const categoria = await findCategoriaAmenidadeById(id)
+    const token = request.cookies?.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    let tenantId = undefined
+    if (token) {
+      const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
+      tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    }
+
+    const categoria = await findCategoriaAmenidadeById(id, tenantId)
     if (!categoria) {
       return NextResponse.json(
         { error: 'Categoria não encontrada' },
@@ -43,6 +51,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     const id = parseInt(params.id)
     if (isNaN(id)) {
       return NextResponse.json(
@@ -61,8 +72,18 @@ export async function PUT(
       )
     }
 
+    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    let tenantId = undefined
+    if (token) {
+      const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
+      tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    }
+
     // Buscar dados antigos para auditoria
-    const categoriaAntiga = await findCategoriaAmenidadeById(id)
+    const categoriaAntiga = await findCategoriaAmenidadeById(id, tenantId)
+    if (!categoriaAntiga) {
+      return NextResponse.json({ error: 'Categoria não encontrada ou sem acesso' }, { status: 404 })
+    }
 
     const categoriaAtualizada = await updateCategoriaAmenidade(id, {
       nome,
@@ -71,7 +92,7 @@ export async function PUT(
       cor: cor || '#3B82F6',
       ordem: ordem || 1,
       ativo: ativo !== undefined ? ativo : true
-    })
+    }, tenantId)
 
     // Log de auditoria (não crítico - falha não afeta operação)
     try {
@@ -124,6 +145,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'DELETE')
+    if (denied) return denied
+
     const id = parseInt(params.id)
     if (isNaN(id)) {
       return NextResponse.json(
@@ -132,17 +156,24 @@ export async function DELETE(
       )
     }
 
+    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    let tenantId = undefined
+    if (token) {
+      const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
+      tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    }
+
     // Buscar dados da categoria antes de excluir para auditoria
-    const categoria = await findCategoriaAmenidadeById(id)
+    const categoria = await findCategoriaAmenidadeById(id, tenantId)
     
     if (!categoria) {
       return NextResponse.json(
-        { error: 'Categoria não encontrada' },
+        { error: 'Categoria não encontrada ou sem acesso' },
         { status: 404 }
       )
     }
     
-    await deleteCategoriaAmenidade(id)
+    await deleteCategoriaAmenidade(id, tenantId)
 
     // Log de auditoria (não crítico - falha não afeta operação)
     try {

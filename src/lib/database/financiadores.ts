@@ -1,12 +1,5 @@
-import { Pool } from 'pg'
-
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME!,
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD,
-})
+import pool from './connection'
+import { QueryResult } from 'pg'
 
 export interface Financiador {
   id: number
@@ -16,6 +9,7 @@ export interface Financiador {
   logo_base64?: string | null
   logo_tipo_mime?: string | null
   ativo: boolean
+  tenant_id: string
   created_at: Date
   updated_at: Date
 }
@@ -27,20 +21,28 @@ export interface CreateFinanciadorInput {
   logo_base64: string
   logo_tipo_mime: string
   ativo?: boolean
+  tenant_id: string
 }
 
 export async function findFinanciadoresPaginated(
   page: number = 1,
   limit: number = 10,
-  search: string = ''
+  search: string = '',
+  tenantId?: string
 ) {
   const offset = (page - 1) * limit
 
-  let whereClause = 'WHERE 1=1'
+  let whereClause = ''
   const params: any[] = []
 
+  if (tenantId) {
+    whereClause = 'WHERE tenant_id = $1'
+    params.push(tenantId)
+  }
+
   if (search) {
-    whereClause += ` AND nome ILIKE $${params.length + 1}`
+    const prefix = whereClause ? ' AND' : 'WHERE'
+    whereClause += `${prefix} nome ILIKE $${params.length + 1}`
     params.push(`%${search}%`)
   }
 
@@ -72,8 +74,8 @@ export async function findFinanciadoresPaginated(
 
 export async function createFinanciador(input: CreateFinanciadorInput): Promise<Financiador> {
   const result = await pool.query(
-    `INSERT INTO financiadores (nome, headline, valor_mensal, logo_base64, logo_tipo_mime, ativo)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO financiadores (nome, headline, valor_mensal, logo_base64, logo_tipo_mime, ativo, tenant_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
     [
       input.nome,
@@ -81,22 +83,28 @@ export async function createFinanciador(input: CreateFinanciadorInput): Promise<
       input.valor_mensal,
       input.logo_base64,
       input.logo_tipo_mime,
-      input.ativo !== undefined ? input.ativo : true
+      input.ativo !== undefined ? input.ativo : true,
+      input.tenant_id
     ]
   )
 
   return result.rows[0]
 }
 
-export async function findFinanciadorById(id: number): Promise<Financiador | null> {
-  const result = await pool.query(
-    'SELECT * FROM financiadores WHERE id = $1',
-    [id]
-  )
+export async function findFinanciadorById(id: number, tenantId?: string): Promise<Financiador | null> {
+  let query = 'SELECT * FROM financiadores WHERE id = $1'
+  const params: any[] = [id]
+
+  if (tenantId) {
+    query += ' AND tenant_id = $2'
+    params.push(tenantId)
+  }
+
+  const result = await pool.query(query, params)
   return result.rows[0] || null
 }
 
-export async function updateFinanciador(id: number, input: Partial<CreateFinanciadorInput>): Promise<Financiador> {
+export async function updateFinanciador(id: number, tenantId: string | undefined, input: Partial<CreateFinanciadorInput>): Promise<Financiador> {
   const fields: string[] = []
   const values: any[] = []
   let paramIndex = 1
@@ -127,16 +135,40 @@ export async function updateFinanciador(id: number, input: Partial<CreateFinanci
   }
 
   fields.push(`updated_at = CURRENT_TIMESTAMP`)
+  
+  const idParamIndex = paramIndex++
   values.push(id)
+  
+  let whereClause = `WHERE id = $${idParamIndex}`
+  if (tenantId) {
+    const tenantParamIndex = paramIndex++
+    values.push(tenantId)
+    whereClause += ` AND tenant_id = $${tenantParamIndex}`
+  }
 
   const result = await pool.query(
-    `UPDATE financiadores SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+    `UPDATE financiadores SET ${fields.join(', ')} ${whereClause} RETURNING *`,
     values
   )
+
+  if (result.rows.length === 0) {
+    throw new Error('Financiador não encontrado ou acesso negado')
+  }
 
   return result.rows[0]
 }
 
-export async function deleteFinanciador(id: number): Promise<void> {
-  await pool.query('DELETE FROM financiadores WHERE id = $1', [id])
+export async function deleteFinanciador(id: number, tenantId?: string): Promise<void> {
+  let query = 'DELETE FROM financiadores WHERE id = $1'
+  const params: any[] = [id]
+
+  if (tenantId) {
+    query += ' AND tenant_id = $2'
+    params.push(tenantId)
+  }
+
+  const result = await pool.query(query, params)
+  if (result.rowCount === 0) {
+    throw new Error('Financiador não encontrado ou acesso negado')
+  }
 }

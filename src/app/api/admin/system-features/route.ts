@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // GET - Listar todas as funcionalidades
 export async function GET(request: NextRequest) {
@@ -11,10 +13,17 @@ export async function GET(request: NextRequest) {
       return permissionCheck
     }
 
+    // Extrair tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.tenantId
+    const isMaster = !!decoded?.is_system_role
+
     const query = `
       SELECT 
         sf.id,
         sf.name,
+        sf.slug,
         sf.description,
         sf.category_id,
         sc.name as category_name,
@@ -23,15 +32,31 @@ export async function GET(request: NextRequest) {
         sf."Crud_Execute",
         sf.created_at,
         sf.updated_at,
-        COUNT(p.id) as permissions_count
+        COALESCE(
+          json_agg(DISTINCT 
+            CASE 
+              WHEN p.action = 'WRITE' THEN 'update' 
+              ELSE p.action 
+            END
+          ) FILTER (WHERE p.action IS NOT NULL), 
+          '[]'
+        ) as available_actions
       FROM system_features sf
       LEFT JOIN system_categorias sc ON sf.category_id = sc.id
       LEFT JOIN permissions p ON sf.id = p.feature_id
-      GROUP BY sf.id, sf.name, sf.description, sf.category_id, sc.name, sf.url, sf.is_active, sf."Crud_Execute", sf.created_at, sf.updated_at
+      LEFT JOIN system_feature_modules fm ON sf.id = fm.feature_id
+      LEFT JOIN tenant_modules tm ON fm.module_id = tm.module_id AND tm.tenant_id = $1
+      WHERE sf.is_active = true
+        AND (
+          $2 = true OR -- Master vê tudo
+          tm.is_enabled = true OR -- Tenant vê se o módulo está habilitado
+          fm.module_id IS NULL -- Features sem módulo (ex: admin básico) são visíveis para todos
+        )
+      GROUP BY sf.id, sf.name, sf.slug, sf.description, sf.category_id, sc.name, sf.url, sf.is_active, sf."Crud_Execute", sf.created_at, sf.updated_at
       ORDER BY sf.name
     `
 
-    const result = await pool.query(query)
+    const result = await pool.query(query, [tenantId, isMaster])
 
     return NextResponse.json({
       success: true,
@@ -55,6 +80,9 @@ export async function POST(request: NextRequest) {
     if (permissionCheck) {
       return permissionCheck
     }
+
+    const denied = await requireApiPermission(request, 'system-features', 'CREATE')
+    if (denied) return denied
 
     const data = await request.json()
     const { 
@@ -131,14 +159,12 @@ export async function POST(request: NextRequest) {
         permissionsCreated++
       }
 
-      // 3. Atribuir ao Super Admin e Administrador automaticamente
-      let assignedToSuperAdmin = false
-      let assignedToAdministrador = false
+      // 3. Atribuir ao Master Platform automaticamente
+      let assignedToMaster = false
       
-      // Buscar roles Super Admin e Administrador
+      // Buscar roles Master (Level 99 ou is_system_role)
       const adminRoles = await pool.query(
-        'SELECT id, name FROM user_roles WHERE name = ANY($1)',
-        [['Super Admin', 'Administrador']]
+        'SELECT id, name FROM user_roles WHERE is_system_role = true'
       )
 
       // Buscar todas as permissões criadas para esta funcionalidade
@@ -147,7 +173,7 @@ export async function POST(request: NextRequest) {
         [featureId]
       )
 
-      // Atribuir permissões a ambos os roles
+      // Atribuir permissões ao Master
       for (const role of adminRoles.rows) {
         for (const permission of permissions.rows) {
           await pool.query(`
@@ -157,11 +183,7 @@ export async function POST(request: NextRequest) {
           `, [role.id, permission.id])
         }
         
-        if (role.name === 'Super Admin') {
-          assignedToSuperAdmin = true
-        } else if (role.name === 'Administrador') {
-          assignedToAdministrador = true
-        }
+        assignedToMaster = true
       }
 
       // Confirmar transação
@@ -180,8 +202,7 @@ export async function POST(request: NextRequest) {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           permissionsCreated,
-          assignedToSuperAdmin,
-          assignedToAdministrador,
+          assignedToMaster,
           addedToSidebar: addToSidebar,
         }
       })

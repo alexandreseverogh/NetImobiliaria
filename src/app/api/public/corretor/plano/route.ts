@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
         proximos_corretores_recebem_leads,
         sla_minutos_aceite_lead,
         cobranca_corretor_externo
-      FROM parametros LIMIT 1`
+      FROM parametros_imoveis LIMIT 1`
     )
 
     if (result.rows.length === 0) {

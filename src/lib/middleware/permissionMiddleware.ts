@@ -17,7 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from '@/lib/auth/jwt'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 import { userHasPermission } from '@/lib/database/userPermissions'
 import type { PermissionAction } from '@/lib/utils/permissions'
 import pool from '@/lib/database/connection'
@@ -112,9 +112,9 @@ const routePermissions: Record<string, PermissionConfig> = {
   '/admin/finalidades/[id]/editar': { resource: 'finalidades', action: 'WRITE' },
 
   // Rotas de mudanças de status
-  '/admin/mudancas-status': { resource: 'status-imoveis', action: 'READ' },
-  '/admin/mudancas-status/novo': { resource: 'status-imoveis', action: 'WRITE' },
-  '/admin/mudancas-status/[id]/editar': { resource: 'status-imoveis', action: 'WRITE' },
+  '/admin/mudanca-status': { resource: 'status-imoveis', action: 'READ' },
+  '/admin/mudanca-status/novo': { resource: 'status-imoveis', action: 'WRITE' },
+  '/admin/mudanca-status/[id]/editar': { resource: 'status-imoveis', action: 'WRITE' },
 
   // Rotas de clientes
   '/admin/clientes': { resource: 'clientes', action: 'READ' },
@@ -216,9 +216,7 @@ export async function checkApiPermission(request: NextRequest): Promise<NextResp
 
   // Verificar token de autenticação
   const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.replace('Bearer ', '')
-    : request.cookies.get('accessToken')?.value
+  const token = getTokenFromRequest(request)
 
   console.log('🔍 MIDDLEWARE: Token encontrado:', token ? 'SIM' : 'NÃO')
   console.log('🔍 MIDDLEWARE: Auth header:', authHeader ? 'SIM' : 'NÃO')
@@ -258,7 +256,7 @@ export async function checkApiPermission(request: NextRequest): Promise<NextResp
 
   try {
     // Verificar permissão baseada no banco de dados (SISTEMA ROBUSTO)
-    const hasPermission = await userHasPermission(decoded.userId, resource, action)
+    const hasPermission = await userHasPermission(decoded.userId, resource, action, decoded.tenantId)
 
     if (!hasPermission) {
       return NextResponse.json(
@@ -298,7 +296,7 @@ export async function checkPagePermission(pathname: string, token: string): Prom
       return false
     }
 
-    return await userHasPermission(decoded.userId, resource, action)
+    return await userHasPermission(decoded.userId, resource, action, decoded.tenantId)
   } catch (error) {
     console.error('Erro ao verificar permissões da página:', error)
     return false

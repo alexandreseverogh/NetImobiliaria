@@ -13,6 +13,8 @@ interface Role {
   created_at: string
   updated_at: string
   user_count: number
+  manager_role_id?: number | null
+  is_system_role?: boolean
 }
 
 interface EditRoleModalProps {
@@ -20,6 +22,7 @@ interface EditRoleModalProps {
   onClose: () => void
   onSuccess: () => void
   role: Role | null
+  roles?: any[]
 }
 
 interface RoleFormData {
@@ -28,15 +31,17 @@ interface RoleFormData {
   level: number
   two_fa_required: boolean
   is_active: boolean
+  manager_role_id: number | null
 }
 
-export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModalProps) {
+export default function EditRoleModal({ isOpen, onClose, onSuccess, role, roles }: EditRoleModalProps) {
   const [formData, setFormData] = useState<RoleFormData>({
     name: '',
     description: '',
     level: 1,
     two_fa_required: false,
-    is_active: true
+    is_active: true,
+    manager_role_id: null
   })
   
   const [loading, setLoading] = useState(false)
@@ -51,7 +56,8 @@ export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: Edit
         description: role.description,
         level: role.level,
         two_fa_required: role.two_fa_required,
-        is_active: role.is_active
+        is_active: role.is_active,
+        manager_role_id: role.manager_role_id || null
       })
       setError(null)
       setValidationErrors({})
@@ -82,10 +88,9 @@ export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: Edit
       errors.level = 'Nível deve estar entre 1 e 10'
     }
 
-    // Verificar nomes reservados (exceto para o próprio role)
-    const reservedNames = ['Super Admin', 'Admin', 'Administrador', 'Corretor', 'Usuário']
-    if (reservedNames.includes(formData.name.trim()) && formData.name !== role?.name) {
-      errors.name = 'Este nome é reservado pelo sistema'
+    // Bloquear alteração para nomes de sistema se for perfil protegido
+    if (role?.is_system_role && formData.name !== role?.name) {
+      errors.name = 'O nome de um perfil de sistema não pode ser alterado'
     }
 
     setValidationErrors(errors)
@@ -93,7 +98,7 @@ export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: Edit
   }
 
   // Handler para mudanças nos campos
-  const handleInputChange = (field: keyof RoleFormData, value: string | number | boolean) => {
+  const handleInputChange = (field: keyof RoleFormData, value: string | number | boolean | null) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -146,7 +151,7 @@ export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: Edit
 
   if (!isOpen || !role) return null
 
-  const isSystemRole = ['Super Admin', 'Admin', 'Administrador', 'Corretor', 'Usuário'].includes(role.name)
+  const isSystemRole = role.is_system_role === true;
   const hasUsers = role.user_count > 0
 
   return (
@@ -304,6 +309,36 @@ export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: Edit
             )}
           </div>
 
+          {/* Reporta Para (Organograma) */}
+          <div>
+            <label htmlFor="manager_role_id" className="block text-sm font-medium text-gray-700 mb-2">
+              Responde a (Superior Hierárquico)
+            </label>
+            <select
+              id="manager_role_id"
+              value={formData.manager_role_id || ''}
+              onChange={(e) => handleInputChange('manager_role_id', e.target.value ? parseInt(e.target.value) : null)}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                isSystemRole ? 'bg-gray-50' : 'bg-white'
+              }`}
+              disabled={isSystemRole}
+            >
+              <option value="">-- Nível Máximo (Reporta a ninguém) --</option>
+              {roles?.filter((r: any) => r.is_active && r.id !== role.id).map((r: any) => (
+                <option key={r.id} value={r.id}>{r.name} (Nível {r.level})</option>
+              ))}
+            </select>
+            {isSystemRole ? (
+              <p className="mt-1 text-xs text-gray-500">
+                A subordinação de perfis do sistema não pode ser alterada
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-gray-500">
+                Define a estrutura do organograma. O cargo selecionado terá acesso de visibilidade sobre os processos deste perfil.
+              </p>
+            )}
+          </div>
+
           {/* Configurações de Segurança */}
           <div className="border-t border-gray-200 pt-6">
             <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center gap-2">
@@ -325,9 +360,9 @@ export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: Edit
                   checked={formData.two_fa_required}
                   onChange={(e) => handleInputChange('two_fa_required', e.target.checked)}
                   className="sr-only peer"
-                  disabled={isSystemRole && role.name === 'Super Admin'}
+                  disabled={isSystemRole}
                 />
-                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 ${(isSystemRole && role.name === 'Super Admin') ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
+                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 ${isSystemRole ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
               </label>
             </div>
 
@@ -345,9 +380,9 @@ export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: Edit
                   checked={formData.is_active}
                   onChange={(e) => handleInputChange('is_active', e.target.checked)}
                   className="sr-only peer"
-                  disabled={isSystemRole && role.name === 'Super Admin'}
+                  disabled={isSystemRole}
                 />
-                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 ${(isSystemRole && role.name === 'Super Admin') ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
+                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 ${isSystemRole ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
               </label>
             </div>
           </div>

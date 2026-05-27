@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { LucideIconSelector } from './LucideIconSelector'
 import { MaterialIconSelector } from './MaterialIconSelector'
 
 // Importar o seletor antigo (Heroicons)
@@ -174,38 +175,51 @@ function LegacyIconSelector({ selected, onSelect }: { selected?: string; onSelec
 }
 
 export function HybridIconSelector({ selected, onSelect }: { selected?: string; onSelect: (iconName: string) => void }) {
-  const [library, setLibrary] = useState<'material' | 'legacy'>(
-    selected?.startsWith('mui-') ? 'material' : 'legacy'
+  const [library, setLibrary] = useState<'lucide' | 'material' | 'legacy'>(
+    selected?.startsWith('lucide-') ? 'lucide' : 
+    selected?.startsWith('mui-') ? 'material' : 'lucide'
   )
 
   return (
     <div className="space-y-4">
       {/* Toggle entre bibliotecas */}
-      <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+      <div className="flex gap-2 p-1 bg-gray-100 rounded-2xl">
         <button
-          onClick={() => setLibrary('material')}
-          className={`flex-1 px-4 py-2 rounded-md font-medium transition-all ${
-            library === 'material'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-gray-700 hover:bg-gray-200'
+          onClick={() => setLibrary('lucide')}
+          className={`flex-1 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+            library === 'lucide'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+              : 'text-gray-400 hover:bg-gray-200'
           }`}
         >
-          🎨 Material UI (200+ ícones)
+          ✨ Lucide Premium (4.000+)
+        </button>
+        <button
+          onClick={() => setLibrary('material')}
+          className={`flex-1 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+            library === 'material'
+              ? 'bg-slate-800 text-white shadow-lg'
+              : 'text-gray-400 hover:bg-gray-200'
+          }`}
+        >
+          🎨 Material (Otimizado)
         </button>
         <button
           onClick={() => setLibrary('legacy')}
-          className={`flex-1 px-4 py-2 rounded-md font-medium transition-all ${
+          className={`flex-1 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
             library === 'legacy'
-              ? 'bg-purple-600 text-white shadow-md'
-              : 'text-gray-700 hover:bg-gray-200'
+              ? 'bg-amber-500 text-white shadow-lg'
+              : 'text-gray-400 hover:bg-gray-200'
           }`}
         >
-          ⚡ Heroicons ({allIconLibraries.length} ícones)
+          ⚡ Heroicons
         </button>
       </div>
 
       {/* Renderizar o seletor correspondente */}
-      {library === 'material' ? (
+      {library === 'lucide' ? (
+        <LucideIconSelector selected={selected} onSelect={onSelect} />
+      ) : library === 'material' ? (
         <MaterialIconSelector selected={selected} onSelect={onSelect} />
       ) : (
         <LegacyIconSelector selected={selected} onSelect={onSelect} />

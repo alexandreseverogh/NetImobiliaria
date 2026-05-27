@@ -10,21 +10,53 @@ interface AdminHeaderProps {
   user: AdminUser
   onLogout: () => void
   onMenuClick: () => void
+  title?: string
+  systemId?: string
+  theme?: { mode: 'light' | 'dark'; primaryColor: string }
 }
 
-export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeaderProps) {
+export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Área Administrativa', systemId = 'admin', theme }: AdminHeaderProps) {
+  const isDark = theme?.mode === 'dark'
+  const headerBg = isDark ? 'bg-[#020617] border-white/5' : 'bg-white border-gray-200 shadow-sm'
+  const titleColor = isDark ? 'text-white' : 'text-gray-900'
+
+  const getLogo = () => {
+    const tenant = user?.currentTenant
+
+    // 🏢 USUÁRIO DE TENANT (EMPRESA) - PRIORIDADE 1
+    if (tenant?.logo) {
+      console.log(`🏢 Logo: Tenant detectado (${tenant.name}) - Exibindo logo da empresa`);
+      return tenant.logo
+    }
+
+    // 🛡️ [GUARDIAN] REGRA DE NEGÓCIO: LOGO MASTER DA PLATAFORMA - PRIORIDADE 2
+    const isMasterAdmin = (user as any)?.is_system_role === true;
+    if (isMasterAdmin) {
+      console.log('👑 Logo: Administrador Master detectado - Exibindo Artemis');
+      return '/Artemis4.JPEG'
+    }
+
+    // 🔄 FALLBACK FINAL
+    const isMasterArea = tenant?.name?.toUpperCase().includes('MASTER') ||
+      tenant?.slug === 'master'
+
+    if (isMasterArea) return '/Artemis4.JPEG'
+
+    return '/Artemis4.JPEG' // Fallback definitivo
+  }
+
   // Verificação de segurança para evitar erros
   if (!user || !user.nome) {
     return (
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className={`${headerBg} border-b`}>
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex-1 flex items-center space-x-3">
-              <Link href="/admin/logo">
-                <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              <Link href="/admin">
+                <img src={getLogo()} alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
               </Link>
               <h1 className="text-lg font-semibold text-gray-900">
-                Área Administrativa
+                {title}
               </h1>
             </div>
             <div className="text-sm text-gray-500">
@@ -37,14 +69,19 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
   }
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
+    <header className={`${headerBg} border-b sticky top-0 z-30 transition-colors`}>
+      {/* 🎨 Banner de Identidade Visual (Top Line) */}
+      <div 
+        className="h-1 w-full" 
+        style={{ backgroundColor: theme?.primaryColor || '#2563eb' }} 
+      />
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Botão de menu para mobile */}
           <div className="lg:hidden">
             <button
               type="button"
-              className="text-gray-500 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+              className={`${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600'} focus:outline-none`}
               onClick={onMenuClick}
             >
               <span className="sr-only">Abrir sidebar</span>
@@ -56,11 +93,11 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
 
           {/* Título da página */}
           <div className="flex-1 lg:flex-none flex items-center space-x-3">
-            <Link href="/admin/logo">
-              <img src="/imovitec-logo-definitive.png" alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+            <Link href="/admin">
+              <img src={getLogo()} alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
             </Link>
-            <h1 className="text-lg font-semibold text-gray-900">
-              Área Administrativa
+            <h1 className={`text-lg font-bold ${titleColor} tracking-tight`}>
+              {title}
             </h1>
           </div>
 
@@ -69,7 +106,7 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
             {/* Notificações */}
             <button
               type="button"
-              className="p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+              className="p-2 text-gray-400 hover:text-gray-500 focus:outline-none"
             >
               <span className="sr-only">Ver notificações</span>
               <div className="relative">
@@ -86,10 +123,11 @@ export default function AdminHeader({ user, onLogout, onMenuClick }: AdminHeader
             {/* Menu do usuário */}
             <Menu as="div" className="relative">
               <div>
-                <Menu.Button className="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <Menu.Button className="flex items-center text-sm rounded-full focus:outline-none">
                   <span className="sr-only">Abrir menu do usuário</span>
-                  <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium text-sm">
+                  <div className="h-8 w-8 rounded-full flex items-center justify-center shadow-inner" 
+                       style={{ backgroundColor: theme?.primaryColor || '#2563eb' }}>
+                    <span className="text-white font-black italic text-sm">
                       {user.nome.charAt(0).toUpperCase()}
                     </span>
                   </div>

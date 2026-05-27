@@ -22,17 +22,19 @@ export async function POST(request: NextRequest) {
     const result = await AuthService.login({ username, password })
     
     if (result.success) {
-      // Login bem-sucedido
+      if (result.requiresTenantSelection) {
+        return NextResponse.json({
+          success: true,
+          requiresTenantSelection: true,
+          tenants: result.tenants,
+          user: result.user // Contém o ID necessário
+        })
+      }
+
+      // Login bem-sucedido (apenas 1 tenant)
       return NextResponse.json({
         success: true,
-        user: {
-          id: result.user?.id,
-          username: result.user?.username,
-          email: result.user?.email,
-          nome: result.user?.nome,
-          cargo: result.user?.username || 'N/A',
-          permissoes: result.user?.permissoes
-        },
+        user: result.user,
         sessionId: result.sessionId
       })
     } else {

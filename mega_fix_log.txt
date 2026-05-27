@@ -1,0 +1,6 @@
+--- COLUNAS REAIS DA TABELA ---
+["id","parent_id","name","icon_name","url","resource","order_index","is_active","roles_required","permission_required","permission_action","description","created_at","updated_at","created_by","updated_by","feature_id","permission_id"]
+--- DELETANDO FUNÇÕES ANTIGAS ---
+--- RECONSTRUINDO COM COLUNA CORRETA ---
+Usando coluna de ícone: icon_name
+SUCESSO TOTAL

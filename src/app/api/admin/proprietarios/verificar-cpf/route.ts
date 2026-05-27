@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkCPFExists } from '@/lib/database/proprietarios'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,13 +8,19 @@ export async function POST(request: NextRequest) {
     const { cpf, excludeUuid } = body
 
     if (!cpf) {
-      return NextResponse.json(
-        { error: 'CPF é obrigatório' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'CPF é obrigatório' }, { status: 400 })
     }
     
-    const exists = await checkCPFExists(cpf, excludeUuid)
+    // Obter tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.tenantId
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant não identificado' }, { status: 401 })
+    }
+
+    const exists = await checkCPFExists(cpf, tenantId, excludeUuid)
     
     return NextResponse.json({ exists })
   } catch (error) {

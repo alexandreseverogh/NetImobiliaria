@@ -25,10 +25,35 @@ interface Proprietario {
   corretor_fk?: string | null
   corretor_nome?: string | null
   origem_cadastro?: string
+  semantic_data?: any
+}
+
+interface SemanticFieldConfig {
+  field: string
+  tag: string
+  label: string
+  required: boolean
 }
 
 interface ValidationErrors {
   [key: string]: string
+}
+
+interface FormData {
+  nome: string
+  cpf: string
+  cnpj: string
+  telefone: string
+  email: string
+  estado: string
+  cidade: string
+  cep: string
+  endereco: string
+  bairro: string
+  numero: string
+  complemento: string
+  origem_cadastro: string
+  [key: string]: any
 }
 
 export default function EditarProprietarioPage() {
@@ -58,7 +83,10 @@ export default function EditarProprietarioPage() {
     numero: '',
     complemento: '',
     origem_cadastro: ''
-  })
+  } as FormData)
+
+  const [semanticFields, setSemanticFields] = useState<SemanticFieldConfig[]>([])
+  const [semanticDataResults, setSemanticDataResults] = useState<Record<string, any[]>>({})
 
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [cpfValidating, setCpfValidating] = useState(false)
@@ -126,6 +154,37 @@ export default function EditarProprietarioPage() {
         // Guardar CEP inicial para evitar busca automática no carregamento
         setCepInicial(proprietarioData.cep || '')
 
+        // 2. Buscar Configuração Semântica (Dicionário)
+        const configResponse = await get('/api/admin/features/config?slug=proprietarios')
+        if (configResponse.ok) {
+          const configData = await configResponse.json()
+          const mapping = configData.config?.semantic_mapping || []
+          setSemanticFields(mapping)
+
+          // Preencher formData com campos dinâmicos do proprietário
+          const dynamicValues: Record<string, any> = {}
+          mapping.forEach((m: any) => {
+            if (proprietarioData[m.field] !== undefined) {
+              dynamicValues[m.field] = proprietarioData[m.field] || ''
+            }
+          })
+
+          setFormData(prev => ({ ...prev, ...dynamicValues }))
+
+          // Buscar dados para cada Tag (povoar selects)
+          const results: Record<string, any[]> = {}
+          for (const m of mapping) {
+            if (m.tag && !results[m.tag]) {
+              const dataRes = await get(`/api/admin/governance/data?tag=${m.tag}`)
+              if (dataRes.ok) {
+                const tagData = await dataRes.json()
+                results[m.tag] = tagData.data || []
+              }
+            }
+          }
+          setSemanticDataResults(results)
+        }
+
       } catch (err) {
         console.error('Erro ao carregar proprietário:', err)
         setError('Erro ao carregar dados do proprietário')
@@ -181,25 +240,29 @@ export default function EditarProprietarioPage() {
 
   // Buscar endereço automaticamente quando CEP for informado (8 dígitos)
   useEffect(() => {
-    const cep = formData.cep
-    if (!cep) return
-
-    const cepLimpo = cep.replace(/\D/g, '')
-    if (cepLimpo.length !== 8) return
+    const cepValue = formData.cep?.replace(/\D/g, '')
+    if (!cepValue || cepValue.length !== 8) {
+      return
+    }
 
     // NÃO buscar se for o mesmo CEP inicial (carregamento da página)
-    const cepInicialLimpo = cepInicial.replace(/\D/g, '')
-    if (cepLimpo === cepInicialLimpo) {
+    const cepInicialLimpo = cepInicial?.replace(/\D/g, '') || ''
+    if (cepValue === cepInicialLimpo) {
       console.log('⏭️ CEP é o mesmo do carregamento inicial - pulando busca automática')
       return
     }
 
+    let cancelled = false
+
     const buscarEndereco = async () => {
+      if (cancelled) return
       setBuscandoCep(true)
-      console.log('🔍 Buscando endereço para CEP (NOVO):', cepLimpo)
+      console.log('🔍 Buscando endereço para CEP (NOVO):', cepValue)
 
       try {
-        const enderecoData = await buscarEnderecoPorCep(cepLimpo)
+        const enderecoData = await buscarEnderecoPorCep(cepValue)
+
+        if (cancelled) return
 
         if (enderecoData) {
           console.log('✅ Endereço encontrado:', enderecoData)
@@ -209,37 +272,39 @@ export default function EditarProprietarioPage() {
 
           setFormData(prev => ({
             ...prev,
-            endereco: enderecoData.logradouro || '',
-            bairro: enderecoData.bairro || '',
-            estado: estadoEncontrado?.id || '',
-            cidade: '', // Será selecionado após municípios carregarem
-            numero: '' // Limpar número ao trocar CEP (apenas quando usuário digita NOVO CEP)
+            endereco: enderecoData.logradouro || prev.endereco || '',
+            bairro: enderecoData.bairro || prev.bairro || '',
+            estado: estadoEncontrado?.id || prev.estado || '',
+            cidade: estadosCidades.municipios.find(m => m.nome === enderecoData.localidade)?.id || ''
           }))
 
-          // Aguardar carregar municípios e então selecionar a cidade
           setTimeout(() => {
-            setFormData(prev => {
-              const municipioEncontrado = estadosCidades.municipios.find(m => m.nome === enderecoData.localidade)
-              return {
-                ...prev,
-                cidade: municipioEncontrado?.id || ''
-              }
-            })
+            if (!cancelled) {
+              setFormData(prev => {
+                return { ...prev }
+              })
+            }
           }, 500)
         } else {
           console.log('⚠️ CEP não encontrado')
         }
       } catch (error) {
+        if (cancelled) return
         console.error('❌ Erro ao buscar CEP:', error)
       } finally {
-        setBuscandoCep(false)
+        if (!cancelled) {
+          setBuscandoCep(false)
+        }
       }
     }
 
-    // Debounce de 500ms
     const timeoutId = setTimeout(buscarEndereco, 500)
-    return () => clearTimeout(timeoutId)
-  }, [formData.cep, estadosCidades.estados, estadosCidades.municipios, cepInicial])
+    
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
+  }, [formData.cep, cepInicial]) // REMOVIDO: estadosCidades.estados, estadosCidades.municipios
 
   // Verificar Email com debounce
   useEffect(() => {
@@ -776,7 +841,9 @@ export default function EditarProprietarioPage() {
         estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.sigla || null : null,
         cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,
         cep: formData.cep,
-        updated_by: user?.nome || 'system'
+        updated_by: user?.nome || 'system',
+        // Injetar campos dinâmicos da governança
+        ...semanticFields.reduce((acc, f) => ({ ...acc, [f.field]: formData[f.field] }), {})
       })
 
       if (response.ok) {
@@ -1011,21 +1078,31 @@ export default function EditarProprietarioPage() {
           </p>
         </div>
 
-        {/* Corretor (readonly) */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Corretor</label>
-          <input
-            type="text"
-            value={
-              proprietario?.corretor_fk
-                ? proprietario?.corretor_nome || 'Corretor não encontrado'
-                : 'Sem Corretor Associado'
-            }
-            readOnly
-            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 cursor-not-allowed"
-            title="Campo não editável"
-          />
-        </div>
+        {/* DICIONÁRIO SEMÂNTICO DINÂMICO (Zero Hardcoding) */}
+        {semanticFields.length > 0 && (
+          <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {semanticFields.map((field, idx) => (
+              <div key={idx} className="flex flex-col">
+                <label className="block text-[10px] font-black text-blue-900 uppercase tracking-widest mb-2 px-1">
+                  {field.label} {field.required && <span className="text-red-500">*</span>}
+                </label>
+                <select
+                  required={field.required}
+                  value={formData[field.field] || ''}
+                  onChange={(e) => handleInputChange(field.field, e.target.value)}
+                  className="w-full bg-white border border-blue-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 font-bold text-sm shadow-sm"
+                >
+                  <option value="">SELECIONE...</option>
+                  {(semanticDataResults[field.tag] || []).map((item: any) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Endereço (preenchido automaticamente) */}
         <div>

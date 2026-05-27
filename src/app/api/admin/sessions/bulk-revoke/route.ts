@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 interface BulkRevokeRequest {
   type: 'user' | 'all' | 'selected'
@@ -11,6 +12,8 @@ interface BulkRevokeRequest {
 // POST - Revogação em massa de sessões
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireApiPermission(request, 'sessions', 'DELETE')
+    if (denied) return denied
     // Verificar permissão
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {

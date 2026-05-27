@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import { Pool } from 'pg'
-import { validateHierarchyOperation } from '@/services/hierarchyService'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
+import pool from '@/lib/database/connection';
 
 // Função local para verificar se requer 2FA
 function requiresTwoFactor(action: string, feature: string): boolean {
@@ -11,17 +11,11 @@ function requiresTwoFactor(action: string, feature: string): boolean {
          criticalFeatures.includes(feature.toLowerCase())
 }
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
-  database: process.env.DB_NAME!,
-})
-
 // POST - Operações em lote para permissões
 export async function POST(request: Request) {
   try {
+    const denied = await requireApiPermission(request as unknown as NextRequest, 'roles', 'UPDATE')
+    if (denied) return denied
     const body = await request.json()
     const { operation, roleIds, permissions, template, options = {} } = body
 
@@ -74,9 +68,8 @@ export async function POST(request: Request) {
     `)
     const allPermissions = allPermissionsResult.rows
 
-    // TODO: Validação de hierarquia - obter role do usuário logado
-    // Por enquanto, permitir para Super Admin em desenvolvimento
-    const operatorRole = 'Super Admin'
+    // TODO: Implementar verificação de hierarquia via middleware ou token
+    // Por enquanto, a rota é protegida pelo UnifiedPermissionMiddleware
 
     // Iniciar transação
     await pool.query('BEGIN')
@@ -86,22 +79,8 @@ export async function POST(request: Request) {
       let totalPermissionsProcessed = 0
 
       for (const role of roles) {
-        // Validar hierarquia para cada role
-        const hierarchyValidation = validateHierarchyOperation(
-          'manage_permissions',
-          operatorRole,
-          role.name
-        )
+        // Validação de hierarquia - Será substituída pela nova arquitetura tenant-based baseada em role_hierarchies
 
-        if (!hierarchyValidation.allowed) {
-          results.push({
-            roleId: role.id,
-            roleName: role.name,
-            success: false,
-            error: hierarchyValidation.reason
-          })
-          continue
-        }
 
         let rolePermissions = []
 
@@ -239,7 +218,7 @@ export async function POST(request: Request) {
 
 // Função para obter permissões de um template
 async function getTemplatePermissions(template: string): Promise<any[]> {
-  if (template === 'super_admin') {
+  if (template === 'master' || template === 'super_admin') {
     // Para Super Admin, buscar todas as permissões ativas
     const allPermissions = await pool.query(`
       SELECT p.id, p.action, p.feature_id, sf.category as feature_category
@@ -313,9 +292,9 @@ export async function GET() {
         description: 'Permissões administrativas completas',
         permissions: ['list', 'read', 'create', 'update', 'delete']
       },
-      'super_admin': {
-        name: 'Super Administrador',
-        description: 'Todas as permissões do sistema',
+      'master': {
+        name: 'Administrador Master',
+        description: 'Todas as permissões do sistema (Apenas Global)',
         permissions: ['all']
       }
     }

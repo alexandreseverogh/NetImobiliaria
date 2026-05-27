@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { getTokenFromRequest, verifyToken } from '@/lib/auth/jwt'
 
 // GET - Buscar receitas de destaque
 export async function GET(request: NextRequest) {
@@ -12,22 +13,27 @@ export async function GET(request: NextRequest) {
       return permissionCheck
     }
 
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.is_system_role ? undefined : decoded?.tenantId
+
     // 1. Buscar receita nacional (destaque_nacional = true) estratificada por finalidade
     const receitaNacionalQuery = `
       SELECT 
         COALESCE(fi.nome, 'SEM FINALIDADE') as finalidade,
         COUNT(*) as total_imoveis,
-        COALESCE((SELECT vl_destaque_nacional FROM parametros LIMIT 1), 0) as valor_unitario,
-        COUNT(*) * COALESCE((SELECT vl_destaque_nacional FROM parametros LIMIT 1), 0) as receita_total
+        COALESCE((SELECT vl_destaque_nacional FROM parametros_imoveis ${tenantId ? 'WHERE tenant_id = $1' : ''} LIMIT 1), 0) as valor_unitario,
+        COUNT(*) * COALESCE((SELECT vl_destaque_nacional FROM parametros_imoveis ${tenantId ? 'WHERE tenant_id = $1' : ''} LIMIT 1), 0) as receita_total
       FROM imoveis i
       LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
       WHERE i.destaque_nacional = true
         AND i.ativo = true
+        ${tenantId ? 'AND i.tenant_id = $1' : ''}
       GROUP BY COALESCE(fi.nome, 'SEM FINALIDADE')
       ORDER BY COALESCE(fi.nome, 'SEM FINALIDADE')
     `
 
-    const receitaNacionalResult = await pool.query(receitaNacionalQuery)
+    const receitaNacionalResult = await pool.query(receitaNacionalQuery, tenantId ? [tenantId] : [])
     
     // Processar dados estratificados por finalidade
     const receitaNacionalPorFinalidade = receitaNacionalResult.rows.map((row: any) => {
@@ -48,7 +54,7 @@ export async function GET(request: NextRequest) {
     })
     
     // Buscar valor unitário
-    const valorUnitarioResult = await pool.query('SELECT vl_destaque_nacional FROM parametros LIMIT 1')
+    const valorUnitarioResult = await pool.query(`SELECT vl_destaque_nacional FROM parametros_imoveis ${tenantId ? 'WHERE tenant_id = $1' : ''} LIMIT 1`, tenantId ? [tenantId] : [])
     const valorUnitario = parseFloat(valorUnitarioResult.rows[0]?.vl_destaque_nacional || 0)
     
     // Calcular totais consolidados
@@ -73,11 +79,12 @@ export async function GET(request: NextRequest) {
         COUNT(DISTINCT i.id) as total_imoveis,
         COUNT(DISTINCT i.id) * vdl.valor_destaque as receita_total
       FROM imoveis i
-      INNER JOIN valor_destaque_local vdl ON i.estado_fk = vdl.estado_fk AND vdl.cidade_fk = 'TODAS'
+      INNER JOIN valor_destaque_local vdl ON i.estado_fk = vdl.estado_fk AND vdl.cidade_fk = 'TODAS' ${tenantId ? 'AND vdl.tenant_id = $1' : ''}
       LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
       WHERE i.destaque = true 
         AND i.ativo = true
         AND i.estado_fk IS NOT NULL
+        ${tenantId ? 'AND i.tenant_id = $1' : ''}
       GROUP BY i.estado_fk, vdl.valor_destaque, COALESCE(fi.nome, 'SEM FINALIDADE')
       ORDER BY i.estado_fk, COALESCE(fi.nome, 'SEM FINALIDADE')
     `
@@ -88,23 +95,24 @@ export async function GET(request: NextRequest) {
       FROM imoveis
       WHERE destaque = true 
         AND ativo = true
-        AND (estado_fk IS NULL OR estado_fk NOT IN (SELECT estado_fk FROM valor_destaque_local WHERE cidade_fk = 'TODAS'))
+        ${tenantId ? 'AND tenant_id = $1' : ''}
+        AND (estado_fk IS NULL OR estado_fk NOT IN (SELECT estado_fk FROM valor_destaque_local WHERE cidade_fk = 'TODAS' ${tenantId ? 'AND tenant_id = $1' : ''}))
     `
-    const imoveisSemEstadoResult = await pool.query(imoveisSemEstadoQuery)
+    const imoveisSemEstadoResult = await pool.query(imoveisSemEstadoQuery, tenantId ? [tenantId] : [])
     const imoveisSemEstado = parseInt(imoveisSemEstadoResult.rows[0]?.total || 0)
     if (imoveisSemEstado > 0) {
       console.log('⚠️ ATENÇÃO: Existem', imoveisSemEstado, 'imóveis com destaque local mas sem estado_fk válido')
     }
 
-    const receitaPorEstadoResult = await pool.query(receitaPorEstadoQuery)
+    const receitaPorEstadoResult = await pool.query(receitaPorEstadoQuery, tenantId ? [tenantId] : [])
     
     // Debug: verificar total de imóveis com destaque local antes do agrupamento
     const debugTotalLocalQuery = `
       SELECT COUNT(*) as total
       FROM imoveis
-      WHERE destaque = true AND ativo = true
+      WHERE destaque = true AND ativo = true ${tenantId ? 'AND tenant_id = $1' : ''}
     `
-    const debugTotalLocalResult = await pool.query(debugTotalLocalQuery)
+    const debugTotalLocalResult = await pool.query(debugTotalLocalQuery, tenantId ? [tenantId] : [])
     console.log('🔍 Total real de imóveis com destaque local:', debugTotalLocalResult.rows[0]?.total)
     
     // Debug: verificar total após agrupamento
@@ -177,9 +185,9 @@ export async function GET(request: NextRequest) {
     const todosEstadosQuery = `
       SELECT estado_fk, valor_destaque 
       FROM valor_destaque_local 
-      WHERE cidade_fk = 'TODAS'
+      WHERE cidade_fk = 'TODAS' ${tenantId ? 'AND tenant_id = $1' : ''}
     `
-    const todosEstadosResult = await pool.query(todosEstadosQuery)
+    const todosEstadosResult = await pool.query(todosEstadosQuery, tenantId ? [tenantId] : [])
     for (const row of todosEstadosResult.rows) {
       if (!receitasPorEstadoMap.has(row.estado_fk)) {
         receitasPorEstadoMap.set(row.estado_fk, {
@@ -203,11 +211,11 @@ export async function GET(request: NextRequest) {
     // Calcular total de imóveis com destaque (SOMA de nacional + local, não único)
     // Somar todos os imóveis com destaque_nacional = true + todos com destaque = true
     // Mesmo que alguns imóveis tenham ambos os destaques, devem ser contados duas vezes
-    const totalNacionalQuery = `SELECT COUNT(*) as total FROM imoveis WHERE destaque_nacional = true AND ativo = true`
-    const totalLocalQuery = `SELECT COUNT(*) as total FROM imoveis WHERE destaque = true AND ativo = true`
+    const totalNacionalQuery = `SELECT COUNT(*) as total FROM imoveis WHERE destaque_nacional = true AND ativo = true ${tenantId ? 'AND tenant_id = $1' : ''}`
+    const totalLocalQuery = `SELECT COUNT(*) as total FROM imoveis WHERE destaque = true AND ativo = true ${tenantId ? 'AND tenant_id = $1' : ''}`
     
-    const totalNacionalResult = await pool.query(totalNacionalQuery)
-    const totalLocalResult = await pool.query(totalLocalQuery)
+    const totalNacionalResult = await pool.query(totalNacionalQuery, tenantId ? [tenantId] : [])
+    const totalLocalResult = await pool.query(totalLocalQuery, tenantId ? [tenantId] : [])
     
     const totalNacional = parseInt(totalNacionalResult.rows[0]?.total || 0)
     const totalLocal = parseInt(totalLocalResult.rows[0]?.total || 0)

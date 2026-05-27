@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { XMarkIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, TrashIcon, CheckCircleIcon, ArrowPathIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import { HybridIconSelector as IconSelector } from './HybridIconSelector'
 import { MenuItem } from '@/hooks/useSidebarItems'
 
@@ -12,9 +12,20 @@ interface MenuEditModalProps {
   onSave: (data: Partial<MenuItem>) => Promise<void>
   onDelete: (item: MenuItem) => Promise<void>
   onCreateChild?: (parentId: number) => void
+  features?: any[]
+  categories?: any[]
 }
 
-export function MenuEditModal({ item, isOpen, onClose, onSave, onDelete, onCreateChild }: MenuEditModalProps) {
+export function MenuEditModal({ 
+  item, 
+  isOpen, 
+  onClose, 
+  onSave, 
+  onDelete, 
+  onCreateChild,
+  features = [],
+  categories = [] 
+}: MenuEditModalProps) {
   const [name, setName] = useState('')
   const [iconName, setIconName] = useState('')
   const [url, setUrl] = useState('')
@@ -22,6 +33,9 @@ export function MenuEditModal({ item, isOpen, onClose, onSave, onDelete, onCreat
   const [isActive, setIsActive] = useState(true)
   const [showIconSelector, setShowIconSelector] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [selectedFeatureId, setSelectedFeatureId] = useState<number | null>(null)
+  const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>([])
+  const [allModules, setAllModules] = useState<any[]>([])
 
   useEffect(() => {
     if (item) {
@@ -30,98 +44,211 @@ export function MenuEditModal({ item, isOpen, onClose, onSave, onDelete, onCreat
       setUrl(item.url || '')
       setDescription(item.description || '')
       setIsActive(item.is_active)
+      setSelectedFeatureId(item.feature_id || null)
+      // @ts-ignore
+      setSelectedModuleIds(item.module_ids || [])
     }
   }, [item])
+
+  useEffect(() => {
+    const fetchModules = async () => {
+      try {
+        const response = await fetch('/api/admin/modules/list')
+        const data = await response.json()
+        if (data.success) {
+          setAllModules(data.modules)
+        }
+      } catch (err) {
+        console.error('Erro ao carregar módulos:', err)
+      }
+    }
+    fetchModules()
+  }, [])
 
   const handleSave = async () => {
     if (!item) return
     
+    // Se for um item raiz com filhos, forçar URL nula (é um agrupador)
+    const isTrulyParent = item.parent_id === null && (item.children?.length ?? 0) > 0;
+    
     setLoading(true)
     try {
+      // Enviar apenas os campos necessários para evitar recursão de children
       await onSave({
-        ...item,
+        id: item.id,
         name,
         icon_name: iconName,
-        url: url || null,
+        url: url === '' ? null : url,
         description: description || null,
-        is_active: isActive
+        is_active: isActive,
+        feature_id: selectedFeatureId,
+        parent_id: item.parent_id,
+        // @ts-ignore
+        module_ids: selectedModuleIds
       })
       onClose()
     } catch (err) {
       console.error('Erro ao salvar:', err)
-      alert('Erro ao salvar item')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleDelete = async () => {
-    if (!item) return
-    
-    if (confirm(`Tem certeza que deseja excluir "${item.name}"?`)) {
-      await onDelete(item)
-      onClose()
     }
   }
 
   if (!isOpen || !item) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Editar Item da Sidebar
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <XMarkIcon className="h-6 w-6" />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-[100] overflow-y-auto">
+      <div className="flex min-h-screen items-center justify-center p-4 text-center">
+        {/* Backdrop Premium */}
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md transition-opacity" onClick={onClose} />
 
-        {/* Body */}
-        <div className="p-6 space-y-4">
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nome *
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              required
-            />
+        {/* Modal Content */}
+        <div className="relative w-full max-w-2xl transform overflow-hidden rounded-3xl bg-white p-8 text-left align-middle shadow-2xl transition-all border border-gray-100">
+          {/* Header Master */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                Design de Interface
+              </h2>
+              <p className="text-sm text-gray-400 font-medium">Configure as propriedades Master da sidebar</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-gray-300 hover:text-gray-900 hover:bg-gray-50 transition-all"
+            >
+              <XMarkIcon className="h-6 w-6" />
+            </button>
           </div>
 
-          {/* Icon */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ícone *
-            </label>
-            <div className="flex items-center space-x-2">
+          <div className="space-y-6">
+            {/* Grid de Inputs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">
+                  Nome do Menu
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full h-12 px-4 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold transition-all"
+                  placeholder="Ex: Master Dashboard"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">
+                  Ícone Representativo
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={iconName}
+                    readOnly
+                    onClick={() => setShowIconSelector(!showIconSelector)}
+                    className="flex-1 h-12 px-4 bg-gray-50 border-transparent rounded-xl cursor-pointer hover:bg-gray-100 transition-all font-mono text-blue-600"
+                    placeholder="home, cog, etc..."
+                  />
+                  <button
+                    onClick={() => setShowIconSelector(!showIconSelector)}
+                    className="px-4 h-12 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
+                  >
+                    Mudar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* URL Master */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">
+                Endpoint da Aplicação (URL) {item.parent_id === null && (item.children?.length ?? 0) > 0 && '(Item Agrupador)'}
+              </label>
               <input
                 type="text"
-                value={iconName}
-                onChange={(e) => setIconName(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ex: home, user, cog"
-                required
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="w-full h-12 px-4 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium transition-all"
+                placeholder="/admin/master/..."
               />
-              <button
-                type="button"
-                onClick={() => setShowIconSelector(!showIconSelector)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-              >
-                Selecionar
-              </button>
             </div>
+
+
+
+            {/* Módulos de Exibição (Governança Multi-Módulo) - 100% DINÂMICO */}
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1 flex items-center">
+                Módulos de Exibição (Governança)
+                <SparklesIcon className="h-3 w-3 ml-2 text-purple-500" />
+              </label>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                {allModules.map((mod) => {
+                  const isSelected = selectedModuleIds.includes(mod.id);
+                  return (
+                    <button
+                      key={mod.id}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedModuleIds(prev => prev.filter(id => id !== mod.id));
+                        } else {
+                          setSelectedModuleIds(prev => [...prev, mod.id]);
+                        }
+                      }}
+                      className={`flex items-center p-3 rounded-xl border-2 transition-all group ${
+                        isSelected 
+                        ? 'border-purple-600 bg-white text-purple-900 shadow-md' 
+                        : 'border-transparent bg-white/50 text-gray-400 hover:border-gray-200'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center transition-all ${
+                        isSelected ? 'bg-purple-600 border-purple-600' : 'border-gray-200 group-hover:border-gray-300'
+                      }`}>
+                        {isSelected && <CheckCircleIcon className="w-4 h-4 text-white" />}
+                      </div>
+                      <span className={`text-xs font-bold truncate ${isSelected ? 'text-purple-900' : 'text-gray-500'}`}>
+                        {mod.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-gray-400 font-medium pl-1">
+                Selecione todos os módulos onde este item deve ser renderizado na sidebar.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">
+                Funcionalidade do Sistema
+              </label>
+              <select
+                value={selectedFeatureId || ''}
+                onChange={(e) => {
+                  const featureId = Number(e.target.value) || null
+                  setSelectedFeatureId(featureId)
+                  
+                  if (featureId) {
+                    const feature = features.find(f => f.id === featureId)
+                    if (feature && (feature.url || feature.slug)) {
+                      setUrl(feature.url || `/${feature.slug}`)
+                    }
+                  }
+                }}
+                className="w-full h-12 px-4 bg-blue-50/30 border border-blue-100 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 font-bold text-blue-900 transition-all cursor-pointer"
+              >
+                <option value="">Nenhuma Funcionalidade Vinculada</option>
+                {features.map(feature => (
+                  <option key={feature.id} value={feature.id}>
+                    {feature.name} ({feature.url || feature.slug})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Icon Selector Panel */}
             {showIconSelector && (
-              <div className="mt-2">
+              <div className="p-6 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 max-h-64 overflow-y-auto custom-scrollbar">
                 <IconSelector
                   selected={iconName}
                   onSelect={(icon) => {
@@ -131,88 +258,52 @@ export function MenuEditModal({ item, isOpen, onClose, onSave, onDelete, onCreat
                 />
               </div>
             )}
+
+            {/* Visibility Settings */}
+            <div className="flex items-center p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
+               <div className="flex-1">
+                 <h4 className="text-sm font-bold text-blue-900">Visibilidade na Sidebar</h4>
+                 <p className="text-xs text-blue-600 font-medium">Defina se este item será renderizado para os usuários finais</p>
+               </div>
+               <button
+                 onClick={() => setIsActive(!isActive)}
+                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isActive ? 'bg-blue-600' : 'bg-gray-300'}`}
+               >
+                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-6' : 'translate-x-1'}`} />
+               </button>
+            </div>
           </div>
 
-          {/* URL */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              URL
-            </label>
-            <input
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Ex: /admin/usuarios"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Descrição
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              rows={3}
-              placeholder="Descrição do item"
-            />
-          </div>
-
-          {/* Active/Inactive */}
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label className="ml-2 block text-sm text-gray-900">
-              Item Ativo
-            </label>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t bg-gray-50">
-          <div className="flex space-x-2">
+          {/* Footer Premium */}
+          <div className="mt-10 flex items-center justify-between">
             <button
-              onClick={handleDelete}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-              disabled={loading}
+              onClick={() => onDelete(item)}
+              className="flex items-center px-4 py-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all text-sm font-bold"
             >
-              Excluir
+              <TrashIcon className="h-5 w-5 mr-2" />
+              Excluir Registro
             </button>
-            {onCreateChild && (
+
+            <div className="flex space-x-3">
               <button
-                onClick={() => {
-                  onCreateChild(item.id)
-                  onClose()
-                }}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                disabled={loading}
+                onClick={onClose}
+                className="px-6 py-3 text-sm font-bold text-gray-400 hover:text-gray-900 transition-all"
               >
-                Adicionar Filho
+                Cancelar
               </button>
-            )}
-          </div>
-          <div className="space-x-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
-              disabled={loading}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={loading || !name || !iconName}
-            >
-              {loading ? 'Salvando...' : 'Salvar'}
-            </button>
+              <button
+                onClick={handleSave}
+                disabled={loading}
+                className="flex items-center px-8 py-3 bg-gray-900 text-white rounded-2xl text-sm font-black shadow-xl hover:bg-black transition-all disabled:bg-gray-200"
+              >
+                {loading ? (
+                  <ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CheckCircleIcon className="h-4 w-4 mr-2" />
+                )}
+                Confirmar Master
+              </button>
+            </div>
           </div>
         </div>
       </div>

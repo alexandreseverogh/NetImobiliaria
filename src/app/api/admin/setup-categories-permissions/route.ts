@@ -61,12 +61,12 @@ export async function POST(request: NextRequest) {
         
         console.log(`✅ Permissão criada: ${perm.action}`)
         
-        // 4. Associar permissões aos roles Super Admin e Administrador
+        // 4. Associar permissões aos perfis Masters (Sistema)
         await client.query(`
           INSERT INTO role_permissions (role_id, permission_id)
           SELECT r.id, $1
           FROM user_roles r
-          WHERE r.name IN ('Super Admin', 'Administrador')
+          WHERE r.is_system_role = true
         `, [permissionId])
         
         console.log(`✅ Permissão ${perm.action} associada aos roles`)

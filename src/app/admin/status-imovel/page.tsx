@@ -44,7 +44,7 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
       setError(null)
       
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : ''
-      const response = await get(`/api/admin/status-imovel?page=${page}&limit=10${searchParam}`)
+      const response = await get(`/api/admin/status-imoveis?page=${page}&limit=10${searchParam}`)
       
       if (!response.ok) {
         throw new Error('Erro ao carregar status de imóvel')
@@ -86,7 +86,7 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
   }
 
   const handleEdit = (id: number) => {
-    router.push(`/admin/status-imovel/${id}/editar?page=${currentPage}`)
+    router.push(`/admin/status-imoveis/${id}/editar?page=${currentPage}`)
   }
 
   const handleDelete = async (id: number, nome: string) => {
@@ -95,7 +95,7 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
     }
 
     try {
-      const response = await del(`/api/admin/status-imovel/${id}`)
+      const response = await del(`/api/admin/status-imoveis/${id}`)
 
       if (response.ok) {
         loadStatusImovel(currentPage)
@@ -134,7 +134,7 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
           </div>
           <div className="mt-4 sm:mt-0">
             <Link
-              href="/admin/status-imovel/novo"
+              href="/admin/status-imoveis/novo"
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
               <PlusIcon className="h-4 w-4 mr-2" />

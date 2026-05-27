@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { findImovelVideoMetadata, saveImovelVideo, deleteImovelVideoByImovel } from '@/lib/database/imovel-video'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import { logAuditEvent } from '@/lib/database/audit'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // Rate limiting simples (em produção usar Redis ou similar)
 const uploadLimits = new Map<string, { count: number; resetTime: number }>()
@@ -201,6 +202,10 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de criação/edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     // Verificar autenticação
     const currentUserId = getCurrentUser(request)
     if (!currentUserId) {
@@ -323,6 +328,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de exclusão server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'DELETE')
+    if (denied) return denied
+
     // Verificar autenticação
     const currentUserId = getCurrentUser(request)
     if (!currentUserId) {
@@ -331,7 +340,7 @@ export async function DELETE(
         { status: 401 }
       )
     }
-    
+
     const imovelId = parseInt(params.id)
     
     if (isNaN(imovelId)) {

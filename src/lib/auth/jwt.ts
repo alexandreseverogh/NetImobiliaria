@@ -11,8 +11,10 @@ const JWT_REFRESH_EXPIRES_IN = AUTH_CONFIG.JWT.REFRESH_TOKEN_EXPIRES_IN
 export interface JWTPayload {
   userId: string
   username: string
-  cargo: string
+  cargo?: string
   role_name?: string
+  role_level?: number
+  is_system_role?: boolean
   sessionId?: string
   twoFAVerified?: boolean
   is2FAEnabled?: boolean
@@ -20,6 +22,10 @@ export interface JWTPayload {
   userType?: string
   nome?: string
   email?: string
+  permissoes?: Record<string, string>
+  auditConfigs?: any
+  tenantId?: string
+  tenantSlug?: string
   iat?: number
   exp?: number
 }
@@ -278,8 +284,15 @@ export async function refreshAccessToken(refreshToken: string): Promise<string |
     const decoded = await verifyToken(refreshToken)
     if (!decoded) return null
 
-    const { userId, username, cargo } = decoded
-    return await generateAccessToken({ userId, username, cargo })
+    const { 
+      userId, username, cargo, tenantId, tenantSlug, 
+      role_name, role_level, is_system_role, email, nome, userType, permissoes 
+    } = decoded
+    
+    return await generateAccessToken({ 
+      userId, username, cargo, tenantId, tenantSlug, 
+      role_name, role_level, is_system_role, email, nome, userType, permissoes 
+    })
   } catch (error) {
     console.error('Erro ao renovar token:', error)
     return null

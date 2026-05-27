@@ -1,29 +1,18 @@
-import pool from './connection'
-import { QueryResult } from 'pg'
+import { logAuditEvent as internalLog, findAuditLogs, AuditLog as Log } from '../audit/auditLogger'
 
-export interface AuditLog {
-  id: string
-  user_id: string | null
-  action: string
-  resource_type: string | null
-  resource_id: string | null
-  details: any
-  ip_address: string | null
-  user_agent: string | null
-  created_at: Date
-}
+export type AuditLog = Log
 
 export interface AuditLogWithUser extends AuditLog {
   username: string | null
   nome: string | null
-  cargo: string | null
 }
 
 /**
- * Registrar log de auditoria
+ * Registrar log de auditoria (Wrapper para compatibilidade)
  */
 export async function logAuditEvent(data: {
   userId?: string
+  tenantId?: string | null
   action: string
   resourceType?: string
   resourceId?: string
@@ -31,39 +20,23 @@ export async function logAuditEvent(data: {
   ipAddress?: string
   userAgent?: string
 }): Promise<void> {
-  console.log('🔍 Audit log:', data.action, 'para usuário:', data.userId)
-  
-  // Sistema de auditoria reativado conforme Guardian Rules
-  
-  try {
-    const query = `
-      INSERT INTO audit_logs (
-        user_id, action, resource, resource_id, 
-        details, ip_address, user_agent
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `
-    
-    const values = [
-      data.userId || null,
-      data.action,
-      data.resourceType || null,
-      data.resourceId || null,
-      data.details ? JSON.stringify(data.details) : null,
-      data.ipAddress || null,
-      data.userAgent || null
-    ]
-    
-    await pool.query(query, values)
-  } catch (error) {
-    console.error('❌ Erro ao registrar log de auditoria:', error)
-    // Não lançar erro para não interromper operações principais
-  }
+  return internalLog({
+    userId: data.userId,
+    tenantId: data.tenantId,
+    action: data.action,
+    resource: data.resourceType || 'UNKNOWN',
+    resourceId: data.resourceId,
+    details: data.details,
+    ipAddress: data.ipAddress,
+    userAgent: data.userAgent
+  })
 }
 
 /**
- * Buscar logs de auditoria com filtros
+ * Buscar logs de auditoria com filtros (Refatorado para suportar tenant_id)
  */
 export async function getAuditLogs(filters: {
+  tenantId: string | null
   userId?: string
   action?: string
   resourceType?: string
@@ -71,99 +44,35 @@ export async function getAuditLogs(filters: {
   endDate?: Date
   limit?: number
   offset?: number
-} = {}): Promise<AuditLogWithUser[]> {
-  try {
-    let query = `
-      SELECT 
-        al.id, al.user_id, al.action, al.resource_type, al.resource_id,
-        al.details, al.ip_address, al.user_agent, al.created_at,
-        u.username, u.nome
-      FROM audit_logs al
-      LEFT JOIN users u ON al.user_id = u.id
-      WHERE 1=1
-    `
-    
-    const values: any[] = []
-    let paramIndex = 1
-    
-    if (filters.userId) {
-      query += ` AND al.user_id = $${paramIndex}`
-      values.push(filters.userId)
-      paramIndex++
-    }
-    
-    if (filters.action) {
-      query += ` AND al.action = $${paramIndex}`
-      values.push(filters.action)
-      paramIndex++
-    }
-    
-    if (filters.resourceType) {
-      query += ` AND al.resource_type = $${paramIndex}`
-      values.push(filters.resourceType)
-      paramIndex++
-    }
-    
-    if (filters.startDate) {
-      query += ` AND al.created_at >= $${paramIndex}`
-      values.push(filters.startDate)
-      paramIndex++
-    }
-    
-    if (filters.endDate) {
-      query += ` AND al.created_at <= $${paramIndex}`
-      values.push(filters.endDate)
-      paramIndex++
-    }
-    
-    query += ` ORDER BY al.created_at DESC`
-    
-    if (filters.limit) {
-      query += ` LIMIT $${paramIndex}`
-      values.push(filters.limit)
-      paramIndex++
-    }
-    
-    if (filters.offset) {
-      query += ` OFFSET $${paramIndex}`
-      values.push(filters.offset)
-      paramIndex++
-    }
-    
-    const result: QueryResult<AuditLogWithUser> = await pool.query(query, values)
-    return result.rows
-  } catch (error) {
-    console.error('❌ Erro ao buscar logs de auditoria:', error)
-    throw new Error('Erro ao buscar logs de auditoria')
-  }
+}): Promise<AuditLogWithUser[]> {
+  const { logs } = await findAuditLogs({
+    tenantId: filters.tenantId,
+    userId: filters.userId,
+    action: filters.action,
+    resource: filters.resourceType,
+    startDate: filters.startDate?.toISOString(),
+    endDate: filters.endDate?.toISOString(),
+    page: Math.floor((filters.offset || 0) / (filters.limit || 50)) + 1,
+    limit: filters.limit
+  })
+  
+  return logs as AuditLogWithUser[]
 }
 
 /**
- * Buscar logs de um usuário específico
+ * Buscar logs de um usuário específico (Refatorado com tenant_id)
  */
 export async function getUserAuditLogs(
   userId: string, 
+  tenantId: string | null,
   limit: number = 50
 ): Promise<AuditLogWithUser[]> {
-  try {
-    const query = `
-      SELECT 
-        al.id, al.user_id, al.action, al.resource_type, al.resource_id,
-        al.details, al.ip_address, al.user_agent, al.created_at,
-        u.username, u.nome
-      FROM audit_logs al
-      LEFT JOIN users u ON al.user_id = u.id
-      WHERE al.user_id = $1
-      ORDER BY al.created_at DESC
-      LIMIT $2
-    `
-    
-    const result: QueryResult<AuditLogWithUser> = await pool.query(query, [userId, limit])
-    return result.rows
-  } catch (error) {
-    console.error('❌ Erro ao buscar logs do usuário:', error)
-    throw new Error('Erro ao buscar logs do usuário')
-  }
+  const { logs } = await findAuditLogs({
+    tenantId,
+    userId,
+    limit
+  })
+  return logs as AuditLogWithUser[]
 }
 
 /**

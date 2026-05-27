@@ -18,6 +18,7 @@ export interface CategoriaAmenidade {
   cor: string
   ordem: number
   ativo: boolean
+  tenant_id?: string
   created_at: string
   updated_at: string
 }
@@ -32,6 +33,7 @@ export interface Amenidade {
   ordem: number
   ativo: boolean
   status?: string // Campo para o frontend (Ativo/Inativo)
+  tenant_id?: string
   created_at: string
   updated_at: string
   // Dados da categoria (quando usado em JOIN)
@@ -62,18 +64,26 @@ export interface ImovelAmenidade {
 /**
  * Buscar todas as categorias de amenidades (ativas e inativas para seleção)
  */
-export async function findAllCategoriasAmenidades(): Promise<CategoriaAmenidade[]> {
+export async function findAllCategoriasAmenidades(tenantId?: string): Promise<CategoriaAmenidade[]> {
   try {
     console.log('🔄 DB: Executando query para buscar categorias de amenidades...')
     
-    const query = `
-      SELECT id, nome, descricao, icone, cor, ordem, ativo, created_at, updated_at
+    let query = `
+      SELECT id, nome, descricao, icone, cor, ordem, ativo, tenant_id, created_at, updated_at
       FROM categorias_amenidades
-      ORDER BY ordem, nome
     `
+    const params: any[] = []
+    
+    if (tenantId) {
+      query += ` WHERE tenant_id = $1 OR tenant_id IS NULL `
+      params.push(tenantId)
+    }
+    
+    query += ` ORDER BY ordem, nome `
+    
     console.log('📝 DB: Query:', query)
     
-    const result: QueryResult<CategoriaAmenidade> = await pool.query(query)
+    const result: QueryResult<CategoriaAmenidade> = await pool.query(query, params)
     console.log(`✅ DB: ${result.rows.length} categorias retornadas do banco`)
     
     return result.rows
@@ -105,14 +115,21 @@ export async function findAllCategoriasAmenidadesAtivas(): Promise<CategoriaAmen
 /**
  * Buscar categoria de amenidade por ID (todas as categorias)
  */
-export async function findCategoriaAmenidadeById(id: number): Promise<CategoriaAmenidade | null> {
+export async function findCategoriaAmenidadeById(id: number, tenantId?: string): Promise<CategoriaAmenidade | null> {
   try {
-    const query = `
-      SELECT id, nome, descricao, icone, cor, ordem, ativo, created_at, updated_at
+    let query = `
+      SELECT id, nome, descricao, icone, cor, ordem, ativo, tenant_id, created_at, updated_at
       FROM categorias_amenidades
       WHERE id = $1
     `
-    const result: QueryResult<CategoriaAmenidade> = await pool.query(query, [id])
+    const params: any[] = [id]
+    
+    if (tenantId) {
+      query += ` AND (tenant_id = $2 OR tenant_id IS NULL)`
+      params.push(tenantId)
+    }
+    
+    const result: QueryResult<CategoriaAmenidade> = await pool.query(query, params)
     return result.rows[0] || null
   } catch (error) {
     console.error('❌ Erro ao buscar categoria de amenidade:', error)
@@ -128,11 +145,11 @@ export async function createCategoriaAmenidade(data: Omit<CategoriaAmenidade, 'i
     console.log('🔍 createCategoriaAmenidade - Dados recebidos:', data)
     
     const query = `
-      INSERT INTO categorias_amenidades (nome, descricao, icone, cor, ordem, ativo, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-      RETURNING id, nome, descricao, icone, cor, ordem, ativo, created_at, updated_at
+      INSERT INTO categorias_amenidades (nome, descricao, icone, cor, ordem, ativo, tenant_id, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+      RETURNING id, nome, descricao, icone, cor, ordem, ativo, tenant_id, created_at, updated_at
     `
-    const values = [data.nome, data.descricao, data.icone, data.cor, data.ordem, data.ativo]
+    const values = [data.nome, data.descricao, data.icone, data.cor, data.ordem, data.ativo, data.tenant_id || '00000000-0000-0000-0000-000000000001']
     
     console.log('🔍 createCategoriaAmenidade - Query:', query)
     console.log('🔍 createCategoriaAmenidade - Values:', values)
@@ -160,7 +177,7 @@ export async function createCategoriaAmenidade(data: Omit<CategoriaAmenidade, 'i
 /**
  * Atualizar categoria de amenidade
  */
-export async function updateCategoriaAmenidade(id: number, data: Partial<Omit<CategoriaAmenidade, 'id' | 'created_at' | 'updated_at'>>): Promise<CategoriaAmenidade> {
+export async function updateCategoriaAmenidade(id: number, data: Partial<Omit<CategoriaAmenidade, 'id' | 'created_at' | 'updated_at'>>, tenantId?: string): Promise<CategoriaAmenidade> {
   try {
     const fields = []
     const values = []
@@ -198,12 +215,19 @@ export async function updateCategoriaAmenidade(id: number, data: Partial<Omit<Ca
     fields.push(`updated_at = NOW()`)
     values.push(id)
 
-    const query = `
+    let query = `
       UPDATE categorias_amenidades 
       SET ${fields.join(', ')}
       WHERE id = $${paramIndex}
-      RETURNING id, nome, descricao, icone, cor, ordem, ativo, created_at, updated_at
     `
+    
+    if (tenantId) {
+      paramIndex++
+      query += ` AND tenant_id = $${paramIndex}`
+      values.push(tenantId)
+    }
+    
+    query += ` RETURNING id, nome, descricao, icone, cor, ordem, ativo, tenant_id, created_at, updated_at`
 
     const result: QueryResult<CategoriaAmenidade> = await pool.query(query, values)
     
@@ -221,13 +245,15 @@ export async function updateCategoriaAmenidade(id: number, data: Partial<Omit<Ca
 /**
  * Excluir categoria de amenidade (exclusão física)
  */
-export async function deleteCategoriaAmenidade(id: number): Promise<void> {
+export async function deleteCategoriaAmenidade(id: number, tenantId?: string): Promise<void> {
   try {
     // Primeiro verificar se existem amenidades usando esta categoria
-    const checkQuery = `
-      SELECT COUNT(*) FROM amenidades WHERE categoria_id = $1
-    `
-    const checkResult = await pool.query(checkQuery, [id])
+    const checkQuery = tenantId
+      ? `SELECT COUNT(*) as count FROM amenidades WHERE categoria_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)`
+      : `SELECT COUNT(*) as count FROM amenidades WHERE categoria_id = $1`
+    
+    const checkParams = tenantId ? [id, tenantId] : [id]
+    const checkResult = await pool.query(checkQuery, checkParams)
     const amenidadesCount = parseInt(checkResult.rows[0].count)
     
     if (amenidadesCount > 0) {
@@ -235,12 +261,11 @@ export async function deleteCategoriaAmenidade(id: number): Promise<void> {
     }
     
     // Fazer exclusão física
-    const query = `
-      DELETE FROM categorias_amenidades 
-      WHERE id = $1
-    `
+    const query = tenantId
+      ? `DELETE FROM categorias_amenidades WHERE id = $1 AND tenant_id = $2`
+      : `DELETE FROM categorias_amenidades WHERE id = $1`
     
-    const result = await pool.query(query, [id])
+    const result = await pool.query(query, checkParams)
     
     if (result.rowCount === 0) {
       throw new Error('Categoria não encontrada')
@@ -831,13 +856,17 @@ export async function addAmenidadeToImovel(
   amenidadeId: number
 ): Promise<number> {
   try {
+    // Buscar tenant_id do imóvel
+    const imovelResult = await pool.query('SELECT tenant_id FROM imoveis WHERE id = $1', [imovelId])
+    const tenantId = imovelResult.rows[0]?.tenant_id
+
     const query = `
-      INSERT INTO imovel_amenidades (imovel_id, amenidade_id)
-      VALUES ($1, $2)
+      INSERT INTO imovel_amenidades (imovel_id, amenidade_id, tenant_id)
+      VALUES ($1, $2, $3)
       ON CONFLICT (imovel_id, amenidade_id) DO NOTHING
       RETURNING id
     `
-    const values = [imovelId, amenidadeId]
+    const values = [imovelId, amenidadeId, tenantId]
     const result: QueryResult<{id: number}> = await pool.query(query, values)
     
     if (result.rows.length === 0) {
@@ -903,18 +932,22 @@ export async function updateImovelAmenidades(
     // Remover todas as amenidades atuais
     await client.query('DELETE FROM imovel_amenidades WHERE imovel_id = $1', [imovelId])
     
+    // Buscar tenant_id do imóvel
+    const imovelResult = await client.query('SELECT tenant_id FROM imoveis WHERE id = $1', [imovelId])
+    const tenantId = imovelResult.rows[0]?.tenant_id
+
     // Adicionar as novas amenidades
     if (amenidadeIds.length > 0) {
       const values = amenidadeIds.map((amenidadeId, index) => 
-        `($1, $${index + 2})`
+        `($1, $${index + 2}, $${amenidadeIds.length + 2})`
       ).join(', ')
       
       const query = `
-        INSERT INTO imovel_amenidades (imovel_id, amenidade_id)
+        INSERT INTO imovel_amenidades (imovel_id, amenidade_id, tenant_id)
         VALUES ${values}
       `
       
-      await client.query(query, [imovelId, ...amenidadeIds])
+      await client.query(query, [imovelId, ...amenidadeIds, tenantId])
     }
     
     await client.query('COMMIT')

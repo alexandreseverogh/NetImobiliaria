@@ -47,7 +47,7 @@ export default function NovaFinalidadePage() {
     setError(null)
 
     try {
-      const response = await post('/api/admin/finalidades', formData)
+      const response = await post('/api/admin/finalidades-imoveis', formData)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -58,7 +58,7 @@ export default function NovaFinalidadePage() {
       console.log('Finalidade criada com sucesso:', result)
       
       // Redirecionar para a lista
-      router.push('/admin/finalidades')
+      router.push('/admin/finalidades-imoveis')
     } catch (error) {
       console.error('Erro ao criar finalidade:', error)
       setError(error instanceof Error ? error.message : 'Erro desconhecido')
@@ -68,7 +68,7 @@ export default function NovaFinalidadePage() {
   }
 
   const handleCancel = () => {
-    router.push('/admin/finalidades')
+    router.push('/admin/finalidades-imoveis')
   }
 
   return (

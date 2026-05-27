@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // GET /api/admin/categorias/[id] - Buscar categoria por ID
 export async function GET(
@@ -31,8 +32,8 @@ export async function GET(
         c.is_active,
         c.created_at,
         c.updated_at,
-        c.created_by,
-        c.updated_by
+        c.updated_by,
+        c.module_id
       FROM system_categorias c
       WHERE c.id = $1
     `
@@ -106,6 +107,9 @@ export async function PUT(
       return permissionCheck
     }
 
+    const denied = await requireApiPermission(request, 'categorias', 'UPDATE')
+    if (denied) return denied
+
     const categoryId = params.id
     const body = await request.json()
     const { 
@@ -115,7 +119,8 @@ export async function PUT(
       icon, 
       color, 
       sort_order,
-      is_active 
+      is_active,
+      module_id
     } = body
 
     // Verificar se categoria existe
@@ -190,6 +195,10 @@ export async function PUT(
       updateFields.push(`is_active = $${++paramCount}`)
       updateValues.push(is_active)
     }
+    if (module_id !== undefined) {
+      updateFields.push(`module_id = $${++paramCount}`)
+      updateValues.push(module_id)
+    }
 
     if (updateFields.length === 0) {
       return NextResponse.json(
@@ -240,6 +249,9 @@ export async function DELETE(
     if (permissionCheck) {
       return permissionCheck
     }
+
+    const denied = await requireApiPermission(request, 'categorias', 'DELETE')
+    if (denied) return denied
 
     const categoryId = params.id
 

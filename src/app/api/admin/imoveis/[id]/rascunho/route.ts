@@ -1,5 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
+
+function getCurrentUser(request: NextRequest): { userId: string, tenantId?: string, is_system_role?: boolean } | null {
+  try {
+    const token = request.cookies.get('accessToken')?.value ||
+      request.headers.get('authorization')?.replace('Bearer ', '')
+
+    if (!token) return null
+
+    const decoded = verifyTokenNode(token) as any
+    if (!decoded) return null
+
+    return {
+      userId: decoded.userId,
+      tenantId: decoded.tenantId,
+      is_system_role: decoded.is_system_role === true
+    }
+  } catch (error) {
+    return null
+  }
+}
 
 // GET - Verificar se existe rascunho ativo para o imóvel
 export async function GET(
@@ -19,13 +41,19 @@ export async function GET(
       )
     }
 
-    // Buscar rascunho ativo para este imóvel
+    const currentUser = getCurrentUser(request)
+    const tenantId = currentUser?.tenantId || null
+    const isMaster = currentUser?.is_system_role === true
+
+    // 🛡️ ISOLAMENTO MULTI-TENANT
     const result = await pool.query(
-      `SELECT * FROM imovel_rascunho 
-       WHERE imovel_id = $1 AND ativo = true 
-       ORDER BY timestamp_inicio DESC 
+      `SELECT r.* FROM imovel_rascunho r
+       JOIN imoveis i ON r.imovel_id = i.id
+       WHERE r.imovel_id = $1 AND r.ativo = true
+       ${!isMaster ? 'AND i.tenant_id = $2' : ''}
+       ORDER BY r.timestamp_inicio DESC 
        LIMIT 1`,
-      [imovelId]
+      !isMaster ? [imovelId, tenantId] : [imovelId]
     )
 
     if (result.rows.length === 0) {
@@ -66,8 +94,12 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   console.log('🔍 API POST /api/admin/imoveis/[id]/rascunho - INICIADA')
-  
+
   try {
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     const imovelId = parseInt(params.id)
     const body = await request.json()
     
@@ -76,6 +108,20 @@ export async function POST(
         { error: 'ID do imóvel inválido' },
         { status: 400 }
       )
+    }
+
+    const currentUser = getCurrentUser(request)
+    const tenantId = currentUser?.tenantId || null
+    const isMaster = currentUser?.is_system_role === true
+    const currentUserId = currentUser?.userId
+
+    // 🛡️ ISOLAMENTO MULTI-TENANT: Verificar permissão no imóvel antes de criar rascunho
+    const imovelCheck = await pool.query('SELECT tenant_id FROM imoveis WHERE id = $1', [imovelId])
+    if (imovelCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'Imóvel não encontrado' }, { status: 404 })
+    }
+    if (!isMaster && imovelCheck.rows[0].tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'Sem permissão para este imóvel' }, { status: 403 })
     }
 
     // Verificar se já existe rascunho ativo
@@ -107,17 +153,18 @@ export async function POST(
 
     // Criar novo rascunho
     const result = await pool.query(
-      `INSERT INTO imovel_rascunho (imovel_id, usuario_id, alteracoes)
-       VALUES ($1, $2, $3)
+      `INSERT INTO imovel_rascunho (imovel_id, usuario_id, alteracoes, tenant_id)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
       [
         imovelId,
-        1, // TODO: Pegar do contexto de autenticação
+        currentUserId || 1, // Fallback se não houver ID (ex: debug)
         JSON.stringify(body.alteracoes || {
           imagens: { adicionadas: [], removidas: [] },
           documentos: { adicionados: [], removidos: [] },
           dadosBasicos: {}
-        })
+        }),
+        tenantId
       ]
     )
 
@@ -151,8 +198,12 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   console.log('🔍 API PUT /api/admin/imoveis/[id]/rascunho - INICIADA')
-  
+
   try {
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     const imovelId = parseInt(params.id)
     const body = await request.json()
     
@@ -163,13 +214,19 @@ export async function PUT(
       )
     }
 
-    // Atualizar rascunho ativo
+    const currentUser = getCurrentUser(request)
+    const tenantId = currentUser?.tenantId || null
+    const isMaster = currentUser?.is_system_role === true
+
+    // 🛡️ ISOLAMENTO MULTI-TENANT
     const result = await pool.query(
-      `UPDATE imovel_rascunho 
+      `UPDATE imovel_rascunho r
        SET alteracoes = $1, updated_at = NOW()
-       WHERE imovel_id = $2 AND ativo = true
-       RETURNING *`,
-      [JSON.stringify(body.alteracoes), imovelId]
+       FROM imoveis i
+       WHERE r.imovel_id = i.id AND r.imovel_id = $2 AND r.ativo = true
+       ${!isMaster ? 'AND i.tenant_id = $3' : ''}
+       RETURNING r.*`,
+      !isMaster ? [JSON.stringify(body.alteracoes), imovelId, tenantId] : [JSON.stringify(body.alteracoes), imovelId]
     )
 
     if (result.rows.length === 0) {
@@ -209,8 +266,12 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   console.log('🔍 API DELETE /api/admin/imoveis/[id]/rascunho - INICIADA')
-  
+
   try {
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     const imovelId = parseInt(params.id)
     
     if (isNaN(imovelId)) {
@@ -220,10 +281,17 @@ export async function DELETE(
       )
     }
 
-    // Buscar rascunho ativo
+    const currentUser = getCurrentUser(request)
+    const tenantId = currentUser?.tenantId || null
+    const isMaster = currentUser?.is_system_role === true
+
+    // 🛡️ ISOLAMENTO MULTI-TENANT
     const rascunhoResult = await pool.query(
-      'SELECT * FROM imovel_rascunho WHERE imovel_id = $1 AND ativo = true',
-      [imovelId]
+      `SELECT r.* FROM imovel_rascunho r
+       JOIN imoveis i ON r.imovel_id = i.id
+       WHERE r.imovel_id = $1 AND r.ativo = true
+       ${!isMaster ? 'AND i.tenant_id = $2' : ''}`,
+      !isMaster ? [imovelId, tenantId] : [imovelId]
     )
 
     if (rascunhoResult.rows.length === 0) {

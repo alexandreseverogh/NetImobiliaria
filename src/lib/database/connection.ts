@@ -29,13 +29,26 @@ const poolConfig: PoolConfig = {
   password: dbPassword || 'postgres',
   port: parseInt(dbPort),
 
-  // Configurações de pool para produção
-  max: 20, // Máximo de conexões no pool
-  idleTimeoutMillis: 30000, // Tempo limite para conexões ociosas
-  connectionTimeoutMillis: 10000, // Tempo limite para estabelecer conexão
+  // ============================================================
+  // Pool otimizado para produção (suporta 5000+ usuários)
+  // Antes: max=20 → Depois: max=100, com mínimo sempre ativo
+  // ============================================================
+  max: parseInt(process.env.DB_POOL_MAX || '100'),       // 100 conexões simultâneas
+  min: parseInt(process.env.DB_POOL_MIN || '5'),          // 5 conexões sempre ativas (warm pool)
+  idleTimeoutMillis: 60000,                               // 60s antes de fechar conexão ociosa
+  connectionTimeoutMillis: 5000,                          // 5s para estabelecer nova conexão
+  allowExitOnIdle: false,                                  // Nunca zera o pool em produção
 
-  // Configurações de encoding para UTF-8
+  // Timeouts de query (previne queries travadas)
+  statement_timeout: 30000,                               // 30s máximo por query
+
+  // Configurações de encoding e performance
   client_encoding: 'UTF8',
+  application_name: 'net-imobiliaria',                    // Visível no pg_stat_activity
+
+  // KeepAlive: evita drops de conexão por firewall/NAT na VPS
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
 
   // SSL: desabilitado se DB_SSL=false (para Docker interno sem SSL)
   // Em produção com DB externo (RDS, Cloud SQL etc.), remover DB_SSL=false do .env
@@ -46,8 +59,18 @@ const poolConfig: PoolConfig = {
       : false
 }
 
-// Criar pool de conexões
-const pool = new Pool(poolConfig)
+// ============================================================
+// Singleton Pattern para evitar vazamento de conexões (Hot-Reload)
+// ============================================================
+declare global {
+  var pgPool: Pool | undefined;
+}
+
+const pool = global.pgPool || new Pool(poolConfig);
+
+if (process.env.NODE_ENV !== 'production') {
+  global.pgPool = pool;
+}
 
 // Eventos de pool para monitoramento
 pool.on('connect', (client) => {

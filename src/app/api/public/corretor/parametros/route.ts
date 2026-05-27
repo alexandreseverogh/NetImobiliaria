@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     // Buscar apenas os parâmetros permitidos para o corretor
     const result = await pool.query(
-      'SELECT valor_corretor, chave_pix_corretor, cidade_beneficiario_recebimento_corretor FROM parametros LIMIT 1'
+      'SELECT valor_corretor, chave_pix_corretor, cidade_beneficiario_recebimento_corretor FROM parametros_imoveis LIMIT 1'
     )
 
     if (result.rows.length === 0) {

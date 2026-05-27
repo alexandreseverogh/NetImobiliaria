@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { findProximidadeBySlug, updateProximidadeBySlug, deleteProximidadeBySlug } from '@/lib/database/proximidades'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
@@ -41,6 +42,9 @@ export async function PUT(
   { params }: { params: { slug: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck
@@ -131,6 +135,9 @@ export async function DELETE(
   { params }: { params: { slug: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'DELETE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck

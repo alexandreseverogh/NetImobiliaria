@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/jwt';
 import pool from '@/lib/database/connection';
+import { requireApiPermission } from '@/lib/auth/apiPermissions';
 
 interface FeatureRow {
   id: number
@@ -15,9 +16,9 @@ const permissionMapping: Record<string, string[]> = {
   NONE: [],
   READ: ['read', 'list'],
   EXECUTE: ['execute', 'read', 'list'],
-  CREATE: ['create', 'read', 'list'],
-  UPDATE: ['update', 'create', 'read', 'list'],
-  DELETE: ['delete', 'update', 'create', 'read', 'list'],
+  CREATE: ['create', 'execute', 'read', 'list'],
+  UPDATE: ['update', 'create', 'execute', 'read', 'list'],
+  DELETE: ['delete', 'update', 'create', 'execute', 'read', 'list'],
   ADMIN: ['admin', 'delete', 'update', 'create', 'execute', 'read', 'list'],
 }
 
@@ -59,6 +60,37 @@ const findFeatureByKey = (features: FeatureRow[], key: string): FeatureRow | und
   })
 }
 
+const getActionPriority = (action: string): number => {
+  const a = action.toUpperCase()
+  switch (a) {
+    case 'ADMIN': return 6
+    case 'DELETE': return 5
+    case 'UPDATE': return 4
+    case 'CREATE': return 3
+    case 'EXECUTE': return 2
+    case 'READ': return 1
+    case 'LIST': return 1
+    default: return 0
+  }
+}
+
+const actionToPermissionLevel: Record<string, string> = {
+  'ADMIN': 'ADMIN',
+  'DELETE': 'DELETE',
+  'UPDATE': 'UPDATE',
+  'CREATE': 'CREATE',
+  'EXECUTE': 'EXECUTE',
+  'READ': 'READ',
+  'admin': 'ADMIN',
+  'delete': 'DELETE',
+  'update': 'UPDATE',
+  'create': 'CREATE',
+  'execute': 'EXECUTE',
+  'read': 'READ',
+  'list': 'READ',
+  'WRITE': 'UPDATE'
+};
+
 // GET /api/admin/perfis/[id] - Buscar perfil específico
 export async function GET(
   request: NextRequest,
@@ -86,8 +118,15 @@ export async function GET(
       );
     }
 
-    // Verificar permissão (usuarios:READ)
-    if (!decoded.role_name || !['Super Admin', 'Administrador'].includes(decoded.role_name)) {
+    // Verificação Semântica (Parametrizada)
+    const hasAccess = 
+      decoded.permissoes?.['usuarios'] && ['READ', 'UPDATE', 'CREATE', 'DELETE', 'ADMIN'].includes(decoded.permissoes['usuarios']) ||
+      decoded.permissoes?.['gestao-perfis'] && ['READ', 'UPDATE', 'CREATE', 'DELETE', 'ADMIN'].includes(decoded.permissoes['gestao-perfis']);
+
+    // Privilégio de Sistema (Master)
+    const isMasterAdmin = !!decoded.is_system_role;
+
+    if (!hasAccess && !isMasterAdmin) {
       return NextResponse.json(
         { message: 'Acesso negado. Permissão insuficiente.' },
         { status: 403 }
@@ -111,14 +150,16 @@ export async function GET(
           ur.id,
           ur.name,
           ur.description,
+          ur.level,
+          ur.is_system_role,
           COUNT(ura.user_id) as user_count
         FROM user_roles ur
         LEFT JOIN user_role_assignments ura ON ur.id = ura.role_id
-        WHERE ur.id = $1
-        GROUP BY ur.id, ur.name, ur.description
+        WHERE ur.id = $1 AND (ur.tenant_id = $2 OR ur.tenant_id IS NULL)
+        GROUP BY ur.id, ur.name, ur.description, ur.level, ur.is_system_role
       `;
 
-      const perfilResult = await client.query(perfilQuery, [perfilId]);
+      const perfilResult = await client.query(perfilQuery, [perfilId, decoded.tenantId || null]);
       
       if (perfilResult.rows.length === 0) {
         return NextResponse.json(
@@ -152,75 +193,30 @@ export async function GET(
       // Consolidar permissões por funcionalidade (priorizar ADMIN > DELETE > WRITE > READ)
       const permissoes: Record<string, string> = {};
 
-      const getActionPriority = (action: string): number => {
-        switch (action) {
-          case 'ADMIN':
-            return 5 // Máxima prioridade
-          case 'DELETE':
-          case 'delete':
-            return 4
-          case 'UPDATE':
-          case 'update':
-          case 'create':
-          case 'execute':
-            return 3
-          case 'READ':
-          case 'read':
-            return 1
-          default:
-            return 0
-        }
-      }
-
       permissoesResult.rows.forEach((row) => {
-        const { feature_name, action } = row;
+        let { feature_name, action } = row;
         
-        // Debug específico para "Categorias"
-        if (feature_name === 'Categorias') {
-          console.log('🔍 DEBUG - Processando Categorias:', { feature_name, action, current: permissoes[feature_name] });
-        }
+        // Normalização de Legado: 'WRITE' -> 'update'
+        if (action === 'WRITE') action = 'update';
         
-        // Se não tem permissão para esta funcionalidade, ou se a nova ação tem maior prioridade
-        if (!permissoes[feature_name]) {
+        const currentAction = permissoes[feature_name];
+        if (!currentAction) {
           permissoes[feature_name] = action;
-          
-          // Debug específico para "Categorias"
-          if (feature_name === 'Categorias') {
-            console.log('🔍 DEBUG - Categorias definida como:', action);
-          }
         } else {
-          // Priorizar: delete > update/create > read
-          const currentPriority = getActionPriority(permissoes[feature_name]);
+          const currentPriority = getActionPriority(currentAction);
           const newPriority = getActionPriority(action);
           
           if (newPriority > currentPriority) {
             permissoes[feature_name] = action;
-            
-            // Debug específico para "Categorias"
-            if (feature_name === 'Categorias') {
-              console.log('🔍 DEBUG - Categorias atualizada para:', action, 'prioridade:', newPriority, 'vs', currentPriority);
-            }
           }
         }
       });
 
-      // Mapear ações do banco para níveis de permissão do frontend
-      const actionToPermissionLevel: Record<string, string> = {
-        'READ': 'READ',
-        'UPDATE': 'UPDATE', 
-        'DELETE': 'DELETE',
-        'ADMIN': 'DELETE', // ADMIN = Acesso total (Exclusão)
-        'read': 'READ',
-        'create': 'UPDATE', 
-        'update': 'UPDATE',
-        'delete': 'DELETE',
-        'execute': 'UPDATE'
-      };
-
       // Converter ações para níveis de permissão
-      const permissoesFinais: Record<string, string> = {};
+      const permissoesFinais: Record<string, string[]> = {};
       Object.entries(permissoes).forEach(([feature, action]) => {
-        permissoesFinais[feature] = actionToPermissionLevel[action] || 'NONE';
+        const level = actionToPermissionLevel[action] || actionToPermissionLevel[action.toUpperCase()] || 'NONE';
+        permissoesFinais[feature] = permissionMapping[level] || [];
       });
       
       // Debug: verificar resultado final
@@ -246,17 +242,23 @@ export async function GET(
       // Debug: verificar se as funcionalidades estão sendo retornadas
       console.log('🔍 DEBUG - Funcionalidades encontradas:', funcionalidades.length);
       console.log('🔍 DEBUG - Primeiras 5 funcionalidades:', funcionalidades.slice(0, 5));
+      // Buscar campos customizados do perfil
+      const customFieldsQuery = `
+        SELECT * FROM role_custom_fields 
+        WHERE role_id = $1 
+        ORDER BY order_index ASC
+      `;
+      const customFieldsResult = await client.query(customFieldsQuery, [perfilId]);
 
-      return NextResponse.json({
-        success: true,
-        perfil: {
-          id: perfil.id,
-          name: perfil.name,
-          description: perfil.description,
-          userCount: parseInt(perfil.user_count),
-          permissions: permissoesFinais
-        }
-      });
+      // Resultado consolidado
+      const resultadoFinal = {
+        ...perfil,
+        user_count: parseInt(perfil.user_count),
+        permissions: permissoesFinais,
+        custom_fields: customFieldsResult.rows || []
+      };
+
+      return NextResponse.json(resultadoFinal);
 
     } finally {
       client.release();
@@ -271,196 +273,129 @@ export async function GET(
   }
 }
 
-// PUT /api/admin/perfis/[id] - Atualizar perfil
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verificar autenticação - buscar token dos cookies ou header
-    const token = request.cookies.get('accessToken')?.value || 
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'perfis', 'UPDATE')
+    if (denied) return denied
+
+    const token = request.cookies.get('accessToken')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return NextResponse.json(
-        { message: 'Token de autenticação não fornecido' },
-        { status: 401 }
-      );
-    }
+
+    if (!token) return NextResponse.json({ message: 'Não autorizado' }, { status: 401 });
     const decoded = await verifyToken(token);
-    
-    if (!decoded) {
-      return NextResponse.json(
-        { message: 'Token inválido ou expirado' },
-        { status: 401 }
-      );
-    }
+    if (!decoded) return NextResponse.json({ message: 'Sessão expirada' }, { status: 401 });
 
-    // Verificar permissão (usuarios:WRITE)
-    if (!decoded.role_name || !['Super Admin', 'Administrador'].includes(decoded.role_name)) {
-      return NextResponse.json(
-        { message: 'Acesso negado. Permissão insuficiente.' },
-        { status: 403 }
-      );
-    }
-
+    const isMasterAdmin = !!decoded.is_system_role;
     const perfilId = parseInt(params.id);
-    if (isNaN(perfilId)) {
-      return NextResponse.json(
-        { message: 'ID do perfil inválido' },
-        { status: 400 }
-      );
-    }
+    if (isNaN(perfilId)) return NextResponse.json({ message: 'ID inválido' }, { status: 400 });
 
     const body = await request.json();
-    const { name, description, permissions } = body;
+    const { name, description, permissions, level, is_system_role, custom_fields } = body;
 
-    // Validação dos dados
     if (!name || !description) {
-      return NextResponse.json(
-        { message: 'Nome e descrição são obrigatórios' },
-        { status: 400 }
-      );
-    }
-
-    if (typeof name !== 'string' || name.trim().length < 2) {
-      return NextResponse.json(
-        { message: 'Nome deve ter pelo menos 2 caracteres' },
-        { status: 400 }
-      );
-    }
-
-    if (typeof description !== 'string' || description.trim().length < 5) {
-      return NextResponse.json(
-        { message: 'Descrição deve ter pelo menos 5 caracteres' },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: 'Nome e descrição são obrigatórios' }, { status: 400 });
     }
 
     const client = await pool.connect();
 
     try {
-      // Verificar se o perfil existe
-      const existingQuery = 'SELECT id FROM user_roles WHERE id = $1';
-      const existingResult = await client.query(existingQuery, [perfilId]);
+      // Security check: only allow updating if tenant_id matches or if master admin updating system role
+      const checkQuery = 'SELECT tenant_id, is_system_role FROM user_roles WHERE id = $1';
+      const checkRes = await client.query(checkQuery, [perfilId]);
+      if (checkRes.rows.length === 0) return NextResponse.json({ message: 'Perfil não encontrado' }, { status: 404 });
       
-      if (existingResult.rows.length === 0) {
-        return NextResponse.json(
-          { message: 'Perfil não encontrado' },
-          { status: 404 }
-        );
+      const roleTenantId = checkRes.rows[0].tenant_id;
+      const isSystemRole = checkRes.rows[0].is_system_role;
+
+      if (!isMasterAdmin) {
+         if (isSystemRole || roleTenantId !== decoded.tenantId) {
+             return NextResponse.json({ message: 'Acesso negado: Perfil global ou de outro tenant.' }, { status: 403 });
+         }
       }
 
-      // Verificar se já existe outro perfil com o mesmo nome
-      const duplicateQuery = 'SELECT id FROM user_roles WHERE LOWER(name) = LOWER($1) AND id != $2';
-      const duplicateResult = await client.query(duplicateQuery, [name.trim(), perfilId]);
-      
-      if (duplicateResult.rows.length > 0) {
-        return NextResponse.json(
-          { message: 'Já existe outro perfil com este nome' },
-          { status: 409 }
-        );
+      // 1. Preparar permissões
+      const featuresQuery = `
+        SELECT sf.id, sf.name, sf.slug, sf.category_id, sc.slug AS category_slug, sc.name AS category_name
+        FROM system_features sf
+        LEFT JOIN system_categorias sc ON sf.category_id = sc.id
+      `;
+      const featuresResult = await client.query<FeatureRow>(featuresQuery);
+      const features = featuresResult.rows;
+
+      const allPermsQuery = 'SELECT id, action, feature_id FROM permissions';
+      const allPermsResult = await client.query(allPermsQuery);
+      const allPermissions = allPermsResult.rows;
+
+      const permissionIdsToInsert: number[] = [];
+      if (permissions) {
+        for (const [key, requestedActions] of Object.entries(permissions)) {
+          if (!requestedActions || (Array.isArray(requestedActions) && requestedActions.length === 0)) continue;
+          const feature = findFeatureByKey(features, key);
+          if (!feature) continue;
+
+          const actions = Array.isArray(requestedActions) ? requestedActions : [requestedActions];
+          for (const action of actions) {
+            const perm = allPermissions.find(p => 
+              p.feature_id === feature.id && p.action.toLowerCase() === action.toLowerCase()
+            );
+            if (perm) permissionIdsToInsert.push(perm.id);
+          }
+        }
       }
 
-      // Iniciar transação
+      // 2. Executar gravação
       await client.query('BEGIN');
 
       try {
-        // Atualizar dados básicos do perfil
-        const updatePerfilQuery = `
-          UPDATE user_roles 
-          SET name = $1, description = $2, updated_at = NOW()
-          WHERE id = $3
-        `;
-        
-        await client.query(updatePerfilQuery, [name.trim(), description.trim(), perfilId]);
+        const targetLevel = parseInt(level?.toString()) || 1;
+        const targetIsSystem = is_system_role === true && isMasterAdmin;
 
-        // Remover permissões existentes
-        const deletePermissionsQuery = `
-          DELETE FROM role_permissions 
-          WHERE role_id = $1
-        `;
-        await client.query(deletePermissionsQuery, [perfilId]);
+        await client.query(
+          'UPDATE user_roles SET name = $1, description = $2, level = $3, is_system_role = $4, updated_at = NOW() WHERE id = $5',
+          [name.trim(), description.trim(), targetLevel, targetIsSystem, perfilId]
+        );
 
-        // Configurar novas permissões
-        if (permissions) {
-          // Buscar todas as funcionalidades do sistema
-          const featuresQuery = `
-            SELECT 
-              sf.id,
-              sf.name,
-              sf.slug,
-              sf.category_id,
-              sc.slug AS category_slug,
-              sc.name AS category_name
-            FROM system_features sf
-            LEFT JOIN system_categorias sc ON sf.category_id = sc.id
-          `
-          const featuresResult = await client.query<FeatureRow>(featuresQuery)
-          const features = featuresResult.rows
-
-          // Buscar todas as permissões disponíveis
-          const permissionsQuery = 'SELECT id, action, feature_id FROM permissions'
-          const permissionsResult = await client.query(permissionsQuery)
-          const allPermissions = permissionsResult.rows
-
-          // Configurar permissões para o perfil
-          for (const [categoryKey, permission] of Object.entries(permissions)) {
-            if (permission === 'NONE') continue
-
-            const feature = findFeatureByKey(features, categoryKey)
-            if (!feature) {
-              console.warn(
-                '⚠️ Perfil (update) - Funcionalidade não encontrada para chave de permissão:',
-                categoryKey
-              )
-              continue
-            }
-
-            const actionsToAssign =
-              permissionMapping[permission as keyof typeof permissionMapping] || []
-
-            for (const action of actionsToAssign) {
-              const permissionObj = allPermissions.find(
-                p => p.feature_id === feature.id && p.action.toLowerCase() === action.toLowerCase()
-              )
-
-              if (permissionObj) {
-                // Associar permissão ao perfil
-                const assignQuery = `
-                  INSERT INTO role_permissions (role_id, permission_id, granted_at)
-                  VALUES ($1, $2, NOW())
-                `
-                await client.query(assignQuery, [perfilId, permissionObj.id])
-              }
-            }
-          }
+        await client.query('DELETE FROM role_permissions WHERE role_id = $1', [perfilId]);
+        for (const permId of permissionIdsToInsert) {
+          await client.query('INSERT INTO role_permissions (role_id, permission_id, granted_at, tenant_id) VALUES ($1, $2, NOW(), $3)', [perfilId, permId, targetIsSystem ? null : (decoded.tenantId || null)]);
         }
 
-        // Commit da transação
+        const fields = custom_fields || [];
+        await client.query('DELETE FROM role_custom_fields WHERE role_id = $1', [perfilId]);
+        for (let i = 0; i < fields.length; i++) {
+          const f = fields[i];
+          await client.query(`
+            INSERT INTO role_custom_fields (role_id, field_name, field_label, field_type, mask, is_required, field_options, order_index, tenant_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          `, [
+            perfilId, 
+            f.name || f.field_name, 
+            f.label || f.field_label, 
+            f.type || f.field_type || 'text', 
+            f.mask || null, 
+            f.required || f.is_required || false, 
+            f.options || f.field_options || null, 
+            i,
+            targetIsSystem ? null : (decoded.tenantId || null)
+          ]);
+        }
+
         await client.query('COMMIT');
-
-        return NextResponse.json({
-          success: true,
-          message: 'Perfil atualizado com sucesso'
-        });
-
+        return NextResponse.json({ success: true, message: 'Perfil atualizado com sucesso' });
       } catch (error) {
-        // Rollback em caso de erro
         await client.query('ROLLBACK');
         throw error;
       }
-
     } finally {
       client.release();
     }
-
   } catch (error) {
     console.error('Erro ao atualizar perfil:', error);
-    return NextResponse.json(
-      { message: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -470,10 +405,14 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de exclusão server-side
+    const denied = await requireApiPermission(request, 'perfis', 'DELETE')
+    if (denied) return denied
+
     // Verificar autenticação - buscar token dos cookies ou header
-    const token = request.cookies.get('accessToken')?.value || 
+    const token = request.cookies.get('accessToken')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '');
-    
+
     if (!token) {
       return NextResponse.json(
         { message: 'Token de autenticação não fornecido' },
@@ -489,12 +428,11 @@ export async function DELETE(
       );
     }
 
-    // Verificar permissão (usuarios:DELETE)
-    if (!decoded.role_name || !['Super Admin', 'Administrador'].includes(decoded.role_name)) {
-      return NextResponse.json(
-        { message: 'Acesso negado. Permissão insuficiente.' },
-        { status: 403 }
-      );
+    // Verificação Semântica
+    const isMasterAdmin = !!decoded.is_system_role;
+    
+    if (!isMasterAdmin && !(decoded.permissoes?.['usuarios'] === 'ADMIN')) {
+       return NextResponse.json({ message: 'Acesso negado ao comando de exclusão.' }, { status: 403 });
     }
 
     const perfilId = parseInt(params.id);
@@ -509,7 +447,7 @@ export async function DELETE(
 
     try {
       // Verificar se o perfil existe
-      const existingQuery = 'SELECT id FROM user_roles WHERE id = $1';
+      const existingQuery = 'SELECT id, tenant_id, is_system_role FROM user_roles WHERE id = $1';
       const existingResult = await client.query(existingQuery, [perfilId]);
       
       if (existingResult.rows.length === 0) {
@@ -517,6 +455,15 @@ export async function DELETE(
           { message: 'Perfil não encontrado' },
           { status: 404 }
         );
+      }
+
+      const roleTenantId = existingResult.rows[0].tenant_id;
+      const isSystemRole = existingResult.rows[0].is_system_role;
+
+      if (!isMasterAdmin) {
+         if (isSystemRole || roleTenantId !== decoded.tenantId) {
+             return NextResponse.json({ message: 'Acesso negado: Perfil global ou de outro tenant.' }, { status: 403 });
+         }
       }
 
       // Verificar se há usuários usando este perfil

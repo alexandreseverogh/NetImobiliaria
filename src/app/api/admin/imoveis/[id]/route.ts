@@ -13,6 +13,7 @@ import { buildImovelAuditChanges } from '@/lib/utils/imovelAuditHelper'
 import { logAuditEvent, extractUserIdFromToken, extractRequestData } from '@/lib/audit/auditLogger'
 import { findProprietarioByUuid } from '@/lib/database/proprietarios'
 import { getTokenFromRequest } from '@/lib/auth/jwt'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/
 
@@ -21,7 +22,7 @@ function isUuid(value: string): boolean {
 }
 
 // Função para extrair usuário logado
-function getCurrentUser(request: NextRequest): { userId: string, role?: string, userType?: string } | null {
+function getCurrentUser(request: NextRequest): { userId: string, tenantId?: string, role?: string, userType?: string } | null {
   try {
     const token = getTokenFromRequest(request)
 
@@ -30,7 +31,7 @@ function getCurrentUser(request: NextRequest): { userId: string, role?: string, 
       return null
     }
 
-    const decoded = verifyTokenNode(token)
+    const decoded = verifyTokenNode(token) as any
     if (!decoded) {
       console.log('🔍 Token inválido ou expirado')
       return null
@@ -40,8 +41,9 @@ function getCurrentUser(request: NextRequest): { userId: string, role?: string, 
     // Retornar objeto com detalhes do usuário
     return {
       userId: decoded.userId,
-      role: (decoded as any).role_name || (decoded as any).cargo || '',
-      userType: (decoded as any).userType
+      tenantId: decoded.tenantId,
+      role: decoded.role_name || decoded.cargo || '',
+      userType: decoded.userType
     }
   } catch (error) {
     console.error('🔍 Erro ao extrair usuário:', error)
@@ -102,8 +104,12 @@ export async function GET(
       )
     }
 
+    const currentUser = getCurrentUser(request)
+    const tenantId = currentUser?.tenantId || null
+    const isMaster = (currentUser as any)?.is_system_role === true
+
     console.log('🔍 API: Chamando findImovelByIdentifier:', params.id)
-    const imovel = await findImovelByIdentifier(isNumeric ? imovelId : params.id)
+    const imovel = await findImovelByIdentifier(isNumeric ? imovelId : params.id, isMaster ? null : tenantId)
     console.log('🔍 API: Resultado findImovelById:', imovel ? 'Encontrado' : 'Não encontrado')
 
     if (!imovel) {
@@ -238,6 +244,10 @@ export async function PUT(
       )
     }
 
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     // Processar JSON (mesma abordagem do NOVO IMÓVEL)
     console.log('🔍 API PUT - Processando JSON')
     const data = await request.json()
@@ -264,7 +274,21 @@ export async function PUT(
       console.log('🔍 API PUT - Atualização SIMPLES: destaque e/ou destaque_nacional')
 
       // 1. Buscar o destaque atual para comparar
-      const imovelAtual = await pool.query('SELECT destaque, destaque_nacional, codigo, titulo FROM imoveis WHERE id = $1', [imovelId])
+      const imovelAtualQuery = 'SELECT destaque, destaque_nacional, codigo, titulo, tenant_id FROM imoveis WHERE id = $1'
+      const imovelAtual = await pool.query(imovelAtualQuery, [imovelId])
+      
+      if (imovelAtual.rows.length === 0) {
+        return NextResponse.json({ error: 'Imóvel não encontrado' }, { status: 404 })
+      }
+
+      const currentUser = getCurrentUser(request)
+      const tenantId = currentUser?.tenantId || null
+      const isMaster = (currentUser as any)?.is_system_role === true
+
+      if (!isMaster && imovelAtual.rows[0].tenant_id !== tenantId) {
+        return NextResponse.json({ error: 'Sem permissão para editar este imóvel' }, { status: 403 })
+      }
+
       const destaqueAtual = imovelAtual.rows[0]?.destaque
       const destaqueNacionalAtual = imovelAtual.rows[0]?.destaque_nacional
       const imovelCodigo = imovelAtual.rows[0]?.codigo
@@ -338,8 +362,9 @@ export async function PUT(
                 resource_id,
                 details,
                 ip_address,
-                user_agent
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                user_agent,
+                tenant_id
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             `
 
             const details = {
@@ -363,7 +388,8 @@ export async function PUT(
               imovelId,
               JSON.stringify(details),
               request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-              request.headers.get('user-agent') || 'unknown'
+              request.headers.get('user-agent') || 'unknown',
+              currentUserPayload?.tenantId || null
             ])
 
             console.log('✅ Log de auditoria registrado para destacar/remover destaque')
@@ -384,7 +410,21 @@ export async function PUT(
       console.log('🔍 API PUT - Atualização SIMPLES: apenas status_fk')
 
       // 1. Buscar o status atual para comparar
-      const imovelAtual = await pool.query('SELECT status_fk FROM imoveis WHERE id = $1', [imovelId])
+      const imovelAtualQuery = 'SELECT status_fk, tenant_id FROM imoveis WHERE id = $1'
+      const imovelAtual = await pool.query(imovelAtualQuery, [imovelId])
+      
+      if (imovelAtual.rows.length === 0) {
+        return NextResponse.json({ error: 'Imóvel não encontrado' }, { status: 404 })
+      }
+
+      const currentUser = getCurrentUser(request)
+      const tenantId = currentUser?.tenantId || null
+      const isMaster = (currentUser as any)?.is_system_role === true
+
+      if (!isMaster && imovelAtual.rows[0].tenant_id !== tenantId) {
+        return NextResponse.json({ error: 'Sem permissão para editar este imóvel' }, { status: 403 })
+      }
+
       const statusAtual = imovelAtual.rows[0]?.status_fk
 
       console.log('🔍 Status atual:', statusAtual)
@@ -467,8 +507,9 @@ export async function PUT(
                   resource_id,
                   details,
                   ip_address,
-                  user_agent
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                  user_agent,
+                  tenant_id
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
               `
 
             const details = {
@@ -491,7 +532,8 @@ export async function PUT(
               imovelId,
               JSON.stringify(details),
               request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-              request.headers.get('user-agent') || 'unknown'
+              request.headers.get('user-agent') || 'unknown',
+              currentUserPayload?.tenantId || null
             ])
 
             console.log('✅ Log de auditoria registrado para mudança de status')
@@ -519,6 +561,15 @@ export async function PUT(
         { status: 404 }
       )
     }
+
+    const currentUser = getCurrentUser(request)
+    const tenantId = currentUser?.tenantId || null
+    const isMaster = (currentUser as any)?.is_system_role === true
+
+    if (!isMaster && imovelAtualResult.rows[0].tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'Sem permissão para editar este imóvel' }, { status: 403 })
+    }
+
     const imovelAtual = imovelAtualResult.rows[0]
 
     let proprietarioUuidNormalizado: string | null = imovelAtual.proprietario_uuid ?? null
@@ -741,7 +792,20 @@ export async function PUT(
       console.log('🔍 Novo status_fk recebido:', data.status_fk)
 
       // 1. Buscar o status atual para comparar
-      const imovel = await pool.query('SELECT status_fk FROM imoveis WHERE id = $1', [imovelId])
+      const imovel = await pool.query('SELECT status_fk, tenant_id FROM imoveis WHERE id = $1', [imovelId])
+      
+      if (imovel.rows.length === 0) {
+        return NextResponse.json({ error: 'Imóvel não encontrado' }, { status: 404 })
+      }
+
+      const currentUser = getCurrentUser(request)
+      const tenantId = currentUser?.tenantId || null
+      const isMaster = (currentUser as any)?.is_system_role === true
+
+      if (!isMaster && imovel.rows[0].tenant_id !== tenantId) {
+        return NextResponse.json({ error: 'Sem permissão para editar este imóvel' }, { status: 403 })
+      }
+
       const statusAtual = imovel.rows[0]?.status_fk
       console.log('🔍 Status atual no banco:', statusAtual)
       console.log('🔍 Status vai mudar?', statusAtual !== data.status_fk)
@@ -812,8 +876,9 @@ export async function PUT(
                 resource_id,
                 details,
                 ip_address,
-                user_agent
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                user_agent,
+                tenant_id
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             `
 
             const details = {
@@ -835,7 +900,8 @@ export async function PUT(
               imovelId,
               JSON.stringify(details),
               request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-              request.headers.get('user-agent') || 'unknown'
+              request.headers.get('user-agent') || 'unknown',
+              currentUserPayload?.tenantId || null
             ])
 
             console.log('✅ Log de auditoria registrado para mudança de status')
@@ -1497,6 +1563,7 @@ export async function PUT(
 
           await logAuditEvent({
             userId,
+            tenantId: currentUserPayload?.tenantId,
             action: 'UPDATE',
             resource: 'imoveis',
             resourceId: imovelId,

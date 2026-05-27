@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkApiPermission } from '@/lib/middleware/permissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { 
   findDocumentosByImovel, 
   createDocumentoImovel,
@@ -59,7 +60,11 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verificar permissões
+    // Verificar permissão de criação server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
+    // Verificar permissões (autenticação genérica)
     const permissionCheck = await checkApiPermission(request)
     if (permissionCheck) {
       return permissionCheck

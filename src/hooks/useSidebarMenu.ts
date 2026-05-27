@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { sidebarEventManager } from '@/lib/events/sidebarEvents';
 
 // ============================================================
@@ -8,19 +8,18 @@ import { sidebarEventManager } from '@/lib/events/sidebarEvents';
 // ============================================================
 
 export interface SidebarMenuItem {
-  id: number;
-  parent_id: number | null;
+  id: string; // UUID ou Inteiro convertido para string
+  parent_id: string | null;
   name: string;
-  icon_name: string;
-  url: string | null;
-  resource: string | null;
+  icon: string | null;
+  path: string | null;
   order_index: number;
+  system_id: string | null;
   is_active: boolean;
   roles_required: string[] | null;
   permission_required: string | null;
-  permission_action: string | null;
-  description: string | null;
-  has_permission: boolean; // Adicionado pela função do banco
+  badge_count?: number;
+  is_expanded?: boolean;
 }
 
 // ============================================================
@@ -30,25 +29,23 @@ export interface SidebarMenuItem {
 // Filtra por permissões do usuário logado
 // ============================================================
 
-export function useSidebarMenu() {
+export function useSidebarMenu(systemId: string = 'admin') {
   const [menuItems, setMenuItems] = useState<SidebarMenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<{ 
+    mode: 'light' | 'dark'; 
+    primaryColor: string; 
+    secondaryColor: string;
+    tenantName?: string;
+  }>({ 
+    mode: 'light', 
+    primaryColor: '#2563eb',
+    secondaryColor: '#F1F1F1',
+    tenantName: 'Carregando...'
+  });
 
-  useEffect(() => {
-    loadMenuFromDatabase();
-
-    // Escutar eventos de mudança na sidebar
-    const unsubscribe = sidebarEventManager.subscribe(() => {
-      loadMenuFromDatabase();
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  const loadMenuFromDatabase = async () => {
+  const loadMenuFromDatabase = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -67,12 +64,30 @@ export function useSidebarMenu() {
       }
 
       // Buscar menu da API
-      const response = await fetch('/api/admin/sidebar/menu', {
-        headers,
-        credentials: 'include',
+      const userData = localStorage.getItem('admin-user-data');
+      let tenantId = '';
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        tenantId = parsed.tenantId || parsed.tenant_id || '';
+      }
+
+      console.log(`🔍 [useSidebarMenu] Carregando menu para Tenant: ${tenantId}`);
+
+      const response = await fetch(`/api/admin/sidebar/menu?system_id=${systemId}${tenantId ? `&tenant_id=${tenantId}` : ''}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('admin-auth-token');
+          localStorage.removeItem('admin-user-data');
+          window.location.href = '/admin/login?callbackUrl=' + encodeURIComponent(window.location.pathname);
+          return;
+        }
         throw new Error(`Erro ao carregar menu: ${response.statusText}`);
       }
 
@@ -82,23 +97,64 @@ export function useSidebarMenu() {
         throw new Error(data.message || 'Erro ao carregar menu');
       }
 
-      // Transformar resposta em estrutura hierárquica
-      const hierarchicalMenu = buildHierarchicalMenu(data.menuItems);
+      if (data.theme) {
+        setTheme(data.theme);
+      }
 
-      setMenuItems(hierarchicalMenu);
-    } catch (err) {
-      console.error('Erro ao carregar menu:', err);
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-      setMenuItems([]); // Fallback: menu vazio
+      // 💡 NOVA LÓGICA CIRÚRGICA: 
+      // O banco de dados agora já retorna o menu formatado como Categoria -> Funcionalidades.
+      // Não precisamos mais montar a hierarquia no frontend.
+      const menuFromDb = data.menuItems || [];
+      setMenuItems(menuFromDb);
+    } catch (err: any) {
+      console.error('[SidebarMenu] Erro crítico ao carregar menu:', err);
+      setError(err.message || 'Erro interno');
+      
+      // Proteção contra loop de redirecionamento
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && !window.location.href.includes('error=session_error')) {
+          window.location.href = `/admin/login?error=session_error&callbackUrl=${encodeURIComponent(window.location.pathname)}`;
+        }
+      }, 1500);
     } finally {
       setLoading(false);
     }
-  };
+  }, [systemId]);
+
+  useEffect(() => {
+    loadMenuFromDatabase();
+
+    // Escutar eventos de mudança na sidebar
+    const unsubscribe = sidebarEventManager.subscribe((data?: any) => {
+      if (data && Array.isArray(data)) {
+        // Função para mapear recursivamente a árvore do designer para o formato da sidebar
+        const mapItem = (item: any): any => ({
+          ...item,
+          id: String(item.id),
+          icon: item.icon_name || item.icon,
+          path: item.url || item.path,
+          parent_id: item.parent_id ? String(item.parent_id) : null,
+          children: item.children ? item.children.map(mapItem) : []
+        });
+
+        const transformedTree = data.map(mapItem);
+        setMenuItems(transformedTree);
+      } else {
+        // Caso contrário, recarregar do banco
+        loadMenuFromDatabase();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [systemId, loadMenuFromDatabase]);
 
   return {
     menuItems,
     loading,
     error,
+    theme,
     reloadMenu: loadMenuFromDatabase,
   };
 }
@@ -112,23 +168,21 @@ export function useSidebarMenu() {
 function buildHierarchicalMenu(
   items: SidebarMenuItem[]
 ): SidebarMenuItem[] {
-  // Filtrar apenas itens com permissão
-  const filteredItems = items.filter((item) => item.has_permission);
+  // 1. Filtrar e ORDENAR itens raiz
+  const rootItems = items
+    .filter((item) => item.parent_id === null || !items.some(p => p.id === item.parent_id))
+    .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
 
-  // Separar itens raiz e filhos
-  // REGRA: Se um filho não tem pai visível, ele vira root (filho órfão)
-  const parentIds = new Set(filteredItems.map(item => item.id));
-
-  const rootItems = filteredItems.filter((item) =>
-    item.parent_id === null || !parentIds.has(item.parent_id)  // Órfãos viram root!
-  );
-  const childItems = filteredItems.filter((item) =>
-    item.parent_id !== null && parentIds.has(item.parent_id)  // Só filhos com pai visível
+  const childItems = items.filter((item) =>
+    item.parent_id !== null && items.some(p => p.id === item.parent_id)
   );
 
-  // Função recursiva para construir árvore
-  function buildTree(parentId: number | null): SidebarMenuItem[] {
-    const children = childItems.filter((item) => item.parent_id === parentId);
+  // Função recursiva para construir árvore com ordenação
+  function buildTree(parentId: string | null): SidebarMenuItem[] {
+    const children = childItems
+      .filter((item) => item.parent_id === parentId)
+      .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+
     return children.map((child) => ({
       ...child,
       children: buildTree(child.id),

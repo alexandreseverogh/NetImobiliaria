@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSidebarItems } from '@/hooks/useSidebarItems'
-import { MenuTreeManager } from '@/components/admin/SidebarManagement/MenuTreeManager'
+import { PremiumMenuManager as MenuTreeManager } from '@/components/admin/SidebarManagement/PremiumMenuManager'
 import { SidebarPreview } from '@/components/admin/SidebarManagement/SidebarPreview'
 import PermissionGuard from '@/components/admin/PermissionGuard'
 import { sidebarEventManager } from '@/lib/events/sidebarEvents'
@@ -13,8 +13,16 @@ export default function SidebarManagementPage() {
 
   // Escutar mudanças na sidebar para atualizar a página
   useEffect(() => {
-    const unsubscribe = sidebarEventManager.subscribe(async () => {
-      console.log('SidebarManagementPage: Evento recebido, recarregando dados...')
+    const unsubscribe = sidebarEventManager.subscribe(async (data?: any) => {
+      // Se tivermos 'data', é um preview em tempo real (Drag & Drop)
+      // O hook useSidebarItems já cuidará de atualizar o estado local.
+      // Não queremos recarregar do servidor aqui para evitar o 'bounce' (voltar pra posição original)
+      if (data && Array.isArray(data)) {
+        console.log('SidebarManagementPage: Preview em tempo real recebido.')
+        return
+      }
+
+      console.log('SidebarManagementPage: Mudança persistente detectada, recarregando do servidor...')
       await reload()
       setRefreshKey(prev => prev + 1)
     })

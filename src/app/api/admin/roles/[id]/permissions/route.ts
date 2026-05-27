@@ -1,13 +1,6 @@
-import { NextResponse } from 'next/server'
-import { Pool } from 'pg'
-
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
-  database: process.env.DB_NAME!,
-})
+import { NextRequest, NextResponse } from 'next/server'
+import pool from '@/lib/database/connection'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // GET - Buscar permissões do role
 export async function GET(
@@ -39,8 +32,8 @@ export async function GET(
 
     const role = roleExists.rows[0]
 
-    // Para Super Admin, retornar todas as permissões como concedidas
-    if (role.name === 'Super Admin') {
+    // REGRA DE OURO: Perfil de Sistema (Master) tem permissões globais via Metadata
+    if (role.is_system_role) {
       const allPermissionsQuery = `
         SELECT 
           p.id as permission_id,
@@ -122,10 +115,13 @@ export async function GET(
 
 // PUT - Atualizar permissões do role
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'roles', 'UPDATE')
+    if (denied) return denied
+
     const roleId = parseInt(params.id)
     const data = await request.json()
     const { permissions } = data
@@ -159,10 +155,10 @@ export async function PUT(
 
     const role = roleExists.rows[0]
 
-    // Para Super Admin, não permitir alterações
-    if (role.name === 'Super Admin') {
+    // BLOQUEIO: Perfis de Sistema (Master) só podem ser geridos via Plataforma (ou estão protegidos)
+    if (role.is_system_role) {
       return NextResponse.json(
-        { success: false, message: 'Permissões do Super Admin não podem ser alteradas' },
+        { success: false, message: 'Permissões de perfis Master são nativas e não podem ser alteradas' },
         { status: 400 }
       )
     }

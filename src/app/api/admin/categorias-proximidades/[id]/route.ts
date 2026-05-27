@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { findCategoriaProximidadeById, updateCategoriaProximidade, deleteCategoriaProximidade } from '@/lib/database/proximidades'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
@@ -17,7 +18,14 @@ export async function GET(
       )
     }
 
-    const categoria = await findCategoriaProximidadeById(id)
+    const token = request.cookies?.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    let tenantId = undefined
+    if (token) {
+      const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
+      tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    }
+
+    const categoria = await findCategoriaProximidadeById(id, tenantId)
     if (!categoria) {
       return NextResponse.json(
         { error: 'Categoria não encontrada' },
@@ -43,6 +51,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     const id = parseInt(params.id)
     if (isNaN(id)) {
       return NextResponse.json(
@@ -61,11 +72,18 @@ export async function PUT(
       )
     }
 
-    // Buscar dados atuais para auditoria
-    const categoriaAtual = await findCategoriaProximidadeById(id)
+    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    let tenantId = undefined
+    if (token) {
+      const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
+      tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    }
+
+    // Buscar dados atuais para auditoria e validação de tenant
+    const categoriaAtual = await findCategoriaProximidadeById(id, tenantId)
     if (!categoriaAtual) {
       return NextResponse.json(
-        { error: 'Categoria não encontrada' },
+        { error: 'Categoria não encontrada ou sem acesso' },
         { status: 404 }
       )
     }
@@ -77,7 +95,7 @@ export async function PUT(
       cor: cor || '#10B981',
       ordem: ordem || 1,
       ativo: ativo !== undefined ? ativo : true
-    })
+    }, tenantId)
 
     // Log de auditoria (não crítico - falha não afeta operação)
     try {
@@ -133,6 +151,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'DELETE')
+    if (denied) return denied
+
     const id = parseInt(params.id)
     if (isNaN(id)) {
       return NextResponse.json(
@@ -141,16 +162,23 @@ export async function DELETE(
       )
     }
 
-    // Buscar dados da categoria antes de excluir para auditoria
-    const categoria = await findCategoriaProximidadeById(id)
+    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    let tenantId = undefined
+    if (token) {
+      const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
+      tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    }
+
+    // Buscar dados da categoria antes de excluir para auditoria e validação de tenant
+    const categoria = await findCategoriaProximidadeById(id, tenantId)
     if (!categoria) {
       return NextResponse.json(
-        { error: 'Categoria não encontrada' },
+        { error: 'Categoria não encontrada ou sem acesso' },
         { status: 404 }
       )
     }
 
-    await deleteCategoriaProximidade(id)
+    await deleteCategoriaProximidade(id, tenantId)
 
     // Log de auditoria (não crítico - falha não afeta operação)
     try {

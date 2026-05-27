@@ -1,9 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
+  const system = searchParams.get('system') || 'admin'
+  const isCRM = system === 'crm'
+  
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [twoFactorCode, setTwoFactorCode] = useState('')
@@ -55,17 +60,34 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-blue-100">
-            <span className="text-2xl">🏠</span>
-          </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Imovitec
+    <div className={`min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-1000 ${isCRM ? 'bg-[#020617]' : 'bg-gray-50'}`}>
+      <div className={`max-w-md w-full space-y-8 p-10 rounded-3xl transition-all duration-1000 ${isCRM ? 'bg-white/5 border border-white/10 backdrop-blur-xl' : ''}`}>
+        <div className="flex flex-col items-center">
+          {isCRM ? (
+            <img 
+              src="/olhos-de-aguia-logo.png" 
+              alt="Olhos de Águia" 
+              className="h-32 w-auto drop-shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all duration-700 hover:scale-105" 
+            />
+          ) : (
+            <div className="mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-blue-100 shadow-inner">
+               <span className="text-3xl">🏠</span>
+            </div>
+          )}
+          
+          <h2 className={`mt-6 text-center text-4xl font-black tracking-tight italic uppercase ${isCRM ? 'text-gray-900' : 'text-blue-900'}`}>
+            {isCRM ? (
+              <>
+                <span className="text-gray-400">Olhos de</span>{' '}
+                <span className="text-blue-600 drop-shadow-sm">Águia</span>
+              </>
+            ) : (
+              'Imovitec'
+            )}
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Sistema Administrativo
+          
+          <p className="mt-2 text-center text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] ml-1">
+            {isCRM ? '' : 'Sistema Administrativo'}
           </p>
         </div>
 
@@ -81,7 +103,9 @@ export default function LoginPage() {
                 name="username"
                 type="text"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className={`appearance-none rounded-none relative block w-full px-4 py-3 border placeholder-gray-500 rounded-t-xl focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm transition-all ${
+                  isCRM ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
                 placeholder="Usuário"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -97,7 +121,11 @@ export default function LoginPage() {
                 name="password"
                 type="password"
                 required
-                className={`appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm ${requires2FA ? 'rounded-none' : 'rounded-b-md'}`}
+                className={`appearance-none rounded-none relative block w-full px-4 py-3 border placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm transition-all ${
+                  requires2FA ? '' : 'rounded-b-xl'
+                } ${
+                  isCRM ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
                 placeholder="Senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -175,7 +203,11 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`group relative w-full flex justify-center py-4 px-4 border border-transparent text-sm font-bold uppercase tracking-widest rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ${
+                isCRM 
+                  ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:shadow-[0_0_30px_rgba(37,99,235,0.6)]' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 focus:ring-offset-2'
+              }`}
             >
               {loading ? (
                 <div className="flex items-center">

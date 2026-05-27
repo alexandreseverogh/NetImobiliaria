@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { Pool } from 'pg';
+import pool from '@/lib/database/connection';
 import twoFactorAuthService from '../services/twoFactorAuthService';
-
-// Configuração do pool de conexão
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME!,
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
-});
 
 interface AuthenticatedUser {
   userId: number;
@@ -23,7 +14,8 @@ interface AuthenticatedUser {
 interface AuthMiddlewareOptions {
   require2FA?: boolean;
   requirePermissions?: string[];
-  allowedRoles?: string[];
+  minRoleLevel?: number;
+  requireSystemRole?: boolean;
 }
 
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
@@ -127,16 +119,19 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
         }
       }
 
-      // Verificar roles se especificadas
-      if (options.allowedRoles && options.allowedRoles.length > 0) {
-        const userRole = user.role_name;
-        
-        if (!userRole || !options.allowedRoles.includes(userRole)) {
-          return NextResponse.json(
-            { success: false, message: 'Role insuficiente' },
-            { status: 403 }
-          );
-        }
+      // Verificar Nível de Role ou se é System Role
+      if (options.requireSystemRole && !user.is_system_role) {
+        return NextResponse.json(
+          { success: false, message: 'Acesso restrito ao Master Global' },
+          { status: 403 }
+        );
+      }
+
+      if (options.minRoleLevel && (user.role_level || 0) < options.minRoleLevel) {
+        return NextResponse.json(
+          { success: false, message: 'Nível de autorização insuficiente' },
+          { status: 403 }
+        );
       }
 
       // Adicionar informações do usuário à requisição
@@ -189,10 +184,10 @@ async function checkUserPermissions(userId: number, requiredPermissions: string[
   }
 }
 
-// Middleware específico para APIs administrativas
+// Middleware específico para APIs administrativas (requer nível admin do tenant ou master)
 export const adminAuthMiddleware = createAuthMiddleware({
   require2FA: true,
-  allowedRoles: ['Super Admin', 'Administrador']
+  minRoleLevel: 1 // 1 = Admin do Tenant, 99 = Master
 });
 
 // Middleware para APIs que requerem 2FA
@@ -214,10 +209,10 @@ export function getAuthenticatedUser(request: NextRequest): AuthenticatedUser | 
   }
 }
 
-// Middleware para verificar se usuário é Super Admin
+// Middleware para verificar se usuário é Master da Plataforma
 export const superAdminMiddleware = createAuthMiddleware({
   require2FA: true,
-  allowedRoles: ['Super Admin']
+  requireSystemRole: true
 });
 
 

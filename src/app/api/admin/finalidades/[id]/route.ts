@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { findFinalidadeById, updateFinalidade, deleteFinalidade } from '@/lib/database/finalidades'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
+import { getTokenFromRequest, verifyToken } from '@/lib/auth/jwt'
 
 // GET - Buscar finalidade por ID
 export async function GET(
@@ -17,7 +19,11 @@ export async function GET(
       )
     }
 
-    const finalidade = await findFinalidadeById(id)
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.is_system_role ? undefined : decoded?.tenantId
+
+    const finalidade = await findFinalidadeById(id, tenantId)
     if (!finalidade) {
       return NextResponse.json(
         { error: 'Finalidade não encontrada' },
@@ -45,6 +51,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     const id = parseInt(params.id)
     if (isNaN(id)) {
       return NextResponse.json(
@@ -67,8 +76,12 @@ export async function PUT(
       }
     }
 
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.is_system_role ? undefined : decoded?.tenantId
+
     // Buscar dados ANTES da atualização para auditoria
-    const finalidadeAntes = await findFinalidadeById(id)
+    const finalidadeAntes = await findFinalidadeById(id, tenantId)
     
     if (!finalidadeAntes) {
       return NextResponse.json(
@@ -77,7 +90,7 @@ export async function PUT(
       )
     }
 
-    const finalidadeAtualizada = await updateFinalidade(id, {
+    const finalidadeAtualizada = await updateFinalidade(id, tenantId, {
       nome,
       descricao,
       ativo,
@@ -169,6 +182,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request as NextRequest, 'imoveis', 'DELETE')
+    if (denied) return denied
+
     const id = parseInt(params.id)
     if (isNaN(id)) {
       return NextResponse.json(
@@ -177,8 +193,12 @@ export async function DELETE(
       )
     }
 
+    const token = getTokenFromRequest(request as NextRequest)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.is_system_role ? undefined : decoded?.tenantId
+
     // Buscar dados ANTES da exclusão para auditoria
-    const finalidade = await findFinalidadeById(id)
+    const finalidade = await findFinalidadeById(id, tenantId)
     
     if (!finalidade) {
       return NextResponse.json(
@@ -187,7 +207,7 @@ export async function DELETE(
       )
     }
 
-    await deleteFinalidade(id)
+    await deleteFinalidade(id, tenantId)
 
     // Log de auditoria para exclusão (não crítico)
     try {

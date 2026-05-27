@@ -5,6 +5,8 @@ import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionM
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
 import { safeParseInt } from '@/lib/utils/safeParser'
+import { getTokenFromRequest, verifyToken } from '@/lib/auth/jwt'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // GET - Listar status de imóvel
 export async function GET(request: NextRequest) {
@@ -20,14 +22,18 @@ export async function GET(request: NextRequest) {
     const limit = safeParseInt(searchParams.get('limit'), 10, 1, 100)
     const search = searchParams.get('search') || ''
 
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.is_system_role ? undefined : decoded?.tenantId
+
     // Se não há parâmetros de paginação, usar a função antiga para compatibilidade
     if (!searchParams.has('page') && !searchParams.has('limit')) {
-      const statusImovel = await findAllStatusImovel()
+      const statusImovel = await findAllStatusImovel(tenantId)
       return NextResponse.json(statusImovel)
     }
 
     // Usar paginação
-    const result = await findStatusImovelPaginated(page, limit, search)
+    const result = await findStatusImovelPaginated(page, limit, search, tenantId)
 
     return NextResponse.json({
       success: true,
@@ -50,6 +56,9 @@ export async function GET(request: NextRequest) {
 // POST - Criar novo status de imóvel
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'CREATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -66,12 +75,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.tenantId
+
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'Tenant ID não encontrado no token' },
+        { status: 401 }
+      )
+    }
+
     const novoStatusImovel = await createStatusImovel({
       nome,
       cor: cor || '#3B82F6',
       descricao: descricao || '',
       ativo: ativo !== undefined ? ativo : true,
-      consulta_imovel_internauta: consulta_imovel_internauta !== undefined ? consulta_imovel_internauta : true
+      consulta_imovel_internauta: consulta_imovel_internauta !== undefined ? consulta_imovel_internauta : true,
+      tenant_id: tenantId
     })
 
     // Log de auditoria (não crítico - falha não afeta operação)

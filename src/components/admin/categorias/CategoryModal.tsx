@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
-import { Category, CategoryFormData, CATEGORY_COLORS, CATEGORY_ICONS } from '@/types/categories'
+import { Category, CategoryFormData, CATEGORY_COLORS } from '@/types/categories'
 import { useApi } from '@/hooks/useApi'
+import IconPickerModal from '@/components/ui/IconPickerModal'
+import DynamicIcon from '@/components/common/DynamicIcon'
 
 interface CategoryModalProps {
   mode: 'create' | 'edit'
@@ -13,7 +15,7 @@ interface CategoryModalProps {
 }
 
 export default function CategoryModal({ mode, category, onClose, onSave }: CategoryModalProps) {
-  const { post, put } = useApi()
+  const { get, post, put } = useApi()
   const [formData, setFormData] = useState<CategoryFormData>({
     name: '',
     slug: '',
@@ -21,15 +23,44 @@ export default function CategoryModal({ mode, category, onClose, onSave }: Categ
     icon: 'CogIcon',
     color: '#6B7280',
     sort_order: 0,
-    is_active: true
+    is_active: true,
+    module_id: null
   })
   
   const [loading, setLoading] = useState(false)
+  const [modules, setModules] = useState<{id: string, name: string, slug?: string}[]>([
+    { id: '85fbb625-ce61-4122-af23-a5e305e5576a', name: 'Administrativo', slug: 'administrativo' },
+    { id: 'f034078a-a46c-497d-93e1-cf6238b75e11', name: 'CRM de Vendas', slug: 'crm-vendas' }
+  ])
   const [error, setError] = useState<string | null>(null)
   const [slugError, setSlugError] = useState<string | null>(null)
+  
+  const [showIconPicker, setShowIconPicker] = useState(false)
 
-  // Carregar dados da categoria se estiver editando
+  // Log de estado para depuração
   useEffect(() => {
+    console.log('Current modules state:', modules)
+  }, [modules])
+
+  // Carregar módulos e dados da categoria
+  useEffect(() => {
+    const fetchModules = async () => {
+      try {
+        console.log('Fetching modules for category association...')
+        // Adicionar timestamp para evitar cache do navegador/Next.js
+        const resp = await get(`/api/admin/modules/list?t=${Date.now()}`)
+        const data = await resp.json()
+        console.log('Modules data received from API:', data)
+        if (data.success) {
+          setModules(data.modules || [])
+        }
+      } catch (err) {
+        console.error('Erro ao carregar módulos:', err)
+      }
+    }
+
+    fetchModules()
+
     if (mode === 'edit' && category) {
       setFormData({
         name: category.name,
@@ -38,10 +69,11 @@ export default function CategoryModal({ mode, category, onClose, onSave }: Categ
         icon: category.icon || 'CogIcon',
         color: category.color,
         sort_order: category.sort_order,
-        is_active: category.is_active
+        is_active: category.is_active,
+        module_id: category.module_id || null
       })
     }
-  }, [mode, category])
+  }, [mode, category, get])
 
   // Gerar slug automaticamente baseado no nome
   const generateSlug = (name: string) => {
@@ -156,6 +188,26 @@ export default function CategoryModal({ mode, category, onClose, onSave }: Categ
             />
           </div>
 
+          {/* Módulo Pai */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Vincular ao Módulo (Governança Master)
+            </label>
+            <select
+              value={formData.module_id || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, module_id: e.target.value || null }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm font-medium text-indigo-700 bg-indigo-50"
+            >
+              <option value="">Sem vínculo (Apenas Super Admin)</option>
+              {modules.map(mod => (
+                <option key={mod.id} value={mod.id}>{mod.name}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[10px] text-gray-400 leading-tight">
+              Categorias vinculadas a um módulo serão visíveis para as empresas que assinarem esse módulo.
+            </p>
+          </div>
+
           {/* Slug */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -198,15 +250,18 @@ export default function CategoryModal({ mode, category, onClose, onSave }: Categ
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Ícone
               </label>
-              <select
-                value={formData.icon}
-                onChange={(e) => setFormData(prev => ({ ...prev, icon: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                {CATEGORY_ICONS.map(icon => (
-                  <option key={icon} value={icon}>{icon}</option>
-                ))}
-              </select>
+              <div className="flex items-center space-x-3">
+                <div className="h-10 w-10 rounded border border-gray-300 flex items-center justify-center shrink-0">
+                  <DynamicIcon iconName={formData.icon || ''} className="h-6 w-6 text-gray-600" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowIconPicker(true)}
+                  className="px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 flex-1"
+                >
+                  {formData.icon ? 'Alterar' : 'Escolher Ícone'}
+                </button>
+              </div>
             </div>
 
             <div>
@@ -294,6 +349,13 @@ export default function CategoryModal({ mode, category, onClose, onSave }: Categ
           </div>
         </form>
       </div>
+
+      <IconPickerModal 
+        isOpen={showIconPicker} 
+        onClose={() => setShowIconPicker(false)} 
+        onSelect={(iconName) => setFormData(prev => ({ ...prev, icon: iconName }))} 
+        currentIcon={formData.icon}
+      />
     </div>
   )
 }

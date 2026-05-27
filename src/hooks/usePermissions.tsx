@@ -55,7 +55,8 @@ export function usePermissions() {
     hasPermission: (resource: string, action: PermissionAction) => {
       return hasPermission(user.permissoes || {}, resource, action)
     },
-    userPermissions: user.permissoes || {}
+    userPermissions: user.permissoes || {},
+    auditConfigs: (user as any).auditConfigs || {}
   }
   
   return permissions

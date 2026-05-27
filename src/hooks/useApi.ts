@@ -17,8 +17,11 @@ export function useApi() {
       }
     }
 
-    const defaultHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
+    const defaultHeaders: Record<string, string> = {}
+    
+    // Só definir application/json se NÃO for FormData
+    if (!(options.body instanceof FormData)) {
+      defaultHeaders['Content-Type'] = 'application/json'
     }
 
     // Adicionar token de autorização se disponível
@@ -26,10 +29,15 @@ export function useApi() {
       defaultHeaders['Authorization'] = `Bearer ${token}`
     }
 
-    // Mesclar headers padrão com headers fornecidos
+    // Mesclar headers
     const headers = {
       ...defaultHeaders,
       ...options.headers,
+    }
+
+    // Se for FormData, o navegador precisa definir o Content-Type com o boundary
+    if (options.body instanceof FormData) {
+      delete (headers as any)['Content-Type']
     }
 
     try {
@@ -51,26 +59,29 @@ export function useApi() {
   }, [makeRequest])
 
   const post = useCallback((url: string, data?: any, options?: RequestInit) => {
+    const isFormData = data instanceof FormData
     return makeRequest(url, {
       ...options,
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
+      body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     })
   }, [makeRequest])
 
   const put = useCallback((url: string, data?: any, options?: RequestInit) => {
+    const isFormData = data instanceof FormData
     return makeRequest(url, {
       ...options,
       method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
+      body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     })
   }, [makeRequest])
 
   const patch = useCallback((url: string, data?: any, options?: RequestInit) => {
+    const isFormData = data instanceof FormData
     return makeRequest(url, {
       ...options,
       method: 'PATCH',
-      body: data ? JSON.stringify(data) : undefined,
+      body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     })
   }, [makeRequest])
 

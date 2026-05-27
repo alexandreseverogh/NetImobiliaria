@@ -4,6 +4,7 @@ import { auditLogger } from '@/lib/utils/auditLogger'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
 import { safeParseInt } from '@/lib/utils/safeParser'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import {
   findTiposDocumentos,
   findTiposDocumentosPaginated,
@@ -61,6 +62,9 @@ export async function GET(request: NextRequest) {
 // POST - Criar tipo de documento
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'CREATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {

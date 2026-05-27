@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import { verifyToken } from '@/lib/auth/jwt'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // GET /api/admin/categorias/[id]/features - Listar funcionalidades de uma categoria
 export async function GET(
@@ -105,6 +106,9 @@ export async function POST(
     if (permissionCheck) {
       return permissionCheck
     }
+
+    const denied = await requireApiPermission(request, 'categorias', 'CREATE')
+    if (denied) return denied
 
     const categoryId = params.id
     const body = await request.json()
@@ -222,6 +226,9 @@ export async function DELETE(
     if (permissionCheck) {
       return permissionCheck
     }
+
+    const denied = await requireApiPermission(request, 'categorias', 'DELETE')
+    if (denied) return denied
 
     const categoryId = params.id
     const { searchParams } = new URL(request.url)

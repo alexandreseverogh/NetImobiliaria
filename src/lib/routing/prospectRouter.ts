@@ -1,5 +1,6 @@
 import pool from '@/lib/database/connection'
 import emailService from '@/services/emailService'
+import { DistributionEngine } from './distributionEngine'
 import fs from 'fs'
 import path from 'path'
 
@@ -11,23 +12,12 @@ function debugLog(msg: string) {
   } catch (e) { }
 }
 
+// Tipos mantidos para compatibilidade com as notificações existentes
 type RoutedBroker = {
   id: string
   nome: string
   email: string
   motivo: any
-}
-
-async function getSlaMinutosAceiteLead(): Promise<number> {
-  try {
-    const r = await pool.query('SELECT sla_minutos_aceite_lead FROM public.parametros LIMIT 1')
-    const v = r.rows?.[0]?.sla_minutos_aceite_lead
-    const n = Number(v)
-    if (!Number.isFinite(n) || n <= 0) return 5
-    return n
-  } catch {
-    return 5
-  }
 }
 
 function getAppBaseUrl(): string {
@@ -53,58 +43,6 @@ function buildNegocioFechadoUrl(prospectId: number, imovelId: number): string {
   return `${base}/corretor/entrar?next=${encodeURIComponent(next)}`
 }
 
-async function pickBrokerByArea(estado: string, cidade: string, excludeIds: string[] = [], runner: any = pool): Promise<RoutedBroker | null> {
-  console.log(`🔍 [pickBrokerByArea] EXTERNAL - Buscando corretor externo para ${cidade}/${estado}`);
-  console.log(`🔍 [pickBrokerByArea] EXTERNAL - excludeIds:`, excludeIds);
-
-  const q = `
-    SELECT
-      u.id, u.nome, u.email,
-      COALESCE(cs.nivel, 0) as nivel,
-      COALESCE(cs.xp_total, 0) as xp,
-      COUNT(a.id) AS total_recebidos,
-      MAX(a.created_at) AS ultimo_recebimento
-    FROM public.users u
-    INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
-    INNER JOIN public.user_roles ur ON ura.role_id = ur.id
-    INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
-    LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
-    LEFT JOIN public.imovel_prospect_atribuicoes a ON a.corretor_fk = u.id
-    WHERE u.ativo = true
-      AND ur.name = 'Corretor'
-      AND COALESCE(u.is_plantonista, false) = false
-      AND u.tipo_corretor = 'Externo'
-      AND caa.estado_fk = $1
-      AND caa.cidade_fk = $2
-      AND (CASE WHEN array_length($3::uuid[], 1) > 0 THEN u.id != ALL($3::uuid[]) ELSE true END)
-    GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
-    ORDER BY 
-      COUNT(a.id) ASC, 
-      MAX(a.created_at) ASC NULLS FIRST, 
-      COALESCE(cs.nivel, 0) DESC,
-      COALESCE(cs.xp_total, 0) DESC,
-      u.created_at ASC
-    LIMIT 1
-  `
-  const r = await runner.query(q, [estado, cidade, excludeIds || []])
-  console.log(`🔍 [pickBrokerByArea] EXTERNAL - Resultado: ${r.rows.length} corretor(es) encontrado(s)`);
-
-  if (r.rows.length === 0) {
-    console.log(`❌ [pickBrokerByArea] EXTERNAL - NENHUM corretor externo encontrado para ${cidade}/${estado}`);
-    return null
-  }
-
-  const row = r.rows[0]
-  console.log(`✅ [pickBrokerByArea] EXTERNAL - Corretor selecionado: ${row.nome} (${row.id})`);
-
-  return {
-    id: row.id,
-    nome: row.nome,
-    email: row.email,
-    motivo: { type: 'area_match', estado_fk: estado, cidade_fk: cidade, debug: `Lvl:${row.nivel} XP:${row.xp}` }
-  }
-}
-
 async function pickBrokerById(corretorFk: string, runner: any = pool): Promise<RoutedBroker | null> {
   const q = `
     SELECT u.id, u.nome, u.email
@@ -124,156 +62,6 @@ async function pickBrokerById(corretorFk: string, runner: any = pool): Promise<R
     nome: row.nome,
     email: row.email,
     motivo: { type: 'imovel_corretor_fk', corretor_fk: row.id }
-  }
-}
-
-async function pickInternalBrokerByArea(estado: string, cidade: string, excludeIds: string[] = [], runner: any = pool): Promise<RoutedBroker | null> {
-  console.log(`🔍 [pickInternalBrokerByArea] INTERNAL - Buscando corretor interno para ${cidade}/${estado}`);
-  console.log(`🔍 [pickInternalBrokerByArea] INTERNAL - excludeIds:`, excludeIds);
-
-  const q = `
-    SELECT
-      u.id, u.nome, u.email,
-      COALESCE(cs.nivel, 0) as nivel,
-      COALESCE(cs.xp_total, 0) as xp,
-      COUNT(a.id) AS total_recebidos,
-      MAX(a.created_at) AS ultimo_recebimento
-    FROM public.users u
-    INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
-    INNER JOIN public.user_roles ur ON ura.role_id = ur.id
-    INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
-    LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
-    LEFT JOIN public.imovel_prospect_atribuicoes a ON a.corretor_fk = u.id
-    WHERE u.ativo = true
-      AND ur.name = 'Corretor'
-      AND COALESCE(u.is_plantonista, false) = false
-      AND u.tipo_corretor = 'Interno'
-      AND caa.estado_fk = $1
-      AND caa.cidade_fk = $2
-      AND (CASE WHEN array_length($3::uuid[], 1) > 0 THEN u.id != ALL($3::uuid[]) ELSE true END)
-    GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
-    ORDER BY 
-      COUNT(a.id) ASC, 
-      MAX(a.created_at) ASC NULLS FIRST, 
-      COALESCE(cs.nivel, 0) DESC,
-      COALESCE(cs.xp_total, 0) DESC,
-      u.created_at ASC
-    LIMIT 1
-  `
-  const r = await runner.query(q, [estado, cidade, excludeIds || []])
-  console.log(`🔍 [pickInternalBrokerByArea] INTERNAL - Resultado: ${r.rows.length} corretor(es) encontrado(s)`);
-
-  if (r.rows.length === 0) {
-    console.log(`❌ [pickInternalBrokerByArea] INTERNAL - NENHUM corretor interno encontrado para ${cidade}/${estado}`);
-    return null
-  }
-
-  const row = r.rows[0]
-  console.log(`✅ [pickInternalBrokerByArea] INTERNAL - Corretor selecionado: ${row.nome} (${row.id})`);
-
-  return {
-    id: row.id,
-    nome: row.nome,
-    email: row.email,
-    motivo: { type: 'area_match_internal', estado_fk: estado, cidade_fk: cidade, debug: `Lvl:${row.nivel} XP:${row.xp}` }
-  }
-}
-
-async function pickPlantonistaBroker(excludeIds: string[] = [], estado?: string, cidade?: string, runner: any = pool): Promise<RoutedBroker | null> {
-  console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA - Buscando plantonista para ${cidade}/${estado}`);
-  console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA - excludeIds:`, excludeIds);
-
-  // 1. Tentar Plantonista com Match de Área (Prioridade)
-  if (estado && cidade) {
-    console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA - Tentando com área específica: ${cidade}/${estado}`);
-    const qLocal = `
-      SELECT
-        u.id, u.nome, u.email,
-        COALESCE(cs.nivel, 0) as nivel,
-        COALESCE(cs.xp_total, 0) as xp,
-        COUNT(a.id) AS total_recebidos,
-        MAX(a.created_at) AS ultimo_recebimento
-      FROM public.users u
-      INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
-      INNER JOIN public.user_roles ur ON ura.role_id = ur.id
-      INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id -- JOIN com área
-      LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
-      LEFT JOIN public.imovel_prospect_atribuicoes a ON a.corretor_fk = u.id
-      WHERE u.ativo = true
-        AND ur.name = 'Corretor'
-        AND COALESCE(u.is_plantonista, false) = true
-        AND COALESCE(u.tipo_corretor, 'Interno') = 'Interno'
-        AND caa.estado_fk = $1
-        AND caa.cidade_fk = $2
-        AND (CASE WHEN array_length($3::uuid[], 1) > 0 THEN u.id != ALL($3::uuid[]) ELSE true END)
-      GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
-      ORDER BY 
-        COUNT(a.id) ASC, 
-        MAX(a.created_at) ASC NULLS FIRST, 
-        COALESCE(cs.nivel, 0) DESC,
-        COALESCE(cs.xp_total, 0) DESC,
-        u.created_at ASC
-      LIMIT 1
-    `
-    const rLocal = await runner.query(qLocal, [estado, cidade, excludeIds || []])
-    console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA (área) - Resultado: ${rLocal.rows.length} plantonista(s) encontrado(s)`);
-
-    if (rLocal.rows.length > 0) {
-      const row = rLocal.rows[0]
-      console.log(`✅ [pickPlantonistaBroker] PLANTONISTA (área) - Selecionado: ${row.nome} (${row.id})`);
-      return {
-        id: row.id,
-        nome: row.nome,
-        email: row.email,
-        motivo: { type: 'fallback_plantonista_area', debug: `Lvl:${row.nivel} Area:${cidade}/${estado}` }
-      }
-    }
-  }
-
-  // 2. Fallback: Qualquer Plantonista (Global)
-  console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA - Tentando plantonista global (sem área específica)`);
-  const qGlobal = `
-    SELECT
-      u.id, u.nome, u.email,
-      COALESCE(cs.nivel, 0) as nivel,
-      COALESCE(cs.xp_total, 0) as xp,
-      COUNT(a.id) AS total_recebidos,
-      MAX(a.created_at) AS ultimo_recebimento
-    FROM public.users u
-    INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
-    INNER JOIN public.user_roles ur ON ura.role_id = ur.id
-    LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
-    LEFT JOIN public.imovel_prospect_atribuicoes a ON a.corretor_fk = u.id
-    WHERE u.ativo = true
-      AND ur.name = 'Corretor'
-      AND COALESCE(u.is_plantonista, false) = true
-      AND u.tipo_corretor = 'Interno' -- Plantonista deve ser interno? User disse que sim.
-      AND (CASE WHEN array_length($1::uuid[], 1) > 0 THEN u.id != ALL($1::uuid[]) ELSE true END)
-    GROUP BY u.id, u.nome, u.email, cs.nivel, cs.xp_total
-    ORDER BY 
-      COUNT(a.id) ASC, 
-      MAX(a.created_at) ASC NULLS FIRST, 
-      COALESCE(cs.nivel, 0) DESC,
-      COALESCE(cs.xp_total, 0) DESC,
-      u.created_at ASC
-    LIMIT 1
-  `
-  const rGlobal = await runner.query(qGlobal, [excludeIds || []])
-  console.log(`🔍 [pickPlantonistaBroker] PLANTONISTA (global) - Resultado: ${rGlobal.rows.length} plantonista(s) encontrado(s)`);
-
-  if (rGlobal.rows.length === 0) {
-    console.log(`❌ [pickPlantonistaBroker] PLANTONISTA - NENHUM plantonista encontrado`);
-    return null
-  }
-
-  const row = rGlobal.rows[0]
-  console.log(`✅ [pickPlantonistaBroker] PLANTONISTA (global) - Selecionado: ${row.nome} (${row.id})`);
-
-  return {
-    id: row.id,
-    nome: row.nome,
-    email: row.email,
-    motivo: { type: 'fallback_plantonista', debug: `Lvl:${row.nivel} XP:${row.xp}` }
   }
 }
 
@@ -367,116 +155,37 @@ export async function routeProspectAndNotify(
     return { success: false, reason: 'Imóvel sem estado/cidade' }
   }
 
-  // REGRA: se o imóvel tiver corretor_fk definido (captação), o lead vai direto para ele.
-  let broker: RoutedBroker | null = null
-  const imovelCorretorFk = p.corretor_fk ? String(p.corretor_fk).trim() : ''
-  if (imovelCorretorFk) {
-    broker = await pickBrokerById(imovelCorretorFk, runner)
+  // --- NOVO MOTOR UNIFICADO (Refatoração para Reuso SaaS/Multi-Domínio) ---
+  const result = await DistributionEngine.findBestCandidate({
+    lead_id: prospectId,
+    target_id: p.imovel_id,
+    source_owner_id: p.corretor_fk, // Dono da captação
+    estado_fk: estado,
+    cidade_fk: cidade,
+    domain_id: 1 // Imobiliário
+  }, excludeIds, runner);
+
+  if (!result) {
+    debugLog(`Failed: No candidate found by DistributionEngine`)
+    return { success: false, reason: 'Nenhum corretor disponível pelos critérios de roteamento' }
   }
 
-  // Se não tem dono fixo...
-  // Helper para buscar SLA interno
-  async function getSlaMinutosAceiteLeadInterno(): Promise<number> {
-    try {
-      const r = await runner.query('SELECT sla_minutos_aceite_lead_interno FROM public.parametros LIMIT 1')
-      const v = r.rows?.[0]?.sla_minutos_aceite_lead_interno
-      const n = Number(v)
-      if (!Number.isFinite(n) || n <= 0) return 15 // Default 15 min internal
-      return n
-    } catch {
-      return 15
-    }
+  const broker = {
+    id: result.id,
+    nome: result.nome,
+    email: result.email,
+    motivo: { type: result.motivo_atribuicao, engine: 'v2' }
   }
+  
+  const slaMinutos = result.sla_minutos;
+  const expiraEm = result.expira_em;
+  const motivoType = result.motivo_atribuicao; // Crucial para os templates de email abaixo
+  const isAutoAceite = result.motivo_atribuicao === 'dono_ativo' || result.is_plantonista;
 
-  // 1. Tentar por Área (External) - SE targetTier for External (ou padrão)
-  const targetTier = options?.targetTier || 'External'; // 'External' | 'Internal' | 'Plantonista'
-  console.log(`\n🎯 [routeProspectAndNotify] ========== INICIANDO ROTEAMENTO ==========`);
-  console.log(`🎯 [routeProspectAndNotify] Prospect ID: ${prospectId}`);
-  console.log(`🎯 [routeProspectAndNotify] Localização: ${cidade}/${estado}`);
-  console.log(`🎯 [routeProspectAndNotify] Target Tier: ${targetTier}`);
-  console.log(`🎯 [routeProspectAndNotify] Force Fallback: ${options?.forceFallback || false}`);
-  console.log(`🎯 [routeProspectAndNotify] Exclude IDs: ${excludeIds.length} corretor(es) excluído(s)`);
+  let status: 'atribuido' | 'aceito' = isAutoAceite ? 'aceito' : 'atribuido';
+  let finalExpiraEm = isAutoAceite ? null : expiraEm;
 
-  if (!broker && targetTier === 'External' && !options?.forceFallback) {
-    console.log(`\n🔄 [routeProspectAndNotify] TIER 1: Tentando EXTERNAL...`);
-    broker = await pickBrokerByArea(estado, cidade, excludeIds, runner)
-    if (broker) {
-      console.log(`✅ [routeProspectAndNotify] TIER 1: EXTERNAL encontrado - ${broker.nome}`);
-    } else {
-      console.log(`⚠️ [routeProspectAndNotify] TIER 1: EXTERNAL não encontrado - passando para INTERNAL`);
-    }
-  }
-
-  // 2. Tentar Interno (Tier 2) - Se targetTier for Internal OU se External falhou
-  // NOTA: Se targetTier='External', o fallback natural é tentar Interno se não achou externo?
-  // User Requirement: "A lógica ... primeiro externos ... depois internos ... depois plantonista".
-  // Sim, fallback natural.
-  if (!broker && (targetTier === 'External' || targetTier === 'Internal')) {
-    // Só tenta interno se não estivermos "forçando" plantonista via forceFallback
-    if (!options?.forceFallback) {
-      console.log(`\n🔄 [routeProspectAndNotify] TIER 2: Tentando INTERNAL...`);
-      broker = await pickInternalBrokerByArea(estado, cidade, excludeIds, runner)
-      if (broker) {
-        console.log(`✅ [routeProspectAndNotify] TIER 2: INTERNAL encontrado - ${broker.nome}`);
-      } else {
-        console.log(`⚠️ [routeProspectAndNotify] TIER 2: INTERNAL não encontrado - passando para PLANTONISTA`);
-      }
-    }
-  }
-
-  // 3. Tentar Plantonista
-  if (!broker) {
-    console.log(`\n🔄 [routeProspectAndNotify] TIER 3: Tentando PLANTONISTA...`);
-    broker = await pickPlantonistaBroker(excludeIds, estado, cidade, runner)
-    if (broker) {
-      console.log(`✅ [routeProspectAndNotify] TIER 3: PLANTONISTA encontrado - ${broker.nome}`);
-    } else {
-      console.log(`❌ [routeProspectAndNotify] TIER 3: PLANTONISTA não encontrado - FALHA TOTAL`);
-    }
-  }
-
-  if (!broker) {
-    debugLog(`Failed: No broker found`)
-    console.log(`\n❌ [routeProspectAndNotify] ========== ROTEAMENTO FALHOU ==========\n`);
-    return { success: false, reason: 'Nenhum corretor elegível (sem área e sem plantonista)' }
-  }
-
-  debugLog(`Broker selected: ${broker.nome} (${broker.id})`)
-
-  console.log(`\n✅ [routeProspectAndNotify] ========== ROTEAMENTO CONCLUÍDO ==========`);
-  console.log(`✅ [routeProspectAndNotify] Corretor selecionado: ${broker.nome} (${broker.id})`);
-  console.log(`✅ [routeProspectAndNotify] Motivo: ${JSON.stringify(broker.motivo)}\n`);
-
-
-  // Criar atribuição com SLA (minutos configurável em parametros)
-  let slaMinutos = 5
-  const motivoType = String((broker as any)?.motivo?.type || '')
-
-  if (motivoType === 'area_match_internal') {
-    slaMinutos = await getSlaMinutosAceiteLeadInterno()
-  } else {
-    slaMinutos = await getSlaMinutosAceiteLead()
-  }
-
-  // REGRA CRÍTICA: se veio por imovel.corretor_fk, NÃO aplicar transbordo (expira_em = NULL)
-  // const motivoType already defined above
-  const isPlantonista = motivoType.startsWith('fallback_plantonista') // Matches both 'fallback_plantonista' and 'fallback_plantonista_area'
-
-  // Determinar status e expira_em baseado no tipo de atribuição
-  let status: 'atribuido' | 'aceito' = 'atribuido'
-  let expiraEm: Date | null = new Date(Date.now() + slaMinutos * 60 * 1000)
-
-  if (motivoType === 'imovel_corretor_fk') {
-    // Corretor fixo do imóvel: auto-aceite, sem SLA
-    status = 'aceito'
-    expiraEm = null
-  } else if (isPlantonista) {
-    // Plantonista: aceito automaticamente, sem SLA (finaliza transbordo)
-    status = 'aceito'
-    expiraEm = null
-    if (status === 'aceito') {
-      // REGRA DE NEGÓCIO: Se o lead foi aceito automaticamente (Dono fixo ou Plantonista),
-      // vinculamos esse corretor como o responsável pelo imóvel.
+  if (status === 'aceito') {
       try {
         await runner.query(`
           UPDATE imoveis i
@@ -486,11 +195,10 @@ export async function routeProspectAndNotify(
           WHERE ip.id = $2
             AND ip.id_imovel = i.id
         `, [broker.id, prospectId]);
-        console.log(`[routeProspectAndNotify] 🏠 Imóvel vinculado ao corretor ${broker.nome} (Status: aceito)`);
+        console.log(`[routeProspectAndNotify] 🏠 Imóvel vinculado ao corretor ${broker.nome} (Auto-Aceite)`);
       } catch (errAssign) {
         console.error('[routeProspectAndNotify] Erro ao vincular corretor ao imóvel:', errAssign);
       }
-    }
   }
   try {
     // Evitar criar atribuição duplicada caso esse método seja chamado mais de uma vez
@@ -514,7 +222,7 @@ export async function routeProspectAndNotify(
       INSERT INTO public.imovel_prospect_atribuicoes (prospect_id, corretor_fk, status, motivo, expira_em, data_aceite)
       VALUES ($1::integer, $2::uuid, $3::text, $4::jsonb, $5::timestamp with time zone, CASE WHEN $3::text = 'aceito' THEN NOW() ELSE NULL END)
       `,
-      [prospectId, broker.id, status, JSON.stringify(broker.motivo || {}), expiraEm]
+      [prospectId, broker.id, status, JSON.stringify(broker.motivo || {}), finalExpiraEm]
     )
     debugLog(`Success: Assignment created`)
   } catch (e: any) {

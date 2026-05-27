@@ -14,7 +14,19 @@ export interface AdminUser {
   status: 'ATIVO' | 'INATIVO'
   role_name?: string
   role_description?: string
-  role_level?: number  // Nível hierárquico do perfil (1-6)
+  role_level?: number  // Nível hierárquico do perfil (1-99)
+  is_system_role?: boolean // Define se é um perfil master de plataforma
+  auditConfigs?: any
+  currentTenant?: Tenant
+}
+
+export interface Tenant {
+  id: string
+  name: string
+  slug: string
+  segment: string
+  logo?: string | null
+  logo_mime_type?: string | null
 }
 
 /**
@@ -315,6 +327,8 @@ export interface AuthResult {
   user?: AdminUser
   sessionId?: string
   error?: string
+  requiresTenantSelection?: boolean
+  tenants?: Tenant[]
 }
 
 export interface Session {

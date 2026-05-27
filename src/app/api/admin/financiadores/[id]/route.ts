@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { findFinanciadorById, updateFinanciador, deleteFinanciador } from '@/lib/database/financiadores'
+import { getTokenFromRequest, verifyToken } from '@/lib/auth/jwt'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -10,7 +12,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const id = parseInt(params.id, 10)
     if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
-    const financiador = await findFinanciadorById(id)
+    // Extrair tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const isMasterAdmin = decoded?.is_system_role === true
+    const tenantId = isMasterAdmin ? undefined : decoded?.tenantId
+
+    const financiador = await findFinanciadorById(id, tenantId)
     if (!financiador) return NextResponse.json({ error: 'Financiador não encontrado' }, { status: 404 })
 
     return NextResponse.json({ success: true, data: financiador })
@@ -22,6 +30,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const denied = await requireApiPermission(request, 'financiadores', 'UPDATE')
+    if (denied) return denied
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck
 
@@ -58,7 +68,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Tipo MIME da logo é obrigatório' }, { status: 400 })
     }
 
-    const updated = await updateFinanciador(id, patch)
+    // Extrair tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const isMasterAdmin = decoded?.is_system_role === true
+    const tenantId = isMasterAdmin ? undefined : (decoded?.tenantId || '')
+
+    const updated = await updateFinanciador(id, tenantId, patch)
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
     console.error('Erro ao atualizar financiador:', error)
@@ -68,13 +84,21 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const denied = await requireApiPermission(request, 'financiadores', 'DELETE')
+    if (denied) return denied
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck
 
     const id = parseInt(params.id, 10)
     if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
-    await deleteFinanciador(id)
+    // Extrair tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const isMasterAdmin = decoded?.is_system_role === true
+    const tenantId = isMasterAdmin ? undefined : (decoded?.tenantId || '')
+
+    await deleteFinanciador(id, tenantId as string)
     return NextResponse.json({ success: true })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)

@@ -46,7 +46,7 @@ export default function NovoStatusImovelPage() {
     setError(null)
 
     try {
-      const response = await post('/api/admin/status-imovel', formData)
+      const response = await post('/api/admin/status-imoveis', formData)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -57,7 +57,7 @@ export default function NovoStatusImovelPage() {
       console.log('Status de imóvel criado com sucesso:', result)
 
       // Redirecionar para a lista
-      router.push('/admin/status-imovel')
+      router.push('/admin/status-imoveis')
     } catch (error) {
       console.error('Erro ao criar status de imóvel:', error)
       setError(error instanceof Error ? error.message : 'Erro desconhecido')
@@ -67,7 +67,7 @@ export default function NovoStatusImovelPage() {
   }
 
   const handleCancel = () => {
-    router.push('/admin/status-imovel')
+    router.push('/admin/status-imoveis')
   }
 
   return (

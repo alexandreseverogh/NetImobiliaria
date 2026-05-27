@@ -5,6 +5,10 @@ set -euo pipefail
 # Script de Deploy Automatizado — Net Imobiliária
 # Chamado pelo GitHub Actions via SSH
 # Uso: ./deploy-github.sh <branch> <ambiente>
+#
+# Ambientes suportados:
+#   producao  → Rebuilda e reinicia prod_app + prod_feed
+#   staging   → Rebuilda e reinicia staging_app + staging_feed
 # =============================================================
 
 BRANCH=${1:-main}
@@ -23,6 +27,15 @@ log "🚀 DEPLOY INICIADO"
 log "   Branch:   $BRANCH"
 log "   Ambiente: $AMBIENTE"
 log "============================================"
+
+# -------------------------------------------------------------
+# 0. Validação de segurança
+# -------------------------------------------------------------
+if [ "$AMBIENTE" == "producao" ] && [ "$BRANCH" != "main" ]; then
+  log "❌ BLOQUEADO: Apenas a branch 'main' pode ser deployada em produção!"
+  log "   Use 'staging' para testar a branch '$BRANCH' primeiro."
+  exit 1
+fi
 
 # -------------------------------------------------------------
 # 1. Garantir diretório de fontes
@@ -52,19 +65,17 @@ mkdir -p "$BASE_DIR/database/migrations_docker"
 rsync -av --delete "$TARGET_SOURCE/database/migrations_docker/" "$BASE_DIR/database/migrations_docker/"
 
 # -------------------------------------------------------------
-# 2. Verificar .env (infraestrutura já atualizada pelo workflow)
+# 2. Gerar .env de build com variáveis mapeadas
 # -------------------------------------------------------------
 log "[2/5] Gerando .env de build com variáveis mapeadas..."
 
-# O .env da VPS usa PROD_DB_NAME, PROD_DB_PASSWORD, etc.
-# O código Next.js espera DB_NAME, DB_PASSWORD, etc.
-# Geramos um .env de build com os nomes corretos mapeados.
 if [ -f "$BASE_DIR/.env" ]; then
   set -o allexport
   source "$BASE_DIR/.env"
   set +o allexport
 
-  cat > "$TARGET_SOURCE/.env" << ENVEOF
+  if [ "$AMBIENTE" == "producao" ]; then
+    cat > "$TARGET_SOURCE/.env" << ENVEOF
 DB_HOST=prod_db
 DB_PORT=5432
 DB_NAME=${PROD_DB_NAME:-net_imobiliaria}
@@ -74,54 +85,102 @@ JWT_SECRET=${PROD_JWT_SECRET:-build_placeholder}
 NEXT_PUBLIC_APP_URL=${PROD_APP_URL:-https://www.imovtec.com.br}
 NEXT_TELEMETRY_DISABLED=1
 NODE_ENV=production
+DB_POOL_MAX=100
+DB_POOL_MIN=10
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=${REDIS_PASSWORD:-}
+S3_ENDPOINT=${S3_ENDPOINT:-}
+S3_REGION=${S3_REGION:-us-east-1}
+S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+S3_SECRET_KEY=${S3_SECRET_KEY:-}
+S3_BUCKET=${S3_BUCKET_PROD:-netimobiliaria-prod}
+CDN_URL=${CDN_URL:-}
 ENVEOF
+    log "   ✅ .env de PRODUÇÃO gerado"
 
-  log "   ✅ .env de build gerado com variáveis mapeadas (DB_NAME, DB_PASSWORD, etc.)"
+  elif [ "$AMBIENTE" == "staging" ]; then
+    cat > "$TARGET_SOURCE/.env" << ENVEOF
+DB_HOST=staging_db
+DB_PORT=5432
+DB_NAME=${STAGING_DB_NAME:-net_imobiliaria_staging}
+DB_USER=${DB_USER:-postgres}
+DB_PASSWORD=${STAGING_DB_PASSWORD:-}
+JWT_SECRET=${STAGING_JWT_SECRET:-build_placeholder}
+NEXT_PUBLIC_APP_URL=${STAGING_APP_URL:-https://staging.imovtec.com.br}
+NEXT_TELEMETRY_DISABLED=1
+NODE_ENV=production
+DB_POOL_MAX=50
+DB_POOL_MIN=5
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=${REDIS_PASSWORD:-}
+S3_ENDPOINT=${S3_ENDPOINT:-}
+S3_REGION=${S3_REGION:-us-east-1}
+S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+S3_SECRET_KEY=${S3_SECRET_KEY:-}
+S3_BUCKET=${S3_BUCKET_STAGING:-netimobiliaria-staging}
+CDN_URL=${CDN_URL:-}
+ENVEOF
+    log "   ✅ .env de STAGING gerado"
+  fi
 else
   log "   ⚠️  AVISO: $BASE_DIR/.env não encontrado! O build pode falhar."
 fi
 
 # -------------------------------------------------------------
-# 3. Build da imagem Docker (usando Dockerfile atualizado)
+# 3. Build da imagem Docker
 # -------------------------------------------------------------
-log "[3/5] Construindo imagem Docker..."
+log "[3/5] Construindo imagem Docker para $AMBIENTE..."
 
 if [ "$AMBIENTE" == "producao" ]; then
-  log "   → Build APP para PRODUÇÃO com Dockerfile de: $BASE_DIR/Dockerfile.prod"
+  log "   → Build APP para PRODUÇÃO"
   docker build \
     -t "net-imobiliaria-prod_app:latest" \
     -f "$BASE_DIR/Dockerfile.prod" \
     "$TARGET_SOURCE"
   log "   ✅ Imagem APP construída: net-imobiliaria-prod_app:latest"
 
-  log "   → Build FEED para PRODUÇÃO com Dockerfile de: $BASE_DIR/Dockerfile.feed"
+  log "   → Build FEED para PRODUÇÃO"
   docker build \
     -t "net-imobiliaria-prod_feed:latest" \
     -f "$BASE_DIR/Dockerfile.feed" \
     "$TARGET_SOURCE"
   log "   ✅ Imagem FEED construída: net-imobiliaria-prod_feed:latest"
+
+elif [ "$AMBIENTE" == "staging" ]; then
+  log "   → Build APP para STAGING (branch: $BRANCH)"
+  docker build \
+    -t "net-imobiliaria-staging_app:latest" \
+    -f "$BASE_DIR/Dockerfile.prod" \
+    "$TARGET_SOURCE"
+  log "   ✅ Imagem APP construída: net-imobiliaria-staging_app:latest"
+
+  log "   → Build FEED para STAGING (branch: $BRANCH)"
+  docker build \
+    -t "net-imobiliaria-staging_feed:latest" \
+    -f "$BASE_DIR/Dockerfile.feed" \
+    "$TARGET_SOURCE"
+  log "   ✅ Imagem FEED construída: net-imobiliaria-staging_feed:latest"
 fi
 
 # -------------------------------------------------------------
-# 4. (Infraestrutura já atualizada no step 2)
+# 4. Infraestrutura
 # -------------------------------------------------------------
 log "[4/5] Infraestrutura já atualizada anteriormente. Prosseguindo..."
 
 # -------------------------------------------------------------
 # 5. Reiniciar serviço
 # -------------------------------------------------------------
-log "[5/5] Reiniciando container..."
+log "[5/5] Reiniciando container ($AMBIENTE)..."
 
 if [ "$AMBIENTE" == "producao" ]; then
-  # Iniciar app e feed worker juntos (cada um com sua imagem dedicada)
   docker compose -f "$BASE_DIR/docker-compose.vps.yml" up -d --no-build prod_app prod_feed
 
-  # Aplicar migrations
-  log "   → Aplicando migrations de banco de dados..."
+  log "   → Aplicando migrations de banco de dados (produção)..."
   bash "$BASE_DIR/scripts/vps/apply-migrations.sh" producao || true
 
-  # Aguardar health check
-  log "   → Aguardando health check do container..."
+  log "   → Aguardando health check..."
   sleep 15
 
   STATUS=$(docker compose -f "$BASE_DIR/docker-compose.vps.yml" ps prod_app --format "{{.Status}}" 2>/dev/null || echo "unknown")
@@ -135,6 +194,29 @@ if [ "$AMBIENTE" == "producao" ]; then
   else
     log "   ⚠️  Status inesperado: $STATUS"
     docker compose -f "$BASE_DIR/docker-compose.vps.yml" logs --tail=30 prod_app
+    exit 1
+  fi
+
+elif [ "$AMBIENTE" == "staging" ]; then
+  docker compose -f "$BASE_DIR/docker-compose.vps.yml" up -d --no-build staging_app staging_feed
+
+  log "   → Aplicando migrations de banco de dados (staging)..."
+  bash "$BASE_DIR/scripts/vps/apply-migrations.sh" staging || true
+
+  log "   → Aguardando health check..."
+  sleep 15
+
+  STATUS=$(docker compose -f "$BASE_DIR/docker-compose.vps.yml" ps staging_app --format "{{.Status}}" 2>/dev/null || echo "unknown")
+  log "   → Status staging_app: $STATUS"
+
+  FEED_STATUS=$(docker compose -f "$BASE_DIR/docker-compose.vps.yml" ps staging_feed --format "{{.Status}}" 2>/dev/null || echo "unknown")
+  log "   → Status staging_feed: $FEED_STATUS"
+
+  if echo "$STATUS" | grep -q "healthy\|Up"; then
+    log "   ✅ Container staging_app está saudável!"
+  else
+    log "   ⚠️  Status inesperado: $STATUS"
+    docker compose -f "$BASE_DIR/docker-compose.vps.yml" logs --tail=30 staging_app
     exit 1
   fi
 fi

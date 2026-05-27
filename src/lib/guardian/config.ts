@@ -1,7 +1,7 @@
 /**
  * Guardian Configuration Helper
  * 
- * Fetches Guardian configuration from the database (parametros table)
+ * Fetches Guardian configuration from the database (parametros_imoveis table)
  * This ensures NO HARDCODING of business rule parameters
  */
 
@@ -9,7 +9,7 @@ import pool from '../database/connection';
 import type { GuardianConfig } from './types';
 
 /**
- * Fetches Guardian configuration from the parametros table
+ * Fetches Guardian configuration from the parametros_imoveis table
  * 
  * CRITICAL: This is the ONLY way to get configuration values.
  * Never hardcode SLA times or retry limits in the code.
@@ -24,13 +24,13 @@ export async function fetchGuardianConfig(dbClient?: any): Promise<GuardianConfi
         sla_minutos_aceite_lead,
         proximos_corretores_recebem_leads_internos,
         sla_minutos_aceite_lead_interno
-      FROM public.parametros
+      FROM public.parametros_imoveis
       LIMIT 1
     `);
 
         if (result.rows.length === 0) {
             // Fallback to safe defaults if no config exists
-            console.warn('[Guardian] No parametros found in database, using defaults');
+            console.warn('[Guardian] No parametros_imoveis found in database, using defaults');
             return {
                 proximos_corretores_recebem_leads: 3,
                 sla_minutos_aceite_lead: 5,

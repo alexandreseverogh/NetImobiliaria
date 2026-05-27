@@ -1,19 +1,10 @@
-import { Pool } from 'pg';
 import crypto from 'crypto';
 import emailService from './emailService';
 import { getEnvironmentConfig } from '../lib/config/development';
+import pool from '@/lib/database/connection';
 
 // Obter configurações de ambiente
 const envConfig = getEnvironmentConfig();
-
-// Configuração do pool de conexão
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '15432'),
-  database: process.env.DB_NAME!,
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-});
 
 interface TwoFactorCode {
   id: number;
@@ -62,11 +53,12 @@ class TwoFactorAuthService {
   private async log2FAAttempt(
     userId: string,
     username: string,
-    action: '2fa_required' | '2fa_success' | '2fa_failed',
+    action: string,
     ipAddress: string,
     userAgent: string,
     success: boolean = true,
-    reason?: string
+    reason?: string,
+    tenantId?: string | null
   ) {
     try {
       await pool.query(`
@@ -77,10 +69,11 @@ class TwoFactorAuthService {
           ip_address,
           user_agent,
           two_fa_used,
+          two_fa_method,
           success,
           failure_reason,
           created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
       `, [
         userId,
         username,
@@ -88,6 +81,7 @@ class TwoFactorAuthService {
         ipAddress,
         userAgent,
         true, // 2FA sempre usa 2FA
+        'email', // Método padrão
         success,
         reason || null
       ]);
@@ -120,7 +114,7 @@ class TwoFactorAuthService {
   /**
    * Envia código 2FA por email
    */
-  async sendCodeByEmail(userId: string, email: string, ipAddress?: string, userAgent?: string): Promise<boolean> {
+  async sendCodeByEmail(userId: string, email: string, ipAddress?: string, userAgent?: string, tenantId?: string | null): Promise<boolean> {
     try {
       // Gerar código
       const code = this.generateCode();
@@ -135,18 +129,18 @@ class TwoFactorAuthService {
 
       try {
         // Usar sistema dinâmico (corrigido)
-        const success = await emailService.sendTemplateEmail('2fa-code', email, { code });
+        const success = await emailService.sendTemplateEmail('2fa-code', email, { code }, undefined, tenantId);
 
         console.log('📧 DEBUG - Email enviado com sucesso:', success);
 
         if (success) {
           // Log de auditoria
-          await this.log2FAActivity(userId, 'code_sent', 'email', { email, ip_address: ipAddress });
+          await this.log2FAActivity(userId, 'code_sent', 'email', { email, ip_address: ipAddress }, tenantId);
 
           // Log de login para 2FA
           const username = await this.getUsernameById(userId);
           if (username) {
-            await this.log2FAAttempt(userId, username, '2fa_required', ipAddress || 'unknown', userAgent || 'unknown', true);
+            await this.log2FAAttempt(userId, username, '2fa_required', ipAddress || 'unknown', userAgent || 'unknown', true, null, tenantId);
           }
 
           return true;
@@ -155,12 +149,12 @@ class TwoFactorAuthService {
         return false;
       } catch (emailError) {
         console.error('❌ DEBUG - Erro ao enviar email:', emailError);
-        await this.log2FAActivity(userId, 'code_send_failed', 'email', { error: emailError instanceof Error ? emailError.message : String(emailError) });
+        await this.log2FAActivity(userId, 'code_send_failed', 'email', { error: emailError instanceof Error ? emailError.message : String(emailError) }, tenantId);
         return false;
       }
     } catch (error) {
       console.error('❌ Erro ao enviar código 2FA por email:', error);
-      await this.log2FAActivity(userId, 'code_send_failed', 'email', { error: error instanceof Error ? error.message : String(error) });
+      await this.log2FAActivity(userId, 'code_send_failed', 'email', { error: error instanceof Error ? error.message : String(error) }, tenantId);
       return false;
     }
   }
@@ -187,7 +181,7 @@ class TwoFactorAuthService {
   /**
    * Valida código 2FA
    */
-  async validateCode(userId: string, code: string, method: string = 'email'): Promise<{
+  async validateCode(userId: string, code: string, method: string = 'email', tenantId?: string | null): Promise<{
     valid: boolean;
     message: string;
     remainingAttempts?: number;
@@ -241,7 +235,7 @@ class TwoFactorAuthService {
         // Log de login para 2FA
         const username = await this.getUsernameById(userId);
         if (username) {
-          await this.log2FAAttempt(userId, username, '2fa_failed', 'unknown', 'unknown', false, 'Código inválido ou expirado');
+          await this.log2FAAttempt(userId, username, '2fa_failed', 'unknown', 'unknown', false, 'Código inválido ou expirado', tenantId);
         }
 
         return {
@@ -261,12 +255,12 @@ class TwoFactorAuthService {
       // Log sucesso
       await this.log2FAActivity(userId, 'code_validation_success', method, {
         code_id: codeRecord.id
-      });
+      }, tenantId);
 
       // Log de login para 2FA
       const username = await this.getUsernameById(userId);
       if (username) {
-        await this.log2FAAttempt(userId, username, '2fa_success', codeRecord.ip_address || 'unknown', codeRecord.user_agent || 'unknown', true);
+        await this.log2FAAttempt(userId, username, '2fa_success', codeRecord.ip_address || 'unknown', codeRecord.user_agent || 'unknown', true, null, tenantId);
       }
 
       return {
@@ -278,7 +272,7 @@ class TwoFactorAuthService {
       console.error('❌ Erro ao validar código 2FA:', error);
       await this.log2FAActivity(userId, 'code_validation_error', method, {
         error: error instanceof Error ? error.message : String(error)
-      });
+      }, tenantId);
 
       return {
         valid: false,
@@ -373,7 +367,7 @@ class TwoFactorAuthService {
   /**
    * Habilita 2FA para usuário
    */
-  async enable2FA(userId: string, email: string): Promise<{
+  async enable2FA(userId: string, email: string, tenantId?: string | null): Promise<{
     success: boolean;
     message: string;
     backupCodes?: string[];
@@ -400,7 +394,7 @@ class TwoFactorAuthService {
       await pool.query(insertQuery, [userId, email, hashedBackupCodes]);
 
       // Log auditoria
-      await this.log2FAActivity(userId, '2fa_enabled', 'email', { email });
+      await this.log2FAActivity(userId, '2fa_enabled', 'email', { email }, tenantId);
 
       return {
         success: true,
@@ -412,7 +406,7 @@ class TwoFactorAuthService {
       console.error('❌ Erro ao habilitar 2FA:', error);
       await this.log2FAActivity(userId, '2fa_enable_failed', 'email', {
         error: error instanceof Error ? error.message : String(error)
-      });
+      }, tenantId);
 
       return {
         success: false,
@@ -424,7 +418,7 @@ class TwoFactorAuthService {
   /**
    * Desabilita 2FA para usuário
    */
-  async disable2FA(userId: string): Promise<{
+  async disable2FA(userId: string, tenantId?: string | null): Promise<{
     success: boolean;
     message: string;
   }> {
@@ -442,7 +436,7 @@ class TwoFactorAuthService {
       );
 
       // Log auditoria
-      await this.log2FAActivity(userId, '2fa_disabled', 'email', {});
+      await this.log2FAActivity(userId, '2fa_disabled', 'email', {}, tenantId);
 
       return {
         success: true,
@@ -453,7 +447,7 @@ class TwoFactorAuthService {
       console.error('❌ Erro ao desabilitar 2FA:', error);
       await this.log2FAActivity(userId, '2fa_disable_failed', 'email', {
         error: error instanceof Error ? error.message : String(error)
-      });
+      }, tenantId);
 
       return {
         success: false,
@@ -486,7 +480,8 @@ class TwoFactorAuthService {
     userId: string,
     action: string,
     method: string,
-    details: any
+    details: any,
+    tenantId?: string | null
   ): Promise<void> {
     try {
       const query = `

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // DELETE - Revogar sessão específica
 export async function DELETE(
@@ -8,6 +9,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'sessions', 'DELETE')
+    if (denied) return denied
     // Verificar permissão
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {

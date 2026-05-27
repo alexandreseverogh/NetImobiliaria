@@ -2976,13 +2976,21 @@ $$ LANGUAGE plpgsql;
 
 **Objetivo:** garantir velocidade. Lead atendido em **< 5 minutos** tende a converter muito mais.
 
-**Regras:**
-- Ao atribuir lead, criar registro de SLA (`expira_em = now()+5min`).
-- Corretor precisa â€œAceitar atendimentoâ€.
-- Se nÃ£o aceitar:
-  - registrar evento,
-  - penalizar score interno,
-  - redistribuir (transbordo) para o prÃ³ximo candidato.
+**Regras de Hierarquia de DistribuiÃ§Ã£o (Fallback):**
+1. **Dono do ImÃ³vel:** Se o lead vem de um imÃ³vel com `corretor_fk` preenchido, ele recebe o lead **automaticamente e em carÃ¡ter definitivo** (sem expiraÃ§Ã£o de SLA).
+2. **Meritocracia Regional:** Se o imÃ³vel nÃ£o tem dono ou se o lead for genÃ©rico (IA), entra no pool regional (Internos vs Externos). 
+   - A quantidade de tentativas e o tempo de resposta sÃ£o regidos pelos campos:
+     - `parametros.proximos_corretores_recebem_leads` (Limite Externos)
+     - `parametros.proximos_corretores_recebem_leads_internos` (Limite Internos)
+     - `parametros.sla_minutos_aceite_lead` (SLA Externos)
+     - `parametros.sla_minutos_aceite_lead_interno` (SLA Internos)
+3. **Corretor Plantonista:** Caso todas as tentativas regionais expirem ou nÃ£o existam candidatos qualificados na regiÃ£o, o lead Ã© escalado para o **Corretor Plantonista** (atendimento imediato e definitivo).
+
+**Regras Operativas:**
+- Ao atribuir lead por Meritocracia, o sistema define `atribuicao_expira_em`.
+- Se o corretor nÃ£o aceitar dentro do prazo (SLA):
+  - O job de transbordo (`cron/transbordo`) executa, registra a falha no histÃ³rico e solicita um novo candidato Ã  engine, excluindo todos os que jÃ¡ falharam anteriormente para este lead.
+- AtribuiÃ§Ãµes via **Dono do ImÃ³vel** ou **Plantonista** possuem `atribuicao_expira_em = NULL` (nÃ£o transbordam).
 
 ```sql
 CREATE TABLE leads_sla_aceite (
@@ -3923,4 +3931,67 @@ SaÃ­da do algoritmo:
 - **V1**: busca guiada de imÃ³veis + â€œlista curtaâ€ (3 opÃ§Ãµes) + follow-ups
 - **V2**: integraÃ§Ã£o WhatsApp completa (templates fora da janela) + reengajamento
 - **V3**: otimizaÃ§Ã£o por performance (feedback loop do corretor + aprendizado de perdas)
+
+
+---
+
+## 12. MÓDULO BI: CYCLE TIME E GARGALOS (EVENT SOURCING)
+
+Como estabelecido em 02/04/2026, foi homologado o plano de ação de arquitetura de BI para métricas de tempo de funil (Cycle Time).
+
+### 12.1. Arquitetura Proposta: Tabela de Histórico (Trigger-based)
+- **Tabela**: `leads_kanban_ciclos`
+  - `id` (PK)
+  - `lead_uuid` (FK)
+  - `coluna_id` (FK)
+  - `data_entrada` (Timestamp)
+  - `data_saida` (Timestamp)
+
+- **Automação de Bancos (Database level)**
+  - Criação de uma PostgreSQL Trigger em `leads_kanban` no evento de `UPDATE`.
+  - A trigger fecha a coluna antiga preenchendo `data_saida` e abre uma linha preenchendo `data_entrada` na nova coluna.
+
+### 12.2. Visualizações no Dashboard (Kanban Analytics)
+- **Mapa de Calor de Gargalos:** Exibição da coluna que concentra o maior TTL (Time-to-Live) da rede.
+- **Timeline Individual Modal:** Cada modal de lead terá seu rastreamento cronológico.
+- **Eficiência de SLA do Corretor:** Comparação de velocity entre membros da roleta.
+
+> *Status: Homologado pelo Comercial. Execução Iniciada na Sidebar.*
+
+
+---
+
+## 13. MÓDULO BI: GESTÃO DE INVESTIMENTO (CRUD MARKETING & ROI ESTRATÉGICO)
+
+*Aprovado em 02/04/2026. A visão estratégica foca em fornecer inteligência não apenas de Vendas, mas do Controle Qualitativo de Mídia para elevar a Diretoria de Marketing ao topo do mercado imobiliário nacional.*
+
+### 13.1. Arquitetura Inteligente do Banco de Dados
+Criação de uma nova tabela autônoma via Migration (marketing_campanhas_orcamento) para hospedar os inputs das verbas estratégicas. Campos obrigatórios definidos pelo comercial:
+- `id` (PK UUID)
+- `utm_campaign`: A Chave-Mestra que vai espelhar e cruzar com os dados de captação (ex: `Lancamento_Primavera`)
+- `plataforma`: Meta Ads, Google Search, TikTok, etc.
+- `publico_alvo`: Nível de segmentação semântico (ex: "Médicos", "Investidores Sul", "Famílias MCMV").
+- `periodo_faixa_horaria`: (Array/JSONB) Controlando a concentração de queima (ex: seg-sex 18h-00h).
+- `data_inicio` e `data_fim`: Vigência da queima orçamentária.
+- `valor_investido_brl`: O custo empenhado pela diretoria.
+
+### 13.2. A Dinâmica UX/UI Premium (Como a tela vai se comportar)
+A interface precisará gritar "Premium". O layout abordará vidros (Glassmorphism), acentos em Blue-Laser e tipografia brutalista estruturada.
+- **Área 1 (Inserção/CRUD):** Botão discreto no topo direito "+ Alocar Verba". Abre um Modal limpo e linear em etapas (Wizard) onde o especialista de mídia preenche o custo e os recortes demográficos da campanha X.
+- **Área 2 (HUD Estratégico - O Drill-down de Elite):**
+   - **Card CPL vs Público (Score Semântico):** Cruza o `publico_alvo` declarado com a Nota da IA. *Ex: Retorna graficamente que o Público "Advogados" custou R/lead, mas 80% estava com "Prontidão Fria", enquanto "Médicos" estava em R/lead mas fechou em 3 dias.*
+   - **Sankey de Sangria:** Visual progressivo que espelha o gargalo de leads gerados especificamente por uma única UTM Campaign até chegar na coluna de venda. Onde quebrou a campanha? Na conversão pro chat ou no atendimento?
+   - **Dashboard Individual (Drill-Down Matrix):** Se a diretoria clica no bloco da campanha "Investidores Sul", ela é projetada para uma sub-página focada que elenca e ranqueia *Quais Corretores (Com fotos)* performaram melhor especificamente em atender este público.
+
+### 13.3. Matemática Parametrizada do ROI Real
+O Backend efetuará um JOIN diário entre `marketing_campanhas_orcamento` e `marketing_eventos` (que fica atrelada ao Kanban).
+- Ele divide os leads rastreados com UTM pela verba declarada naquela mesma UTM.
+- Dispara relatórios analíticos: CPL (Custo por Lead), CPV (Custo por Visita Agendada), CPA (Custo por Agendamento) e CAC (Custo de Venda).
+
+
+---
+
+## 14. GUARDIAN RULES: PADRÕES DE UX GLOBAIS
+
+**Regra 001 - Máscara Monetária Obrigatória:** Em QUALQUER formulário (CRUD) desenvolvido nesta aplicação, sempre que existir a requisição de input de um "Campo de Valor/Moeda", o componente DEVERÁ incorporar a máscara dinâmica de formatação de moeda brasileira (BRL), impedindo digitação de texto bruto e garantindo o formato `R$ 0.000,00` direto na interface para escalada nativa da experiência Premium.
 

@@ -1,121 +1,15 @@
-﻿/* eslint-disable */
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword } from '@/lib/auth/password'
 import { generateTokensNode } from '@/lib/auth/jwt-node'
 import { rateLimit } from '@/lib/middleware/rateLimit'
 import { logAuditEvent } from '@/lib/database/audit'
-import { findUserByUsername, updateLastLogin } from '@/lib/database/users'
+import { findUserByUsername, updateLastLogin, getUserPermissions } from '@/lib/database/users'
 
 // ForÃ§ar uso do Node.js runtime
 export const runtime = 'nodejs'
 
-// FunÃ§Ã£o para obter permissÃµes do sistema de perfis
-async function getUserPermissions(userId: string): Promise<{
-  imoveis: string
-  proximidades: string
-  amenidades: string
-  'categorias-amenidades': string
-  'categorias-proximidades': string
-  usuarios: string
-  relatorios: string
-  sistema: string
-}> {
-  try {
-    const pool = await import('@/lib/database/connection').then(m => m.default)
-    
-    const query = `
-      SELECT 
-        CASE 
-          WHEN sf.category ILIKE '%im%veis%' THEN 'imoveis'
-          WHEN sf.category ILIKE '%amenidades%' THEN 'amenidades'
-          WHEN sf.category ILIKE '%proximidades%' THEN 'proximidades'
-          WHEN sf.category ILIKE '%usu%rios%' THEN 'usuarios'
-          WHEN sf.category ILIKE '%relat%rios%' THEN 'relatorios'
-          WHEN sf.category ILIKE '%sistema%' THEN 'sistema'
-          ELSE sf.category
-        END as resource,
-        p.action,
-        ur.level
-      FROM user_role_assignments ura
-      JOIN user_roles ur ON ura.role_id = ur.id
-      JOIN role_permissions rp ON ur.id = rp.role_id
-      JOIN permissions p ON rp.permission_id = p.id
-      JOIN system_features sf ON p.feature_id = sf.id
-      WHERE ura.user_id = $1
-      ORDER BY ur.level DESC, sf.category, p.action
-    `
-    
-    const result = await pool.query(query, [userId])
-    
-    // Converter permissÃµes para o formato esperado
-    const permissoes: {
-      imoveis: string
-      proximidades: string
-      amenidades: string
-      'categorias-amenidades': string
-      'categorias-proximidades': string
-      usuarios: string
-      relatorios: string
-      sistema: string
-    } = {
-      imoveis: 'NONE',
-      proximidades: 'NONE',
-      amenidades: 'NONE',
-      'categorias-amenidades': 'NONE',
-      'categorias-proximidades': 'NONE',
-      usuarios: 'NONE',
-      relatorios: 'NONE',
-      sistema: 'NONE'
-    }
-    
-    // Mapear permissÃµes do banco
-    result.rows.forEach((perm: any) => {
-      const resource = perm.resource.toLowerCase()
-      
-      // Verificar se o recurso Ã© vÃ¡lido
-      if (!(resource in permissoes)) {
-        return // Pular recursos nÃ£o reconhecidos
-      }
-      
-      // Mapear aÃ§Ãµes para nÃ­veis de permissÃ£o (priorizar permissÃµes mais altas)
-      if (perm.action === 'delete') {
-        permissoes[resource as keyof typeof permissoes] = 'DELETE'
-      } else if (perm.action === 'create' || perm.action === 'update') {
-        // SÃ³ definir WRITE se nÃ£o for DELETE
-        if (permissoes[resource as keyof typeof permissoes] !== 'DELETE') {
-          permissoes[resource as keyof typeof permissoes] = 'WRITE'
-        }
-      } else if (perm.action === 'read' || perm.action === 'list') {
-        // SÃ³ definir READ se nÃ£o for DELETE ou WRITE
-        if (permissoes[resource as keyof typeof permissoes] === 'NONE') {
-          permissoes[resource as keyof typeof permissoes] = 'READ'
-        }
-      }
-    })
-    
-    // Definir READ como padrÃ£o para recursos sem permissÃµes especÃ­ficas
-    Object.keys(permissoes).forEach(key => {
-      if (permissoes[key as keyof typeof permissoes] === 'NONE') {
-        permissoes[key as keyof typeof permissoes] = 'READ'
-      }
-    })
-    
-    return permissoes
-  } catch (error) {
-    console.error('Erro ao buscar permissÃµes:', error)
-    // Retornar permissÃµes padrÃ£o em caso de erro
-    return {
-      imoveis: 'READ',
-      proximidades: 'READ',
-      amenidades: 'READ',
-      'categorias-amenidades': 'READ',
-      'categorias-proximidades': 'READ',
-      usuarios: 'READ',
-      relatorios: 'READ',
-      sistema: 'READ'
-    }
-  }
-}
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -192,23 +86,31 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Buscar role_name do usuÃ¡rio
+    // Buscar metadata do perfil do usuário
     const pool = await import('@/lib/database/connection').then(m => m.default)
     const roleQuery = `
-      SELECT ur.name as role_name
+      SELECT 
+        ur.name as role_name,
+        ur.level as role_level,
+        ur.is_system_role
       FROM user_role_assignments ura
       JOIN user_roles ur ON ura.role_id = ur.id
       WHERE ura.user_id = $1
+      ORDER BY ur.level DESC
       LIMIT 1
     `
     const roleResult = await pool.query(roleQuery, [user.id])
-    const role_name = roleResult.rows[0]?.role_name || ''
+    const roleMetadata = roleResult.rows[0] || { role_name: 'Usuário', role_level: 1, is_system_role: false }
 
-    // Gerar tokens JWT com permissÃµes e role_name
+    // Gerar tokens JWT com metadata completa
     const tokens = generateTokensNode({
       userId: user.id,
       username: user.username,
-      role_name: role_name,
+      nome: user.nome,
+      email: user.email,
+      role_name: roleMetadata.role_name,
+      role_level: roleMetadata.role_level,
+      is_system_role: roleMetadata.is_system_role === true,
       permissoes: await getUserPermissions(user.id)
     })
     

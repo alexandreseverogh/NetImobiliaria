@@ -3,6 +3,7 @@ import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionM
 import { findAllCategoriasAmenidades, createCategoriaAmenidade } from '@/lib/database/amenidades'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,9 +11,16 @@ export async function GET(request: NextRequest) {
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck
     
+    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    let tenantId = undefined
+    if (token) {
+      const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
+      tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    }
+
     console.log('🔄 API: Iniciando busca de categorias de amenidades...')
     
-    const categorias = await findAllCategoriasAmenidades()
+    const categorias = await findAllCategoriasAmenidades(tenantId)
     console.log(`✅ API: ${categorias.length} categorias encontradas`)
     
     // Retornar diretamente o array para compatibilidade com o frontend
@@ -28,12 +36,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'CREATE')
+    if (denied) return denied
+
     // Verificação de permissão
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck
-    
+
     const body = await request.json()
-    
+
     console.log('📝 POST /api/admin/categorias-amenidades - Body recebido:', body)
     
     const { nome, descricao, icone, cor, ordem, ativo } = body
@@ -48,13 +59,21 @@ export async function POST(request: NextRequest) {
     
     console.log('📝 Criando categoria com dados:', { nome, descricao, icone, cor, ordem, ativo })
     
+    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    let tenantId = undefined
+    if (token) {
+      const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
+      tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    }
+
     const novaCategoria = await createCategoriaAmenidade({
       nome,
       descricao,
       icone: icone || 'star',
       cor: cor || '#3B82F6',
       ordem: ordem || 1,
-      ativo: ativo !== undefined ? ativo : true
+      ativo: ativo !== undefined ? ativo : true,
+      tenant_id: tenantId
     })
     
     console.log('✅ Categoria criada:', novaCategoria)

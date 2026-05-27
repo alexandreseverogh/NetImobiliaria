@@ -17,6 +17,7 @@ interface User {
   role_name?: string
   role_id?: number
   foto?: string | null // Base64 or URL
+  google_calendar_authorized?: boolean
 }
 
 interface UserRole {
@@ -35,7 +36,7 @@ interface EditUserModalProps {
 }
 
 export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles }: EditUserModalProps) {
-  const { put, delete: del } = useApi()
+  const { get, put, delete: del } = useApi()
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -47,8 +48,12 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
     tipo_corretor: null as 'Interno' | 'Externo' | null,
     password: '',
     confirmPassword: '',
-    roleId: null as number | null
+    roleId: null as number | null,
+    google_refresh_token: '',
+    google_calendar_authorized: false,
+    metadata: {} as Record<string, any>
   })
+  const [dynamicFields, setDynamicFields] = useState<any[]>([])
   const [foto, setFoto] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const fotoInputId = 'edit-user-foto-input'
@@ -70,7 +75,10 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
         tipo_corretor: user.tipo_corretor || null,
         password: '',
         confirmPassword: '',
-        roleId: user.role_id || null
+        roleId: user.role_id || null,
+        google_refresh_token: (user as any).google_refresh_token || '',
+        google_calendar_authorized: user.google_calendar_authorized || false,
+        metadata: (user as any).metadata || (user as any).custom_data || {}
       })
       setErrors({})
       setFoto(null)
@@ -86,6 +94,13 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
               if (data.user.foto) {
                 setPreviewUrl(`data:${data.user.foto_tipo_mime || 'image/jpeg'};base64,${data.user.foto}`)
               }
+              // Sincronizar campos do Google que podem ter vindo incompletos da lista
+              setFormData(prev => ({
+                ...prev,
+                google_refresh_token: data.user.google_refresh_token || '',
+                google_calendar_authorized: data.user.google_calendar_authorized || false,
+                metadata: data.user.metadata || data.user.custom_data || {}
+              }))
             }
           }
         } catch (err) {
@@ -95,6 +110,39 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       fetchUserDetails()
     }
   }, [user])
+
+  // Buscar campos dinâmicos quando o perfil muda OU quando o modal abre
+  useEffect(() => {
+    const fetchFields = async () => {
+      if (!formData.roleId || !isOpen) return;
+      
+      try {
+        console.log('🔍 [DEBUG] Buscando campos dinâmicos via useApi para Perfil:', formData.roleId);
+        const response = await get(`/api/admin/perfis/${formData.roleId}`);
+        if (response.ok) {
+          const data = await response.json();
+          const perfilData = data.perfil || data;
+          const fields = (perfilData.custom_fields || []).map((f: any) => ({
+            id: f.id,
+            field_name: f.field_name || f.name,
+            field_label: f.field_label || f.label,
+            field_type: f.field_type || f.type,
+            is_required: !!(f.is_required || f.required),
+            field_options: f.field_options || f.options
+          }));
+          
+          console.log('✅ [DEBUG] Campos carregados com sucesso:', fields.length);
+          setDynamicFields(fields);
+        } else {
+          console.error('❌ [DEBUG] Erro na resposta da API de Perfis (via useApi):', response.status);
+        }
+      } catch (error) {
+        console.error('❌ [DEBUG] Falha ao buscar campos:', error);
+      }
+    };
+
+    fetchFields();
+  }, [formData.roleId, isOpen, get]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -143,8 +191,13 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('🚀 Tentativa de salvar usuário iniciada...')
 
-    if (!validateForm()) return
+    if (!validateForm()) {
+      console.warn('⚠️ Validação falhou. Verifique os campos em vermelho.')
+      alert('Por favor, corrija os erros no formulário antes de salvar.')
+      return
+    }
 
     setLoading(true)
     try {
@@ -204,6 +257,10 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
       if (foto) {
         fd.append('foto', foto)
       }
+
+      fd.append('google_refresh_token', formData.google_refresh_token)
+      fd.append('google_calendar_authorized', String(formData.google_calendar_authorized))
+      fd.append('metadata', JSON.stringify(formData.metadata))
 
       // Recuperar token para autenticação
       let token = localStorage.getItem('admin-auth-token')
@@ -334,30 +391,30 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Foto (Topo) */}
-            <div className="flex justify-center mb-6">
-              <div className="w-full flex flex-col items-center">
-                <div className="relative mb-4">
-                  <div className={`w-32 h-32 rounded-full border-4 flex items-center justify-center overflow-hidden bg-white shadow-sm ${previewUrl ? 'border-blue-100' : 'border-gray-100'
-                    }`}>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {/* Foto (Lateral Compacta) */}
+              <div className="md:col-span-1 flex flex-col items-center border-r border-gray-50 pr-4">
+                <div className="relative group">
+                  <div className={`w-24 h-24 rounded-full border-2 flex items-center justify-center overflow-hidden bg-white shadow-sm ${previewUrl ? 'border-blue-100' : 'border-gray-100'}`}>
                     {previewUrl ? (
+                      <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : user.foto ? (
                       <img
-                        src={previewUrl}
-                        alt="Preview"
+                        src={`data:${(user as any).foto_tipo_mime || 'image/jpeg'};base64,${user.foto}`}
+                        alt={user.nome}
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
                     )}
                   </div>
                   <label
                     htmlFor={fotoInputId}
-                    className="absolute bottom-1 right-1 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 cursor-pointer shadow-md transition-colors"
-                    title="Alterar foto"
+                    className="absolute bottom-0 right-0 p-1.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 cursor-pointer shadow-md transition-colors"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
                   </label>
@@ -374,251 +431,224 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user, roles 
                     if (file) {
                       const url = URL.createObjectURL(file)
                       setPreviewUrl(url)
-                    } else {
-                      // Se cancelar, manter a foto anterior (se houver) ou limpar?
-                      // Melhor manter a que veio do banco se não escolheu nova
-                      // Mas se setFoto(null), vai enviar null.
-                      // Se setPreviewUrl(null), vai mostrar vazio.
-                      // Vamos apenas não mudar o preview se cancelar (ou o browser handle limpa?)
                     }
                   }}
                 />
-                <p className="text-xs text-gray-500">
-                  {foto ? foto.name : 'Clique no ícone para alterar a foto'}
-                </p>
-              </div>
-            </div>
-
-            {/* Primeira linha: Username e Email */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Username */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Username *
-                </label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => handleInputChange('username', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.username ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                  placeholder="Digite o username"
-                />
-                {errors.username && (
-                  <p className="text-red-500 text-xs mt-1">{errors.username}</p>
-                )}
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  E-mail *
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.email ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                  placeholder="Digite o e-mail"
-                />
-                {errors.email && (
-                  <p className="text-red-500 text-xs mt-1">{errors.email}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Segunda linha: Nome e Telefone */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Nome */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nome Completo *
-                </label>
-                <input
-                  type="text"
-                  value={formData.nome}
-                  onChange={(e) => handleInputChange('nome', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.nome ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                  placeholder="Digite o nome completo"
-                />
-                {errors.nome && (
-                  <p className="text-red-500 text-xs mt-1">{errors.nome}</p>
-                )}
-              </div>
-
-              {/* Telefone */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Telefone
-                </label>
-                <input
-                  type="tel"
-                  value={formData.telefone}
-                  onChange={(e) => handleInputChange('telefone', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                  placeholder="Digite apenas os números (formatação automática)"
-                />
-                {errors.telefone && (
-                  <p className="text-red-500 text-xs mt-1">{errors.telefone}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Terceira linha: Perfil */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Perfil */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Perfil *
-                </label>
-                <select
-                  value={formData.roleId || ''}
-                  onChange={(e) => handleInputChange('roleId', parseInt(e.target.value) || null)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                >
-                  <option value="">Selecione um perfil</option>
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name} - {role.description}
-                    </option>
-                  ))}
-                </select>
-                {errors.roleId && (
-                  <p className="text-red-500 text-xs mt-1">{errors.roleId}</p>
-                )}
-              </div>
-
-              {/* Tipo de Corretor (Apenas se o perfil for Corretor) */}
-              {roles.find(r => r.id === formData.roleId)?.name === 'Corretor' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tipo de Corretor *
-                  </label>
-                  <select
-                    value={formData.tipo_corretor || ''}
-                    onChange={(e) => handleInputChange('tipo_corretor', e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                  >
-                    <option value="Interno">Interno</option>
-                    <option value="Externo">Externo</option>
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {/* Quarta linha: Status e Isenção */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="ativo"
-                  checked={formData.ativo}
-                  onChange={(e) => handleInputChange('ativo', e.target.checked)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="ativo" className="text-sm font-medium text-gray-700">
-                  Usuário ativo
-                </label>
-              </div>
-
-              {roles.find(r => r.id === formData.roleId)?.name === 'Corretor' && (
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3 px-3 py-2 bg-amber-50 rounded-lg border border-amber-100">
-                    <input
-                      type="checkbox"
-                      id="isencao"
-                      checked={formData.isencao}
-                      onChange={(e) => handleInputChange('isencao', e.target.checked)}
-                      className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-amber-300 rounded"
-                    />
-                    <label htmlFor="isencao" className="text-sm font-medium text-amber-900">
-                      Isenção de Mensalidade
-                    </label>
+                
+                {/* Status Google Compacto */}
+                {user.google_calendar_authorized && (
+                  <div className="mt-3 flex items-center px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100">
+                    <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
+                    <span className="text-[8px] font-black uppercase tracking-tighter">Google Ativo</span>
                   </div>
+                )}
+              </div>
 
-                  <div className="flex items-center space-x-3 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+              {/* Coluna de Dados Principal */}
+              <div className="md:col-span-3 space-y-4">
+                {/* Username e Email */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Username *</label>
                     <input
-                      type="checkbox"
-                      id="is_plantonista"
-                      checked={formData.is_plantonista}
-                      onChange={(e) => handleInputChange('is_plantonista', e.target.checked)}
-                      className="h-4 w-4 text-slate-700 focus:ring-slate-500 border-slate-300 rounded"
+                      type="text"
+                      value={formData.username}
+                      onChange={(e) => handleInputChange('username', e.target.value)}
+                      className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.username ? 'border-red-300' : 'border-gray-300'}`}
+                      placeholder="Username"
                     />
-                    <label htmlFor="is_plantonista" className="text-sm font-medium text-slate-900">
-                      Corretor plantonista (fallback)
-                    </label>
+                    {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">E-mail *</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.email ? 'border-red-300' : 'border-gray-300'}`}
+                      placeholder="E-mail"
+                    />
+                    {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                   </div>
                 </div>
-              )}
+
+                {/* Nome e Telefone */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo *</label>
+                    <input
+                      type="text"
+                      value={formData.nome}
+                      onChange={(e) => handleInputChange('nome', e.target.value)}
+                      className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.nome ? 'border-red-300' : 'border-gray-300'}`}
+                      placeholder="Nome completo"
+                    />
+                    {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                    <input
+                      type="tel"
+                      value={formData.telefone}
+                      onChange={(e) => handleInputChange('telefone', e.target.value)}
+                      className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.telefone ? 'border-red-300' : 'border-gray-300'}`}
+                      placeholder="Telefone"
+                    />
+                    {errors.telefone && <p className="text-red-500 text-[10px] mt-1">{errors.telefone}</p>}
+                  </div>
+                </div>
+
+                {/* Perfil e Tipo */}
+                {/* Perfil e Tipo */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Perfil *</label>
+                    <select
+                      value={formData.roleId || ''}
+                      onChange={(e) => handleInputChange('roleId', parseInt(e.target.value) || null)}
+                      className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.roleId ? 'border-red-300' : 'border-gray-300'}`}
+                    >
+                      <option value="">Selecione um perfil</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.id}>{role.name}</option>
+                      ))}
+                    </select>
+                    {errors.roleId && <p className="text-red-500 text-[10px] mt-1">{errors.roleId}</p>}
+                  </div>
+                </div>
+
+                {/* Status - Super Compacto */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-100">
+                    <input
+                      type="checkbox"
+                      id="edit_ativo"
+                      checked={formData.ativo}
+                      onChange={(e) => handleInputChange('ativo', e.target.checked)}
+                      className="h-3 w-3 text-blue-600 border-gray-300 rounded cursor-pointer"
+                    />
+                    <label htmlFor="edit_ativo" className="text-[10px] font-bold text-gray-700 cursor-pointer uppercase">Usuário Ativo</label>
+                  </div>
+                </div>
+
+                {/* Campos Dinâmicos (Metadados) */}
+                {dynamicFields.length > 0 && (
+                  <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+                      <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest">Informações Complementares do Perfil</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {dynamicFields.map((field) => (
+                        <div key={field.id}>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {field.field_label} {field.is_required && '*'}
+                          </label>
+                          
+                          {field.field_type === 'select' ? (
+                            <select
+                              value={formData.metadata[field.field_name] || ''}
+                              onChange={(e) => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  metadata: {
+                                    ...prev.metadata,
+                                    [field.field_name]: e.target.value
+                                  }
+                                }))
+                              }}
+                              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                              required={field.is_required}
+                            >
+                              <option value="">Selecione...</option>
+                              {field.field_options?.split(',').filter(Boolean).map((opt: string) => (
+                                <option key={opt.trim()} value={opt.trim()}>
+                                  {opt.trim()}
+                                </option>
+                              ))}
+                            </select>
+                          ) : field.field_type === 'boolean' ? (
+                            <div className="flex items-center space-x-3 py-2 bg-white px-3 rounded-lg border border-dashed border-gray-200">
+                              <input
+                                type="checkbox"
+                                id={`edit_field_${field.field_name}`}
+                                checked={formData.metadata[field.field_name] === true || formData.metadata[field.field_name] === 'true'}
+                                onChange={(e) => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    metadata: {
+                                      ...prev.metadata,
+                                      [field.field_name]: e.target.checked
+                                    }
+                                  }))
+                                }}
+                                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-all cursor-pointer"
+                              />
+                              <label htmlFor={`edit_field_${field.field_name}`} className="text-sm text-gray-600 cursor-pointer select-none">
+                                Sim
+                              </label>
+                            </div>
+                          ) : (
+                            <input
+                              type={field.field_type === 'date' ? 'date' : field.field_type === 'number' ? 'number' : 'text'}
+                              value={formData.metadata[field.field_name] || ''}
+                              onChange={(e) => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  metadata: {
+                                    ...prev.metadata,
+                                    [field.field_name]: e.target.value
+                                  }
+                                }))
+                              }}
+                              className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all border-gray-300`}
+                              placeholder={`Digite o ${field.field_label}`}
+                              required={field.is_required}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Senhas */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nova Senha</label>
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange('password', e.target.value)}
+                      className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.password ? 'border-red-300' : 'border-gray-300'}`}
+                      placeholder="Opcional"
+                    />
+                    {errors.password && <p className="text-red-500 text-[10px] mt-1">{errors.password}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Senha</label>
+                    <input
+                      type="password"
+                      value={formData.confirmPassword}
+                      onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                      className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.confirmPassword ? 'border-red-300' : 'border-gray-300'}`}
+                      placeholder="Confirmação"
+                    />
+                    {errors.confirmPassword && <p className="text-red-500 text-[10px] mt-1">{errors.confirmPassword}</p>}
+                  </div>
+                </div>
+
+                {/* Seção Google Calendar Removida */}
+              </div>
             </div>
 
-            {/* Quarta linha: Nova Senha e Confirmar Senha */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Nova Senha */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nova Senha (deixe em branco para manter a atual)
-                </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.password ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                  placeholder="Digite a nova senha"
-                />
-                {errors.password && (
-                  <p className="text-red-500 text-xs mt-1">{errors.password}</p>
-                )}
-              </div>
-
-              {/* Confirmar Senha */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirmar Nova Senha
-                </label>
-                <input
-                  type="password"
-                  value={formData.confirmPassword}
-                  onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                  placeholder="Confirme a nova senha"
-                />
-                {errors.confirmPassword && (
-                  <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Botões */}
-            <div className="flex space-x-4 pt-6 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all font-medium"
-              >
-                Cancelar
-              </button>
-
+            {/* Botões - Fora do grid lateral */}
+            <div className="flex space-x-3 pt-3 border-t border-gray-100">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium">Cancelar</button>
               <PermissionGuard resource="usuarios" action="DELETE">
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={deleting || loading}
-                  className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium"
-                >
-                  {deleting ? 'Excluindo...' : 'Excluir'}
-                </button>
+                <button type="button" onClick={handleDelete} className="px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium">Excluir</button>
               </PermissionGuard>
-
-              <button
-                type="submit"
-                disabled={loading || deleting}
-                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium"
-              >
+              <button type="submit" disabled={loading} className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium">
                 {loading ? 'Salvando...' : 'Salvar Alterações'}
               </button>
             </div>

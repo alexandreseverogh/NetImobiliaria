@@ -3,8 +3,10 @@ import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionM
 import { auditLogger } from '@/lib/utils/auditLogger'
 import { findUserById, updateUser, deleteUser } from '@/lib/database/users'
 import { getTokenFromRequest } from '@/lib/auth/jwt'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { validateCPF } from '@/lib/utils/formatters'
 import { logAuditEvent as logDbAuditEvent, extractRequestData } from '@/lib/audit/auditLogger'
+import pool from '@/lib/database/connection'
 
 // Interface para atualização de usuário
 interface UpdateUserRequest {
@@ -22,6 +24,10 @@ interface UpdateUserRequest {
   is_plantonista?: boolean
   tipo_corretor?: 'Interno' | 'Externo' | null
   roleId?: number
+  google_refresh_token?: string | null
+  google_calendar_authorized?: boolean
+  custom_data?: any
+  metadata?: any
 }
 
 // Função para validar dados de atualização
@@ -142,6 +148,10 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'usuarios', 'UPDATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -215,6 +225,33 @@ export async function PUT(
       if (formData.has('is_plantonista')) updateData.is_plantonista = formData.get('is_plantonista') === 'true'
       if (formData.has('tipo_corretor')) updateData.tipo_corretor = formData.get('tipo_corretor') as 'Interno' | 'Externo' | null
       if (formData.has('roleId')) updateData.roleId = parseInt(formData.get('roleId') as string)
+      if (formData.has('google_refresh_token')) updateData.google_refresh_token = formData.get('google_refresh_token') as string || null
+      if (formData.has('google_calendar_authorized')) updateData.google_calendar_authorized = formData.get('google_calendar_authorized') === 'true'
+      if (formData.has('custom_data') || formData.has('metadata')) {
+        try {
+          const rawData = (formData.get('metadata') || formData.get('custom_data')) as string
+          updateData.metadata = JSON.parse(rawData)
+        } catch (e) {
+          updateData.metadata = {}
+        }
+      }
+
+      // 🛡️ VALIDAÇÃO HIERÁRQUICA DA ROLE (Se fornecida)
+      if (updateData.roleId) {
+        const roleCheck = await pool.query('SELECT level FROM user_roles WHERE id = $1', [updateData.roleId])
+        if (roleCheck.rows.length > 0) {
+          const targetRoleLevel = roleCheck.rows[0].level
+          const callerLevel = decoded?.role_level || 0
+          const isMasterAdmin = !!decoded?.is_system_role
+
+          if (targetRoleLevel > callerLevel && !isMasterAdmin) {
+            return NextResponse.json(
+              { error: `Você só pode atribuir perfis com nível estritamente inferior ao seu (${callerLevel}). O perfil selecionado tem nível ${targetRoleLevel}.` },
+              { status: 403 }
+            )
+          }
+        }
+      }
 
       const fotoFile = formData.get('foto') as File | null
       if (fotoFile && typeof fotoFile !== 'string') {
@@ -224,6 +261,23 @@ export async function PUT(
       }
     } else {
       updateData = await request.json()
+
+      // 🛡️ VALIDAÇÃO HIERÁRQUICA DA ROLE (Se fornecida em JSON)
+      if (updateData.roleId) {
+        const roleCheck = await pool.query('SELECT level FROM user_roles WHERE id = $1', [updateData.roleId])
+        if (roleCheck.rows.length > 0) {
+          const targetRoleLevel = roleCheck.rows[0].level
+          const callerLevel = decoded?.role_level || 0
+          const isMasterAdmin = !!decoded?.is_system_role
+
+          if (targetRoleLevel >= callerLevel && !isMasterAdmin) {
+            return NextResponse.json(
+              { error: `Você só pode atribuir perfis com nível estritamente inferior ao seu (${callerLevel}). O perfil selecionado tem nível ${targetRoleLevel}.` },
+              { status: 403 }
+            )
+          }
+        }
+      }
     }
 
     console.log('📥 Dados recebidos para atualização:', { ...updateData, foto: updateData.foto ? '[BUFFER]' : undefined })
@@ -336,6 +390,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de exclusão server-side
+    const denied = await requireApiPermission(request, 'usuarios', 'DELETE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {

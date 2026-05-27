@@ -47,10 +47,10 @@ async function performLogin(username: string, password: string, twoFactorCode?: 
 
     if (response.ok && data.success) {
       // Salvar token no localStorage
-      if (data.data && data.data.token) {
-        localStorage.setItem('admin-auth-token', data.data.token)
+      if (data.token) {
+        localStorage.setItem('admin-auth-token', data.token)
         localStorage.setItem('admin-user-data', JSON.stringify({
-          ...data.data.user,
+          ...data.user,
           at: Date.now()
         }))
       }
@@ -69,7 +69,7 @@ async function performLogin(username: string, password: string, twoFactorCode?: 
 // Função para fazer logout
 async function performLogout() {
   try {
-    const token = localStorage.getItem('auth-token')
+    const token = localStorage.getItem('admin-auth-token')
     if (token) {
       await fetch('/api/admin/auth/logout', {
         method: 'POST',
@@ -132,30 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Verificar autenticação ao carregar
   useEffect(() => {
-    // Se estiver no cliente, verificar localStorage primeiro
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('admin-auth-token')
-      const userData = localStorage.getItem('admin-user-data')
-
-      if (token && userData) {
-        // Se há dados no localStorage, usar eles temporariamente
-        try {
-          const parsedUser = JSON.parse(userData)
-          setUser(parsedUser)
-          setLoading(false)
-
-          // Mas sempre verificar permissões atualizadas da API
-          // para garantir que temos os dados mais recentes
-          checkAuth()
-          return
-        } catch (error) {
-          console.error('Erro ao parsear dados do usuário:', error)
-          localStorage.removeItem('admin-auth-token')
-          localStorage.removeItem('admin-user-data')
-        }
-      }
-    }
-
+    // Tolerância Zero: Sempre verificar no servidor antes de tirar o loading ou definir o usuário
     checkAuth()
   }, [])
 
@@ -166,26 +143,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Se estiver na página de login, não verificar autenticação
       const currentPath = window.location.pathname
-      if (currentPath === '/admin/login') {
-        setUser(null)
+      const path = window.location.pathname
+      if (path.includes('/login') || path.includes('/forgot-password') || path.includes('/reset-password')) {
         setLoading(false)
         return
       }
 
-      // Só verificar autenticação se não estiver na página de login
       const userData = await checkAuthentication()
-
       if (userData) {
         setUser(userData)
-        // Atualizar localStorage com dados completos da API (incluindo permissões)
-        localStorage.setItem('admin-user-data', JSON.stringify(userData))
       } else {
-        setUser(null)
-        // Não redirecionar automaticamente - deixar o middleware fazer isso
+        const isAuthPage = window.location.pathname.includes('/login') || 
+                          window.location.pathname.includes('/forgot-password') || 
+                          window.location.pathname.includes('/reset-password');
+        
+        if (!isAuthPage) {
+          setUser(null)
+          window.location.href = `/admin/login?error=session_expired&callbackUrl=${encodeURIComponent(window.location.pathname)}`
+        }
       }
     } catch (error) {
-      console.error('Erro ao verificar autenticação:', error)
+      console.error('Erro crítico na verificação de autenticação:', error)
       setUser(null)
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/admin/login'
+      }
     } finally {
       setLoading(false)
     }
@@ -221,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true)
       await performLogout()
       setUser(null)
-      router.push('/admin/login')
+      window.location.href = '/admin/login'
     } catch (error) {
       console.error('Erro no logout:', error)
     } finally {

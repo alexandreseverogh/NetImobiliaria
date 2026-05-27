@@ -152,6 +152,39 @@ cron.schedule('0 3 * * *', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
+// 2. EXECUTAR TRANSBORDO E LIMPEZA DE HISTÓRICO (A CADA 5 MINUTOS)
+// Regra: Verifica SLAs de corretores, redistribui leads e limpa histórico antigo.
+cron.schedule('*/5 * * * *', async () => {
+  console.log(`🔄 [${new Date().toISOString()}] Iniciando transbordo de leads e manutenção de histórico...`);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/transbordo`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${CRON_SECRET}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error(`❌ [Cron Transbordo] Erro na resposta (${response.status}):`, errorData);
+      return;
+    }
+
+    const data = await response.json();
+    if (data.success) {
+      const { processed, reassigned, to_plantonista } = data.summary;
+      console.log(`✅ [Cron Transbordo] Processado: ${processed}, Redistribuído: ${reassigned}, Plantão: ${to_plantonista || 0}`);
+    } else {
+      console.error('❌ [Cron Transbordo] Erro ao executar:', data.message || data.error);
+    }
+  } catch (error) {
+    console.error('❌ [Cron Transbordo] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
 console.log('✅ Agendador configurado para execução diária às 03:00 (America/Sao_Paulo).');
 console.log('\n🚀 Agendador rodando... (Ctrl+C para parar)\n');
 

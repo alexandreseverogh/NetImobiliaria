@@ -1,9 +1,24 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
-// GET - Listar todas as permissões
-export async function GET() {
+// GET - Listar todas as permissões (com filtro de módulos - Entitlements)
+export async function GET(request: NextRequest) {
   try {
+    // 1. Extrair tenantId do token para filtragem modular
+    let tenantId = null;
+    const authHeader = request.headers.get('authorization');
+    const cookie = request.cookies.get('admin_auth_token');
+    const token = authHeader?.replace('Bearer ', '') || cookie?.value;
+
+    if (token) {
+      const payload = await verifyTokenNode(token) as any;
+      tenantId = payload?.tenantId || null;
+    }
+
+
+    // 2. Query com filtro dinâmico de módulos habilitados
     const query = `
       SELECT 
         p.*,
@@ -12,12 +27,21 @@ export async function GET() {
         sf.description as feature_description
       FROM permissions p
       JOIN system_features sf ON p.feature_id = sf.id
-      LEFT JOIN system_categorias sc ON sf.category_id = sc.id
+      JOIN system_categorias sc ON sf.category_id = sc.id
       WHERE sf.is_active = true
+        AND (
+          $1::uuid IS NULL -- Fallback se não houver contexto de tenant
+          OR EXISTS (
+            SELECT 1 FROM tenant_modules tm
+            WHERE tm.module_id = sc.module_id
+              AND tm.tenant_id = $1
+              AND tm.is_enabled = true
+          )
+        )
       ORDER BY sc.name, sf.name, p.action
     `
     
-    const result = await pool.query(query)
+    const result = await pool.query(query, [tenantId])
     
     // Agrupar permissões por categoria
     const permissionsByCategory = result.rows.reduce((acc, permission) => {
@@ -28,7 +52,7 @@ export async function GET() {
       acc[category].push(permission)
       return acc
     }, {} as Record<string, any[]>)
-
+    
     return NextResponse.json({
       success: true,
       permissions: result.rows,
@@ -36,7 +60,6 @@ export async function GET() {
     })
   } catch (error) {
     console.error('Erro ao buscar permissões:', error)
-    console.error('Stack trace:', error instanceof Error ? error.stack : 'N/A')
     return NextResponse.json(
       { success: false, message: 'Erro interno do servidor', error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -44,9 +67,13 @@ export async function GET() {
   }
 }
 
+
 // POST - Criar nova permissão
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const denied = await requireApiPermission(request, 'permissions', 'CREATE')
+    if (denied) return denied
+
     const data = await request.json()
     const { feature_id, action, description } = data
 

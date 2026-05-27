@@ -138,8 +138,8 @@ export async function unifiedPermissionMiddleware(
     // 🆕 VALIDAÇÃO CRÍTICA: Verificar se o usuário ainda existe e está ativo no banco
     // Isso evita o "token fantasma" onde um usuário deletado continua logado
 
-    // Tratamento especial para Proprietários (tabela proprietarios)
-    if (decoded.cargo === 'Proprietário') {
+    // Tratamento especial para Proprietários (Sessão Externa)
+    if (decoded.userType === 'proprietario' || decoded.cargo === 'Proprietário') {
       const proprietarioExists = await checkProprietarioExists(decoded.userId)
       if (!proprietarioExists) {
         console.warn('👻 Token fantasma detectado: Proprietário não existe mais no banco:', decoded.userId)
@@ -169,11 +169,12 @@ export async function unifiedPermissionMiddleware(
       )
     }
 
-    // 4. Verificar permissão usando sistema centralizado
+    // 4. Verificar permissão usando sistema centralizado (Passando TenantId para isolamento)
     const hasPermission = await checkUserPermission(
       decoded.userId,
       routeConfig.feature_slug,
-      routeConfig.default_action
+      routeConfig.default_action,
+      decoded.tenantId
     )
 
     if (!hasPermission) {

@@ -9,6 +9,7 @@ import LoadingSpinner from '@/components/admin/LoadingSpinner'
 import ErrorBoundary from '@/components/admin/ErrorBoundary'
 import SessionWarningModal from '@/components/SessionWarningModal'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useSidebarMenu } from '@/hooks/useSidebarMenu'
 
 export default function AdminLayoutContent({
   children,
@@ -18,6 +19,8 @@ export default function AdminLayoutContent({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const isLoginPage = pathname === '/admin/login'
+  const isResetPage = pathname === '/admin/reset-password'
+  
   // Harden: tolerate trailing slashes / nested (Next can vary) and ensure public broker signup doesn't get redirected
   const publicBrokerByWindow =
     typeof window !== 'undefined' &&
@@ -36,9 +39,9 @@ export default function AdminLayoutContent({
     // Aqui poderia implementar logging para auditoria
   }, [])
 
-  // IMPORTANTE: para páginas públicas dentro de /admin (ex.: cadastro público de corretor),
+  // IMPORTANTE: para páginas públicas dentro de /admin (ex.: login, forgot, reset, cadastro público),
   // NUNCA executar hooks/guards de sessão do admin (eles redirecionam para /admin/login).
-  if (isLoginPage || isPublicBrokerSignup) {
+  if (isLoginPage || isResetPage || isPublicBrokerSignup) {
     return (
       <ErrorBoundary onError={handleAuthError}>
         {children}
@@ -62,9 +65,42 @@ function AdminLayoutPrivateContent({
   hideSidebar: boolean
   onError: (error: Error) => void
 }) {
-  const { user, loading, logout } = useAuth()
+  const { user, loading: authLoading, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const router = useRouter()
+
+  // 🎨 Governança Dinâmica de Menu e Tema
+  const { menuItems, theme, loading: menuLoading, error: menuError, reloadMenu } = useSidebarMenu('admin')
+  const isDark = theme.mode === 'dark'
+
+  // ✅ Sincronização de Tema com o DOM (Prever vazamento de classes dark/light)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+       if (isDark) {
+         document.documentElement.classList.add('dark')
+       } else {
+         document.documentElement.classList.remove('dark')
+       }
+
+       // 🎨 Injeção de Variáveis CSS Dinâmicas (Governança de Branding)
+       const root = document.documentElement;
+       root.style.setProperty('--primary-color', theme.primaryColor || '#2563eb');
+       root.style.setProperty('--secondary-color', theme.secondaryColor || '#64748b');
+       
+       console.log('🎨 [Layout] Branding sincronizado:', {
+         primary: theme.primaryColor,
+         secondary: theme.secondaryColor,
+         tenant: theme.tenantName
+       });
+    }
+  }, [isDark, theme])
+
+  // ✅ RE-SINCRONIZAÇÃO NA NAVEGAÇÃO: 
+  // Garante que ao "voltar" ou trocar de tenant, o menu e tema sejam re-checados
+  const pathname = usePathname()
+  useEffect(() => {
+    reloadMenu()
+  }, [pathname, reloadMenu])
 
   // Sistema de aviso de sessão (somente admin privado)
   const { showWarning, timeRemaining, renewSession, logout: sessionLogout, dismissWarning } = useSessionWarning({
@@ -80,7 +116,7 @@ function AdminLayoutPrivateContent({
 
   // ✅ Redirecionar para login em useEffect (não durante render)
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       // Verificar se há token no localStorage
       const adminToken = typeof window !== 'undefined' ? localStorage.getItem('admin-auth-token') : null
       const adminUserData = typeof window !== 'undefined' ? localStorage.getItem('admin-user-data') : null
@@ -108,7 +144,7 @@ function AdminLayoutPrivateContent({
         window.location.href = '/admin/login'
       }
     }
-  }, [loading, user])
+  }, [authLoading, user])
 
   const handleMenuClick = useCallback(() => {
     setSidebarOpen(true)
@@ -118,95 +154,19 @@ function AdminLayoutPrivateContent({
     setSidebarOpen(false)
   }, [])
 
-  const containerClasses = useMemo(() => 'min-h-screen bg-gray-100', [])
-  const gridClasses = useMemo(() => 'grid grid-cols-1 lg:grid-cols-[256px_1fr]', [])
+  const containerClasses = useMemo(() => `min-h-screen ${isDark ? 'bg-[#020617] text-white' : 'bg-gray-100 text-gray-900'}`, [isDark])
+  const gridClasses = useMemo(() => `grid grid-cols-1 lg:grid-cols-[320px_1fr] ${isDark ? 'bg-[#020617]' : 'bg-gray-100'}`, [isDark])
 
-  // Se estiver carregando, mostrar loading
-  if (loading) {
+  // Se estiver carregando auth, mostrar loading
+  if (authLoading) {
     return <LoadingSpinner message="Carregando..." />
   }
 
   // Se não há usuário e não está na página de login, mostrar loading enquanto redireciona
   if (!user) {
-    // Verificar se há token no localStorage (para desenvolvimento)
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('admin-auth-token')
-      const userData = localStorage.getItem('admin-user-data')
-      const publicToken = localStorage.getItem('public-auth-token')
-      const publicUserData = localStorage.getItem('public-user-data')
-
-      if (token && userData) {
-        // Se há token e dados do usuário, usar eles
-        const parsedUser = JSON.parse(userData)
-
-        return (
-          <ErrorBoundary onError={onError}>
-            <div className={containerClasses}>
-              <AdminHeader
-                user={parsedUser}
-                onLogout={logout}
-                onMenuClick={handleMenuClick}
-              />
-              <div className={gridClasses}>
-                <AdminSidebar
-                  open={sidebarOpen}
-                  setOpen={handleSidebarClose}
-                  user={parsedUser}
-                  onLogout={logout}
-                />
-                <main className="w-full min-w-0" role="main" aria-label="Conteúdo principal">
-                  {children}
-                </main>
-              </div>
-            </div>
-          </ErrorBoundary>
-        )
-      }
-
-      // Se há token público de proprietário, renderizar layout
-      if (publicToken && publicUserData) {
-        try {
-          const parsedPublicUser = JSON.parse(publicUserData)
-
-          if (parsedPublicUser.userType === 'proprietario') {
-            console.log('✅ Renderizando layout para proprietário')
-
-            return (
-              <ErrorBoundary onError={onError}>
-                <div className={containerClasses}>
-                  <AdminHeader
-                    user={{
-                      id: parsedPublicUser.uuid,
-                      nome: parsedPublicUser.nome,
-                      email: parsedPublicUser.email,
-                      username: parsedPublicUser.email,
-                      role_name: 'Proprietário',
-                      permissoes: {},
-                      status: 'ATIVO'
-                    }}
-                    onLogout={() => {
-                      localStorage.removeItem('public-auth-token')
-                      localStorage.removeItem('public-user-data')
-                      window.location.href = '/landpaging'
-                    }}
-                    onMenuClick={handleMenuClick}
-                  />
-                  {/* Proprietários não têm sidebar - apenas conteúdo principal */}
-                  <main className="w-full min-w-0 p-6" role="main" aria-label="Conteúdo principal">
-                    {children}
-                  </main>
-                </div>
-              </ErrorBoundary>
-            )
-          }
-        } catch (e) {
-          console.error('Erro ao parsear dados do usuário público:', e)
-        }
-      }
-    }
-
-    // Mostrar loading enquanto redireciona (o redirect acontece no useEffect acima)
-    return <LoadingSpinner message="Redirecionando para login..." />
+    // Tolerância Zero: Se não há usuário confirmado pelo useAuth, redirecionamos.
+    // Não usamos atalhos de localStorage para evitar renderizar layouts com sessões inválidas.
+    return <LoadingSpinner message="Verificando autenticação..." />
   }
 
   // Usuário autenticado - mostrar layout completo
@@ -218,6 +178,7 @@ function AdminLayoutPrivateContent({
           user={user}
           onLogout={logout}
           onMenuClick={handleMenuClick}
+          theme={theme}
         />
 
         {/* Container principal com grid - SEM espaçamento em branco */}
@@ -229,11 +190,15 @@ function AdminLayoutPrivateContent({
               setOpen={handleSidebarClose}
               user={user}
               onLogout={logout}
+              theme={theme}
+              menuItems={menuItems}
+              loading={menuLoading}
+              error={menuError}
             />
           )}
 
           {/* Conteúdo principal - ocupa toda largura se sidebar oculta */}
-          <main className={`w-full min-w-0 ${hideSidebar ? '' : ''}`} role="main" aria-label="Conteúdo principal">
+          <main className={`w-full min-w-0 px-8 ${hideSidebar ? '' : ''}`} role="main" aria-label="Conteúdo principal">
             {children}
           </main>
         </div>

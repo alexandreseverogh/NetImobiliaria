@@ -64,6 +64,34 @@ if ($feedProcesses) {
     }
 }
 
+# Verificar se o Banco de Dados (Docker) está pronto
+Write-Host ""
+Write-Host "[*] Verificando se o banco de dados está pronto em 127.0.0.1:5432..." -ForegroundColor Cyan
+$dbReady = $false
+$attempts = 0
+$maxAttempts = 30 # 30 segundos
+
+while (-not $dbReady -and $attempts -lt $maxAttempts) {
+    try {
+        $connection = New-Object System.Net.Sockets.TcpClient("127.0.0.1", 5432)
+        if ($connection.Connected) {
+            $dbReady = $true
+            $connection.Close()
+            Write-Host "[OK] Banco de Dados detectado e pronto!" -ForegroundColor Green
+        }
+    } catch {
+        $attempts++
+        Write-Host "   Tentativa $attempts/${maxAttempts}: Banco ainda não responde... aguardando 1s" -ForegroundColor Gray
+        Start-Sleep -Seconds 1
+    }
+}
+
+if (-not $dbReady) {
+    Write-Host "[AVISO] O Banco de Dados não respondeu em 127.0.0.1:5432 após $maxAttempts segundos." -ForegroundColor Yellow
+    Write-Host "        Verifique se o Docker Desktop está rodando e execute 'docker compose up -d' manualmente." -ForegroundColor Gray
+    Write-Host "        O sistema tentará continuar mas pode apresentar falhas de conexão." -ForegroundColor Yellow
+}
+
 Write-Host ""
 Write-Host "[*] Iniciando servico de feed em background..." -ForegroundColor Cyan
 # Iniciar feed-cron em nova janela do PowerShell

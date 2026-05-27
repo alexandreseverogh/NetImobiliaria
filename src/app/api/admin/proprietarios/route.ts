@@ -8,6 +8,7 @@ import { extractRequestData } from '@/lib/utils/ipUtils'
 import { findProprietariosPaginated, createProprietario } from '@/lib/database/proprietarios'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,34 +30,30 @@ export async function GET(request: NextRequest) {
     const bairro = searchParams.get('bairro') || undefined
     const mineCorretor = (searchParams.get('mine_corretor') || '').toLowerCase() === 'true'
 
+    // Obter tenantId do token para isolamento
+    const token = getTokenFromRequest(request)
+    const decodedToken: any = token ? await verifyToken(token) : null
+    const tenantId = decodedToken?.tenantId
+
+    if (!tenantId) {
+      return NextResponse.json({ success: false, error: 'Tenant não identificado' }, { status: 401 })
+    }
+
     let corretor_fk: string | undefined = undefined
     if (mineCorretor) {
-      try {
-        // Quando mine_corretor=true, NUNCA retornar lista sem filtro.
-        // Se não conseguirmos identificar o corretor pelo token, falhar.
-        const token = getTokenFromRequest(request)
+      // Usar os dados já decodificados
+      const requesterUserId = decodedToken?.userId || null
+      const roleName = String(decodedToken?.role_name || decodedToken?.cargo || '').toLowerCase()
 
-        if (!token) {
-          return NextResponse.json({ success: false, error: 'Autenticação necessária' }, { status: 401 })
-        }
-
-        const decoded: any = await verifyToken(token)
-        const requesterUserId = decoded?.userId || null
-        const roleName = String(decoded?.role_name || decoded?.cargo || '').toLowerCase()
-
-        if (!requesterUserId) {
-          return NextResponse.json({ success: false, error: 'Token inválido ou expirado' }, { status: 401 })
-        }
-
-        if (!roleName.includes('corretor')) {
-          return NextResponse.json({ success: false, error: 'Acesso negado' }, { status: 403 })
-        }
-
-        corretor_fk = requesterUserId
-      } catch (e) {
-        console.error('❌ Erro ao aplicar filtro mine_corretor:', e)
+      if (!requesterUserId) {
         return NextResponse.json({ success: false, error: 'Token inválido ou expirado' }, { status: 401 })
       }
+
+      if (!roleName.includes('corretor')) {
+        return NextResponse.json({ success: false, error: 'Acesso negado' }, { status: 403 })
+      }
+
+      corretor_fk = requesterUserId
     }
 
     const result = await findProprietariosPaginated(page, limit, {
@@ -66,7 +63,8 @@ export async function GET(request: NextRequest) {
       estado,
       cidade,
       bairro,
-      corretor_fk
+      corretor_fk,
+      tenant_id: tenantId
     })
 
     return NextResponse.json({ success: true, ...result })
@@ -85,42 +83,60 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireApiPermission(request, 'proprietarios', 'CREATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
       return permissionCheck
     }
 
-    const body = await request.json()
-    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, created_by } = body
+    // Obter tenantId do token
+    const token = getTokenFromRequest(request)
+    const decodedToken: any = token ? await verifyToken(token) : null
+    const tenantId = decodedToken?.tenantId
 
-    // Se quem está criando for um Corretor (login via modal público), gravar corretor_fk automaticamente.
-    // (Não confiamos em payload do cliente para esse campo.)
-    let corretor_fk: string | null = null
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant não identificado' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, created_by, corretor_fk: body_corretor_fk, ...rest } = body
+
+    // 2. Buscar Configuração Semântica para extrair campos dinâmicos
+    const configRes = await pool.query(`
+      SELECT semantic_mapping 
+      FROM system_features 
+      WHERE slug = 'proprietarios'
+    `);
+    const mapping = configRes.rows[0]?.semantic_mapping || [];
+    const semantic_data: Record<string, any> = {};
+
+    // Mover campos que estão no mapping para o semantic_data (exceto os que já têm coluna física)
+    const physicalColumns = ['corretor_fk']; // Adicione outros se necessário
+    mapping.forEach((m: any) => {
+      if (m.field && !physicalColumns.includes(m.field) && body[m.field] !== undefined) {
+        semantic_data[m.field] = body[m.field];
+      }
+    });
+
+    let corretor_fk: string | null = body_corretor_fk || null
     let requesterUserId: string | null = null
     try {
-      const token = getTokenFromRequest(request)
       if (token) {
-        const decoded: any = await verifyToken(token)
-        requesterUserId = decoded?.userId || null
-        const roleName = String(decoded?.role_name || decoded?.cargo || '').toLowerCase()
-        const userType = String(decoded?.userType || '').toLowerCase()
+        requesterUserId = decodedToken?.userId || null
+        const roleName = String(decodedToken?.role_name || decodedToken?.cargo || '').toLowerCase()
+        const userType = String(decodedToken?.userType || '').toLowerCase()
 
-        // Robust check: include all variations of broker roles found in the DB/Logic
-        if (requesterUserId && (
-          roleName.includes('corretor') ||
-          userType === 'corretor' ||
-          roleName === 'admin' // Admins creating on behalf of themselves as brokers? Unlikely but safe to check.
-        )) {
-          // Se for corretor, FORÇA o vínculo com ele mesmo
-          if (roleName.includes('corretor') || userType === 'corretor') {
-            corretor_fk = requesterUserId
-          }
+        // Se for corretor, FORÇA o vínculo com ele mesmo (impede que um corretor crie proprietário para outro)
+        if (requesterUserId && (roleName.includes('corretor') || userType === 'corretor')) {
+          corretor_fk = requesterUserId
         }
+        // Se for admin, o corretor_fk já foi extraído de body_corretor_fk
       }
     } catch {
       // Se falhar, não quebra o fluxo de criação (o middleware já validou auth/permissão).
-      corretor_fk = null
     }
 
     // Validação temporariamente desabilitada para testar auditoria
@@ -164,6 +180,8 @@ export async function POST(request: NextRequest) {
       origem_cadastro: 'Plataforma',
       created_by: requesterUserId || created_by || 'system',
       corretor_fk,
+      tenant_id: tenantId,
+      semantic_data,
       // Quando o proprietário é cadastrado via acesso do corretor, a senha padrão deve ser "Proprietario"
       ...(corretor_fk ? { password: 'Proprietario' } : {})
     }, true) // Passando isAdmin = true para permitir CPF fake
@@ -175,6 +193,7 @@ export async function POST(request: NextRequest) {
 
       await logAuditEvent({
         userId,
+        tenantId,
         action: 'CREATE',
         resource: 'proprietarios',
         resourceId: proprietario.uuid,
@@ -196,7 +215,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(proprietario, { status: 201 })
   } catch (error: any) {
-    console.error('Erro ao criar proprietário:', error)
+    console.error('❌ ERRO CRÍTICO NO POST /api/admin/proprietarios:', error)
+    console.error('Stack Trace:', error.stack)
 
     if (error.message === 'CPF já cadastrado' || error.message === 'CNPJ já cadastrado' || error.message === 'Email já cadastrado') {
       return NextResponse.json(

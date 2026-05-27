@@ -48,6 +48,7 @@ export interface Imovel {
   updated_by?: string | null
   created_at?: Date
   updated_at?: Date
+  tenant_id?: string // Isolamento multi-tenant
 }
 
 export interface ImovelCompleto extends Imovel {
@@ -100,11 +101,18 @@ export interface FiltroImovel {
   cidade?: string
   destaque?: boolean
   ativo?: boolean
+  tenant_id?: string // Isolamento multi-tenant
 }
 
 // Buscar imóvel por ID
-export async function findImovelById(id: number): Promise<ImovelCompleto | null> {
+export async function findImovelById(id: number, tenantId?: string | null): Promise<ImovelCompleto | null> {
   try {
+    const params: any[] = [id]
+    let tenantClause = ''
+    if (tenantId) {
+      tenantClause = ' AND i.tenant_id = $2'
+      params.push(tenantId)
+    }
     const query = `
       SELECT 
         i.*,
@@ -118,9 +126,9 @@ export async function findImovelById(id: number): Promise<ImovelCompleto | null>
       LEFT JOIN finalidades_imovel fi ON i.finalidade_fk = fi.id
       LEFT JOIN status_imovel si ON i.status_fk = si.id
       LEFT JOIN users u ON i.created_by = u.id
-      WHERE i.id = $1
+      WHERE i.id = $1${tenantClause}
     `
-    const result = await pool.query(query, [id])
+    const result = await pool.query(query, params)
     return result.rows[0] || null
   } catch (error) {
     console.error('Erro ao buscar imóvel por ID:', error)
@@ -129,13 +137,18 @@ export async function findImovelById(id: number): Promise<ImovelCompleto | null>
 }
 
 // Buscar imóvel por código ou ID
-export async function findImovelByCodigo(codigo: string): Promise<ImovelCompleto | null> {
+export async function findImovelByCodigo(codigo: string, tenantId?: string | null): Promise<ImovelCompleto | null> {
   try {
     // Verificar se o valor é numérico (ID) ou texto (código)
     const isNumeric = /^\d+$/.test(codigo)
 
     let query: string
     let params: any[]
+
+    let tenantClause = ''
+    if (tenantId) {
+      tenantClause = ' AND i.tenant_id = $2'
+    }
 
     // Query customizada para incluir tipo_destaque da finalidade
     if (isNumeric) {
@@ -148,7 +161,7 @@ export async function findImovelByCodigo(codigo: string): Promise<ImovelCompleto
         FROM imoveis_completos ic
         LEFT JOIN imoveis i ON ic.id = i.id
         LEFT JOIN finalidades_imovel fi ON ic.finalidade_fk = fi.id
-        WHERE ic.id = $1
+        WHERE ic.id = $1${tenantClause}
       `
       params = [parseInt(codigo)]
     } else {
@@ -161,12 +174,31 @@ export async function findImovelByCodigo(codigo: string): Promise<ImovelCompleto
         FROM imoveis_completos ic
         LEFT JOIN imoveis i ON ic.id = i.id
         LEFT JOIN finalidades_imovel fi ON ic.finalidade_fk = fi.id
-        WHERE ic.codigo = $1
+        WHERE ic.codigo = $1${tenantClause}
       `
       params = [codigo]
     }
 
+    if (tenantId) {
+      params.push(tenantId)
+    }
+
+    // DEBUG: Log query and params
+    try {
+      const fs = require('fs')
+      const debugMsg = `[${new Date().toISOString()}] findImovelByCodigo: query=${query.replace(/\n/g, ' ')}, params=${JSON.stringify(params)}\n`
+      fs.appendFileSync('c:/NetImobiliária/net-imobiliaria/scratch/debug_api.txt', debugMsg)
+    } catch (e) {}
+
     const result = await pool.query(query, params)
+    
+    // DEBUG: Log result count
+    try {
+      const fs = require('fs')
+      const debugMsg = `[${new Date().toISOString()}] findImovelByCodigo: resultCount=${result.rows.length}\n`
+      fs.appendFileSync('c:/NetImobiliária/net-imobiliaria/scratch/debug_api.txt', debugMsg)
+    } catch (e) {}
+
     return result.rows[0] || null
   } catch (error) {
     console.error('Erro ao buscar imóvel por código:', error)
@@ -174,22 +206,28 @@ export async function findImovelByCodigo(codigo: string): Promise<ImovelCompleto
   }
 }
 
-export async function findImovelByIdentifier(identifier: number | string): Promise<ImovelCompleto | null> {
+export async function findImovelByIdentifier(identifier: number | string, tenantId?: string | null): Promise<ImovelCompleto | null> {
   if (typeof identifier === 'number') {
-    return findImovelById(identifier)
+    return findImovelById(identifier, tenantId)
   }
 
   const valor = identifier.trim()
-  if (/^\d+$/.test(valor)) {
-    return findImovelById(parseInt(valor, 10))
+  if (/^\\d+$/.test(valor)) {
+    return findImovelById(parseInt(valor, 10), tenantId)
   }
 
-  return findImovelByCodigo(valor)
+  return findImovelByCodigo(valor, tenantId)
 }
 
 // Buscar todos os imóveis ativos (para listagem simples)
-export async function findAllImoveis(): Promise<ImovelCompleto[]> {
+export async function findAllImoveis(tenantId?: string | null): Promise<ImovelCompleto[]> {
   try {
+    const params: any[] = []
+    let tenantClause = ''
+    if (tenantId) {
+      tenantClause = 'AND i.tenant_id = $1'
+      params.push(tenantId)
+    }
     const query = `
       SELECT 
         ic.*,
@@ -197,10 +235,10 @@ export async function findAllImoveis(): Promise<ImovelCompleto[]> {
       FROM imoveis_completos ic
       LEFT JOIN imoveis i ON ic.id = i.id
       LEFT JOIN proprietarios p ON i.proprietario_uuid = p.uuid
-      WHERE ic.ativo = true
+      WHERE ic.ativo = true ${tenantClause}
       ORDER BY ic.created_at DESC
     `
-    const result = await pool.query(query)
+    const result = await pool.query(query, params)
     return result.rows
   } catch (error) {
     console.error('❌ Erro ao buscar todos os imóveis:', error)
@@ -224,6 +262,13 @@ export async function listImoveis(filtros: FiltroImovel = {}, limit = 50, offset
     `
     const params: any[] = []
     let paramIndex = 1
+
+    // 🛡️ ISOLAMENTO MULTI-TENANT: filtrar por tenant quando não for Master
+    if (filtros.tenant_id) {
+      query += ` AND i.tenant_id = $${paramIndex}`
+      params.push(filtros.tenant_id)
+      paramIndex++
+    }
 
     if (filtros.tipo_id) {
       query += ` AND ic.tipo_id = $${paramIndex}`
@@ -485,7 +530,7 @@ Params: ${JSON.stringify(params)}
 }
 
 // Criar novo imóvel
-export async function createImovel(imovel: Imovel, userId: string | null): Promise<Imovel> {
+export async function createImovel(imovel: Imovel, userId: string | null, tenantId?: string | null): Promise<Imovel> {
   try {
     console.log('🔍 Dados recebidos para criar imóvel:', JSON.stringify(imovel, null, 2))
     console.log('🔍 UserId recebido:', userId)
@@ -534,11 +579,11 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
         preco_iptu, taxa_extra, area_total, area_construida, quartos, banheiros, suites, 
         vagas_garagem, varanda, endereco, numero, complemento, bairro, cidade_fk, estado_fk, cep, latitude, longitude,
         ano_construcao, andar, total_andares, mobiliado, aceita_permuta, 
-        aceita_financiamento, destaque, lancamento, origem_cadastro, created_by, corretor_fk
+        aceita_financiamento, destaque, lancamento, origem_cadastro, created_by, corretor_fk, tenant_id
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 
         $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, 
-        $31, $32, $33, $34, $35, $36, $37, $38, $39
+        $31, $32, $33, $34, $35, $36, $37, $38, $39, $40
       ) RETURNING *
     `
 
@@ -551,7 +596,8 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
       imovel.estado_fk, imovel.cep, imovel.latitude, imovel.longitude,
       imovel.ano_construcao, imovel.andar, imovel.total_andares, imovel.mobiliado,
       imovel.aceita_permuta, imovel.aceita_financiamento, imovel.destaque, imovel.lancamento || false,
-      imovel.origem_cadastro || 'Admin', userId, imovel.corretor_fk ?? null
+      imovel.origem_cadastro || 'Admin', userId, imovel.corretor_fk ?? null,
+      tenantId || null // 🛡️ Isolamento multi-tenant
     ]
 
     console.log('🔍 Query SQL:', query)
@@ -567,6 +613,7 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
       try {
         await logAuditEvent({
           userId: userId.toString(),
+          tenantId: tenantId || null,
           action: 'CREATE',
           resourceType: 'imoveis',
           resourceId: novoImovel.id?.toString() || null,
@@ -589,7 +636,7 @@ export async function createImovel(imovel: Imovel, userId: string | null): Promi
 }
 
 // Atualizar imóvel
-export async function updateImovel(id: number, imovel: Partial<Imovel>, userId: string): Promise<Imovel | null> {
+export async function updateImovel(id: number, imovel: Partial<Imovel>, userId: string, tenantId?: string | null): Promise<Imovel | null> {
   try {
     const imovelAtualizado: Partial<Imovel> = { ...imovel }
 
@@ -655,6 +702,7 @@ export async function updateImovel(id: number, imovel: Partial<Imovel>, userId: 
       // Log de auditoria
       await logAuditEvent({
         userId: userId.toString(),
+        tenantId: tenantId || null,
         action: 'UPDATE',
         resourceType: 'imoveis',
         resourceId: id.toString(),
@@ -671,7 +719,7 @@ export async function updateImovel(id: number, imovel: Partial<Imovel>, userId: 
 }
 
 // Desativar imóvel (soft delete)
-export async function deactivateImovel(id: number, userId: string): Promise<boolean> {
+export async function deactivateImovel(id: number, userId: string, tenantId?: string | null): Promise<boolean> {
   try {
     const query = `
       UPDATE imoveis 
@@ -685,6 +733,7 @@ export async function deactivateImovel(id: number, userId: string): Promise<bool
       // Log de auditoria
       await logAuditEvent({
         userId: userId.toString(),
+        tenantId: tenantId || null,
         action: 'DELETE',
         resourceType: 'imoveis',
         resourceId: id.toString(),
@@ -701,7 +750,7 @@ export async function deactivateImovel(id: number, userId: string): Promise<bool
   }
 }
 
-export async function restoreImovel(id: number, userId: string): Promise<boolean> {
+export async function restoreImovel(id: number, userId: string, tenantId?: string | null): Promise<boolean> {
   try {
     const query = `
       UPDATE imoveis
@@ -714,6 +763,7 @@ export async function restoreImovel(id: number, userId: string): Promise<boolean
     if (result.rowCount && result.rowCount > 0) {
       await logAuditEvent({
         userId: userId.toString(),
+        tenantId: tenantId || null,
         action: 'RESTORE',
         resourceType: 'imoveis',
         resourceId: id.toString(),
@@ -841,8 +891,16 @@ export async function getImoveisDestaque(limit = 6): Promise<ImovelCompleto[]> {
 // ========================================
 
 // Buscar todas as imagens de um imóvel
-export async function findImovelImagens(imovelId: number) {
+export async function findImovelImagens(imovelId: number, tenantId?: string | null) {
   try {
+    const params: any[] = [imovelId]
+    let tenantClause = ''
+    
+    if (tenantId) {
+      tenantClause = ' AND tenant_id = $2'
+      params.push(tenantId)
+    }
+
     const query = `
       SELECT 
         id,
@@ -852,13 +910,16 @@ export async function findImovelImagens(imovelId: number) {
         tamanho_bytes,
         hash_arquivo,
         NULL::text AS nome_arquivo,
-        created_at
+        created_at,
+        storage_type,
+        s3_key,
+        url_cdn
       FROM imovel_imagens 
-      WHERE imovel_id = $1
+      WHERE imovel_id = $1${tenantClause}
       ORDER BY COALESCE(ordem, 999) ASC, id ASC
     `
 
-    const result = await pool.query(query, [imovelId])
+    const result = await pool.query(query, params)
 
     // Converter para formato com URL e is_principal
     const imagens = result.rows.map(row => ({
@@ -907,9 +968,15 @@ export async function getImagesByImovelId(imovelId: number): Promise<string[]> {
 }
 
 // Buscar uma imagem específica
-export async function findImovelImagem(imagemId: number) {
+export async function findImovelImagem(imagemId: number, tenantId?: string | null) {
   try {
-    console.log('🔍 findImovelImagem - Buscando imagem com ID:', imagemId)
+    const params: any[] = [imagemId]
+    let tenantClause = ''
+    
+    if (tenantId) {
+      tenantClause = ' AND tenant_id = $2'
+      params.push(tenantId)
+    }
 
     const query = `
       SELECT 
@@ -920,12 +987,16 @@ export async function findImovelImagem(imagemId: number) {
         tipo_mime,
         tamanho_bytes,
         imagem,
-        created_at
+        created_at,
+        storage_type,
+        s3_key,
+        url_cdn,
+        tenant_id
       FROM imovel_imagens 
-      WHERE id = $1
+      WHERE id = $1${tenantClause}
     `
 
-    const result = await pool.query(query, [imagemId])
+    const result = await pool.query(query, params)
     console.log('🔍 findImovelImagem - Query executada. Rows encontradas:', result.rows.length)
     console.log('🔍 findImovelImagem - Imagem encontrada:', result.rows[0] || 'null')
 
@@ -936,7 +1007,7 @@ export async function findImovelImagem(imagemId: number) {
   }
 }
 
-// Inserir nova imagem
+// Inserir nova imagem (Dual-Writer: S3 + BYTEA)
 export async function insertImovelImagem(imagemData: {
   imovelId: number
   ordem: number
@@ -945,12 +1016,43 @@ export async function insertImovelImagem(imagemData: {
   tamanhoBytes?: number
   imagem: Buffer
   hashArquivo?: string // Hash SHA-256 para deduplicação
+  tenantId?: string | null // 🛡️ Isolamento multi-tenant
 }) {
   try {
+    // ============================================================
+    // DUAL-WRITER: Tenta salvar no S3/MinIO primeiro
+    // Se funcionar, marca storage_type = 's3' e guarda a s3_key.
+    // O BYTEA é mantido durante o período de transição (segurança).
+    // ============================================================
+    let storageType = 'database'
+    let s3Key: string | null = null
+    let urlCdn: string | null = null
+
+    try {
+      const { isS3Configured, generateS3Key, uploadToS3, getS3Url } = await import('@/lib/storage/s3-client')
+      
+      if (isS3Configured() && imagemData.tenantId) {
+        const contentType = imagemData.tipoMime || 'image/jpeg'
+        const key = generateS3Key(imagemData.tenantId, imagemData.imovelId, contentType, imagemData.imagem)
+        const result = await uploadToS3(key, imagemData.imagem, contentType)
+
+        if (result) {
+          storageType = 's3'
+          s3Key = result.s3Key
+          urlCdn = getS3Url(result.s3Key) || result.url
+          console.log(`✅ [DUAL-WRITE] Imagem salva no S3: ${s3Key}`)
+        }
+      }
+    } catch (s3Error) {
+      // Falha no S3 não é fatal — continuamos com BYTEA
+      console.warn('⚠️ [DUAL-WRITE] Falha no S3, usando fallback BYTEA:', s3Error)
+    }
+
     const query = `
       INSERT INTO imovel_imagens (
-        imovel_id, ordem, principal, tipo_mime, tamanho_bytes, imagem, hash_arquivo
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        imovel_id, ordem, principal, tipo_mime, tamanho_bytes, imagem, hash_arquivo,
+        storage_type, s3_key, url_cdn, tenant_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id
     `
 
@@ -960,8 +1062,12 @@ export async function insertImovelImagem(imagemData: {
       imagemData.principal,
       imagemData.tipoMime || null,
       imagemData.tamanhoBytes || null,
-      imagemData.imagem,
-      imagemData.hashArquivo || null
+      imagemData.imagem,     // BYTEA mantido durante transição
+      imagemData.hashArquivo || null,
+      storageType,
+      s3Key,
+      urlCdn,
+      imagemData.tenantId || null
     ]
 
     const result = await pool.query(query, values)
@@ -973,15 +1079,23 @@ export async function insertImovelImagem(imagemData: {
 }
 
 // Atualizar ordem das imagens
-export async function updateImovelImagensOrdem(imovelId: number, imagens: Array<{ id: number, ordem: number }>) {
+export async function updateImovelImagensOrdem(imovelId: number, imagens: Array<{ id: number, ordem: number }>, tenantId?: string | null) {
   try {
     // Usar transação para garantir consistência
     await pool.query('BEGIN')
 
     for (const imagem of imagens) {
+      const params: any[] = [imagem.ordem, imagem.id, imovelId]
+      let tenantClause = ''
+      
+      if (tenantId) {
+        tenantClause = ' AND tenant_id = $4'
+        params.push(tenantId)
+      }
+
       await pool.query(
-        'UPDATE imovel_imagens SET ordem = $1 WHERE id = $2 AND imovel_id = $3',
-        [imagem.ordem, imagem.id, imovelId]
+        `UPDATE imovel_imagens SET ordem = $1 WHERE id = $2 AND imovel_id = $3${tenantClause}`,
+        params
       )
     }
 
@@ -1031,18 +1145,38 @@ export async function deleteImovelImagem(imagemId: number) {
   }
 }
 
-// Excluir imagem permanentemente
+// Excluir imagem permanentemente (banco + S3 se aplicável)
 export async function deleteImovelImagemPermanente(imagemId: number) {
   try {
     console.log('🔍 deleteImovelImagemPermanente - Deletando imagem ID:', imagemId)
 
+    // Buscar metadados S3 antes de deletar do banco
+    const metaResult = await pool.query(
+      'SELECT storage_type, s3_key FROM imovel_imagens WHERE id = $1',
+      [imagemId]
+    )
+
+    const meta = metaResult.rows[0]
+
+    // Se a imagem está no S3, deletar o arquivo
+    if (meta && meta.storage_type === 's3' && meta.s3_key) {
+      try {
+        const { deleteFromS3 } = await import('@/lib/storage/s3-client')
+        await deleteFromS3(meta.s3_key)
+        console.log(`✅ [S3] Arquivo deletado: ${meta.s3_key}`)
+      } catch (s3Error) {
+        // Falha no S3 não impede a deleção do banco
+        console.warn('⚠️ [S3] Falha ao deletar arquivo (não bloqueante):', s3Error)
+      }
+    }
+
+    // Deletar do banco de dados
     const result = await pool.query(
       'DELETE FROM imovel_imagens WHERE id = $1 RETURNING id',
       [imagemId]
     )
 
-    console.log('🔍 deleteImovelImagemPermanente - Query executada. Rows affected:', result.rowCount, 'Rows returned:', result.rows.length)
-    console.log('🔍 deleteImovelImagemPermanente - Rows:', result.rows)
+    console.log('🔍 deleteImovelImagemPermanente - Rows affected:', result.rowCount)
 
     const success = result.rows[0] ? true : false
     console.log('🔍 deleteImovelImagemPermanente - Resultado final:', success)

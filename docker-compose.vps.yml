@@ -1,5 +1,47 @@
 services:
   # =========================
+  # SERVIÇOS COMPARTILHADOS
+  # =========================
+
+  # Cache centralizado (prod + staging)
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-redis_default_pass}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_default_pass}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Object Storage (S3-compatible, self-hosted)
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_default_pass}
+    volumes:
+      - minio_data:/data
+    expose:
+      - "9000"
+    ports:
+      - "127.0.0.1:9001:9001"  # Console acessível via SSH tunnel apenas
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =========================
   # PRODUÇÃO
   # =========================
   prod_db:
@@ -28,6 +70,10 @@ services:
     depends_on:
       prod_db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
@@ -40,6 +86,17 @@ services:
       JWT_SECRET: ${PROD_JWT_SECRET}
       NEXT_PUBLIC_APP_URL: ${PROD_APP_URL}
       HEALTHCHECK_DB: "true"
+      # Cache
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_default_pass}
+      # Object Storage
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio_default_pass}
+      S3_BUCKET: ${S3_BUCKET_PROD:-netimobiliaria-prod}
+      S3_REGION: us-east-1
+      S3_FORCE_PATH_STYLE: "true"
     expose:
       - "3000"
     healthcheck:
@@ -117,6 +174,10 @@ services:
     depends_on:
       staging_db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
@@ -128,6 +189,17 @@ services:
       JWT_SECRET: ${STAGING_JWT_SECRET}
       NEXT_PUBLIC_APP_URL: ${STAGING_APP_URL}
       HEALTHCHECK_DB: "true"
+      # Cache
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_default_pass}
+      # Object Storage
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio_default_pass}
+      S3_BUCKET: ${S3_BUCKET_STAGING:-netimobiliaria-staging}
+      S3_REGION: us-east-1
+      S3_FORCE_PATH_STYLE: "true"
     expose:
       - "3000"
     healthcheck:
@@ -204,7 +276,8 @@ services:
 volumes:
   db_data_prod:
   db_data_staging:
+  redis_data:
+  minio_data:
   caddy_data:
   caddy_config:
-
 

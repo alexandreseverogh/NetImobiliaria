@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { findClienteByUuid, updateClienteByUuid, deleteClienteByUuid } from '@/lib/database/clientes'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
 
@@ -15,16 +17,25 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    console.log(`🔍 [API CLIENTES GET] Recebido ID:`, params.id)
-    
     if (!isValidUuid(params.id)) {
-      return NextResponse.json(
-        { error: 'UUID inválido' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'UUID inválido' }, { status: 400 })
+    }
+
+    // Obter tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.tenantId
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant não identificado' }, { status: 401 })
     }
 
     const cliente = await findClienteByUuid(params.id)
+    
+    // Validar se o cliente pertence ao tenant logado
+    if (cliente && cliente.tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'Acesso negado: Cliente pertence a outra empresa' }, { status: 403 })
+    }
     
     if (!cliente) {
       return NextResponse.json(
@@ -50,22 +61,26 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    console.log(`📝 [API CLIENTES PUT] Recebido ID:`, params.id)
-    
     if (!isValidUuid(params.id)) {
-      return NextResponse.json(
-        { error: 'UUID inválido' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'UUID inválido' }, { status: 400 })
     }
-    
-    console.log(`📝 [API CLIENTES PUT] Atualizando por UUID`)
+
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'clientes', 'UPDATE')
+    if (denied) return denied
+
+    // Obter tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.tenantId
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant não identificado' }, { status: 401 })
+    }
+
     const clienteAtual = await findClienteByUuid(params.id)
-    if (!clienteAtual) {
-      return NextResponse.json(
-        { error: 'Cliente não encontrado' },
-        { status: 404 }
-      )
+    if (!clienteAtual || clienteAtual.tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'Cliente não encontrado ou acesso negado' }, { status: 404 })
     }
 
     const body = await request.json()
@@ -79,8 +94,8 @@ export async function PUT(
       )
     }
     
-    // Buscar dados antigos para auditoria
-    const cliente = await updateClienteByUuid(params.id, {
+    // Atualizar usando tenantId para segurança extra
+    const cliente = await updateClienteByUuid(params.id, tenantId, {
       nome,
       cpf,
       telefone,
@@ -102,6 +117,7 @@ export async function PUT(
       
       await logAuditEvent({
         userId,
+        tenantId,
         action: 'UPDATE',
         resource: 'clientes',
         resourceId: cliente.uuid,
@@ -148,25 +164,29 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    console.log(`🗑️ [API CLIENTES DELETE] Recebido ID:`, params.id)
-    
     if (!isValidUuid(params.id)) {
-      return NextResponse.json(
-        { error: 'UUID inválido' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'UUID inválido' }, { status: 400 })
     }
-    
-    console.log(`🗑️ [API CLIENTES DELETE] Deletando por UUID`)
+
+    // Verificar permissão de exclusão server-side
+    const denied = await requireApiPermission(request, 'clientes', 'DELETE')
+    if (denied) return denied
+
+    // Obter tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.tenantId
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant não identificado' }, { status: 401 })
+    }
+
     const cliente = await findClienteByUuid(params.id)
-    if (!cliente) {
-      return NextResponse.json(
-        { error: 'Cliente não encontrado' },
-        { status: 404 }
-      )
+    if (!cliente || cliente.tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'Cliente não encontrado ou acesso negado' }, { status: 404 })
     }
     
-    await deleteClienteByUuid(params.id)
+    await deleteClienteByUuid(params.id, tenantId)
     
     // Log de auditoria (não crítico - falha não afeta operação)
     try {
@@ -175,6 +195,7 @@ export async function DELETE(
       
       await logAuditEvent({
         userId,
+        tenantId,
         action: 'DELETE',
         resource: 'clientes',
         resourceId: cliente.uuid,

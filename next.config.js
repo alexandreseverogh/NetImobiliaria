@@ -285,6 +285,28 @@ const nextConfig = {
       // Redirecionar HTTP para HTTPS em produção (Middleware já faz isso dinamicamente)
     ]
   },
+
+  // Configurações de reescrita (Rewrites)
+  async rewrites() {
+    return [
+      {
+        source: '/admin/finalidades-imoveis/:path*',
+        destination: '/admin/finalidades/:path*',
+      },
+      {
+        source: '/api/admin/finalidades-imoveis/:path*',
+        destination: '/api/admin/finalidades/:path*',
+      },
+      {
+        source: '/admin/status-imoveis/:path*',
+        destination: '/admin/status-imovel/:path*',
+      },
+      {
+        source: '/api/admin/status-imoveis/:path*',
+        destination: '/api/admin/status-imovel/:path*',
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig

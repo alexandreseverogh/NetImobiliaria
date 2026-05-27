@@ -15,6 +15,7 @@ import { useApi } from '@/hooks/useApi'
 import PermissionGuard from '@/components/admin/PermissionGuard'
 import CategoryModal from '@/components/admin/categorias/CategoryModal'
 import DeleteCategoryModal from '@/components/admin/categorias/DeleteCategoryModal'
+import CategoryFeaturesModal from '@/components/admin/categorias/CategoryFeaturesModal'
 
 interface Category {
   id: number
@@ -25,6 +26,9 @@ interface Category {
   color: string
   sort_order: number
   is_active: boolean
+  module_id?: string
+  module_name?: string
+  features_count?: number
   created_at: string
   updated_at: string
   features?: any[]
@@ -37,8 +41,10 @@ export default function CategoriesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showFeaturesModal, setShowFeaturesModal] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null)
+  const [viewingCategory, setViewingCategory] = useState<Category | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -210,10 +216,36 @@ export default function CategoriesPage() {
                   </p>
                 )}
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4 text-sm text-gray-500">
-                    <span>{category.features?.length || 0} funcionalidade(s)</span>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
+                <div className="flex flex-col space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Vínculo Master</span>
+                    {category.module_name ? (
+                      <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase tracking-wider rounded-md border border-indigo-100 italic">
+                        {category.module_name}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-[9px] font-black uppercase tracking-wider rounded-md border border-amber-100">
+                        Apenas Super Admin
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-50">
+                    <div className="flex items-center space-x-2">
+                       <span className="text-xs font-bold text-gray-600">
+                         {category.features_count || 0} funcionalidade(s)
+                       </span>
+                       <button 
+                         onClick={() => {
+                           setViewingCategory(category)
+                           setShowFeaturesModal(true)
+                         }}
+                         className="text-[9px] font-black uppercase text-blue-600 hover:text-blue-800 hover:underline transition-all"
+                       >
+                         (Visualizar)
+                       </button>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
                       category.is_active 
                         ? 'bg-green-100 text-green-800' 
                         : 'bg-red-100 text-red-800'
@@ -280,6 +312,17 @@ export default function CategoriesPage() {
           category={deletingCategory}
           onClose={() => setShowDeleteModal(false)}
           onConfirm={handleDeleteSuccess}
+        />
+      )}
+
+      {showFeaturesModal && viewingCategory && (
+        <CategoryFeaturesModal
+          category={viewingCategory}
+          onClose={() => {
+            setShowFeaturesModal(false)
+            setViewingCategory(null)
+          }}
+          onUpdate={fetchCategories}
         />
       )}
     </div>

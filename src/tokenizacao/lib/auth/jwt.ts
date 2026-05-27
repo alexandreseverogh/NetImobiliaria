@@ -1,4 +1,4 @@
-﻿/* eslint-disable */
+/* eslint-disable */
 // ImplementaÃ§Ã£o JWT compatÃ­vel com Edge Runtime usando Web Crypto API
 import { AUTH_CONFIG } from '@/lib/config/auth'
 
@@ -11,7 +11,20 @@ const JWT_REFRESH_EXPIRES_IN = AUTH_CONFIG.JWT.REFRESH_TOKEN_EXPIRES_IN
 export interface JWTPayload {
   userId: string
   username: string
-  cargo: string
+  cargo?: string
+  role_name?: string
+  role_level?: number
+  is_system_role?: boolean
+  sessionId?: string
+  twoFAVerified?: boolean
+  is2FAEnabled?: boolean
+  userUuid?: string
+  userType?: string
+  nome?: string
+  email?: string
+  permissoes?: any
+  tenantId?: string
+  tenantSlug?: string
   iat?: number
   exp?: number
 }
@@ -22,19 +35,19 @@ export interface Tokens {
   refreshToken: string
 }
 
-// FunÃ§Ã£o auxiliar para converter string para ArrayBuffer
+// Função auxiliar para converter string para ArrayBuffer
 function stringToArrayBuffer(str: string): ArrayBuffer {
   const encoder = new TextEncoder()
   return encoder.encode(str).buffer
 }
 
-// FunÃ§Ã£o auxiliar para converter ArrayBuffer para string
+// Função auxiliar para converter ArrayBuffer para string
 function arrayBufferToString(buffer: ArrayBuffer): string {
   const decoder = new TextDecoder()
   return decoder.decode(buffer)
 }
 
-// FunÃ§Ã£o auxiliar para converter ArrayBuffer para base64url
+// Função auxiliar para converter ArrayBuffer para base64url
 function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
   let binary = ''
@@ -47,7 +60,7 @@ function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
     .replace(/=/g, '')
 }
 
-// FunÃ§Ã£o auxiliar para converter base64url para ArrayBuffer
+// Função auxiliar para converter base64url para ArrayBuffer
 function base64UrlToArrayBuffer(base64url: string): ArrayBuffer {
   const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/')
   const padding = '='.repeat((4 - base64.length % 4) % 4)
@@ -64,7 +77,7 @@ function base64UrlToArrayBuffer(base64url: string): ArrayBuffer {
 export async function generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
-  const exp = now + (parseInt(JWT_EXPIRES_IN) || 24 * 60 * 60) // 24 horas padrÃ£o
+  const exp = now + (parseInt(JWT_EXPIRES_IN) || 24 * 60 * 60) // 24 horas padrão
   
   const payloadWithTime = {
     ...payload,
@@ -94,7 +107,7 @@ export async function generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp
 export async function generateRefreshToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
-  const exp = now + (parseInt(JWT_REFRESH_EXPIRES_IN) || 7 * 24 * 60 * 60) // 7 dias padrÃ£o
+  const exp = now + (parseInt(JWT_REFRESH_EXPIRES_IN) || 7 * 24 * 60 * 60) // 7 dias padrão
   
   const payloadWithTime = {
     ...payload,
@@ -159,7 +172,7 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
     // Decodificar payload
     const payload = JSON.parse(arrayBufferToString(base64UrlToArrayBuffer(payloadB64)))
     
-    // Verificar expiraÃ§Ã£o
+    // Verificar expiração
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
       return null
     }
@@ -171,7 +184,7 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
   }
 }
 
-// Verificar se token estÃ¡ expirado
+// Verificar se token está expirado
 export async function isTokenExpired(token: string): Promise<boolean> {
   try {
     const decoded = await verifyToken(token)
@@ -187,12 +200,24 @@ export async function refreshAccessToken(refreshToken: string): Promise<string |
     const decoded = await verifyToken(refreshToken)
     if (!decoded) return null
     
-    const { userId, username, cargo } = decoded
-    return await generateAccessToken({ userId, username, cargo })
+    const { 
+      userId, username, cargo, role_name, role_level, 
+      is_system_role, sessionId, twoFAVerified, is2FAEnabled,
+      userUuid, userType, nome, email, permissoes,
+      tenantId, tenantSlug
+    } = decoded
+    
+    return await generateAccessToken({ 
+      userId, username, cargo, role_name, role_level, 
+      is_system_role, sessionId, twoFAVerified, is2FAEnabled,
+      userUuid, userType, nome, email, permissoes,
+      tenantId, tenantSlug
+    })
   } catch (error) {
     console.error('Erro ao renovar token:', error)
     return null
   }
 }
+
 
 

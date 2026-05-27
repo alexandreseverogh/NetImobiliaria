@@ -1,13 +1,6 @@
-import { NextResponse } from 'next/server'
-import { Pool } from 'pg'
-
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
-  database: process.env.DB_NAME!,
-})
+import { NextRequest, NextResponse } from 'next/server'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
+import pool from '@/lib/database/connection';
 
 // PATCH - Toggle 2FA requirement for role
 export async function PATCH(
@@ -15,6 +8,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request as unknown as NextRequest, 'roles', 'UPDATE')
+    if (denied) return denied
     const roleId = parseInt(params.id)
     const data = await request.json()
     const { two_fa_required } = data
@@ -35,7 +30,7 @@ export async function PATCH(
 
     // Verificar se role existe
     const existingRole = await pool.query(
-      'SELECT id, name, requires_2fa FROM user_roles WHERE id = $1',
+      'SELECT id, name, requires_2fa, is_system_role FROM user_roles WHERE id = $1',
       [roleId]
     )
 
@@ -48,10 +43,10 @@ export async function PATCH(
 
     const currentRole = existingRole.rows[0]
 
-    // Verificar se é Super Admin (sempre deve ter 2FA obrigatório)
-    if (currentRole.name === 'Super Admin' && !two_fa_required) {
+    // Proteção: Perfis de Sistema (Master) devem manter 2FA obrigatório
+    if (currentRole.is_system_role && !two_fa_required) {
       return NextResponse.json(
-        { success: false, message: 'Super Admin deve sempre ter 2FA obrigatório' },
+        { success: false, message: 'Perfis Master de plataforma exigem 2FA obrigatório por segurança' },
         { status: 400 }
       )
     }

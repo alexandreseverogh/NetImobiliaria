@@ -1,20 +1,16 @@
-import { NextResponse } from 'next/server'
-import { Pool } from 'pg'
-
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
-  database: process.env.DB_NAME!,
-})
+import { NextRequest, NextResponse } from 'next/server'
+import pool from '@/lib/database/connection'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // PATCH - Toggle active status for role
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'roles', 'UPDATE')
+    if (denied) return denied
+
     const roleId = parseInt(params.id)
     const data = await request.json()
     const { is_active } = data
@@ -35,7 +31,7 @@ export async function PATCH(
 
     // Verificar se role existe
     const existingRole = await pool.query(
-      'SELECT id, name, is_active FROM user_roles WHERE id = $1',
+      'SELECT id, name, is_active, is_system_role FROM user_roles WHERE id = $1',
       [roleId]
     )
 
@@ -48,10 +44,10 @@ export async function PATCH(
 
     const currentRole = existingRole.rows[0]
 
-    // Verificar se é Super Admin (sempre deve estar ativo)
-    if (currentRole.name === 'Super Admin' && !is_active) {
+    // Proteção: Perfis de Sistema (Master) são vitais e não podem ser desativados
+    if (currentRole.is_system_role && !is_active) {
       return NextResponse.json(
-        { success: false, message: 'Super Admin não pode ser desativado' },
+        { success: false, message: 'Perfis Master de plataforma são vitais e não podem ser desativados' },
         { status: 400 }
       )
     }

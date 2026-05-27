@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/jwt';
 import pool from '@/lib/database/connection';
+import { requireApiPermission } from '@/lib/auth/apiPermissions';
 
 interface FeatureRow {
   id: number
@@ -82,10 +83,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verificar se é admin ou super admin - usar role_name do JWT atual
-    if (!decoded.role_name || !['Super Admin', 'Administrador'].includes(decoded.role_name)) {
+    // Verificação Semântica (Parametrizada)
+    const hasAccess = 
+      decoded.permissoes?.['usuarios'] && ['READ', 'UPDATE', 'CREATE', 'DELETE', 'ADMIN'].includes(decoded.permissoes['usuarios']) ||
+      decoded.permissoes?.['gestao-perfis'] && ['READ', 'UPDATE', 'CREATE', 'DELETE', 'ADMIN'].includes(decoded.permissoes['gestao-perfis']);
+
+    // Privilégio de Sistema (Master)
+    const isMasterAdmin = !!decoded.is_system_role;
+
+    if (!hasAccess && !isMasterAdmin) {
       return NextResponse.json(
-        { message: 'Acesso negado. Permissão insuficiente.' },
+        { message: 'Acesso negado. Permissão para Gestão de Perfis insuficiente.' },
         { status: 403 }
       );
     }
@@ -93,20 +101,42 @@ export async function GET(request: NextRequest) {
     const client = await pool.connect();
 
     try {
-      // Buscar perfis com contagem de usuários
+      // Buscar perfis com contagem e lista de usuários (Global + Tenant)
       const perfisQuery = `
         SELECT 
           ur.id,
           ur.name,
           ur.description,
-          COUNT(ura.user_id) as user_count
+          ur.level,
+          ur.is_system_role,
+          ur.is_active,
+          ur.requires_2fa,
+          (
+            SELECT COUNT(DISTINCT user_id) 
+            FROM (
+              SELECT user_id FROM user_role_assignments WHERE role_id = ur.id
+              UNION
+              SELECT user_id FROM user_tenant_membership 
+              WHERE role_id = ur.id AND tenant_id = $1 AND is_active = true
+            ) as all_users
+          ) as user_count,
+          (
+            SELECT COALESCE(json_agg(nome), '[]')
+            FROM (
+              SELECT DISTINCT u.nome 
+              FROM users u
+              LEFT JOIN user_role_assignments ura ON u.id = ura.user_id
+              LEFT JOIN user_tenant_membership utm ON u.id = utm.user_id
+              WHERE (ura.role_id = ur.id) OR (utm.role_id = ur.id AND utm.tenant_id = $1 AND utm.is_active = true)
+              LIMIT 5
+            ) as user_list
+          ) as user_names
         FROM user_roles ur
-        LEFT JOIN user_role_assignments ura ON ur.id = ura.role_id
-        GROUP BY ur.id, ur.name, ur.description
-        ORDER BY ur.name
+        WHERE ur.tenant_id = $1 OR ur.tenant_id IS NULL
+        ORDER BY ur.level DESC, ur.name ASC
       `;
 
-      const perfisResult = await client.query(perfisQuery);
+      const perfisResult = await client.query(perfisQuery, [decoded.tenantId || null]);
       const perfis = perfisResult.rows;
 
       // Buscar permissões para cada perfil
@@ -126,82 +156,29 @@ export async function GET(request: NextRequest) {
 
           const permissoesResult = await client.query(permissoesQuery, [perfil.id]);
           
-          // Consolidar permissões por funcionalidade (priorizar DELETE > WRITE > READ)
-          const permissoes: Record<string, string> = {};
+          // Consolidar permissões granulares por funcionalidade
+          const permissoesFinais: Record<string, string[]> = {};
+          
           permissoesResult.rows.forEach((row) => {
             const { feature_name, action } = row;
-            
-            // Se não tem permissão para esta funcionalidade, ou se a nova ação tem maior prioridade
-            if (!permissoes[feature_name]) {
-              permissoes[feature_name] = action;
-            } else {
-              // Priorizar: delete > update/create > read
-              const currentPriority = getActionPriority(permissoes[feature_name]);
-              const newPriority = getActionPriority(action);
-              
-              if (newPriority > currentPriority) {
-                permissoes[feature_name] = action;
-              }
+            if (!permissoesFinais[feature_name]) {
+              permissoesFinais[feature_name] = [];
             }
-          });
-          
-          // Função auxiliar para determinar prioridade das ações
-          function getActionPriority(action: string): number {
-            switch (action) {
-              case 'ADMIN':
-              case 'admin':
-                return 6 // Máxima prioridade
-              case 'DELETE':
-              case 'delete':
-                return 5
-              case 'UPDATE':
-              case 'update':
-                return 4
-              case 'CREATE':
-              case 'create':
-                return 3
-              case 'EXECUTE':
-              case 'execute':
-                return 3
-              case 'READ':
-              case 'read':
-              case 'LIST':
-              case 'list':
-                return 1
-              default:
-                return 0
+            if (!permissoesFinais[feature_name].includes(action)) {
+              permissoesFinais[feature_name].push(action);
             }
-          }
-
-          // Mapear ações do banco para níveis de permissão do frontend
-          const actionToPermissionLevel: Record<string, string> = {
-            READ: 'READ',
-            LIST: 'READ',
-            UPDATE: 'UPDATE',
-            DELETE: 'DELETE',
-            ADMIN: 'ADMIN',
-            EXECUTE: 'EXECUTE',
-            CREATE: 'CREATE',
-            read: 'READ',
-            list: 'READ',
-            update: 'UPDATE',
-            create: 'CREATE',
-            delete: 'DELETE',
-            execute: 'EXECUTE',
-            admin: 'ADMIN',
-          };
-
-          // Converter ações para níveis de permissão
-          const permissoesFinais: Record<string, string> = {};
-          Object.entries(permissoes).forEach(([feature, action]) => {
-            permissoesFinais[feature] = actionToPermissionLevel[action] || 'NONE';
           });
 
           return {
             id: perfil.id,
             name: perfil.name,
             description: perfil.description,
+            level: perfil.level,
+            is_system_role: perfil.is_system_role,
+            is_active: perfil.is_active,
+            two_fa_required: perfil.requires_2fa,
             userCount: parseInt(perfil.user_count),
+            user_names: perfil.user_names || [],
             permissions: permissoesFinais
           };
         })
@@ -225,13 +202,31 @@ export async function GET(request: NextRequest) {
   }
 }
 
+const getActionPriority = (action: string): number => {
+  const a = action.toUpperCase()
+  switch (a) {
+    case 'ADMIN': return 5
+    case 'DELETE': return 4
+    case 'UPDATE': return 3
+    case 'CREATE': return 3
+    case 'EXECUTE': return 3
+    case 'READ': return 1
+    case 'LIST': return 1
+    default: return 0
+  }
+}
+
 // POST /api/admin/perfis - Criar novo perfil
 export async function POST(request: NextRequest) {
   try {
+    // Verificar permissão de criação server-side
+    const denied = await requireApiPermission(request, 'perfis', 'CREATE')
+    if (denied) return denied
+
     // Verificar autenticação - buscar token dos cookies ou header
-    const token = request.cookies.get('accessToken')?.value || 
+    const token = request.cookies.get('accessToken')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '');
-    
+
     if (!token) {
       return NextResponse.json(
         { message: 'Token de autenticação não fornecido' },
@@ -248,16 +243,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar permissão (usuarios:WRITE)
-    if (!decoded.role_name || !['Super Admin', 'Administrador'].includes(decoded.role_name)) {
+    // Verificar permissão via Parametrização Real
+    const canWrite = 
+      decoded.permissoes?.['usuarios'] && ['UPDATE', 'CREATE', 'DELETE', 'ADMIN', 'EXECUTE'].includes(decoded.permissoes['usuarios']) ||
+      decoded.permissoes?.['gestao-perfis'] && ['UPDATE', 'CREATE', 'DELETE', 'ADMIN', 'EXECUTE'].includes(decoded.permissoes['gestao-perfis']);
+      
+    const isMasterAdmin = !!decoded.is_system_role;
+
+    if (!canWrite && !isMasterAdmin) {
       return NextResponse.json(
-        { message: 'Acesso negado. Permissão insuficiente.' },
+        { message: 'Acesso negado. Funcionalidade de Gestão restrita ou Permissão insuficiente.' },
         { status: 403 }
       );
     }
 
     const body = await request.json();
-    const { name, description, permissions } = body;
+    const { name, description, permissions, level, is_system_role } = body;
 
     // Validação dos dados
     if (!name || !description) {
@@ -284,9 +285,9 @@ export async function POST(request: NextRequest) {
     const client = await pool.connect();
 
     try {
-      // Verificar se já existe um perfil com o mesmo nome
-      const existingQuery = 'SELECT id FROM user_roles WHERE LOWER(name) = LOWER($1)';
-      const existingResult = await client.query(existingQuery, [name.trim()]);
+      // Verificar se já existe um perfil com o mesmo nome nesta tenant (ou global)
+      const existingQuery = 'SELECT id FROM user_roles WHERE LOWER(name) = LOWER($1) AND (tenant_id = $2 OR is_system_role = true)';
+      const existingResult = await client.query(existingQuery, [name.trim(), decoded.tenantId || null]);
       
       if (existingResult.rows.length > 0) {
         return NextResponse.json(
@@ -299,27 +300,37 @@ export async function POST(request: NextRequest) {
       await client.query('BEGIN');
 
       try {
-        // Criar o perfil
-        const createPerfilQuery = `
-          INSERT INTO user_roles (name, description, created_at, updated_at)
-          VALUES ($1, $2, NOW(), NOW())
+        // 1. Criar perfil
+        const targetLevel = level !== undefined ? parseInt(level) : 1;
+        const currentUserLevel = decoded.role_level || 0;
+
+        // Regra de Ouro: Nível deve ser inferior ao do criador (exceto Master Admin)
+        if (targetLevel >= currentUserLevel && !isMasterAdmin) {
+          return NextResponse.json(
+            { message: `Você só pode criar perfis com nível inferior ao seu (${currentUserLevel}).` },
+            { status: 403 }
+          );
+        }
+
+        const targetIsSystem = is_system_role === true && isMasterAdmin; // Só master cria master
+
+        const createQuery = `
+          INSERT INTO user_roles (name, description, level, is_system_role, tenant_id, is_active, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
           RETURNING id
         `;
         
-        const createResult = await client.query(createPerfilQuery, [name.trim(), description.trim()]);
+        const createResult = await client.query(createQuery, [
+          name.trim(), 
+          description.trim(), 
+          targetLevel,
+          targetIsSystem,
+          targetIsSystem ? null : (decoded.tenantId || null)
+        ]);
         const perfilId = createResult.rows[0].id;
 
-        // Configurar permissões padrão se não fornecidas
-        const permissoesParaConfigurar = permissions || {
-          imoveis: 'READ',
-          proximidades: 'READ',
-          amenidades: 'READ',
-          'categorias-amenidades': 'READ',
-          'categorias-proximidades': 'READ',
-          usuarios: 'NONE',
-          relatorios: 'READ',
-          sistema: 'NONE'
-        };
+        // Configurar permissões padrão (vazio, pois agora é 100% moldado pela Interface do BD)
+        const permissoesParaConfigurar: Record<string, string[]> = permissions || {};
 
         // Buscar todas as funcionalidades do sistema
         const featuresQuery = `
@@ -336,23 +347,47 @@ export async function POST(request: NextRequest) {
         const featuresResult = await client.query<FeatureRow>(featuresQuery)
         const features = featuresResult.rows
 
-        // Buscar todas as permissões disponíveis
+        // Buscar todas as permissões disponíveis (verbetes de action puras)
         const permissionsQuery = 'SELECT id, action, feature_id FROM permissions'
         const permissionsResult = await client.query(permissionsQuery)
         const allPermissions = permissionsResult.rows
 
-        // Configurar permissões para o novo perfil
-        for (const [categoryKey, permission] of Object.entries(permissoesParaConfigurar)) {
-          if (permission === 'NONE') continue;
+        // Configurar permissões granulares para o novo perfil
+        for (const [categoryKey, requestedActions] of Object.entries(permissoesParaConfigurar)) {
+          if (!requestedActions || (Array.isArray(requestedActions) && requestedActions.length === 0)) continue;
 
           const feature = findFeatureByKey(features, categoryKey)
           if (!feature) {
-            console.warn('⚠️ Perfil - Funcionalidade não encontrada para chave de permissão:', categoryKey)
+            console.warn('⚠️ Perfil - Funcionalidade não encontrada para chave:', categoryKey)
             continue
           }
 
-          const actionsToAssign =
-            permissionMapping[permission as keyof typeof permissionMapping] || []
+          // [NOVO] Verificação de Herança de Permissão
+          if (!isMasterAdmin) {
+            const creatorAction = decoded.permissoes?.[feature.slug || ''] || decoded.permissoes?.[feature.name || ''] || 'NONE';
+            const creatorPriority = getActionPriority(creatorAction);
+            
+            const actionsToAssign = Array.isArray(requestedActions) 
+              ? requestedActions 
+              : [requestedActions];
+
+            for (const action of actionsToAssign) {
+              const requestedPriority = getActionPriority(action);
+              if (requestedPriority > creatorPriority) {
+                await client.query('ROLLBACK');
+                return NextResponse.json(
+                  { message: `Permissão insuficiente para conceder '${action}' na funcionalidade '${feature.name}'. Você possui apenas '${creatorAction}'.` },
+                  { status: 403 }
+                );
+              }
+            }
+          }
+
+          const actionsToAssign = Array.isArray(requestedActions) 
+            ? requestedActions 
+            : typeof requestedActions === 'string' 
+              ? [requestedActions]
+              : [];
           
           for (const action of actionsToAssign) {
             const permissionObj = allPermissions.find(
@@ -360,14 +395,38 @@ export async function POST(request: NextRequest) {
             )
             
             if (permissionObj) {
-              // Associar permissão ao perfil
               const assignQuery = `
-                INSERT INTO role_permissions (role_id, permission_id, granted_at)
-                VALUES ($1, $2, NOW())
+                INSERT INTO role_permissions (role_id, permission_id, granted_at, tenant_id)
+                VALUES ($1, $2, NOW(), $3)
               `
-              await client.query(assignQuery, [perfilId, permissionObj.id])
+              await client.query(assignQuery, [perfilId, permissionObj.id, targetIsSystem ? null : (decoded.tenantId || null)])
             }
           }
+        }
+
+        // [NOVO] Salvar campos customizados
+        const customFields = body.custom_fields || [];
+        console.log(`🔍 DEBUG - Salvando ${customFields.length} campos customizados para perfil ${perfilId}`);
+        
+        for (let i = 0; i < customFields.length; i++) {
+          const field = customFields[i];
+          console.log(`🔍 DEBUG - Campo [${i}]:`, field);
+          
+          const insertFieldQuery = `
+            INSERT INTO role_custom_fields (role_id, field_name, field_label, field_type, mask, is_required, field_options, order_index, tenant_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          `;
+          await client.query(insertFieldQuery, [
+            perfilId,
+            field.name,
+            field.label,
+            field.type || 'text',
+            field.mask || null,
+            field.required || false,
+            field.options || null,
+            i,
+            targetIsSystem ? null : (decoded.tenantId || null)
+          ]);
         }
 
         // Commit da transação

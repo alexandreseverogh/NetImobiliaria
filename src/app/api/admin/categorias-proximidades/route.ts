@@ -3,14 +3,19 @@ import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionM
 import { findAllCategoriasProximidades, createCategoriaProximidade } from '@/lib/database/proximidades'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 export async function GET(request: NextRequest) {
   try {
     // Verificação de permissão
-    const permissionCheck = await unifiedPermissionMiddleware(request)
-    if (permissionCheck) return permissionCheck
-    
-    const categorias = await findAllCategoriasProximidades()
+    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    let tenantId = undefined
+    if (token) {
+      const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
+      tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    }
+
+    const categorias = await findAllCategoriasProximidades(tenantId)
     
     // Retornar diretamente o array para compatibilidade com o frontend
     return NextResponse.json(categorias)
@@ -25,12 +30,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'CREATE')
+    if (denied) return denied
+
     // Verificação de permissão
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck
-    
+
     const body = await request.json()
-    
+
     const { nome, descricao, icone, cor, ordem, ativo } = body
     
     if (!nome || !descricao) {
@@ -40,13 +48,21 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    let tenantId = undefined
+    if (token) {
+      const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
+      tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    }
+
     const novaCategoria = await createCategoriaProximidade({
       nome,
       descricao,
       icone: icone || 'map-pin',
       cor: cor || '#10B981',
       ordem: ordem || 1,
-      ativo: ativo !== undefined ? ativo : true
+      ativo: ativo !== undefined ? ativo : true,
+      tenant_id: tenantId
     })
     
     // Log de auditoria (não crítico - falha não afeta operação)

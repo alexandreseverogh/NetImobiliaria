@@ -61,44 +61,62 @@ const ACTION_HIERARCHY: Record<PermissionLevel, string[]> = {
 export async function checkUserPermission(
   userId: string,
   featureSlug: string,
-  requiredAction: PermissionLevel
+  requiredAction: PermissionLevel,
+  tenantId?: string
 ): Promise<boolean> {
   // ⚠️ RETROCOMPATIBILIDADE TEMPORÁRIA: WRITE → UPDATE
   const mappedAction: PermissionLevel = requiredAction === 'WRITE' ? 'UPDATE' : requiredAction
   try {
-    // 🔐 REGRA ESPECIAL: SUPER ADMIN TEM ACESSO TOTAL A TUDO!
+    // 🔐 REGRA ESPECIAL: PERFIL MASTER TEM ACESSO TOTAL A TUDO!
+    // GOVERNANÇA: Verifica em ambas as tabelas de associação se existe um role marcado como is_system_role
     const userRoleQuery = `
-      SELECT ur.name 
-      FROM user_role_assignments ura
+      SELECT 1 FROM user_role_assignments ura
       JOIN user_roles ur ON ura.role_id = ur.id
-      WHERE ura.user_id = $1::uuid
-      LIMIT 1
+      WHERE ura.user_id = $1::uuid AND ur.is_system_role = true
+      UNION
+      SELECT 1 FROM user_tenant_membership utm
+      JOIN user_roles ur ON utm.role_id = ur.id
+      WHERE utm.user_id = $1::uuid AND ur.is_system_role = true
     `
     const roleResult = await pool.query(userRoleQuery, [userId])
     
-    if (roleResult.rows.length > 0 && roleResult.rows[0].name === 'Super Admin') {
-      console.log('👑 Super Admin detectado - ACESSO TOTAL CONCEDIDO')
-      return true  // BYPASS TOTAL!
+    if (roleResult.rows.length > 0) {
+      console.log('🛡️ System Role detectada - ACESSO TOTAL CONCEDIDO (Global Bypass)')
+      return true
     }
     
     // Buscar ações permitidas baseado na hierarquia
     const allowedActions = ACTION_HIERARCHY[mappedAction] || [mappedAction.toLowerCase()]
     
-    // Query unificada: user → role → role_permissions → permissions → feature
+    // Query unificada com isolamento de Tenant e Módulo
     const query = `
       SELECT 1
-      FROM user_role_assignments ura
-      JOIN role_permissions rp ON ura.role_id = rp.role_id
+      FROM (
+        -- Atribuições globais (só valem se não estivermos filtrando por tenant específico ou se for master)
+        SELECT role_id FROM user_role_assignments WHERE user_id = $1::uuid AND $4::uuid IS NULL
+        UNION
+        -- Atribuições via Tenant Membership (Isolamento de dados)
+        SELECT role_id FROM user_tenant_membership WHERE user_id = $1::uuid AND is_active = true AND (tenant_id = $4::uuid OR $4::uuid IS NULL)
+      ) as user_roles_combined
+      JOIN role_permissions rp ON user_roles_combined.role_id = rp.role_id
       JOIN permissions p ON rp.permission_id = p.id
       JOIN system_features sf ON p.feature_id = sf.id
-      WHERE ura.user_id = $1
-        AND sf.slug = $2
+      -- Verificação de Módulo (Entitlement)
+      LEFT JOIN system_feature_modules fm ON sf.id = fm.feature_id
+      LEFT JOIN tenant_modules tm ON fm.module_id = tm.module_id AND tm.tenant_id = $4::uuid
+      WHERE sf.slug = $2
         AND sf.is_active = true
         AND p.action = ANY($3)
+        AND (
+          $4::uuid IS NULL OR -- Se não houver contexto de tenant, não bloqueia por módulo (ex: Master)
+          fm.module_id IS NULL OR -- Feature sem módulo vinculado
+          tm.is_enabled = true -- Módulo habilitado para o tenant
+        )
       LIMIT 1
     `
     
-    const result = await pool.query(query, [userId, featureSlug, allowedActions])
+    const result = await pool.query(query, [userId, featureSlug, allowedActions, tenantId || null])
+
     
     const hasPermission = result.rows.length > 0
     
@@ -148,12 +166,15 @@ export async function getUserPermissionsMap(
             ELSE 0
           END
         ) as permission_level
-      FROM user_role_assignments ura
-      JOIN role_permissions rp ON ura.role_id = rp.role_id
+      FROM (
+        SELECT role_id FROM user_role_assignments WHERE user_id = $1::uuid
+        UNION
+        SELECT role_id FROM user_tenant_membership WHERE user_id = $1::uuid AND is_active = true
+      ) as user_roles_combined
+      JOIN role_permissions rp ON user_roles_combined.role_id = rp.role_id
       JOIN permissions p ON rp.permission_id = p.id
       JOIN system_features sf ON p.feature_id = sf.id
-      WHERE ura.user_id = $1
-        AND sf.is_active = true
+      WHERE sf.is_active = true
       GROUP BY sf.slug
     `
     
@@ -245,19 +266,25 @@ export async function getUserWithPermissions(userId: string) {
     
     let user = userResult.rows[0]
     
-    // Buscar role do usuário
+    // Buscar role do usuário (Priorizando system role se existir)
     const roleQuery = `
       SELECT 
         ur.id as role_id, 
         ur.name as role_name, 
         ur.description as role_description, 
         ur.level as role_level, 
-        ur.requires_2fa
-      FROM user_role_assignments ura
-      JOIN user_roles ur ON ura.role_id = ur.id
-      WHERE ura.user_id = $1
+        ur.requires_2fa,
+        ur.is_system_role
+      FROM (
+        SELECT role_id FROM user_role_assignments WHERE user_id = $1::uuid
+        UNION
+        SELECT role_id FROM user_tenant_membership WHERE user_id = $1::uuid AND is_active = true
+      ) as user_roles_combined
+      JOIN user_roles ur ON user_roles_combined.role_id = ur.id
+      ORDER BY ur.is_system_role DESC, ur.level DESC
       LIMIT 1
     `
+
     
     const roleResult = await pool.query(roleQuery, [userId])
     

@@ -1,5 +1,4 @@
-// Sistema de monitoramento de segurança em tempo real
-// Detecta e registra atividades suspeitas
+import pool from '@/lib/database/connection';
 
 export interface SecurityEvent {
   id: string;
@@ -198,15 +197,6 @@ class SecurityMonitor {
   }
 
   private async getDatabaseEvents(startDate?: string | null, endDate?: string | null): Promise<SecurityEvent[]> {
-    const { Pool } = require('pg');
-    const pool = new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME!,
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'Roberto@2007',
-    });
-
     try {
       const client = await pool.connect();
       
@@ -274,8 +264,6 @@ class SecurityMonitor {
     } catch (error) {
       console.error('Erro ao buscar eventos do banco:', error);
       return [];
-    } finally {
-      await pool.end();
     }
   }
 
@@ -323,15 +311,6 @@ class SecurityMonitor {
     eventsByType: Record<string, number>;
     eventsBySeverity: Record<string, number>;
   }> {
-    const { Pool } = require('pg');
-    const pool = new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME!,
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'Roberto@2007',
-    });
-
     try {
       const client = await pool.connect();
       
@@ -372,8 +351,6 @@ class SecurityMonitor {
     } catch (error) {
       console.error('Erro ao buscar estatísticas do banco:', error);
       return { totalEvents: 0, eventsByType: {}, eventsBySeverity: {} };
-    } finally {
-      await pool.end();
     }
   }
 

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
@@ -58,7 +58,7 @@ function CorretorManifestoDrawer({
     }
   }, [isOpen, onClose])
 
-  // Carregar SLA (parametros.sla_minutos_aceite_lead) para exibir aviso de transbordo no manifesto
+  // Carregar SLA (parametros_imoveis.sla_minutos_aceite_lead) para exibir aviso de transbordo no manifesto
   useEffect(() => {
     if (!isOpen) return
       ; (async () => {

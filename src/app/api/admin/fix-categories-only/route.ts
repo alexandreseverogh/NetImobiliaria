@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
           INSERT INTO role_permissions (role_id, permission_id)
           SELECT r.id, $1
           FROM user_roles r
-          WHERE r.name IN ('Super Admin', 'Administrador')
+          WHERE r.is_system_role = true OR r.name ILIKE '%Administrador%'
           ON CONFLICT DO NOTHING
         `, [permId])
         

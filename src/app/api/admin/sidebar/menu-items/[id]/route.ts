@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
 import { verifyTokenNode } from '@/lib/auth/jwt-node';
+import { requireApiPermission } from '@/lib/auth/apiPermissions';
 
 // ============================================================
 // PUT /api/admin/sidebar/menu-items/[id]
@@ -13,6 +14,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'sidebar', 'UPDATE')
+    if (denied) return denied
+
     const itemId = parseInt(params.id);
     const data = await request.json();
     const userId = getUserIdFromRequest(request);
@@ -101,6 +105,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'sidebar', 'DELETE')
+    if (denied) return denied
+
     const itemId = parseInt(params.id);
 
     if (isNaN(itemId)) {
@@ -123,24 +130,21 @@ export async function DELETE(
       );
     }
 
-    // Verificar se tem filhos (não permite deletar se tiver)
-    const childrenResult = await pool.query(
-      'SELECT COUNT(*) as count FROM sidebar_menu_items WHERE parent_id = $1',
-      [itemId]
-    );
-
-    if (parseInt(childrenResult.rows[0].count) > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Não é possível deletar item com subitens. Delete os filhos primeiro.',
-        },
-        { status: 400 }
-      );
+    // Iniciar transação para deleção em cascata manual (ou deixar o banco fazer se tivesse ON DELETE CASCADE, mas vamos garantir aqui)
+    await pool.query('BEGIN');
+    
+    try {
+      // 1. Deletar filhos primeiro
+      await pool.query('DELETE FROM sidebar_menu_items WHERE parent_id = $1', [itemId]);
+      
+      // 2. Deletar o pai
+      await pool.query('DELETE FROM sidebar_menu_items WHERE id = $1', [itemId]);
+      
+      await pool.query('COMMIT');
+    } catch (e) {
+      await pool.query('ROLLBACK');
+      throw e;
     }
-
-    // Deletar item
-    await pool.query('DELETE FROM sidebar_menu_items WHERE id = $1', [itemId]);
 
     return NextResponse.json({
       success: true,

@@ -1,4 +1,5 @@
 import React from 'react';
+import * as Lucide from 'lucide-react';
 // ✅ IMPORTS OTIMIZADOS - Apenas ícones específicos do Material UI
 import HomeIconMui from '@mui/icons-material/Home';
 import DashboardIconMui from '@mui/icons-material/Dashboard';
@@ -34,9 +35,11 @@ import KitchenIconMui from '@mui/icons-material/Kitchen';
 import {
   HomeIcon,
   BuildingOfficeIcon,
+  BuildingOffice2Icon,
   UsersIcon,
   ChartBarIcon,
   CogIcon,
+  GlobeAltIcon,
   ShieldCheckIcon,
   ClipboardDocumentListIcon,
   DocumentTextIcon,
@@ -53,6 +56,13 @@ import {
   CheckCircleIcon,
   Bars3Icon,
   XMarkIcon,
+  RocketLaunchIcon,
+  PresentationChartLineIcon,
+  ViewColumnsIcon,
+  UserPlusIcon,
+  AdjustmentsHorizontalIcon,
+  KeyIcon,
+  LockClosedIcon,
 } from '@heroicons/react/24/outline';
 
 // SVG Icons - DIRETO SEM BIBLIOTECAS
@@ -103,26 +113,57 @@ const muiIconMap: Record<string, React.ComponentType<any>> = {
 // ============================================================
 const iconMap: Record<string, React.ComponentType<any>> = {
   'home': HomeIcon,
+  'homeicon': HomeIcon,
   'building': BuildingOfficeIcon,
+  'buildingofficeicon': BuildingOfficeIcon,
+  'buildingoffice2icon': BuildingOffice2Icon,
   'users': UsersIcon,
+  'usersicon': UsersIcon,
   'user-group': UserGroupIcon,
+  'usergroupicon': UserGroupIcon,
   'chart': ChartBarIcon,
+  'chartbaricon': ChartBarIcon,
   'cog': CogIcon,
+  'cogicon': CogIcon,
   'shield': ShieldCheckIcon,
+  'shieldcheckicon': ShieldCheckIcon,
   'clipboard': ClipboardDocumentListIcon,
+  'clipboarddocumentlisticon': ClipboardDocumentListIcon,
   'document': DocumentTextIcon,
+  'documenttexticon': DocumentTextIcon,
   'wrench': WrenchScrewdriverIcon,
+  'wrenchscrewdrivericon': WrenchScrewdriverIcon,
   'modern-home': HomeModernIcon,
+  'homemodernicon': HomeModernIcon,
   'map-pin': MapPinIcon,
+  'mappinicon': MapPinIcon,
   'tag': TagIcon,
+  'tagicon': TagIcon,
   'clock': ClockIcon,
+  'clockicon': ClockIcon,
   'trash': TrashIcon,
+  'trashicon': TrashIcon,
   'squares': Squares2X2Icon,
+  'squares2x2icon': Squares2X2Icon,
   'chevron-down': ChevronDownIcon,
+  'chevronrighticon': ChevronRightIcon,
   'chevron-right': ChevronRightIcon,
+  'chevrondownicon': ChevronDownIcon,
   'check-circle': CheckCircleIcon,
+  'checkcircleicon': CheckCircleIcon,
   'bars': Bars3Icon,
+  'bars3icon': Bars3Icon,
   'x-mark': XMarkIcon,
+  'xmarkicon': XMarkIcon,
+  'rocketlaunchicon': RocketLaunchIcon,
+  'presentationchartlineicon': PresentationChartLineIcon,
+  'viewcolumnsicon': ViewColumnsIcon,
+  'userplusicon': UserPlusIcon,
+  'adjustmentshorizontalicon': AdjustmentsHorizontalIcon,
+  'keyicon': KeyIcon,
+  'lockclosedicon': LockClosedIcon,
+  'globealticon': GlobeAltIcon,
+  'globealt': GlobeAltIcon,
   
   // SVG Icons
   'svg-home': ({ className }: { className?: string }) => <SvgIcon className={className}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></SvgIcon>,
@@ -149,6 +190,15 @@ export default function DynamicIcon({
   className = 'h-6 w-6',
   ...props
 }: DynamicIconProps) {
+  // ✅ SUPORTE LUCIDE ICONS (PREMIUM 4000+)
+  if (iconName.startsWith('lucide-')) {
+    const lucideName = iconName.replace('lucide-', '');
+    const LucideIcon = (Lucide as any)[lucideName];
+    if (LucideIcon) {
+      return <LucideIcon className={className} {...props} strokeWidth={2.5} />;
+    }
+  }
+
   // Validação
   if (!iconName || typeof iconName !== 'string') {
     const IconComponent = iconMap['default'];

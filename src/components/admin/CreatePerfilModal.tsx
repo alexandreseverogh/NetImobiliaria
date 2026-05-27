@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { XMarkIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, ShieldCheckIcon, AdjustmentsHorizontalIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '@/hooks/useAuth';
+import { useApi } from '@/hooks/useApi';
 import PermissoesEditor from './PermissoesEditor';
 
 interface CreatePerfilModalProps {
@@ -13,27 +15,38 @@ interface CreatePerfilModalProps {
 interface CreatePerfilData {
   name: string;
   description: string;
-  permissions: Record<string, string>;
+  level: number;
+  is_system_role: boolean;
+  permissions: Record<string, string[]>;
+  custom_fields: any[];
 }
 
 export default function CreatePerfilModal({ isOpen, onClose, onSuccess }: CreatePerfilModalProps) {
+  const { user: currentUser } = useAuth();
+  const { post } = useApi();
   const [formData, setFormData] = useState<CreatePerfilData>({
     name: '',
     description: '',
-    permissions: {}
+    level: 1,
+    is_system_role: false,
+    permissions: {},
+    custom_fields: []
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('📝 [CreatePerfilModal] handleSubmit iniciado');
     e.preventDefault();
     
     if (!formData.name.trim()) {
+      console.warn('⚠️ [CreatePerfilModal] Nome do perfil vazio');
       setError('Nome do perfil é obrigatório');
       return;
     }
 
     if (!formData.description.trim()) {
+      console.warn('⚠️ [CreatePerfilModal] Descrição vazia');
       setError('Descrição é obrigatória');
       return;
     }
@@ -41,25 +54,21 @@ export default function CreatePerfilModal({ isOpen, onClose, onSuccess }: Create
     try {
       setLoading(true);
       setError(null);
+      console.log('🚀 [CreatePerfilModal] Enviando dados para API:', formData);
 
-      const token = localStorage.getItem('auth-token')
-      const response = await fetch('/api/admin/perfis', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
+      const response = await post('/api/admin/perfis', formData);
+      console.log('📡 [CreatePerfilModal] Resposta da API:', response.status, response.statusText);
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ [CreatePerfilModal] Erro retornado pela API:', errorData);
         throw new Error(errorData.message || `Erro ${response.status}: ${response.statusText}`);
       }
 
+      console.log('✅ [CreatePerfilModal] Perfil criado com sucesso!');
       onSuccess();
     } catch (err) {
-      console.error('Erro ao criar perfil:', err);
+      console.error('💥 [CreatePerfilModal] Erro crítico no handleSubmit:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
@@ -73,7 +82,7 @@ export default function CreatePerfilModal({ isOpen, onClose, onSuccess }: Create
     }));
   };
 
-  const handlePermissionsChange = (permissions: Record<string, string>) => {
+  const handlePermissionsChange = (permissions: Record<string, string[]>) => {
     setFormData(prev => ({
       ...prev,
       permissions
@@ -85,7 +94,10 @@ export default function CreatePerfilModal({ isOpen, onClose, onSuccess }: Create
       setFormData({
         name: '',
         description: '',
-        permissions: {}
+        level: 1,
+        is_system_role: false,
+        permissions: {},
+        custom_fields: []
       });
       setError(null);
       onClose();
@@ -191,6 +203,204 @@ export default function CreatePerfilModal({ isOpen, onClose, onSuccess }: Create
                   />
                 </div>
               </div>
+
+              {/* Advanced Governance (Hierarchy & System Level) */}
+              <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 mb-8">
+                 <div className="flex items-center gap-2 mb-4 text-slate-800">
+                    <AdjustmentsHorizontalIcon className="h-5 w-5" />
+                    <span className="font-semibold">Governança e Hierarquia</span>
+                 </div>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
+                    <div>
+                      <div className="flex justify-between mb-2">
+                        <label className="text-sm font-medium text-slate-700">Nível de Hierarquia (1-{currentUser?.is_system_role ? '1000' : (currentUser?.role_level || 100) - 1})</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max={currentUser?.is_system_role ? 1000 : (currentUser?.role_level || 100) - 1}
+                            value={formData.level}
+                            onChange={(e) => setFormData(prev => ({ ...prev, level: parseInt(e.target.value) || 1 }))}
+                            className="w-16 px-2 py-0.5 text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max={currentUser?.is_system_role ? 1000 : (currentUser?.role_level || 100) - 1}
+                        value={formData.level}
+                        onChange={(e) => setFormData(prev => ({ ...prev, level: parseInt(e.target.value) }))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      />
+                      <div className="flex justify-between mt-1 text-[10px] text-slate-400 font-medium">
+                        <span>Operacional (1)</span>
+                        <span>Seu Limite ({currentUser?.is_system_role ? '1000' : (currentUser?.role_level || 100) - 1})</span>
+                      </div>
+                      <p className="mt-2 text-[11px] text-slate-500 italic">
+                        * Perfis com este nível poderão ser gerenciados por você e por perfis acima do nível {formData.level}.
+                      </p>
+                    </div>
+
+                    {currentUser?.is_system_role && (
+                      <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${formData.is_system_role ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                            <GlobeAltIcon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-700">Perfil de Plataforma</p>
+                            <p className="text-[11px] text-slate-500">Acesso Master Multi-Tenant</p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={formData.is_system_role}
+                            onChange={(e) => setFormData(prev => ({ ...prev, is_system_role: e.target.checked }))}
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                      </div>
+                    )}
+                 </div>
+              </div>
+
+               {/* Atributos Dinâmicos (Metadata) */}
+               <div className="bg-blue-50 rounded-xl p-5 border border-blue-200 mb-8">
+                 <div className="flex items-center justify-between mb-4">
+                   <div className="flex items-center gap-2 text-blue-800">
+                     <AdjustmentsHorizontalIcon className="h-5 w-5" />
+                     <span className="font-semibold">Atributos Dinâmicos (Metadata)</span>
+                   </div>
+                   <button
+                     type="button"
+                     onClick={() => {
+                       setFormData(prev => ({
+                         ...prev,
+                         custom_fields: [
+                           ...prev.custom_fields,
+                           { name: '', label: '', type: 'text', required: false, mask: '' }
+                         ]
+                       }))
+                     }}
+                     className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-all flex items-center gap-1"
+                   >
+                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+                     </svg>
+                     ADICIONAR ATRIBUTO
+                   </button>
+                 </div>
+
+                 {formData.custom_fields.length === 0 ? (
+                   <div className="text-center py-6 bg-white/50 rounded-lg border border-dashed border-blue-200">
+                     <p className="text-xs text-blue-400 font-medium italic">Nenhum campo dinâmico configurado. Clique para adicionar (ex: CRECI, CRM, etc.)</p>
+                   </div>
+                 ) : (
+                   <div className="space-y-3">
+                     {formData.custom_fields.map((field, index) => (
+                       <div key={index} className="grid grid-cols-12 gap-3 items-end bg-white p-3 rounded-lg shadow-sm border border-blue-100">
+                         <div className="col-span-3">
+                           <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Nome Técnico (BD)</label>
+                           <input
+                             type="text"
+                             value={field.name}
+                             onChange={(e) => {
+                               const newFields = [...formData.custom_fields]
+                               newFields[index].name = e.target.value.toLowerCase().replace(/\s/g, '_')
+                               setFormData(prev => ({ ...prev, custom_fields: newFields }))
+                             }}
+                             className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                             placeholder="ex: numero_creci"
+                           />
+                         </div>
+                         <div className="col-span-3">
+                           <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Etiqueta (Label)</label>
+                           <input
+                             type="text"
+                             value={field.label}
+                             onChange={(e) => {
+                               const newFields = [...formData.custom_fields]
+                               newFields[index].label = e.target.value
+                               setFormData(prev => ({ ...prev, custom_fields: newFields }))
+                             }}
+                             className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                             placeholder="ex: Registro CRECI"
+                           />
+                         </div>
+                          <div className="col-span-2">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Tipo</label>
+                            <select
+                              value={field.type}
+                              onChange={(e) => {
+                                const newFields = [...formData.custom_fields]
+                                newFields[index].type = e.target.value
+                                // Inicializar options se for select
+                                if (e.target.value === 'select' && !newFields[index].options) {
+                                  newFields[index].options = ''
+                                }
+                                setFormData(prev => ({ ...prev, custom_fields: newFields }))
+                              }}
+                              className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-blue-500"
+                            >
+                              <option value="text">Texto</option>
+                              <option value="number">Número</option>
+                              <option value="date">Data</option>
+                              <option value="select">Seleção (Enum)</option>
+                            </select>
+                          </div>
+
+                          {field.type === 'select' && (
+                            <div className="col-span-12 mt-2">
+                              <label className="block text-[10px] font-black text-blue-500 uppercase mb-1">Opções da Seleção (separe por vírgula)</label>
+                              <input
+                                type="text"
+                                value={field.options || ''}
+                                onChange={(e) => {
+                                  const newFields = [...formData.custom_fields]
+                                  newFields[index].options = e.target.value
+                                  setFormData(prev => ({ ...prev, custom_fields: newFields }))
+                                }}
+                                className="w-full px-2 py-1.5 text-xs border border-blue-200 bg-blue-50 rounded focus:ring-1 focus:ring-blue-500"
+                                placeholder="Ex: Opção 1, Opção 2, Opção 3"
+                              />
+                            </div>
+                          )}
+
+                         <div className="col-span-2 flex items-center gap-2 mb-2">
+                           <input
+                             type="checkbox"
+                             id={`req-${index}`}
+                             checked={field.required}
+                             onChange={(e) => {
+                               const newFields = [...formData.custom_fields]
+                               newFields[index].required = e.target.checked
+                               setFormData(prev => ({ ...prev, custom_fields: newFields }))
+                             }}
+                             className="h-3 w-3 text-blue-600 rounded"
+                           />
+                           <label htmlFor={`req-${index}`} className="text-[10px] font-bold text-slate-600 uppercase">Obrigatório</label>
+                         </div>
+                         <div className="col-span-2 flex justify-end">
+                           <button
+                             type="button"
+                             onClick={() => {
+                               const newFields = formData.custom_fields.filter((_, i) => i !== index)
+                               setFormData(prev => ({ ...prev, custom_fields: newFields }))
+                             }}
+                             className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                           >
+                             <XMarkIcon className="h-4 w-4" />
+                           </button>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 )}
+               </div>
 
               {/* Permissions Editor */}
               <div>

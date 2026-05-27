@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
-import { validateHierarchyOperation } from '@/services/hierarchyService'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // GET - Listar todos os roles
 export async function GET(request: NextRequest) {
@@ -11,25 +11,44 @@ export async function GET(request: NextRequest) {
     if (permissionCheck) {
       return permissionCheck
     }
-    const query = `
-      SELECT 
-        r.id,
-        r.name,
-        r.description,
-        r.level,
-        r.is_active,
-        r.requires_2fa,
-        r.is_system_role,
-        r.created_at,
-        r.updated_at,
-        COUNT(ura.user_id) as user_count
-      FROM user_roles r
-      LEFT JOIN user_role_assignments ura ON r.id = ura.role_id
-      GROUP BY r.id
-      ORDER BY r.level ASC, r.name ASC
-    `
+    const token = request.cookies.get('admin_auth_token')?.value
+    const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
+    const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+
+    let query = ''
+    let queryParams: any[] = []
+
+    if (tenantId) {
+      query = `
+        SELECT 
+          r.id, r.name, r.description, r.level, r.is_active, r.requires_2fa,
+          r.is_system_role, r.created_at, r.updated_at, COUNT(ura.user_id) as user_count,
+          MAX(rh.manager_role_id) as manager_role_id
+        FROM user_roles r
+        LEFT JOIN user_role_assignments ura ON r.id = ura.role_id
+        LEFT JOIN role_hierarchies rh ON r.id = rh.subordinate_role_id
+        WHERE (r.tenant_id = $1 OR r.is_system_role = true)
+        AND r.is_system_role = false
+        GROUP BY r.id
+        ORDER BY r.level ASC, r.name ASC
+      `
+      queryParams = [tenantId]
+    } else {
+      query = `
+        SELECT 
+          r.id, r.name, r.description, r.level, r.is_active, r.requires_2fa,
+          r.is_system_role, r.created_at, r.updated_at, COUNT(ura.user_id) as user_count,
+          MAX(rh.manager_role_id) as manager_role_id
+        FROM user_roles r
+        LEFT JOIN user_role_assignments ura ON r.id = ura.role_id
+        LEFT JOIN role_hierarchies rh ON r.id = rh.subordinate_role_id
+        WHERE r.is_system_role = false
+        GROUP BY r.id
+        ORDER BY r.level ASC, r.name ASC
+      `
+    }
     
-    const result = await pool.query(query)
+    const result = await pool.query(query, queryParams)
     
     // Mapear requires_2fa para two_fa_required para compatibilidade com frontend
     const roles = result.rows.map(row => ({
@@ -53,6 +72,10 @@ export async function GET(request: NextRequest) {
 // POST - Criar novo role
 export async function POST(request: NextRequest) {
   try {
+    // Verificar permissão de criação server-side
+    const denied = await requireApiPermission(request, 'roles', 'CREATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -60,7 +83,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json()
-    const { name, description, level, two_fa_required = false, is_active = true } = data
+    const { name, description, level, two_fa_required = false, is_active = true, manager_role_id } = data
     
     // Mapear two_fa_required para requires_2fa
     const requires_2fa = two_fa_required
@@ -80,10 +103,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verificar se nome já existe
+    // Validação de nome existente no escopo do tenant (ou global se for master)
+    const token = request.cookies.get('admin_auth_token')?.value
+    const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
+    const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+
     const existingRole = await pool.query(
-      'SELECT id FROM user_roles WHERE name = $1',
-      [name]
+      'SELECT id FROM user_roles WHERE name = $1 AND (tenant_id = $2 OR is_system_role = true)',
+      [name, tenantId || null]
     )
 
     if (existingRole.rows.length > 0) {
@@ -93,20 +120,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: Validação de hierarquia - obter role do usuário logado
-    // Por enquanto, permitir criação para desenvolvimento
-    const validation = validateHierarchyOperation('create', 'Super Admin', 'Novo Role', level)
-    if (!validation.allowed) {
-      return NextResponse.json(
-        { success: false, message: validation.reason },
-        { status: 403 }
-      )
-    }
-
-    // Inserir novo role
+    // Inserir novo role associado ao tenant do criador
     const insertQuery = `
-      INSERT INTO user_roles (name, description, level, requires_2fa, is_active, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+      INSERT INTO user_roles (name, description, level, requires_2fa, is_active, created_at, updated_at, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
       RETURNING *
     `
 
@@ -115,8 +132,20 @@ export async function POST(request: NextRequest) {
       description,
       level,
       requires_2fa,
-      is_active
+      is_active,
+      tenantId || null
     ])
+
+    const newRoleId = result.rows[0].id
+
+    // Associar ao gerente se manager_role_id for fornecido
+    if (manager_role_id) {
+      const hierarchyQuery = `
+        INSERT INTO role_hierarchies (tenant_id, manager_role_id, subordinate_role_id)
+        VALUES ($1, $2, $3)
+      `
+      await pool.query(hierarchyQuery, [tenantId || null, manager_role_id, newRoleId])
+    }
 
     return NextResponse.json({
       success: true,

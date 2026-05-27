@@ -11,7 +11,11 @@ async function getLoggedUser(request: NextRequest): Promise<{ userId: string | n
   try {
     const decoded = await verifyToken(token)
     if (!decoded) return { userId: null, error: 'Token inválido ou expirado' }
-    return { userId: decoded.userId }
+    return { 
+      userId: decoded.userId,
+      tenantId: (decoded as any).tenantId,
+      isMaster: (decoded as any).is_system_role === true
+    }
   } catch (error: any) {
     console.error('❌ Erro ao decodificar token:', error)
     return { userId: null, error: `Erro na verificação: ${error.message}` }
@@ -47,10 +51,10 @@ export async function GET(request: NextRequest) {
     const query = `
       SELECT id, estado_fk, cidade_fk, created_at 
       FROM public.corretor_areas_atuacao 
-      WHERE corretor_fk = $1::uuid 
+      WHERE corretor_fk = $1::uuid AND (tenant_id = $2 OR $2 IS NULL)
       ORDER BY estado_fk, cidade_fk
     `
-    const result = await pool.query(query, [userId])
+    const result = await pool.query(query, [userId, userResult.tenantId || null])
     console.log('✅ [AREAS_ATUACAO] Query result size:', result.rows.length);
 
     return NextResponse.json({ success: true, areas: result.rows })
@@ -80,7 +84,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, error } = await getLoggedUser(request)
+    const { userId, tenantId, error } = await getLoggedUser(request)
     if (!userId) {
       console.warn(`⚠️ [AREAS_ATUACAO] POST negado. Motivo: ${error}`)
       return NextResponse.json({
@@ -104,23 +108,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Identificador de usuário inválido' }, { status: 401 });
     }
 
-    // Verificar se já existe
+    // Verificar se já existe no contexto deste tenant
     const checkQuery = `
       SELECT id FROM public.corretor_areas_atuacao 
-      WHERE corretor_fk = $1::uuid AND estado_fk = $2 AND cidade_fk = $3
+      WHERE corretor_fk = $1::uuid AND estado_fk = $2 AND cidade_fk = $3 AND (tenant_id = $4 OR $4 IS NULL)
     `
-    const checkResult = await pool.query(checkQuery, [userId, estado_fk, cidade_fk])
+    const checkResult = await pool.query(checkQuery, [userId, estado_fk, cidade_fk, tenantId || null])
 
     if (checkResult.rows.length > 0) {
       return NextResponse.json({ success: false, error: 'Esta área já está cadastrada' }, { status: 400 })
     }
 
+    const tenantIdToUse = tenantId || '00000000-0000-0000-0000-000000000001'
+
     const insertQuery = `
-      INSERT INTO public.corretor_areas_atuacao (corretor_fk, estado_fk, cidade_fk, created_by)
-      VALUES ($1::uuid, $2, $3, $1::uuid)
+      INSERT INTO public.corretor_areas_atuacao (corretor_fk, estado_fk, cidade_fk, created_by, tenant_id)
+      VALUES ($1::uuid, $2, $3, $1::uuid, $4)
       RETURNING id, estado_fk, cidade_fk, created_at
     `
-    const result = await pool.query(insertQuery, [userId, estado_fk, cidade_fk])
+    const result = await pool.query(insertQuery, [userId, estado_fk, cidade_fk, tenantIdToUse])
 
     return NextResponse.json({ success: true, area: result.rows[0] })
   } catch (error: any) {
@@ -163,10 +169,11 @@ export async function DELETE(request: NextRequest) {
 
     const query = `
       DELETE FROM public.corretor_areas_atuacao 
-      WHERE id = $1 AND corretor_fk = $2::uuid
+      WHERE id = $1 AND corretor_fk = $2::uuid AND (tenant_id = $3 OR $3 IS NULL)
       RETURNING id
     `
-    const result = await pool.query(query, [id, userId])
+    const { tenantId } = await getLoggedUser(request)
+    const result = await pool.query(query, [id, userId, tenantId || null])
 
     if (result.rows.length === 0) {
       return NextResponse.json({ success: false, error: 'Área não encontrada ou não pertence a você' }, { status: 404 })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import pool from '@/lib/database/connection'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 /**
  * PUT - Atualizar configuração de 2FA de uma permissão
@@ -15,6 +16,9 @@ export async function PUT(
     if (permissionCheck) {
       return permissionCheck
     }
+
+    const denied = await requireApiPermission(request, 'permissions', 'UPDATE')
+    if (denied) return denied
 
     const permissionId = parseInt(params.id)
     const { requires_2fa } = await request.json()

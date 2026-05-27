@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { findStatusImovelById, updateStatusImovel, deleteStatusImovel } from '@/lib/database/status-imovel'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
+import { getTokenFromRequest, verifyToken } from '@/lib/auth/jwt'
 
 // GET - Buscar status de imóvel por ID
 export async function GET(
@@ -24,7 +26,11 @@ export async function GET(
       )
     }
 
-    const statusImovel = await findStatusImovelById(id)
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.is_system_role ? undefined : decoded?.tenantId
+
+    const statusImovel = await findStatusImovelById(id, tenantId)
     if (!statusImovel) {
       return NextResponse.json(
         { error: 'Status de imóvel não encontrado' },
@@ -52,6 +58,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -69,8 +78,12 @@ export async function PUT(
     const body = await request.json()
     const { nome, cor, descricao, ativo, consulta_imovel_internauta } = body
 
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.is_system_role ? undefined : decoded?.tenantId
+
     // Buscar dados ANTES da atualização para auditoria
-    const statusAntes = await findStatusImovelById(id)
+    const statusAntes = await findStatusImovelById(id, tenantId)
     
     if (!statusAntes) {
       return NextResponse.json(
@@ -79,7 +92,7 @@ export async function PUT(
       )
     }
 
-    const statusImovelAtualizado = await updateStatusImovel(id, {
+    const statusImovelAtualizado = await updateStatusImovel(id, tenantId, {
       nome,
       cor,
       descricao,
@@ -154,6 +167,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'DELETE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -168,8 +184,12 @@ export async function DELETE(
       )
     }
 
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.is_system_role ? undefined : decoded?.tenantId
+
     // Buscar dados ANTES da exclusão para auditoria
-    const statusImovel = await findStatusImovelById(id)
+    const statusImovel = await findStatusImovelById(id, tenantId)
     
     if (!statusImovel) {
       return NextResponse.json(
@@ -178,7 +198,7 @@ export async function DELETE(
       )
     }
 
-    await deleteStatusImovel(id)
+    await deleteStatusImovel(id, tenantId)
 
     // Log de auditoria para exclusão (não crítico)
     try {

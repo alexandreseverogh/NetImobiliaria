@@ -1,5 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
+
+function getCurrentUser(request: NextRequest): { userId: string, tenantId?: string, is_system_role?: boolean } | null {
+  try {
+    const token = request.cookies.get('accessToken')?.value ||
+      request.headers.get('authorization')?.replace('Bearer ', '')
+
+    if (!token) return null
+
+    const decoded = verifyTokenNode(token) as any
+    if (!decoded) return null
+
+    return {
+      userId: decoded.userId,
+      tenantId: decoded.tenantId,
+      is_system_role: decoded.is_system_role === true
+    }
+  } catch (error) {
+    return null
+  }
+}
 
 // POST - Confirmar rascunho (manter alterações)
 export async function POST(
@@ -7,8 +29,12 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   console.log('🔍 API POST /api/admin/imoveis/[id]/rascunho/confirmar - INICIADA')
-  
+
   try {
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     const imovelId = parseInt(params.id)
     
     if (isNaN(imovelId)) {
@@ -18,10 +44,17 @@ export async function POST(
       )
     }
 
-    // Buscar rascunho ativo
+    const currentUser = getCurrentUser(request)
+    const tenantId = currentUser?.tenantId || null
+    const isMaster = currentUser?.is_system_role === true
+
+    // 🛡️ ISOLAMENTO MULTI-TENANT: Buscar rascunho ativo validando tenant
     const rascunhoResult = await pool.query(
-      'SELECT * FROM imovel_rascunho WHERE imovel_id = $1 AND ativo = true',
-      [imovelId]
+      `SELECT r.* FROM imovel_rascunho r
+       JOIN imoveis i ON r.imovel_id = i.id
+       WHERE r.imovel_id = $1 AND r.ativo = true
+       ${!isMaster ? 'AND i.tenant_id = $2' : ''}`,
+      !isMaster ? [imovelId, tenantId] : [imovelId]
     )
 
     if (rascunhoResult.rows.length === 0) {

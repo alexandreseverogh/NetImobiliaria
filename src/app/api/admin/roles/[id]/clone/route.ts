@@ -1,20 +1,16 @@
-import { NextResponse } from 'next/server'
-import { Pool } from 'pg'
-
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
-  database: process.env.DB_NAME!,
-})
+import { NextRequest, NextResponse } from 'next/server'
+import pool from '@/lib/database/connection'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // POST - Clonar perfil
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'roles', 'CREATE')
+    if (denied) return denied
+
     const roleId = parseInt(params.id)
     
     if (isNaN(roleId)) {
@@ -62,10 +58,10 @@ export async function POST(
       )
     }
 
-    // Proteção para Super Admin
-    if (original.name === 'Super Admin') {
+    // Bloqueio de Segurança: Perfis de Sistema (Master) são únicos e não podem ser clonados para garantir integridade
+    if (original.is_system_role) {
       return NextResponse.json(
-        { success: false, message: 'Não é possível clonar o perfil Super Admin' },
+        { success: false, message: 'Não é possível clonar perfis Master de plataforma' },
         { status: 400 }
       )
     }

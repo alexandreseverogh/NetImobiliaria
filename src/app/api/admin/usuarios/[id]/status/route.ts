@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import { auditLogger } from '@/lib/utils/auditLogger'
 import { findUserById, updateUser } from '@/lib/database/users'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // PATCH - Alterar status do usuário
 export async function PATCH(
@@ -9,6 +10,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'usuarios', 'UPDATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {

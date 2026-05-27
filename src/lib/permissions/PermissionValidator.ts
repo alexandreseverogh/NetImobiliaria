@@ -17,13 +17,16 @@ export class PermissionValidator {
   // ============================================================
   
   static async isAdmin(user: AdminUser): Promise<boolean> {
-    if (!user || !user.role_name) {
+    if (!user) {
       return false;
     }
     
-    // Verificar role de admin (pode ser expandido para busca no banco)
-    const adminRoles = ['Super Admin', 'Administrador'];
-    return adminRoles.includes(user.role_name);
+    // NÍVEL MASTER: Perfil de Sistema (Global)
+    if (user.is_system_role) return true;
+    
+    // NÍVEL ADMIN: Nível hierárquico elevado (5-99)
+    // 5 = Geralmente administrador do Tenant
+    return (user.role_level || 0) >= 5;
   }
   
   // ============================================================
@@ -126,9 +129,8 @@ export class PermissionValidator {
   static getAccessLevel(user: AdminUser): 'admin' | 'user' | 'guest' {
     if (!user) return 'guest';
     
-    const role = user.role_name;
-    
-    if (role === 'Super Admin' || role === 'Administrador') {
+    // Roles de Sistema ou Níveis 5+ são tratados como admin no frontend
+    if (user.is_system_role || (user.role_level || 0) >= 5) {
       return 'admin';
     }
     

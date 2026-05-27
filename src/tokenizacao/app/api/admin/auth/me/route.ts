@@ -1,10 +1,10 @@
-﻿/* eslint-disable */
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
-import { findUserById } from '@/lib/database/users'
+import { findUserById, getUserPermissions } from '@/lib/database/users'
 import pool from '@/lib/database/connection'
 
-// ForÃ§ar uso do Node.js runtime
+// Forçar uso do Node.js runtime
 export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     
     if (!token) {
       return NextResponse.json(
-        { error: 'Token de autenticaÃ§Ã£o nÃ£o fornecido' },
+        { error: 'Token de autenticação não fornecido' },
         { status: 401 }
       )
     }
@@ -24,12 +24,12 @@ export async function GET(request: NextRequest) {
     
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Token de autenticaÃ§Ã£o invÃ¡lido ou expirado' },
+        { error: 'Token de autenticação inválido ou expirado' },
         { status: 401 }
       )
     }
 
-    // Buscar dados do usuÃ¡rio com perfil
+    // Buscar dados do usuário com perfil
     const userQuery = `
       SELECT 
         u.id,
@@ -43,11 +43,15 @@ export async function GET(request: NextRequest) {
         u.created_at,
         u.updated_at,
         ur.name as role_name,
-        ur.description as role_description
+        ur.description as role_description,
+        ur.level as role_level,
+        ur.is_system_role
       FROM users u
       LEFT JOIN user_role_assignments ura ON u.id = ura.user_id
       LEFT JOIN user_roles ur ON ura.role_id = ur.id
       WHERE u.id = $1
+      ORDER BY ur.level DESC
+      LIMIT 1
     `
     
     const userResult = await pool.query(userQuery, [decoded.userId])
@@ -55,36 +59,24 @@ export async function GET(request: NextRequest) {
     
     if (!user) {
       return NextResponse.json(
-        { error: 'UsuÃ¡rio nÃ£o encontrado' },
+        { error: 'Usuário não encontrado' },
         { status: 404 }
       )
     }
 
-    // Para Super Admin, dar todas as permissÃµes sem depender de tabelas de permissÃµes
-    const permissoes: Record<string, string> = {}
+    // Buscar permissões reais
+    const permissoes = await getUserPermissions(user.id)
     
-    // Se for Super Admin, dar todas as permissÃµes
-    if (user.role_name === 'Super Admin') {
-      permissoes['imoveis'] = 'ADMIN'
-      permissoes['usuarios'] = 'ADMIN'
-      permissoes['amenidades'] = 'ADMIN'
-      permissoes['proximidades'] = 'ADMIN'
-      permissoes['categorias-amenidades'] = 'ADMIN'
-      permissoes['categorias-proximidades'] = 'ADMIN'
-      permissoes['tipos-imoveis'] = 'ADMIN'
-      permissoes['tipos-documentos'] = 'ADMIN'
-      permissoes['status'] = 'ADMIN'
-      permissoes['finalidades'] = 'ADMIN'
-      permissoes['status-imovel'] = 'ADMIN'
-      permissoes['clientes'] = 'ADMIN'
-      permissoes['proprietarios'] = 'ADMIN'
-      permissoes['relatorios'] = 'ADMIN'
-      permissoes['sistema'] = 'ADMIN'
+    // Se for Perfil de Sistema (Master), dar todas as permissões
+    const isSystemRole = user.is_system_role === true
+    
+    if (isSystemRole) {
+      Object.keys(permissoes).forEach(key => {
+        (permissoes as any)[key] = 'ADMIN'
+      })
     }
 
-    console.log('ðŸ” API /auth/me: PermissÃµes finais:', JSON.stringify(permissoes, null, 2))
-    console.log('ðŸ” API /auth/me: tipos-documentos permission:', permissoes['tipos-documentos'])
-    console.log('ðŸ” API /auth/me: user role:', user.role_name)
+    console.log('🛡️ API /auth/me: Permissões finais:', JSON.stringify(permissoes, null, 2))
 
     const userResponse = {
       id: user.id,
@@ -94,6 +86,8 @@ export async function GET(request: NextRequest) {
       telefone: user.telefone,
       role_name: user.role_name,
       role_description: user.role_description,
+      role_level: user.role_level || 0,
+      is_system_role: isSystemRole,
       permissoes,
       status: user.ativo ? 'ATIVO' : 'INATIVO'
     }
@@ -104,12 +98,10 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Erro ao verificar usuÃ¡rio:', error)
+    console.error('Erro ao verificar usuário:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }
 }
-
-

@@ -1,300 +1,406 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
+import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 
-export default function AdminLoginPage() {
+function LoginContent() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [requires2FA, setRequires2FA] = useState(false)
   const [twoFAMessage, setTwoFAMessage] = useState('')
 
+  // Multi-tenant & Multi-segment logic
+  const [requiresTenantSelection, setRequiresTenantSelection] = useState(false)
+  const [requiresSegmentSelection, setRequiresSegmentSelection] = useState(false)
+  const [tenants, setTenants] = useState<any[]>([])
+  const [segments, setSegments] = useState<any[]>([])
+  const [authUserId, setAuthUserId] = useState('')
+  const [selectedTenantId, setSelectedTenantId] = useState('')
+
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get('callbackUrl') || '/admin'
+  const isCRM = callbackUrl.includes('/crm') || searchParams.get('system') === 'crm'
+
+  // Blindagem: Garantir que a tela comece SEMPRE no form de login
+  useEffect(() => {
+    // Tolerância Zero: Limpeza de pré-sessão para evitar vazamento de dados
+    setRequiresTenantSelection(false);
+    setRequiresSegmentSelection(false);
+    setTenants([]);
+    setSegments([]);
+    setError('');
+
+    // Opcional: Limpar resíduos do localStorage para segurança extra
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('admin-user-data-temporary');
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
-    console.log('🔍 Tentativa de login:', { username, password: '***', twoFactorCode: requires2FA ? '***' : 'não fornecido' })
-
     try {
       const response = await fetch('/api/admin/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username,
           password,
-          ...(requires2FA && twoFactorCode && { twoFactorCode })
+          isCRM,
+          tenantId: selectedTenantId || undefined,
+          twoFactorCode: requires2FA ? twoFactorCode : undefined
         }),
       })
 
       const data = await response.json()
-      console.log('🔍 Resposta da API:', data)
 
-      if (response.ok && data.success) {
-        console.log('🔍 Login bem-sucedido, redirecionando...')
-        // Salvar token e dados do usuário
-        if (data.data && data.data.token) {
-          localStorage.setItem('admin-auth-token', data.data.token)
-          localStorage.setItem('admin-user-data', JSON.stringify({
-            ...data.data.user,
-            at: Date.now()
-          }))
+      if (response.ok && (data.success || data.requires2FA)) {
+        if (data.requires2FA) {
+          setRequires2FA(true)
+          setTwoFAMessage(data.message || 'Código de verificação enviado')
+          setLoading(false)
+          return
         }
-        // Registrar "último login" (para exibir iniciais no header da landpaging)
-        try {
-          const nome = data.data?.user?.nome || ''
-          const isCorretor = !!data.data?.user?.creci || !!data.data?.user?.is_corretor
-          localStorage.setItem(
-            'admin-last-auth-user',
-            JSON.stringify({
-              nome,
-              userType: isCorretor ? 'corretor' : 'corretor',
-              at: Date.now()
-            })
-          )
-          window.dispatchEvent(new Event('admin-auth-changed'))
-        } catch { }
-        window.location.href = '/admin'
-      } else if (data.requires2FA) {
-        // 2FA necessário
-        setRequires2FA(true)
-        setTwoFAMessage(data.message || 'Código de verificação enviado por email')
-        setError('')
+
+        if (data.requiresTenantSelection) {
+          setRequiresTenantSelection(true)
+          setTenants(data.tenants)
+          setAuthUserId(data.user?.id || '')
+          setLoading(false)
+          return
+        }
+
+        completeAuth(data)
       } else {
-        setError(data.message || 'Erro ao fazer login')
-        setRequires2FA(false)
-        setTwoFactorCode('')
-        setTwoFAMessage('')
+        setError(data.error || data.message || 'Credenciais inválidas')
       }
-    } catch (error) {
-      console.error('Erro na requisição:', error)
-      setError('Erro de conexão. Tente novamente.')
-      setRequires2FA(false)
-      setTwoFactorCode('')
-      setTwoFAMessage('')
+    } catch (err) {
+      setError('Erro ao conectar com o servidor')
     } finally {
       setLoading(false)
     }
   }
 
+  const handleSelectTenant = async (tenantId: string) => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, tenantId, isCRM }),
+      })
+      const data = await response.json()
+      
+      if (response.ok && (data.success || data.requires2FA)) {
+        if (data.requires2FA) {
+          setSelectedTenantId(tenantId)
+          setRequires2FA(true)
+          setRequiresTenantSelection(false)
+          setTwoFAMessage(data.message || 'Código de verificação enviado para seu e-mail')
+          setLoading(false)
+          return
+        }
+
+        completeAuth(data)
+      } else {
+        setError(data.error || 'Erro na seleção da empresa')
+      }
+    } catch (err) {
+      setError('Erro de conexão')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSelectSegment = async (segmentId: string) => {
+    // Super Admin seleciona segmento → autentica no tenant Master diretamente
+    // Encontrar o tenant Master na lista já disponível
+    const masterTenant = tenants.find((t: any) =>
+      t.slug === 'all-business-master' ||
+      t.name?.toLowerCase().includes('all business') ||
+      t.name?.toLowerCase().includes('master')
+    ) || tenants[0]
+
+    if (masterTenant) {
+      await handleSelectTenant(masterTenant.id)
+    } else {
+      setError('Tenant Master não encontrado. Contate o suporte.')
+    }
+  }
+
+
+  const completeAuth = (data: any) => {
+    const token = data.data?.token || data.token
+    const user = data.data?.user || data.user
+
+    if (token) {
+      localStorage.setItem('admin_auth_token', token)
+      localStorage.setItem('admin-auth-token', token)
+      localStorage.setItem('admin-user-data', JSON.stringify({
+        ...user,
+        at: Date.now()
+      }))
+    }
+
+    try {
+      const nome = user?.nome || ''
+      const isCorretor = !!user?.creci || !!user?.is_corretor
+      localStorage.setItem(
+        'admin-last-auth-user',
+        JSON.stringify({
+          nome,
+          userType: isCorretor ? 'corretor' : 'admin',
+          at: Date.now()
+        })
+      )
+      window.dispatchEvent(new Event('admin-auth-changed'))
+    } catch { }
+
+    if (user?.require_password_change) {
+      window.location.href = '/admin/reset-password'
+      return
+    }
+
+    window.location.href = callbackUrl
+  }
+
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
+    <div className={`min-h-screen flex items-center justify-center transition-colors duration-1000 py-12 px-4 sm:px-6 lg:px-8 ${isCRM ? 'bg-[#020617]' : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+      }`}>
       <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <div className="mx-auto h-20 w-20 flex items-center justify-center rounded-full bg-white shadow-lg">
-            <Image
-              src="/imovitec-logo-definitive.png"
-              alt="Imovtec"
-              width={128}
-              height={128}
-              className="h-24 w-24 object-contain"
-              priority
+        <div className="text-center flex flex-col items-center">
+          {isCRM ? (
+            <img
+              src="/Artetmis4.JPEG"
+              alt="Artemis"
+              className="h-32 w-auto drop-shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all duration-700 hover:scale-110"
             />
-          </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Imovtec
+          ) : (
+            <div className="mx-auto h-20 w-20 flex items-center justify-center rounded-full bg-white shadow-lg">
+              <Image
+                src="/Artemis4.JPEG"
+                alt="Artemis4"
+                width={128}
+                height={128}
+                className="h-24 w-24 object-contain"
+                priority
+              />
+            </div>
+          )}
+          <h2 className={`mt-6 text-center text-4xl font-black italic uppercase tracking-tight ${isCRM ? 'text-white' : 'text-gray-900'}`}>
+            {isCRM ? (
+              <>
+                <span className="text-gray-400">Olhos de</span>{' '}
+                <span className="text-blue-600 drop-shadow-sm">Águia</span>
+              </>
+            ) : (
+              'Artemis4'
+            )}
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Sistema Administrativo
+          <p className="mt-2 text-center text-[10px] font-black uppercase tracking-[0.3em] ml-1">
+            <span className={isCRM ? 'text-blue-400' : 'text-gray-600'}>
+              {isCRM ? '' : 'Acesso ao Sistema'}
+            </span>
           </p>
         </div>
 
-        <div className="bg-white py-8 px-6 shadow-xl rounded-lg">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-                  Usuário
-                </label>
-                <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  placeholder="Digite seu usuário"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  disabled={loading || requires2FA}
-                />
-              </div>
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Senha
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  placeholder="Digite sua senha"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading || requires2FA}
-                />
-              </div>
-              {requires2FA && (
+        <div className={`py-8 px-6 shadow-xl rounded-3xl transition-all duration-700 ${isCRM ? 'bg-white/5 border border-white/10 backdrop-blur-xl' : 'bg-white'
+          }`}>
+          {!requiresTenantSelection ? (
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div className="space-y-4">
                 <div>
-                  <label htmlFor="twoFactorCode" className="block text-sm font-medium text-gray-700 mb-1">
-                    Código de Verificação
+                  <label htmlFor="username" className={`block text-xs font-black uppercase tracking-widest mb-2 ml-1 ${isCRM ? 'text-gray-400' : 'text-gray-700'}`}>
+                    Usuário Master
                   </label>
-                  <div className="flex justify-center space-x-2">
-                    {[0, 1, 2, 3, 4, 5].map((index) => (
-                      <input
-                        key={index}
-                        type="text"
-                        maxLength={1}
-                        className="w-12 h-12 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                        value={twoFactorCode[index] || ''}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '')
-                          if (value.length <= 1) {
-                            const newCode = twoFactorCode.split('')
-                            newCode[index] = value
-                            setTwoFactorCode(newCode.join('').slice(0, 6))
 
-                            // Auto-focus no próximo campo
-                            if (value && index < 5) {
-                              const nextInput = document.getElementById(`code-${index + 1}`)
-                              nextInput?.focus()
-                            }
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Backspace' && !twoFactorCode[index] && index > 0) {
-                            const prevInput = document.getElementById(`code-${index - 1}`)
-                            prevInput?.focus()
-                          }
-                        }}
-                        id={`code-${index}`}
-                        disabled={loading}
-                      />
-                    ))}
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    required
+                    className={`w-full px-4 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 ${isCRM ? 'bg-white/5 border border-white/10 text-white placeholder-gray-600' : 'border border-gray-300 text-gray-900 bg-white shadow-sm'
+                      }`}
+                    placeholder="Digite seu usuário"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    disabled={loading || requires2FA}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="password" className={`block text-xs font-black uppercase tracking-widest mb-2 ml-1 ${isCRM ? 'text-gray-400' : 'text-gray-700'}`}>
+                    Senha de Acesso
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      className={`w-full px-4 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 pr-12 ${isCRM ? 'bg-white/5 border border-white/10 text-white placeholder-gray-600' : 'border border-gray-300 text-gray-900 bg-white shadow-sm'
+                        }`}
+                      placeholder="Digite sua senha"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={loading || requires2FA}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className={`absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-black/5 transition-colors ${isCRM ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      {showPassword ? (
+                        <EyeSlashIcon className="h-5 w-5" />
+                      ) : (
+                        <EyeIcon className="h-5 w-5" />
+                      )}
+                    </button>
                   </div>
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    Digite o código de 6 dígitos enviado para seu email
-                  </p>
+                </div>
+
+                {requires2FA && (
+                  <div className="animate-in slide-in-from-top-4 duration-300">
+                    <label htmlFor="2fa" className="block text-sm font-medium text-gray-700 mb-1 text-center">
+                      Código de Verificação 2FA
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      className="w-full px-4 py-3 border-2 border-blue-200 rounded-lg text-center text-2xl font-bold tracking-[0.5em] focus:ring-2 focus:ring-blue-500 text-gray-900"
+                      placeholder="000000"
+                      value={twoFactorCode}
+                      onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                      disabled={loading}
+                      autoFocus
+                    />
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div className={`rounded-xl p-3 text-sm text-center font-medium animate-shake border ${isCRM ? 'bg-red-500/20 border-red-500/30 text-red-200' : 'bg-red-50 border-red-200 text-red-800'
+                  }`}>
+                  {error}
                 </div>
               )}
-            </div>
 
-            {twoFAMessage && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-800">
-                      {twoFAMessage}
-                    </h3>
-                    <p className="text-xs text-blue-600 mt-1">
-                      Verifique sua caixa de entrada e spam
-                    </p>
-                  </div>
+              {twoFAMessage && !error && (
+                <div className={`rounded-xl p-3 text-[10px] text-center font-black uppercase tracking-widest border animate-pulse ${isCRM ? 'bg-blue-500/20 border-blue-500/30 text-blue-200' : 'bg-blue-50 border-blue-200 text-blue-800'
+                  }`}>
+                  {twoFAMessage}
                 </div>
-              </div>
-            )}
+              )}
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">
-                      {error}
-                    </h3>
-                  </div>
-                </div>
-              </div>
-            )}
 
-            <div className="space-y-3">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+                className={`w-full flex justify-center py-4 px-4 border border-transparent text-sm font-black rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all shadow-lg uppercase tracking-widest ${isCRM
+                  ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.4)]'
+                  : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'
+                  }`}
               >
                 {loading ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    {requires2FA ? 'Verificando...' : 'Entrando...'}
-                  </div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                 ) : (
-                  requires2FA ? 'Verificar Código' : 'Entrar'
+                  requires2FA ? 'Confirmar Acesso' : 'Entrar no Sistema'
                 )}
               </button>
+            </form>
+          ) : (
+            <div className="animate-in slide-in-from-bottom-4 duration-500 space-y-6 py-2">
+              <div className="text-center">
+                <p className={`font-black uppercase tracking-[0.2em] text-[10px] ${isCRM ? 'text-blue-400' : 'text-gray-500'}`}>
+                  Selecione o Contexto de Negócio
+                </p>
+                <h3 className={`text-lg font-black mt-1 ${isCRM ? 'text-white' : 'text-gray-900'}`}>Gestão de Unidade</h3>
+              </div>
 
-              {requires2FA && (
-                <>
+              <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {tenants.map((tenant) => (
                   <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        setLoading(true)
-                        const response = await fetch('/api/admin/auth/2fa/send-code', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ username, password })
-                        })
-                        const data = await response.json()
-                        if (response.ok) {
-                          setTwoFAMessage('Novo código enviado por email')
-                          setError('')
-                          setTwoFactorCode('')
-                        } else {
-                          setError(data.message || 'Erro ao reenviar código')
-                        }
-                      } catch (err) {
-                        setError('Erro de conexão ao reenviar código')
-                      } finally {
-                        setLoading(false)
-                      }
+                    key={tenant.id}
+                    onClick={() => handleSelectTenant(tenant.id)}
+                    className={`w-full p-5 flex items-center justify-between rounded-[1.5rem] border-2 transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] group text-left ${isCRM
+                      ? 'bg-white/5 border-white/10 hover:bg-white/10'
+                      : 'bg-white border-gray-100'
+                      }`}
+                    style={{
+                      borderColor: !isCRM && tenant.segment_color ? `${tenant.segment_color}20` : undefined,
+                      borderLeftWidth: '6px',
+                      borderLeftColor: tenant.segment_color || '#2563eb'
                     }}
-                    disabled={loading}
-                    className="w-full flex justify-center py-3 px-4 border border-blue-300 text-sm font-medium rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 disabled:opacity-50"
                   >
-                    📧 Reenviar Código
+                    <div className="flex items-center space-x-4">
+                      {tenant.logo ? (
+                        <div className="flex-shrink-0 h-12 w-12 rounded-xl border border-gray-100/50 bg-white shadow-sm flex items-center justify-center p-1.5 overflow-hidden">
+                          <img
+                            src={tenant.logo}
+                            alt={tenant.name}
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="flex-shrink-0 h-12 w-12 rounded-xl shadow-inner flex items-center justify-center text-white font-black text-lg p-1.5"
+                          style={{ backgroundColor: tenant.segment_color || '#2563eb' }}
+                        >
+                          {tenant.name?.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+
+                      <div className="flex flex-col">
+                        <span className={`font-black uppercase text-xs tracking-tight leading-none mb-1.5 ${isCRM ? 'text-white' : 'text-gray-900'}`}>
+                          {tenant.name}
+                        </span>
+                        <div className="flex items-center">
+                          <span className="text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-400 border border-gray-200">
+                            {tenant.segment_name || 'Geral'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      className="h-8 w-8 rounded-lg flex items-center justify-center text-white transition-all shadow-lg"
+                      style={{ backgroundColor: tenant.segment_color || '#2563eb' }}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRequires2FA(false)
-                      setTwoFactorCode('')
-                      setTwoFAMessage('')
-                      setError('')
-                    }}
-                    className="w-full flex justify-center py-3 px-4 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
-                  >
-                    Voltar
-                  </button>
-                </>
-              )}
+                ))}
+              </div>
+
+              <button
+                onClick={() => setRequiresTenantSelection(false)}
+                className="w-full text-center text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-colors pt-2"
+              >
+                Voltar ao Login
+              </button>
             </div>
-          </form>
-        </div>
-
-        <div className="text-center mt-6">
-          <p className="text-xs text-gray-500">
-            Use as credenciais do banco de dados
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Ex: admin/admin123 ou corretor1/corretor123
-          </p>
+          )}
         </div>
       </div>
     </div>
+  )
+}
+
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-blue-50" />}>
+      <LoginContent />
+    </Suspense>
   )
 }

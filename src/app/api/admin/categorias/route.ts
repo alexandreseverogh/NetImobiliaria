@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // GET /api/admin/categorias - Listar todas as categorias
 export async function GET(request: NextRequest) {
@@ -17,19 +18,15 @@ export async function GET(request: NextRequest) {
 
     let query = `
       SELECT 
-        c.id,
-        c.name,
-        c.slug,
-        c.description,
-        c.icon,
-        c.color,
-        c.sort_order,
-        c.is_active,
-        c.created_at,
-        c.updated_at,
-        c.created_by,
-        c.updated_by
+        c.*,
+        m.name as module_name,
+        (
+          SELECT COUNT(*)::int 
+          FROM system_features sf 
+          WHERE sf.category_id = c.id
+        ) as features_count
       FROM system_categorias c
+      LEFT JOIN system_modules m ON c.module_id = m.id
       WHERE 1=1
     `
 
@@ -45,23 +42,24 @@ export async function GET(request: NextRequest) {
     const result = await pool.query(query, queryParams)
     const categories = result.rows
 
+    console.log(`[API Categories] Found ${categories.length} categories. Sample counts:`, 
+      categories.slice(0, 3).map(c => ({ id: c.id, name: c.name, count: c.features_count }))
+    );
+
     // Se solicitado, incluir funcionalidades de cada categoria
     if (includeFeatures && categories.length > 0) {
       const categoryIds = categories.map(c => c.id)
       const featuresQuery = `
         SELECT 
-          fc.category_id,
-          fc.sort_order as feature_sort_order,
           sf.id as feature_id,
           sf.name as feature_name,
-          sf.category_id as feature_category_id,
+          sf.category_id,
           sf.url as feature_url,
           sf.description as feature_description,
           sf.is_active as feature_is_active
-        FROM system_feature_categorias fc
-        JOIN system_features sf ON fc.feature_id = sf.id
-        WHERE fc.category_id = ANY($1)
-        ORDER BY fc.sort_order ASC, sf.name ASC
+        FROM system_features sf
+        WHERE sf.category_id = ANY($1)
+        ORDER BY sf.name ASC
       `
       
       const featuresResult = await pool.query(featuresQuery, [categoryIds])
@@ -75,18 +73,20 @@ export async function GET(request: NextRequest) {
         acc[feature.category_id].push({
           id: feature.feature_id,
           name: feature.feature_name,
-          category_id: feature.feature_category_id,
+          category_id: feature.category_id,
           url: feature.feature_url,
           description: feature.feature_description,
-          is_active: feature.feature_is_active,
-          sort_order: feature.feature_sort_order
+          is_active: feature.feature_is_active
         })
         return acc
       }, {})
 
-      // Adicionar funcionalidades às categorias
+      // Adicionar funcionalidades às categorias e atualizar contagem se necessário
       categories.forEach(category => {
-        category.features = featuresByCategory[category.id] || []
+        const catFeatures = featuresByCategory[category.id] || []
+        category.features = catFeatures
+        // Garantir que features_count reflita a realidade
+        category.features_count = Math.max(category.features_count || 0, catFeatures.length)
       })
     }
 
@@ -108,11 +108,8 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/categorias - Criar nova categoria
 export async function POST(request: NextRequest) {
   try {
-    // TEMPORÁRIO: Desabilitar verificação de permissão
-    // const permissionCheck = await checkApiPermission(request)
-    // if (permissionCheck) {
-    //   return permissionCheck
-    // }
+    const denied = await requireApiPermission(request, 'categorias', 'CREATE')
+    if (denied) return denied
 
     const body = await request.json()
     const { 
@@ -122,7 +119,8 @@ export async function POST(request: NextRequest) {
       icon, 
       color = '#6B7280', 
       sort_order = 0,
-      is_active = true 
+      is_active = true,
+      module_id = null
     } = body
 
     // Validações obrigatórias
@@ -168,14 +166,14 @@ export async function POST(request: NextRequest) {
     // Inserir nova categoria
     const insertQuery = `
       INSERT INTO system_categorias (
-        name, slug, description, icon, color, sort_order, is_active
+        name, slug, description, icon, color, sort_order, is_active, module_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, name, slug, description, icon, color, sort_order, is_active, created_at, updated_at
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, name, slug, description, icon, color, sort_order, is_active, module_id, created_at, updated_at
     `
 
     const result = await pool.query(insertQuery, [
-      name, slug, description, icon, color, sort_order, is_active
+      name, slug, description, icon, color, sort_order, is_active, module_id
     ])
 
     const newCategory = result.rows[0]
@@ -204,6 +202,9 @@ export async function PUT(request: NextRequest) {
       return permissionCheck
     }
 
+    const denied = await requireApiPermission(request, 'categorias', 'UPDATE')
+    if (denied) return denied
+
     const body = await request.json()
     const { 
       id, 
@@ -213,7 +214,8 @@ export async function PUT(request: NextRequest) {
       icon, 
       color, 
       sort_order,
-      is_active 
+      is_active,
+      module_id
     } = body
 
     if (!id) {
@@ -316,6 +318,10 @@ export async function PUT(request: NextRequest) {
       updateFields.push(`is_active = $${++paramCount}`)
       updateValues.push(is_active)
     }
+    if (module_id !== undefined) {
+      updateFields.push(`module_id = $${++paramCount}`)
+      updateValues.push(module_id)
+    }
 
     if (updateFields.length === 0) {
       return NextResponse.json(
@@ -360,6 +366,9 @@ export async function DELETE(request: NextRequest) {
     if (permissionCheck) {
       return permissionCheck
     }
+
+    const denied = await requireApiPermission(request, 'categorias', 'DELETE')
+    if (denied) return denied
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')

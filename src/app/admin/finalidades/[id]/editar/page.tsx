@@ -39,7 +39,7 @@ export default function EditarFinalidadePage() {
       setLoading(true)
       setError(null)
       
-      const response = await get(`/api/admin/finalidades/${finalidadeId}`)
+      const response = await get(`/api/admin/finalidades-imoveis/${finalidadeId}`)
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -96,7 +96,7 @@ export default function EditarFinalidadePage() {
     setError(null)
 
     try {
-      const response = await put(`/api/admin/finalidades/${finalidadeId}`, formData)
+      const response = await put(`/api/admin/finalidades-imoveis/${finalidadeId}`, formData)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -107,7 +107,7 @@ export default function EditarFinalidadePage() {
       console.log('Finalidade atualizada com sucesso:', result)
       
       // Redirecionar para a lista
-      router.push('/admin/finalidades')
+      router.push('/admin/finalidades-imoveis')
     } catch (error) {
       console.error('Erro ao atualizar finalidade:', error)
       setError(error instanceof Error ? error.message : 'Erro desconhecido')
@@ -117,7 +117,7 @@ export default function EditarFinalidadePage() {
   }
 
   const handleCancel = () => {
-    router.push('/admin/finalidades')
+    router.push('/admin/finalidades-imoveis')
   }
 
   if (loading) {

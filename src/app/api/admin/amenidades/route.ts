@@ -4,6 +4,7 @@ import { findAllAmenidades, createAmenidade, findAmenidadesPaginated } from '@/l
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
 import pool from '@/lib/database/connection'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,6 +39,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'CREATE')
+    if (denied) return denied
+
     // Verificação de permissão (ADICIONADA - não existia antes!)
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck

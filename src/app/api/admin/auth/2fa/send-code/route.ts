@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import pool from '@/lib/database/connection';
 import twoFactorAuthService from '../../../../../../services/twoFactorAuthService';
 
 interface AuthenticatedRequest extends NextRequest {
@@ -29,21 +30,13 @@ export async function POST(request: NextRequest) {
                      'unknown';
     const userAgent = request.headers.get('user-agent') || 'unknown';
 
-    // Buscar usuário por email
-    const { Pool } = require('pg');
-    const pool = new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME!,
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'Roberto@2007',
-    });
+    // Buscar usuário por email usando o pool global
+
 
     const userQuery = 'SELECT id, email, username FROM users WHERE email = $1';
     const userResult = await pool.query(userQuery, [email]);
     
     if (userResult.rows.length === 0) {
-      await pool.end();
       return NextResponse.json(
         { success: false, message: 'Usuário não encontrado' },
         { status: 404 }
@@ -51,7 +44,6 @@ export async function POST(request: NextRequest) {
     }
 
     const user = userResult.rows[0];
-    await pool.end();
 
     // Verificar se 2FA está habilitado
     const is2FAEnabled = await twoFactorAuthService.is2FAEnabled(user.id);

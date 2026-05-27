@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth/jwt'
 import { restoreImovel } from '@/lib/database/imoveis'
 import { userHasPermission } from '@/lib/database/users'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de criação server-side (restaurar = recriar um imóvel excluído)
+    const denied = await requireApiPermission(request, 'imoveis', 'CREATE')
+    if (denied) return denied
+
     // Verificar autenticação
     const token = request.cookies.get('accessToken')?.value
     if (!token) {
@@ -44,7 +49,7 @@ export async function POST(
     }
 
     // Restaurar imóvel
-    const sucesso = await restoreImovel(id, decoded.userId)
+    const sucesso = await restoreImovel(id, decoded.userId, decoded.tenantId)
     if (!sucesso) {
       return NextResponse.json(
         { error: 'Imóvel não encontrado' },

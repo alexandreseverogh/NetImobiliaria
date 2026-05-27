@@ -1,4 +1,4 @@
-﻿/* eslint-disable */
+/* eslint-disable */
 'use client'
 
 import { useState } from 'react'
@@ -39,7 +39,6 @@ interface MenuItem {
   href?: string
   icon: any
   resource?: string | null
-  roles: string[]
   children?: MenuItem[]
 }
 
@@ -48,51 +47,46 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [expandedMenus, setExpandedMenus] = useState<string[]>([])
 
-  // VerificaÃ§Ã£o de seguranÃ§a para evitar erros
   if (!user || !user.nome) {
     return (
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Net ImobiliÃ¡ria</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Net Imobiliária</h1>
           </div>
           <div className="flex-1 px-2 py-4">
-            <p className="text-sm text-gray-500">Carregando usuÃ¡rio...</p>
+            <p className="text-sm text-gray-500">Carregando usuário...</p>
           </div>
         </div>
       </div>
     )
   }
 
-  // Estrutura de menu com submenus
+  // Estrutura de menu baseada em RI (Recursos e Itens)
   const getMenuStructure = (): MenuItem[] => {
     return [
       {
         name: 'Dashboard',
         href: '/admin',
         icon: HomeIcon,
-        resource: null,
-        roles: ['Super Admin', 'Administrador', 'Corretor', 'UsuÃ¡rio']
+        resource: null
       },
       {
         name: 'Amenidades',
         icon: TagIcon,
         resource: 'amenidades',
-        roles: ['Super Admin', 'Administrador'],
         children: [
           {
             name: 'Categorias',
             href: '/admin/categorias-amenidades',
             icon: Squares2X2Icon,
-            resource: 'categorias-amenidades',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'categorias-amenidades'
           },
           {
             name: 'Amenidades',
             href: '/admin/amenidades',
             icon: TagIcon,
-            resource: 'amenidades',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'amenidades'
           }
         ]
       },
@@ -100,21 +94,18 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         name: 'Proximidades',
         icon: MapPinIcon,
         resource: 'proximidades',
-        roles: ['Super Admin', 'Administrador'],
         children: [
           {
             name: 'Categorias',
             href: '/admin/categorias-proximidades',
             icon: Squares2X2Icon,
-            resource: 'categorias-proximidades',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'categorias-proximidades'
           },
           {
             name: 'Proximidades',
             href: '/admin/proximidades',
             icon: MapPinIcon,
-            resource: 'proximidades',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'proximidades'
           }
         ]
       },
@@ -122,57 +113,49 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         name: 'Documentos',
         icon: DocumentTextIcon,
         resource: 'tipos-documentos',
-        roles: ['Super Admin', 'Administrador'],
         children: [
           {
             name: 'Tipos de Documentos',
             href: '/admin/tipos-documentos',
             icon: DocumentTextIcon,
-            resource: 'tipos-documentos',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'tipos-documentos'
           }
         ]
       },
       {
-        name: 'ImÃ³veis',
+        name: 'Imóveis',
         icon: BuildingOfficeIcon,
         resource: 'imoveis',
-        roles: ['Super Admin', 'Administrador', 'Corretor'],
         children: [
           {
             name: 'Tipos',
             href: '/admin/tipos-imoveis',
             icon: CogIcon,
-            resource: 'tipos-imoveis',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'tipos-imoveis'
           },
           {
             name: 'Finalidades',
             href: '/admin/finalidades',
             icon: CogIcon,
-            resource: 'finalidades',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'finalidades'
           },
           {
             name: 'Status',
             href: '/admin/status-imovel',
             icon: CheckCircleIcon,
-            resource: 'status-imovel',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'status-imovel'
           },
           {
-            name: 'MudanÃ§a de Status',
+            name: 'Mudança de Status',
             href: '/admin/mudancas-status',
             icon: ClipboardDocumentListIcon,
-            resource: 'status-imovel',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'status-imovel'
           },
           {
             name: 'Cadastro',
             href: '/admin/imoveis',
             icon: BuildingOfficeIcon,
-            resource: 'imoveis',
-            roles: ['Super Admin', 'Administrador', 'Corretor']
+            resource: 'imoveis'
           }
         ]
       },
@@ -180,29 +163,25 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         name: 'Clientes',
         icon: UsersIcon,
         resource: 'clientes',
-        roles: ['Super Admin', 'Administrador'],
         children: [
           {
             name: 'Cadastro',
             href: '/admin/clientes',
             icon: UsersIcon,
-            resource: 'clientes',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'clientes'
           }
         ]
       },
       {
-        name: 'ProprietÃ¡rios',
+        name: 'Proprietários',
         icon: UserGroupIcon,
         resource: 'proprietarios',
-        roles: ['Super Admin', 'Administrador'],
         children: [
           {
             name: 'Cadastro',
             href: '/admin/proprietarios',
             icon: UserGroupIcon,
-            resource: 'proprietarios',
-            roles: ['Super Admin', 'Administrador']
+            resource: 'proprietarios'
           }
         ]
       },
@@ -210,42 +189,43 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
         name: 'Dashboards',
         href: '/admin/dashboards',
         icon: ChartBarIcon,
-        resource: 'dashboards',
-        roles: ['Super Admin', 'Administrador', 'Corretor', 'UsuÃ¡rio']
+        resource: 'dashboards'
       },
       {
-        name: 'RelatÃ³rios',
+        name: 'Relatórios',
         href: '/admin/relatorios',
         icon: DocumentTextIcon,
-        resource: 'relatorios',
-        roles: ['Super Admin', 'Administrador', 'Corretor', 'UsuÃ¡rio']
+        resource: 'relatorios'
       }
     ]
   }
 
-  // Filtrar menu baseado no perfil do usuÃ¡rio
+  // Filtrar menu baseado na Governança de Metadados
   const getFilteredMenu = () => {
     const allItems = getMenuStructure()
     
-    // Debug: verificar dados do usuÃ¡rio
-    console.log('ðŸ” Debug Sidebar - Dados do usuÃ¡rio:', {
-      user: user,
-      role_name: user?.role_name,
-      nome: user?.nome
-    })
+    console.log('🛡️ Sidebar: Aplicando governança de metadados para:', user?.username)
     
     const filterItems = (items: MenuItem[]): MenuItem[] => {
+      const isSystem = user?.is_system_role || false
+
       return items.filter(item => {
-        const hasRole = item.roles.includes(user.role_name || '')
-        console.log(`ðŸ” Debug Sidebar - Item: ${item.name}, Roles: ${item.roles.join(', ')}, User Role: ${user.role_name}, Has Role: ${hasRole}`)
-        if (!hasRole) return false
+        // Master de Sistema vê tudo
+        if (isSystem) return true
         
-        // Se tem filhos, verificar se pelo menos um filho tem permissÃ£o
+        // Se tem recurso, verificar no mapa dinâmico de permissões
+        if (item.resource) {
+           const permission = (user.permissoes as any)?.[item.resource]
+           if (!permission || permission === 'NONE') return false
+        }
+        
+        // Se tem filhos, verificar se pelo menos um filho é visível via permissão
         if (item.children) {
           const filteredChildren = filterItems(item.children)
           return filteredChildren.length > 0
         }
         
+        // Itens sem recurso (Dashboard) são visíveis para qualquer usuário logado
         return true
       }).map(item => {
         if (item.children) {
@@ -329,50 +309,26 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       )
     }
 
-    // Item sem filhos - link direto
-    if (item.resource === null) {
-      // Dashboard sempre visÃ­vel
-      return (
-        <Link
-          key={item.name}
-          href={item.href!}
-          className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-            isActiveItem
-              ? 'bg-blue-100 text-blue-900'
-              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-          }`}
-          onClick={() => setOpen(false)}
-        >
-          <item.icon
-            className={`mr-3 h-5 w-5 flex-shrink-0 ${
-              isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
-            }`}
-          />
-          {item.name}
-        </Link>
-      )
-    }
-
-    // Item protegido por permissÃ£o
+    // Link direto
     return (
-      <PermissionGuard key={item.name} resource={item.resource!} action="READ">
-        <Link
-          href={item.href!}
-          className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-            isActiveItem
-              ? 'bg-blue-100 text-blue-900'
-              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+      <Link
+        key={item.name}
+        href={item.href || '#'}
+        className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
+          isActiveItem
+            ? 'bg-blue-100 text-blue-900'
+            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+        }`}
+        style={{ paddingLeft: `${8 + level * 16}px` }}
+        onClick={() => setOpen(false)}
+      >
+        <item.icon
+          className={`mr-3 h-5 w-5 flex-shrink-0 ${
+            isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
           }`}
-          onClick={() => setOpen(false)}
-        >
-          <item.icon
-            className={`mr-3 h-5 w-5 flex-shrink-0 ${
-              isActiveItem ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
-            }`}
-          />
-          {item.name}
-        </Link>
-      </PermissionGuard>
+        />
+        {item.name}
+      </Link>
     )
   }
 
@@ -395,7 +351,7 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
           <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setOpen(false)} />
           <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
             <div className="flex h-16 items-center justify-between px-4">
-              <h1 className="text-lg font-semibold text-gray-900">Admin</h1>
+              <span className="text-lg font-semibold text-gray-900">Menu Administrativo</span>
               <button
                 type="button"
                 className="text-gray-500 hover:text-gray-600"
@@ -407,7 +363,6 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
             <nav className="flex-1 space-y-1 px-2 py-4 overflow-y-auto">
               {menuItems.map((item) => renderMenuItem(item))}
             </nav>
-            {/* User info and logout at bottom */}
             <div className="flex-shrink-0 border-t border-gray-200 p-4">
               <div className="flex items-center mb-3">
                 <div className="flex-shrink-0">
@@ -419,22 +374,15 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
                 </div>
                 <div className="ml-3">
                   <p className="text-sm font-medium text-gray-700">{user.nome || user.username}</p>
-                  <p className="text-xs text-gray-500">Perfil: {user.role_name || 'N/A'}</p>
+                  <p className="text-xs text-gray-500">{user.role_name}</p>
                 </div>
               </div>
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="w-full flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none"
               >
-                {isLoggingOut ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-700 mr-2"></div>
-                    Saindo...
-                  </>
-                ) : (
-                  'Sair'
-                )}
+                {isLoggingOut ? 'Saindo...' : 'Sair'}
               </button>
             </div>
           </div>
@@ -445,13 +393,12 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         <div className="flex flex-col flex-grow bg-white pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-semibold text-gray-900">Net ImobiliÃ¡ria</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Net Imobiliária</h1>
           </div>
           <nav className="mt-8 flex-1 px-2 space-y-1">
             {menuItems.map((item, index) => (
               <div key={item.name}>
                 {renderMenuItem(item)}
-                {/* Separador leve entre grupos */}
                 {index < menuItems.length - 1 && (
                   <div className="my-2 border-t border-gray-100"></div>
                 )}
@@ -459,7 +406,6 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
             ))}
           </nav>
           
-          {/* User info and logout at bottom */}
           <div className="flex-shrink-0 border-t border-gray-200 p-4">
             <div className="flex items-center mb-3">
               <div className="flex-shrink-0">
@@ -471,22 +417,15 @@ export default function AdminSidebar({ open, setOpen, user, onLogout }: AdminSid
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-700">{user.nome || user.username}</p>
-                <p className="text-xs text-gray-500">Perfil: {user.role_name || 'N/A'}</p>
+                <p className="text-xs text-gray-500">{user.role_name}</p>
               </div>
             </div>
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="w-full flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none"
             >
-              {isLoggingOut ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-700 mr-2"></div>
-                  Saindo...
-                </>
-              ) : (
-                'Sair'
-              )}
+              {isLoggingOut ? 'Saindo...' : 'Sair'}
             </button>
           </div>
         </div>

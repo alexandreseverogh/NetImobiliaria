@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import pool from '@/lib/database/connection';
 import twoFactorAuthService from '../../../../../../services/twoFactorAuthService';
 
 export async function GET(request: NextRequest) {
@@ -31,15 +32,8 @@ export async function GET(request: NextRequest) {
     // Verificar status 2FA
     const is2FAEnabled = await twoFactorAuthService.is2FAEnabled(userId);
 
-    // Buscar configuração 2FA
-    const { Pool } = require('pg');
-    const pool = new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME!,
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'Roberto@2007',
-    });
+    // Buscar configuração 2FA usando o pool global
+
 
     const configQuery = `
       SELECT method, email, last_used, backup_codes
@@ -49,8 +43,7 @@ export async function GET(request: NextRequest) {
     
     const configResult = await pool.query(configQuery, [userId]);
     const config = configResult.rows[0];
-    
-    await pool.end();
+
 
     return NextResponse.json({
       success: true,

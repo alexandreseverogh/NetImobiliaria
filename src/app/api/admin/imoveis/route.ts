@@ -6,12 +6,15 @@ export const runtime = 'nodejs'
 import { listImoveis, getImoveisStats, createImovel, findAllImoveis } from '@/lib/database/imoveis'
 import { saveImovelDocumentos } from '@/lib/database/imovel-documentos'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
+import { getTokenFromRequest } from '@/lib/auth/jwt'
 import { updateImovelAmenidades } from '@/lib/database/amenidades'
 import { updateImovelProximidades } from '@/lib/database/proximidades'
 import { insertImovelImagem, setImovelImagemPrincipal } from '@/lib/database/imoveis'
 import { saveImovelVideo } from '@/lib/database/imovel-video'
 import { buscarCoordenadasPorEnderecoCompleto } from '@/lib/utils/geocoding'
 import { safeParseInt, safeParseFloat } from '@/lib/utils/safeParser'
+import { logAuditEvent, extractRequestData } from '@/lib/audit/auditLogger'
 
 // Função para extrair usuário logado
 function getCurrentUserPayload(request: NextRequest) {
@@ -123,10 +126,16 @@ export async function GET(request: NextRequest) {
     console.log('🔍 API - hasFilters:', hasFilters)
     console.log('🔍 API - page:', page, 'limit:', limit)
 
+    // 🛡️ ISOLAMENTO MULTI-TENANT: extrair tenantId do token
+    const currentUser = getCurrentUserPayload(request)
+    const tenantId = (currentUser as any)?.tenantId || null
+    const isMaster = (currentUser as any)?.is_system_role === true
+
     // Se não houver parâmetros de paginação nem filtros, retornar todos os imóveis
     if (!page && !limit && !hasFilters) {
       console.log('🔍 API - Buscando todos os imóveis...')
-      const imoveis = await findAllImoveis()
+      // Master vê tudo; outros tenants só veem os seus
+      const imoveis = await findAllImoveis(isMaster ? null : tenantId)
       console.log('🔍 API - Imóveis encontrados:', imoveis.length)
       return NextResponse.json({
         success: true,
@@ -274,6 +283,11 @@ export async function GET(request: NextRequest) {
       filtros.corretor_id = searchParams.get('corretor')
     }
 
+    // 🛡️ ISOLAMENTO MULTI-TENANT: aplicar filtro de tenant
+    if (!isMaster && tenantId) {
+      filtros.tenant_id = tenantId
+    }
+
     console.log('🔍 API - Filtros processados:', filtros)
 
     // Buscar imóveis
@@ -330,6 +344,13 @@ export async function POST(request: NextRequest) {
       origin.includes('/landpaging') ||
       referer.includes('noSidebar=true')
     const origemCadastro = isPublicAccess ? 'Publico' : 'Admin'
+
+    // Verificar permissão de criação para requisições admin (não-públicas)
+    // Submissions públicas (landing page) não têm token de admin — não bloquear
+    if (!isPublicAccess) {
+      const denied = await requireApiPermission(request, 'imoveis', 'CREATE')
+      if (denied) return denied
+    }
 
     console.log('🔍 Dados recebidos na API:', JSON.stringify(body, null, 2))
     console.log('🔍 Origem do cadastro detectada:', origemCadastro, {
@@ -674,7 +695,7 @@ export async function POST(request: NextRequest) {
     // Criar imóvel
     // TODO: Implementar autenticação real e pegar o UUID do usuário logado
     // Por enquanto, vamos usar NULL para created_by se for proprietário
-    const novoImovel = await createImovel(dadosImovel, isOwner ? null : currentUserId)
+    const novoImovel = await createImovel(dadosImovel, isOwner ? null : currentUserId, (currentUser as any)?.tenantId)
 
     // Registrar vínculo imovel_corretor SOMENTE quando o cadastro foi iniciado via portal do corretor
     // e o usuário logado for de fato um corretor.
@@ -1049,6 +1070,28 @@ export async function POST(request: NextRequest) {
           console.error('❌ Stack trace:', videoError.stack)
         }
       }
+    }
+
+    // Log de auditoria (não crítico)
+    try {
+      const { ipAddress, userAgent } = extractRequestData(request)
+      await logAuditEvent({
+        userId: currentUser?.userId,
+        tenantId,
+        action: 'CREATE',
+        resource: 'imoveis',
+        resourceId: novoImovel.id,
+        details: {
+          codigo: novoImovel.codigo,
+          titulo: novoImovel.titulo,
+          tipo: novoImovel.tipo_fk,
+          finalidade: novoImovel.finalidade_fk
+        },
+        ipAddress,
+        userAgent
+      })
+    } catch (auditError) {
+      console.error('⚠️ Erro na auditoria de criação de imóvel:', auditError)
     }
 
     return NextResponse.json({

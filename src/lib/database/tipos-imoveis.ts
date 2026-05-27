@@ -15,6 +15,7 @@ export interface TipoImovel {
   nome: string
   descricao?: string
   ativo: boolean
+  tenant_id: string
   created_at: string
   updated_at: string
 }
@@ -23,7 +24,7 @@ export interface TipoImovel {
 // FUNÇÕES DE CONSULTA
 // ========================================
 
-export async function findAllTiposImovel(): Promise<TipoImovel[]> {
+export async function findAllTiposImovel(tenantId: string = '00000000-0000-0000-0000-000000000001'): Promise<TipoImovel[]> {
   try {
     const query = `
       SELECT 
@@ -31,13 +32,15 @@ export async function findAllTiposImovel(): Promise<TipoImovel[]> {
         nome,
         descricao,
         ativo,
+        tenant_id,
         created_at,
         updated_at
       FROM tipos_imovel
+      WHERE tenant_id = $1
       ORDER BY nome
     `
     
-    const result: QueryResult<TipoImovel> = await pool.query(query)
+    const result: QueryResult<TipoImovel> = await pool.query(query, [tenantId])
     
     return result.rows.map(tipo => ({
       ...tipo,
@@ -49,7 +52,7 @@ export async function findAllTiposImovel(): Promise<TipoImovel[]> {
   }
 }
 
-export async function findTipoImovelById(id: number): Promise<TipoImovel | null> {
+export async function findTipoImovelById(id: number, tenantId: string = '00000000-0000-0000-0000-000000000001'): Promise<TipoImovel | null> {
   try {
     const query = `
       SELECT 
@@ -57,13 +60,14 @@ export async function findTipoImovelById(id: number): Promise<TipoImovel | null>
         nome,
         descricao,
         ativo,
+        tenant_id,
         created_at,
         updated_at
       FROM tipos_imovel
-      WHERE id = $1
+      WHERE id = $1 AND tenant_id = $2
     `
     
-    const result: QueryResult<TipoImovel> = await pool.query(query, [id])
+    const result: QueryResult<TipoImovel> = await pool.query(query, [id, tenantId])
     
     if (result.rows.length === 0) {
       return null
@@ -84,15 +88,16 @@ export async function createTipoImovel(data: {
   nome: string
   descricao?: string
   ativo?: boolean
+  tenant_id: string
 }): Promise<TipoImovel> {
   try {
     const query = `
-      INSERT INTO tipos_imovel (nome, descricao, ativo)
-      VALUES ($1, $2, $3)
-      RETURNING id, nome, descricao, ativo, created_at, updated_at
+      INSERT INTO tipos_imovel (nome, descricao, ativo, tenant_id)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, nome, descricao, ativo, tenant_id, created_at, updated_at
     `
     
-    const values = [data.nome, data.descricao || '', data.ativo !== false]
+    const values = [data.nome, data.descricao || '', data.ativo !== false, data.tenant_id]
     const result: QueryResult<TipoImovel> = await pool.query(query, values)
     
     return result.rows[0]
@@ -102,7 +107,7 @@ export async function createTipoImovel(data: {
   }
 }
 
-export async function updateTipoImovel(id: number, data: {
+export async function updateTipoImovel(id: number, tenantId: string, data: {
   nome?: string
   descricao?: string
   ativo?: boolean
@@ -111,15 +116,15 @@ export async function updateTipoImovel(id: number, data: {
     const query = `
       UPDATE tipos_imovel
       SET 
-        nome = COALESCE($2, nome),
-        descricao = COALESCE($3, descricao),
-        ativo = COALESCE($4, ativo),
+        nome = COALESCE($3, nome),
+        descricao = COALESCE($4, descricao),
+        ativo = COALESCE($5, ativo),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING id, nome, descricao, ativo, created_at, updated_at
+      WHERE id = $1 AND tenant_id = $2
+      RETURNING id, nome, descricao, ativo, tenant_id, created_at, updated_at
     `
     
-    const values = [id, data.nome, data.descricao, data.ativo]
+    const values = [id, tenantId, data.nome, data.descricao, data.ativo]
     const result: QueryResult<TipoImovel> = await pool.query(query, values)
     
     if (result.rows.length === 0) {
@@ -133,16 +138,16 @@ export async function updateTipoImovel(id: number, data: {
   }
 }
 
-export async function deleteTipoImovel(id: number): Promise<boolean> {
+export async function deleteTipoImovel(id: number, tenantId: string): Promise<boolean> {
   try {
-    // Verificar se há imóveis usando este tipo
+    // Verificar se há imóveis usando este tipo (com filtro de tenant)
     const checkQuery = `
       SELECT COUNT(*) as count
       FROM imoveis
-      WHERE tipo_id = $1
+      WHERE tipo_fk = $1 AND tenant_id = $2
     `
     
-    const checkResult = await pool.query(checkQuery, [id])
+    const checkResult = await pool.query(checkQuery, [id, tenantId])
     const count = parseInt(checkResult.rows[0].count)
     
     if (count > 0) {
@@ -151,10 +156,10 @@ export async function deleteTipoImovel(id: number): Promise<boolean> {
     
     const query = `
       DELETE FROM tipos_imovel
-      WHERE id = $1
+      WHERE id = $1 AND tenant_id = $2
     `
     
-    const result = await pool.query(query, [id])
+    const result = await pool.query(query, [id, tenantId])
     return (result.rowCount || 0) > 0
   } catch (error) {
     console.error('❌ Erro ao excluir tipo de imóvel:', error)
@@ -162,18 +167,18 @@ export async function deleteTipoImovel(id: number): Promise<boolean> {
   }
 }
 
-export async function toggleTipoImovelStatus(id: number): Promise<TipoImovel | null> {
+export async function toggleTipoImovelStatus(id: number, tenantId: string): Promise<TipoImovel | null> {
   try {
     const query = `
       UPDATE tipos_imovel
       SET 
         ativo = NOT ativo,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING id, nome, descricao, ativo, created_at, updated_at
+      WHERE id = $1 AND tenant_id = $2
+      RETURNING id, nome, descricao, ativo, tenant_id, created_at, updated_at
     `
     
-    const result: QueryResult<TipoImovel> = await pool.query(query, [id])
+    const result: QueryResult<TipoImovel> = await pool.query(query, [id, tenantId])
     
     if (result.rows.length === 0) {
       return null

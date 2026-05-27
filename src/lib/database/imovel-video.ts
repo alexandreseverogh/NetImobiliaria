@@ -146,7 +146,10 @@ export async function createImovelVideo(data: {
 }): Promise<number> {
   try {
     console.log('🔍 createImovelVideo - Criando vídeo para imóvel:', data.imovel_id)
-    
+    // Buscar tenant_id do imóvel para manter o isolamento
+    const imovelResult = await pool.query('SELECT tenant_id FROM imoveis WHERE id = $1', [data.imovel_id])
+    const tenantId = imovelResult.rows[0]?.tenant_id
+
     const query = `
       INSERT INTO imovel_video (
         imovel_id,
@@ -158,9 +161,10 @@ export async function createImovelVideo(data: {
         resolucao,
         formato,
         ativo,
+        tenant_id,
         created_at,
         updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING id
     `
     
@@ -172,7 +176,8 @@ export async function createImovelVideo(data: {
       data.tamanho_bytes,
       data.duracao_segundos,
       data.resolucao,
-      data.formato
+      data.formato,
+      tenantId
     ])
     
     const videoId = result.rows[0].id
@@ -319,6 +324,10 @@ export async function saveImovelVideo(
     )
     console.log('🔍 saveImovelVideo - Vídeo existente removido:', deleteResult.rowCount)
     
+    // Buscar tenant_id do imóvel
+    const imovelResult = await client.query('SELECT tenant_id FROM imoveis WHERE id = $1', [imovelId])
+    const tenantId = imovelResult.rows[0]?.tenant_id
+
     // Inserir novo vídeo
     const insertQuery = `
       INSERT INTO imovel_video (
@@ -331,9 +340,10 @@ export async function saveImovelVideo(
         resolucao,
         formato,
         ativo,
+        tenant_id,
         created_at,
         updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING id
     `
     
@@ -345,7 +355,8 @@ export async function saveImovelVideo(
       videoData.tamanho_bytes,
       videoData.duracao_segundos,
       videoData.resolucao,
-      videoData.formato
+      videoData.formato,
+      tenantId
     ])
     
     const videoId = insertResult.rows[0].id

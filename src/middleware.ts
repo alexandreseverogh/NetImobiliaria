@@ -1,39 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export function middleware(request: NextRequest) {
-//  console.log('⚡ SRC USER-MIDDLEWARE:', request.url)
   const { pathname } = request.nextUrl
+  const url = request.url
 
-  // Páginas que não precisam de verificação de permissão
+  // 1. Páginas Absolutamente Públicas
   const publicPages = [
     '/admin/login',
     '/admin/forgot-password',
-    '/admin/reset-password'
+    '/admin/reset-password',
+    '/api/admin/auth/login'
   ]
 
-  // Se for uma página pública, apenas aplicar headers de segurança
-  if (publicPages.includes(pathname)) {
-    const response = NextResponse.next()
-    response.headers.set('X-Frame-Options', 'DENY')
-    response.headers.set('X-Content-Type-Options', 'nosniff')
-    response.headers.set('Referrer-Policy', 'no-referrer-when-downgrade')
-    response.headers.set('X-XSS-Protection', '1; mode=block')
-    return response
+  if (publicPages.some(page => pathname.startsWith(page))) {
+    return NextResponse.next()
   }
 
-  // Para outras páginas, aplicar headers e continuar
-  const response = NextResponse.next()
-  response.headers.set('X-Frame-Options', 'DENY')
-  response.headers.set('X-Content-Type-Options', 'nosniff')
-  response.headers.set('Referrer-Policy', 'no-referrer-when-downgrade')
-  response.headers.set('X-XSS-Protection', '1; mode=block')
+    // 2. Definir se é rota protegida
+    const isProtectedRoute = pathname.startsWith('/admin') || pathname.startsWith('/crm')
+  
+    if (isProtectedRoute) {
+      // Compatibilidade Dual: Suporta tanto o padrão antigo quanto o novo
+      const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('admin-auth-token')?.value
+      
+      const isValidToken = token && token.split('.').length === 3
+      
+      console.log(`[MIDDLEWARE] Acesso a: ${pathname} | Token presente: ${!!token}`)
+ 
+     // Se não tem token OU o token parece inválido (formato básico JWT: x.y.z)
+     if (!token || !isValidToken) {
+      const loginUrl = new URL('/admin/login', request.url)
+      loginUrl.searchParams.set('callbackUrl', pathname)
+      
+      console.log(`[MIDDLEWARE] Bloqueando acesso. Token inválido ou ausente. Redirecionando ${pathname} -> /admin/login`)
+      
+      const response = NextResponse.redirect(loginUrl)
+      response.cookies.delete('admin_auth_token')
+      response.cookies.delete('admin-auth-token')
+      return response
+    }
+  }
 
-  return response
+  return NextResponse.next()
 }
 
 export const config = {
   matcher: [
-    '/api/admin/:path*',
-    '/admin/:path*'
+    '/((?!api|_next/static|_next/image|favicon.ico|images).*)',
   ]
 }

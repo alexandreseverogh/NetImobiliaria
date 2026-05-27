@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // PUT - Atualizar funcionalidade
 export async function PUT(
@@ -14,14 +15,17 @@ export async function PUT(
       return permissionCheck
     }
 
+    const denied = await requireApiPermission(request, 'system-features', 'UPDATE')
+    if (denied) return denied
+
     const featureId = params.id
     const updateData = await request.json()
     const { name, description, category_id, url, is_active, crud_execute } = updateData
 
     // Validações
-    if (!name || !description || !category_id || !url) {
+    if (name === undefined || description === undefined || url === undefined) {
       return NextResponse.json(
-        { error: 'Nome, descrição, categoria e URL são obrigatórios' },
+        { error: 'Nome, descrição e URL são obrigatórios' },
         { status: 400 }
       )
     }
@@ -75,6 +79,9 @@ export async function DELETE(
     if (permissionCheck) {
       return permissionCheck
     }
+
+    const denied = await requireApiPermission(request, 'system-features', 'DELETE')
+    if (denied) return denied
 
     const featureId = params.id
 

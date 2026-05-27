@@ -141,6 +141,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log('🚀 [DEBUG] RECEBENDO INTERESSE EM IMÓVEL - ROTA ACIONADA');
     const body = await request.json()
     const { imovelId, clienteUuid, preferenciaContato, mensagem } = body
 
@@ -229,61 +230,120 @@ export async function POST(request: NextRequest) {
         console.warn('⚠️ Não foi possível atualizar dados do prospect existente (não bloqueia):', e)
       }
     } else {
+      // Buscar o tenant_id do imóvel para associar ao prospect
+      const imovelTenantRes = await pool.query('SELECT tenant_id FROM imoveis WHERE id = $1', [imovelId])
+      const imovelTenantId = imovelTenantRes.rows[0]?.tenant_id || '00000000-0000-0000-0000-000000000001'
+
       // Inserir novo registro
       const result = await pool.query(
-        `INSERT INTO imovel_prospects (id_cliente, id_imovel, created_by, preferencia_contato, mensagem, created_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())
-         RETURNING id, id_cliente, id_imovel, created_at`,
-        [effectiveClienteUuid, imovelId, effectiveClienteUuid, preferenciaContato || null, mensagem || null]
+        `INSERT INTO imovel_prospects (id_cliente, id_imovel, created_by, preferencia_contato, mensagem, created_at, tenant_id)
+         VALUES ($1, $2, $3, $4, $5, NOW(), $6)
+         RETURNING id, id_cliente, id_imovel, created_at, tenant_id`,
+        [effectiveClienteUuid, imovelId, effectiveClienteUuid, preferenciaContato || null, mensagem || null, imovelTenantId]
       )
       prospectId = Number(result.rows[0]?.id)
 
       // Disparar roteamento do lead para corretor (não bloquear o fluxo se falhar)
       try {
         if (prospectId) {
-          // MVP: executar inline com catch (sem fila). Evoluir para job/queue quando WhatsApp entrar.
-          await routeProspectAndNotify(prospectId)
+          // MVP: executar inline com catch (sem fila).
+          await routeProspectAndNotify(prospectId);
+
+          // --- UNIFICAÇÃO: ESPELHAR PARA leads_staging PARA O DASHBOARD ---
+          // Vamos buscar os dados que já foram carregados no imovelDataQuery (que tem Cliente e Imóvel juntos)
+          // Nota: movi esta lógica para logo após a definição de 'imovel' no bloco de e-mail por segurança.
         }
       } catch (routerError) {
-        console.error('⚠️ Falha ao rotear lead para corretor (não bloqueia o registro):', routerError)
+        console.error('⚠️ Falha ao rotear lead:', routerError)
       }
     }
 
-    // Buscar dados completos do imóvel e cliente para enviar e-mail
+    // 1. ESPELHAMENTO DE LEAD (Staging) - INDEPENDENTE E GARANTIDO
+    try {
+      const syncDataQuery = await pool.query(
+        `SELECT 
+              i.codigo, i.titulo, i.cidade_fk, i.estado_fk, i.tenant_id,
+              c.nome as cliente_nome, c.email as cliente_email, c.telefone as cliente_telefone,
+              ip.mensagem
+             FROM imovel_prospects ip
+             INNER JOIN imoveis i ON ip.id_imovel = i.id
+             INNER JOIN clientes c ON ip.id_cliente = c.uuid
+             WHERE ip.id = $1`,
+        [prospectId]
+      );
+
+      if (syncDataQuery.rows.length > 0) {
+        const row = syncDataQuery.rows[0];
+
+        // --- QUALIFICAÇÃO CONCIERGE IA ---
+        let aiSummary = null;
+        let aiScore = 0;
+        try {
+          const { ConciergeService } = await import('@/lib/ai/conciergeService');
+          const qualification = await ConciergeService.qualifyLead(row.mensagem || '', 1, row.tenant_id, { source: 'site_prospect', imovel_id: imovelId });
+          aiSummary = qualification.resumo_ia;
+          aiScore = Math.floor(qualification.score_prontidao * 10);
+        } catch (aiErr) {
+          console.warn('⚠️ [ProspectSync] IA falhou, seguindo com score 0:', aiErr);
+        }
+
+        // INSERIR OU ATUALIZAR NA STAGING (E PEGAR O UUID PARA ENRIQUECER)
+        const stgRes = await pool.query(
+          `INSERT INTO leads_staging (nome, email, telefone, imovel_id, raw_json, status, estado_fk, cidade_fk, tag_sonho, resumo_ia, score_prontidao, tenant_id)
+           VALUES ($1, $2, $3, $4, $5, 'lead_captado', $6, $7, $8, $9, $10, $11)
+           ON CONFLICT (email, imovel_id) 
+           DO UPDATE SET updated_at = NOW(), score_prontidao = EXCLUDED.score_prontidao
+           RETURNING lead_uuid`,
+          [
+            row.cliente_nome, 
+            row.cliente_email, 
+            row.cliente_telefone, 
+            imovelId, 
+            JSON.stringify({ source: 'site_landpaging', prospect_id: prospectId, message: row.mensagem }), 
+            row.estado_fk, 
+            row.cidade_fk,
+            'Interesse em Imóvel',
+            aiSummary,
+            aiScore,
+            row.tenant_id
+          ]
+        );
+        
+        const leadUuid = stgRes.rows[0]?.lead_uuid;
+
+        // --- 🚀 NOVO: ENTRADA NO KANBAN (REGRA: PRIMEIRA COLUNA) ---
+        if (leadUuid) {
+           await pool.query(
+             'INSERT INTO leads_kanban (lead_uuid, coluna_id) VALUES ($1, (SELECT id FROM kanban_colunas WHERE nome = $2 LIMIT 1)) ON CONFLICT (lead_uuid) DO NOTHING',
+             [leadUuid, 'lead_captado']
+           );
+        }
+
+        // --- 🚀 NOVO: MOTOR DE ENRIQUECIMENTO GLOBAL (CRM AGNÓSTICO) ---
+        if (leadUuid) {
+           const { EnrichmentService } = await import('@/lib/crm/enrichmentService');
+           await EnrichmentService.enrichLead(leadUuid, 1, imovelId); // Domínio 1 = Imobiliário
+           console.log(`✅ [ProspectSync] Lead ${row.cliente_email} captado e enriquecido via metadados.`);
+        }
+      } else {
+        console.warn(`⚠️ [ProspectSync] Nenhuma linha encontrada para o prospect ID ${prospectId} para realizar a sincronização.`);
+      }
+    } catch (stgErr: any) {
+      console.error('❌ [ProspectSync] ERRO CRÍTICO NA GRAVAÇÃO:', stgErr.message);
+    }
+
+    // 2. BUSCAR DADOS PARA E-MAIL (COM JOINS COMPLEXOS)
     const imovelDataQuery = await pool.query(
       `SELECT 
-            i.codigo,
-            i.titulo,
-            i.preco,
-            i.preco_condominio as condominio,
-            i.preco_iptu as iptu,
-            i.taxa_extra,
-            i.area_total,
-            i.quartos,
-            i.suites,
-            i.banheiros,
-            i.vagas_garagem,
-            i.varanda,
-            i.andar,
-            i.total_andares,
-            i.endereco,
-            i.numero,
-            i.complemento,
-            i.bairro,
-            i.cidade_fk,
-            i.estado_fk,
-            i.cep,
+            i.codigo, i.titulo, i.preco, i.preco_condominio as condominio, i.preco_iptu as iptu,
+            i.taxa_extra, i.area_total, i.quartos, i.suites, i.banheiros, i.vagas_garagem,
+            i.varanda, i.andar, i.total_andares, i.endereco, i.numero, i.complemento,
+            i.bairro, i.cidade_fk, i.estado_fk, i.cep,
             fi.nome as finalidade,
-            c.nome as cliente_nome,
-            c.email as cliente_email,
-            c.telefone as cliente_telefone,
-            ip.created_at as data_interesse,
-            ip.preferencia_contato,
-            ip.mensagem,
-            pr.nome as proprietario_nome,
-            pr.telefone as proprietario_telefone,
-            pr.email as proprietario_email,
-            pr.cpf as proprietario_cpf,
+            c.nome as cliente_nome, c.email as cliente_email, c.telefone as cliente_telefone,
+            ip.created_at as data_interesse, ip.preferencia_contato, ip.mensagem,
+            pr.nome as proprietario_nome, pr.telefone as proprietario_telefone,
+            pr.email as proprietario_email, pr.cpf as proprietario_cpf,
             pr.endereco as proprietario_endereco
            FROM imovel_prospects ip
            INNER JOIN imoveis i ON ip.id_imovel = i.id

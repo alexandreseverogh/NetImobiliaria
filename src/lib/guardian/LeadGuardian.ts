@@ -6,7 +6,7 @@
  * docs/REGRAS_DE_NEGOCIO_TRANSBORDO_LEADS.md
  * 
  * CRITICAL RULES:
- * 1. NO HARDCODING - All parameters come from database (parametros table)
+ * 1. NO HARDCODING - All parameters come from database (parametros_imoveis table)
  * 2. STRICT TIER HIERARCHY - External -> Internal -> Plantonista
  * 3. GEOGRAPHIC MATCHING - Estado + Cidade (no partial matches)
  * 4. SLA ENFORCEMENT - Strict expiration times per tier

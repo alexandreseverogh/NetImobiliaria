@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         sla_minutos_aceite_lead,
         sla_minutos_aceite_lead_interno,
         proximos_corretores_recebem_leads
-      FROM public.parametros
+      FROM public.parametros_imoveis
       LIMIT 1
       `
     )

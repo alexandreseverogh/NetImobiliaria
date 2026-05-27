@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import { auditLogger } from '@/lib/utils/auditLogger'
 import pool from '@/lib/database/connection'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'usuarios', 'UPDATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -15,7 +19,7 @@ export async function POST(
     }
 
     // 🛡️ Extrair usuário logado do token
-    const token = request.cookies.get('accessToken')?.value || 
+    const token = request.cookies.get('accessToken')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '')
     
     if (!token) {

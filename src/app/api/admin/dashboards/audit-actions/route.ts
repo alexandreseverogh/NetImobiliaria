@@ -7,6 +7,9 @@ export async function GET(request: NextRequest) {
   const permissionCheck = await unifiedPermissionMiddleware(request)
   if (permissionCheck) return permissionCheck
 
+  const { getTenantContext } = await import('@/lib/auth/get-tenant-from-token')
+  const { tenantId, isMaster } = await getTenantContext(request)
+
   try {
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('start_date')
@@ -24,14 +27,20 @@ export async function GET(request: NextRequest) {
     let paramIndex = 1
 
     if (startDate) {
-      query += ` AND created_at >= $${paramIndex}::timestamp`
+      query += ` AND (created_at >= $${paramIndex}::timestamp OR timestamp >= $${paramIndex}::timestamp)`
       params.push(startDate)
       paramIndex++
     }
 
     if (endDate) {
-      query += ` AND created_at <= $${paramIndex}::timestamp + interval '1 day'`
+      query += ` AND (created_at <= $${paramIndex}::timestamp + interval '1 day' OR timestamp <= $${paramIndex}::timestamp + interval '1 day')`
       params.push(endDate)
+      paramIndex++
+    }
+
+    if (tenantId) {
+      query += ` AND tenant_id = $${paramIndex}`
+      params.push(tenantId)
       paramIndex++
     }
 

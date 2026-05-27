@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useApi } from '@/hooks/useApi'
 import { usePermissions } from '@/hooks/usePermissions'
-
+import { AuditRegistry } from '@/components/admin/audit/enrichment/registry'
+import UniversalAuditDetail from '@/components/admin/audit/enrichment/UniversalAuditDetail'
 interface AuditLog {
   id: string
   user_id: string | null
@@ -218,46 +219,48 @@ export default function AuditPage() {
 
   const renderDetailContent = (log: AuditLog) => {
     const details = normalizeDetails(log.details)
+    const { auditConfigs } = usePermissions()
+    
     if (!details) {
       return <span>-</span>
     }
 
-    if (log.resource === 'imovel_status' && typeof details === 'object') {
-      return (
-        <div className="space-y-1">
-          <p className="font-semibold text-gray-900">Novo Status Adicionado</p>
-          {'description' in details && details.description ? (
-            <p className="text-gray-700">{details.description}</p>
-          ) : null}
-          <div className="border-t border-gray-300 pt-1 mt-1 space-y-1">
-            <p className="text-gray-600">
-              <span className="font-medium">Status:</span>{' '}
-              {'status_nome' in details ? details.status_nome || 'N/A' : 'N/A'}
-            </p>
-            {'imovel_codigo' in details && details.imovel_codigo ? (
-              <p className="text-gray-600">
-                <span className="font-medium">Código do Imóvel:</span> {details.imovel_codigo}
-              </p>
-            ) : null}
-          </div>
-          {'created_by_name' in details && details.created_by_name ? (
-            <p className="text-gray-600 text-xs mt-2 border-t border-gray-300 pt-1">
-              <span className="font-medium">Adicionado por:</span> {details.created_by_name}
-            </p>
-          ) : null}
-          {'timestamp' in details && details.timestamp ? (
-            <p className="text-gray-600 text-xs">
-              <span className="font-medium">Data/Hora:</span>{' '}
-              {new Date(details.timestamp as string).toLocaleString('pt-BR')}
-            </p>
-          ) : null}
-        </div>
-      )
+    // 🛡️ Lógica Dinâmica e Desacoplada (Soberania do Master)
+    const config = (auditConfigs as any)?.[log.resource]
+
+    if (config) {
+      if (config.enrichment_type === 'PREMIUM' && config.premium_component_id) {
+        const PremiumComponent = AuditRegistry[config.premium_component_id]
+        if (PremiumComponent) {
+          return (
+            <PremiumComponent 
+              resourceId={log.resource_id} 
+              details={details} 
+              action={log.action} 
+            />
+          )
+        }
+      }
+
+      if (config.enrichment_type === 'UNIVERSAL') {
+        return (
+          <UniversalAuditDetail 
+            data={details} 
+            action={log.action} 
+            tableName={log.resource} 
+          />
+        )
+      }
+
+      if (config.enrichment_type === 'NONE') {
+        return <pre className="text-xs text-gray-600 bg-gray-50 p-2 rounded">{JSON.stringify(details, null, 2)}</pre>
+      }
     }
 
+    // Fallback legível para recursos não parametrizados
     if (typeof details === 'object') {
       return (
-        <pre className="overflow-auto">
+        <pre className="overflow-auto text-xs bg-white border border-gray-200 p-2 rounded mt-2">
           {JSON.stringify(details, null, 2)}
         </pre>
       )

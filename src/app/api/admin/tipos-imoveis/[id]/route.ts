@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findTipoImovelById, updateTipoImovel, toggleTipoImovelStatus, deleteTipoImovel } from '@/lib/database/tipos-imoveis';
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware';
+import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger';
 import { extractRequestData } from '@/lib/utils/ipUtils';
 
@@ -36,6 +37,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -111,6 +115,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -174,6 +181,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'DELETE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {

@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import pool from '@/lib/database/connection'
 import { safeParseInt } from '@/lib/utils/safeParser'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
+import { getTenantFilterFromRequest } from '@/lib/auth/get-tenant-from-token'
 
 export async function GET(request: NextRequest) {
   // Verificar permissões via middleware unificado
@@ -11,6 +11,11 @@ export async function GET(request: NextRequest) {
   if (permissionCheck) return permissionCheck
 
   try {
+    // ✅ Isolamento multi-tenant
+    const tenantId = await getTenantFilterFromRequest(request)
+    if (tenantId === undefined) {
+      return NextResponse.json({ success: false, message: 'Não autorizado' }, { status: 401 })
+    }
 
     // Extrair parâmetros de filtro
     const { searchParams } = new URL(request.url)
@@ -22,9 +27,20 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action')
     const search = searchParams.get('search')
 
-    // Construir query base
+    const params: any[] = []
+    let paramCount = 0
+
+    // ─── Construir query base com filtro de tenant ─────────────────────────
+    // Master (tenantId=null) vê tudo; admin vê só o seu tenant
+    let baseFilter = '1=1'
+    if (tenantId !== null) {
+      paramCount++
+      baseFilter = `al.tenant_id = $${paramCount}`
+      params.push(tenantId)
+    }
+
     let query = `
-      SELECT 
+      SELECT
         al.id,
         al.user_id,
         al.public_user_uuid,
@@ -35,18 +51,16 @@ export async function GET(request: NextRequest) {
         al.details,
         al.ip_address,
         al.user_agent,
+        al.tenant_id,
         al.timestamp as created_at,
         u.username,
         u.nome
       FROM audit_logs al
       LEFT JOIN users u ON al.user_id = u.id
-      WHERE 1=1
+      WHERE ${baseFilter}
     `
 
-    const params: any[] = []
-    let paramCount = 0
-
-    // Aplicar filtros
+    // Aplicar filtros adicionais
     if (startDate) {
       paramCount++
       query += ` AND DATE(al.timestamp) >= $${paramCount}`
@@ -74,18 +88,19 @@ export async function GET(request: NextRequest) {
     if (search) {
       paramCount++
       query += ` AND (
-        al.action ILIKE $${paramCount} OR 
-        al.resource ILIKE $${paramCount} OR 
-        u.username ILIKE $${paramCount} OR 
-        u.nome ILIKE $${paramCount}
+        al.action ILIKE $${paramCount} OR
+        al.resource ILIKE $${paramCount} OR
+        u.username ILIKE $${paramCount} OR
+        u.nome ILIKE $${paramCount} OR
+        al.details::text ILIKE $${paramCount}
       )`
       params.push(`%${search}%`)
     }
 
-    // Ordenação e paginação
+    // Paginação
     query += ` ORDER BY al.timestamp DESC`
-
     const offset = (page - 1) * limit
+
     paramCount++
     query += ` LIMIT $${paramCount}`
     params.push(limit)
@@ -94,57 +109,45 @@ export async function GET(request: NextRequest) {
     query += ` OFFSET $${paramCount}`
     params.push(offset)
 
-    // Executar query
     const result = await pool.query(query, params)
 
-    // Contar total de registros (para paginação)
+    // ─── Contagem total ────────────────────────────────────────────────────
+    let countParams: any[] = []
+    let countParamCount = 0
+    let countBaseFilter = '1=1'
+
+    if (tenantId !== null) {
+      countParamCount++
+      countBaseFilter = `al.tenant_id = $${countParamCount}`
+      countParams.push(tenantId)
+    }
+
     let countQuery = `
       SELECT COUNT(*) as total
       FROM audit_logs al
       LEFT JOIN users u ON al.user_id = u.id
-      WHERE 1=1
+      WHERE ${countBaseFilter}
     `
 
-    const countParams: any[] = []
-    let countParamCount = 0
-
-    if (startDate) {
-      countParamCount++
-      countQuery += ` AND DATE(al.timestamp) >= $${countParamCount}`
-      countParams.push(startDate)
-    }
-
-    if (endDate) {
-      countParamCount++
-      countQuery += ` AND DATE(al.timestamp) <= $${countParamCount}`
-      countParams.push(endDate)
-    }
-
-    if (userId) {
-      countParamCount++
-      countQuery += ` AND al.user_id = $${countParamCount}`
-      countParams.push(userId)
-    }
-
-    if (action) {
-      countParamCount++
-      countQuery += ` AND al.action = $${countParamCount}`
-      countParams.push(action)
-    }
-
-    if (search) {
-      countParamCount++
-      countQuery += ` AND (
-        al.action ILIKE $${countParamCount} OR 
-        al.resource ILIKE $${countParamCount} OR 
-        u.username ILIKE $${countParamCount} OR 
-        u.nome ILIKE $${countParamCount}
-      )`
-      countParams.push(`%${search}%`)
-    }
+    if (startDate) { countParamCount++; countQuery += ` AND DATE(al.timestamp) >= $${countParamCount}`; countParams.push(startDate) }
+    if (endDate) { countParamCount++; countQuery += ` AND DATE(al.timestamp) <= $${countParamCount}`; countParams.push(endDate) }
+    if (userId) { countParamCount++; countQuery += ` AND al.user_id = $${countParamCount}`; countParams.push(userId) }
+    if (action) { countParamCount++; countQuery += ` AND al.action = $${countParamCount}`; countParams.push(action) }
+    if (search) { countParamCount++; countQuery += ` AND (al.action ILIKE $${countParamCount} OR al.resource ILIKE $${countParamCount} OR u.username ILIKE $${countParamCount} OR u.nome ILIKE $${countParamCount} OR al.details::text ILIKE $${countParamCount})`; countParams.push(`%${search}%`) }
 
     const countResult = await pool.query(countQuery, countParams)
     const total = parseInt(countResult.rows[0].total)
+
+    // ─── Estatísticas ──────────────────────────────────────────────────────
+    let statsParams: any[] = []
+    let statsParamCount = 0
+    let statsBaseFilter = '1=1'
+
+    if (tenantId !== null) {
+      statsParamCount++
+      statsBaseFilter = `al.tenant_id = $${statsParamCount}`
+      statsParams.push(tenantId)
+    }
 
     let statsQuery = `
       SELECT
@@ -154,46 +157,14 @@ export async function GET(request: NextRequest) {
         SUM(CASE WHEN al.user_type IS NULL OR TRIM(al.user_type) = '' THEN 1 ELSE 0 END)::int AS indefinido
       FROM audit_logs al
       LEFT JOIN users u ON al.user_id = u.id
-      WHERE 1=1
+      WHERE ${statsBaseFilter}
     `
 
-    const statsParams: any[] = []
-    let statsParamCount = 0
-
-    if (startDate) {
-      statsParamCount++
-      statsQuery += ` AND DATE(al.timestamp) >= $${statsParamCount}`
-      statsParams.push(startDate)
-    }
-
-    if (endDate) {
-      statsParamCount++
-      statsQuery += ` AND DATE(al.timestamp) <= $${statsParamCount}`
-      statsParams.push(endDate)
-    }
-
-    if (userId) {
-      statsParamCount++
-      statsQuery += ` AND al.user_id = $${statsParamCount}`
-      statsParams.push(userId)
-    }
-
-    if (action) {
-      statsParamCount++
-      statsQuery += ` AND al.action = $${statsParamCount}`
-      statsParams.push(action)
-    }
-
-    if (search) {
-      statsParamCount++
-      statsQuery += ` AND (
-        al.action ILIKE $${statsParamCount} OR 
-        al.resource ILIKE $${statsParamCount} OR 
-        u.username ILIKE $${statsParamCount} OR 
-        u.nome ILIKE $${statsParamCount}
-      )`
-      statsParams.push(`%${search}%`)
-    }
+    if (startDate) { statsParamCount++; statsQuery += ` AND DATE(al.timestamp) >= $${statsParamCount}`; statsParams.push(startDate) }
+    if (endDate) { statsParamCount++; statsQuery += ` AND DATE(al.timestamp) <= $${statsParamCount}`; statsParams.push(endDate) }
+    if (userId) { statsParamCount++; statsQuery += ` AND al.user_id = $${statsParamCount}`; statsParams.push(userId) }
+    if (action) { statsParamCount++; statsQuery += ` AND al.action = $${statsParamCount}`; statsParams.push(action) }
+    if (search) { statsParamCount++; statsQuery += ` AND (al.action ILIKE $${statsParamCount} OR al.resource ILIKE $${statsParamCount} OR u.username ILIKE $${statsParamCount} OR u.nome ILIKE $${statsParamCount} OR al.details::text ILIKE $${statsParamCount})`; statsParams.push(`%${search}%`) }
 
     const statsResult = await pool.query(statsQuery, statsParams)
     const statsRow = statsResult.rows[0] || { admin: 0, cliente: 0, proprietario: 0, indefinido: 0 }

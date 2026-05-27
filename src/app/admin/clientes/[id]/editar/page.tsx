@@ -182,25 +182,29 @@ export default function EditarClientePage() {
 
   // Buscar endereço automaticamente quando CEP for informado (8 dígitos)
   useEffect(() => {
-    const cep = formData.cep
-    if (!cep) return
-
-    const cepLimpo = cep.replace(/\D/g, '')
-    if (cepLimpo.length !== 8) return
+    const cepValue = formData.cep?.replace(/\D/g, '')
+    if (!cepValue || cepValue.length !== 8) {
+      return
+    }
 
     // NÃO buscar se for o mesmo CEP inicial (carregamento da página)
-    const cepInicialLimpo = cepInicial.replace(/\D/g, '')
-    if (cepLimpo === cepInicialLimpo) {
+    const cepInicialLimpo = cepInicial?.replace(/\D/g, '') || ''
+    if (cepValue === cepInicialLimpo) {
       console.log('⏭️ CEP é o mesmo do carregamento inicial - pulando busca automática')
       return
     }
 
+    let cancelled = false
+
     const buscarEndereco = async () => {
+      if (cancelled) return
       setBuscandoCep(true)
-      console.log('🔍 Buscando endereço para CEP (NOVO):', cepLimpo)
+      console.log('🔍 Buscando endereço para CEP (NOVO):', cepValue)
 
       try {
-        const enderecoData = await buscarEnderecoPorCep(cepLimpo)
+        const enderecoData = await buscarEnderecoPorCep(cepValue)
+
+        if (cancelled) return
 
         if (enderecoData) {
           console.log('✅ Endereço encontrado:', enderecoData)
@@ -210,37 +214,39 @@ export default function EditarClientePage() {
 
           setFormData(prev => ({
             ...prev,
-            endereco: enderecoData.logradouro || '',
-            bairro: enderecoData.bairro || '',
-            estado: estadoEncontrado?.id || '',
-            cidade: '', // Será selecionado após municípios carregarem
-            numero: '' // Limpar número ao trocar CEP (apenas quando usuário digita NOVO CEP)
+            endereco: enderecoData.logradouro || prev.endereco || '',
+            bairro: enderecoData.bairro || prev.bairro || '',
+            estado: estadoEncontrado?.id || prev.estado || '',
+            cidade: estadosCidades.municipios.find(m => m.nome === enderecoData.localidade)?.id || ''
           }))
 
-          // Aguardar carregar municípios e então selecionar a cidade
           setTimeout(() => {
-            setFormData(prev => {
-              const municipioEncontrado = estadosCidades.municipios.find(m => m.nome === enderecoData.localidade)
-              return {
-                ...prev,
-                cidade: municipioEncontrado?.id || ''
-              }
-            })
+            if (!cancelled) {
+              setFormData(prev => {
+                return { ...prev }
+              })
+            }
           }, 500)
         } else {
           console.log('⚠️ CEP não encontrado')
         }
       } catch (error) {
+        if (cancelled) return
         console.error('❌ Erro ao buscar CEP:', error)
       } finally {
-        setBuscandoCep(false)
+        if (!cancelled) {
+          setBuscandoCep(false)
+        }
       }
     }
 
-    // Debounce de 500ms
     const timeoutId = setTimeout(buscarEndereco, 500)
-    return () => clearTimeout(timeoutId)
-  }, [formData.cep, estadosCidades.estados, estadosCidades.municipios, cepInicial])
+    
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
+  }, [formData.cep, cepInicial]) // REMOVIDO: estadosCidades.estados, estadosCidades.municipios
 
   // Verificar Email com debounce
   useEffect(() => {
@@ -789,6 +795,7 @@ export default function EditarClientePage() {
               format="sigla-nome"
               showAllOption={true}
               allOptionLabel="Selecione o estado"
+              mode="all"
             />
             {errors.estado && <p className="text-red-500 text-sm mt-1">{errors.estado}</p>}
           </div>

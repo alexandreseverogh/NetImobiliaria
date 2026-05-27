@@ -10,6 +10,7 @@ import {
   TrashIcon,
   ShieldCheckIcon
 } from '@heroicons/react/24/outline';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface LogsTabsWrapperProps {
   children: React.ReactNode;
@@ -20,42 +21,48 @@ const tabs = [
     id: 'login-logs',
     name: 'Logs de Login',
     icon: DocumentTextIcon,
-    href: '/admin/login-logs'
+    href: '/admin/logs',
+    resource: 'monitoramento-auditoria-login-logout-2fa'
   },
   {
     id: 'audit-logs',
-    name: 'Auditoria de Logins',
+    name: 'Auditoria do Sistema',
     icon: ShieldCheckIcon,
-    href: '/admin/audit'
+    href: '/admin/audit',
+    resource: 'auditoria-logs-sistema'
   },
   {
     id: 'analytics',
     name: 'Análise de Logs',
     icon: ChartBarIcon,
-    href: '/admin/login-logs/analytics'
+    href: '/admin/logs/analytics',
+    resource: 'analise-logs'
   },
   {
     id: 'reports',
     name: 'Relatórios de Logs',
     icon: DocumentTextIcon,
-    href: '/admin/login-logs/reports'
+    href: '/admin/logs/reports',
+    resource: 'relatorios-logs'
   },
   {
     id: 'config',
     name: 'Configurações de Logs',
     icon: CogIcon,
-    href: '/admin/login-logs/config'
+    href: '/admin/logs/config',
+    resource: 'configuracoes-logs'
   },
   {
     id: 'purge',
     name: 'Expurgo de Logs',
     icon: TrashIcon,
-    href: '/admin/login-logs/purge'
+    href: '/admin/expurgo',
+    resource: 'expurgo-historico-login-logout'
   }
 ];
 
 function getActiveTab(pathname: string): string {
-  if (pathname === '/admin/login-logs') {
+  if (pathname === '/admin/logs') {
     return 'login-logs';
   }
   if (pathname === '/admin/audit') {
@@ -70,7 +77,7 @@ function getActiveTab(pathname: string): string {
   if (pathname.includes('/config')) {
     return 'config';
   }
-  if (pathname.includes('/purge')) {
+  if (pathname.includes('/purge') || pathname === '/admin/expurgo') {
     return 'purge';
   }
   return 'login-logs';
@@ -79,17 +86,21 @@ function getActiveTab(pathname: string): string {
 export default function LogsTabsWrapper({ children }: LogsTabsWrapperProps) {
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState('login-logs');
+  const { hasPermission } = usePermissions();
 
   useEffect(() => {
     setActiveTab(getActiveTab(pathname));
   }, [pathname]);
+
+  // Filtrar abas baseadas em permissões e provisões (Soberania do Master + Cargo do Usuário)
+  const allowedTabs = tabs.filter(tab => hasPermission(tab.resource, 'EXECUTE'));
 
   return (
     <div className="space-y-6">
       {/* Tabs Navigation - Mantém sempre visível */}
       <div className="bg-white rounded-lg shadow border-b border-gray-200 sticky top-0 z-10">
         <nav className="flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
-          {tabs.map((tab) => {
+          {allowedTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             

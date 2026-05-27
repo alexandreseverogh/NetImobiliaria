@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkApiPermission } from '@/lib/middleware/permissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { createHash } from 'crypto'
 
 // Forçar uso do Node.js runtime
@@ -63,9 +64,18 @@ export async function GET(
       )
     }
 
+    // Extrair tenantId para isolamento
+    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('accessToken')?.value
+    let tenantId = null
+    if (token) {
+      const { verifyToken } = await import('@/lib/auth/jwt')
+      const decoded = await verifyToken(token)
+      tenantId = decoded?.tenantId || null
+    }
+
     // Buscar imagens no banco de dados
-    console.log('🔍 API Imagens - Buscando imagens para imóvel:', id)
-    const imagens = await findImovelImagens(id)
+    console.log('🔍 API Imagens - Buscando imagens para imóvel:', id, 'Tenant:', tenantId)
+    const imagens = await findImovelImagens(id, tenantId)
     console.log('🔍 API Imagens - Imagens encontradas:', imagens.length)
     console.log('🔍 API Imagens - Dados das imagens:', imagens)
 
@@ -89,7 +99,11 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verificar permissões
+    // Verificar permissão de criação server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
+    // Verificar permissões (autenticação genérica)
     const permissionCheck = await checkApiPermission(request)
     if (permissionCheck) {
       return permissionCheck
@@ -193,6 +207,15 @@ export async function POST(
         console.warn(`⚠️ Falha ao salvar arquivo físico (permissão ou diretório), prosseguindo com banco de dados:`, fsError)
       }
 
+      // Extrair tenantId para isolamento no S3 e no Banco
+      const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('accessToken')?.value
+      let tenantId = null
+      if (token) {
+        const { verifyToken } = await import('@/lib/auth/jwt')
+        const decoded = await verifyToken(token)
+        tenantId = decoded?.tenantId || null
+      }
+
       // Salvar informações no banco de dados (OBRIGATÓRIO)
       // SEMPRE inserir com principal=false — setImovelImagemPrincipal é chamado após o INSERT se necessário
       const imagemId = await insertImovelImagem({
@@ -202,7 +225,8 @@ export async function POST(
         tipoMime: file.type,
         tamanhoBytes: file.size,
         imagem: buffer,
-        hashArquivo: fileHash
+        hashArquivo: fileHash,
+        tenantId: tenantId // 🛡️ Repassa o tenantId para o S3 e Banco
       })
 
       // Definir como principal SOMENTE se: o frontend sinalizou via 'principal=true' na requisição
@@ -248,7 +272,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verificar permissões
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
+    // Verificar permissões (autenticação genérica)
     const permissionCheck = await checkApiPermission(request)
     if (permissionCheck) {
       return permissionCheck
@@ -273,8 +301,17 @@ export async function PUT(
       )
     }
 
+    // Extrair tenantId para isolamento
+    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('accessToken')?.value
+    let tenantId = null
+    if (token) {
+      const { verifyToken } = await import('@/lib/auth/jwt')
+      const decoded = await verifyToken(token)
+      tenantId = decoded?.tenantId || null
+    }
+
     // Atualizar ordem no banco de dados
-    await updateImovelImagensOrdem(id, imagens)
+    await updateImovelImagensOrdem(id, imagens, tenantId)
 
     return NextResponse.json({
       success: true,
@@ -297,15 +334,13 @@ export async function DELETE(
 ) {
   console.log('🚨 API DELETE imagem - FUNÇÃO CHAMADA!')
   try {
-    // Verificar permissões - TEMPORÁRIO: comentado para teste
+    // Verificar permissão de exclusão server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     console.log('🔍 API DELETE imagem - INICIANDO DELETE')
     console.log('🔍 API DELETE imagem - Params recebidos:', params)
     console.log('🔍 API DELETE imagem - URL completa:', request.url)
-    console.log('🔍 API DELETE imagem - PULANDO verificação de permissões para teste')
-    // const permissionCheck = await checkApiPermission(request)
-    // if (permissionCheck) {
-    //   return permissionCheck
-    // }
 
     // Validar ID
     const id = parseInt(params.id)
@@ -331,9 +366,18 @@ export async function DELETE(
       )
     }
 
+    // Extrair tenantId para isolamento
+    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('accessToken')?.value
+    let tenantId = null
+    if (token) {
+      const { verifyToken } = await import('@/lib/auth/jwt')
+      const decoded = await verifyToken(token)
+      tenantId = decoded?.tenantId || null
+    }
+
     // Buscar informações da imagem no banco
-    console.log('🔍 API DELETE imagem - Buscando imagem no banco com ID:', parseInt(imagemId))
-    const imagem = await findImovelImagem(parseInt(imagemId))
+    console.log('🔍 API DELETE imagem - Buscando imagem no banco com ID:', parseInt(imagemId), 'Tenant:', tenantId)
+    const imagem = await findImovelImagem(parseInt(imagemId), tenantId)
 
     if (!imagem) {
       return NextResponse.json(
@@ -382,7 +426,11 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verificar permissões
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
+    // Verificar permissões (autenticação genérica)
     const permissionCheck = await checkApiPermission(request)
     if (permissionCheck) {
       return permissionCheck
@@ -416,8 +464,17 @@ export async function PATCH(
       )
     }
 
+    // Extrair tenantId para isolamento
+    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('accessToken')?.value
+    let tenantId = null
+    if (token) {
+      const { verifyToken } = await import('@/lib/auth/jwt')
+      const decoded = await verifyToken(token)
+      tenantId = decoded?.tenantId || null
+    }
+
     // Verificar se a imagem existe e pertence ao imóvel
-    const imagem = await findImovelImagem(parseInt(imagemId))
+    const imagem = await findImovelImagem(parseInt(imagemId), tenantId)
     if (!imagem) {
       return NextResponse.json(
         { error: 'Imagem não encontrada' },

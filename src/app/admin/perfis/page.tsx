@@ -15,7 +15,7 @@ interface Perfil {
   name: string;
   description: string;
   userCount: number;
-  permissions: Record<string, string>;
+  permissions: Record<string, string[]>;
 }
 
 export default function PerfisPage() {
@@ -197,6 +197,9 @@ export default function PerfisPage() {
                             <span className="flex items-center">
                               <span className="w-2 h-2 bg-green-400 rounded-full mr-1"></span>
                               {perfil.userCount} usuário{perfil.userCount !== 1 ? 's' : ''}
+                            </span>
+                            <span className="flex items-center font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                              Nível {perfil.level}
                             </span>
                           </div>
                         </div>

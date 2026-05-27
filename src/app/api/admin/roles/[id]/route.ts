@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import pool from '@/lib/database/connection'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // GET - Buscar role específico
 export async function GET(
@@ -23,17 +24,29 @@ export async function GET(
       )
     }
 
+    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('accessToken')?.value
+    const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
+    const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+
+    let queryParams: any[] = [roleId]
+    let tenantFilter = ''
+    
+    if (tenantId) {
+      tenantFilter = 'AND (r.tenant_id = $2 OR r.tenant_id IS NULL)'
+      queryParams.push(tenantId)
+    }
+
     const query = `
       SELECT 
         r.*,
         COUNT(ura.user_id) as user_count
       FROM user_roles r
       LEFT JOIN user_role_assignments ura ON r.id = ura.role_id
-      WHERE r.id = $1
+      WHERE r.id = $1 ${tenantFilter}
       GROUP BY r.id
     `
 
-    const result = await pool.query(query, [roleId])
+    const result = await pool.query(query, queryParams)
 
     if (result.rows.length === 0) {
       return NextResponse.json(
@@ -61,6 +74,10 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'roles', 'UPDATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -68,7 +85,7 @@ export async function PUT(
     }
     const roleId = parseInt(params.id)
     const data = await request.json()
-    const { name, description, level, two_fa_required, is_active } = data
+    const { name, description, level, two_fa_required, is_active, manager_role_id } = data
 
     if (isNaN(roleId)) {
       return NextResponse.json(
@@ -77,9 +94,14 @@ export async function PUT(
       )
     }
 
-    // Verificar se role existe
+    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('accessToken')?.value
+    const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
+    const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    const isMasterAdmin = !!decoded?.is_system_role
+
+    // Verificar se role existe e checar tenant
     const existingRole = await pool.query(
-      'SELECT id FROM user_roles WHERE id = $1',
+      'SELECT id, tenant_id, is_system_role FROM user_roles WHERE id = $1',
       [roleId]
     )
 
@@ -88,6 +110,18 @@ export async function PUT(
         { success: false, message: 'Perfil não encontrado' },
         { status: 404 }
       )
+    }
+
+    const roleTenantId = existingRole.rows[0].tenant_id
+    const isSystemRole = existingRole.rows[0].is_system_role
+
+    if (!isMasterAdmin) {
+      if (isSystemRole || roleTenantId !== tenantId) {
+        return NextResponse.json(
+          { success: false, message: 'Acesso negado: Perfil global ou de outro tenant.' },
+          { status: 403 }
+        )
+      }
     }
 
     // Validações
@@ -174,6 +208,27 @@ export async function PUT(
 
     const result = await pool.query(updateQuery, values)
 
+    // Atualização da hierarquia (se enviado)
+    if (manager_role_id !== undefined) {
+      if (manager_role_id === null) {
+        // Remover gerente (passa a ser nível máximo)
+        await pool.query('DELETE FROM role_hierarchies WHERE subordinate_role_id = $1', [roleId])
+      } else {
+        // Atualizar ou inserir novo gerente
+        // Primeiro remove gerentes antigos
+        await pool.query('DELETE FROM role_hierarchies WHERE subordinate_role_id = $1', [roleId])
+        // Insere o novo
+        // Necessário descobrir o tenant_id do role atual (ou usar da sessão do admin)
+        const tenantQuery = await pool.query('SELECT tenant_id FROM user_roles WHERE id = $1', [roleId])
+        const roleTenantId = tenantQuery.rows[0]?.tenant_id || null
+        
+        await pool.query(
+          'INSERT INTO role_hierarchies (tenant_id, manager_role_id, subordinate_role_id) VALUES ($1, $2, $3)',
+          [roleTenantId, manager_role_id, roleId]
+        )
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Perfil atualizado com sucesso',
@@ -194,6 +249,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de exclusão server-side
+    const denied = await requireApiPermission(request, 'roles', 'DELETE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -209,9 +268,14 @@ export async function DELETE(
       )
     }
 
-    // Verificar se role existe
+    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('accessToken')?.value
+    const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
+    const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
+    const isMasterAdmin = !!decoded?.is_system_role
+
+    // Verificar se role existe e checar tenant
     const existingRole = await pool.query(
-      'SELECT id, name, is_system_role FROM user_roles WHERE id = $1',
+      'SELECT id, name, is_system_role, tenant_id FROM user_roles WHERE id = $1',
       [roleId]
     )
 
@@ -220,6 +284,18 @@ export async function DELETE(
         { success: false, message: 'Perfil não encontrado' },
         { status: 404 }
       )
+    }
+
+    const roleTenantId = existingRole.rows[0].tenant_id
+    const isSystemRole = existingRole.rows[0].is_system_role
+
+    if (!isMasterAdmin) {
+      if (isSystemRole || roleTenantId !== tenantId) {
+        return NextResponse.json(
+          { success: false, message: 'Acesso negado: Perfil global ou de outro tenant.' },
+          { status: 403 }
+        )
+      }
     }
 
     // Verificar se há usuários associados
@@ -239,11 +315,9 @@ export async function DELETE(
       )
     }
 
-    // Verificar se é um perfil do sistema (baseado no campo is_system_role, não hardcoding)
-    const isSystemRole = existingRole.rows[0].is_system_role
-    if (isSystemRole === true) {
+    if (isSystemRole === true && !isMasterAdmin) {
       return NextResponse.json(
-        { success: false, message: 'Perfis do sistema não podem ser excluídos' },
+        { success: false, message: 'Perfis do sistema não podem ser excluídos por inquilinos' },
         { status: 400 }
       )
     }

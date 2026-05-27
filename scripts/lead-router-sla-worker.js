@@ -11,7 +11,7 @@
 require('dotenv').config({ path: '.env.local' })
 const cron = require('node-cron')
 const { pool } = require('./utils/db.js');
-const { LeadGuardian } = require('./utils/LeadGuardian.js');
+const LeadGuardian = require('./utils/LeadGuardian.js').LeadGuardian;
 const fs = require('fs');
 const path = require('path');
 

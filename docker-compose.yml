@@ -1,4 +1,25 @@
 services:
+  # Cache Redis (compartilhado por todos os serviços)
+  redis:
+    image: redis:7-alpine
+    container_name: netimobiliaria-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-redis_local_pass}
+    ports:
+      - "${REDIS_PORT_HOST:-6380}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_local_pass}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   db:
     # Dica: se o seu banco pré-docker é Postgres 17 (ex.: dump gerado em 17.x),
     # use POSTGRES_IMAGE=postgres:17-alpine no seu .env / ambiente.
@@ -34,6 +55,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
       # DB dentro do compose: host = nome do serviço
       DB_HOST: db
@@ -50,6 +75,18 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       # Healthcheck
       HEALTHCHECK_DB: "true"
+      # Redis (Cache + Rate Limiting)
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_local_pass}
+      # Object Storage (Local S3)
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio_default_pass}
+      S3_BUCKET: ${S3_BUCKET_LOCAL:-net-imobiliaria}
+      S3_REGION: us-east-1
+      S3_FORCE_PATH_STYLE: "true"
+      CDN_URL: http://localhost:9000/net-imobiliaria
       # Windows/Docker: garantir hot-reload detectando mudanças no bind-mount
       WATCHPACK_POLLING: "true"
       WATCHPACK_POLLING_INTERVAL: "1000"
@@ -143,9 +180,36 @@ services:
       - .:/app
       - /app/node_modules
     command: ["node", "scripts/lead-router-sla-worker.js"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Object Storage Local (MinIO) - Para testes rigorosos de S3
+  minio:
+    image: minio/minio:latest
+    container_name: netimobiliaria-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_default_pass}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   db_data:
+  redis_data:
+  minio_data:
 
 
 

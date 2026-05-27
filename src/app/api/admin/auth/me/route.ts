@@ -65,7 +65,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar usuário interno com permissões do banco de dados (SISTEMA ROBUSTO)
-    const userWithPermissions = await getUserWithPermissions(decoded.userId)
+    const tenantIdFromToken = decodedAny.tenantId || decodedAny.tenant_id || null;
+    const userWithPermissions = await getUserWithPermissions(decoded.userId, tenantIdFromToken)
 
     if (!userWithPermissions) {
       return NextResponse.json(
@@ -74,34 +75,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Buscar foto (BYTEA) e tipo_mime de forma isolada para evitar que o /auth/me "apague" a foto do localStorage
-    const fotoResult = await pool.query('SELECT foto, foto_tipo_mime FROM users WHERE id = $1 LIMIT 1', [
-      decoded.userId
-    ])
-    const rawFoto = fotoResult.rows?.[0]?.foto ?? null
-    const rawFotoMime = fotoResult.rows?.[0]?.foto_tipo_mime ?? null
-
-    let fotoBase64: string | null = null
-    if (rawFoto) {
-      try {
-        if (Buffer.isBuffer(rawFoto)) {
-          fotoBase64 = rawFoto.toString('base64')
-        } else if (rawFoto instanceof Uint8Array) {
-          fotoBase64 = Buffer.from(rawFoto).toString('base64')
-        } else if (typeof rawFoto === 'string') {
-          const s = rawFoto.trim()
-          if (s.startsWith('\\x')) {
-            fotoBase64 = Buffer.from(s.slice(2), 'hex').toString('base64')
-          } else {
-            const looksBase64 =
-              s.length >= 16 && s.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(s)
-            fotoBase64 = looksBase64 ? s : Buffer.from(s, 'latin1').toString('base64')
-          }
-        }
-      } catch {
-        fotoBase64 = null
-      }
-    }
+    // Foto removida temporariamente pois as colunas não existem no banco atual
+    const fotoBase64 = null
+    const rawFotoMime = null
 
     // Construir resposta com dados do banco
     const userResponse = {
@@ -114,9 +90,11 @@ export async function GET(request: NextRequest) {
       role_description: userWithPermissions.role_description || 'Usuário do sistema',
       role_level: userWithPermissions.role_level || 0,  // Nível hierárquico
       permissoes: userWithPermissions.permissoes || {},
+      auditConfigs: (userWithPermissions as any).auditConfigs || {},
       status: userWithPermissions.ativo ? 'ATIVO' : 'INATIVO',
       foto: fotoBase64,
-      foto_tipo_mime: rawFotoMime
+      foto_tipo_mime: rawFotoMime,
+      currentTenant: userWithPermissions.currentTenant || null
     }
 
     return NextResponse.json({

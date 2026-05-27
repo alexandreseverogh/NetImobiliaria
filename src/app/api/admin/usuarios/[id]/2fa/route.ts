@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import pool from '@/lib/database/connection'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 /**
  * PATCH - Habilitar/Desabilitar 2FA para um usuário específico (admin)
@@ -10,7 +11,14 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const denied = await requireApiPermission(request, 'usuarios', 'UPDATE')
+    if (denied) return denied
+
     console.log('🔐 API 2FA - Iniciando...')
+
+    // 0. Pegar contexto do tenant logado
+    const { getTenantContext } = await import('@/lib/auth/get-tenant-from-token')
+    const { tenantId } = await getTenantContext(request)
 
     // 1. Buscar dados do usuário-alvo
     const userId = params.id
@@ -100,9 +108,9 @@ export async function PATCH(
       // Log de auditoria
       try {
         await pool.query(
-          `INSERT INTO audit_2fa_logs (user_id, action, method, ip_address, user_agent, details, created_at)
-           VALUES ($1::uuid, '2fa_enabled_by_admin', 'email', $2, $3, $4, NOW())`,
-          [userId, request.headers.get('x-forwarded-for') || 'unknown', request.headers.get('user-agent') || 'unknown', JSON.stringify({ enabled_by: 'admin' })]
+          `INSERT INTO audit_2fa_logs (user_id, action, method, ip_address, user_agent, details, created_at, tenant_id)
+           VALUES ($1::uuid, '2fa_enabled_by_admin', 'email', $2, $3, $4, NOW(), $5)`,
+          [userId, request.headers.get('x-forwarded-for') || 'unknown', request.headers.get('user-agent') || 'unknown', JSON.stringify({ enabled_by: 'admin' }), tenantId]
         )
       } catch (logError) {
         console.error('Erro ao logar auditoria:', logError)
@@ -130,9 +138,9 @@ export async function PATCH(
       // Log de auditoria
       try {
         await pool.query(
-          `INSERT INTO audit_2fa_logs (user_id, action, method, ip_address, user_agent, details, created_at)
-           VALUES ($1::uuid, '2fa_disabled_by_admin', 'email', $2, $3, $4, NOW())`,
-          [userId, request.headers.get('x-forwarded-for') || 'unknown', request.headers.get('user-agent') || 'unknown', JSON.stringify({ disabled_by: 'admin' })]
+          `INSERT INTO audit_2fa_logs (user_id, action, method, ip_address, user_agent, details, created_at, tenant_id)
+           VALUES ($1::uuid, '2fa_disabled_by_admin', 'email', $2, $3, $4, NOW(), $5)`,
+          [userId, request.headers.get('x-forwarded-for') || 'unknown', request.headers.get('user-agent') || 'unknown', JSON.stringify({ disabled_by: 'admin' }), tenantId]
         )
       } catch (logError) {
         console.error('Erro ao logar auditoria:', logError)

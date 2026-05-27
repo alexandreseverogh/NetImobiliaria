@@ -1,15 +1,6 @@
 import nodemailer from 'nodemailer'
 import type { Attachment } from 'nodemailer/lib/mailer'
-import { Pool } from 'pg';
-
-// Configuração do pool de conexão com PostgreSQL
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '15432'),
-  database: process.env.DB_NAME!,
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-});
+import pool from '@/lib/database/connection';
 
 interface EmailConfig {
   host: string;
@@ -140,7 +131,8 @@ class EmailService {
     templateName: string,
     to: string,
     variables: Record<string, string> = {},
-    attachments?: Attachment[]
+    attachments?: Attachment[],
+    tenantId?: string | null
   ): Promise<boolean> {
     if (!this.transporter) {
       throw new Error('EmailService não foi inicializado');
@@ -177,12 +169,12 @@ class EmailService {
       const info = await this.transporter.sendMail(mailOptions);
 
       // Log do envio
-      await this.logEmailSend(templateName, to, 'success', info.messageId);
+      await this.logEmailSend(templateName, to, 'success', info.messageId, null, tenantId);
 
       console.log(`✅ Email enviado com sucesso: ${info.messageId}`);
       return true;
     } catch (error) {
-      await this.logEmailSend(templateName, to, 'error', null, error);
+      await this.logEmailSend(templateName, to, 'error', null, error, tenantId);
       console.error('❌ Erro ao enviar email:', error);
       return false;
     }
@@ -195,7 +187,8 @@ class EmailService {
     to: string,
     subject: string,
     htmlContent: string,
-    textContent?: string
+    textContent?: string,
+    tenantId?: string | null
   ): Promise<boolean> {
     if (!this.transporter) {
       throw new Error('EmailService não foi inicializado');
@@ -211,10 +204,10 @@ class EmailService {
 
     try {
       const info = await this.transporter.sendMail(mailOptions);
-      await this.logEmailSend('simple', to, 'success', info.messageId);
+      await this.logEmailSend('simple', to, 'success', info.messageId, null, tenantId);
       return true;
     } catch (error) {
-      await this.logEmailSend('simple', to, 'error', null, error);
+      await this.logEmailSend('simple', to, 'error', null, error, tenantId);
       console.error('❌ Erro ao enviar email simples:', error);
       return false;
     }
@@ -228,19 +221,21 @@ class EmailService {
     to: string,
     status: 'success' | 'error',
     messageId: string | null = null,
-    error: any = null
+    error: any = null,
+    tenantId: string | null = null
   ): Promise<void> {
     try {
       const query = `
-        INSERT INTO email_logs (template_name, to_email, success, error_message, sent_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO email_logs (template_name, to_email, success, error_message, sent_at, tenant_id)
+        VALUES ($1, $2, $3, $4, NOW(), $5)
       `;
 
       await pool.query(query, [
         templateName,
         to,
         status === 'success',
-        error ? error.message : null
+        error ? error.message : null,
+        tenantId
       ]);
     } catch (logError) {
       console.error('❌ Erro ao registrar log de email:', logError);
@@ -257,11 +252,11 @@ class EmailService {
   /**
    * Envia código de verificação 2FA
    */
-  async send2FACode(email: string, code: string): Promise<boolean> {
+  async send2FACode(email: string, code: string, tenantId?: string | null): Promise<boolean> {
     return await this.sendTemplateEmail('2fa_verification', email, {
       code,
       expiration_minutes: '10'
-    });
+    }, undefined, tenantId);
   }
 
   /**
@@ -320,10 +315,11 @@ const emailService = {
     templateName: string,
     to: string,
     variables: Record<string, string>,
-    attachments?: Attachment[]
+    attachments?: Attachment[],
+    tenantId?: string | null
   ): Promise<boolean> {
     await ensureInitialized();
-    return emailServiceInstance.sendTemplateEmail(templateName, to, variables, attachments);
+    return emailServiceInstance.sendTemplateEmail(templateName, to, variables, attachments, tenantId);
   },
 
   /**
@@ -333,18 +329,19 @@ const emailService = {
     to: string,
     subject: string,
     htmlContent: string,
-    textContent?: string
+    textContent?: string,
+    tenantId?: string | null
   ): Promise<boolean> {
     await ensureInitialized();
-    return emailServiceInstance.sendSimpleEmail(to, subject, htmlContent, textContent);
+    return emailServiceInstance.sendSimpleEmail(to, subject, htmlContent, textContent, tenantId);
   },
 
   /**
    * Envia código 2FA
    */
-  async send2FACode(email: string, code: string): Promise<boolean> {
+  async send2FACode(email: string, code: string, tenantId?: string | null): Promise<boolean> {
     await ensureInitialized();
-    return emailServiceInstance.send2FACode(email, code);
+    return emailServiceInstance.send2FACode(email, code, tenantId);
   },
 
   /**

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { getS3Url } from '@/lib/storage/s3-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,8 +15,35 @@ export async function GET(
             return new NextResponse('ID inválido', { status: 400 })
         }
 
-        // Busca apenas o binário da imagem e o tipo mime
-        // Evita carregar outros metadados desnecessários
+        // Primeiro, verificar se a imagem está no S3 (consulta leve, sem carregar o BYTEA)
+        const metaQuery = 'SELECT storage_type, s3_key, url_cdn, tipo_mime FROM imovel_imagens WHERE id = $1'
+        const metaResult = await pool.query(metaQuery, [id])
+
+        if (metaResult.rowCount === 0) {
+            return new NextResponse('Imagem não encontrada', { status: 404 })
+        }
+
+        const meta = metaResult.rows[0]
+
+        // ============================================================
+        // CAMINHO RÁPIDO: Se a imagem está no S3, redirecionar (zero CPU)
+        // ============================================================
+        if (meta.storage_type === 's3' && (meta.url_cdn || meta.s3_key)) {
+            const redirectUrl = meta.url_cdn || getS3Url(meta.s3_key)
+            
+            if (redirectUrl) {
+                return NextResponse.redirect(redirectUrl, {
+                    status: 302,
+                    headers: {
+                        'Cache-Control': 'public, max-age=31536000, immutable',
+                    }
+                })
+            }
+        }
+
+        // ============================================================
+        // FALLBACK: Imagem ainda no banco (BYTEA) — modelo legado
+        // ============================================================
         const query = 'SELECT imagem, tipo_mime FROM imovel_imagens WHERE id = $1'
         const result = await pool.query(query, [id])
 

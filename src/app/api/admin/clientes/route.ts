@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { findClientesPaginated, createCliente } from '@/lib/database/clientes'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { createValidator } from '@/lib/validation/unifiedValidation'
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
@@ -17,12 +19,22 @@ export async function GET(request: NextRequest) {
     const cidade = searchParams.get('cidade') || undefined
     const bairro = searchParams.get('bairro') || undefined
     
+    // Obter tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.tenantId
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant não identificado' }, { status: 401 })
+    }
+    
     const result = await findClientesPaginated(page, limit, {
       nome,
       cpf,
       estado,
       cidade,
-      bairro
+      bairro,
+      tenant_id: tenantId
     })
     
     return NextResponse.json(result)
@@ -37,6 +49,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Verificar permissão de criação server-side
+    const denied = await requireApiPermission(request, 'clientes', 'CREATE')
+    if (denied) return denied
+
+    // Obter tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.tenantId
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant não identificado' }, { status: 401 })
+    }
+
     const body = await request.json()
     const { nome, cpf, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by } = body
     
@@ -77,7 +102,8 @@ export async function POST(request: NextRequest) {
       cidade_fk: cidade_fk || undefined,
       cep,
       origem_cadastro: 'Plataforma',
-      created_by: created_by || 'system'
+      created_by: created_by || 'system',
+      tenant_id: tenantId
     })
     
     // Log de auditoria (não crítico - falha não afeta operação)
@@ -87,6 +113,7 @@ export async function POST(request: NextRequest) {
       
       await logAuditEvent({
         userId,
+        tenantId,
         action: 'CREATE',
         resource: 'clientes',
         resourceId: cliente.uuid,

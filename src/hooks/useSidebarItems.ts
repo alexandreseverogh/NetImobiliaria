@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useApi } from '@/hooks/useApi'
@@ -20,7 +20,8 @@ export interface MenuItem {
   created_at: string
   updated_at: string
   created_by: string | null
-  updated_by: string | null
+  system_id: string | null
+  module_ids: string[] | null
   feature_id?: number | null
   children?: MenuItem[]
 }
@@ -155,9 +156,11 @@ export function useSidebarItems(): UseSidebarItemsReturn {
       if (response.ok) {
         console.log('useSidebarItems: Item atualizado, recarregando dados...')
         await reload()
-        console.log('useSidebarItems: Notificando mudan├ºas na sidebar...')
-        // Notificar mudan├ºas na sidebar
         sidebarEventManager.notify()
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        const msg = errorData.message || `Erro ${response.status}`
+        throw new Error(msg)
       }
     } catch (err) {
       console.error('Erro ao atualizar item:', err)
@@ -213,8 +216,12 @@ export function useSidebarItems(): UseSidebarItemsReturn {
   }, [reload])
 
   useEffect(() => {
-    const handler = async () => {
-      await reload()
+    const handler = async (data?: any) => {
+      if (data && Array.isArray(data)) {
+        setMenus(data)
+      } else {
+        await reload()
+      }
     }
     const unsubscribe = sidebarEventManager.subscribe(handler)
     return () => {

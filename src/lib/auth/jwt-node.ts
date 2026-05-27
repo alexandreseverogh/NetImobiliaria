@@ -1,6 +1,7 @@
 // Implementação JWT compatível com Node.js para middleware
 import { AUTH_CONFIG } from '@/lib/config/auth'
 import jwt from 'jsonwebtoken'
+import type { NextRequest } from 'next/server'
 
 // Configurações JWT
 const JWT_SECRET = AUTH_CONFIG.JWT.SECRET
@@ -9,7 +10,10 @@ const JWT_SECRET = AUTH_CONFIG.JWT.SECRET
 export interface JWTPayload {
   userId: string
   username: string
-  cargo: string
+  cargo: string // Mantido para retrocompatibilidade
+  role_name?: string
+  role_level?: number
+  is_system_role?: boolean
   iat?: number
   exp?: number
 }
@@ -57,6 +61,28 @@ export function verifyTokenNode(token: string): JWTPayload | null {
     return decoded as JWTPayload
   } catch (error) {
     console.error('Erro ao verificar token (Node.js/jsonwebtoken):', error)
+    return null
+  }
+}
+
+/**
+ * Extrai o payload completo do JWT a partir de cookies (admin_auth_token)
+ * ou do header Authorization: Bearer <token>.
+ * Usado pelas API routes de campanhas.
+ */
+export function getTokenPayload(request: NextRequest): (JWTPayload & { tenantId?: string; tenantSlug?: string; nome?: string; email?: string; permissoes?: Record<string, string> }) | null {
+  try {
+    const cookie = request.cookies.get('admin_auth_token')
+    if (cookie?.value) return verifyTokenNode(cookie.value) as any
+
+    const authHeader = request.headers.get('authorization')
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7)
+      return verifyTokenNode(token) as any
+    }
+
+    return null
+  } catch {
     return null
   }
 }

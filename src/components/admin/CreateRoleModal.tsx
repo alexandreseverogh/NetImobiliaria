@@ -7,6 +7,7 @@ interface CreateRoleModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  roles?: any[]
 }
 
 interface RoleFormData {
@@ -15,15 +16,17 @@ interface RoleFormData {
   level: number
   two_fa_required: boolean
   is_active: boolean
+  manager_role_id: number | null
 }
 
-export default function CreateRoleModal({ isOpen, onClose, onSuccess }: CreateRoleModalProps) {
+export default function CreateRoleModal({ isOpen, onClose, onSuccess, roles }: CreateRoleModalProps) {
   const [formData, setFormData] = useState<RoleFormData>({
     name: '',
     description: '',
     level: 1,
     two_fa_required: false,
-    is_active: true
+    is_active: true,
+    manager_role_id: null
   })
   
   const [loading, setLoading] = useState(false)
@@ -38,7 +41,8 @@ export default function CreateRoleModal({ isOpen, onClose, onSuccess }: CreateRo
         description: '',
         level: 1,
         two_fa_required: false,
-        is_active: true
+        is_active: true,
+        manager_role_id: null
       })
       setError(null)
       setValidationErrors({})
@@ -69,10 +73,18 @@ export default function CreateRoleModal({ isOpen, onClose, onSuccess }: CreateRo
       errors.level = 'Nível deve estar entre 1 e 10'
     }
 
-    // Verificar nomes reservados
-    const reservedNames = ['Super Admin', 'Admin', 'Administrador', 'Corretor', 'Usuário']
-    if (reservedNames.includes(formData.name.trim())) {
-      errors.name = 'Este nome é reservado pelo sistema'
+    // Verificar nomes reservados (Governance Protection)
+    const reservedNames = [
+      'Administrador Master', 
+      'Super Admin', 
+      'Admin', 
+      'Administrador', 
+      'Artemis Master', 
+      'Platform Master',
+      'System Role'
+    ]
+    if (reservedNames.some(name => formData.name.trim().toLowerCase() === name.toLowerCase())) {
+      errors.name = 'Este nome é reservado para a infraestrutura de governança do sistema'
     }
 
     setValidationErrors(errors)
@@ -80,7 +92,7 @@ export default function CreateRoleModal({ isOpen, onClose, onSuccess }: CreateRo
   }
 
   // Handler para mudanças nos campos
-  const handleInputChange = (field: keyof RoleFormData, value: string | number | boolean) => {
+  const handleInputChange = (field: keyof RoleFormData, value: string | number | boolean | null) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -240,8 +252,26 @@ export default function CreateRoleModal({ isOpen, onClose, onSuccess }: CreateRo
             {validationErrors.level && (
               <p className="mt-1 text-sm text-red-600">{validationErrors.level}</p>
             )}
+          </div>
+
+          {/* Reporta Para (Organograma) */}
+          <div>
+            <label htmlFor="manager_role_id" className="block text-sm font-medium text-gray-700 mb-2">
+              Responde a (Superior Hierárquico)
+            </label>
+            <select
+              id="manager_role_id"
+              value={formData.manager_role_id || ''}
+              onChange={(e) => handleInputChange('manager_role_id', e.target.value ? parseInt(e.target.value) : null)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+            >
+              <option value="">-- Nível Máximo (Reporta a ninguém) --</option>
+              {roles?.filter((r: any) => r.is_active).map((r: any) => (
+                <option key={r.id} value={r.id}>{r.name} (Nível {r.level})</option>
+              ))}
+            </select>
             <p className="mt-1 text-xs text-gray-500">
-              Níveis mais altos têm precedência sobre níveis mais baixos
+              Define a estrutura do organograma. O cargo selecionado terá acesso de visibilidade sobre os processos deste novo perfil.
             </p>
           </div>
 

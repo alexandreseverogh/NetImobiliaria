@@ -36,7 +36,7 @@ export default function EditarStatusImovelPage({ searchParams }: { searchParams:
       setLoading(true)
       setError(null)
 
-      const response = await get(`/api/admin/status-imovel/${statusImovelId}`)
+      const response = await get(`/api/admin/status-imoveis/${statusImovelId}`)
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -91,7 +91,7 @@ export default function EditarStatusImovelPage({ searchParams }: { searchParams:
     setError(null)
 
     try {
-      const response = await put(`/api/admin/status-imovel/${statusImovelId}`, formData)
+      const response = await put(`/api/admin/status-imoveis/${statusImovelId}`, formData)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -102,7 +102,7 @@ export default function EditarStatusImovelPage({ searchParams }: { searchParams:
       console.log('Status de imóvel atualizado com sucesso:', result)
 
       // Redirecionar para a lista preservando a página
-      router.push(`/admin/status-imovel?page=${currentPage}`)
+      router.push(`/admin/status-imoveis?page=${currentPage}`)
     } catch (error) {
       console.error('Erro ao atualizar status de imóvel:', error)
       setError(error instanceof Error ? error.message : 'Erro desconhecido')
@@ -112,7 +112,7 @@ export default function EditarStatusImovelPage({ searchParams }: { searchParams:
   }
 
   const handleCancel = () => {
-    router.push(`/admin/status-imovel?page=${currentPage}`)
+    router.push(`/admin/status-imoveis?page=${currentPage}`)
   }
 
   if (loading) {

@@ -1,4 +1,4 @@
-﻿/* eslint-disable */
+/* eslint-disable */
 import pool from './connection'
 import bcrypt from 'bcryptjs'
 
@@ -360,12 +360,79 @@ export async function userHasPermission(userId: string, resource: string, action
   }
 }
 
-
-
-
-
-
-
-
-
-
+// Função para obter permissões formatadas do usuário
+export async function getUserPermissions(userId: string): Promise<Record<string, string>> {
+  try {
+    const query = `
+      SELECT 
+        CASE 
+          WHEN sf.category ILIKE '%im%veis%' THEN 'imoveis'
+          WHEN sf.category ILIKE '%amenidades%' THEN 'amenidades'
+          WHEN sf.category ILIKE '%proximidades%' THEN 'proximidades'
+          WHEN sf.category ILIKE '%usu%rios%' THEN 'usuarios'
+          WHEN sf.category ILIKE '%relat%rios%' THEN 'relatorios'
+          WHEN sf.category ILIKE '%sistema%' THEN 'sistema'
+          ELSE sf.category
+        END as resource,
+        p.action
+      FROM user_role_assignments ura
+      JOIN user_roles ur ON ura.role_id = ur.id
+      JOIN role_permissions rp ON ur.id = rp.role_id
+      JOIN permissions p ON rp.permission_id = p.id
+      JOIN system_features sf ON p.feature_id = sf.id
+      WHERE ura.user_id = $1
+      ORDER BY ur.level DESC, sf.category, p.action
+    `
+    
+    const result = await pool.query(query, [userId])
+    
+    const permissoes: Record<string, string> = {
+      imoveis: 'NONE',
+      proximidades: 'NONE',
+      amenidades: 'NONE',
+      'categorias-amenidades': 'NONE',
+      'categorias-proximidades': 'NONE',
+      usuarios: 'NONE',
+      relatorios: 'NONE',
+      sistema: 'NONE'
+    }
+    
+    result.rows.forEach((perm: any) => {
+      const resource = perm.resource.toLowerCase()
+      if (!(resource in permissoes)) return
+      
+      if (perm.action === 'delete') {
+        permissoes[resource] = 'DELETE'
+      } else if (perm.action === 'create' || perm.action === 'update') {
+        if (permissoes[resource] !== 'DELETE') {
+          permissoes[resource] = 'WRITE'
+        }
+      } else if (perm.action === 'read' || perm.action === 'list') {
+        if (permissoes[resource] === 'NONE') {
+          permissoes[resource] = 'READ'
+        }
+      }
+    })
+    
+    // Definir READ como padrão para recursos sem permissões específicas (segurança mínima)
+    Object.keys(permissoes).forEach(key => {
+      if (permissoes[key] === 'NONE') {
+        permissoes[key] = 'READ'
+      }
+    })
+    
+    return permissoes
+  } catch (error) {
+    console.error('Erro ao buscar permissões:', error)
+    return {
+      imoveis: 'READ',
+      proximidades: 'READ',
+      amenidades: 'READ',
+      'categorias-amenidades': 'READ',
+      'categorias-proximidades': 'READ',
+      usuarios: 'READ',
+      relatorios: 'READ',
+      sistema: 'READ'
+    }
+  }
+}

@@ -13,6 +13,7 @@ interface Role {
   created_at: string
   updated_at: string
   user_count: number
+  is_system_role?: boolean
 }
 
 interface Permission {
@@ -213,9 +214,11 @@ export default function RolePermissionsModal({ isOpen, onClose, onSuccess, role 
   const totalPermissions = permissions.length
   const grantedPermissions = rolePermissions.filter(rp => rp.granted).length
   
-  // Apenas Super Admin e Admin são perfis protegidos do sistema
-  const isSystemRole = role ? ['Super Admin', 'Admin'].includes(role.name) : false
-  const canEditSystemRoles = currentUser && ['Super Admin', 'Admin'].includes(currentUser.role_name)
+  // Identificar se o perfil sendo editado é um perfil protegido do sistema
+  const isSystemRole = role?.is_system_role === true
+  
+  // Verificar se o usuário logado tem permissão para editar perfis do sistema (Master Admin)
+  const canEditSystemRoles = currentUser && currentUser.is_system_role === true
   const isEditable = !isSystemRole || canEditSystemRoles
 
   return (
@@ -258,7 +261,7 @@ export default function RolePermissionsModal({ isOpen, onClose, onSuccess, role 
                 <h5 className="font-medium text-amber-800">Perfil Protegido do Sistema</h5>
                 <p className="text-sm text-amber-700 mt-1">
                   O perfil <strong>&quot;{role.name}&quot;</strong> é essencial para o funcionamento do sistema. 
-                  Apenas usuários com perfil Super Admin ou Admin podem modificar suas permissões.
+                  Apenas usuários com perfil de Administrador Master podem modificar permissões de sistema.
                 </p>
                 <p className="text-sm text-amber-600 mt-2">
                   💡 <strong>Dica:</strong> Se precisar de um perfil personalizado, use a opção &quot;Clonar Perfil&quot; para criar uma cópia editável.

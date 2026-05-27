@@ -501,8 +501,28 @@
 
 ---
 
-**Estas Guardian Rules são INVIOLÁVEIS e garantem a estabilidade, segurança e continuidade do sistema!** 🛡️
+---
 
-**Versão:** 1.1  
-**Última atualização:** 2025-11-07  
-**Status:** 🚨 **ATIVO E OBRIGATÓRIO**
+## 🛰️ **CRM INTELLIGENCE & FILOSOFIA HARNESS (v2.0)**
+
+### **1. O Domínio do Fluxo (Harnessing)**
+- ✅ **Observabilidade Nativa:** Nenhuma funcionalidade de CRM pode ir para produção sem rastreabilidade completa (UTM -> Staging -> Distribuição -> Conversão).
+- ✅ **SLA Inviolável:** O sistema de transbordo (Worker de 5 minutos) é um componente crítico. Qualquer alteração que o desative requer uma análise de risco nível 3.
+- ✅ **Fail-Safe de Distribuição:** Se o cálculo de meritocracia falhar, o sistema deve fazer fallback imediato para Round Robin simples para não perder o lead.
+
+### **2. Desacoplamento & Agnoticismo**
+- ❌ **NUNCA** acoplar lógica de CRM aos componentes de Landpaging. Use adapters de entrada (`StandardLead`).
+- ❌ **NUNCA** depender de estados voláteis para decisões de roteamento. Use persistência em `corretor_scores`.
+- ✅ **API First:** O CRM deve ser consumível por qualquer interface (Admin, Portal, Mobile) via contratos REST padronizados.
+
+### **3. Mensageria & IA Protocol**
+- ✅ **Privacy by Design:** Dados do lead devem ser sanitizados antes de processamento por IAs de terceiros.
+- ✅ **Agnosticismo de Chat:** A integração com Chatwoot deve ser via Webhooks, permitindo a substituição da ferramenta de mensageria sem reescrever o motor de CRM.
+
+---
+
+**Estas Guardian Rules v2.0 são o arreio (harness) que protege a estabilidade e a inteligência do sistema!** 🛡️
+
+**Versão:** 2.0  
+**Última atualização:** 2026-03-31  
+**Status:** 🚨 **ATIVO, OBRIGATÓRIO E HOLÍSTICO**

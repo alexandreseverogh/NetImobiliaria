@@ -67,7 +67,8 @@ export async function POST(request: NextRequest) {
         const adminToken = await generateAccessToken({
             userId: proprietario.uuid,
             username: proprietario.nome,
-            cargo: 'Proprietário'
+            cargo: 'Proprietário',
+            userType: 'proprietario'
         }, TWO_HOURS)
 
         // Preparar dados do usuário para o localStorage

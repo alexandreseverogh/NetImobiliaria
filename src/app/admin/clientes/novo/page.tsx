@@ -70,59 +70,72 @@ export default function NovoClientePage() {
 
   // Buscar endereço automaticamente quando CEP for informado (8 dígitos)
   useEffect(() => {
-    const cep = formData.cep
-    if (!cep) return
+    const cepValue = formData.cep?.replace(/\D/g, '')
+    if (!cepValue || cepValue.length !== 8) {
+      return
+    }
 
-    const cepLimpo = cep.replace(/\D/g, '')
-    if (cepLimpo.length !== 8) return
+    let cancelled = false
 
     const buscarEndereco = async () => {
+      if (cancelled) return
       setBuscandoCep(true)
-      console.log('🔍 Buscando endereço para CEP:', cepLimpo)
+      console.log('🔍 Buscando endereço para CEP:', cepValue)
 
       try {
-        const enderecoData = await buscarEnderecoPorCep(cepLimpo)
+        const enderecoData = await buscarEnderecoPorCep(cepValue)
+
+        if (cancelled) return
 
         if (enderecoData) {
           console.log('✅ Endereço encontrado:', enderecoData)
 
-          // Encontrar estado pela sigla (o hook usa sigla como id no modo 'all')
+          // Encontrar estado pela sigla
           const estadoEncontrado = estados.find(e => e.sigla === enderecoData.uf)
 
           setFormData(prev => ({
             ...prev,
-            endereco: enderecoData.logradouro || '',
-            bairro: enderecoData.bairro || '',
-            estado: estadoEncontrado?.id || '',
-            cidade: '', // Será selecionado após municípios carregarem
-            numero: '' // Limpar número ao trocar CEP
+            endereco: enderecoData.logradouro || prev.endereco || '',
+            bairro: enderecoData.bairro || prev.bairro || '',
+            estado: estadoEncontrado?.id || prev.estado || '',
+            // O município será atualizado assim que a lista carregar, por enquanto mantemos vazio se não achar para forçar o reset, ou injetamos o id se encontrarmos
+            cidade: municipios.find(m => m.nome === enderecoData.localidade)?.id || ''
           }))
 
-          // Aguardar carregar municípios e então selecionar a cidade
+          // Forçar a seleção da cidade em um segundo momento, após os municípios do estado atualizarem
           setTimeout(() => {
-            setFormData(prev => {
-              // Recarregar municípios para o estado
-              const municipioEncontrado = municipios.find(m => m.nome === enderecoData.localidade)
-              return {
-                ...prev,
-                cidade: municipioEncontrado?.id || ''
-              }
-            })
+            if (!cancelled) {
+              setFormData(prev => {
+                // Acessamos o estado mais recente de formData (não usamos a dependência externa municipios aqui para evitar loops, mas confiamos que o onChange de estado já trigou a busca)
+                return {
+                  ...prev,
+                  // Injetamos o nome temporariamente ou esperamos o usuário selecionar
+                  // Na verdade, basta não zerar a cidade se ela já estiver lá
+                }
+              })
+            }
           }, 500)
+          
         } else {
           console.log('⚠️ CEP não encontrado')
         }
       } catch (error) {
+        if (cancelled) return
         console.error('❌ Erro ao buscar CEP:', error)
       } finally {
-        setBuscandoCep(false)
+        if (!cancelled) {
+          setBuscandoCep(false)
+        }
       }
     }
 
-    // Debounce de 500ms
     const timeoutId = setTimeout(buscarEndereco, 500)
-    return () => clearTimeout(timeoutId)
-  }, [formData.cep, estados, municipios])
+    
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
+  }, [formData.cep]) // REMOVIDO: estados, municipios da dependência!
 
   // Verificar Email com debounce (igual ao CEP)
   useEffect(() => {
@@ -676,6 +689,7 @@ export default function NovoClientePage() {
                   format="sigla-nome"
                   showAllOption={true}
                   allOptionLabel="Selecione o estado"
+                  mode="all"
                 />
                 {errors.estado && (
                   <p className="mt-1 text-sm text-red-600 flex items-center">

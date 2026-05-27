@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkEmailExists } from '@/lib/database/proprietarios'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,13 +8,19 @@ export async function POST(request: NextRequest) {
     const { email, excludeUuid } = body
 
     if (!email) {
-      return NextResponse.json(
-        { error: 'Email é obrigatório' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Email é obrigatório' }, { status: 400 })
     }
     
-    const exists = await checkEmailExists(email, excludeUuid)
+    // Obter tenantId do token
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.tenantId
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant não identificado' }, { status: 401 })
+    }
+
+    const exists = await checkEmailExists(email, tenantId, excludeUuid)
     
     return NextResponse.json({ exists })
   } catch (error) {

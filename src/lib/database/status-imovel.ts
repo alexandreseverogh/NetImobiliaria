@@ -8,6 +8,7 @@ export interface StatusImovel {
   descricao?: string
   ativo: boolean
   consulta_imovel_internauta: boolean
+  tenant_id: string
   created_at: string
   updated_at: string
 }
@@ -18,6 +19,7 @@ export interface CreateStatusImovelData {
   descricao?: string
   ativo?: boolean
   consulta_imovel_internauta?: boolean
+  tenant_id: string
 }
 
 export interface UpdateStatusImovelData {
@@ -28,7 +30,15 @@ export interface UpdateStatusImovelData {
   consulta_imovel_internauta?: boolean
 }
 
-export async function findAllStatusImovel(): Promise<StatusImovel[]> {
+export async function findAllStatusImovel(tenantId?: string): Promise<StatusImovel[]> {
+  let whereClause = ''
+  let params: any[] = []
+  
+  if (tenantId) {
+    whereClause = 'WHERE tenant_id = $1'
+    params = [tenantId]
+  }
+
   const result: QueryResult<StatusImovel> = await pool.query(`
     SELECT 
       id,
@@ -37,15 +47,22 @@ export async function findAllStatusImovel(): Promise<StatusImovel[]> {
       descricao,
       ativo,
       consulta_imovel_internauta,
+      tenant_id,
       created_at,
       updated_at
     FROM status_imovel 
+    ${whereClause}
     ORDER BY nome ASC
-  `)
+  `, params)
   return result.rows
 }
 
-export async function findStatusImovelPaginated(page: number = 1, limit: number = 10, search: string = ''): Promise<{
+export async function findStatusImovelPaginated(
+  page: number = 1, 
+  limit: number = 10, 
+  search: string = '',
+  tenantId?: string
+): Promise<{
   statusImovel: StatusImovel[]
   total: number
   totalPages: number
@@ -55,14 +72,23 @@ export async function findStatusImovelPaginated(page: number = 1, limit: number 
 }> {
   const offset = (page - 1) * limit
 
-  // Query para buscar com filtro de busca
-  let whereClause = ''
+  // Query para buscar com filtro de busca e tenant
+  let whereConditions = []
   let queryParams: any[] = []
-  
-  if (search.trim()) {
-    whereClause = 'WHERE nome ILIKE $1 OR descricao ILIKE $1'
-    queryParams.push(`%${search.trim()}%`)
+  let paramCount = 1
+
+  if (tenantId) {
+    whereConditions.push(`tenant_id = $${paramCount++}`)
+    queryParams.push(tenantId)
   }
+
+  if (search.trim()) {
+    whereConditions.push(`(nome ILIKE $${paramCount} OR descricao ILIKE $${paramCount})`)
+    queryParams.push(`%${search.trim()}%`)
+    paramCount++
+  }
+
+  const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
 
   // Query para contar total
   const countQuery = `
@@ -80,12 +106,13 @@ export async function findStatusImovelPaginated(page: number = 1, limit: number 
       descricao,
       ativo,
       consulta_imovel_internauta,
+      tenant_id,
       created_at,
       updated_at
     FROM status_imovel 
     ${whereClause}
     ORDER BY nome ASC
-    LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+    LIMIT $${paramCount++} OFFSET $${paramCount}
   `
 
   // Executar ambas as queries em paralelo
@@ -95,7 +122,6 @@ export async function findStatusImovelPaginated(page: number = 1, limit: number 
   ])
 
   const total = parseInt(countResult.rows[0].total)
-
   const totalPages = Math.ceil(total / limit)
   const hasNext = page < totalPages
   const hasPrev = page > 1
@@ -110,7 +136,15 @@ export async function findStatusImovelPaginated(page: number = 1, limit: number 
   }
 }
 
-export async function findStatusImovelById(id: number): Promise<StatusImovel | null> {
+export async function findStatusImovelById(id: number, tenantId?: string): Promise<StatusImovel | null> {
+  let whereClause = 'WHERE id = $1'
+  let params = [id]
+  
+  if (tenantId) {
+    whereClause += ' AND tenant_id = $2'
+    params.push(tenantId as any)
+  }
+
   const result: QueryResult<StatusImovel> = await pool.query(`
     SELECT 
       id,
@@ -119,34 +153,37 @@ export async function findStatusImovelById(id: number): Promise<StatusImovel | n
       descricao,
       ativo,
       consulta_imovel_internauta,
+      tenant_id,
       created_at,
       updated_at
     FROM status_imovel 
-    WHERE id = $1
-  `, [id])
+    ${whereClause}
+  `, params)
   return result.rows[0] || null
 }
 
 export async function createStatusImovel(data: CreateStatusImovelData): Promise<StatusImovel> {
   const result: QueryResult<StatusImovel> = await pool.query(`
-    INSERT INTO status_imovel (nome, cor, descricao, ativo, consulta_imovel_internauta)
-    VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO status_imovel (nome, cor, descricao, ativo, consulta_imovel_internauta, tenant_id)
+    VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *
   `, [
     data.nome,
     data.cor || '#3B82F6',
     data.descricao || '',
     data.ativo !== undefined ? data.ativo : true,
-    data.consulta_imovel_internauta !== undefined ? data.consulta_imovel_internauta : true
+    data.consulta_imovel_internauta !== undefined ? data.consulta_imovel_internauta : true,
+    data.tenant_id
   ])
   return result.rows[0]
 }
 
-export async function updateStatusImovel(id: number, data: UpdateStatusImovelData): Promise<StatusImovel> {
+export async function updateStatusImovel(id: number, tenantId: string | undefined, data: UpdateStatusImovelData): Promise<StatusImovel> {
   const fields = []
   const values = []
   let paramCount = 1
 
+  // Campos que podem ser atualizados
   if (data.nome !== undefined) {
     fields.push(`nome = $${paramCount}`)
     values.push(data.nome)
@@ -178,25 +215,44 @@ export async function updateStatusImovel(id: number, data: UpdateStatusImovelDat
   }
 
   fields.push(`updated_at = CURRENT_TIMESTAMP`)
+  
+  // Adicionar ID aos parâmetros
+  const idIdx = paramCount
   values.push(id)
+  paramCount++
+  
+  let whereClause = `WHERE id = $${idIdx}`
+  if (tenantId) {
+    const tenantIdx = paramCount
+    values.push(tenantId)
+    whereClause += ` AND tenant_id = $${tenantIdx}`
+  }
 
   const result: QueryResult<StatusImovel> = await pool.query(`
     UPDATE status_imovel 
     SET ${fields.join(', ')}
-    WHERE id = $${paramCount}
+    ${whereClause}
     RETURNING *
   `, values)
 
   if (result.rows.length === 0) {
-    throw new Error('Status de imóvel não encontrado')
+    throw new Error('Status de imóvel não encontrado ou acesso negado')
   }
 
   return result.rows[0]
 }
 
-export async function deleteStatusImovel(id: number): Promise<void> {
-  const result = await pool.query('DELETE FROM status_imovel WHERE id = $1', [id])
+export async function deleteStatusImovel(id: number, tenantId?: string): Promise<void> {
+  let whereClause = 'WHERE id = $1'
+  let params = [id]
+  
+  if (tenantId) {
+    whereClause += ' AND tenant_id = $2'
+    params.push(tenantId as any)
+  }
+
+  const result = await pool.query(`DELETE FROM status_imovel ${whereClause}`, params)
   if (result.rowCount === 0) {
-    throw new Error('Status de imóvel não encontrado')
+    throw new Error('Status de imóvel não encontrado ou acesso negado')
   }
 }

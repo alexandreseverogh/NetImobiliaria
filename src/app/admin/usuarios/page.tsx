@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useApi } from '@/hooks/useApi'
@@ -31,6 +31,8 @@ interface User {
   created_at: string
   two_factor_enabled?: boolean
   two_factor_method?: string
+  is_active_in_tenant?: boolean
+  google_calendar_authorized?: boolean
 }
 
 interface UserRole {
@@ -228,6 +230,24 @@ function UsuariosAdminInner() {
     }
   }
 
+  const handleToggleTenantStatus = async (userId: string, currentStatus: boolean) => {
+    try {
+      setLoading(true)
+      const response = await patch(`/api/admin/usuarios/${userId}/tenant-status`, { isActive: !currentStatus })
+
+      if (response.ok) {
+        fetchUsers() // Recarregar lista
+      } else {
+        const errorData = await response.json()
+        alert(`Erro: ${errorData.error || 'Erro desconhecido'}`)
+      }
+    } catch (error) {
+      alert('Erro ao alterar status na unidade.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Verificar se pode gerenciar usuário (hierarquia)
   const canManageUser = (targetUser: User): boolean => {
     if (!loggedUser) {
@@ -322,6 +342,26 @@ function UsuariosAdminInner() {
     }
   }
 
+  const handleRevokeGoogleCalendar = async (userId: string, userName: string) => {
+    if (!confirm(`Tem certeza que deseja desconectar o Google Calendar do usuário "${userName}"?`)) {
+      return
+    }
+
+    try {
+      const response = await patch(`/api/admin/usuarios/${userId}/google-calendar/revoke`, {})
+
+      if (response.ok) {
+        alert('Acesso ao Google Calendar revogado com sucesso!')
+        fetchUsers() // Recarregar lista
+      } else {
+        const errorData = await response.json()
+        alert(`Erro ao revogar acesso: ${errorData.error || 'Erro desconhecido'}`)
+      }
+    } catch (error) {
+      alert('Erro ao revogar acesso ao calendário.')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -331,8 +371,8 @@ function UsuariosAdminInner() {
   }
 
   return (
-    <div className="bg-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="bg-gray-100 p-6 min-h-screen">
+      <div className="w-full">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Gestão de Usuários</h1>
@@ -446,30 +486,36 @@ function UsuariosAdminInner() {
         </div>
 
         {/* Users Table */}
-        <div className="bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
-          <div className="overflow-visible custom-scrollbar">
-            <table className="w-full divide-y divide-gray-200">
+        <div className="bg-white shadow-2xl rounded-2xl overflow-hidden border border-gray-100">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[1280px] divide-y divide-gray-100">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[220px]">
+                  <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest w-[200px]">
                     Usuário
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[200px]">
+                  <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest w-[180px]">
                     Contato
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[180px]">
+                  <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest w-[160px]">
                     Perfil/Tipo
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[100px]">
+                  <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest w-[110px]">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[130px]">
-                    2FA
+                  <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest w-[120px]">
+                    Unidade
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[120px]">
+                  <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest w-[120px]">
+                    Segurança 2FA
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest w-[160px]">
+                    Agenda Google
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-black text-gray-400 uppercase tracking-widest w-[160px]">
                     Último Login
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[120px]">
+                  <th className="px-6 py-4 text-center text-xs font-black text-gray-400 uppercase tracking-widest w-[140px]">
                     Ações
                   </th>
                 </tr>
@@ -531,12 +577,25 @@ function UsuariosAdminInner() {
                     </td>
 
                     <td className="px-6 py-4">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.ativo
+                      <span className={`inline-flex px-2 py-1 text-[10px] font-black uppercase rounded-full ${user.ativo
                         ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
                         }`}>
-                        {user.ativo ? 'Ativo' : 'Inativo'}
+                        {user.ativo ? 'ATIVO' : 'INATIVO'}
                       </span>
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => handleToggleTenantStatus(user.id, user.is_active_in_tenant !== false)}
+                        className={`inline-flex px-2 py-1 text-[10px] font-black uppercase rounded-lg transition-all hover:scale-105 ${user.is_active_in_tenant !== false
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-gray-200 text-gray-500'
+                          }`}
+                        title={user.is_active_in_tenant !== false ? 'Clique para suspender nesta unidade' : 'Clique para ativar nesta unidade'}
+                      >
+                        {user.is_active_in_tenant !== false ? '✓ LIBERADO' : '✕ SUSPENSO'}
+                      </button>
                     </td>
 
                     <td className="px-6 py-4">
@@ -565,6 +624,29 @@ function UsuariosAdminInner() {
                           </svg>
                           {user.two_factor_enabled ? 'Desativar' : 'Ativar'}
                         </button>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-2">
+                        {user.google_calendar_authorized ? (
+                          <>
+                            <span className="inline-flex items-center px-2 py-1 text-[10px] font-black uppercase rounded-full bg-emerald-100 text-emerald-800 w-fit">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                              VINCULADO
+                            </span>
+                            <button
+                              onClick={() => handleRevokeGoogleCalendar(user.id, user.nome)}
+                              className="text-[9px] font-bold text-red-500 hover:text-red-700 uppercase tracking-tighter text-left"
+                            >
+                              Revogar Acesso
+                            </button>
+                          </>
+                        ) : (
+                          <span className="inline-flex px-2 py-1 text-[10px] font-black uppercase rounded-full bg-gray-100 text-gray-400 w-fit">
+                            NÃO VINCULADO
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -679,7 +761,7 @@ function UsuariosAdminInner() {
         isOpen={showCreateForm}
         onClose={() => setShowCreateForm(false)}
         onSuccess={handleCreateSuccess}
-        roles={roles}
+        roles={roles.filter(r => (loggedUser?.is_system_role) || (r.level < (loggedUser?.role_level || 0)))}
       />
 
       {/* Modal de Edição de Usuário */}
@@ -691,7 +773,7 @@ function UsuariosAdminInner() {
         }}
         onSuccess={handleCreateSuccess}
         user={editingUser}
-        roles={roles}
+        roles={roles.filter(r => (loggedUser?.is_system_role) || (r.level < (loggedUser?.role_level || 0)))}
       />
     </div>
   )

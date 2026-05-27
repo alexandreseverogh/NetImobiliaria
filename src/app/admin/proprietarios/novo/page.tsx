@@ -14,6 +14,18 @@ interface EstadosCidades {
   municipios: Array<{ id: string, nome: string }>
 }
 
+interface SemanticFieldConfig {
+  field: string
+  tag: string
+  label: string
+  required: boolean
+}
+
+interface CorretorInfo {
+  id: string
+  nome: string
+}
+
 interface FormData {
   nome: string
   cpf: string
@@ -27,6 +39,7 @@ interface FormData {
   bairro: string
   numero: string
   complemento: string
+  [key: string]: any // Suporte a campos dinâmicos da governança
 }
 
 type ValidationErrors = Partial<Record<keyof FormData, string>>
@@ -39,6 +52,8 @@ export default function NovoProprietarioPage() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [corretores, setCorretores] = useState<CorretorInfo[]>([])
+  const [loadingCorretores, setLoadingCorretores] = useState(false)
   const [estadosCidades, setEstadosCidades] = useState<EstadosCidades>({
     estados: [],
     municipios: []
@@ -56,8 +71,11 @@ export default function NovoProprietarioPage() {
     endereco: '',
     bairro: '',
     numero: '',
-    complemento: ''
+    complemento: '',
   })
+  
+  const [semanticFields, setSemanticFields] = useState<SemanticFieldConfig[]>([])
+  const [semanticDataResults, setSemanticDataResults] = useState<Record<string, any[]>>({})
 
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [cpfValidating, setCpfValidating] = useState(false)
@@ -70,6 +88,43 @@ export default function NovoProprietarioPage() {
   const [cnpjValidating, setCnpjValidating] = useState(false)
   const [cnpjExists, setCnpjExists] = useState(false)
   const [cnpjPendingValidation, setCnpjPendingValidation] = useState(false)
+
+  useEffect(() => {
+    const loadSemanticConfig = async () => {
+      try {
+        setLoadingCorretores(true)
+        const configRes = await get('/api/admin/features/config?slug=proprietarios')
+        if (configRes.ok) {
+          const configData = await configRes.json()
+          const mapping = configData.config?.semantic_mapping || []
+          setSemanticFields(mapping)
+          
+          // Carregar dados para cada tag encontrada
+          const results: Record<string, any[]> = {}
+          for (const m of mapping) {
+            if (m.tag && !results[m.tag]) {
+              const dataRes = await get(`/api/admin/governance/data?tag=${m.tag}`)
+              if (dataRes.ok) {
+                const dataResult = await dataRes.json()
+                if (dataResult.success) {
+                  results[m.tag] = dataResult.data || []
+                }
+              }
+            }
+          }
+          setSemanticDataResults(results)
+        }
+      } catch (error) {
+        console.error('❌ Erro na Governança Semântica:', error)
+      } finally {
+        setLoadingCorretores(false)
+      }
+    }
+    
+    if (user) {
+      loadSemanticConfig()
+    }
+  }, [user, get])
 
   // Carregar estados
   useEffect(() => {
@@ -121,18 +176,22 @@ export default function NovoProprietarioPage() {
 
   // Buscar endereço automaticamente quando CEP for informado (8 dígitos)
   useEffect(() => {
-    const cep = formData.cep
-    if (!cep) return
+    const cepValue = formData.cep?.replace(/\D/g, '')
+    if (!cepValue || cepValue.length !== 8) {
+      return
+    }
 
-    const cepLimpo = cep.replace(/\D/g, '')
-    if (cepLimpo.length !== 8) return
+    let cancelled = false
 
     const buscarEndereco = async () => {
+      if (cancelled) return
       setBuscandoCep(true)
-      console.log('🔍 Buscando endereço para CEP:', cepLimpo)
+      console.log('🔍 Buscando endereço para CEP:', cepValue)
 
       try {
-        const enderecoData = await buscarEnderecoPorCep(cepLimpo)
+        const enderecoData = await buscarEnderecoPorCep(cepValue)
+
+        if (cancelled) return
 
         if (enderecoData) {
           console.log('✅ Endereço encontrado:', enderecoData)
@@ -142,38 +201,39 @@ export default function NovoProprietarioPage() {
 
           setFormData(prev => ({
             ...prev,
-            endereco: enderecoData.logradouro || '',
-            bairro: enderecoData.bairro || '',
-            estado: estadoEncontrado?.id || '',
-            cidade: '', // Será selecionado após municípios carregarem
-            numero: '' // Limpar número ao trocar CEP
+            endereco: enderecoData.logradouro || prev.endereco || '',
+            bairro: enderecoData.bairro || prev.bairro || '',
+            estado: estadoEncontrado?.id || prev.estado || '',
+            cidade: estadosCidades.municipios.find(m => m.nome === enderecoData.localidade)?.id || ''
           }))
 
-          // Aguardar carregar municípios e então selecionar a cidade
           setTimeout(() => {
-            setFormData(prev => {
-              // Recarregar municípios para o estado
-              const municipioEncontrado = estadosCidades.municipios.find(m => m.nome === enderecoData.localidade)
-              return {
-                ...prev,
-                cidade: municipioEncontrado?.id || ''
-              }
-            })
+            if (!cancelled) {
+              setFormData(prev => {
+                return { ...prev }
+              })
+            }
           }, 500)
         } else {
           console.log('⚠️ CEP não encontrado')
         }
       } catch (error) {
+        if (cancelled) return
         console.error('❌ Erro ao buscar CEP:', error)
       } finally {
-        setBuscandoCep(false)
+        if (!cancelled) {
+          setBuscandoCep(false)
+        }
       }
     }
 
-    // Debounce de 500ms
     const timeoutId = setTimeout(buscarEndereco, 500)
-    return () => clearTimeout(timeoutId)
-  }, [formData.cep, estadosCidades.estados, estadosCidades.municipios])
+    
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
+  }, [formData.cep]) // REMOVIDO: estadosCidades.estados, estadosCidades.municipios
 
   // Verificar Email com debounce
   useEffect(() => {
@@ -680,7 +740,7 @@ export default function NovoProprietarioPage() {
         return
       }
 
-      const payload = {
+      const payload: any = {
         nome: formData.nome,
         cpf: formData.cpf || undefined,
         cnpj: formData.cnpj || undefined,
@@ -693,8 +753,15 @@ export default function NovoProprietarioPage() {
         estado_fk: estadoSigla,
         cidade_fk: cidadeNome,
         cep: formData.cep,
-        created_by: user?.nome || 'system'
+        created_by: user?.nome || 'system',
       }
+
+      // Adicionar campos da governança dinamicamente
+      semanticFields.forEach(f => {
+        if (formData[f.field]) {
+          payload[f.field] = formData[f.field]
+        }
+      })
 
       console.log('📤 Enviando payload:', payload)
 
@@ -775,22 +842,60 @@ export default function NovoProprietarioPage() {
         {/* Formulário */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200">
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
-            {/* Corretor (informativo) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Corretor
-              </label>
-              <input
-                type="text"
-                value={(user as any)?.nome || 'Não informado'}
-                readOnly
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                title="Campo informativo"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Se o cadastro for feito por um usuário do perfil <strong>Corretor</strong>, o sistema gravará automaticamente esse corretor como responsável.
-              </p>
-            </div>
+            {/* MOTOR DE RENDERIZAÇÃO SEMÂNTICA (DYNAMIC FIELDS) */}
+            {semanticFields.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
+                {semanticFields.map((fieldConfig) => {
+                  const options = semanticDataResults[fieldConfig.tag] || []
+                  
+                  // Se o usuário for um corretor e o campo for corretor_fk, podemos auto-preencher ou travar
+                  const u = user as any
+                  const userTypeStr = String(u?.userType || u?.role_name || u?.role_slug || '').toLowerCase()
+                  const isCorretor = userTypeStr.includes('corretor')
+                  
+                  if (isCorretor && fieldConfig.field === 'corretor_fk') {
+                    return (
+                      <div key={fieldConfig.field}>
+                        <label className="block text-[10px] font-black text-indigo-900/40 uppercase tracking-widest mb-2 ml-1">
+                          {fieldConfig.label || 'Responsável'}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={u?.nome || 'Você'}
+                            readOnly
+                            className="w-full px-4 py-3 bg-white/50 border border-indigo-100 rounded-xl text-indigo-900 font-bold cursor-not-allowed"
+                          />
+                          <CheckIcon className="h-4 w-4 text-emerald-500 absolute right-4 top-1/2 -translate-y-1/2" />
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div key={fieldConfig.field}>
+                      <label className="block text-[10px] font-black text-indigo-900/40 uppercase tracking-widest mb-2 ml-1">
+                        {fieldConfig.label || 'Vínculo Semântico'}
+                        {fieldConfig.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <select
+                        value={formData[fieldConfig.field] || ''}
+                        onChange={(e) => handleInputChange(fieldConfig.field, e.target.value)}
+                        disabled={loadingCorretores}
+                        className="w-full px-4 py-3 bg-white border border-indigo-100 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                      >
+                        <option value="">SELECIONE...</option>
+                        {options.map((opt: any) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
             {/* Nome */}
             <div>
@@ -1141,20 +1246,20 @@ export default function NovoProprietarioPage() {
               )}
             </div>
 
-            {/* Botões */}
-            <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+            {/* Botões de Ação */}
+            <div className="flex items-center justify-end space-x-4 pt-8 border-t border-indigo-100">
               <Link
                 href="/admin/proprietarios"
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="px-8 py-3.5 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
               >
-                Cancelar
+                DESCARTAR
               </Link>
               <button
                 type="submit"
                 disabled={saving || Object.keys(errors).length > 0 || cpfExists || emailExists}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-10 py-3.5 bg-indigo-600 text-white text-sm font-black rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase tracking-widest"
               >
-                {saving ? 'Salvando...' : 'Salvar Proprietário'}
+                {saving ? 'PROCESSANDO...' : 'FINALIZAR CADASTRO'}
               </button>
             </div>
           </form>

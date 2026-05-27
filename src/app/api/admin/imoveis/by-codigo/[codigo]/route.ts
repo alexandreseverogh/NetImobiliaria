@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+export const dynamic = 'force-dynamic'
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware'
 import { findImovelByCodigo } from '@/lib/database/imoveis'
 import { findAmenidadesByImovel } from '@/lib/database/amenidades'
@@ -20,13 +21,26 @@ export async function GET(
   try {
     const codigo = params.codigo
     
-    console.log('🔍 API: Buscando imóvel por código:', codigo)
+    // Extrair tenantId do JWT para isolamento
+    const { getTokenFromRequest, verifyToken } = await import('@/lib/auth/jwt')
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.is_system_role ? null : decoded?.tenantId
+
+    // DEBUG: Escrever em arquivo para ver o que está acontecendo
+    try {
+      const fs = require('fs')
+      const debugMsg = `[${new Date().toISOString()}] by-codigo: codigo=${codigo}, tenantId=${tenantId}, decoded=${JSON.stringify(decoded)}\n`
+      fs.appendFileSync('c:/NetImobiliária/net-imobiliaria/scratch/debug_api.txt', debugMsg)
+    } catch (e) {}
+
+    console.log('🔍 API: Buscando imóvel por código:', codigo, 'Tenant:', tenantId)
     
-    // Buscar dados básicos do imóvel por código
-    const imovel = await findImovelByCodigo(codigo)
+    // Buscar dados básicos do imóvel por código com isolamento
+    const imovel = await findImovelByCodigo(codigo, tenantId)
     
     if (!imovel) {
-      console.log('❌ API: Imóvel não encontrado com código:', codigo)
+      console.log('❌ API: Imóvel não encontrado com código:', codigo, 'no tenant:', tenantId)
       return NextResponse.json(
         { 
           success: false,

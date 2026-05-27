@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth/jwt'
 import { userHasPermission } from '@/lib/database/users'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import { findImovelById } from '@/lib/database/imoveis'
 import { 
   findAmenidadesByImovel, 
@@ -82,6 +83,10 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     // Verificar autenticação
     const token = request.cookies.get('accessToken')?.value
     if (!token) {
@@ -169,6 +174,10 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     // Verificar autenticação
     const token = request.cookies.get('accessToken')?.value
     if (!token) {
@@ -238,6 +247,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Verificar permissão de exclusão server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'DELETE')
+    if (denied) return denied
+
     // Verificar autenticação
     const token = request.cookies.get('accessToken')?.value
     if (!token) {

@@ -111,7 +111,7 @@ export default function ManagePerfilUsersModal({
   }
 
   const usersWithPerfil = users.filter(user => user.role_id === perfil.id)
-  const usersWithoutPerfil = users.filter(user => user.role_id !== perfil.id)
+  const usersWithoutPerfil = users.filter(user => !user.role_id)
 
   if (!isOpen) return null
 
@@ -175,14 +175,11 @@ export default function ManagePerfilUsersModal({
                 )}
               </div>
 
-              {/* Usuários sem este perfil */}
-              <div>
-                <h4 className="text-lg font-medium text-gray-900 mb-3">
-                  Usuários disponíveis ({usersWithoutPerfil.length})
-                </h4>
-                {usersWithoutPerfil.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Todos os usuários já têm perfis atribuídos</p>
-                ) : (
+              {usersWithoutPerfil.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">
+                    Usuários disponíveis ({usersWithoutPerfil.length})
+                  </h4>
                   <div className="space-y-2">
                     {usersWithoutPerfil.map((user) => (
                       <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -208,8 +205,8 @@ export default function ManagePerfilUsersModal({
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
 

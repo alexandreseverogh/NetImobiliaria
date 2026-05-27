@@ -24,9 +24,14 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = decoded?.userId || null
+    const tenantId = decoded?.tenantId || null
     const roleName = String(decoded?.role_name || decoded?.cargo || '').toLowerCase()
 
-    console.log('🔍 /mine Debug:', { userId, roleName, hasCorretor: roleName.includes('corretor') })
+    console.log('🔍 /mine Debug:', { userId, tenantId, roleName, hasCorretor: roleName.includes('corretor') })
+
+    if (!tenantId) {
+      return NextResponse.json({ success: false, error: 'Tenant não identificado' }, { status: 401 })
+    }
 
     if (!roleName.includes('corretor')) {
       return NextResponse.json({
@@ -57,7 +62,8 @@ export async function GET(request: NextRequest) {
       estado,
       cidade,
       bairro,
-      corretor_fk: userId
+      corretor_fk: userId,
+      tenant_id: tenantId
     })
 
     return NextResponse.json({ success: true, ...result })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { findStatusImovelById, updateStatusImovel, deleteStatusImovel } from '@/lib/database/imoveis'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 export async function GET(
   request: NextRequest,
@@ -43,8 +44,12 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Apenas admins podem editar catalogos de status
+    const denied = await requireApiPermission(request, 'status-imovel', 'UPDATE')
+    if (denied) return denied
+
     const statusId = parseInt(params.id)
-    
+
     if (isNaN(statusId)) {
       return NextResponse.json(
         { error: 'ID inválido' },
@@ -87,8 +92,12 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Apenas admins podem excluir catalogos de status
+    const denied = await requireApiPermission(request, 'status-imovel', 'DELETE')
+    if (denied) return denied
+
     const statusId = parseInt(params.id)
-    
+
     if (isNaN(statusId)) {
       return NextResponse.json(
         { error: 'ID inválido' },

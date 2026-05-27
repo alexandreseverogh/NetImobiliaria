@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkApiPermission } from '@/lib/middleware/permissionMiddleware'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 import {
   findDocumentoById,
   deleteDocumentoImovel
@@ -75,7 +76,11 @@ export async function DELETE(
   { params }: { params: { id: string, documentoId: string } }
 ) {
   try {
-    // Verificar permissões
+    // Verificar permissão de exclusão server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
+    // Verificar permissões (autenticação genérica)
     const permissionCheck = await checkApiPermission(request)
     if (permissionCheck) {
       return permissionCheck

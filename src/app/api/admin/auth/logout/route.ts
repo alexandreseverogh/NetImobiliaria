@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { Pool } from 'pg';
+import pool from '@/lib/database/connection';
 
 // Função para registrar logs de logout
 async function logLogoutAttempt(
@@ -10,7 +10,8 @@ async function logLogoutAttempt(
   ipAddress: string,
   userAgent: string,
   success: boolean = true,
-  reason?: string
+  reason?: string,
+  tenantId?: string | null
 ) {
   try {
     await client.query(`
@@ -23,8 +24,9 @@ async function logLogoutAttempt(
         two_fa_used,
         success,
         failure_reason,
+        tenant_id,
         created_at
-      ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, NOW())
+      ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
     `, [
       userId,
       username,
@@ -33,7 +35,8 @@ async function logLogoutAttempt(
       userAgent,
       false, // Logout não usa 2FA
       success,
-      reason || null
+      reason || null,
+      tenantId || null
     ]);
   } catch (error) {
     console.error('Erro ao registrar log de logout:', error);
@@ -109,20 +112,10 @@ export async function POST(request: NextRequest) {
 
     const userAgent = request.headers.get('user-agent') || 'unknown';
 
-    // Invalidar sessão no banco
-    const { Pool } = require('pg');
-    const pool = new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME!,
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'Roberto@2007',
-    });
-
-    // Invalidar sessão específica
+    // Invalidar sessão específica (usando o campo correto do banco)
     if (sessionId) {
       await pool.query(
-        'UPDATE user_sessions SET expires_at = NOW() WHERE session_id = $1 AND user_id = $2::uuid',
+        'UPDATE user_sessions SET expires_at = NOW() WHERE id = $1::uuid AND user_id = $2::uuid',
         [sessionId, userId]
       );
     }
@@ -134,7 +127,7 @@ export async function POST(request: NextRequest) {
     // Log logout bem-sucedido
     const client = await pool.connect();
     try {
-      await logLogoutAttempt(client, userId, decoded.username, ipAddress, userAgent, true);
+      await logLogoutAttempt(client, userId, decoded.username, ipAddress, userAgent, true, undefined, decoded.tenantId);
     } finally {
       client.release();
     }
@@ -145,14 +138,14 @@ export async function POST(request: NextRequest) {
       [userId]
     );
 
-    // Log de auditoria
+    // Log de auditoria (Corrigido para bater com as colunas da tabela audit_logs)
     await pool.query(
-      `INSERT INTO audit_logs (user_id, action, resource, resource_id, details, ip_address, user_agent, timestamp)
-       VALUES ($1::uuid, 'LOGOUT', 'AUTH', $1::uuid, $2, $3, $4, NOW())`,
-      [userId, JSON.stringify({ username: decoded.username || 'unknown' }), ipAddress, userAgent]
+      `INSERT INTO audit_logs (user_id, action, resource, resource_id, details, ip_address, user_agent, tenant_id)
+       VALUES ($1::uuid, 'LOGOUT', 'AUTH', null, $2, $3, $4, $5)`,
+      [userId, JSON.stringify({ username: decoded.username || 'unknown' }), ipAddress, userAgent, decoded.tenantId || null]
     );
 
-    await pool.end();
+    // Não fechamos o pool aqui para manter as conexões disponíveis para outros usuários.
 
     const response = NextResponse.json({
       success: true,

@@ -13,17 +13,17 @@ describe('PermissionChecker', () => {
   const CORRETOR_ID = '4d456e42-4031-46ba-9b5c-912bec1d28b5' // Ajustar conforme seu banco
   
   describe('checkUserPermission', () => {
-    test('Super Admin deve ter permissão READ em qualquer funcionalidade', async () => {
+    test('Administrador Master deve ter permissão READ em qualquer funcionalidade', async () => {
       const result = await checkUserPermission(SUPER_ADMIN_ID, 'clientes', 'READ')
       expect(result).toBe(true)
     })
     
-    test('Super Admin deve ter permissão WRITE em qualquer funcionalidade', async () => {
+    test('Administrador Master deve ter permissão WRITE em qualquer funcionalidade', async () => {
       const result = await checkUserPermission(SUPER_ADMIN_ID, 'imoveis', 'WRITE')
       expect(result).toBe(true)
     })
     
-    test('Super Admin deve ter permissão DELETE em qualquer funcionalidade', async () => {
+    test('Administrador Master deve ter permissão DELETE em qualquer funcionalidade', async () => {
       const result = await checkUserPermission(SUPER_ADMIN_ID, 'usuarios', 'DELETE')
       expect(result).toBe(true)
     })
@@ -40,7 +40,7 @@ describe('PermissionChecker', () => {
   })
   
   describe('getUserPermissionsMap', () => {
-    test('Super Admin deve ter mapa completo de permissões', async () => {
+    test('Administrador Master deve ter mapa completo de permissões', async () => {
       const map = await getUserPermissionsMap(SUPER_ADMIN_ID)
       
       expect(map).toBeDefined()

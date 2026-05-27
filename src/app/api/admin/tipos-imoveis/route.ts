@@ -3,6 +3,7 @@ import { findAllTiposImovel, createTipoImovel } from '@/lib/database/tipos-imove
 import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionMiddleware';
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger';
 import { extractRequestData } from '@/lib/utils/ipUtils';
+import { requireApiPermission } from '@/lib/auth/apiPermissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,6 +26,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireApiPermission(request, 'imoveis', 'CREATE')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {

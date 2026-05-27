@@ -11,6 +11,7 @@ import {
     getAcessosRecentes,
     type AnalyticsFilters,
 } from '@/lib/database/analytics'
+import { verifyToken, getTokenFromRequest } from '@/lib/auth/jwt'
 
 export const runtime = 'nodejs'
 
@@ -67,14 +68,32 @@ export async function GET(request: NextRequest) {
 
         const { from: resolvedFrom, to: resolvedTo, prevFrom, prevTo } = resolvePeriod(periodo, from, to)
 
+        const token = getTokenFromRequest(request)
+        console.log('📊 [ANALYTICS_API] Token extraído:', token ? 'SIM' : 'NÃO')
+        
+        let tenantId: string | undefined
+
+        if (token) {
+            const decoded = await verifyToken(token)
+            console.log('📊 [ANALYTICS_API] Decoded Payload:', JSON.stringify(decoded))
+            if (decoded?.tenantId) {
+                tenantId = decoded.tenantId
+            }
+        }
+
+        console.log('📊 [ANALYTICS_API] Tenant ID final para filtro:', tenantId)
+
         const filters: AnalyticsFilters = {
             from: resolvedFrom,
             to: resolvedTo,
+            tenant_id: tenantId,
             device_type: searchParams.get('device') || undefined,
             page_type: searchParams.get('page_type') || undefined,
             referrer_type: searchParams.get('origem') || undefined,
             utm_campaign: searchParams.get('utm') || undefined,
         }
+
+        console.log('📊 [ANALYTICS_API] Filtros montados:', JSON.stringify(filters))
 
         // Executar todas as queries em paralelo para máxima velocidade
         const [summary, porDia, topImoveis, porDispositivo, porOrigem, porTipoPagina, topPaginas, acessosRecentes] = await Promise.all([
@@ -88,8 +107,11 @@ export async function GET(request: NextRequest) {
             getAcessosRecentes(filters, 20),
         ])
 
+        console.log('📊 [ANALYTICS_API] Sucesso! Linhas por dia:', porDia.length)
+
         return NextResponse.json({
             periodo: { from: resolvedFrom, to: resolvedTo },
+            debug: { tenantId, token: token ? 'present' : 'missing' },
             resumo: summary,
             visitas_por_dia: porDia,
             top_imoveis: topImoveis,
@@ -100,7 +122,7 @@ export async function GET(request: NextRequest) {
             acessos_recentes: acessosRecentes,
         })
     } catch (error) {
-        console.error('Erro ao buscar analytics de visitas:', error)
-        return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
+        console.error('❌ [ANALYTICS_API] ERRO FATAL:', error)
+        return NextResponse.json({ error: 'Erro interno do servidor', details: error instanceof Error ? error.message : String(error) }, { status: 500 })
     }
 }

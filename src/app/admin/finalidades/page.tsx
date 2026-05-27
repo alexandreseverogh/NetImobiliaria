@@ -68,7 +68,7 @@ export default function FinalidadesPage() {
         search: term
       })
 
-      const response = await get(`/api/admin/finalidades?${params}`)
+      const response = await get(`/api/admin/finalidades-imoveis?${params}`)
       
       if (!response.ok) {
         throw new Error('Erro ao carregar finalidades')
@@ -108,7 +108,7 @@ export default function FinalidadesPage() {
     try {
       console.log('Tentando excluir finalidade com ID:', finalidadeToDelete.id)
       
-      const response = await fetch(`/api/admin/finalidades/${finalidadeToDelete.id}`, {
+      const response = await fetch(`/api/admin/finalidades-imoveis/${finalidadeToDelete.id}`, {
         method: 'DELETE',
       })
 
@@ -155,7 +155,7 @@ export default function FinalidadesPage() {
 
   const handleToggleStatus = async (finalidade: Finalidade) => {
     try {
-      const response = await put(`/api/admin/finalidades/${finalidade.id}`, {
+      const response = await put(`/api/admin/finalidades-imoveis/${finalidade.id}`, {
           ativo: !finalidade.ativo
         })
 
@@ -192,7 +192,7 @@ export default function FinalidadesPage() {
           </div>
           <div className="mt-4 sm:mt-0">
             <button
-              onClick={() => router.push('/admin/finalidades/novo')}
+              onClick={() => router.push('/admin/finalidades-imoveis/novo')}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               <PlusIcon className="h-4 w-4 mr-2" />
@@ -337,7 +337,7 @@ export default function FinalidadesPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
                         <button
-                          onClick={() => router.push(`/admin/finalidades/${finalidade.id}/editar`)}
+                          onClick={() => router.push(`/admin/finalidades-imoveis/${finalidade.id}/editar`)}
                           className="text-blue-600 hover:text-blue-900"
                         >
                           <PencilIcon className="h-4 w-4" />

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
+import { requireApiPermission } from '@/lib/auth/apiPermissions'
 
 // PUT - Atualizar imagem principal
 export async function PUT(
@@ -7,10 +8,14 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   console.log('🔍 API PUT /api/admin/imoveis/[id]/imagem-principal - INICIADA')
-  
+
   try {
+    // Verificar permissão de edição server-side
+    const denied = await requireApiPermission(request, 'imoveis', 'UPDATE')
+    if (denied) return denied
+
     const imovelId = parseInt(params.id)
-    
+
     if (isNaN(imovelId)) {
       return NextResponse.json(
         { error: 'ID do imóvel inválido' },

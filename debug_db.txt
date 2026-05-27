@@ -1,0 +1,508 @@
+--- SCHEMAS ---
+[
+  {
+    "nspname": "pg_toast"
+  },
+  {
+    "nspname": "pg_catalog"
+  },
+  {
+    "nspname": "public"
+  },
+  {
+    "nspname": "information_schema"
+  },
+  {
+    "nspname": "feed"
+  },
+  {
+    "nspname": "pg_temp_33"
+  },
+  {
+    "nspname": "pg_toast_temp_33"
+  },
+  {
+    "nspname": "pg_temp_7"
+  },
+  {
+    "nspname": "pg_toast_temp_7"
+  },
+  {
+    "nspname": "pg_temp_1"
+  },
+  {
+    "nspname": "pg_toast_temp_1"
+  },
+  {
+    "nspname": "pg_temp_66"
+  },
+  {
+    "nspname": "pg_toast_temp_66"
+  },
+  {
+    "nspname": "pg_temp_21"
+  },
+  {
+    "nspname": "pg_toast_temp_21"
+  },
+  {
+    "nspname": "pg_temp_40"
+  },
+  {
+    "nspname": "pg_toast_temp_40"
+  },
+  {
+    "nspname": "pg_temp_64"
+  },
+  {
+    "nspname": "pg_toast_temp_64"
+  },
+  {
+    "nspname": "pg_temp_48"
+  },
+  {
+    "nspname": "pg_toast_temp_48"
+  },
+  {
+    "nspname": "pg_temp_92"
+  },
+  {
+    "nspname": "pg_toast_temp_92"
+  },
+  {
+    "nspname": "pg_temp_18"
+  },
+  {
+    "nspname": "pg_toast_temp_18"
+  },
+  {
+    "nspname": "pg_temp_56"
+  },
+  {
+    "nspname": "pg_toast_temp_56"
+  },
+  {
+    "nspname": "pg_temp_41"
+  },
+  {
+    "nspname": "pg_toast_temp_41"
+  },
+  {
+    "nspname": "pg_temp_81"
+  },
+  {
+    "nspname": "pg_toast_temp_81"
+  },
+  {
+    "nspname": "pg_temp_94"
+  },
+  {
+    "nspname": "pg_toast_temp_94"
+  },
+  {
+    "nspname": "pg_temp_44"
+  },
+  {
+    "nspname": "pg_toast_temp_44"
+  },
+  {
+    "nspname": "pg_temp_19"
+  },
+  {
+    "nspname": "pg_toast_temp_19"
+  },
+  {
+    "nspname": "pg_temp_15"
+  },
+  {
+    "nspname": "pg_toast_temp_15"
+  },
+  {
+    "nspname": "pg_temp_71"
+  },
+  {
+    "nspname": "pg_toast_temp_71"
+  },
+  {
+    "nspname": "pg_temp_63"
+  },
+  {
+    "nspname": "pg_toast_temp_63"
+  },
+  {
+    "nspname": "pg_temp_29"
+  },
+  {
+    "nspname": "pg_toast_temp_29"
+  },
+  {
+    "nspname": "pg_temp_12"
+  },
+  {
+    "nspname": "pg_toast_temp_12"
+  },
+  {
+    "nspname": "pg_temp_5"
+  },
+  {
+    "nspname": "pg_toast_temp_5"
+  },
+  {
+    "nspname": "pg_temp_99"
+  },
+  {
+    "nspname": "pg_toast_temp_99"
+  },
+  {
+    "nspname": "pg_temp_96"
+  },
+  {
+    "nspname": "pg_toast_temp_96"
+  },
+  {
+    "nspname": "pg_temp_39"
+  },
+  {
+    "nspname": "pg_toast_temp_39"
+  },
+  {
+    "nspname": "pg_temp_36"
+  },
+  {
+    "nspname": "pg_toast_temp_36"
+  },
+  {
+    "nspname": "pg_temp_53"
+  },
+  {
+    "nspname": "pg_toast_temp_53"
+  },
+  {
+    "nspname": "pg_temp_8"
+  },
+  {
+    "nspname": "pg_toast_temp_8"
+  },
+  {
+    "nspname": "pg_temp_46"
+  },
+  {
+    "nspname": "pg_toast_temp_46"
+  },
+  {
+    "nspname": "pg_temp_97"
+  },
+  {
+    "nspname": "pg_toast_temp_97"
+  },
+  {
+    "nspname": "pg_temp_70"
+  },
+  {
+    "nspname": "pg_toast_temp_70"
+  },
+  {
+    "nspname": "pg_temp_28"
+  },
+  {
+    "nspname": "pg_toast_temp_28"
+  },
+  {
+    "nspname": "pg_temp_34"
+  },
+  {
+    "nspname": "pg_toast_temp_34"
+  },
+  {
+    "nspname": "pg_temp_91"
+  },
+  {
+    "nspname": "pg_toast_temp_91"
+  },
+  {
+    "nspname": "pg_temp_45"
+  },
+  {
+    "nspname": "pg_toast_temp_45"
+  },
+  {
+    "nspname": "pg_temp_13"
+  },
+  {
+    "nspname": "pg_toast_temp_13"
+  },
+  {
+    "nspname": "pg_temp_59"
+  },
+  {
+    "nspname": "pg_toast_temp_59"
+  },
+  {
+    "nspname": "pg_temp_79"
+  },
+  {
+    "nspname": "pg_toast_temp_79"
+  },
+  {
+    "nspname": "pg_temp_73"
+  },
+  {
+    "nspname": "pg_toast_temp_73"
+  },
+  {
+    "nspname": "pg_temp_52"
+  },
+  {
+    "nspname": "pg_toast_temp_52"
+  },
+  {
+    "nspname": "pg_temp_23"
+  },
+  {
+    "nspname": "pg_toast_temp_23"
+  },
+  {
+    "nspname": "pg_temp_72"
+  },
+  {
+    "nspname": "pg_toast_temp_72"
+  },
+  {
+    "nspname": "pg_temp_27"
+  },
+  {
+    "nspname": "pg_toast_temp_27"
+  },
+  {
+    "nspname": "pg_temp_67"
+  },
+  {
+    "nspname": "pg_toast_temp_67"
+  },
+  {
+    "nspname": "pg_temp_49"
+  },
+  {
+    "nspname": "pg_toast_temp_49"
+  },
+  {
+    "nspname": "pg_temp_85"
+  },
+  {
+    "nspname": "pg_toast_temp_85"
+  },
+  {
+    "nspname": "pg_temp_51"
+  },
+  {
+    "nspname": "pg_toast_temp_51"
+  },
+  {
+    "nspname": "pg_temp_16"
+  },
+  {
+    "nspname": "pg_toast_temp_16"
+  },
+  {
+    "nspname": "pg_temp_68"
+  },
+  {
+    "nspname": "pg_toast_temp_68"
+  },
+  {
+    "nspname": "pg_temp_25"
+  },
+  {
+    "nspname": "pg_toast_temp_25"
+  },
+  {
+    "nspname": "pg_temp_95"
+  },
+  {
+    "nspname": "pg_toast_temp_95"
+  },
+  {
+    "nspname": "pg_temp_61"
+  },
+  {
+    "nspname": "pg_toast_temp_61"
+  },
+  {
+    "nspname": "pg_temp_90"
+  },
+  {
+    "nspname": "pg_toast_temp_90"
+  },
+  {
+    "nspname": "pg_temp_9"
+  },
+  {
+    "nspname": "pg_toast_temp_9"
+  },
+  {
+    "nspname": "pg_temp_6"
+  },
+  {
+    "nspname": "pg_toast_temp_6"
+  },
+  {
+    "nspname": "pg_temp_80"
+  },
+  {
+    "nspname": "pg_toast_temp_80"
+  },
+  {
+    "nspname": "pg_temp_60"
+  },
+  {
+    "nspname": "pg_toast_temp_60"
+  },
+  {
+    "nspname": "pg_temp_89"
+  },
+  {
+    "nspname": "pg_toast_temp_89"
+  },
+  {
+    "nspname": "pg_temp_22"
+  },
+  {
+    "nspname": "pg_toast_temp_22"
+  },
+  {
+    "nspname": "pg_temp_26"
+  },
+  {
+    "nspname": "pg_toast_temp_26"
+  },
+  {
+    "nspname": "pg_temp_82"
+  },
+  {
+    "nspname": "pg_toast_temp_82"
+  },
+  {
+    "nspname": "pg_temp_98"
+  },
+  {
+    "nspname": "pg_toast_temp_98"
+  },
+  {
+    "nspname": "pg_temp_0"
+  },
+  {
+    "nspname": "pg_toast_temp_0"
+  },
+  {
+    "nspname": "pg_temp_88"
+  },
+  {
+    "nspname": "pg_toast_temp_88"
+  },
+  {
+    "nspname": "pg_temp_2"
+  },
+  {
+    "nspname": "pg_toast_temp_2"
+  },
+  {
+    "nspname": "pg_temp_93"
+  },
+  {
+    "nspname": "pg_toast_temp_93"
+  },
+  {
+    "nspname": "pg_temp_31"
+  },
+  {
+    "nspname": "pg_toast_temp_31"
+  },
+  {
+    "nspname": "pg_temp_84"
+  },
+  {
+    "nspname": "pg_toast_temp_84"
+  },
+  {
+    "nspname": "pg_temp_47"
+  },
+  {
+    "nspname": "pg_toast_temp_47"
+  },
+  {
+    "nspname": "pg_temp_58"
+  },
+  {
+    "nspname": "pg_toast_temp_58"
+  },
+  {
+    "nspname": "pg_temp_17"
+  },
+  {
+    "nspname": "pg_toast_temp_17"
+  },
+  {
+    "nspname": "pg_temp_10"
+  },
+  {
+    "nspname": "pg_toast_temp_10"
+  },
+  {
+    "nspname": "pg_temp_55"
+  },
+  {
+    "nspname": "pg_toast_temp_55"
+  },
+  {
+    "nspname": "pg_temp_38"
+  },
+  {
+    "nspname": "pg_toast_temp_38"
+  },
+  {
+    "nspname": "pg_temp_57"
+  },
+  {
+    "nspname": "pg_toast_temp_57"
+  },
+  {
+    "nspname": "pg_temp_24"
+  },
+  {
+    "nspname": "pg_toast_temp_24"
+  },
+  {
+    "nspname": "pg_temp_20"
+  },
+  {
+    "nspname": "pg_toast_temp_20"
+  },
+  {
+    "nspname": "pg_temp_87"
+  },
+  {
+    "nspname": "pg_toast_temp_87"
+  },
+  {
+    "nspname": "pg_temp_37"
+  },
+  {
+    "nspname": "pg_toast_temp_37"
+  },
+  {
+    "nspname": "pg_temp_43"
+  },
+  {
+    "nspname": "pg_toast_temp_43"
+  }
+]
+--- FUNÇÕES ---
+[
+  {
+    "nspname": "public",
+    "proname": "get_sidebar_menu_for_user_backup",
+    "pg_get_function_arguments": "p_user_id uuid"
+  }
+]
+--- TESTING CALL ---
+CALL FAILED: function get_sidebar_menu_for_user(uuid, text) does not exist

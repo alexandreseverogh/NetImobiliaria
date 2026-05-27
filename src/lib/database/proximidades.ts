@@ -18,6 +18,7 @@ export interface CategoriaProximidade {
   cor: string
   ordem: number
   ativo: boolean
+  tenant_id?: string
   created_at: string
   updated_at: string
 }
@@ -31,6 +32,7 @@ export interface Proximidade {
   popular: boolean
   ordem: number
   ativo: boolean
+  tenant_id?: string
   created_at: string
   updated_at: string
   // Dados da categoria (quando usado em JOIN)
@@ -62,14 +64,22 @@ export interface ImovelProximidade {
 /**
  * Buscar todas as categorias de proximidades (ativas e inativas para seleção)
  */
-export async function findAllCategoriasProximidades(): Promise<CategoriaProximidade[]> {
+export async function findAllCategoriasProximidades(tenantId?: string): Promise<CategoriaProximidade[]> {
   try {
-    const query = `
-      SELECT id, nome, descricao, icone, cor, ordem, ativo, created_at, updated_at
+    let query = `
+      SELECT id, nome, descricao, icone, cor, ordem, ativo, tenant_id, created_at, updated_at
       FROM categorias_proximidades
-      ORDER BY ordem, nome
     `
-    const result: QueryResult<CategoriaProximidade> = await pool.query(query)
+    const params: any[] = []
+
+    if (tenantId) {
+      query += ` WHERE tenant_id = $1 OR tenant_id IS NULL `
+      params.push(tenantId)
+    }
+
+    query += ` ORDER BY ordem, nome `
+
+    const result: QueryResult<CategoriaProximidade> = await pool.query(query, params)
     return result.rows
   } catch (error) {
     console.error('❌ Erro ao buscar categorias de proximidades:', error)
@@ -99,14 +109,21 @@ export async function findAllCategoriasProximidadesAtivas(): Promise<CategoriaPr
 /**
  * Buscar categoria de proximidade por ID (todas as categorias)
  */
-export async function findCategoriaProximidadeById(id: number): Promise<CategoriaProximidade | null> {
+export async function findCategoriaProximidadeById(id: number, tenantId?: string): Promise<CategoriaProximidade | null> {
   try {
-    const query = `
-      SELECT id, nome, descricao, icone, cor, ordem, ativo, created_at, updated_at
+    let query = `
+      SELECT id, nome, descricao, icone, cor, ordem, ativo, tenant_id, created_at, updated_at
       FROM categorias_proximidades
       WHERE id = $1
     `
-    const result: QueryResult<CategoriaProximidade> = await pool.query(query, [id])
+    const params: any[] = [id]
+
+    if (tenantId) {
+      query += ` AND (tenant_id = $2 OR tenant_id IS NULL)`
+      params.push(tenantId)
+    }
+
+    const result: QueryResult<CategoriaProximidade> = await pool.query(query, params)
     return result.rows[0] || null
   } catch (error) {
     console.error('❌ Erro ao buscar categoria de proximidade:', error)
@@ -120,11 +137,11 @@ export async function findCategoriaProximidadeById(id: number): Promise<Categori
 export async function createCategoriaProximidade(data: Omit<CategoriaProximidade, 'id' | 'created_at' | 'updated_at'>): Promise<CategoriaProximidade> {
   try {
     const query = `
-      INSERT INTO categorias_proximidades (nome, descricao, icone, cor, ordem, ativo, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-      RETURNING id, nome, descricao, icone, cor, ordem, ativo, created_at, updated_at
+      INSERT INTO categorias_proximidades (nome, descricao, icone, cor, ordem, ativo, tenant_id, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+      RETURNING id, nome, descricao, icone, cor, ordem, ativo, tenant_id, created_at, updated_at
     `
-    const values = [data.nome, data.descricao, data.icone, data.cor, data.ordem, data.ativo]
+    const values = [data.nome, data.descricao, data.icone, data.cor, data.ordem, data.ativo, data.tenant_id || '00000000-0000-0000-0000-000000000001']
     const result: QueryResult<CategoriaProximidade> = await pool.query(query, values)
     
     if (!result.rows[0]) {
@@ -141,7 +158,7 @@ export async function createCategoriaProximidade(data: Omit<CategoriaProximidade
 /**
  * Atualizar categoria de proximidade
  */
-export async function updateCategoriaProximidade(id: number, data: Partial<Omit<CategoriaProximidade, 'id' | 'created_at' | 'updated_at'>>): Promise<CategoriaProximidade> {
+export async function updateCategoriaProximidade(id: number, data: Partial<Omit<CategoriaProximidade, 'id' | 'created_at' | 'updated_at'>>, tenantId?: string): Promise<CategoriaProximidade> {
   try {
     const fields = []
     const values = []
@@ -179,12 +196,19 @@ export async function updateCategoriaProximidade(id: number, data: Partial<Omit<
     fields.push(`updated_at = NOW()`)
     values.push(id)
 
-    const query = `
+    let query = `
       UPDATE categorias_proximidades 
       SET ${fields.join(', ')}
       WHERE id = $${paramIndex}
-      RETURNING id, nome, descricao, icone, cor, ordem, ativo, created_at, updated_at
     `
+    
+    if (tenantId) {
+      paramIndex++
+      query += ` AND tenant_id = $${paramIndex}`
+      values.push(tenantId)
+    }
+    
+    query += ` RETURNING id, nome, descricao, icone, cor, ordem, ativo, tenant_id, created_at, updated_at`
 
     const result: QueryResult<CategoriaProximidade> = await pool.query(query, values)
     
@@ -202,13 +226,15 @@ export async function updateCategoriaProximidade(id: number, data: Partial<Omit<
 /**
  * Excluir categoria de proximidade (exclusão física)
  */
-export async function deleteCategoriaProximidade(id: number): Promise<void> {
+export async function deleteCategoriaProximidade(id: number, tenantId?: string): Promise<void> {
   try {
     // Primeiro verificar se existem proximidades usando esta categoria
-    const checkQuery = `
-      SELECT COUNT(*) FROM proximidades WHERE categoria_id = $1
-    `
-    const checkResult = await pool.query(checkQuery, [id])
+    const checkQuery = tenantId
+      ? `SELECT COUNT(*) FROM proximidades WHERE categoria_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)`
+      : `SELECT COUNT(*) FROM proximidades WHERE categoria_id = $1`
+    
+    const checkParams = tenantId ? [id, tenantId] : [id]
+    const checkResult = await pool.query(checkQuery, checkParams)
     const proximidadesCount = parseInt(checkResult.rows[0].count)
     
     if (proximidadesCount > 0) {
@@ -216,12 +242,11 @@ export async function deleteCategoriaProximidade(id: number): Promise<void> {
     }
     
     // Fazer exclusão física
-    const query = `
-      DELETE FROM categorias_proximidades 
-      WHERE id = $1
-    `
+    const query = tenantId
+      ? `DELETE FROM categorias_proximidades WHERE id = $1 AND tenant_id = $2`
+      : `DELETE FROM categorias_proximidades WHERE id = $1`
     
-    const result = await pool.query(query, [id])
+    const result = await pool.query(query, checkParams)
     
     if (result.rowCount === 0) {
       throw new Error('Categoria não encontrada')
@@ -797,9 +822,13 @@ export async function addProximidadeToImovel(
   observacoes?: string | null
 ): Promise<number> {
   try {
+    // Buscar tenant_id do imóvel
+    const imovelResult = await pool.query('SELECT tenant_id FROM imoveis WHERE id = $1', [imovelId])
+    const tenantId = imovelResult.rows[0]?.tenant_id
+
     const query = `
-      INSERT INTO imovel_proximidades (imovel_id, proximidade_id, distancia_metros, tempo_caminhada, observacoes)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO imovel_proximidades (imovel_id, proximidade_id, distancia_metros, tempo_caminhada, observacoes, tenant_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (imovel_id, proximidade_id) DO UPDATE SET
         distancia_metros = EXCLUDED.distancia_metros,
         tempo_caminhada = EXCLUDED.tempo_caminhada,
@@ -811,7 +840,8 @@ export async function addProximidadeToImovel(
       proximidadeId,
       distanciaMetros ?? null,
       tempoCaminhada ?? null,
-      observacoes ?? null
+      observacoes ?? null,
+      tenantId
     ]
     const result: QueryResult<{id: number}> = await pool.query(query, values)
     
@@ -880,10 +910,14 @@ export async function updateImovelProximidades(
     // Remover todas as proximidades atuais
     await client.query('DELETE FROM imovel_proximidades WHERE imovel_id = $1', [imovelId])
     
+    // Buscar tenant_id do imóvel
+    const imovelResult = await client.query('SELECT tenant_id FROM imoveis WHERE id = $1', [imovelId])
+    const tenantId = imovelResult.rows[0]?.tenant_id
+
     // Adicionar as novas proximidades em lote
     if (proximidades.length > 0) {
       const values = proximidades.map((proximidade, index) => 
-        `($1, $${index * 4 + 2}, $${index * 4 + 3}, $${index * 4 + 4}, $${index * 4 + 5})`
+        `($1, $${index * 4 + 2}, $${index * 4 + 3}, $${index * 4 + 4}, $${index * 4 + 5}, $${proximidades.length * 4 + 2})`
       ).join(', ')
       
       const params: Array<number | string | null> = [imovelId]
@@ -910,8 +944,10 @@ export async function updateImovelProximidades(
         )
       })
       
+      params.push(tenantId)
+
       const query = `
-        INSERT INTO imovel_proximidades (imovel_id, proximidade_id, distancia_metros, tempo_caminhada, observacoes)
+        INSERT INTO imovel_proximidades (imovel_id, proximidade_id, distancia_metros, tempo_caminhada, observacoes, tenant_id)
         VALUES ${values}
       `
       

@@ -3,6 +3,7 @@ import pool from './connection'
 export interface AnalyticsFilters {
     from: string          // ISO date: '2026-02-10'
     to: string            // ISO date: '2026-03-11'
+    tenant_id?: string    // UUID do tenant
     device_type?: string  // 'mobile' | 'desktop' | 'tablet' | undefined
     page_type?: string    // 'imovel' | 'pesquisa' | etc | undefined
     referrer_type?: string // 'google' | 'direct' | 'social' | 'other' | undefined
@@ -20,6 +21,11 @@ function buildWhereClause(filters: AnalyticsFilters, startParam = 1, alias = '')
     ]
     const params: any[] = [filters.from, filters.to]
     let idx = startParam + 2
+
+    if (filters.tenant_id) {
+        conditions.push(`${a}tenant_id = $${idx++}`)
+        params.push(filters.tenant_id)
+    }
 
     if (filters.device_type) {
         conditions.push(`${a}device_type = $${idx++}`)

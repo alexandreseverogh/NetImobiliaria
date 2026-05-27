@@ -158,6 +158,10 @@ export async function createDocumentoImovel(data: CreateDocumentoImovelData): Pr
       documento_size: data.documento.length
     })
     
+    // Buscar tenant_id do imóvel para manter o isolamento
+    const imovelResult = await pool.query('SELECT tenant_id FROM imoveis WHERE id = $1', [data.id_imovel])
+    const tenantId = imovelResult.rows[0]?.tenant_id
+
     const query = `
       INSERT INTO imovel_documentos (
         id_tipo_documento,
@@ -166,9 +170,10 @@ export async function createDocumentoImovel(data: CreateDocumentoImovelData): Pr
         nome_arquivo,
         tipo_mime,
         tamanho_bytes,
+        tenant_id,
         created_at,
         updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING id
     `
     
@@ -188,7 +193,8 @@ export async function createDocumentoImovel(data: CreateDocumentoImovelData): Pr
       data.documento,
       data.nome_arquivo,
       data.tipo_mime,
-      data.tamanho_bytes
+      data.tamanho_bytes,
+      tenantId
     ])
     
     console.log('🔍 createDocumentoImovel - Resultado:', result.rows[0])
@@ -316,6 +322,10 @@ export async function saveImovelDocumentos(
     console.log('🔍 saveImovelDocumentos - Documentos existentes removidos:', deleteResult.rowCount)
     
     // Inserir novos documentos
+    // Buscar tenant_id do imóvel
+    const imovelResult = await client.query('SELECT tenant_id FROM imoveis WHERE id = $1', [imovelId])
+    const tenantId = imovelResult.rows[0]?.tenant_id
+
     let documentosInseridos = 0
     for (let i = 0; i < documentos.length; i++) {
       const doc = documentos[i]
@@ -337,10 +347,11 @@ export async function saveImovelDocumentos(
             nome_arquivo,
             tipo_mime,
             tamanho_bytes,
+            tenant_id,
             created_at,
             updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `, [doc.tipo_documento_id, imovelId, doc.arquivo, doc.nome_arquivo, doc.tipo_mime, doc.tamanho_bytes])
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `, [doc.tipo_documento_id, imovelId, doc.arquivo, doc.nome_arquivo, doc.tipo_mime, doc.tamanho_bytes, tenantId])
         
         console.log(`🔍 saveImovelDocumentos - Documento ${i + 1} inserido com sucesso:`, insertResult.rowCount)
         documentosInseridos++

@@ -1,14 +1,5 @@
 import nodemailer from 'nodemailer';
-import { Pool } from 'pg';
-
-// Configuração do pool de conexão com PostgreSQL
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME!,
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'Roberto@2007',
-});
+import pool from '@/lib/database/connection';
 
 interface EmailConfig {
   host: string;
@@ -185,7 +176,7 @@ class EmailServiceHybrid {
   /**
    * Envia email usando template
    */
-  async sendTemplateEmail(templateName: string, to: string, variables: Record<string, string>): Promise<boolean> {
+  async sendTemplateEmail(templateName: string, to: string, variables: Record<string, string>, tenantId?: string | null): Promise<boolean> {
     if (!this.transporter) {
       console.error('❌ Transporter não inicializado');
       return false;
@@ -216,7 +207,7 @@ class EmailServiceHybrid {
 
       // Log no banco se estiver usando sistema dinâmico
       if (this.isDynamicInitialized) {
-        await this.logEmailSend(templateName, to, 'success', info.messageId);
+        await this.logEmailSend(templateName, to, 'success', info.messageId, null, tenantId);
       }
 
       return true;
@@ -225,7 +216,7 @@ class EmailServiceHybrid {
 
       // Log no banco se estiver usando sistema dinâmico
       if (this.isDynamicInitialized) {
-        await this.logEmailSend(templateName, to, 'error', null, error);
+        await this.logEmailSend(templateName, to, 'error', null, error, tenantId);
       }
 
       return false;
@@ -240,22 +231,23 @@ class EmailServiceHybrid {
     to: string,
     status: 'success' | 'error',
     messageId: string | null = null,
-    error: any = null
+    error: any = null,
+    tenantId: string | null = null
   ): Promise<void> {
     if (!this.isDynamicInitialized) return; // Não logar se usando fallback
 
     try {
       const query = `
-        INSERT INTO email_logs (template_name, recipient_email, status, message_id, error_message, sent_at)
-        VALUES ($1, $2, $3, $4, $5, NOW())
+        INSERT INTO email_logs (template_name, to_email, success, error_message, sent_at, tenant_id)
+        VALUES ($1, $2, $3, $4, NOW(), $5)
       `;
 
       await pool.query(query, [
         templateName,
         to,
-        status,
-        messageId,
-        error ? error.message : null
+        status === 'success',
+        error ? error.message : null,
+        tenantId
       ]);
     } catch (logError) {
       console.error('❌ Erro ao registrar log de email:', logError);
@@ -265,8 +257,8 @@ class EmailServiceHybrid {
   /**
    * Envia código 2FA
    */
-  async send2FACode(email: string, code: string): Promise<boolean> {
-    return await this.sendTemplateEmail('2fa-code', email, { code });
+  async send2FACode(email: string, code: string, tenantId?: string | null): Promise<boolean> {
+    return await this.sendTemplateEmail('2fa-code', email, { code }, tenantId);
   }
 
   /**
@@ -294,14 +286,14 @@ async function ensureInitialized(): Promise<void> {
  * Wrapper do EmailServiceHybrid
  */
 const emailService = {
-  async sendTemplateEmail(to: string, templateName: string, variables: Record<string, string>): Promise<boolean> {
+  async sendTemplateEmail(templateName: string, to: string, variables: Record<string, string>, attachments?: any[], tenantId?: string | null): Promise<boolean> {
     await ensureInitialized();
-    return emailServiceHybrid.sendTemplateEmail(templateName, to, variables);
+    return emailServiceHybrid.sendTemplateEmail(templateName, to, variables, tenantId);
   },
 
-  async send2FACode(email: string, code: string): Promise<boolean> {
+  async send2FACode(email: string, code: string, tenantId?: string | null): Promise<boolean> {
     await ensureInitialized();
-    return emailServiceHybrid.send2FACode(email, code);
+    return emailServiceHybrid.send2FACode(email, code, tenantId);
   },
 
   generateVerificationCode(): string {

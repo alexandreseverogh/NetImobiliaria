@@ -32,6 +32,9 @@ export async function GET(request: NextRequest) {
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck
 
+    const { getTenantContext } = await import('@/lib/auth/get-tenant-from-token')
+    const { tenantId, isMaster } = await getTenantContext(request)
+
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') || 'events' // 'events' ou 'stats'
     const limit = safeParseInt(searchParams.get('limit'), 100, 1, 1000)
@@ -42,14 +45,14 @@ export async function GET(request: NextRequest) {
 
     if (type === 'stats') {
       // Retornar estatísticas
-      const stats = await getSecurityStats(startDate, endDate)
+      const stats = await getSecurityStats(startDate, endDate, tenantId)
       return NextResponse.json({
         success: true,
         data: stats
       })
     } else {
       // Retornar eventos
-      const events = await getSecurityEvents(limit, startDate, endDate)
+      const events = await getSecurityEvents(limit, startDate, endDate, tenantId)
       return NextResponse.json({
         success: true,
         data: {
@@ -73,7 +76,8 @@ export async function GET(request: NextRequest) {
 async function getSecurityEvents(
   limit: number,
   startDate?: string | null,
-  endDate?: string | null
+  endDate?: string | null,
+  tenantId?: string | null
 ): Promise<SecurityEvent[]> {
   try {
     let query = `
@@ -108,6 +112,13 @@ async function getSecurityEvents(
       paramIndex++
     }
 
+    // Filtro de tenant
+    if (tenantId) {
+      query += ` AND tenant_id = $${paramIndex}`
+      params.push(tenantId)
+      paramIndex++
+    }
+
     query += ` ORDER BY timestamp DESC LIMIT $${paramIndex}`
     params.push(limit)
 
@@ -136,7 +147,8 @@ async function getSecurityEvents(
  */
 async function getSecurityStats(
   startDate?: string | null,
-  endDate?: string | null
+  endDate?: string | null,
+  tenantId?: string | null
 ) {
   try {
     let whereClause = 'WHERE 1=1'
@@ -152,6 +164,13 @@ async function getSecurityStats(
     if (endDate) {
       whereClause += ` AND timestamp < ($${paramIndex}::date + INTERVAL '1 day')`
       params.push(endDate)
+      paramIndex++
+    }
+
+    // Filtro de tenant
+    if (tenantId) {
+      whereClause += ` AND tenant_id = $${paramIndex}`
+      params.push(tenantId)
       paramIndex++
     }
 
