@@ -1,93 +1,86 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado por:** Claude (sessão de 2026-05-27)
-> **Propósito:** Garantir continuidade entre sessoes, contas e computadores.
-> Atualizar ANTES de iniciar cada tarefa e APOS concluir.
+> **Atualizado em:** 2026-05-28
+> **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
+> **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
-## Ultima tarefa concluida
+## Última tarefa concluída
 
-**FASES 0 a 3 do PLANO_ACAO_MESTRE** — Implementadas e em teste:
-- FASE 0: Fundacao Multi-Segment + Prompt Management
-- FASE 1: Multi-Network Foundation
-- FASE 2: Marketing Initiatives
-- FASE 3: Wasted Spend Quantification
+### Centralização LLM das Campanhas (2026-05-28)
 
-**Controle de permissoes CRUD** — Parcialmente implementado:
-- Componentes `CreateGuard`, `UpdateGuard`, `DeleteGuard` criados em `src/components/admin/PermissionGuard.tsx`
-- Hook `usePermissions` em `src/hooks/usePermissions.tsx`
-- **Clientes**: protegido (lista + editar)
-- **53 arquivos** ja usam os Guards
+Implementado um único modelo de IA global para todos os insights de campanhas da plataforma:
+
+- **`getLlmClientForCampaigns()`** em `src/lib/marketing/services/llmClient.ts`
+  - Lê `campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL`
+  - Fallback para `ANTHROPIC_API_KEY` do env se nenhuma config global existir
+- **3 pontos de chamada atualizados** para usar a função global:
+  - `src/lib/intelligence/llmInvoker.ts`
+  - `src/app/api/admin/campanhas/settings/llm/test/route.ts`
+  - `src/app/api/admin/master/ia-plataforma/test/route.ts`
+- **UI Master** criada em `src/app/admin/master/ia-plataforma/page.tsx`
+  - GET/PUT em `/api/admin/master/ia-plataforma`
+  - Teste de conexão em `/api/admin/master/ia-plataforma/test`
+- **Sidebar** — item "IA da Plataforma" ativo via `system_features` (`category_id=22`, `url=/admin/master/ia-plataforma`)
+- **SQL** — `database/migration-2026-05-llm-centralizacao.sql` (índice único + seed linha global)
+
+### ModulesListModal — Componente Reutilizável (2026-05-28)
+
+- Criado `src/components/admin/master/modules/ModulesListModal.tsx`
+  - Props: `isOpen`, `onClose`, `modules: ModuleItem[]`
+  - Read-only, exibe nome + slug + contagem de categorias
+- Usado em `src/app/admin/master/tenants/page.tsx`:
+  - Stat "Sistemas Ativos" dinamizado: `availableModules.length + " Módulos"` (era hardcoded "3 Motores")
+  - Botão "Visualizar Módulos" abre o modal
 
 ---
 
 ## Tarefa em andamento
 
-**Auditoria de permissoes CRUD em toda a aplicacao**
+**Testes das Fases 0–3 do módulo de campanhas**
 
-Objetivo: garantir que usuarios nao-admin com acesso de leitura a uma feature vejam a pagina em modo somente-visualizacao (sem botoes Criar/Editar/Excluir), e que paginas `/novo` e `/editar` redirecionem se o usuario nao tem a permissao correspondente.
+Configuração atual: provider `groq`, modelo `llama-3.3-70b-versatile` (gratuito) configurado em Master → IA da Plataforma.
 
-Status: auditoria ainda nao iniciada formalmente. Clientes ja esta protegido como referencia.
-
-CRUDs a auditar (lista dos diretorios em `src/app/admin/`):
-- [ ] amenidades
-- [ ] categorias
-- [ ] categorias-amenidades
-- [ ] categorias-proximidades
-- [ ] clientes (JA FEITO)
-- [ ] configuracoes/sidebar
-- [ ] dashboard
-- [ ] destacar-imovel
-- [ ] expurgo
-- [ ] finalidades
-- [ ] financiadores
-- [ ] gamificacao
-- [ ] hierarquia-perfis
-- [ ] imoveis
-- [ ] imoveis-corretor
-- [ ] logs
-- [ ] master (provisioning, tenants, segmentos)
-- [ ] mudanca-status
-- [ ] parametros
-- [ ] perfis
-- [ ] permissoes
-- [ ] proprietarios
-- [ ] proximidades
-- [ ] receitas-destaques
-- [ ] sessions
-- [ ] skills
-- [ ] status-imovel
-- [ ] system-features
-- [ ] tipos-documentos
-- [ ] tipos-imoveis
-- [ ] usuarios
-- [ ] valordestaque
-- [ ] visitas_plataformas
-- [ ] campanhas (modulo de trafego pago)
+Ainda não testados end-to-end:
+- [ ] `POST /api/admin/campanhas/briefings/generate` — Briefing estratégico (morning/closing/manual)
+- [ ] Agente Decisor — `enrichWithClaude()` via `llmInvoker.ts`
+- [ ] `POST /api/admin/campanhas/desperdicio/narrativa` — Análise de Desperdício de Verba
+- [ ] Templates de prompt configurados no sistema (`wasted_spend_explanation`, etc.)
 
 ---
 
-## Proximos passos
+## Próximos passos imediatos
 
-1. Concluir auditoria de permissoes CRUD em todos os modulos acima
-2. Testar com usuario nao-admin para validar
-3. Avancar para FASE 4 do PLANO_ACAO_MESTRE (Campaign State Machine)
-
----
-
-## Decisoes tomadas nesta sessao
-
-- Estrategia de continuidade: CHECKPOINT.md atualizado ANTES de cada tarefa
-- Commits pequenos e frequentes
-- Branch `feature/trafego-pago` sera criada apos este checkpoint para trabalho das FASES 4+
-- Trabalho transversal (permissoes CRUD) pode ir em `main` direto
+1. Testar os 4 pontos LLM acima com o modelo Groq configurado
+2. Validar que `invokeForContext()` em `llmInvoker.ts` usa corretamente a config global
+3. Avançar para **FASE 4** do `PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` (Campaign State Machine)
+4. Implementar **Seletor de Cliente** nas UIs — backend já filtra por `clientId` em todos os endpoints, mas as interfaces ainda não expõem o dropdown (ver seção TODO no CLAUDE.md)
 
 ---
 
-## Referencias
+## Decisões tomadas em 2026-05-28
+
+| Decisão | Racional |
+|---------|----------|
+| LLM global usa `Settings WHERE tenant_id IS NULL` | Sem nova tabela/coluna; aproveita estrutura existente |
+| Sidebar produção usa `system_features + system_categorias` | Função `get_sidebar_menu_for_user()` no banco é diferente do código — usa `system_features.url` como caminho de página |
+| `CHECKPOINT.md` referenciado via `@import` no `CLAUDE.md` | Leitura automática em qualquer modelo e qualquer máquina após `git pull` |
+| `ModulesListModal` como componente único em `src/components/admin/master/modules/` | Evitar replicação de código — reutilizável em outras páginas master |
+
+---
+
+## Pendências anteriores (ainda abertas)
+
+- **Auditoria de permissões CRUD** — `CreateGuard`/`UpdateGuard`/`DeleteGuard` criados, apenas `clientes` protegido. Os demais 30+ módulos ainda sem proteção (ver lista completa no CHECKPOINT anterior).
+- **Seletor de Cliente nas UIs** — ALTA PRIORIDADE. Backend pronto, frontend pendente.
+- **Sync Meta real** — validar `POST /insights/sync` com token de produção.
+- **Alerta de token Meta expirando** — campo `meta_token_expires_at` existe no tenant, falta notificação na UI.
+
+---
+
+## Referências
 
 - `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` — Plano completo das 11 fases
-- `docs/ACCESS_CONTROL.md` — Logica de controle de acesso e sidebar
-- `docs/ESTRATEGIA_BRANCHES_E_DEPLOY.md` — Estrategia de branches e deploy
-- `CLAUDE.md` — Documentacao tecnica principal
+- `docs/ACCESS_CONTROL.md` — Lógica de controle de acesso e sidebar
+- `CLAUDE.md` — Documentação técnica principal (arquitetura, APIs, infra)

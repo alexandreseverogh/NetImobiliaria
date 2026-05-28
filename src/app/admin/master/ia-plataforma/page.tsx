@@ -145,7 +145,12 @@ export default function IaPlataformaPage() {
           <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Provider</label>
           <select
             value={provider}
-            onChange={e => { setProvider(e.target.value); setModel('') }}
+            onChange={e => {
+              const newProvider = e.target.value
+              setProvider(newProvider)
+              const first = models.find(m => m.provider === newProvider)
+              setModel(first?.modelId || '')
+            }}
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           >
             {Object.entries(providers).map(([key, p]) => (

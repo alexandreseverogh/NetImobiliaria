@@ -178,7 +178,10 @@ export function SettingsPage() {
       await Promise.all([updateSettings(settings), updateWhatsAppConfig(whatsapp)]);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch { alert('Erro ao salvar configurações'); }
+    } catch (err: any) {
+      const detail = err?.response?.data?.error || err?.response?.data?.detail || err?.message || 'Erro desconhecido';
+      alert(`Erro ao salvar configurações:\n${detail}`);
+    }
     finally { setSaving(false); }
   }
 

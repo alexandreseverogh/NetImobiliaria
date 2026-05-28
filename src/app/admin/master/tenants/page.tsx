@@ -6,6 +6,7 @@ import { PlusIcon, BuildingOfficeIcon, GlobeAltIcon, Cog6ToothIcon, UsersIcon, C
 
 import Link from 'next/link'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
+import ModulesListModal from '@/components/admin/master/modules/ModulesListModal'
 
 interface Tenant {
   id: string
@@ -98,6 +99,7 @@ export default function MasterTenantsPage() {
   const [newTab, setNewTab] = useState<'geral' | 'modulos' | 'google_calendar'>('geral')
   const [availableModules, setAvailableModules] = useState<any[]>([])
   const [tenantModules, setTenantModules] = useState<string[]>([]) // Array de IDs de módulos ativos
+  const [showModulesModal, setShowModulesModal] = useState(false)
   const [tenantModulesLoaded, setTenantModulesLoaded] = useState(false)
   const [isModulesModified, setIsModulesModified] = useState(false)
 
@@ -349,7 +351,7 @@ export default function MasterTenantsPage() {
   const stats = [
     { name: 'Total de Empresas', value: tenants.length, icon: BuildingOfficeIcon, color: 'text-blue-600' },
     { name: 'Usuários Globais', value: globalUsers || tenants.reduce((acc, t) => acc + parseInt(t.total_users || '0'), 0), icon: UsersIcon, color: 'text-purple-600' },
-    { name: 'Sistemas Ativos', value: '3 Motores', icon: Squares2X2Icon, color: 'text-indigo-600' },
+    { name: 'Sistemas Ativos', value: `${availableModules.length || '—'} Módulos`, icon: Squares2X2Icon, color: 'text-indigo-600', onAction: () => setShowModulesModal(true), actionLabel: 'Visualizar Módulos' },
   ]
 
   if (loading) return <div className="p-8 text-center bg-gray-50 min-h-screen font-black text-gray-500 uppercase tracking-widest animate-pulse">Sincronizando Ecossistema...</div>
@@ -398,14 +400,22 @@ export default function MasterTenantsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          {stats.map((stat) => (
+          {stats.map((stat: any) => (
             <div key={stat.name} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center">
               <div className={`p-4 rounded-xl bg-gray-50 mr-5`}>
                 <stat.icon className={`h-8 w-8 ${stat.color}`} />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{stat.name}</p>
                 <p className="text-3xl font-black text-gray-900">{stat.value}</p>
+                {stat.onAction && (
+                  <button
+                    onClick={stat.onAction}
+                    className="mt-2 text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-800 transition-colors"
+                  >
+                    {stat.actionLabel}
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -1174,5 +1184,11 @@ export default function MasterTenantsPage() {
       )}
 
     </div>
+
+    <ModulesListModal
+      isOpen={showModulesModal}
+      onClose={() => setShowModulesModal(false)}
+      modules={availableModules}
+    />
   )
 }

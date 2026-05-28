@@ -4,6 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Documentação de referência
 
+@docs/CHECKPOINT.md — Estado atual do projeto: última tarefa, em andamento, próximos passos.
 @docs/ACCESS_CONTROL.md — Lógica completa de controle de acesso, provisionamento de features e sidebar dinâmica.
 
 ---
