@@ -165,6 +165,19 @@ export const getWhatsAppConfig = () =>
 export const updateWhatsAppConfig = (data: any) =>
   api.put('/settings/whatsapp', data).then(r => r.data);
 
+export interface ClientWithCreativesPath {
+  id: string;
+  name: string;
+  email: string | null;
+  creativesPath: string | null;
+}
+
+export const getClientCreativePaths = (): Promise<{ clients: ClientWithCreativesPath[] }> =>
+  api.get('/settings/client-creatives').then(r => r.data);
+
+export const updateClientCreativePath = (clientId: string, creativesPath: string) =>
+  api.put('/settings/client-creatives', { clientId, creativesPath }).then(r => r.data);
+
 export const searchInterests = (q: string) =>
   api.get('/meta/targeting/interests', { params: { q } }).then(r => r.data);
 

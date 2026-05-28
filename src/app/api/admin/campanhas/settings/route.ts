@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
     const settings = await getSettingsByTenant(payload.tenantId);
 
     return NextResponse.json({
+      isMaster:           !!payload.is_system_role,
       tenantId:           tenant.id,
       tenantName:         tenant.name,
       trafegoTier:        tenant.trafego_tier,
