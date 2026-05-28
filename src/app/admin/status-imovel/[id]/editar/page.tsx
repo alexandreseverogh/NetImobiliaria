@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface StatusImovelForm {
   nome: string
@@ -18,6 +19,13 @@ export default function EditarStatusImovelPage({ searchParams }: { searchParams:
   const router = useRouter()
   const params = useParams()
   const statusImovelId = params.id as string
+  const { hasPermission } = usePermissions()
+
+  useEffect(() => {
+    if (!hasPermission('status-imoveis', 'UPDATE')) {
+      router.push('/admin/status-imovel')
+    }
+  }, [hasPermission, router])
   const currentPage = searchParams.page || '1'
 
   const [formData, setFormData] = useState<StatusImovelForm>({

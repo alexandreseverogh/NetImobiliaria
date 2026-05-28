@@ -5,6 +5,7 @@ import { useApi } from '@/hooks/useApi'
 import { PlusIcon, BuildingOfficeIcon, GlobeAltIcon, Cog6ToothIcon, UsersIcon, CheckCircleIcon, PhotoIcon, Squares2X2Icon, PencilSquareIcon, IdentificationIcon, EyeIcon, EyeSlashIcon, CalendarDaysIcon } from '@heroicons/react/24/outline'
 
 import Link from 'next/link'
+import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 
 interface Tenant {
   id: string
@@ -368,29 +369,31 @@ export default function MasterTenantsPage() {
                 <Squares2X2Icon className="h-4 w-4 mr-2" />
                 Cadastro de Módulos
              </Link>
-             <button
-              onClick={() => {
-                setNewTenant({
-                  name: '', slug: '', segment_id: segments[0]?.id || '', logo: '', logo_mime_type: '',
-                  cnpj_cpf: '', logradouro: '', numero: '', bairro: '', cidade: '', estado: '', cep: '', telefone: '', email_contato: '',
-                  admin_nome: '', admin_username: '', admin_email: '', admin_password: '',
-                  selected_modules: [],
-                  ai_config: { groq_key: '', gemini_key: '', preferred_model: '' },
-                  primary_color: '#1A2B3C',
-                  secondary_color: '#F1F1F1',
-                  calendario: false,
-                  google_email: '',
-                  duracao_visita: 60
-                });
-                setUserFound(false);
-                setNewTab('geral');
-                setShowModal(true);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg active:scale-95"
-            >
-              <PlusIcon className="h-5 w-5" />
-              Nova Empresa
-            </button>
+             <CreateGuard resource="gestao-unidades">
+               <button
+                onClick={() => {
+                  setNewTenant({
+                    name: '', slug: '', segment_id: segments[0]?.id || '', logo: '', logo_mime_type: '',
+                    cnpj_cpf: '', logradouro: '', numero: '', bairro: '', cidade: '', estado: '', cep: '', telefone: '', email_contato: '',
+                    admin_nome: '', admin_username: '', admin_email: '', admin_password: '',
+                    selected_modules: [],
+                    ai_config: { groq_key: '', gemini_key: '', preferred_model: '' },
+                    primary_color: '#1A2B3C',
+                    secondary_color: '#F1F1F1',
+                    calendario: false,
+                    google_email: '',
+                    duracao_visita: 60
+                  });
+                  setUserFound(false);
+                  setNewTab('geral');
+                  setShowModal(true);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg active:scale-95"
+              >
+                <PlusIcon className="h-5 w-5" />
+                Nova Empresa
+              </button>
+             </CreateGuard>
           </div>
         </div>
 
@@ -511,19 +514,23 @@ export default function MasterTenantsPage() {
 
                     <td className="px-8 py-6 text-right">
                       <div className="flex gap-2 justify-end">
-                         <button
-                           onClick={() => openModules(tenant)}
-                           className="flex items-center justify-center px-4 py-3 bg-indigo-50 text-indigo-700 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-indigo-100 transition-all"
-                         >
-                           <Squares2X2Icon className="h-4 w-4 mr-2" />
-                           Associar Módulos
-                         </button>
-                         <button
-                           onClick={() => openEdit(tenant)}
-                           className="px-4 py-3 bg-gray-900 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-black transition-all"
-                         >
-                           <PencilSquareIcon className="h-4 w-4" />
-                         </button>
+                         <UpdateGuard resource="gestao-unidades">
+                           <button
+                             onClick={() => openModules(tenant)}
+                             className="flex items-center justify-center px-4 py-3 bg-indigo-50 text-indigo-700 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-indigo-100 transition-all"
+                           >
+                             <Squares2X2Icon className="h-4 w-4 mr-2" />
+                             Associar Módulos
+                           </button>
+                         </UpdateGuard>
+                         <UpdateGuard resource="gestao-unidades">
+                           <button
+                             onClick={() => openEdit(tenant)}
+                             className="px-4 py-3 bg-gray-900 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-black transition-all"
+                           >
+                             <PencilSquareIcon className="h-4 w-4" />
+                           </button>
+                         </UpdateGuard>
                       </div>
                       <Link href={`/admin/master/tenants/${tenant.id}`} className="text-[8px] text-gray-400 font-black uppercase tracking-widest mt-1 block">Detalhes Avançados</Link>
                     </td>

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { useRouter } from 'next/navigation'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface FinalidadeForm {
   nome: string
@@ -17,6 +18,13 @@ interface FinalidadeForm {
 export default function NovaFinalidadePage() {
   const { get, post, put, delete: del } = useAuthenticatedFetch()
   const router = useRouter()
+  const { hasPermission } = usePermissions()
+
+  useEffect(() => {
+    if (!hasPermission('finalidades-imoveis', 'CREATE')) {
+      router.push('/admin/finalidades')
+    }
+  }, [hasPermission, router])
   const [formData, setFormData] = useState<FinalidadeForm>({
     nome: '',
     descricao: '',

@@ -120,7 +120,7 @@ export default function PerfisPage() {
               </div>
             </div>
             
-            <PermissionGuard resource="usuarios" action="UPDATE">
+            <PermissionGuard resource="gestao-perfis" action="UPDATE">
               <button
                 onClick={handleCreatePerfil}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
@@ -163,7 +163,7 @@ export default function PerfisPage() {
                 Comece criando o primeiro perfil de usuário.
               </p>
               <div className="mt-6">
-                <PermissionGuard resource="usuarios" action="UPDATE">
+                <PermissionGuard resource="gestao-perfis" action="UPDATE">
                   <button
                     onClick={handleCreatePerfil}
                     className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -207,7 +207,7 @@ export default function PerfisPage() {
                     </div>
                     
                     <div className="flex items-center space-x-2">
-                      <PermissionGuard resource="usuarios" action="READ">
+                      <PermissionGuard resource="gestao-perfis" action="READ">
                         <button
                           onClick={() => handleManageUsers(perfil)}
                           className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
@@ -217,7 +217,7 @@ export default function PerfisPage() {
                         </button>
                       </PermissionGuard>
                       
-                      <PermissionGuard resource="usuarios" action="UPDATE">
+                      <PermissionGuard resource="gestao-perfis" action="UPDATE">
                         <button
                           onClick={() => handleEditPerfil(perfil)}
                           className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
@@ -227,7 +227,7 @@ export default function PerfisPage() {
                         </button>
                       </PermissionGuard>
                       
-                      <PermissionGuard resource="usuarios" action="DELETE">
+                      <PermissionGuard resource="gestao-perfis" action="DELETE">
                         <button
                           onClick={() => handleDeletePerfil(perfil)}
                           disabled={perfil.userCount > 0}

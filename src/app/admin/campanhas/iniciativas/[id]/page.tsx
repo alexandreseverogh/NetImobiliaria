@@ -7,6 +7,7 @@ import {
   ArrowLeftIcon, SparklesIcon, ArrowPathIcon, TrashIcon,
   ChevronRightIcon, CheckCircleIcon, PauseCircleIcon, PlayCircleIcon,
 } from '@heroicons/react/24/outline';
+import { UpdateGuard, DeleteGuard } from '@/components/admin/PermissionGuard';
 
 type Status = 'PLANNED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
 
@@ -221,28 +222,34 @@ export default function IniciativaDetailPage() {
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {nextStatus && (
-                <button onClick={() => handleStatusChange(nextStatus)} disabled={statusSaving}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 active:scale-95 disabled:opacity-40 transition-all">
-                  {statusSaving
-                    ? <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
-                    : nextStatus === 'ACTIVE'
-                      ? <PlayCircleIcon className="h-3.5 w-3.5" />
-                      : <PauseCircleIcon className="h-3.5 w-3.5" />}
-                  {STATUS_LABELS[nextStatus]}
+              <UpdateGuard resource="iniciativas-campanhas">
+                {nextStatus && (
+                  <button onClick={() => handleStatusChange(nextStatus)} disabled={statusSaving}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 active:scale-95 disabled:opacity-40 transition-all">
+                    {statusSaving
+                      ? <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                      : nextStatus === 'ACTIVE'
+                        ? <PlayCircleIcon className="h-3.5 w-3.5" />
+                        : <PauseCircleIcon className="h-3.5 w-3.5" />}
+                    {STATUS_LABELS[nextStatus]}
+                  </button>
+                )}
+              </UpdateGuard>
+              <UpdateGuard resource="iniciativas-campanhas">
+                {data.status !== 'COMPLETED' && data.status !== 'CANCELLED' && (
+                  <button onClick={() => handleStatusChange('COMPLETED')} disabled={statusSaving}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 active:scale-95 disabled:opacity-40 transition-all shadow-lg shadow-emerald-500/20">
+                    <CheckCircleIcon className="h-3.5 w-3.5" /> Concluir
+                  </button>
+                )}
+              </UpdateGuard>
+              <DeleteGuard resource="iniciativas-campanhas">
+                <button onClick={handleDelete} disabled={deleting}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-red-100 active:scale-95 disabled:opacity-40 transition-all border border-red-100">
+                  <TrashIcon className="h-3.5 w-3.5" />
+                  {deleting ? '...' : 'Excluir'}
                 </button>
-              )}
-              {data.status !== 'COMPLETED' && data.status !== 'CANCELLED' && (
-                <button onClick={() => handleStatusChange('COMPLETED')} disabled={statusSaving}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 active:scale-95 disabled:opacity-40 transition-all shadow-lg shadow-emerald-500/20">
-                  <CheckCircleIcon className="h-3.5 w-3.5" /> Concluir
-                </button>
-              )}
-              <button onClick={handleDelete} disabled={deleting}
-                className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-red-100 active:scale-95 disabled:opacity-40 transition-all border border-red-100">
-                <TrashIcon className="h-3.5 w-3.5" />
-                {deleting ? '...' : 'Excluir'}
-              </button>
+              </DeleteGuard>
             </div>
           </div>
 

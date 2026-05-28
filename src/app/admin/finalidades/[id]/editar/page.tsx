@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface FinalidadeForm {
   nome: string
@@ -20,6 +21,13 @@ export default function EditarFinalidadePage() {
   const router = useRouter()
   const params = useParams()
   const finalidadeId = params.id as string
+  const { hasPermission } = usePermissions()
+
+  useEffect(() => {
+    if (!hasPermission('finalidades-imoveis', 'UPDATE')) {
+      router.push('/admin/finalidades')
+    }
+  }, [hasPermission, router])
   
   const [formData, setFormData] = useState<FinalidadeForm>({
     nome: '',

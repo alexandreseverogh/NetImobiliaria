@@ -1,9 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface FormState {
   nome: string
@@ -17,6 +18,13 @@ interface FormState {
 export default function NovoFinanciadorPage() {
   const { post } = useAuthenticatedFetch()
   const router = useRouter()
+  const { hasPermission } = usePermissions()
+
+  useEffect(() => {
+    if (!hasPermission('instituicoes-financiadores-imoveis', 'CREATE')) {
+      router.push('/admin/financiadores')
+    }
+  }, [hasPermission, router])
 
   const [form, setForm] = useState<FormState>({
     nome: '',

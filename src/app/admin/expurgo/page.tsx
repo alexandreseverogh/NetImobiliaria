@@ -9,6 +9,7 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
+import { ExecuteGuard } from '@/components/admin/PermissionGuard';
 
 interface PurgeStats {
   total_logs: number;
@@ -325,14 +326,16 @@ export default function LogPurgePage() {
                     <span className="ml-2 text-sm text-gray-700">Confirmo que desejo remover {preview.would_be_deleted.toLocaleString()} logs</span>
                   </label>
                 </div>
-                <button
-                  onClick={executePurge}
-                  disabled={!confirmPurge || purging}
-                  className="mt-4 px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center space-x-2"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                  <span>{purging ? 'Executando...' : 'Executar Expurgo'}</span>
-                </button>
+                <ExecuteGuard resource="expurgo-historico-login-logout">
+                  <button
+                    onClick={executePurge}
+                    disabled={!confirmPurge || purging}
+                    className="mt-4 px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center space-x-2"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                    <span>{purging ? 'Executando...' : 'Executar Expurgo'}</span>
+                  </button>
+                </ExecuteGuard>
               </div>
             )}
           </div>

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface NovoStatusImovel {
   nome: string
@@ -17,6 +18,13 @@ interface NovoStatusImovel {
 export default function NovoStatusImovelPage() {
   const { post } = useAuthenticatedFetch()
   const router = useRouter()
+  const { hasPermission } = usePermissions()
+
+  useEffect(() => {
+    if (!hasPermission('status-imoveis', 'CREATE')) {
+      router.push('/admin/status-imovel')
+    }
+  }, [hasPermission, router])
   const [formData, setFormData] = useState<NovoStatusImovel>({
     nome: '',
     cor: '#3B82F6',

@@ -19,6 +19,7 @@ import { useApi } from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import CreatePerfilModal from '@/components/admin/CreatePerfilModal'
 import EditPerfilModal from '@/components/admin/EditPerfilModal'
+import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 
 interface Role {
   id: number
@@ -120,17 +121,19 @@ export default function HierarchyPage() {
             </p>
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowCreateModal(true)}
-            className="group flex items-center gap-3 bg-gray-900 text-white px-6 py-4 rounded-2xl font-bold shadow-xl shadow-gray-900/10 hover:shadow-gray-900/20 transition-all"
-          >
-            <div className="bg-white/10 p-2 rounded-xl group-hover:bg-white/20 transition-colors">
-              <PlusIcon className="w-5 h-5" />
-            </div>
-            Novo Perfil
-          </motion.button>
+          <CreateGuard resource="hierarquia-perfis">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowCreateModal(true)}
+              className="group flex items-center gap-3 bg-gray-900 text-white px-6 py-4 rounded-2xl font-bold shadow-xl shadow-gray-900/10 hover:shadow-gray-900/20 transition-all"
+            >
+              <div className="bg-white/10 p-2 rounded-xl group-hover:bg-white/20 transition-colors">
+                <PlusIcon className="w-5 h-5" />
+              </div>
+              Novo Perfil
+            </motion.button>
+          </CreateGuard>
         </div>
       </div>
 
@@ -267,28 +270,29 @@ export default function HierarchyPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => {
-                            setSelectedRole(role)
-                            setShowEditModal(true)
-                          }}
-                          className={`p-3 rounded-2xl transition-colors ${
-                            role.is_system_role ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-50 hover:bg-gray-100'
-                          }`}
-                          title="Configurações do Perfil"
-                        >
-                          <Cog6ToothIcon className="w-5 h-5" />
-                        </motion.button>
-                        
+                        <UpdateGuard resource="hierarquia-perfis">
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => {
+                              setSelectedRole(role)
+                              setShowEditModal(true)
+                            }}
+                            className={`p-3 rounded-2xl transition-colors ${
+                              role.is_system_role ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-50 hover:bg-gray-100'
+                            }`}
+                            title="Configurações do Perfil"
+                          >
+                            <Cog6ToothIcon className="w-5 h-5" />
+                          </motion.button>
+                        </UpdateGuard>
+
                         <motion.button
                           whileHover={{ scale: 1.1, x: 5 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => {
                             setSelectedRole(role)
                             setShowEditModal(true)
-                            // Nota: O modal de edição já abre na aba de permissões ou exibe o editor.
                           }}
                           className={`p-3 rounded-2xl transition-colors ${
                             role.is_system_role ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
@@ -341,12 +345,14 @@ export default function HierarchyPage() {
                   Comece criando a estrutura de cargos da sua empresa para definir os níveis de autoridade.
                 </p>
               </div>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20"
-              >
-                Criar Primeiro Perfil
-              </button>
+              <CreateGuard resource="hierarquia-perfis">
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20"
+                >
+                  Criar Primeiro Perfil
+                </button>
+              </CreateGuard>
             </div>
           )}
         </div>

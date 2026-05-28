@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface FormState {
   nome: string
@@ -19,6 +20,13 @@ export default function EditarFinanciadorPage() {
   const router = useRouter()
   const params = useParams()
   const id = params.id as string
+  const { hasPermission } = usePermissions()
+
+  useEffect(() => {
+    if (!hasPermission('instituicoes-financiadores-imoveis', 'UPDATE')) {
+      router.push('/admin/financiadores')
+    }
+  }, [hasPermission, router])
 
   const [form, setForm] = useState<FormState>({
     nome: '',

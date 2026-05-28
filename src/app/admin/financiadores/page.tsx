@@ -6,6 +6,7 @@ import { MagnifyingGlassIcon, PencilIcon, PlusIcon, TrashIcon } from '@heroicons
 import Pagination from '@/components/admin/Pagination'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { formatDateBrazil } from '@/lib/utils/dateUtils'
+import { CreateGuard, UpdateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
 
 interface Financiador {
   id: number
@@ -146,13 +147,15 @@ export default function FinanciadoresPage() {
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
-          <button
-            onClick={() => router.push('/admin/financiadores/novo')}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Novo Financiador
-          </button>
+          <CreateGuard resource="instituicoes-financiadores-imoveis">
+            <button
+              onClick={() => router.push('/admin/financiadores/novo')}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Novo Financiador
+            </button>
+          </CreateGuard>
         </div>
       </div>
 
@@ -238,16 +241,20 @@ export default function FinanciadoresPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => router.push(`/admin/financiadores/${it.id}/editar`)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Editar"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => handleDeleteClick(it)} className="text-red-600 hover:text-red-900" title="Excluir">
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
+                        <UpdateGuard resource="instituicoes-financiadores-imoveis">
+                          <button
+                            onClick={() => router.push(`/admin/financiadores/${it.id}/editar`)}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="Editar"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                        </UpdateGuard>
+                        <DeleteGuard resource="instituicoes-financiadores-imoveis">
+                          <button onClick={() => handleDeleteClick(it)} className="text-red-600 hover:text-red-900" title="Excluir">
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </DeleteGuard>
                       </div>
                     </td>
                   </tr>

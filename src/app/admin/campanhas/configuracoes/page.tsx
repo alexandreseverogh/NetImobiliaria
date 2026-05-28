@@ -18,6 +18,7 @@ import {
   XCircleIcon,
   WifiIcon,
 } from '@heroicons/react/24/outline';
+import { UpdateGuard } from '@/components/admin/PermissionGuard';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -296,10 +297,12 @@ export function SettingsPage() {
             />
 
             <div className="flex items-center gap-3 flex-wrap pt-1">
-              <button onClick={handleSaveLlm} disabled={llmSaving}
-                className="px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50">
-                {llmSaving ? 'Salvando...' : 'Salvar IA'}
-              </button>
+              <UpdateGuard resource="configuracoes-campanhas">
+                <button onClick={handleSaveLlm} disabled={llmSaving}
+                  className="px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50">
+                  {llmSaving ? 'Salvando...' : 'Salvar IA'}
+                </button>
+              </UpdateGuard>
               <button onClick={handleTestLlm} disabled={llmTesting}
                 className="px-5 py-2.5 bg-gray-100 text-gray-700 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50">
                 <span className="flex items-center gap-2">
@@ -382,10 +385,12 @@ export function SettingsPage() {
 
           {/* ── Save ─── */}
           <div className="flex items-center gap-4 pb-8">
-            <button onClick={handleSave} disabled={saving}
-              className="px-8 py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50">
-              {saving ? 'Salvando...' : 'Salvar Configurações'}
-            </button>
+            <UpdateGuard resource="configuracoes-campanhas">
+              <button onClick={handleSave} disabled={saving}
+                className="px-8 py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50">
+                {saving ? 'Salvando...' : 'Salvar Configurações'}
+              </button>
+            </UpdateGuard>
             {saved && (
               <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
                 <CheckCircleIcon className="h-4 w-4" /> Salvo com sucesso

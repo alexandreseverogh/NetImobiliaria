@@ -19,6 +19,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import Link from 'next/link'
+import { CreateGuard, UpdateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
 
 export default function ProductCockpitPage() {
   const { get, post } = useApi()
@@ -284,23 +285,27 @@ export default function ProductCockpitPage() {
               </div>
             </div>
             <div className="mt-6 flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button 
-                onClick={() => {
-                  setIsEditingTag(tag);
-                  setTagFormData({ ...tag });
-                  fetchDbSchema();
-                  setShowTagModal(true);
-                }}
-                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-              >
-                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-              </button>
-              <button 
-                onClick={() => handleDeleteTag(tag.id, tag.display_name)}
-                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-              >
-                <TrashIcon className="h-4 w-4" />
-              </button>
+              <UpdateGuard resource="master-cockpit">
+                <button
+                  onClick={() => {
+                    setIsEditingTag(tag);
+                    setTagFormData({ ...tag });
+                    fetchDbSchema();
+                    setShowTagModal(true);
+                  }}
+                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                >
+                  <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                </button>
+              </UpdateGuard>
+              <DeleteGuard resource="master-cockpit">
+                <button
+                  onClick={() => handleDeleteTag(tag.id, tag.display_name)}
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              </DeleteGuard>
             </div>
           </div>
         ))}
@@ -346,18 +351,20 @@ export default function ProductCockpitPage() {
            >
              Dicionário Semântico
            </button>
-           <button 
-             onClick={() => {
-               setIsEditingTag(null);
-               setTagFormData({ tag_key: '', display_name: '', source_type: 'USER_ROLE', source_table: '', id_column: 'id', label_column: 'nome', description: '' });
-               fetchDbSchema();
-               setShowTagModal(true);
-             }}
-             className="ml-auto text-[10px] font-black text-indigo-600 hover:text-indigo-700 flex items-center bg-indigo-50 px-4 py-2 rounded-xl transition-all"
-           >
-             <TagIcon className="h-4 w-4 mr-2" />
-             NOVA TAG SISTÊMICA
-           </button>
+           <CreateGuard resource="master-cockpit">
+             <button
+               onClick={() => {
+                 setIsEditingTag(null);
+                 setTagFormData({ tag_key: '', display_name: '', source_type: 'USER_ROLE', source_table: '', id_column: 'id', label_column: 'nome', description: '' });
+                 fetchDbSchema();
+                 setShowTagModal(true);
+               }}
+               className="ml-auto text-[10px] font-black text-indigo-600 hover:text-indigo-700 flex items-center bg-indigo-50 px-4 py-2 rounded-xl transition-all"
+             >
+               <TagIcon className="h-4 w-4 mr-2" />
+               NOVA TAG SISTÊMICA
+             </button>
+           </CreateGuard>
         </div>
       </div>
 

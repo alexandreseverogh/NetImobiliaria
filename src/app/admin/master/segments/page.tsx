@@ -12,6 +12,7 @@ import {
   XCircleIcon,
   CommandLineIcon
 } from '@heroicons/react/24/outline'
+import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 
 interface Segment {
   id: string
@@ -135,17 +136,19 @@ export default function MasterSegmentsPage() {
             </h1>
             <p className="text-gray-500 mt-2 font-medium">Defina os nichos, identidades visuais e temas da plataforma.</p>
           </div>
-          <button
-            onClick={() => {
-              setEditingSegment(null)
-              setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [] })
-              setShowModal(true)
-            }}
-            className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95"
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Criar Novo Nicho
-          </button>
+          <CreateGuard resource="master-segments">
+            <button
+              onClick={() => {
+                setEditingSegment(null)
+                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [] })
+                setShowModal(true)
+              }}
+              className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95"
+            >
+              <PlusIcon className="h-5 w-5 mr-2" />
+              Criar Novo Nicho
+            </button>
+          </CreateGuard>
         </div>
 
         {/* Stats Grid */}
@@ -228,13 +231,15 @@ export default function MasterSegmentsPage() {
                     </span>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <button 
-                      onClick={() => handleEdit(segment)}
-                      className="text-indigo-600 font-black hover:text-indigo-800 transition-colors inline-flex items-center"
-                    >
-                      <PencilSquareIcon className="h-4 w-4 mr-1" />
-                      Editar nicho
-                    </button>
+                    <UpdateGuard resource="master-segments">
+                      <button
+                        onClick={() => handleEdit(segment)}
+                        className="text-indigo-600 font-black hover:text-indigo-800 transition-colors inline-flex items-center"
+                      >
+                        <PencilSquareIcon className="h-4 w-4 mr-1" />
+                        Editar nicho
+                      </button>
+                    </UpdateGuard>
                   </td>
                 </tr>
               ))}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { SparklesIcon, CommandLineIcon, CpuChipIcon, ShareIcon } from '@heroicons/react/24/outline'
+import { ExecuteGuard } from '@/components/admin/PermissionGuard'
 
 export default function BrainstormingSkillPage() {
   const [config, setConfig] = useState<any>(null)
@@ -171,13 +172,15 @@ export default function BrainstormingSkillPage() {
              )}
            </div>
            
-           <button 
-            onClick={generateInsight}
-            disabled={isGenerating}
-            className="w-full py-5 bg-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-900/40 hover:bg-indigo-500 transition-all relative z-10 disabled:opacity-50"
-           >
-              {isGenerating ? 'Processando Automação...' : 'Regerar Brainstorming'}
-           </button>
+           <ExecuteGuard resource="brainstorming-sync">
+             <button
+              onClick={generateInsight}
+              disabled={isGenerating}
+              className="w-full py-5 bg-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-900/40 hover:bg-indigo-500 transition-all relative z-10 disabled:opacity-50"
+             >
+                {isGenerating ? 'Processando Automação...' : 'Regerar Brainstorming'}
+             </button>
+           </ExecuteGuard>
 
            <div className="absolute -bottom-20 -left-20 h-64 w-64 bg-indigo-500/10 rounded-full blur-[80px]"></div>
         </div>

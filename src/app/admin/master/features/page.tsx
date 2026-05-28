@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { 
-  PuzzlePieceIcon, 
-  PlusIcon, 
-  PencilSquareIcon, 
+import { CreateGuard, UpdateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
+import {
+  PuzzlePieceIcon,
+  PlusIcon,
+  PencilSquareIcon,
   TrashIcon,
   XCircleIcon,
   CircleStackIcon,
@@ -225,30 +226,32 @@ export default function MasterFeaturesPage() {
                 {modules.map(m => <option key={m.id} value={m.id}>{m.name.toUpperCase()}</option>)}
              </select>
 
-            <button
-              onClick={() => {
-                setEditingFeature(null)
-                setSelectedModuleInModal(modules[0]?.id || '')
-                setFormData({ 
-                   name: '', 
-                   slug: '', 
-                   description: '', 
-                   category_id: categories[0]?.id || 0, 
-                   is_active: true, 
-                   is_default_tenant_admin_feature: false, 
-                   sort_order: 0, 
-                   module_ids: [], 
-                   icon: '',
-                   url: '',
-                   semantic_mapping: []
-                })
-                setShowModal(true)
-              }}
-              className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-black shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95 uppercase text-[10px] tracking-widest ml-auto"
-            >
-              <PlusIcon className="h-4 w-4 mr-2" />
-              Nova Funcionalidade
-            </button>
+            <CreateGuard resource="funcionalidades-sistema">
+              <button
+                onClick={() => {
+                  setEditingFeature(null)
+                  setSelectedModuleInModal(modules[0]?.id || '')
+                  setFormData({
+                     name: '',
+                     slug: '',
+                     description: '',
+                     category_id: categories[0]?.id || 0,
+                     is_active: true,
+                     is_default_tenant_admin_feature: false,
+                     sort_order: 0,
+                     module_ids: [],
+                     icon: '',
+                     url: '',
+                     semantic_mapping: []
+                  })
+                  setShowModal(true)
+                }}
+                className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-black shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95 uppercase text-[10px] tracking-widest ml-auto"
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Nova Funcionalidade
+              </button>
+            </CreateGuard>
           </div>
         </div>
 
@@ -313,12 +316,16 @@ export default function MasterFeaturesPage() {
                     </td>
                     <td className="px-8 py-6 text-right pr-12">
                       <div className="flex justify-end space-x-2">
-                        <button onClick={() => openEdit(feat)} className="p-3 bg-gray-50 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all hover:scale-110" title="Editar Feature">
-                          <PencilSquareIcon className="h-5 w-5" />
-                        </button>
-                        <button onClick={() => handleDelete(feat.id)} className="p-3 bg-gray-50 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all hover:scale-110" title="Excluir Feature">
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
+                        <UpdateGuard resource="funcionalidades-sistema">
+                          <button onClick={() => openEdit(feat)} className="p-3 bg-gray-50 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all hover:scale-110" title="Editar Feature">
+                            <PencilSquareIcon className="h-5 w-5" />
+                          </button>
+                        </UpdateGuard>
+                        <DeleteGuard resource="funcionalidades-sistema">
+                          <button onClick={() => handleDelete(feat.id)} className="p-3 bg-gray-50 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all hover:scale-110" title="Excluir Feature">
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </DeleteGuard>
                       </div>
                     </td>
                   </tr>

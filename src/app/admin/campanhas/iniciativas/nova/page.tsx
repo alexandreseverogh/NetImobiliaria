@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface Campaign {
   id: string;
@@ -27,6 +28,13 @@ const labelCls = "block text-[10px] font-black text-gray-400 uppercase tracking-
 
 export default function NovaIniciativaPage() {
   const router = useRouter();
+  const { hasPermission } = usePermissions();
+
+  useEffect(() => {
+    if (!hasPermission('iniciativas-campanhas', 'CREATE')) {
+      router.push('/admin/campanhas/iniciativas');
+    }
+  }, [hasPermission, router]);
 
   const [step, setStep]   = useState(0);
   const [saving, setSaving] = useState(false);

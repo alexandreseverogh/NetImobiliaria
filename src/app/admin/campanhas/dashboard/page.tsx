@@ -12,6 +12,7 @@ import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart
 import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
 import { ArrowPathIcon, SparklesIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ExecuteGuard } from '@/components/admin/PermissionGuard';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899'];
 
@@ -154,11 +155,13 @@ export function DashboardPage() {
             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Dashboard</h1>
             <p className="text-gray-500 mt-1 text-sm font-medium">{periodLabel}</p>
           </div>
-          <button onClick={handleSync} disabled={syncing}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-indigo-500/20">
-            <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Sincronizando...' : 'Sync Meta'}
-          </button>
+          <ExecuteGuard resource="dashboard-campanhas">
+            <button onClick={handleSync} disabled={syncing}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-indigo-500/20">
+              <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Sincronizando...' : 'Sync Meta'}
+            </button>
+          </ExecuteGuard>
         </div>
 
         {/* Filters */}
@@ -331,12 +334,14 @@ export function DashboardPage() {
                     <ClockIcon className="h-3.5 w-3.5" />
                     {showBriefingHistory ? 'Ocultar' : 'Histórico'}
                   </button>
-                  <button onClick={handleGenerateBriefing} disabled={generatingBriefing}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-violet-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-violet-500/20">
-                    {generatingBriefing
-                      ? <><ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Gerando...</>
-                      : <><SparklesIcon className="h-3.5 w-3.5" /> Gerar Novo</>}
-                  </button>
+                  <ExecuteGuard resource="dashboard-campanhas">
+                    <button onClick={handleGenerateBriefing} disabled={generatingBriefing}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-violet-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-violet-500/20">
+                      {generatingBriefing
+                        ? <><ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Gerando...</>
+                        : <><SparklesIcon className="h-3.5 w-3.5" /> Gerar Novo</>}
+                    </button>
+                  </ExecuteGuard>
                 </div>
               </div>
 

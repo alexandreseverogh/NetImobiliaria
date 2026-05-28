@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/marketing-utils';
 import { PlusIcon, FlagIcon, ArrowRightIcon, CalendarIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
+import { CreateGuard } from '@/components/admin/PermissionGuard';
 
 type InitiativeStatus = 'PLANNED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
 
@@ -86,10 +87,12 @@ export default function IniciativasPage() {
             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Iniciativas de Marketing</h1>
             <p className="text-gray-500 mt-1 text-sm font-medium">Agrupe campanhas de diferentes redes sob um objetivo comum</p>
           </div>
-          <Link href="/admin/campanhas/iniciativas/nova"
-            className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20">
-            <PlusIcon className="h-4 w-4" /> Nova Iniciativa
-          </Link>
+          <CreateGuard resource="iniciativas-campanhas">
+            <Link href="/admin/campanhas/iniciativas/nova"
+              className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20">
+              <PlusIcon className="h-4 w-4" /> Nova Iniciativa
+            </Link>
+          </CreateGuard>
         </div>
 
         {/* Filters */}
@@ -122,10 +125,12 @@ export default function IniciativasPage() {
             </div>
             <p className="text-sm font-black text-gray-900 mb-1">Nenhuma iniciativa encontrada</p>
             <p className="text-xs text-gray-400 mb-6">Crie sua primeira iniciativa para agrupar campanhas estrategicamente</p>
-            <Link href="/admin/campanhas/iniciativas/nova"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">
-              <PlusIcon className="h-3.5 w-3.5" /> Criar primeira iniciativa
-            </Link>
+            <CreateGuard resource="iniciativas-campanhas">
+              <Link href="/admin/campanhas/iniciativas/nova"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">
+                <PlusIcon className="h-3.5 w-3.5" /> Criar primeira iniciativa
+              </Link>
+            </CreateGuard>
           </div>
         ) : (
           <div className="space-y-3">

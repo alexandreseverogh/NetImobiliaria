@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Imovel } from '@/lib/database/imoveis'
 import CriativosModal from './CriativosModal'
+import { UpdateGuard } from '@/components/admin/PermissionGuard'
 
 interface ImovelGridProps {
   imoveis: Imovel[]
@@ -252,15 +253,17 @@ function ImovelCard({ imovel, onOpenCriativos }: { imovel: Imovel; onOpenCriativ
           </Link>
 
           {/* Lápis - Edição */}
-          <Link
-            href={`/admin/imoveis/${imovel.id}/edicao`}
-            className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded transition-colors duration-200"
-            title="Editar imóvel"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </Link>
+          <UpdateGuard resource="imoveis">
+            <Link
+              href={`/admin/imoveis/${imovel.id}/edicao`}
+              className="bg-white/20 hover:bg-white/30 text-white p-1.5 rounded transition-colors duration-200"
+              title="Editar imóvel"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </Link>
+          </UpdateGuard>
 
           {/* Impressora - Imprimir Ficha */}
           <Link

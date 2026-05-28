@@ -10,6 +10,7 @@ import EstadoSelect from '@/components/shared/EstadoSelect'
 import { useApi } from '@/hooks/useApi'
 import ImovelGrid from '@/components/admin/ImovelGrid'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { CreateGuard } from '@/components/admin/PermissionGuard'
 
 export default function ImoveisPage() {
   '  '
@@ -327,12 +328,14 @@ export default function ImoveisPage() {
                 Fechar Janela
               </button>
             )}
-            <Link
-              href="/admin/imoveis/novo"
-              className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-all duration-200 font-semibold text-base shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-            >
-              Novo Imóvel
-            </Link>
+            <CreateGuard resource="imoveis">
+              <Link
+                href="/admin/imoveis/novo"
+                className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-all duration-200 font-semibold text-base shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+              >
+                Novo Imóvel
+              </Link>
+            </CreateGuard>
           </div>
         </div>
       </div>

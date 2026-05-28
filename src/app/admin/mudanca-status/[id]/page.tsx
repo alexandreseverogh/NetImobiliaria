@@ -19,6 +19,7 @@ import { Square, Car } from 'lucide-react'
 import useFichaCompleta from '@/hooks/useFichaCompleta'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import SafeImage from '@/components/common/SafeImage'
+import { UpdateGuard } from '@/components/admin/PermissionGuard'
 
 interface StatusImovel {
   id: number
@@ -318,23 +319,25 @@ export default function MudancaStatusImovel() {
 
             {/* Botão Confirmar */}
             <div className="flex justify-center">
-              <button
-                onClick={handleConfirmarStatus}
-                disabled={salvando || !statusSelecionado}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center"
-              >
-                {salvando ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircleIcon className="w-5 h-5 mr-2" />
-                    Confirmar Status
-                  </>
-                )}
-              </button>
+              <UpdateGuard resource="mudanca-status">
+                <button
+                  onClick={handleConfirmarStatus}
+                  disabled={salvando || !statusSelecionado}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center"
+                >
+                  {salvando ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircleIcon className="w-5 h-5 mr-2" />
+                      Confirmar Status
+                    </>
+                  )}
+                </button>
+              </UpdateGuard>
             </div>
           </div>
         </div>

@@ -15,6 +15,7 @@ import { Square, Car } from 'lucide-react'
 import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import SafeImage from '@/components/common/SafeImage'
+import { UpdateGuard } from '@/components/admin/PermissionGuard'
 
 export default function DestacarImovelPage() {
   const { get, put } = useAuthenticatedFetch()
@@ -498,13 +499,15 @@ export default function DestacarImovelPage() {
                 </div>
 
                 <div className="flex gap-4">
-                  <button
-                    onClick={handleConfirmarDestaque}
-                    disabled={salvando}
-                    className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 font-medium"
-                  >
-                    {salvando ? 'Salvando...' : 'Salvar Destaque'}
-                  </button>
+                  <UpdateGuard resource="destacar-imovel">
+                    <button
+                      onClick={handleConfirmarDestaque}
+                      disabled={salvando}
+                      className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 font-medium"
+                    >
+                      {salvando ? 'Salvando...' : 'Salvar Destaque'}
+                    </button>
+                  </UpdateGuard>
                 </div>
               </div>
 

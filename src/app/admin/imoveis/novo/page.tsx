@@ -12,11 +12,19 @@ import { TipoImovel } from '@/lib/database/tipos-imoveis'
 import { Finalidade } from '@/lib/database/finalidades'
 import { StatusImovel } from '@/lib/database/status-imovel'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { usePermissions } from '@/hooks/usePermissions'
 
 export default function NovoImovelPage() {
   const { fetch: authFetch, get, post, put, delete: del } = useAuthenticatedFetch()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { hasPermission } = usePermissions()
+
+  useEffect(() => {
+    if (!hasPermission('imoveis', 'CREATE')) {
+      router.push('/admin/imoveis')
+    }
+  }, [hasPermission, router])
   const [tiposImovel, setTiposImovel] = useState<TipoImovel[]>([])
   const [finalidadesImovel, setFinalidadesImovel] = useState<Finalidade[]>([])
   const [statusImovel, setStatusImovel] = useState<StatusImovel[]>([])

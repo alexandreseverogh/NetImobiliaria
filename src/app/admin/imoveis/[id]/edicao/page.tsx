@@ -10,12 +10,20 @@ import { Finalidade } from '@/lib/database/finalidades'
 import { StatusImovel } from '@/lib/database/status-imovel'
 import { useRascunho } from '@/hooks/useRascunho'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
+import { usePermissions } from '@/hooks/usePermissions'
 
 export default function EditarImovelPage() {
   const { get, post, put, delete: del } = useAuthenticatedFetch()
   const router = useRouter()
   const params = useParams()
   const imovelId = params.id as string
+  const { hasPermission } = usePermissions()
+
+  useEffect(() => {
+    if (!hasPermission('imoveis', 'UPDATE')) {
+      router.push('/admin/imoveis')
+    }
+  }, [hasPermission, router])
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

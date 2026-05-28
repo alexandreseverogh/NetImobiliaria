@@ -13,6 +13,7 @@ import {
   MagnifyingGlassIcon,
   RocketLaunchIcon
 } from '@heroicons/react/24/outline'
+import { CreateGuard } from '@/components/admin/PermissionGuard'
 
 interface MegaSkill {
   id: string
@@ -316,13 +317,15 @@ export default function SkillsMarketplace() {
                       Skill já ativa no Hub Master
                     </button>
                   ) : (
-                    <button 
-                      onClick={() => handleImport(selectedSkill)}
-                      disabled={isImporting}
-                      className="w-full bg-white text-black py-5 rounded-2xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all disabled:bg-gray-400"
-                    >
-                      {isImporting ? 'Sincronizando...' : 'Importar Skill'}
-                    </button>
+                    <CreateGuard resource="revenue-intelligence-elite">
+                      <button
+                        onClick={() => handleImport(selectedSkill)}
+                        disabled={isImporting}
+                        className="w-full bg-white text-black py-5 rounded-2xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all disabled:bg-gray-400"
+                      >
+                        {isImporting ? 'Sincronizando...' : 'Importar Skill'}
+                      </button>
+                    </CreateGuard>
                   )}
                 </div>
               </div>

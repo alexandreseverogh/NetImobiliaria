@@ -12,6 +12,7 @@ import {
   CheckCircleIcon,
   EyeIcon
 } from '@heroicons/react/24/outline'
+import { CreateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
 
 export default function FieldBuilderPage() {
   const { get, post } = useApi()
@@ -121,12 +122,14 @@ export default function FieldBuilderPage() {
               <option value="geral">Segmento: Geral</option>
             </select>
             
-            <button 
-              onClick={() => setShowModal(true)}
-              className="px-8 py-3 bg-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" /> Novo Campo
-            </button>
+            <CreateGuard resource="field-builder">
+              <button
+                onClick={() => setShowModal(true)}
+                className="px-8 py-3 bg-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center"
+              >
+                <PlusIcon className="h-5 w-5 mr-2" /> Novo Campo
+              </button>
+            </CreateGuard>
           </div>
         </header>
 
@@ -158,9 +161,11 @@ export default function FieldBuilderPage() {
                       }`}>
                         {field.field_type}
                       </div>
-                      <button className="text-slate-300 hover:text-red-500 transition-colors">
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
+                      <DeleteGuard resource="field-builder">
+                        <button className="text-slate-300 hover:text-red-500 transition-colors">
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </DeleteGuard>
                     </div>
                     <h4 className="font-black text-slate-900 text-lg mb-1">{field.label}</h4>
                     <p className="text-xs font-mono text-slate-400 font-bold mb-4">{field.field_name}</p>

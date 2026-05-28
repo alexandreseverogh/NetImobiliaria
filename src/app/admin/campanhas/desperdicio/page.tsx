@@ -4,6 +4,7 @@ import { formatCurrency } from '@/lib/marketing-utils';
 import {
   ExclamationTriangleIcon, SparklesIcon, ChevronDownIcon, ChevronUpIcon, ArrowPathIcon,
 } from '@heroicons/react/24/outline';
+import { ExecuteGuard } from '@/components/admin/PermissionGuard';
 
 interface WastedCampaign {
   id: string; name: string; wasted: number; details: string;
@@ -255,12 +256,14 @@ export default function DesperdicioPage() {
                   </div>
                   <h2 className="text-sm font-black text-gray-900">Análise Executiva com IA</h2>
                 </div>
-                <button onClick={handleGenerateNarrativa} disabled={genNarr}
-                  className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-violet-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-violet-500/20">
-                  {genNarr
-                    ? <><ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Gerando...</>
-                    : <><SparklesIcon className="h-3.5 w-3.5" /> Gerar com IA</>}
-                </button>
+                <ExecuteGuard resource="desperdicio-campanhas">
+                  <button onClick={handleGenerateNarrativa} disabled={genNarr}
+                    className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-violet-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-violet-500/20">
+                    {genNarr
+                      ? <><ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Gerando...</>
+                      : <><SparklesIcon className="h-3.5 w-3.5" /> Gerar com IA</>}
+                  </button>
+                </ExecuteGuard>
               </div>
               {narrativa ? (
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">

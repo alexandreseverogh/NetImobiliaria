@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { PlusIcon, MagnifyingGlassIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline'
 import Pagination from '@/components/admin/Pagination'
 import { formatDateBrazil } from '@/lib/utils/dateUtils'
+import { CreateGuard, UpdateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
 
 interface Finalidade {
   id: number
@@ -191,13 +192,15 @@ export default function FinalidadesPage() {
             </p>
           </div>
           <div className="mt-4 sm:mt-0">
-            <button
-              onClick={() => router.push('/admin/finalidades-imoveis/novo')}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <PlusIcon className="h-4 w-4 mr-2" />
-              Nova Finalidade
-            </button>
+            <CreateGuard resource="finalidades-imoveis">
+              <button
+                onClick={() => router.push('/admin/finalidades-imoveis/novo')}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Nova Finalidade
+              </button>
+            </CreateGuard>
           </div>
         </div>
 
@@ -320,34 +323,46 @@ export default function FinalidadesPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleToggleStatus(finalidade)}
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          finalidade.ativo
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {finalidade.ativo ? 'Ativo' : 'Inativo'}
-                      </button>
+                      <UpdateGuard resource="finalidades-imoveis" fallback={
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          finalidade.ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {finalidade.ativo ? 'Ativo' : 'Inativo'}
+                        </span>
+                      }>
+                        <button
+                          onClick={() => handleToggleStatus(finalidade)}
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            finalidade.ativo
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {finalidade.ativo ? 'Ativo' : 'Inativo'}
+                        </button>
+                      </UpdateGuard>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDateBrazil(finalidade.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => router.push(`/admin/finalidades-imoveis/${finalidade.id}/editar`)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(finalidade)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
+                        <UpdateGuard resource="finalidades-imoveis">
+                          <button
+                            onClick={() => router.push(`/admin/finalidades-imoveis/${finalidade.id}/editar`)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                        </UpdateGuard>
+                        <DeleteGuard resource="finalidades-imoveis">
+                          <button
+                            onClick={() => handleDeleteClick(finalidade)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </DeleteGuard>
                       </div>
                     </td>
                   </tr>

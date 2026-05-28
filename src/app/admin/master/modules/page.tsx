@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { CreateGuard, UpdateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
 import {
   CubeIcon,
   PlusIcon,
@@ -284,17 +285,19 @@ export default function MasterModulesPage() {
             </h1>
             <p className="text-gray-500 mt-2 font-medium uppercase text-[10px] tracking-[0.2em]">Definição de Portfólio de Produtos e Arquitetura Modular</p>
           </div>
-          <button
-            onClick={() => {
-              setEditingModule(null)
-              setFormData({ name: '', slug: '', description: '', icon: 'cube', is_active: true })
-              setShowModal(true)
-            }}
-            className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-black shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95 uppercase text-[10px] tracking-widest"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Novo Motor
-          </button>
+          <CreateGuard resource="master-modules">
+            <button
+              onClick={() => {
+                setEditingModule(null)
+                setFormData({ name: '', slug: '', description: '', icon: 'cube', is_active: true })
+                setShowModal(true)
+              }}
+              className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-black shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95 uppercase text-[10px] tracking-widest"
+            >
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Novo Motor
+            </button>
+          </CreateGuard>
           <button
             onClick={() => setShowAuditModal(true)}
             className="flex items-center px-6 py-3 bg-gray-900 text-white rounded-xl font-black shadow-lg hover:bg-gray-800 transition-all hover:scale-105 active:scale-95 uppercase text-[10px] tracking-widest ml-4"
@@ -312,12 +315,16 @@ export default function MasterModulesPage() {
                   <CubeIcon className="h-8 w-8 text-indigo-600 group-hover:text-white" />
                 </div>
                 <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => openEdit(mod)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                    <PencilSquareIcon className="h-5 w-5" />
-                  </button>
-                  <button onClick={() => handleDelete(mod.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                    <TrashIcon className="h-5 w-5" />
-                  </button>
+                  <UpdateGuard resource="master-modules">
+                    <button onClick={() => openEdit(mod)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                      <PencilSquareIcon className="h-5 w-5" />
+                    </button>
+                  </UpdateGuard>
+                  <DeleteGuard resource="master-modules">
+                    <button onClick={() => handleDelete(mod.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
+                  </DeleteGuard>
                 </div>
               </div>
 

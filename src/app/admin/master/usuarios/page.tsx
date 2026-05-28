@@ -11,6 +11,7 @@ import {
   XCircleIcon,
   ChevronRightIcon
 } from '@heroicons/react/24/outline'
+import { UpdateGuard } from '@/components/admin/PermissionGuard'
 
 interface MasterUser {
   id: string
@@ -204,16 +205,18 @@ export default function RaioXUsuariosPage() {
                         <p className="text-xs text-blue-600 font-bold mt-2">Perfil: {m.role_name}</p>
                       </div>
                       <div className="text-right">
-                        <button 
-                          onClick={() => toggleMembership(m)}
-                          className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${
-                            m.access_active 
-                            ? 'bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700' 
-                            : 'bg-red-100 text-red-700 hover:bg-green-100 hover:text-green-700'
-                          }`}
-                        >
-                          {m.access_active ? '✓ Liberado' : '✕ Suspenso'}
-                        </button>
+                        <UpdateGuard resource="master-user-audit">
+                          <button
+                            onClick={() => toggleMembership(m)}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${
+                              m.access_active
+                              ? 'bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700'
+                              : 'bg-red-100 text-red-700 hover:bg-green-100 hover:text-green-700'
+                            }`}
+                          >
+                            {m.access_active ? '✓ Liberado' : '✕ Suspenso'}
+                          </button>
+                        </UpdateGuard>
                       </div>
                     </div>
                   </div>

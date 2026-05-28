@@ -5,6 +5,7 @@ import { getCreatives, type Creative } from '@/lib/marketing-api';
 import { cn } from '@/lib/marketing-utils';
 import dynamic from 'next/dynamic';
 import { MagnifyingGlassIcon, PhotoIcon, RocketLaunchIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { CreateGuard } from '@/components/admin/PermissionGuard';
 
 const CampaignWizard = dynamic(
   () => import('@/components/marketing/CampaignWizard').then(mod => mod.CampaignWizard),
@@ -100,10 +101,12 @@ export function CreativesPage() {
                   className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 active:scale-95 transition-all">
                   <XMarkIcon className="h-3.5 w-3.5" /> Limpar
                 </button>
-                <button onClick={() => setShowWizard(true)}
-                  className="flex items-center gap-1.5 px-5 py-2 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20">
-                  <RocketLaunchIcon className="h-3.5 w-3.5" /> Lançar Campanha
-                </button>
+                <CreateGuard resource="importacao-criativos">
+                  <button onClick={() => setShowWizard(true)}
+                    className="flex items-center gap-1.5 px-5 py-2 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20">
+                    <RocketLaunchIcon className="h-3.5 w-3.5" /> Lançar Campanha
+                  </button>
+                </CreateGuard>
               </div>
             </motion.div>
           )}

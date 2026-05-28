@@ -12,7 +12,7 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline'
 import { useApi } from '@/hooks/useApi'
-import PermissionGuard from '@/components/admin/PermissionGuard'
+import PermissionGuard, { CreateGuard, UpdateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
 import CategoryModal from '@/components/admin/categorias/CategoryModal'
 import DeleteCategoryModal from '@/components/admin/categorias/DeleteCategoryModal'
 import CategoryFeaturesModal from '@/components/admin/categorias/CategoryFeaturesModal'
@@ -137,13 +137,15 @@ export default function CategoriesPage() {
                 Crie e gerencie categorias para organizar funcionalidades do sistema
               </p>
             </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Nova Categoria
-            </button>
+            <CreateGuard resource="categorias-funcionalidades">
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Nova Categoria
+              </button>
+            </CreateGuard>
           </div>
         </div>
 
@@ -193,20 +195,24 @@ export default function CategoriesPage() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => handleEditClick(category)}
-                      className="p-2 text-gray-400 hover:text-blue-600"
-                      title="Editar categoria"
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClick(category)}
-                      className="p-2 text-gray-400 hover:text-red-600"
-                      title="Excluir categoria"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
+                    <UpdateGuard resource="categorias-funcionalidades">
+                      <button
+                        onClick={() => handleEditClick(category)}
+                        className="p-2 text-gray-400 hover:text-blue-600"
+                        title="Editar categoria"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                    </UpdateGuard>
+                    <DeleteGuard resource="categorias-funcionalidades">
+                      <button
+                        onClick={() => handleDeleteClick(category)}
+                        className="p-2 text-gray-400 hover:text-red-600"
+                        title="Excluir categoria"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </DeleteGuard>
                   </div>
                 </div>
                 
@@ -268,7 +274,7 @@ export default function CategoriesPage() {
               Comece criando uma nova categoria para organizar as funcionalidades.
             </p>
             <div className="mt-6">
-              <PermissionGuard resource="system_categorias" action="CREATE">
+              <CreateGuard resource="categorias-funcionalidades">
                 <button
                   onClick={() => setShowCreateModal(true)}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
@@ -276,7 +282,7 @@ export default function CategoriesPage() {
                   <PlusIcon className="h-5 w-5 mr-2" />
                   Nova Categoria
                 </button>
-              </PermissionGuard>
+              </CreateGuard>
             </div>
           </div>
         )}

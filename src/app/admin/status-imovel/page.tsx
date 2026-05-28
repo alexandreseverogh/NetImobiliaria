@@ -5,6 +5,7 @@ import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { PlusIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { CreateGuard, UpdateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
 
 interface StatusImovel {
   id: number
@@ -133,13 +134,15 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
             </p>
           </div>
           <div className="mt-4 sm:mt-0">
-            <Link
-              href="/admin/status-imoveis/novo"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-            >
-              <PlusIcon className="h-4 w-4 mr-2" />
-              Novo Status
-            </Link>
+            <CreateGuard resource="status-imoveis">
+              <Link
+                href="/admin/status-imoveis/novo"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Novo Status
+              </Link>
+            </CreateGuard>
           </div>
         </div>
       </div>
@@ -251,18 +254,22 @@ export default function StatusImovelPage({ searchParams }: { searchParams: { pag
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleEdit(status.id)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(status.id, status.nome)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
+                          <UpdateGuard resource="status-imoveis">
+                            <button
+                              onClick={() => handleEdit(status.id)}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                            </button>
+                          </UpdateGuard>
+                          <DeleteGuard resource="status-imoveis">
+                            <button
+                              onClick={() => handleDelete(status.id, status.nome)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                          </DeleteGuard>
                         </div>
                       </td>
                     </tr>
