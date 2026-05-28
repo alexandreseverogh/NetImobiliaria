@@ -178,14 +178,6 @@ export const getClientCreativePaths = (): Promise<{ clients: ClientWithCreatives
 export const updateClientCreativePath = (clientId: string, creativesPath: string) =>
   api.put('/settings/client-creatives', { clientId, creativesPath }).then(r => r.data);
 
-export interface PathValidationResult {
-  exists: boolean;
-  isDirectory: boolean;
-  reason?: string;
-}
-
-export const validateCreativesPath = (path: string): Promise<PathValidationResult> =>
-  api.post('/settings/validate-path', { path }).then(r => r.data);
 
 export const searchInterests = (q: string) =>
   api.get('/meta/targeting/interests', { params: { q } }).then(r => r.data);
