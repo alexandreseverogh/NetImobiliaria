@@ -201,6 +201,9 @@ backup*.sql
 *.rar
 *.zip
 
+# Exceção: snapshots de banco versionados intencionalmente
+!database/snapshots/*.sql.gz
+
 # Large media files (não versionar no repo de código)
 *.mp4
 *.webm
