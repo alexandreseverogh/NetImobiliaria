@@ -1,12 +1,12 @@
 "use client";
 import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   getSettings, updateSettings,
   getWhatsAppConfig, updateWhatsAppConfig,
   getLlmSettings, updateLlmSettings, testLlmConnection, testWhatsAppBriefing,
   getLlmModels,
-  getClientCreativePaths, updateClientCreativePath,
+  getClientCreativePaths, updateClientCreativePath, validateCreativesPath,
   type LlmModelOption, type LlmModelsResponse, type ClientWithCreativesPath,
 } from '@/lib/marketing-api';
 import {
@@ -22,6 +22,7 @@ import {
   MagnifyingGlassIcon,
   UserCircleIcon,
   XMarkIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { UpdateGuard } from '@/components/admin/PermissionGuard';
 
@@ -404,6 +405,8 @@ function MasterSettingsView() {
 
 // ─── View Tenant — apenas Pasta de Criativos por cliente ─────────────────────
 
+type PathStatus = 'idle' | 'checking' | 'ok' | 'not_found' | 'not_dir';
+
 function TenantSettingsView() {
   const [clients, setClients]               = useState<ClientWithCreativesPath[]>([]);
   const [loading, setLoading]               = useState(true);
@@ -413,13 +416,32 @@ function TenantSettingsView() {
   const [saving, setSaving]                 = useState(false);
   const [saved, setSaved]                   = useState(false);
   const [saveError, setSaveError]           = useState('');
-  const searchRef = useRef<HTMLInputElement>(null);
+  const [pathStatus, setPathStatus]         = useState<PathStatus>('idle');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchRef   = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getClientCreativePaths()
       .then(data => setClients(data.clients || []))
       .catch(() => setClients([]))
       .finally(() => setLoading(false));
+  }, []);
+
+  // Validação com debounce de 600ms
+  const triggerValidation = useCallback((path: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!path.trim()) { setPathStatus('idle'); return; }
+    setPathStatus('checking');
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const result = await validateCreativesPath(path);
+        if (!result.exists)       setPathStatus('not_found');
+        else if (!result.isDirectory) setPathStatus('not_dir');
+        else                      setPathStatus('ok');
+      } catch {
+        setPathStatus('idle');
+      }
+    }, 600);
   }, []);
 
   // Filtra a partir de 3 caracteres; sem filtro mostra todos
@@ -432,9 +454,12 @@ function TenantSettingsView() {
 
   function handleSelect(client: ClientWithCreativesPath) {
     setSelectedClient(client);
-    setEditingPath(client.creativesPath || '');
+    const path = client.creativesPath || '';
+    setEditingPath(path);
     setSaved(false);
     setSaveError('');
+    setPathStatus('idle');
+    if (path) triggerValidation(path);
   }
 
   function handleClearSearch() {
@@ -599,24 +624,67 @@ function TenantSettingsView() {
                     <FolderOpenIcon className="h-3.5 w-3.5" />
                     Pasta de Criativos
                   </label>
+
+                  {/* Input com borda colorida por status de validação */}
                   <input
                     type="text"
                     value={editingPath}
-                    onChange={e => { setEditingPath(e.target.value); setSaved(false); setSaveError(''); }}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setEditingPath(v);
+                      setSaved(false);
+                      setSaveError('');
+                      triggerValidation(v);
+                    }}
                     placeholder="C:\Criativos\NomeDoCliente"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    className={`w-full bg-gray-50 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all border ${
+                      pathStatus === 'ok'        ? 'border-emerald-400 focus:ring-emerald-500' :
+                      pathStatus === 'not_found' ? 'border-red-400    focus:ring-red-500'     :
+                      pathStatus === 'not_dir'   ? 'border-amber-400  focus:ring-amber-500'   :
+                      'border-gray-200 focus:ring-indigo-500'
+                    }`}
                   />
-                  <p className="text-[10px] text-gray-400 mt-1.5">
-                    Caminho local ou de rede onde os criativos deste cliente são armazenados
-                  </p>
+
+                  {/* Feedback de validação */}
+                  <div className="mt-1.5 h-4">
+                    {pathStatus === 'checking' && (
+                      <span className="flex items-center gap-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                        <span className="inline-block h-3 w-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                        Verificando caminho...
+                      </span>
+                    )}
+                    {pathStatus === 'ok' && (
+                      <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                        <CheckCircleIcon className="h-3.5 w-3.5" />
+                        Pasta encontrada
+                      </span>
+                    )}
+                    {pathStatus === 'not_found' && (
+                      <span className="flex items-center gap-1.5 text-[10px] font-black text-red-500 uppercase tracking-widest">
+                        <XCircleIcon className="h-3.5 w-3.5" />
+                        Pasta não encontrada no servidor
+                      </span>
+                    )}
+                    {pathStatus === 'not_dir' && (
+                      <span className="flex items-center gap-1.5 text-[10px] font-black text-amber-600 uppercase tracking-widest">
+                        <ExclamationTriangleIcon className="h-3.5 w-3.5" />
+                        O caminho existe mas não é uma pasta
+                      </span>
+                    )}
+                    {pathStatus === 'idle' && (
+                      <p className="text-[10px] text-gray-400">
+                        Caminho local ou UNC (\\servidor\share) acessível pelo servidor
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
                   <UpdateGuard resource="configuracoes-campanhas">
                     <button
                       onClick={handleSave}
-                      disabled={saving}
-                      className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                      disabled={saving || pathStatus === 'not_found' || pathStatus === 'not_dir'}
+                      className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {saving ? 'Salvando...' : 'Salvar'}
                     </button>
