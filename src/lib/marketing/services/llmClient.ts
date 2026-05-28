@@ -95,6 +95,46 @@ async function makeOpenAICompatibleClient(
 }
 
 /**
+ * Retorna um LlmClient usando a configuração GLOBAL da plataforma (tenant_id IS NULL).
+ * Usado por todos os motores LLM de campanhas.
+ * Fallback: ANTHROPIC_API_KEY do .env.
+ */
+export async function getLlmClientForCampaigns(): Promise<LlmClient> {
+  let provider = 'anthropic';
+  let model    = 'claude-sonnet-4-6';
+  let apiKey   = process.env.ANTHROPIC_API_KEY || '';
+
+  try {
+    const res = await getPool().query(
+      `SELECT "llmProvider", "llmModel", "llmApiKey"
+       FROM campanhasmarketingdigital."Settings"
+       WHERE tenant_id IS NULL LIMIT 1`
+    );
+    const cfg = res.rows[0];
+    if (cfg?.llmProvider) provider = cfg.llmProvider;
+    if (cfg?.llmModel)    model    = cfg.llmModel;
+    if (cfg?.llmApiKey)   apiKey   = cfg.llmApiKey;
+  } catch {
+    // fallback to env
+  }
+
+  if (!apiKey) {
+    throw new Error('Nenhuma API Key configurada para campanhas. Configure em Master → IA da Plataforma.');
+  }
+
+  if (provider === 'anthropic') {
+    return makeAnthropicClient(apiKey, model);
+  }
+
+  const baseURL = await getModelBaseUrl(provider, model);
+  if (!baseURL) {
+    throw new Error(`Provider "${provider}" ou modelo "${model}" não encontrado na tabela LlmModel.`);
+  }
+
+  return makeOpenAICompatibleClient(apiKey, model, baseURL, provider);
+}
+
+/**
  * Retorna um LlmClient configurado para o tenant.
  * Fallback: ANTHROPIC_API_KEY do .env se tenant não tiver configuração.
  */

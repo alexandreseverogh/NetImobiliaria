@@ -8,6 +8,16 @@
 > servem como apêndices de aprofundamento.
 >
 > **Nada será alterado no código ou banco até autorização explícita por fase.**
+>
+> **▶ REVISÃO 2026-05-28 — Centralização do LLM de Campanhas.** Decisão de produto
+> que altera quem escolhe/paga o modelo de IA dos insights do módulo de Campanhas:
+> deixa de ser self-service (e pago) por tenant e passa a ser **um modelo ÚNICO e global
+> da plataforma** (um provider, um modelo, uma chave) para todos os tenants, guardado
+> numa linha global da tabela `Settings` (`tenant_id IS NULL`). **Sem tabela nova, sem
+> coluna nova e sem campo no CRUD de Tenants** (a ideia inicial de `tenants.llm_trafego_pago`
+> foi cancelada). Ver
+> [seção 1.5](#15-decisão-arquitetural-rev-2026-05-28--centralização-do-modelo-llm-de-campanhas).
+> Impacta retroativamente as FASES 0–3 (e qualquer fase futura que invoque LLM).
 
 ---
 
@@ -58,6 +68,8 @@ Uma **Autonomous Paid Media Operating System** — plataforma SaaS que:
    ├── ▶ LISTAS DE SEGMENTOS sempre vêm de public.system_segments
    ├── ▶ LISTAS DE REDES sempre vêm de public.ad_networks (FASE 1+)
    └── ▶ LISTAS DE PROVIDERS LLM sempre vêm de campanhasmarketingdigital."LlmModel"
+       (rev. 2026-05-28: para CAMPANHAS o modelo é ÚNICO e global da plataforma —
+        linha global da Settings (tenant_id IS NULL); não há seleção por tenant — ver 1.5)
 
    REGRA UNIVERSAL: TODO selector/dropdown/radio que liste recursos
    do domínio (segmentos, redes, providers, métricas, etc.) DEVE ser
@@ -151,7 +163,10 @@ SELECTORS DE REDE [FASE 1+]
   └── Comparativo entre redes
 
 SELECTORS DE PROVIDER LLM
-  ├── Configuração LLM do tenant (já data-driven via LlmModel — manter)
+  ├── (rev. 2026-05-28) Modelo de campanhas: ÚNICO e global da plataforma
+  │   (linha global da Settings, tenant_id IS NULL) — definido 1x pelo Master, sem por-tenant
+  ├── Self-service do tenant em /campanhas/configuracoes: mantido na UI porém IGNORADO
+  └── ai_config do tenant (groq/gemini/preferred_model): inalterado (outros módulos)
 
 SELECTORS DE MÉTRICAS
   ├── Editor de Benchmark (qual métrica está sendo configurada)
@@ -216,6 +231,203 @@ Tenant: "Agência Digital ABC"
           ├── Campaign Meta    | budget R$10k
           └── Campaign Google  | budget R$5k
 ```
+
+---
+
+## 1.5. DECISÃO ARQUITETURAL (rev. 2026-05-28) — Centralização do Modelo LLM de Campanhas
+
+### 1.5.1. A mudança de produto
+
+**Antes (plano original v1.0):** cada tenant configurava o provider/modelo/chave de
+LLM usados para os insights de IA do módulo de Campanhas, via self-service em
+`/admin/campanhas/configuracoes`, e **arcava com o custo** da própria chave de API.
+
+**Agora (v1.2):** a **própria plataforma centraliza** a utilização do modelo, de forma
+**única e global** — **um só provider, um só modelo, uma só chave** para todos os tenants:
+- **Quem escolhe** o modelo: a plataforma (Master), **uma única vez** — não há escolha por tenant.
+- **Quem paga**: a plataforma, com **uma chave de API centralizada**.
+- O tenant **não** configura mais o LLM de campanhas (a UI de self-service permanece
+  visível, porém **ignorada** pelo resolver — decisão do gestor; ver 1.5.5).
+
+> **Motivação:** reduzir complexidade técnica e operacional do onboarding de tenants
+> (não dependem de obter/gerir chave própria) e dar à plataforma controle de custo,
+> qualidade e padronização do modelo usado nos insights.
+
+> **▶ CANCELA a ideia inicial.** A instrução original previa coluna `tenants.llm_trafego_pago`
+> + campo no CRUD de Tenants para escolher modelo **por tenant**. Decidiu-se por **modelo
+> ÚNICO para toda a plataforma** (2026-05-28). Logo: **NÃO há nova coluna, NÃO há novo
+> campo no CRUD de Tenants e NÃO há tabela nova.**
+
+### 1.5.2. Banco de Dados — SEM tabela e SEM coluna novas
+
+A config central reaproveita a tabela existente `Settings` (schema
+`campanhasmarketingdigital`), que já tem `tenant_id` **nullable** e as colunas
+`llmProvider` / `llmModel` / `llmApiKey`. Usa-se **uma linha global** com `tenant_id IS NULL`:
+
+```
+Settings (tenant_id IS NULL)  ← LINHA GLOBAL ÚNICA DA PLATAFORMA
+  llmProvider = 'anthropic'          (provider único)
+  llmModel    = 'claude-sonnet-4-6'  (modelo único de campanhas)
+  llmApiKey   = '****'               (chave da plataforma — quem paga)
+
+Settings (tenant_id = <uuid>)  ← linhas por tenant: PASSAM A SER IGNORADAS
+                                  pelo resolver de campanhas (ver 1.5.5)
+```
+
+> **Nota de implementação:** no Postgres um `UNIQUE` permite múltiplos `NULL`, então a
+> unicidade da linha global é garantida por lógica de app (sempre `WHERE tenant_id IS NULL
+> LIMIT 1`) ou por índice único parcial `CREATE UNIQUE INDEX ... WHERE tenant_id IS NULL`.
+> Alternativa considerada e descartada: `.env` (menos prático para editar por UI).
+
+### 1.5.3. Onde o Master define o modelo central
+
+- **Não** é no CRUD de Tenants (a ideia foi cancelada — ver 1.5.1).
+- A linha global da `Settings` é editada por uma **UI de nível Master** dedicada —
+  página **"IA da Plataforma"**, especificada em **1.5.9** (e no catálogo da seção 17).
+  Na 1ª carga pode ser semeada via SQL; a edição corrente é feita por essa UI.
+- O campo **`ai_config`** (groq_key / gemini_key / preferred_model) que **já existe** no
+  CRUD de Tenants **permanece intacto** — é o "outro campo de LLM" citado pelo gestor e
+  serve a outros módulos (ex.: brainstorming/CRM), **não** aos insights de campanhas.
+
+### 1.5.4. Resolução do LLM (núcleo da mudança)
+
+Arquivos: `src/lib/marketing/services/llmClient.ts` e `src/lib/intelligence/llmInvoker.ts`.
+
+```
+ANTES — getLlmClient(tenantId):
+  lê Settings WHERE tenant_id = <tenant>  (provider/modelo/chave do tenant)
+  fallback → ANTHROPIC_API_KEY (.env)
+
+DEPOIS — getLlmClientForCampaigns():
+  1. lê Settings WHERE tenant_id IS NULL LIMIT 1   (linha global única)
+  2. provider/model/apiKey vêm dessa linha
+  3. baseUrl → LlmModel (provider, model_id)   [inalterado]
+  4. monta LlmClient (anthropic nativo | OpenAI-compatible)  [inalterado]
+  ▶ NÃO recebe mais tenantId para fins de seleção de modelo
+  ▶ NÃO lê mais a linha por-tenant da Settings
+  ▶ fallback: .env (ANTHROPIC_API_KEY) se a linha global não existir
+  ▶ fallback rule-based mantido em todos os pontos
+```
+
+Todos os pontos de uso de LLM do módulo de campanhas passam a usar o cliente
+centralizado, **sem alterar suas interfaces** (`client.complete(prompt)`):
+
+```
+PONTO 1  Briefing Estratégico   strategicBriefing.ts (morning/closing/manual)
+PONTO 2  Enriquecimento Agente   agentDecisor.ts → enrichWithClaude()
+PONTO 3  Teste de Conexão        settings/llm/test/route.ts  (passa a ser ação do Master)
++ FASE 0 llmInvoker.invoke()     (resolve modelo global em vez da Settings do tenant)
++ FASE 2 initiative_consolidated_briefing
++ FASE 3 wasted_spend_explanation
++ FASE 6 Creative Vision LLM / FASE 7 funnel_diagnosis (herdam o cliente central)
+```
+
+### 1.5.5. Página `configuracoes` do Tenant — comportamento
+
+Decisão do gestor: **manter editável, porém ignorado** pelo resolver.
+- A seção "Engenharia de IA" / "Salvar IA" / "Testar Conexão" em
+  `/admin/campanhas/configuracoes` **permanece como está visualmente** (grava na linha
+  por-tenant da `Settings`).
+- O resolver de campanhas **não lê** mais essa linha por-tenant — usa só a linha global.
+- *Observação (não bloqueante):* isso pode gerar confusão ("salvei o modelo e nada mudou").
+  Sugestão opcional para implementação: um aviso discreto "O modelo de IA dos insights é
+  definido pela plataforma" — a ser decidido na fase de implementação.
+
+### 1.5.6. Impacto retroativo por fase
+
+```
+FASE 0 (concluída) — Fundação
+  • Princípio "providers vêm de LlmModel": MANTIDO. Mas não há mais selector de modelo
+    por tenant — a seleção é única e global (linha global da Settings).
+  • llmInvoker.ts: trocar getLlmClient(tenant) por getLlmClientForCampaigns()
+    (resolve a linha global da Settings, sem tenantId).
+  • UI 0.5.4 "Inteligência da Conta": card "Provider LLM (editável)" → READ-ONLY
+    ("Modelo definido pela plataforma").
+
+FASE 1 (concluída) — Multi-Network
+  • Impacto NULO no LLM. Credenciais de REDE (tenant_network_credentials) são
+    independentes da chave de LLM. Nada muda.
+
+FASE 2 (concluída) — Initiatives
+  • initiative_consolidated_briefing passa a usar o cliente central. Sem mudança de UI.
+
+FASE 3 (concluída) — Wasted Spend
+  • wasted_spend_explanation passa a usar o cliente central. Sem mudança de UI.
+
+FASES 4–11 (futuras)
+  • Qualquer novo ponto LLM já nasce usando getLlmClientForCampaigns().
+  • FASE 6 (Creative Vision) e FASE 7 (funnel_diagnosis) herdam o modelo central.
+```
+
+### 1.5.7. Plano de migração (rev.)
+
+```
+1. Garantir a linha global da Settings (tenant_id IS NULL) com provider/model/apiKey
+   da plataforma — via seed SQL ou ponto de config Master.
+   (Opcional) índice único parcial p/ garantir 1 só linha global.
+2. Implementar getLlmClientForCampaigns() (sem tenantId) lendo a linha global.
+3. Repontar llmInvoker + os 3 pontos LLM (briefing, agente, teste) para o cliente central.
+4. Implementar a UI Master "IA da Plataforma" (1.5.9) + endpoints GET/PUT/test,
+   com guard de nível Master.
+5. Rodar em paralelo 1 sprint (flag), comparar saídas, então cortar a leitura
+   da linha por-tenant nos fluxos de campanha.
+   ▶ Nenhuma DROP COLUMN: as colunas llm* por-tenant da Settings continuam existindo
+     (ficam apenas ignoradas pelo módulo de campanhas).
+```
+
+### 1.5.8. Critérios de aceite — Centralização LLM
+
+```
+✅ Existe UMA linha global na Settings (tenant_id IS NULL) com provider/model/chave da plataforma
+✅ getLlmClientForCampaigns() resolve a linha global (sem depender de tenantId)
+✅ Briefing, agente e demais pontos LLM de campanhas usam o modelo global único
+✅ Tenant NÃO consegue mais alterar (efetivamente) o modelo de insights de campanhas
+✅ CRUD de Tenants NÃO ganhou campo de LLM de campanhas (decisão revista)
+✅ ai_config (groq/gemini/preferred_model) do tenant permanece intacto p/ outros módulos
+✅ Sem tabela nova e sem coluna nova; fallback rule-based mantido
+✅ Existe UI Master "IA da Plataforma" (1.5.9) p/ editar provider/modelo/chave globais + testar conexão
+```
+
+### 1.5.9. UI de Configuração (Master) — "IA da Plataforma"
+
+Onde o Master edita o provider/modelo/chave únicos dos insights de campanhas
+(a linha global da `Settings`, `tenant_id IS NULL`).
+
+```
+Rota: /admin/master/ia-plataforma        (área Master; protegida por guard Master)
+
+╔══════════════════════════════════════════════════════════════════╗
+║  Master › IA da Plataforma — Insights de Campanhas               ║
+║                                                                  ║
+║  Provider:  [ Anthropic ▾ ]        (dropdown data-driven)        ║
+║  Modelo:    [ claude-sonnet-4-6 ▾ ] (filtra modelos do provider) ║
+║  API Key:   [ •••••••••••••••• ]   (mascarada; vazio = manter)   ║
+║                                                                  ║
+║  [ Testar Conexão ]              [ Salvar ]                       ║
+║  Status: ✅ Conectado · modelo claude-sonnet-4-6 · editado 28/05 ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+Comportamento:
+- **Provider** e **Modelo**: dropdowns populados de
+  `GET /api/admin/campanhas/settings/llm/models` (tabela `LlmModel`) — zero hardcode
+  (Princípio 1). Ao trocar o provider, a lista de modelos é refiltrada.
+- **API Key**: input `password`; se enviada vazia no PUT, **mantém** a chave atual
+  (não sobrescreve). A UI nunca exibe a chave em claro (só "definida: sim/não").
+- **Testar Conexão**: reaproveita a lógica de `settings/llm/test`, agora apontada para
+  a **config global** (faz um `complete()` curto e valida resposta).
+- **Salvar**: faz upsert da linha global da `Settings`.
+
+APIs:
+```
+GET /api/admin/master/ia-plataforma   → { provider, model, apiKeySet: boolean, updatedAt }
+PUT /api/admin/master/ia-plataforma   → upsert linha global (provider, model, apiKey?)
+POST /api/admin/master/ia-plataforma/test → testa a config global e retorna {success,...}
+GET /api/admin/campanhas/settings/llm/models → já existe (catálogo de modelos)
+```
+
+Permissão: ação **exclusiva do Master** (is_system_role / segmento master).
+Proteger a página e os endpoints com guard de nível Master.
 
 ---
 
@@ -594,6 +806,8 @@ src/lib/intelligence/                  (novo diretório)
   │                                       (4 camadas: client→tenant→segment→global)
   └── llmInvoker.ts                     → invoke({code, ctx, vars}) →
                                           resolve+render+call+validate
+   ▶ rev. 2026-05-28: a chamada usa getLlmClientForCampaigns() (sem tenantId), que
+     resolve o modelo/chave da linha global da Settings (tenant_id IS NULL) — ver 1.5
 ```
 
 #### Refatorações em código existente
@@ -701,7 +915,8 @@ Tabs internas:
 
 Cards:
   • Segmento ativo (do tenant — read-only)
-  • Provider LLM (editável)
+  • Provider LLM (rev. 2026-05-28: READ-ONLY — "Modelo definido pela plataforma";
+    modelo ÚNICO global, definido 1x pelo Master na linha global da Settings)
   • Prompts (read-only, link "Visualizar")
   • Benchmarks próprios (link "Gerenciar")
   • Estatísticas de uso
@@ -1988,6 +2203,8 @@ Cron 6h → syncMetrics() → para cada tenant → runDecisor(tenantId):
 │ /admin/master/segmentos/[id]               Editor com 7 abas       │
 │   Aba: Geral, Vocab, Funil, Taxonomia, KPIs, Prompts, Benchmarks   │
 │ /admin/master/prompts-globais              Templates fallback      │
+│ /admin/master/ia-plataforma                IA global de campanhas  │
+│   (rev. 2026-05-28: provider/modelo/chave únicos — linha global)   │
 ├────────────────────────────────────────────────────────────────────┤
 │ ÁREA: TENANT ADMIN — Inteligência                                  │
 ├────────────────────────────────────────────────────────────────────┤
@@ -2012,7 +2229,8 @@ Cron 6h → syncMetrics() → para cada tenant → runDecisor(tenantId):
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-Total: **17 novas rotas/páginas** + evoluções nas 4 existentes.
+Total: **18 novas rotas/páginas** + evoluções nas 4 existentes.
+(rev. 2026-05-28: +1 → `/admin/master/ia-plataforma`, config global de LLM de campanhas.)
 
 ---
 
@@ -2032,10 +2250,15 @@ MITIGAÇÃO:
 ### 18.2. Risco: Custo de LLM cresce descontroladamente
 
 ```
+CONTEXTO (rev. 2026-05-28): o custo de LLM de campanhas agora é arcado pela
+PLATAFORMA (chaves centralizadas), não mais por cada tenant. Logo, controlar
+custo total passou a ser responsabilidade direta do operador da plataforma.
 MITIGAÇÃO:
   • Cache de resoluções (5min TTL)
   • Custo por chamada logado em campo dedicado
-  • Quota por tenant (alertar se > $X/mês)
+  • Quota por tenant (alertar se > $X/mês) — agora protege o caixa da plataforma
+  • Modelo único global: para cortar custo, o Master troca o modelo da linha global
+    por um mais barato/grátis (qualityScore/isFree no LlmModel) — afeta todos de uma vez
   • Análises pesadas (Creative Intelligence) são one-shot por criativo
   • Briefing diário = 1 chamada por dia/cliente (~ $0.05 cada)
 ```
@@ -2173,4 +2396,9 @@ PASSO 4: FASE 1 (multi-network)
 
 *Documento mestre gerado em 25/05/2026.*
 *Versão 1.0 — refletindo todas as decisões discutidas até esta data.*
-*Nenhuma alteração em código ou banco foi feita. Aguardando autorização para iniciar FASE 0.*
+*Versão 1.2 (2026-05-28) — Centralização do modelo LLM de Campanhas (ver seção 1.5).
+ Modelo ÚNICO e global da plataforma (um provider/modelo/chave) guardado na linha global
+ da tabela Settings (tenant_id IS NULL). SEM tabela nova, SEM coluna nova e SEM campo no
+ CRUD de Tenants (a ideia inicial de tenants.llm_trafego_pago foi cancelada). Impacto
+ retroativo nas FASES 0–3 documentado. Apenas planejamento — nenhuma alteração em código
+ ou banco foi feita.*

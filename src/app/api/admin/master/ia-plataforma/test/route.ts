@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTokenPayload } from '@/lib/auth/jwt-node';
+import { verifyToken } from '@/lib/auth/jwt';
 import { getLlmClientForCampaigns } from '@/lib/marketing/services/llmClient';
 
 export const dynamic = 'force-dynamic';
 
-// POST /api/admin/campanhas/settings/llm/test
+// POST /api/admin/master/ia-plataforma/test
 export async function POST(request: NextRequest) {
-  try {
-    const payload = getTokenPayload(request);
-    if (!payload?.tenantId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+  const token = request.cookies.get('admin_auth_token')?.value;
+  const decoded = token ? await verifyToken(token) : null;
+  if (!decoded?.is_system_role) {
+    return NextResponse.json({ error: 'Acesso Master Requerido' }, { status: 403 });
+  }
 
+  try {
     const llm = await getLlmClientForCampaigns();
     const response = await llm.complete('Responda apenas "OK" para confirmar conexão.', 20);
 
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
       response: response.trim(),
     });
   } catch (error: any) {
-    console.error('POST /settings/llm/test error:', error);
+    console.error('POST /master/ia-plataforma/test error:', error);
     return NextResponse.json({
       success: false,
       provider: '',

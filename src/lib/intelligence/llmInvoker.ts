@@ -1,4 +1,4 @@
-import { getLlmClient } from '../marketing/services/llmClient';
+import { getLlmClientForCampaigns } from '../marketing/services/llmClient';
 import { resolveSegment } from './segmentResolver';
 import { resolvePromptTemplate } from './promptResolver';
 import { renderPrompt } from './promptRenderer';
@@ -24,7 +24,7 @@ export async function invokeWithTemplate(opts: {
   }
 
   const prompt = renderPrompt(template, variables);
-  const llm = await getLlmClient(tenantId);
+  const llm = await getLlmClientForCampaigns();
   return llm.complete(prompt, maxTokens);
 }
 
