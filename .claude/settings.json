@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NonInteractive -ExecutionPolicy Bypass -File scripts/git-checkpoint.ps1"
+          }
+        ]
+      }
+    ]
+  }
+}

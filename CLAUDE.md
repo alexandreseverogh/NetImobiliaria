@@ -2,6 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ Regra Obrigatória — Checkpoint Progressivo
+
+Sessões podem ser interrompidas abruptamente por limite de tokens.
+Para garantir retomada exata em qualquer modelo, conta ou máquina:
+
+**ANTES de iniciar cada tarefa:**
+1. Atualizar `docs/CHECKPOINT.md` — seção "Tarefa em andamento" com o que vai fazer
+2. `git add docs/CHECKPOINT.md && git commit -m "checkpoint: iniciando [tarefa]" && git push`
+
+**APÓS concluir cada tarefa:**
+1. Atualizar `docs/CHECKPOINT.md` — mover para "Última tarefa concluída", atualizar "Próximos passos"
+2. `git add docs/CHECKPOINT.md && git commit -m "checkpoint: concluído [tarefa]" && git push`
+
+O hook `Stop` (`.claude/settings.json`) executa `scripts/git-checkpoint.ps1` automaticamente
+ao fim de cada sessão — mas depende de Claude ter atualizado o arquivo durante a sessão.
+
+---
+
 ## Documentação de referência
 
 @docs/CHECKPOINT.md — Estado atual do projeto: última tarefa, em andamento, próximos passos.
