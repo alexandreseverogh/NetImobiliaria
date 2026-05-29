@@ -18,12 +18,24 @@
 > foi cancelada). Ver
 > [seção 1.5](#15-decisão-arquitetural-rev-2026-05-28--centralização-do-modelo-llm-de-campanhas).
 > Impacta retroativamente as FASES 0–3 (e qualquer fase futura que invoque LLM).
+>
+> **▶ REVISÃO 2026-05-29 — Camada Operacional de Lançamento de Campanhas.** Análise de
+> discrepância entre os campos da página `iniciativas/nova` + `CampaignWizard` e os campos
+> realmente exigidos/oferecidos pelas redes (Meta hoje; Google/YouTube/LinkedIn/TikTok na
+> FASE 11). Define a fronteira **automático↔manual** do lançamento, a regra de alocação
+> (JSONB / atributo de tabela / UI), o mapa `network_defaults` por **segmento×rede** e os
+> **3 "lares de dado"** a criar como pré-requisito. **Conclusão: nenhuma fase nova** — os
+> gaps se acomodam em colunas/JSONB que a FASE 1 já criou + curadoria por segmento da
+> FASE 0. Ver [seção 1.6](#16-camada-operacional-de-lançamento-de-campanhas-rev-2026-05-29).
+> Mescla com FASES 1, 5 e 11 (notas pontuais nessas fases). Apenas planejamento.
 
 ---
 
 ## Sumário
 
 1. [Visão Geral e Princípios](#1-visão-geral-e-princípios)
+   - 1.5 [Centralização do modelo LLM de Campanhas](#15-decisão-arquitetural-rev-2026-05-28--centralização-do-modelo-llm-de-campanhas)
+   - 1.6 [Camada Operacional de Lançamento de Campanhas](#16-camada-operacional-de-lançamento-de-campanhas-rev-2026-05-29) *(revisão 2026-05-29)*
 2. [Arquitetura de Dados Consolidada](#2-arquitetura-de-dados-consolidada)
 3. [Mapa das 11 Fases de Execução](#3-mapa-das-11-fases-de-execução)
 4. [FASE 0 — Fundação Multi-Segment](#fase-0--fundação-multi-segment-e-prompt-management)
@@ -428,6 +440,277 @@ GET /api/admin/campanhas/settings/llm/models → já existe (catálogo de modelo
 
 Permissão: ação **exclusiva do Master** (is_system_role / segmento master).
 Proteger a página e os endpoints com guard de nível Master.
+
+---
+
+## 1.6. CAMADA OPERACIONAL DE LANÇAMENTO DE CAMPANHAS (rev. 2026-05-29)
+
+### 1.6.1. Contexto e distinção arquitetural
+
+Esta seção resolve a pergunta: *"quais campos do lançamento são preenchidos automaticamente
+e quais o operador digita?"* — e por que isso **não exige fases novas**.
+
+> **Distinção que evita confusão:** a página `iniciativas/nova` cria a **Iniciativa**
+> (agrupador estratégico: nome, cliente, objetivo de negócio, budget planejado, datas, KPI).
+> Ela **NÃO lança** nada nas redes. O **lançamento real** (Campaign → AdSet → Ad → API da
+> rede) é do **`CampaignWizard`** via `metaAdsAdapter` (e, na FASE 11, os adapters de cada
+> rede). Os campos desta seção referem-se ao **lançamento real**.
+
+A análise comparou os campos do `CampaignWizard`/adapter com os campos realmente
+exigidos/oferecidos pelo Meta Ads. **Os "vasos" para os campos faltantes já existem** (FASE 1
+aplicada: `Campaign/AdSet/Ad.network_metadata`, `tenant_network_credentials.credentials`,
+`ad_networks.capabilities`; FASE 0: `system_segments` com `vocabulary`/`funnel_stages`).
+Logo, a evolução é **aditiva** (Princípio 7) e se distribui pelas FASES 1, 5, 8 e 11.
+
+### 1.6.2. Regra de alocação — 3 mecanismos
+
+Todo campo do lançamento cai em **exatamente um** mecanismo:
+
+```
+JSONB           → dado específico de rede ou muito variável (não vale virar coluna)
+ATRIBUTO        → dado estável, reutilizável e que se consulta/filtra
+UI DE LANÇAMENTO → decisão da campanha; não existe dado prévio que a determine
+```
+
+### 1.6.3. Os dois baldes (fronteira automático↔manual)
+
+**Automático — puxado de dado já armazenado (o operador NÃO digita):**
+
+```
+DO SEGMENTO (system_segments, resolvido por campanha — ver 1.6.4)
+  • special_ad_category          (ex.: imobiliário → HOUSING; saúde → NONE)
+  • objective / optimization_goal / billing_event (default do funil do segmento)
+  • funnel_stage
+  • custom_event_type            (qual evento = "lead qualificado" — ver 1.6.5)
+  • KPI primário / benchmarks    (p/ validação e insights LLM)
+
+DA CONTA/CREDENCIAIS (tenant_network_credentials)
+  • page_id, instagram_actor_id, pixel_id, ad_account_id, moeda, fuso
+  • bid_strategy / buying_type / attribution_spec / placements (defaults sãos)
+
+DO REGISTRO (tenant/cliente)
+  • site de destino (atributo website) → vira default do linkUrl na UI
+  • WhatsApp de destino → SEMPRE do tenant (WhatsAppConfig), nunca por cliente
+
+DERIVADO
+  • url_tags (UTMs) montados de Settings.publicDomain + ids da campanha
+  • cta_type default pelo objetivo
+```
+
+**Manual — digitado na UI de lançamento (cada campanha):**
+
+```
+  • Nome da campanha
+  • Geo / áreas de veiculação
+  • Faixa etária, gênero, interesses (estratégia de público da campanha)
+  • Orçamento (diário/total) e período (datas)
+  • Criativo (imagem/vídeo selecionado)
+  • Copy (texto/headline) — a IA pode RASCUNHAR (FASE 6), humano aprova
+  • URL de destino — vem PRÉ-PREENCHIDA do site (1.6.2), editável p/ landing específica
+```
+
+> Não há camada "semi" autônoma: ou o campo vem do dado, ou é digitado. A única assistência
+> é a IA rascunhando a copy e o pré-preenchimento da URL (que continua editável na UI).
+
+### 1.6.4. Resolução por campanha (cliente → tenant) — defaults NUNCA moram no tenant
+
+Como **uma mesma tenant atende N clientes de segmentos distintos ao mesmo tempo** (Princípio 5),
+o default de lançamento tem de ser resolvido **no momento da campanha**, pelo segmento do alvo —
+reusando o `segmentResolver` da FASE 0:
+
+```typescript
+function resolveSegmentForCampaign(campaign): segment_id {
+  if (campaign.client_id) return clientes[campaign.client_id].segment_id; // campanha de cliente
+  return tenants[campaign.tenant_id].default_segment;                      // campanha própria
+}
+```
+
+Consequência desejável: a mesma tenant lança, no mesmo dia, uma campanha **HOUSING** (cliente
+imobiliário) e uma **NONE** (cliente clínica), cada uma pegando o default certo — sem redigitar
+o segmento. O segmento é informado **uma vez no cadastro** (tenant e cada cliente), não a cada
+lançamento.
+
+### 1.6.5. `network_defaults` por segmento×rede (curadoria 1x pelo Master)
+
+Acrescentar um JSONB **chaveado por rede** em `system_segments`. O `vocabulary` já guarda o
+**conceito humano** (`conversion_event = "agendamento de visita"`); o `network_defaults` guarda
+o **código da API** correspondente, por rede:
+
+```jsonc
+// system_segments.network_defaults — exemplo (imobiliário)
+{
+  "meta":     { "special_ad_category": ["HOUSING"], "custom_event_type": "SCHEDULE",
+                "default_objective": "OUTCOME_LEADS", "default_optimization_goal": "LEAD_GENERATION" },
+  "google":   { "restricted_category": "housing", "default_conversion_action": "schedule_visit" },
+  "youtube":  { /* herda google — ver 1.6.7 */ },
+  "tiktok":   { "custom_event_type": "FORM" },
+  "linkedin": { "objective": "LEAD_GENERATION" }
+}
+```
+
+- O **`custom_event_type`** alimenta o `promoted_object = { pixel_id (da conta), custom_event_type
+  (do segmento) }` do AdSet — é o que destrava **otimização por conversão / lead qualificado**.
+- O **Master** preenche isso **1x ao criar/editar o segmento** (editor de segmentos da FASE 0).
+  Segmento novo = preencher linha → funciona p/ todos os tenants/clientes daquele segmento, **sem deploy**.
+
+### 1.6.6. Tabela de alocação dos campos faltantes
+
+| Item | Mecanismo | Onde |
+|---|---|---|
+| `page_id`, `instagram_actor_id`, `pixel_id` | JSONB | `tenant_network_credentials.credentials` |
+| `promoted_object` (pixel + custom_event) | JSONB | `AdSet.network_metadata` |
+| `bid_strategy`, `budget_mode` (CBO/ABO), `spend_cap`, placements, `frequency_cap`, `attribution_spec`, `lifetime_budget` | JSONB | `Campaign/AdSet.network_metadata` |
+| `network_defaults` (special_ad_category, custom_event_type, objetivo/opt_goal) | JSONB | `system_segments.network_defaults` (+ UI Master) |
+| **Site/URL de destino** | Atributo + UI | `clientes.website` (default) → campo editável na UI |
+| Métricas de ROI (leads, cost_per_lead, roas, purchase_value, quality rankings, link_clicks, landing_page_views, action_breakdowns) | Atributo | colunas em `Insight` (FASE 5 estendida) |
+| Nome, geo, idade, gênero, interesses, orçamento, período, criativo, copy | UI | wizard de lançamento |
+| `special_ad_category`, `optimization_goal`, `billing_event`, `adset_schedule`, interesses | já existem | apenas **expor/enviar** (pré-preenchido do segmento, editável) |
+
+### 1.6.7. Multi-rede desde já (keyed por rede) + decisão YouTube
+
+Todo o desenho acima é **chaveado por rede** de propósito, para generalizar à FASE 11 sem
+retrabalho: adicionar rede = semear `ad_networks` + preencher `network_defaults[rede]` por
+segmento + 1 adapter (`AdNetworkService`) + linhas de field-schema. **Sem wizard novo codado
+à mão nem alteração nas telas existentes.**
+
+> **Decisão de produto — YouTube.** YouTube Ads é veiculado **pela API do Google Ads** (canal
+> dentro do Google, mesmas credenciais). **Recomendado:** modelar YouTube como **canal/objetivo
+> sob a rede `google`**, expondo-o como **opção distinta na UI** ("Google Search" / "YouTube" /
+> "Display"). NÃO criar linha `youtube` separada em `ad_networks` (duplicaria credencial/lógica).
+> Decisão a confirmar no início da FASE 11.
+
+### 1.6.8. Os 3 "lares de dado" a criar (pré-requisitos do lançamento automático)
+
+Sem estes, parte do balde "automático" cai como manual por **falta de armazenamento**:
+
+```
+1. IDENTIDADE/MEDIÇÃO DO META  → page_id, instagram_actor_id, pixel_id
+   em tenant_network_credentials.credentials (JSONB; sem coluna nova).
+   Destrava: criação de creative (bug do page_id), entrega no Instagram, otimização por conversão.
+
+2. MAPA SEGMENTO→CÓDIGO         → system_segments.network_defaults (JSONB) + UI Master.
+   Destrava: special_ad_category, custom_event, objetivo/opt_goal automáticos por segmento×rede.
+
+3. SITE DE DESTINO + POPULAÇÃO  → atributo website (confirmar se já não existe em clientes/tenants
+   antes de criar) + garantir clientes.segment_id / tenants.default_segment / Settings.publicDomain
+   PREENCHIDOS (não só existentes).
+```
+
+### 1.6.9. Hotfixes pré-fase (bugs que comprometem o lançamento HOJE)
+
+Não dependem de schema; valem corrigir antes mesmo das fases:
+
+```
+• BUG page_id: metaAdsAdapter usa adAccountId como page_id no object_story_spec
+  → creative falha. Trocar pelo page_id real (vindo de 1.6.8 item 1).
+• adset_schedule NÃO enviado: scheduleDays/scheduleTimeSlots já PERSISTIDOS mas
+  descartados no adapter → enviar como adset_schedule (dayparting).
+• Interesses com IDs FALSOS: catálogo local gera IDs inválidos no Meta
+  → usar searchTargeting/searchInterests (já existe) para IDs reais.
+```
+
+### 1.6.10. Mescla com as fases existentes (sem fase nova)
+
+```
+HOTFIX pré-fase        → bug page_id, envio do adset_schedule, IDs de interesse reais
+FASE 1 (expandir)      → expor no wizard os campos cujas colunas já existem
+                         (special_ad_category, optimization_goal, billing_event);
+                         adotar network_metadata como repositório canônico por rede;
+                         enriquecer credentials com page_id/ig/pixel
+FASE 5 (renomear)      → "Video Metrics" → "Video + Conversão/ROI Metrics":
+                         + colunas de ROI em Insight (leads, cost_per_lead, roas,
+                         purchase_value, quality rankings, link_clicks, landing_page_views)
+FASE 8 (absorver)      → config de pixel/Conversion API (já checa "pixel configurado")
+FASE 11 (só consome)   → cada rede: ad_networks + network_defaults[rede] + adapter + field-schema
+NOVA (opcional/aditiva)→ tabela tenant_audiences (custom/lookalike reutilizáveis)
+HIGIENE                → regenerar schema.marketing.prisma (está DESATUALIZADO: não reflete
+                         network_id/external_id/network_metadata que já existem no banco)
+```
+
+### 1.6.11. Fallback gracioso (obrigatório, multi-segment)
+
+Segmento recém-criado pode ainda **não ter** `network_defaults`. O sistema **não pode quebrar**:
+- assume `special_ad_category = NONE` e **não** otimiza por conversão (cai p/ tráfego/lead form);
+- mostra o campo na UI para o operador decidir;
+- sinaliza ao Master "segmento X sem network_defaults configurado".
+
+### 1.6.12. Critérios de aceite — Camada de Lançamento
+
+```
+✅ Todo campo de lançamento tem mecanismo definido (JSONB / atributo / UI) — zero hardcode
+✅ Defaults resolvidos por campanha (cliente→tenant), nunca a partir do tenant isoladamente
+✅ network_defaults é keyed por rede (meta/google/youtube/linkedin/tiktok) desde já
+✅ page_id/ig/pixel armazenados em credentials e usados pelo adapter (bug page_id corrigido)
+✅ promoted_object montado de pixel (conta) + custom_event (segmento)
+✅ adset_schedule enviado ao Meta (dados já persistidos)
+✅ Interesses usam IDs reais do Meta (searchTargeting)
+✅ Site default vem do registro; URL editável na UI; WhatsApp sempre do tenant
+✅ Métricas de ROI persistidas em Insight (leads/cpl/roas/valor) p/ os insights LLM
+✅ Segmento sem network_defaults → fallback NONE + aviso (não quebra)
+✅ Adicionar rede/segmento = inserir dado, sem deploy (Princípio 1)
+```
+
+---
+
+### 1.6.13. Fronteira do "on-the-fly": o que é dado x o que é código irredutível
+
+> **Pergunta que esta subseção responde:** *"se a API/MCP de uma mídia mudar, vamos precisar
+> implantar algo aqui, ou a plataforma absorve sozinha e o usuário continua operando?"*
+> **Veredito honesto: NÃO é 100% on-the-fly.** Atingimos ~85–90% de dinamismo nos *campos*
+> de uma rede já integrada; mas a **tradução payload→API** é uma camada de código que
+> versiona e atualiza junto com a mídia. Nenhuma arquitetura honesta elimina isso.
+
+**O que FICA on-the-fly (operável pelo usuário, sem deploy):**
+
+```
+✅ Adicionar / remover / reordenar campos de uma rede JÁ integrada
+   (tipos conhecidos: texto, número, select, multiselect, data, toggle)
+✅ Mudar opções, defaults, validações e rótulos desses campos
+✅ Curadoria por segmento (network_defaults): novo segmento / categoria / objetivo
+✅ Valores vivos da própria API: interesses, geolocalização, públicos (searchTargeting)
+✅ Credenciais por tenant/cliente: page_id, pixel_id, instagram_actor_id, tokens
+```
+
+**O que NÃO fica on-the-fly (exige desenvolvimento + deploy):**
+
+| Mudança na mídia                                                   | On-the-fly? | Motivo                                            |
+|--------------------------------------------------------------------|:-----------:|---------------------------------------------------|
+| Novo campo simples (ex.: novo `optimization_goal`)                 | ✅          | field schema renderiza; payload canônico carrega  |
+| Nova **estrutura aninhada** (ex.: novo formato de criativo)        | ❌          | o adapter precisa saber montar essa árvore JSON   |
+| **Bump de versão** com breaking change (v21 → v22)                 | ❌          | endpoint/contrato muda no código                  |
+| **Rede nova** (Google, YouTube, TikTok, LinkedIn)                  | ❌          | cada uma exige um adapter (é a FASE 11)           |
+| Novo **escopo de OAuth** / fluxo de auth                           | ❌          | fluxo de credenciais é código                     |
+| Regra de **negócio/semântica** (ex.: segmento exige HOUSING)       | ⚠️ Parcial  | dado em `network_defaults`, mas a *decisão* é humana |
+
+**Sobre "MCP":** hoje a integração Meta NÃO passa por MCP — passa pelo adapter chamando a
+Graph API direto. Se no futuro um MCP oficial expuser um *tool schema* tipado, dá para
+**derivar o field schema automaticamente desse schema** (melhor caminho para empurrar o
+on-the-fly perto de 100% *nos campos*). Mesmo assim, a tradução **payload canônico → chamada
+do MCP** continua sendo código nosso: o MCP descreve *o que* existe, não *como* a plataforma
+monta a requisição.
+
+**Estratégia para MAXIMIZAR o dinamismo (a definir na FASE 1):**
+
+```
+1. Field schema servido COMO DADO por rede (não hardcoded no front).
+   → idealmente derivável do tool schema do MCP/SDK quando existir.
+2. Camada de "campo desconhecido" com FALLBACK GENÉRICO:
+   → qualquer campo novo que a mídia introduza é renderizado como input bruto
+     e gravado em network_metadata SEM quebrar o fluxo.
+   → cobre o caso "a Meta adicionou um campo e ninguém atualizou nada aqui ainda":
+     o usuário ainda consegue operar, com graciosidade.
+3. Adapter mantém um mapCanonicalToNetwork() versionado por versão de API.
+   → mudança estrutural = atualizar este ponto único, não a UI inteira.
+```
+
+**Critérios de aceite — fronteira on-the-fly:**
+
+```
+✅ Front renderiza o wizard a partir de field schema (dado), não de campos fixos no código
+✅ Campo desconhecido cai em fallback genérico → não quebra o lançamento
+✅ Mudança estrutural de API isolada no adapter (mapCanonicalToNetwork), não espalhada na UI
+✅ Documentado para o usuário: o que ele mesmo configura x o que pede atualização técnica
+```
 
 ---
 
@@ -1013,6 +1296,12 @@ UX
 
 **Duração estimada: 2 semanas | Pré-requisito: FASE 0**
 
+> **▶ REVISÃO 2026-05-29 (ver seção 1.6):** esta fase ganha escopo aditivo — além dos
+> "vasos" JSONB já criados, deve **expor no wizard** os campos cujas colunas já existem,
+> criar os 3 "lares de dado" (page_id/instagram_actor_id/pixel_id em `credentials`,
+> `system_segments.network_defaults`, atributo `website`) e aplicar os **hotfixes pré-fase**
+> (bug do `page_id`, envio de `adset_schedule`, IDs de interesse reais). Detalhe em 1.6.10.
+
 ### 1.1. Objetivo
 
 Refatorar o modelo para suportar múltiplas redes de anúncios (Meta, Google, LinkedIn,
@@ -1596,6 +1885,12 @@ Atualizar `agentMonitor.syncMetrics()`: após sync, rodar `inferLifecycleStatus(
 ## FASE 5 — Video Metrics + Hook Rate
 
 **Duração estimada: 1 semana | Pré-requisito: FASE 0**
+
+> **▶ REVISÃO 2026-05-29 (ver seção 1.6):** esta fase passa a ser **"Video + Conversão/ROI
+> Metrics"**. Além das métricas de vídeo, estende `Insight` para capturar os sinais de ROI
+> (leads, cost_per_lead, roas, purchase_value, quality/engagement/conversion rankings,
+> link_clicks, landing_page_views, action_breakdowns) — guardados crus em
+> `Insight.breakdowns` e promovidos a colunas sob demanda. Detalhe em 1.6.10.
 
 ### 5.1. Objetivo
 
@@ -2402,3 +2697,20 @@ PASSO 4: FASE 1 (multi-network)
  CRUD de Tenants (a ideia inicial de tenants.llm_trafego_pago foi cancelada). Impacto
  retroativo nas FASES 0–3 documentado. Apenas planejamento — nenhuma alteração em código
  ou banco foi feita.*
+*Versão 1.3 (2026-05-29) — Camada Operacional de Lançamento de Campanhas (ver seção 1.6,
+ subseções 1.6.1–1.6.12). Define a fronteira automático↔manual em DOIS baldes (dado vindo
+ das tabelas vs. campo informado na UI do wizard), a regra de alocação por 3 mecanismos
+ (JSONB / atributo / UI), a resolução por campanha cliente→tenant (defaults NUNCA moram no
+ tenant), o `system_segments.network_defaults` (curadoria 1x pelo Master, keyed por rede),
+ os 3 "lares de dado" a criar (page/ig/pixel em credentials; network_defaults; atributo
+ website), os hotfixes pré-fase (bug do page_id, adset_schedule não enviado, IDs de
+ interesse falsos) e a higiene de regenerar o schema.marketing.prisma defasado. Mescla
+ ADITIVA: FASE 1 expande, FASE 5 vira "Video + Conversão/ROI", FASE 11 só consome — sem
+ fase nova e mantendo FASES 0–11 e histórico intactos. Apenas planejamento — nenhuma
+ alteração em código ou banco foi feita.*
+*Versão 1.3.1 (2026-05-29) — Acréscimo da subseção 1.6.13 (Fronteira do "on-the-fly"):
+ veredito honesto de que NÃO há 100% de independência de código — ~85–90% de dinamismo nos
+ campos de redes já integradas (field schema como dado + fallback de campo desconhecido),
+ mas a tradução payload→API (adapter / mapCanonicalToNetwork versionado) é camada de código
+ irredutível, atualizada junto com a mídia. Tabela do que é dado x código, nota sobre MCP e
+ critérios de aceite da fronteira. Apenas planejamento.*
