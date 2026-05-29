@@ -99,8 +99,10 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     dailyBudget:  20,
     startTime:    new Date().toISOString().split('T')[0],
     endTime:      '',
-    scheduleDays: [0, 1, 2, 3, 4, 5, 6],
+    scheduleDays:      [0, 1, 2, 3, 4, 5, 6],
     scheduleTimeSlots: [{ start: 6, end: 23 }] as { start: number; end: number }[],
+    scheduleMode:  'uniform' as 'uniform' | 'perday',
+    perDaySlots:   {} as Record<number, { start: number; end: number }>,
     objective:         'OUTCOME_LEADS',
     specialAdCategory: '',
     pixelId:           '',
@@ -154,6 +156,31 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   async function handleSubmit() {
     setSubmitting(true);
     try {
+      // Build Meta API adset_schedule format
+      const metaScheduleSlots = (() => {
+        if (form.scheduleMode === 'perday') {
+          // Group days that share the same time slot → fewer API entries
+          const groups = new Map<string, number[]>();
+          form.scheduleDays.forEach((day: number) => {
+            const s = form.perDaySlots[day] || { start: 6, end: 23 };
+            const key = `${s.start}-${s.end}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(day);
+          });
+          return Array.from(groups.entries()).map(([key, days]) => {
+            const [start, end] = key.split('-').map(Number);
+            return { days, start_minute: start * 60, end_minute: Math.min(end * 60, 1439), timezone_type: 'USER' };
+          });
+        }
+        // Uniform: same time slots for all selected days
+        return form.scheduleTimeSlots.map((slot: { start: number; end: number }) => ({
+          days:          form.scheduleDays,
+          start_minute:  slot.start * 60,
+          end_minute:    Math.min(slot.end * 60, 1439),
+          timezone_type: 'USER',
+        }));
+      })();
+
       await createCampaign({
         networkCode:       form.networkCode,
         name:              form.name || `Campanha ${new Date().toLocaleDateString('pt-BR')}`,
@@ -175,7 +202,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         startTime:         form.startTime,
         endTime:           form.endTime || undefined,
         scheduleDays:      form.scheduleDays,
-        scheduleTimeSlots: form.scheduleTimeSlots,
+        scheduleTimeSlots: metaScheduleSlots,
         specialAdCategory: form.specialAdCategory || autoFields.specialAdCategory || 'NONE',
         pixelId:           form.pixelId           || autoFields.pixelId           || undefined,
         customEventType:   form.customEventType   || autoFields.customEventType   || 'LEAD',
@@ -887,10 +914,97 @@ function InterestsPicker({ interests, onChange }: { interests: any[]; onChange: 
 }
 
 /* ══════════════════════════════════════════════════════════
+   DATE INPUT — dd/mm/aaaa mask, stores ISO YYYY-MM-DD
+══════════════════════════════════════════════════════════ */
+
+function DateInput({ value, onChange, placeholder, className }: {
+  value: string; onChange: (iso: string) => void; placeholder?: string; className?: string;
+}) {
+  function toDisplay(iso: string) {
+    if (!iso || iso.length < 10) return '';
+    const [y, m, d] = iso.split('-');
+    if (!y || !m || !d) return '';
+    return `${d}/${m}/${y}`;
+  }
+
+  const [local, setLocal] = useState(() => toDisplay(value));
+
+  useEffect(() => {
+    const display = toDisplay(value);
+    setLocal(prev => {
+      // Only sync if the ISO value changed externally (avoid fighting with user typing)
+      const prevISO = prev.length === 10
+        ? `${prev.slice(6)}-${prev.slice(3,5)}-${prev.slice(0,2)}`
+        : '';
+      return prevISO !== value ? display : prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 8);
+    let fmt = raw;
+    if (raw.length >= 3) fmt = raw.slice(0, 2) + '/' + raw.slice(2);
+    if (raw.length >= 5) fmt = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4);
+    setLocal(fmt);
+    if (raw.length === 8) {
+      // dd/mm/yyyy → YYYY-MM-DD
+      onChange(`${raw.slice(4)}-${raw.slice(2, 4)}-${raw.slice(0, 2)}`);
+    } else {
+      onChange('');
+    }
+  }
+
+  return (
+    <input
+      type="text"
+      value={local}
+      onChange={handleChange}
+      placeholder={placeholder ?? 'dd/mm/aaaa'}
+      maxLength={10}
+      className={cn(inputCls, className)}
+    />
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
    STEP 4 — ORÇAMENTO
 ══════════════════════════════════════════════════════════ */
 
 function StepBudget({ form, updateForm }: any) {
+  const scheduleMode = (form.scheduleMode || 'uniform') as 'uniform' | 'perday';
+  const perDaySlots  = (form.perDaySlots  || {}) as Record<number, { start: number; end: number }>;
+
+  function switchToPerDay() {
+    // Pre-fill from global slot so it feels seamless
+    const globalSlot = form.scheduleTimeSlots?.[0] || { start: 6, end: 23 };
+    const slots: Record<number, { start: number; end: number }> = {};
+    for (let d = 0; d < 7; d++) slots[d] = { ...globalSlot };
+    updateForm({ scheduleMode: 'perday', perDaySlots: slots });
+  }
+
+  function updateSlot(i: number, field: 'start' | 'end', val: number) {
+    const slots = [...(form.scheduleTimeSlots as { start: number; end: number }[])];
+    slots[i] = { ...slots[i], [field]: val };
+    updateForm({ scheduleTimeSlots: slots });
+  }
+
+  function updatePerDay(day: number, field: 'start' | 'end', val: number) {
+    updateForm({
+      perDaySlots: {
+        ...perDaySlots,
+        [day]: { ...(perDaySlots[day] || { start: 6, end: 23 }), [field]: val },
+      },
+    });
+  }
+
+  function toggleDay(dayValue: number) {
+    const days = form.scheduleDays.includes(dayValue)
+      ? form.scheduleDays.filter((d: number) => d !== dayValue)
+      : [...form.scheduleDays, dayValue];
+    updateForm({ scheduleDays: days });
+  }
+
   return (
     <div className="space-y-8">
       <Section title="Investimento">
@@ -912,69 +1026,137 @@ function StepBudget({ form, updateForm }: any) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Data Início</Label>
-              <input type="date" value={form.startTime}
-                onChange={e => updateForm({ startTime: e.target.value })} className={cn(inputCls, 'w-full')} />
+              <DateInput
+                value={form.startTime}
+                onChange={v => updateForm({ startTime: v })}
+                className="w-full"
+              />
             </div>
             <div>
               <Label>Data Fim (opcional)</Label>
-              <input type="date" value={form.endTime}
-                onChange={e => updateForm({ endTime: e.target.value })} className={cn(inputCls, 'w-full')} />
+              <DateInput
+                value={form.endTime}
+                onChange={v => updateForm({ endTime: v })}
+                placeholder="Sem data fim"
+                className="w-full"
+              />
             </div>
           </div>
         </div>
       </Section>
 
       <Section title="Programação de Veiculação">
-        <div className="grid grid-cols-2 gap-8">
-          <div>
-            <Label>Dias da Semana</Label>
-            <div className="flex gap-2 flex-wrap">
-              {DAYS_OF_WEEK.map(day => (
-                <button key={day.value}
-                  onClick={() => {
-                    const days = form.scheduleDays.includes(day.value)
-                      ? form.scheduleDays.filter((d: number) => d !== day.value)
-                      : [...form.scheduleDays, day.value];
-                    updateForm({ scheduleDays: days });
-                  }}
-                  className={cn('w-11 h-11 rounded-xl text-sm font-semibold transition-all',
-                    form.scheduleDays.includes(day.value)
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300'
-                  )}>
-                  {day.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <Label>Horários de Veiculação</Label>
-            <div className="space-y-3">
-              {form.scheduleTimeSlots.map((slot: { start: number; end: number }, i: number) => (
-                <div key={i} className="flex items-center gap-3">
-                  <input type="number" value={slot.start}
-                    onChange={e => { const slots = [...form.scheduleTimeSlots]; slots[i] = { ...slots[i], start: parseInt(e.target.value) }; updateForm({ scheduleTimeSlots: slots }); }}
-                    min={0} max={23} className={cn(inputCls, 'w-20')} />
-                  <span className="text-gray-400 text-sm">h até</span>
-                  <input type="number" value={slot.end}
-                    onChange={e => { const slots = [...form.scheduleTimeSlots]; slots[i] = { ...slots[i], end: parseInt(e.target.value) }; updateForm({ scheduleTimeSlots: slots }); }}
-                    min={0} max={23} className={cn(inputCls, 'w-20')} />
-                  <span className="text-gray-400 text-sm">h</span>
-                  {form.scheduleTimeSlots.length > 1 && (
-                    <button onClick={() => { const slots = form.scheduleTimeSlots.filter((_: any, idx: number) => idx !== i); updateForm({ scheduleTimeSlots: slots }); }}
-                      className="text-red-400 hover:text-red-600 transition-colors" title="Remover">
-                      <XMarkIcon className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button onClick={() => updateForm({ scheduleTimeSlots: [...form.scheduleTimeSlots, { start: 0, end: 6 }] })}
-                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
-                + Adicionar intervalo
-              </button>
-            </div>
-          </div>
+        {/* Mode toggle */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => updateForm({ scheduleMode: 'uniform' })}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all',
+              scheduleMode === 'uniform'
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                : 'border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+            )}
+          >
+            🗓️ Mesmo horário todos os dias
+          </button>
+          <button
+            onClick={switchToPerDay}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all',
+              scheduleMode === 'perday'
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                : 'border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+            )}
+          >
+            ⚙️ Personalizar por dia
+          </button>
         </div>
+
+        {scheduleMode === 'uniform' ? (
+          <div className="grid grid-cols-2 gap-8">
+            <div>
+              <Label>Dias da Semana</Label>
+              <div className="flex gap-2 flex-wrap">
+                {DAYS_OF_WEEK.map(day => (
+                  <button key={day.value} onClick={() => toggleDay(day.value)}
+                    className={cn('w-11 h-11 rounded-xl text-sm font-semibold transition-all',
+                      form.scheduleDays.includes(day.value)
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300'
+                    )}>
+                    {day.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Horários de Veiculação</Label>
+              <div className="space-y-3">
+                {(form.scheduleTimeSlots as { start: number; end: number }[]).map((slot, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <input type="number" value={slot.start}
+                      onChange={e => updateSlot(i, 'start', parseInt(e.target.value))}
+                      min={0} max={23} className={cn(inputCls, 'w-20 text-center')} />
+                    <span className="text-gray-400 text-sm">h até</span>
+                    <input type="number" value={slot.end}
+                      onChange={e => updateSlot(i, 'end', parseInt(e.target.value))}
+                      min={0} max={23} className={cn(inputCls, 'w-20 text-center')} />
+                    <span className="text-gray-400 text-sm">h</span>
+                    {form.scheduleTimeSlots.length > 1 && (
+                      <button
+                        onClick={() => updateForm({ scheduleTimeSlots: form.scheduleTimeSlots.filter((_: any, idx: number) => idx !== i) })}
+                        className="text-red-400 hover:text-red-600 transition-colors" title="Remover">
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={() => updateForm({ scheduleTimeSlots: [...form.scheduleTimeSlots, { start: 0, end: 6 }] })}
+                  className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+                  + Adicionar intervalo
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Per-day mode */
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400 mb-3">
+              Clique no dia para ativar / desativar. Defina horários individuais para cada dia.
+            </p>
+            {DAYS_OF_WEEK.map(day => {
+              const isActive = form.scheduleDays.includes(day.value);
+              const slot = perDaySlots[day.value] || { start: 6, end: 23 };
+              return (
+                <div key={day.value} className={cn(
+                  'flex items-center gap-4 px-4 py-3 rounded-xl border transition-all',
+                  isActive ? 'border-indigo-200 bg-indigo-50/40' : 'border-gray-100 bg-gray-50 opacity-50'
+                )}>
+                  <button
+                    onClick={() => toggleDay(day.value)}
+                    className={cn(
+                      'w-12 h-10 rounded-xl text-sm font-bold shrink-0 transition-all',
+                      isActive ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-200 text-gray-400'
+                    )}>
+                    {day.label}
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <input type="number" value={slot.start} min={0} max={23} disabled={!isActive}
+                      onChange={e => updatePerDay(day.value, 'start', parseInt(e.target.value))}
+                      className={cn(inputCls, 'w-20 text-center disabled:opacity-40 disabled:cursor-not-allowed')} />
+                    <span className="text-gray-400 text-sm">h até</span>
+                    <input type="number" value={slot.end} min={0} max={23} disabled={!isActive}
+                      onChange={e => updatePerDay(day.value, 'end', parseInt(e.target.value))}
+                      className={cn(inputCls, 'w-20 text-center disabled:opacity-40 disabled:cursor-not-allowed')} />
+                    <span className="text-gray-400 text-sm">h</span>
+                  </div>
+                  {!isActive && <span className="text-[10px] text-gray-400 italic">desativado</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Section>
     </div>
   );
