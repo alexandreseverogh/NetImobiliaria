@@ -63,10 +63,6 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    // Verificar permissão de edição server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'UPDATE');
-    if (denied) return denied;
-
     const payload = getTokenPayload(request);
     if (!payload || !payload.tenantId) {
       return NextResponse.json({ error: 'Tenant não encontrado ou usuário não autenticado' }, { status: 401 });
@@ -74,6 +70,14 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
     const { metaAppId, metaAppSecret, metaToken, adAccountId, creativesPath, publicDomain } = body;
+
+    // Campos Meta API exigem permissão UPDATE; creativesPath/publicDomain são do próprio tenant
+    const hasMeta = metaAppId !== undefined || metaAppSecret !== undefined
+                 || metaToken !== undefined || adAccountId !== undefined;
+    if (hasMeta) {
+      const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'UPDATE');
+      if (denied) return denied;
+    }
 
     // Atualiza campos Meta no tenant (schema public)
     const sets: string[] = [];

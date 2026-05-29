@@ -6,7 +6,7 @@ import { cn } from '@/lib/marketing-utils';
 import dynamic from 'next/dynamic';
 import {
   MagnifyingGlassIcon, PhotoIcon, RocketLaunchIcon, XMarkIcon,
-  FolderOpenIcon, BuildingOfficeIcon, UserCircleIcon, ChevronDownIcon,
+  FolderOpenIcon, BuildingOfficeIcon, UserCircleIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { CreateGuard } from '@/components/admin/PermissionGuard';
@@ -40,12 +40,14 @@ function CreativesPageInner() {
 
   // UI
   const [selected, setSelected]     = useState<Creative[]>([]);
-  const [loading, setLoading]       = useState(false);
-  const [filter, setFilter]         = useState('');
-  const [showWizard, setShowWizard] = useState(false);
-  const [error, setError]           = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [filter, setFilter]           = useState('');
+  const [showWizard, setShowWizard]   = useState(false);
+  const [error, setError]             = useState('');
+  const [clientSearch, setClientSearch] = useState('');
 
-  const fileInputRef   = useRef<HTMLInputElement>(null);
+  const fileInputRef    = useRef<HTMLInputElement>(null);
+  const clientSearchRef = useRef<HTMLInputElement>(null);
   const supportsPickerAPI = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 
   // Carrega lista de clientes do tenant
@@ -62,6 +64,8 @@ function CreativesPageInner() {
       setPathHint(c?.creativesPath || '');
     } else {
       setPathHint('');
+      setSelectedClientId('');
+      setClientSearch('');
     }
     resetFiles();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -225,7 +229,7 @@ function CreativesPageInner() {
             </div>
           </div>
 
-          {/* Dropdown de cliente */}
+          {/* Busca + lista de clientes */}
           <AnimatePresence>
             {importMode === 'client' && (
               <motion.div
@@ -237,19 +241,97 @@ function CreativesPageInner() {
                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                   Selecionar cliente
                 </label>
-                <div className="relative">
-                  <select
-                    value={selectedClientId}
-                    onChange={e => setSelectedClientId(e.target.value)}
-                    className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  >
-                    <option value="">— Selecione um cliente —</option>
-                    {clients.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                  <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                </div>
+
+                {/* Cliente já selecionado → chip + trocar */}
+                {selectedClientId ? (
+                  <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-black shrink-0">
+                      {selectedClient?.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{selectedClient?.name}</p>
+                      {selectedClient?.email && (
+                        <p className="text-[10px] text-indigo-500 truncate">{selectedClient.email}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedClientId('');
+                        setClientSearch('');
+                        setTimeout(() => clientSearchRef.current?.focus(), 50);
+                      }}
+                      className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-800 shrink-0"
+                    >
+                      Trocar
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Campo de busca */}
+                    <div className="relative mb-2">
+                      <MagnifyingGlassIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                      <input
+                        ref={clientSearchRef}
+                        type="text"
+                        placeholder="Digite 3+ letras para buscar..."
+                        value={clientSearch}
+                        onChange={e => setClientSearch(e.target.value)}
+                        className="w-full pl-10 pr-9 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      />
+                      {clientSearch && (
+                        <button
+                          onClick={() => setClientSearch('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Hint enquanto digita < 3 letras */}
+                    {clientSearch.length > 0 && clientSearch.length < 3 && (
+                      <p className="text-[10px] text-gray-400 font-medium px-1 mb-2">
+                        Digite mais {3 - clientSearch.length} letra{3 - clientSearch.length !== 1 ? 's' : ''} para filtrar...
+                      </p>
+                    )}
+
+                    {/* Lista filtrada */}
+                    {(() => {
+                      const term = clientSearch.trim().toLowerCase();
+                      const list = term.length >= 3
+                        ? clients.filter(c => c.name.toLowerCase().includes(term) || (c.email || '').toLowerCase().includes(term))
+                        : clients;
+                      return list.length > 0 ? (
+                        <div className="border border-gray-200 rounded-xl overflow-hidden max-h-[260px] overflow-y-auto divide-y divide-gray-100">
+                          {list.map(c => (
+                            <button
+                              key={c.id}
+                              onClick={() => { setSelectedClientId(c.id); setClientSearch(''); }}
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors text-left group"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-gray-200 group-hover:bg-indigo-200 flex items-center justify-center text-gray-600 group-hover:text-indigo-700 text-xs font-black shrink-0 transition-colors">
+                                {c.name.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 truncate">{c.name}</p>
+                                {c.email && (
+                                  <p className="text-[10px] text-gray-400 truncate">{c.email}</p>
+                                )}
+                              </div>
+                              {c.creativesPath && (
+                                <FolderOpenIcon className="h-3.5 w-3.5 text-indigo-400 shrink-0" title="Pasta configurada" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ) : term.length >= 3 ? (
+                        <p className="text-xs text-gray-400 font-medium px-1 py-2">
+                          Nenhum cliente encontrado para "{clientSearch}"
+                        </p>
+                      ) : null;
+                    })()}
+                  </>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

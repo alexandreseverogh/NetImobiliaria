@@ -357,6 +357,7 @@ export default function MasterTenantsPage() {
   if (loading) return <div className="p-8 text-center bg-gray-50 min-h-screen font-black text-gray-500 uppercase tracking-widest animate-pulse">Sincronizando Ecossistema...</div>
 
   return (
+    <>
     <div className="p-10 bg-gray-50 min-h-screen font-sans">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-start mb-12">
@@ -1190,5 +1191,6 @@ export default function MasterTenantsPage() {
       onClose={() => setShowModulesModal(false)}
       modules={availableModules}
     />
+    </>
   )
 }
