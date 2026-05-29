@@ -7,6 +7,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { buscarEnderecoPorCep } from '@/lib/utils/geocoding'
 import EstadoSelect from '@/components/shared/EstadoSelect'
+import ClientCampaignSettings from '@/components/admin/clientes/ClientCampaignSettings'
 
 interface Cliente {
   uuid: string
@@ -39,6 +40,7 @@ export default function EditarClientePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [cliente, setCliente] = useState<Cliente | null>(null)
+  const [activeTab, setActiveTab] = useState<'dados' | 'meta'>('dados')
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -699,9 +701,43 @@ export default function EditarClientePage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Editar Cliente</h1>
         <p className="text-gray-600">Atualize as informações do cliente</p>
+
+        {/* Tabs */}
+        <div className="mt-5 flex gap-1 bg-white border border-gray-100 rounded-2xl p-1 shadow-sm max-w-sm">
+          <button
+            type="button"
+            onClick={() => setActiveTab('dados')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
+              ${activeTab === 'dados'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+          >
+            👤 Dados do Cliente
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('meta')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
+              ${activeTab === 'meta'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+          >
+            📣 Config. Meta
+          </button>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-8 space-y-6">
+      {/* ── ABA: CONFIGURAÇÕES META ── */}
+      {activeTab === 'meta' && cliente && (
+        <div className="max-w-3xl">
+          <ClientCampaignSettings clientId={cliente.uuid} />
+        </div>
+      )}
+
+      {/* ── ABA: DADOS DO CLIENTE ── */}
+      {activeTab === 'dados' && <form onSubmit={handleSubmit} className="p-8 space-y-6">
         {/* Nome */}
         <div>
           <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-2">
@@ -964,7 +1000,7 @@ export default function EditarClientePage() {
             {saving ? 'Salvando...' : 'Salvar Alterações'}
           </button>
         </div>
-      </form>
+      </form>}
     </div>
   )
 }
