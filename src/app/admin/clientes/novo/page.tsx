@@ -594,35 +594,33 @@ export default function NovoClientePage() {
               : 'Preencha os dados do novo cliente'}
           </p>
 
-          {/* Tabs */}
-          <div className="mt-5 flex gap-1 bg-white border border-gray-100 rounded-2xl p-1 shadow-sm max-w-sm">
-            <button
-              type="button"
-              onClick={() => setActiveTab('dados')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
-                ${activeTab === 'dados'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-            >
-              👤 Dados do Cliente
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('meta')}
-              disabled={!createdClientId}
-              title={!createdClientId ? 'Salve o cliente primeiro' : undefined}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
-                ${activeTab === 'meta'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : !createdClientId
-                    ? 'text-gray-300 cursor-not-allowed'
+          {/* Tabs — a aba Meta só aparece depois que o cliente é salvo */}
+          {createdClientId && (
+            <div className="mt-5 flex gap-1 bg-white border border-gray-100 rounded-2xl p-1 shadow-sm max-w-sm">
+              <button
+                type="button"
+                onClick={() => setActiveTab('dados')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
+                  ${activeTab === 'dados'
+                    ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-            >
-              📣 Config. Meta
-            </button>
-          </div>
+                  }`}
+              >
+                👤 Dados do Cliente
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('meta')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
+                  ${activeTab === 'meta'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+              >
+                📣 Config. Meta
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── ABA: CONFIGURAÇÕES META ── */}
