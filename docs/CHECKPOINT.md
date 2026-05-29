@@ -82,12 +82,31 @@ Documentada a **Camada Operacional de Lançamento de Campanhas** (subseções 1.
 
 ---
 
+## Última entrega — Camada 3 (clientes) — 2026-05-29
+
+- ✅ `clientes.page_id TEXT`, `clientes.pixel_id TEXT`, `clientes.instagram_actor_id TEXT` — migração executada
+- ✅ API `GET/PUT /api/admin/clientes/[id]/campaign-settings`
+- ✅ Página `/admin/clientes/[id]` refatorada com tabs: "Dados do Cliente" | "Configurações Meta"
+  - `CampaignField` com indicador "próprio" vs "usando tenant"
+  - Barra de progresso de completude
+  - Info bar com fallbacks do tenant
+- ✅ `getNetworkServiceForTenant()` aceita `clientId` — cascata: `client.page_id ?? tenant.page_id`
+- ✅ `campaigns/route.ts` passa `clientId` para cascata de credenciais
+
+## Arquitetura de 3 camadas — COMPLETA
+
+| Camada | Config | UI | Status |
+|--------|--------|----|--------|
+| **Master** | LLM global | `/admin/master/ia-plataforma` | ✅ |
+| **Tenant** | Meta credentials, website, segment | `/admin/campanhas/configuracoes` → Identidade Meta | ✅ |
+| **Cliente** | page_id, pixel_id, instagram, website (override) | `/admin/clientes/{id}` → aba Configurações Meta | ✅ |
+
 ## Próximos passos imediatos
 
-1. Verificar `StepReview` no `CampaignWizard` — adicionar `specialAdCategory`, `pixelId`, `customEventType` no resumo final
-2. Testar fluxo completo: Settings → Identidade Meta → salvar page_id → Wizard → lançar campanha
+1. Testar fluxo completo: Settings → Identidade Meta → salvar page_id → Wizard → lançar campanha
+2. `StepReview` no `CampaignWizard` — mostrar `specialAdCategory`, `pixelId`, `customEventType` no resumo final
 3. **FASE 4** do plano mestre (Campaign State Machine)
-4. Testes end-to-end: `POST /api/admin/campanhas/briefings/generate`, Agente Decisor, Desperdício de Verba
+4. Testes end-to-end: briefings, Agente Decisor, Desperdício de Verba
 
 ---
 
