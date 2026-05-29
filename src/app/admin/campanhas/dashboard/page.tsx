@@ -13,6 +13,7 @@ import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
 import { ArrowPathIcon, SparklesIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899'];
 
@@ -47,7 +48,10 @@ export function DashboardPage() {
   const [statusFilter, setStatusFilter]         = useState('');
   const [adSetFilter, setAdSetFilter]           = useState('');
 
-  useEffect(() => { loadData(); }, [dateRange, startDate, endDate, selectedCampaign, objectiveFilter, statusFilter, adSetFilter]);
+  // ClientSelector — ALTA PRIORIDADE (CLAUDE.md)
+  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('dashboard');
+
+  useEffect(() => { loadData(); }, [dateRange, startDate, endDate, selectedCampaign, objectiveFilter, statusFilter, adSetFilter, clientFilter]);
 
   async function loadData() {
     setLoading(true);
@@ -63,6 +67,8 @@ export function DashboardPage() {
       if (objectiveFilter) params.objectiveFilter = objectiveFilter;
       if (statusFilter) params.statusFilter = statusFilter;
       if (adSetFilter) params.adSetId = adSetFilter;
+      // Filtro por cliente (ClientSelector)
+      if (clientFilter && clientFilter !== 'all') params.clientId = clientFilter;
 
       const [dashData, predData] = await Promise.all([
         getDashboardFull(params).catch((e) => { console.error('[Dashboard] getDashboardFull:', e); return null; }),
@@ -155,13 +161,23 @@ export function DashboardPage() {
             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Dashboard</h1>
             <p className="text-gray-500 mt-1 text-sm font-medium">{periodLabel}</p>
           </div>
-          <ExecuteGuard resource="dashboard-campanhas">
-            <button onClick={handleSync} disabled={syncing}
-              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-indigo-500/20">
-              <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Sincronizando...' : 'Sync Meta'}
-            </button>
-          </ExecuteGuard>
+          <div className="flex items-center gap-3">
+            {/* Seletor de cliente — ALTA PRIORIDADE */}
+            <ClientSelector
+              value={clientFilter}
+              onChange={setClientFilter}
+              clients={clients}
+              loading={clientsLoading}
+              storageKey="dashboard"
+            />
+            <ExecuteGuard resource="dashboard-campanhas">
+              <button onClick={handleSync} disabled={syncing}
+                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-indigo-500/20">
+                <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Sincronizando...' : 'Sync Meta'}
+              </button>
+            </ExecuteGuard>
+          </div>
         </div>
 
         {/* Filters */}

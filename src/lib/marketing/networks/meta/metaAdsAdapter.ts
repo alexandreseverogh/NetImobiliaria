@@ -18,6 +18,12 @@ export interface MetaCredentials {
   app_id?: string;
   app_secret?: string;
   ad_account_id: string;
+  /** Facebook Page ID (obrigatório para criar criativos). */
+  page_id?: string;
+  /** Meta Pixel ID — para promoted_object e rastreamento de conversões. */
+  pixel_id?: string;
+  /** Instagram Actor ID — opcional, para criativos no Instagram. */
+  instagram_actor_id?: string;
 }
 
 export class MetaAdsAdapter implements AdNetworkService {
@@ -25,10 +31,17 @@ export class MetaAdsAdapter implements AdNetworkService {
 
   private readonly token: string;
   private readonly adAccountId: string;
+  private readonly pageId: string;
+  private readonly pixelId?: string;
+  private readonly instagramActorId?: string;
 
   constructor(creds: MetaCredentials) {
-    this.token       = creds.access_token;
-    this.adAccountId = creds.ad_account_id.replace(/^act_/, '');
+    this.token             = creds.access_token;
+    this.adAccountId       = creds.ad_account_id.replace(/^act_/, '');
+    // HOTFIX: page_id vem das credenciais, NÃO do ad_account_id
+    this.pageId            = creds.page_id || '';
+    this.pixelId           = creds.pixel_id;
+    this.instagramActorId  = creds.instagram_actor_id;
   }
 
   private url(path: string) {
@@ -75,15 +88,19 @@ export class MetaAdsAdapter implements AdNetworkService {
     }
 
     // 2. Create campaign
+    const campaignPayload: any = {
+      name: input.name,
+      objective: input.objective,
+      status: 'PAUSED',
+      special_ad_categories: input.specialAdCategory && input.specialAdCategory !== 'NONE'
+        ? [input.specialAdCategory]
+        : [],
+      ...this.auth,
+    };
+
     const campaignRes = await axios.post(
       this.url(`act_${this.adAccountId}/campaigns`),
-      {
-        name: input.name,
-        objective: input.objective,
-        status: 'PAUSED',
-        special_ad_categories: input.specialAdCategory ? [input.specialAdCategory] : [],
-        ...this.auth,
-      },
+      campaignPayload,
     );
     const externalId = campaignRes.data.id;
 
@@ -97,58 +114,94 @@ export class MetaAdsAdapter implements AdNetworkService {
     if (input.adSet.interests?.length) targeting.interests = input.adSet.interests;
 
     const adSetPayload: any = {
-      campaign_id:      externalId,
-      name:             input.adSet.name,
-      daily_budget:     input.adSet.dailyBudget,
-      billing_event:    input.adSet.billingEvent,
+      campaign_id:       externalId,
+      name:              input.adSet.name,
+      daily_budget:      input.adSet.dailyBudget,
+      billing_event:     input.adSet.billingEvent,
       optimization_goal: input.adSet.optimizationGoal,
       targeting,
-      start_time:       new Date(input.adSet.startTime).toISOString(),
-      status:           'PAUSED',
+      start_time:        new Date(input.adSet.startTime).toISOString(),
+      status:            'PAUSED',
       ...this.auth,
     };
+
     if (input.adSet.endTime) {
       adSetPayload.end_time = new Date(input.adSet.endTime).toISOString();
+    }
+
+    // HOTFIX: enviar adset_schedule quando scheduleDays estiver configurado
+    const schedulePayload = this.buildAdsetSchedule(input.adSet);
+    if (schedulePayload) {
+      adSetPayload.adset_schedule = schedulePayload;
+      // Quando há agendamento dia/hora, billing_event deve ser IMPRESSIONS
+      adSetPayload.billing_event = 'IMPRESSIONS';
+    }
+
+    // Promoted object (pixel + conversão) — quando pixel_id disponível
+    const pixelId = input.pixelId || this.pixelId;
+    if (pixelId) {
+      adSetPayload.promoted_object = {
+        pixel_id:          pixelId,
+        custom_event_type: input.customEventType || 'LEAD',
+      };
     }
 
     const adSetRes = await axios.post(this.url(`act_${this.adAccountId}/adsets`), adSetPayload);
     const externalAdSetId = adSetRes.data.id;
 
     // 4. Create creative
+    // HOTFIX: usar page_id real das credenciais, não o ad_account_id
+    const pageId = this.pageId;
+    if (!pageId) {
+      throw new Error(
+        'Meta Ads: page_id não configurado. ' +
+        'Acesse Configurações → Redes de Anúncios → Identidade Meta e informe o Facebook Page ID.',
+      );
+    }
+
     let creativePayload: any;
     const { ad } = input;
 
+    // Instagram actor para criativos (opcional)
+    const instagramActorId = this.instagramActorId;
+
     if (ad.creativeType === 'CAROUSEL' && imageHashes.length > 1) {
+      const storySpec: any = {
+        link_data: {
+          child_attachments: imageHashes.map((hash, i) => ({
+            image_hash: hash,
+            link: ad.linkUrl,
+            name: ad.headline || `Slide ${i + 1}`,
+          })),
+          link: ad.linkUrl,
+          message: ad.body,
+          call_to_action: { type: ad.ctaType },
+        },
+        page_id: pageId,
+      };
+      if (instagramActorId) storySpec.instagram_actor_id = instagramActorId;
+
       creativePayload = {
         name: `${ad.name} Creative`,
-        object_story_spec: {
-          link_data: {
-            child_attachments: imageHashes.map((hash, i) => ({
-              image_hash: hash,
-              link: ad.linkUrl,
-              name: ad.headline || `Slide ${i + 1}`,
-            })),
-            link: ad.linkUrl,
-            message: ad.body,
-            call_to_action: { type: ad.ctaType },
-          },
-          page_id: this.adAccountId,
-        },
+        object_story_spec: storySpec,
         ...this.auth,
       };
     } else {
+      const storySpec: any = {
+        link_data: {
+          image_hash: imageHashes[0],
+          link: ad.linkUrl,
+          message: ad.body,
+          name: ad.headline,
+          call_to_action: { type: ad.ctaType },
+        },
+        page_id: pageId,
+      };
+      if (instagramActorId) storySpec.instagram_actor_id = instagramActorId;
+
       creativePayload = {
         name: `${ad.name} Creative`,
-        object_story_spec: {
-          link_data: {
-            image_hash: imageHashes[0],
-            link: ad.linkUrl,
-            message: ad.body,
-            name: ad.headline,
-            call_to_action: { type: ad.ctaType },
-          },
-          page_id: this.adAccountId,
-        },
+        object_story_spec: storySpec,
         ...this.auth,
       };
     }
@@ -172,8 +225,40 @@ export class MetaAdsAdapter implements AdNetworkService {
       externalId,
       externalAdSetId,
       externalAdId: adRes.data.id,
-      networkMetadata: { creative_id: creativeId },
+      networkMetadata: {
+        creative_id: creativeId,
+        page_id: pageId,
+        pixel_id: pixelId || null,
+      },
     };
+  }
+
+  /**
+   * HOTFIX: monta o adset_schedule a partir dos campos de agendamento.
+   * Meta API espera: [{ days: number[], start_minute: number, end_minute: number, timezone_type: string }]
+   * days: 0=Domingo, 1=Segunda … 6=Sábado
+   */
+  private buildAdsetSchedule(adSet: CreateCampaignInput['adSet']): any[] | null {
+    const { scheduleDays, scheduleStartHour, scheduleEndHour, scheduleTimeSlots } = adSet;
+
+    // Se há time slots detalhados, use-os diretamente
+    if (scheduleTimeSlots && Array.isArray(scheduleTimeSlots) && scheduleTimeSlots.length > 0) {
+      return scheduleTimeSlots;
+    }
+
+    // Se há dias configurados com horário de início/fim
+    if (scheduleDays && scheduleDays.length > 0) {
+      const startMinute = (scheduleStartHour ?? 0) * 60;
+      const endMinute   = (scheduleEndHour ?? 24) * 60;
+      return [{
+        days:          scheduleDays,
+        start_minute:  startMinute,
+        end_minute:    endMinute === 1440 ? 1439 : endMinute, // Meta: max 1439
+        timezone_type: 'USER',
+      }];
+    }
+
+    return null;
   }
 
   async updateCampaignStatus(externalId: string, status: 'ACTIVE' | 'PAUSED'): Promise<void> {
@@ -183,17 +268,26 @@ export class MetaAdsAdapter implements AdNetworkService {
   async fetchInsights(externalId: string, dateRange: DateRange): Promise<NetworkInsight[]> {
     const res = await axios.get(this.url(`${externalId}/insights`), {
       params: {
-        fields: 'impressions,reach,clicks,spend,cpc,cpm,ctr,actions,frequency',
-        time_range: JSON.stringify({ since: dateRange.since, until: dateRange.until }),
+        fields: [
+          'impressions', 'reach', 'clicks', 'spend', 'cpc', 'cpm', 'ctr',
+          'actions', 'frequency',
+          // ROI + conversão (seção 1.6 — FASE 5 estendida)
+          'action_values', 'cost_per_action_type',
+          'quality_ranking', 'engagement_rate_ranking', 'conversion_rate_ranking',
+          'link_clicks', 'landing_page_views',
+        ].join(','),
+        time_range:     JSON.stringify({ since: dateRange.since, until: dateRange.until }),
         time_increment: 1,
         ...this.auth,
       },
     });
 
     return (res.data.data || []).map((row: any) => {
-      const actions: any[] = row.actions || [];
-      const leads = actions.find((a: any) => a.action_type === 'lead')?.value || 0;
-      const conversions = actions.find((a: any) => a.action_type === 'offsite_conversion.fb_pixel_purchase')?.value || 0;
+      const actions: any[]       = row.actions || [];
+      const actionValues: any[]  = row.action_values || [];
+      const leads      = actions.find((a) => a.action_type === 'lead')?.value || 0;
+      const purchases  = actions.find((a) => a.action_type === 'offsite_conversion.fb_pixel_purchase')?.value || 0;
+      const purchaseValue = actionValues.find((a) => a.action_type === 'offsite_conversion.fb_pixel_purchase')?.value || 0;
 
       return {
         date:        row.date_start,
@@ -205,8 +299,23 @@ export class MetaAdsAdapter implements AdNetworkService {
         cpm:         parseFloat(row.cpm        || 0),
         ctr:         parseFloat(row.ctr        || 0),
         frequency:   parseFloat(row.frequency  || 0),
-        conversions: parseInt(conversions),
+        conversions: parseInt(purchases),
         leads:       parseInt(leads),
+        // Campos de ROI (FASE 5 estendida) — armazenados em breakdowns
+        breakdowns: {
+          purchase_value:       parseFloat(purchaseValue),
+          quality_ranking:      row.quality_ranking,
+          engagement_ranking:   row.engagement_rate_ranking,
+          conversion_ranking:   row.conversion_rate_ranking,
+          link_clicks:          parseInt(row.link_clicks || 0),
+          landing_page_views:   parseInt(row.landing_page_views || 0),
+          cost_per_lead:        leads > 0 ? parseFloat(row.spend || 0) / parseInt(leads) : null,
+          roas:                 parseFloat(row.spend || 0) > 0
+                                  ? parseFloat(purchaseValue) / parseFloat(row.spend || 1)
+                                  : null,
+          raw_actions:          actions,
+          raw_action_values:    actionValues,
+        },
       };
     });
   }
@@ -244,9 +353,12 @@ export class MetaAdsAdapter implements AdNetworkService {
 /** Build MetaAdsAdapter from legacy settings object (backwards compat). */
 export function buildMetaAdapterFromSettings(settings: any): MetaAdsAdapter {
   return new MetaAdsAdapter({
-    access_token:  settings?.metaToken || process.env.META_ACCESS_TOKEN || '',
-    ad_account_id: settings?.adAccountId || process.env.META_AD_ACCOUNT_ID || '',
-    app_id:        settings?.appId,
-    app_secret:    settings?.appSecret,
+    access_token:        settings?.metaToken      || process.env.META_ACCESS_TOKEN       || '',
+    ad_account_id:       settings?.adAccountId    || process.env.META_AD_ACCOUNT_ID      || '',
+    app_id:              settings?.appId,
+    app_secret:          settings?.appSecret,
+    page_id:             settings?.pageId         || process.env.META_PAGE_ID            || '',
+    pixel_id:            settings?.pixelId        || process.env.META_PIXEL_ID,
+    instagram_actor_id:  settings?.instagramActorId,
   });
 }

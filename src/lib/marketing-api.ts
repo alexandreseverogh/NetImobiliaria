@@ -178,6 +178,31 @@ export const getClientCreativePaths = (): Promise<{ clients: ClientWithCreatives
 export const updateClientCreativePath = (clientId: string, creativesPath: string) =>
   api.put('/settings/client-creatives', { clientId, creativesPath }).then(r => r.data);
 
+// ─── Identidade Meta (page_id, pixel_id, instagram, website) ─────────────────
+export interface MetaIdentitySettings {
+  pageId:           string;
+  pixelId:          string;
+  instagramActorId: string;
+  accessToken:      string;
+  appId:            string;
+  adAccountId:      string;
+  credentialsActive: boolean;
+  lastValidated:    string | null;
+  tokenExpiresAt:   string | null;
+  website:          string;
+  tenantName:       string;
+}
+
+export const getMetaIdentity = (): Promise<MetaIdentitySettings> =>
+  api.get('/settings/meta-identity').then(r => r.data);
+
+export const updateMetaIdentity = (data: {
+  pageId?: string;
+  pixelId?: string;
+  instagramActorId?: string;
+  website?: string;
+}) => api.put('/settings/meta-identity', data).then(r => r.data);
+
 
 export const searchInterests = (q: string) =>
   api.get('/meta/targeting/interests', { params: { q } }).then(r => r.data);

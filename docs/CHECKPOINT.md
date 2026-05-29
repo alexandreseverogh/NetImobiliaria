@@ -41,24 +41,40 @@ Documentada a **Camada Operacional de Lançamento de Campanhas** (subseções 1.
 
 ---
 
-## Tarefa em andamento
+## Tarefa concluída
 
 ### Implementação da Camada de Lançamento — FASE 1 Expandida (2026-05-29)
 
-**Sequência em execução:**
+**Sequência executada:**
 
 - [x] Checkpoint iniciado
-- [ ] **Migração DB** (`prisma/migration-2026-05-29-launch-layer.sql`):
-  - `public.system_segments` → ADD COLUMN `network_defaults JSONB`
-  - `public.tenants` → ADD COLUMN `website TEXT`
-  - `public.clientes` → ADD COLUMN `website TEXT`
-  - Verificar/criar `public.ad_networks`
-  - Seed `network_defaults` para segmento `imobiliario`
-- [ ] **Hotfix 1** — bug `page_id` em `metaAdsAdapter.ts` (usa ad_account_id → deve usar page_id das credentials)
-- [ ] **Hotfix 2** — `adset_schedule` persistido mas não enviado ao Meta API
-- [ ] **Settings premium** — UI seção "Identidade Meta" (page_id, pixel_id, instagram_actor_id, website)
-- [ ] **ClientSelector** — componente compartilhado premium + integração nas páginas
-- [ ] **CampaignWizard** — campos website/pixel/conversão + indicadores auto/manual
+- [x] **Migração DB** — SQL escrito em `prisma/migration-2026-05-29-launch-layer.sql`
+  - ⚠️ **PENDENTE EXECUÇÃO MANUAL** — Docker Desktop CLI inacessível nesta sessão
+  - Comando: `docker exec -i netimobiliaria-db psql -U postgres -d net_imobiliaria < prisma/migration-2026-05-29-launch-layer.sql`
+  - Colunas: `system_segments.network_defaults JSONB`, `tenants.website TEXT`, `clientes.website TEXT`
+  - Seeds: `network_defaults` para imobiliário, automotivo, varejo, serviços
+- [x] **Hotfix 1** — bug `page_id` corrigido em `src/lib/marketing/networks/meta/metaAdsAdapter.ts`
+  - `object_story_spec.page_id` agora usa `this.pageId` (das credentials) e não `this.adAccountId`
+  - Lança erro claro se `page_id` não configurado
+- [x] **Hotfix 2** — `adset_schedule` agora enviado ao Meta API
+  - Método `buildAdsetSchedule()` converte `scheduleStartHour/End` → minutos Meta format
+- [x] **Settings premium** — `src/app/admin/campanhas/configuracoes/page.tsx`
+  - Seção "Identidade Meta" com page_id, pixel_id, instagram_actor_id, website
+  - API: `src/app/api/admin/campanhas/settings/meta-identity/route.ts` (GET+PUT, JSONB merge)
+- [x] **ClientSelector** — `src/components/marketing/ClientSelector.tsx` (ALTA PRIORIDADE)
+  - Hook `useClientSelector(storageKey)` com sessionStorage persist
+  - Integrado em `dashboard/page.tsx` e `leads/page.tsx`
+- [x] **CampaignWizard** — `src/components/marketing/CampaignWizard.tsx`
+  - `AutoChip` para campos auto-resolvidos
+  - `autoFields` state via `getMetaIdentity()` + `/segment-defaults`
+  - `StepObjective` com specialAdCategory, pixelId, customEventType
+  - Prop `clientId` adicionada
+- [x] **API segment-defaults** — `src/app/api/admin/campanhas/segment-defaults/route.ts`
+  - Resolução automática pelo segmento do tenant/cliente
+  - Fallback gracioso (não quebra wizard)
+- [x] **Factory** — `resolveSegmentNetworkDefaults()` em `src/lib/marketing/networks/factory.ts`
+- [x] **campaigns/route.ts** — `pixelId` e `customEventType` passados para `networkService.createCampaign()`
+- [x] Arquivo temporário `_run_migration.js` removido
 
 **Arquivo de migração:** `prisma/migration-2026-05-29-launch-layer.sql`
 
@@ -66,9 +82,14 @@ Documentada a **Camada Operacional de Lançamento de Campanhas** (subseções 1.
 
 ## Próximos passos imediatos
 
-1. Continuar implementação da Camada de Lançamento (itens acima)
-2. Após concluir — **FASE 4** do plano mestre (Campaign State Machine)
-3. Testes end-to-end: `POST /api/admin/campanhas/briefings/generate`, Agente Decisor, Desperdício de Verba
+1. **⚠️ EXECUTAR MIGRAÇÃO DB** (obrigatório antes de usar novos campos):
+   ```
+   docker exec -i netimobiliaria-db psql -U postgres -d net_imobiliaria < prisma/migration-2026-05-29-launch-layer.sql
+   ```
+2. Verificar `StepReview` no `CampaignWizard` — adicionar `specialAdCategory`, `pixelId`, `customEventType` no resumo final
+3. Após migração — testar fluxo completo: Settings → Identidade Meta → salvar page_id → Wizard → lançar campanha
+4. **FASE 4** do plano mestre (Campaign State Machine)
+5. Testes end-to-end: `POST /api/admin/campanhas/briefings/generate`, Agente Decisor, Desperdício de Verba
 
 ---
 

@@ -7,7 +7,9 @@ import {
   getLlmSettings, updateLlmSettings, testLlmConnection, testWhatsAppBriefing,
   getLlmModels,
   getClientCreativePaths, updateClientCreativePath,
+  getMetaIdentity, updateMetaIdentity,
   type LlmModelOption, type LlmModelsResponse, type ClientWithCreativesPath,
+  type MetaIdentitySettings,
 } from '@/lib/marketing-api';
 import {
   Cog6ToothIcon,
@@ -21,8 +23,15 @@ import {
   FolderOpenIcon,
   MagnifyingGlassIcon,
   UserCircleIcon,
+  BuildingOfficeIcon,
   XMarkIcon,
+  IdentificationIcon,
+  PhotoIcon,
+  LinkIcon,
+  ExclamationTriangleIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
+import { cn } from '@/lib/marketing-utils';
 import { UpdateGuard } from '@/components/admin/PermissionGuard';
 
 // ─── Helpers compartilhados ───────────────────────────────────────────────────
@@ -95,6 +104,266 @@ function getKeyHint(provider: string): string {
     qwen:       'Obtenha em: dashscope.aliyuncs.com (chave "DashScope")',
   };
   return hints[provider] || 'Consulte a documentação do provider para obter a API Key';
+}
+
+// ─── Seção Identidade Meta ────────────────────────────────────────────────────
+
+function MetaIdentityField({
+  icon: Icon,
+  label,
+  value,
+  onChange,
+  placeholder,
+  hint,
+  badge,
+  type = 'text',
+  status,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  hint?: string;
+  badge?: { text: string; color: string };
+  type?: string;
+  status?: 'ok' | 'warn' | 'empty';
+}) {
+  return (
+    <div className="group">
+      <div className="flex items-center justify-between mb-2">
+        <label className="flex items-center gap-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          <Icon className="h-3.5 w-3.5" />
+          {label}
+        </label>
+        <div className="flex items-center gap-2">
+          {badge && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide ${badge.color}`}>
+              {badge.text}
+            </span>
+          )}
+          {status === 'ok'   && <CheckCircleIcon   className="h-4 w-4 text-emerald-500" />}
+          {status === 'warn' && <ExclamationTriangleIcon className="h-4 w-4 text-amber-500" />}
+          {status === 'empty' && <div className="h-4 w-4 rounded-full border-2 border-gray-200" />}
+        </div>
+      </div>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={cn(
+          'w-full bg-gray-50 border rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400',
+          'focus:outline-none focus:ring-2 focus:border-transparent transition-all',
+          status === 'ok'
+            ? 'border-emerald-200 focus:ring-emerald-500'
+            : status === 'warn'
+            ? 'border-amber-200 focus:ring-amber-500'
+            : 'border-gray-200 focus:ring-indigo-500',
+        )}
+      />
+      {hint && <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">{hint}</p>}
+    </div>
+  );
+}
+
+function MetaIdentitySection() {
+  const [data, setData] = useState<MetaIdentitySettings>({
+    pageId: '', pixelId: '', instagramActorId: '',
+    accessToken: '', appId: '', adAccountId: '',
+    credentialsActive: false, lastValidated: null, tokenExpiresAt: null,
+    website: '', tenantName: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const [error,  setError]  = useState('');
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    getMetaIdentity()
+      .then(d => { setData(d); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true); setSaved(false); setError('');
+    try {
+      await updateMetaIdentity({
+        pageId:           data.pageId,
+        pixelId:          data.pixelId,
+        instagramActorId: data.instagramActorId,
+        website:          data.website,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Erro ao salvar');
+    } finally { setSaving(false); }
+  }
+
+  function fieldStatus(val: string): 'ok' | 'empty' {
+    return val.trim().length > 0 ? 'ok' : 'empty';
+  }
+
+  const pageIdOk   = data.pageId.trim().length > 0;
+  const pixelOk    = data.pixelId.trim().length > 0;
+  const websiteOk  = data.website.trim().length > 0;
+  const completeness = [pageIdOk, pixelOk, websiteOk].filter(Boolean).length;
+
+  if (!loaded) return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-indigo-600" />
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* Header com gradiente */}
+      <div className="relative px-6 py-5 overflow-hidden" style={{
+        background: 'linear-gradient(135deg, #1877f2 0%, #0e5fd8 40%, #6366f1 100%)',
+      }}>
+        {/* Padrão decorativo */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute -top-4 -right-4 w-32 h-32 rounded-full bg-white" />
+          <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full bg-white" />
+        </div>
+        <div className="relative flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+              <IdentificationIcon className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-white">Identidade Meta</h2>
+              <p className="text-xs text-blue-100 mt-0.5">Page ID, Pixel, Instagram e Site</p>
+            </div>
+          </div>
+          {/* Progress pill */}
+          <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-xl px-3 py-1.5">
+            <div className="flex gap-1">
+              {[0, 1, 2].map(i => (
+                <div key={i} className={cn(
+                  'h-1.5 w-5 rounded-full transition-all',
+                  i < completeness ? 'bg-white' : 'bg-white/30',
+                )} />
+              ))}
+            </div>
+            <span className="text-[10px] font-black text-white">{completeness}/3</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-5">
+
+        {/* Alerta se page_id não configurado */}
+        {!pageIdOk && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <ExclamationTriangleIcon className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-black text-amber-800">Facebook Page ID obrigatório</p>
+              <p className="text-[11px] text-amber-600 mt-0.5">
+                Sem o Page ID os criativos não podem ser criados no Meta. O lançamento de campanhas falhará.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Grade 2 colunas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <MetaIdentityField
+            icon={IdentificationIcon}
+            label="Facebook Page ID"
+            value={data.pageId}
+            onChange={v => setData(d => ({ ...d, pageId: v }))}
+            placeholder="Ex: 105308234567890"
+            hint="ID numérico da sua Página do Facebook. Obrigatório para criar criativos."
+            badge={{ text: 'Obrigatório', color: 'bg-red-100 text-red-600' }}
+            status={fieldStatus(data.pageId)}
+          />
+
+          <MetaIdentityField
+            icon={ShieldCheckIcon}
+            label="Meta Pixel ID"
+            value={data.pixelId}
+            onChange={v => setData(d => ({ ...d, pixelId: v }))}
+            placeholder="Ex: 876543210987654"
+            hint="Para rastreamento de conversões. Derivado automaticamente nas campanhas."
+            badge={{ text: 'Conversões', color: 'bg-indigo-100 text-indigo-600' }}
+            status={fieldStatus(data.pixelId)}
+          />
+
+          <MetaIdentityField
+            icon={PhotoIcon}
+            label="Instagram Actor ID"
+            value={data.instagramActorId}
+            onChange={v => setData(d => ({ ...d, instagramActorId: v }))}
+            placeholder="Ex: 17841234567890"
+            hint="ID da conta Instagram vinculada. Opcional — para criativos no Instagram."
+            badge={{ text: 'Opcional', color: 'bg-gray-100 text-gray-500' }}
+            status={data.instagramActorId ? fieldStatus(data.instagramActorId) : 'empty'}
+          />
+
+          <MetaIdentityField
+            icon={LinkIcon}
+            label="Website / Site da Empresa"
+            value={data.website}
+            onChange={v => setData(d => ({ ...d, website: v }))}
+            placeholder="https://seusite.com.br"
+            hint="Pré-preenche o Link da campanha no wizard. WhatsApp sempre vem do seu número de contato."
+            status={fieldStatus(data.website)}
+          />
+        </div>
+
+        {/* Info de credenciais existentes */}
+        {(data.adAccountId || data.credentialsActive) && (
+          <div className="bg-gray-50 rounded-xl p-4 flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-gray-400 font-medium">Ad Account:</span>
+              <code className="bg-white border border-gray-200 rounded-lg px-2 py-0.5 text-xs font-mono text-gray-700">
+                act_{data.adAccountId || '—'}
+              </code>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={cn(
+                'h-2 w-2 rounded-full',
+                data.credentialsActive ? 'bg-emerald-500' : 'bg-gray-300',
+              )} />
+              <span className="text-[11px] text-gray-500">
+                {data.credentialsActive ? 'Credenciais ativas' : 'Credenciais inativas'}
+              </span>
+            </div>
+            {data.tokenExpiresAt && (
+              <div className="text-[11px] text-gray-400">
+                Token expira: {new Date(data.tokenExpiresAt).toLocaleDateString('pt-BR')}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Ações */}
+        <div className="flex items-center gap-3 pt-1 border-t border-gray-50">
+          <UpdateGuard resource="configuracoes-campanhas">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-2.5 bg-[#1877f2] text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-[#1464d0] active:scale-95 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
+            >
+              {saving ? 'Salvando...' : 'Salvar Identidade Meta'}
+            </button>
+          </UpdateGuard>
+          {saved && (
+            <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
+              <CheckCircleIcon className="h-4 w-4" /> Salvo com sucesso
+            </span>
+          )}
+          {error && (
+            <span className="flex items-center gap-1.5 text-xs font-black text-red-500">
+              <XCircleIcon className="h-4 w-4" /> {error}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── View MASTER — página completa ───────────────────────────────────────────
@@ -246,6 +515,9 @@ function MasterSettingsView() {
           onChange={v => setSettings(s => ({ ...s, adAccountId: v }))}
           placeholder="Ex: 10150461381441874 (sem 'act_')" />
       </SectionCard>
+
+      {/* ── Identidade Meta — Page ID, Pixel, Instagram, Website ─── */}
+      <MetaIdentitySection />
 
       {/* ── LLM ─── */}
       <SectionCard icon={CpuChipIcon} title="Inteligência Artificial (LLM)"
@@ -402,9 +674,19 @@ function MasterSettingsView() {
   );
 }
 
-// ─── View Tenant — apenas Pasta de Criativos por cliente ─────────────────────
+// ─── View Tenant — Pasta de Criativos (Minha Empresa ou por Cliente) ──────────
 
 function TenantSettingsView() {
+  // Toggle modo
+  const [importMode, setImportMode] = useState<'own' | 'client'>('own');
+
+  // ── "Minha Empresa" ──────────────────────────────────────────────────────────
+  const [ownPath,    setOwnPath]    = useState('');
+  const [ownSaving,  setOwnSaving]  = useState(false);
+  const [ownSaved,   setOwnSaved]   = useState(false);
+  const [ownError,   setOwnError]   = useState('');
+
+  // ── "Cliente" ────────────────────────────────────────────────────────────────
   const [clients, setClients]               = useState<ClientWithCreativesPath[]>([]);
   const [loading, setLoading]               = useState(true);
   const [search, setSearch]                 = useState('');
@@ -416,13 +698,30 @@ function TenantSettingsView() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    getClientCreativePaths()
-      .then(data => setClients(data.clients || []))
-      .catch(() => setClients([]))
-      .finally(() => setLoading(false));
+    Promise.all([
+      getSettings(),
+      getClientCreativePaths(),
+    ]).then(([s, d]) => {
+      setOwnPath(s.creativesPath || '');
+      setClients(d.clients || []);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  // Filtra a partir de 3 caracteres; sem filtro mostra todos
+  // ── Minha Empresa: salvar ────────────────────────────────────────────────────
+  async function handleSaveOwn() {
+    setOwnSaving(true);
+    setOwnSaved(false);
+    setOwnError('');
+    try {
+      await updateSettings({ creativesPath: ownPath });
+      setOwnSaved(true);
+      setTimeout(() => setOwnSaved(false), 3000);
+    } catch (err: any) {
+      setOwnError(err?.response?.data?.error || err?.message || 'Erro ao salvar');
+    } finally { setOwnSaving(false); }
+  }
+
+  // ── Cliente: filtrar ─────────────────────────────────────────────────────────
   const filtered = search.length >= 3
     ? clients.filter(c =>
         c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -437,11 +736,7 @@ function TenantSettingsView() {
     setSaveError('');
   }
 
-  function handleClearSearch() {
-    setSearch('');
-    searchRef.current?.focus();
-  }
-
+  // ── Cliente: salvar ──────────────────────────────────────────────────────────
   async function handleSave() {
     if (!selectedClient) return;
     setSaving(true);
@@ -449,7 +744,6 @@ function TenantSettingsView() {
     setSaveError('');
     try {
       await updateClientCreativePath(selectedClient.id, editingPath);
-      // Atualiza lista local
       const updated = { ...selectedClient, creativesPath: editingPath };
       setClients(prev => prev.map(c => c.id === selectedClient.id ? updated : c));
       setSelectedClient(updated);
@@ -457,12 +751,9 @@ function TenantSettingsView() {
       setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
       setSaveError(err?.response?.data?.error || err?.message || 'Erro ao salvar');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
 
-  // Inicial do nome para o avatar
   function initials(name: string) {
     return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
   }
@@ -478,166 +769,248 @@ function TenantSettingsView() {
   return (
     <div className="space-y-6">
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* ── Toggle Minha Empresa / Cliente ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
+          Configurar pasta de criativos
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setImportMode('own')}
+            className={cn(
+              'flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-all border',
+              importMode === 'own'
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
+                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+            )}
+          >
+            <BuildingOfficeIcon className="h-4 w-4" />
+            Minha Empresa
+          </button>
+          <button
+            onClick={() => { setImportMode('client'); setSelectedClient(null); setSearch(''); }}
+            className={cn(
+              'flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-all border',
+              importMode === 'client'
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
+                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+            )}
+          >
+            <UserCircleIcon className="h-4 w-4" />
+            Cliente
+          </button>
+        </div>
+      </div>
 
-        {/* ── Coluna esquerda: lista de clientes ── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-          <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+      {/* ── Minha Empresa: campo único ── */}
+      {importMode === 'own' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-3">
             <div className="p-2 bg-indigo-50 rounded-xl">
-              <UserCircleIcon className="h-5 w-5 text-indigo-600" />
+              <BuildingOfficeIcon className="h-5 w-5 text-indigo-600" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-gray-900">Clientes</h2>
-              <p className="text-xs text-gray-400 mt-0.5">{clients.length} cliente{clients.length !== 1 ? 's' : ''} cadastrado{clients.length !== 1 ? 's' : ''}</p>
+              <h2 className="text-sm font-black text-gray-900">Minha Empresa</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Pasta local de criativos da sua empresa</p>
             </div>
           </div>
-
-          {/* Busca */}
-          <div className="px-4 py-3 border-b border-gray-50">
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <FolderOpenIcon className="h-3.5 w-3.5" />
+                Pasta de Criativos
+              </label>
               <input
-                ref={searchRef}
                 type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar por nome ou e-mail..."
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-9 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                value={ownPath}
+                onChange={e => { setOwnPath(e.target.value); setOwnSaved(false); setOwnError(''); }}
+                placeholder="Ex: C:\Criativos\MinhaEmpresa"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
               />
-              {search && (
-                <button onClick={handleClearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <XMarkIcon className="h-4 w-4" />
+              <p className="text-[10px] text-gray-400 mt-1.5">
+                Anotação do caminho local na sua máquina — usado como referência ao abrir a pasta na página de Criativos.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              <UpdateGuard resource="configuracoes-campanhas">
+                <button
+                  onClick={handleSaveOwn}
+                  disabled={ownSaving}
+                  className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                >
+                  {ownSaving ? 'Salvando...' : 'Salvar'}
                 </button>
+              </UpdateGuard>
+              {ownSaved && (
+                <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
+                  <CheckCircleIcon className="h-4 w-4" /> Salvo
+                </span>
+              )}
+              {ownError && (
+                <span className="flex items-center gap-1.5 text-xs font-black text-red-500">
+                  <XCircleIcon className="h-4 w-4" /> {ownError}
+                </span>
               )}
             </div>
-            {search.length > 0 && search.length < 3 && (
-              <p className="text-[10px] text-gray-400 mt-1.5 px-1">
-                Digite ao menos 3 letras para filtrar
-              </p>
-            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Cliente: grid dois colunas ── */}
+      {importMode === 'client' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Coluna esquerda: lista */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+              <div className="p-2 bg-indigo-50 rounded-xl">
+                <UserCircleIcon className="h-5 w-5 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-gray-900">Clientes</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{clients.length} cliente{clients.length !== 1 ? 's' : ''} cadastrado{clients.length !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+
+            {/* Busca */}
+            <div className="px-4 py-3 border-b border-gray-50">
+              <div className="relative">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  ref={searchRef}
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Buscar por nome ou e-mail..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-9 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                />
+                {search && (
+                  <button onClick={() => { setSearch(''); searchRef.current?.focus(); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <XMarkIcon className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {search.length > 0 && search.length < 3 && (
+                <p className="text-[10px] text-gray-400 mt-1.5 px-1">
+                  Digite ao menos 3 letras para filtrar
+                </p>
+              )}
+            </div>
+
+            {/* Lista */}
+            <div className="overflow-y-auto flex-1" style={{ maxHeight: '420px' }}>
+              {filtered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                  <UserCircleIcon className="h-8 w-8 mb-2 opacity-40" />
+                  <p className="text-xs font-black uppercase tracking-widest">
+                    {search.length >= 3 ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
+                  </p>
+                </div>
+              ) : (
+                filtered.map(client => {
+                  const isSelected = selectedClient?.id === client.id;
+                  const hasPath    = !!client.creativesPath;
+                  return (
+                    <button
+                      key={client.id}
+                      onClick={() => handleSelect(client)}
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all border-b border-gray-50 last:border-0 ${
+                        isSelected
+                          ? 'bg-indigo-50 border-l-2 border-l-indigo-500'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
+                        isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {initials(client.name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-black truncate ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>
+                          {client.name}
+                        </p>
+                        {client.email && (
+                          <p className="text-[11px] text-gray-400 truncate mt-0.5">{client.email}</p>
+                        )}
+                      </div>
+                      {hasPath && (
+                        <span className="shrink-0">
+                          <FolderOpenIcon className="h-4 w-4 text-emerald-500" title="Pasta configurada" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
 
-          {/* Lista */}
-          <div className="overflow-y-auto flex-1" style={{ maxHeight: '420px' }}>
-            {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-                <UserCircleIcon className="h-8 w-8 mb-2 opacity-40" />
-                <p className="text-xs font-black uppercase tracking-widest">
-                  {search.length >= 3 ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
+          {/* Coluna direita: editar pasta */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+            {!selectedClient ? (
+              <div className="flex flex-col items-center justify-center flex-1 py-24 text-gray-400 px-8">
+                <FolderOpenIcon className="h-12 w-12 mb-4 opacity-30" />
+                <p className="text-xs font-black uppercase tracking-widest text-center">
+                  Selecione um cliente para configurar a pasta de criativos
                 </p>
               </div>
             ) : (
-              filtered.map(client => {
-                const isSelected = selectedClient?.id === client.id;
-                const hasPath    = !!client.creativesPath;
-                return (
-                  <button
-                    key={client.id}
-                    onClick={() => handleSelect(client)}
-                    className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all border-b border-gray-50 last:border-0 ${
-                      isSelected
-                        ? 'bg-indigo-50 border-l-2 border-l-indigo-500'
-                        : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    {/* Avatar */}
-                    <div className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
-                      isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {initials(client.name)}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-black truncate ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>
-                        {client.name}
-                      </p>
-                      {client.email && (
-                        <p className="text-[11px] text-gray-400 truncate mt-0.5">{client.email}</p>
-                      )}
-                    </div>
-
-                    {/* Badge pasta configurada */}
-                    {hasPath && (
-                      <span className="shrink-0">
-                        <FolderOpenIcon className="h-4 w-4 text-emerald-500" title="Pasta configurada" />
+              <>
+                <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-black text-white shrink-0">
+                    {initials(selectedClient.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-sm font-black text-gray-900 truncate">{selectedClient.name}</h2>
+                    {selectedClient.email && (
+                      <p className="text-xs text-gray-400 truncate mt-0.5">{selectedClient.email}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="p-6 space-y-4 flex-1">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                      <FolderOpenIcon className="h-3.5 w-3.5" />
+                      Pasta de Criativos
+                    </label>
+                    <input
+                      type="text"
+                      value={editingPath}
+                      onChange={e => { setEditingPath(e.target.value); setSaved(false); setSaveError(''); }}
+                      placeholder="Ex: C:\Criativos\NomeDoCliente"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1.5">
+                      Anotação do caminho local na sua máquina — usado como referência ao preparar os criativos para a campanha.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                    <UpdateGuard resource="configuracoes-campanhas">
+                      <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                      >
+                        {saving ? 'Salvando...' : 'Salvar'}
+                      </button>
+                    </UpdateGuard>
+                    {saved && (
+                      <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
+                        <CheckCircleIcon className="h-4 w-4" /> Salvo
                       </span>
                     )}
-                  </button>
-                );
-              })
+                    {saveError && (
+                      <span className="flex items-center gap-1.5 text-xs font-black text-red-500">
+                        <XCircleIcon className="h-4 w-4" /> {saveError}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </div>
-
-        {/* ── Coluna direita: editar pasta ── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-          {!selectedClient ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-24 text-gray-400 px-8">
-              <FolderOpenIcon className="h-12 w-12 mb-4 opacity-30" />
-              <p className="text-xs font-black uppercase tracking-widest text-center">
-                Selecione um cliente para configurar a pasta de criativos
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-black text-white shrink-0">
-                  {initials(selectedClient.name)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-sm font-black text-gray-900 truncate">{selectedClient.name}</h2>
-                  {selectedClient.email && (
-                    <p className="text-xs text-gray-400 truncate mt-0.5">{selectedClient.email}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-6 space-y-4 flex-1">
-                <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                    <FolderOpenIcon className="h-3.5 w-3.5" />
-                    Pasta de Criativos
-                  </label>
-
-                  <input
-                    type="text"
-                    value={editingPath}
-                    onChange={e => { setEditingPath(e.target.value); setSaved(false); setSaveError(''); }}
-                    placeholder="Ex: C:\Criativos\NomeDoCliente"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1.5">
-                    Anotação do caminho local na sua máquina — usado como referência ao preparar os criativos para a campanha.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 pt-2">
-                  <UpdateGuard resource="configuracoes-campanhas">
-                    <button
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
-                    >
-                      {saving ? 'Salvando...' : 'Salvar'}
-                    </button>
-                  </UpdateGuard>
-                  {saved && (
-                    <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
-                      <CheckCircleIcon className="h-4 w-4" /> Salvo
-                    </span>
-                  )}
-                  {saveError && (
-                    <span className="flex items-center gap-1.5 text-xs font-black text-red-500">
-                      <XCircleIcon className="h-4 w-4" /> {saveError}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      )}
 
     </div>
   );
@@ -665,7 +1038,7 @@ function SettingsPageInner() {
       <p className="text-gray-500 mt-1 text-sm font-medium">
         {isMaster === true
           ? 'Credenciais Meta, WhatsApp, Inteligência Artificial e Geral'
-          : 'Pasta de Criativos por Cliente'}
+          : 'Pasta de Criativos — Minha Empresa ou por Cliente'}
       </p>
     </div>
   );

@@ -1,14 +1,27 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { createCampaign, type Creative } from '@/lib/marketing-api';
+import { createCampaign, getMetaIdentity, type Creative } from '@/lib/marketing-api';
 import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency } from '@/lib/marketing-utils';
 import { LocationPicker, type LocationEntry } from './LocationPicker';
+import { ShieldCheckIcon, BoltIcon } from '@heroicons/react/24/outline';
 
 interface Props {
   selectedImages: Creative[];
   onClose: () => void;
   onSuccess: () => void;
+  /** UUID do cliente selecionado (null = campanha do próprio tenant). */
+  clientId?: string | null;
+}
+
+/** Chip indicando campo preenchido automaticamente */
+function AutoChip({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-[10px] font-black text-indigo-300 uppercase tracking-wide">
+      <BoltIcon className="h-2.5 w-2.5" />
+      {label}
+    </span>
+  );
 }
 
 const STEPS = [
@@ -34,9 +47,19 @@ function Label({ children }: { children: React.ReactNode }) {
   return <label className="text-sm font-medium text-gray-400 mb-1.5 block">{children}</label>;
 }
 
-export function CampaignWizard({ selectedImages, onClose, onSuccess }: Props) {
+export function CampaignWizard({ selectedImages, onClose, onSuccess, clientId }: Props) {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+
+  // Campos automáticos resolvidos da identidade Meta + segmento
+  const [autoFields, setAutoFields] = useState({
+    pixelId:          '',
+    specialAdCategory: 'NONE',
+    customEventType:  'LEAD',
+    objective:        'OUTCOME_LEADS',
+    websiteDefault:   '',
+  });
+
   const [form, setForm] = useState({
     networkCode: 'meta',
     creativeType: selectedImages.length === 1 ? 'SINGLE_IMAGE' : '',
@@ -58,8 +81,46 @@ export function CampaignWizard({ selectedImages, onClose, onSuccess }: Props) {
     endTime: '',
     scheduleDays: [0, 1, 2, 3, 4, 5, 6],
     scheduleTimeSlots: [{ start: 6, end: 23 }] as { start: number; end: number }[],
-    objective: 'OUTCOME_TRAFFIC',
+    objective: 'OUTCOME_LEADS',
+    // Campos de conversão (resolvidos do segmento + editáveis)
+    specialAdCategory: '',  // '' = usar autoFields
+    pixelId:           '',  // '' = usar autoFields
+    customEventType:   '',  // '' = usar autoFields
   });
+
+  // Pré-preencher campos automáticos: MetaIdentity + segment defaults via API
+  useEffect(() => {
+    async function loadAutoFields() {
+      try {
+        // Buscar identidade Meta (pixel, website)
+        const identity = await getMetaIdentity().catch(() => null);
+        // Buscar segment defaults via endpoint de campanhas
+        const endpoint = clientId
+          ? `/api/admin/campanhas/segment-defaults?clientId=${clientId}&network=meta`
+          : `/api/admin/campanhas/segment-defaults?network=meta`;
+        const segDefaults = await fetch(endpoint, { credentials: 'include' })
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null);
+
+        const resolved = {
+          pixelId:           identity?.pixelId           || '',
+          websiteDefault:    identity?.website            || '',
+          specialAdCategory: segDefaults?.specialAdCategory || 'NONE',
+          customEventType:   segDefaults?.customEventType   || 'LEAD',
+          objective:         segDefaults?.objective          || 'OUTCOME_LEADS',
+        };
+        setAutoFields(resolved);
+        // Pré-preencher linkUrl com o site (somente se estiver vazio)
+        setForm(f => ({
+          ...f,
+          linkUrl:   f.linkUrl   || resolved.websiteDefault,
+          objective: f.objective === 'OUTCOME_LEADS' ? resolved.objective : f.objective,
+        }));
+      } catch { /* fallback gracioso: não quebra o wizard */ }
+    }
+    loadAutoFields();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
 
   function updateForm(updates: Partial<typeof form>) {
     setForm(prev => ({ ...prev, ...updates }));
@@ -82,31 +143,38 @@ export function CampaignWizard({ selectedImages, onClose, onSuccess }: Props) {
     setSubmitting(true);
     try {
       await createCampaign({
-        networkCode: form.networkCode,
-        name: form.name || `Campanha ${new Date().toLocaleDateString('pt-BR')}`,
-        objective: form.objective,
-        creativeType: form.creativeType || 'SINGLE_IMAGE',
-        images: selectedImages.map(img => img.path),
-        body: form.body,
-        headline: form.headline,
-        linkUrl: form.linkUrl,
-        ctaType: form.ctaType,
-        whatsappNumber: form.whatsappNumber,
-        whatsappMessage: form.whatsappMessage,
-        ageMin: form.ageMin,
-        ageMax: form.ageMax,
-        genders: form.genders,
-        locations: buildLocationsPayload(form.locationEntries),
-        interests: form.interests,
-        dailyBudget: form.dailyBudget,
-        startTime: form.startTime,
-        endTime: form.endTime || undefined,
-        scheduleDays: form.scheduleDays,
+        networkCode:      form.networkCode,
+        name:             form.name || `Campanha ${new Date().toLocaleDateString('pt-BR')}`,
+        objective:        form.objective,
+        creativeType:     form.creativeType || 'SINGLE_IMAGE',
+        images:           selectedImages.map(img => img.path),
+        body:             form.body,
+        headline:         form.headline,
+        linkUrl:          form.linkUrl,
+        ctaType:          form.ctaType,
+        whatsappNumber:   form.whatsappNumber,
+        whatsappMessage:  form.whatsappMessage,
+        ageMin:           form.ageMin,
+        ageMax:           form.ageMax,
+        genders:          form.genders,
+        locations:        buildLocationsPayload(form.locationEntries),
+        interests:        form.interests,
+        dailyBudget:      form.dailyBudget,
+        startTime:        form.startTime,
+        endTime:          form.endTime || undefined,
+        scheduleDays:     form.scheduleDays,
         scheduleTimeSlots: form.scheduleTimeSlots,
+        // Campos de conversão — usa override manual se informado, senão usa auto
+        specialAdCategory: form.specialAdCategory || autoFields.specialAdCategory || 'NONE',
+        pixelId:           form.pixelId           || autoFields.pixelId           || undefined,
+        customEventType:   form.customEventType   || autoFields.customEventType   || 'LEAD',
+        // Cliente associado
+        clientId:          clientId || undefined,
       });
       onSuccess();
-    } catch (err) {
-      alert('Erro ao criar campanha. Verifique os dados e tente novamente.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || 'Erro ao criar campanha. Verifique os dados e tente novamente.';
+      alert(msg);
     } finally {
       setSubmitting(false);
     }
@@ -196,7 +264,7 @@ export function CampaignWizard({ selectedImages, onClose, onSuccess }: Props) {
               {step === 2 && <StepTextCta form={form} updateForm={updateForm} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} />}
               {step === 4 && <StepBudget form={form} updateForm={updateForm} />}
-              {step === 5 && <StepObjective form={form} updateForm={updateForm} />}
+              {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} />}
               {step === 6 && <StepReview form={form} selectedImages={selectedImages} />}
             </motion.div>
           </AnimatePresence>
@@ -478,6 +546,9 @@ function StepTextCta({ form, updateForm }: any) {
               placeholder="https://seusite.com.br"
               className="input-field w-full"
             />
+            <p className="text-[11px] text-gray-500 mt-1.5">
+              Pré-preenchido com o site configurado na conta. Edite para usar uma landing page específica.
+            </p>
           </div>
         )}
       </Section>
@@ -934,11 +1005,38 @@ function StepBudget({ form, updateForm }: any) {
   );
 }
 
-/* ===================== STEP 5 — OBJETIVO ===================== */
+/* ===================== STEP 5 — OBJETIVO & CONVERSÃO ===================== */
 
-function StepObjective({ form, updateForm }: any) {
+function StepObjective({ form, updateForm, autoFields }: any) {
+  const effectiveSpecial = form.specialAdCategory || autoFields.specialAdCategory || 'NONE';
+  const effectivePixel   = form.pixelId           || autoFields.pixelId           || '';
+  const effectiveEvent   = form.customEventType   || autoFields.customEventType   || 'LEAD';
+  const isAutoSpecial    = !form.specialAdCategory && !!autoFields.specialAdCategory;
+  const isAutoPixel      = !form.pixelId           && !!autoFields.pixelId;
+  const isAutoEvent      = !form.customEventType   && !!autoFields.customEventType;
+
+  const SPECIAL_AD_OPTIONS = [
+    { value: 'NONE',                       label: 'Nenhuma (padrão)' },
+    { value: 'HOUSING',                    label: 'Habitação / Imóveis' },
+    { value: 'EMPLOYMENT',                 label: 'Emprego / Vagas' },
+    { value: 'CREDIT',                     label: 'Crédito' },
+    { value: 'FINANCIAL_PRODUCTS_SERVICES',label: 'Serviços Financeiros' },
+    { value: 'ISSUES_ELECTIONS_POLITICS',  label: 'Política / Eleições' },
+  ];
+
+  const EVENT_OPTIONS = [
+    { value: 'LEAD',               label: 'Lead / Contato' },
+    { value: 'PURCHASE',           label: 'Compra / Venda' },
+    { value: 'COMPLETE_REGISTRATION', label: 'Cadastro completo' },
+    { value: 'ADD_TO_CART',        label: 'Adicionar ao carrinho' },
+    { value: 'INITIATED_CHECKOUT', label: 'Iniciar checkout' },
+    { value: 'SCHEDULE',           label: 'Agendamento' },
+    { value: 'CONTACT',            label: 'Contato' },
+  ];
+
   return (
     <div className="space-y-8">
+      {/* Objetivo da campanha */}
       <Section title="Qual o objetivo principal desta campanha?">
         <div className="grid grid-cols-2 gap-4">
           {OBJECTIVES.map(obj => (
@@ -951,9 +1049,86 @@ function StepObjective({ form, updateForm }: any) {
               )}
             >
               <span className="text-3xl shrink-0">{obj.icon}</span>
-              <p className="font-medium text-white">{obj.label}</p>
+              <div>
+                <p className="font-medium text-white">{obj.label}</p>
+                {obj.value === autoFields.objective && (
+                  <AutoChip label="segmento" />
+                )}
+              </div>
             </button>
           ))}
+        </div>
+      </Section>
+
+      {/* Conversão & Pixel */}
+      <Section title="Rastreamento e Conversão">
+        <p className="text-sm text-gray-400 -mt-2 mb-2">
+          Campos marcados com <span className="text-indigo-300 font-semibold">⚡ automático</span> são
+          preenchidos a partir do segmento de negócio e das configurações da conta.
+          Você pode sobrescrever qualquer um deles.
+        </p>
+
+        <div className="grid grid-cols-2 gap-6">
+          {/* Special Ad Category */}
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <label className="text-sm font-medium text-gray-400">Categoria Especial de Anúncio</label>
+              {isAutoSpecial && <AutoChip label="segmento" />}
+            </div>
+            <select
+              value={effectiveSpecial}
+              onChange={e => updateForm({ specialAdCategory: e.target.value === autoFields.specialAdCategory ? '' : e.target.value })}
+              className="input-field w-full"
+            >
+              {SPECIAL_AD_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-500 mt-1">
+              Obrigatório para imóveis, emprego, crédito. Restringe segmentação.
+            </p>
+          </div>
+
+          {/* Custom Event Type */}
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <label className="text-sm font-medium text-gray-400">Evento de Conversão</label>
+              {isAutoEvent && <AutoChip label="segmento" />}
+            </div>
+            <select
+              value={effectiveEvent}
+              onChange={e => updateForm({ customEventType: e.target.value === autoFields.customEventType ? '' : e.target.value })}
+              className="input-field w-full"
+            >
+              {EVENT_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-500 mt-1">
+              Evento do Pixel a ser otimizado nesta campanha.
+            </p>
+          </div>
+        </div>
+
+        {/* Pixel ID */}
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <ShieldCheckIcon className="h-4 w-4 text-indigo-400" />
+            <label className="text-sm font-medium text-gray-400">Meta Pixel ID</label>
+            {isAutoPixel && <AutoChip label="configurações" />}
+          </div>
+          <input
+            type="text"
+            value={effectivePixel}
+            onChange={e => updateForm({ pixelId: e.target.value || '' })}
+            placeholder={isAutoPixel ? `${autoFields.pixelId} (da conta)` : 'Ex: 876543210987654'}
+            className={cn('input-field w-full max-w-sm', !effectivePixel && 'border-amber-500/40')}
+          />
+          {!effectivePixel && (
+            <p className="text-[11px] text-amber-400 mt-1">
+              ⚠️ Sem Pixel, a campanha não rastreia conversões. Configure em Configurações → Identidade Meta.
+            </p>
+          )}
         </div>
       </Section>
     </div>

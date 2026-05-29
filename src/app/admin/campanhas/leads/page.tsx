@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { getLeads, getLeadStats, getCampaigns, type LeadData, type Campaign } from '@/lib/marketing-api';
 import { formatDate } from '@/lib/marketing-utils';
 import { UsersIcon, PhoneIcon, ChartBarIcon, MegaphoneIcon } from '@heroicons/react/24/outline';
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
 const TOOLTIP_STYLE = {
   contentStyle: {
@@ -29,14 +30,21 @@ export function LeadsPage() {
     endDate:   new Date().toISOString().split('T')[0],
   });
 
-  useEffect(() => { loadData(); }, [filters]);
+  // ClientSelector — ALTA PRIORIDADE (CLAUDE.md)
+  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('leads');
+
+  useEffect(() => { loadData(); }, [filters, clientFilter]);
 
   async function loadData() {
     setLoading(true);
     try {
+      // Adicionar clientId ao filtro (ClientSelector)
+      const apiFilters: any = { ...filters };
+      if (clientFilter && clientFilter !== 'all') apiFilters.clientId = clientFilter;
+
       const [leadsData, statsData, campaignsData] = await Promise.all([
-        getLeads(filters),
-        getLeadStats(filters),
+        getLeads(apiFilters),
+        getLeadStats(apiFilters),
         getCampaigns(),
       ]);
       setLeads(leadsData.leads || []);
@@ -69,10 +77,20 @@ export function LeadsPage() {
       <div className="max-w-6xl mx-auto">
 
         {/* Header */}
-        <div className="mb-8">
-          <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-2">Campanhas</p>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Leads WhatsApp</h1>
-          <p className="text-gray-500 mt-1 text-sm font-medium">Rastreamento de cliques para o WhatsApp</p>
+        <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
+          <div>
+            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-2">Campanhas</p>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Leads WhatsApp</h1>
+            <p className="text-gray-500 mt-1 text-sm font-medium">Rastreamento de cliques para o WhatsApp</p>
+          </div>
+          {/* Seletor de cliente — ALTA PRIORIDADE */}
+          <ClientSelector
+            value={clientFilter}
+            onChange={setClientFilter}
+            clients={clients}
+            loading={clientsLoading}
+            storageKey="leads"
+          />
         </div>
 
         {/* Filters */}

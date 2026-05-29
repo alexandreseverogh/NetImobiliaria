@@ -39,6 +39,10 @@ export interface CreateCampaignInput {
   name: string;
   objective: string;
   specialAdCategory?: string;
+  /** Meta Pixel ID — para promoted_object. Derivado das credentials se não informado. */
+  pixelId?: string;
+  /** Tipo do evento de conversão (ex: LEAD, PURCHASE). Derivado do network_defaults do segmento. */
+  customEventType?: string;
   adSet: {
     name: string;
     dailyBudget: number;   // in cents

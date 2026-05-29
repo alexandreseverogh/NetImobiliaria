@@ -63,6 +63,9 @@ export async function POST(request: NextRequest) {
       scheduleDays, scheduleStartHour, scheduleEndHour, scheduleTimeSlots,
       creativeType, images, body: adBody, headline, linkUrl, ctaType,
       whatsappNumber, whatsappMessage,
+      // Novos campos (revisão 2026-05-29 — camada de lançamento 1.6)
+      pixelId,
+      customEventType,
     } = body;
 
     // Valida clientId (deve pertencer ao tenant)
@@ -155,6 +158,8 @@ export async function POST(request: NextRequest) {
         name: campaign.name,
         objective: campaign.objective,
         specialAdCategory: campaign.specialAdCategory || undefined,
+        pixelId: pixelId || undefined,
+        customEventType: customEventType || undefined,
         adSet: {
           name: adSet.name,
           dailyBudget: adSet.dailyBudget,
