@@ -7,7 +7,7 @@ import { LocationPicker, type LocationEntry } from './LocationPicker';
 import { ShieldCheckIcon, BoltIcon } from '@heroicons/react/24/outline';
 
 interface Props {
-  selectedImages: Creative[];
+  selectedImages?: Creative[];
   onClose: () => void;
   onSuccess: () => void;
   /** UUID do cliente selecionado (null = campanha do próprio tenant). */
@@ -47,7 +47,8 @@ function Label({ children }: { children: React.ReactNode }) {
   return <label className="text-sm font-medium text-gray-400 mb-1.5 block">{children}</label>;
 }
 
-export function CampaignWizard({ selectedImages, onClose, onSuccess, clientId }: Props) {
+export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId }: Props) {
+  const selectedImages = selectedImagesProp ?? [];
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
