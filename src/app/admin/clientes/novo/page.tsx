@@ -9,6 +9,7 @@ import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import { buscarEnderecoPorCep } from '@/lib/utils/geocoding'
 import EstadoSelect from '@/components/shared/EstadoSelect'
+import ClientCampaignSettings from '@/components/admin/clientes/ClientCampaignSettings'
 
 interface FormData {
   nome: string
@@ -37,6 +38,8 @@ export default function NovoClientePage() {
     loading: loadingLocais
   } = useEstadosCidades('all')
   const [saving, setSaving] = useState(false)
+  const [createdClientId, setCreatedClientId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'dados' | 'meta'>('dados')
 
   const [formData, setFormData] = useState<FormData>({
     nome: '',
@@ -542,7 +545,9 @@ export default function NovoClientePage() {
       })
 
       if (response.ok) {
-        router.push('/admin/clientes')
+        const created = await response.json()
+        setCreatedClientId(created.uuid)
+        setActiveTab('meta')
       } else {
         const errorData = await response.json()
         alert(`Erro: ${errorData.error}`)
@@ -580,12 +585,66 @@ export default function NovoClientePage() {
               Voltar para Clientes
             </Link>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Novo Cliente</h1>
-          <p className="mt-2 text-gray-600">Preencha os dados do novo cliente</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {createdClientId ? '✅ Cliente criado' : 'Novo Cliente'}
+          </h1>
+          <p className="mt-2 text-gray-600">
+            {createdClientId
+              ? 'Configure a identidade Meta ou finalize e vá para a lista.'
+              : 'Preencha os dados do novo cliente'}
+          </p>
+
+          {/* Tabs */}
+          <div className="mt-5 flex gap-1 bg-white border border-gray-100 rounded-2xl p-1 shadow-sm max-w-sm">
+            <button
+              type="button"
+              onClick={() => setActiveTab('dados')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
+                ${activeTab === 'dados'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+            >
+              👤 Dados do Cliente
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('meta')}
+              disabled={!createdClientId}
+              title={!createdClientId ? 'Salve o cliente primeiro' : undefined}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
+                ${activeTab === 'meta'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : !createdClientId
+                    ? 'text-gray-300 cursor-not-allowed'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+            >
+              📣 Config. Meta
+            </button>
+          </div>
         </div>
 
-        {/* Formulário */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+        {/* ── ABA: CONFIGURAÇÕES META ── */}
+        {activeTab === 'meta' && createdClientId && (
+          <div className="space-y-4">
+            <div className="max-w-3xl">
+              <ClientCampaignSettings clientId={createdClientId} />
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => router.push('/admin/clientes')}
+                className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors"
+              >
+                Ir para lista de clientes →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── ABA: DADOS DO CLIENTE ── */}
+        {activeTab === 'dados' && <div className="bg-white rounded-xl shadow-lg border border-gray-200">
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
             {/* Nome */}
             <div>
@@ -902,7 +961,7 @@ export default function NovoClientePage() {
               </button>
             </div>
           </form>
-        </div>
+        </div>}
       </div>
     </div>
   )

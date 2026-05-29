@@ -94,7 +94,12 @@ export default function ClientCampaignSettings({ clientId }: { clientId: string 
       .then(r => r.json())
       .then((d: CampaignSettings) => {
         setData(d)
-        setForm({ pageId: d.pageId, pixelId: d.pixelId, instagramActorId: d.instagramActorId, website: d.website })
+        setForm({
+          pageId:            d.pageId            ?? '',
+          pixelId:           d.pixelId           ?? '',
+          instagramActorId:  d.instagramActorId  ?? '',
+          website:           d.website           ?? '',
+        })
       })
       .catch(() => setError('Erro ao carregar configurações de campanha'))
       .finally(() => setLoading(false))
@@ -106,7 +111,12 @@ export default function ClientCampaignSettings({ clientId }: { clientId: string 
       const res = await put(`/api/admin/clientes/${clientId}/campaign-settings`, form)
       if (!res.ok) throw new Error((await res.json()).error || 'Erro ao salvar')
       const updated = await res.json()
-      setForm(updated)
+      setForm({
+        pageId:            updated.pageId            ?? '',
+        pixelId:           updated.pixelId           ?? '',
+        instagramActorId:  updated.instagramActorId  ?? '',
+        website:           updated.website           ?? '',
+      })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (e: any) { setError(e.message) }
@@ -122,7 +132,7 @@ export default function ClientCampaignSettings({ clientId }: { clientId: string 
   )
 
   const fb = data?.fallback
-  const fields = [form.pageId, form.pixelId, form.website]
+  const fields = [form.pageId ?? '', form.pixelId ?? '', form.website ?? '']
   const filled  = fields.filter(f => f.trim() !== '').length
   const pct     = Math.round((filled / fields.length) * 100)
 
