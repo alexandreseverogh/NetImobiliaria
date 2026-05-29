@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { createCampaign, getMetaIdentity, type Creative } from '@/lib/marketing-api';
@@ -312,7 +312,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} />}
               {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} />}
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} />}
-              {step === 3 && <StepTargeting form={form} updateForm={updateForm} />}
+              {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
               {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} />}
               {step === 6 && <StepReview    form={form} selectedImages={selectedImages} />}
@@ -659,7 +659,7 @@ function StepTextCta({ form, updateForm }: any) {
    STEP 3 — PÚBLICO
 ══════════════════════════════════════════════════════════ */
 
-function StepTargeting({ form, updateForm }: any) {
+function StepTargeting({ form, updateForm, clientId }: any) {
   return (
     <div className="space-y-8">
       <Section title="Demográfico">
@@ -702,211 +702,203 @@ function StepTargeting({ form, updateForm }: any) {
         <LocationPicker locations={form.locationEntries} onChange={entries => updateForm({ locationEntries: entries })} />
       </Section>
       <Section title="Interesses">
-        <InterestsPicker interests={form.interests} onChange={interests => updateForm({ interests })} />
+        <InterestsPicker
+          interests={form.interests}
+          onChange={interests => updateForm({ interests })}
+          clientId={clientId}
+        />
       </Section>
     </div>
   );
 }
 
 /* ══════════════════════════════════════════════════════════
-   INTERESTS PICKER
+   INTERESTS PICKER — Meta Targeting Search API (IDs reais)
 ══════════════════════════════════════════════════════════ */
 
-const INTEREST_CATEGORIES: { label: string; items: { id: string; name: string }[] }[] = [
-  {
-    label: 'Imobiliário',
-    items: [
-      { id: 'real_estate',           name: 'Imóveis' },
-      { id: 'real_estate_investing', name: 'Investimento imobiliário' },
-      { id: 'mortgage_loan',         name: 'Financiamento imobiliário' },
-      { id: 'interior_design',       name: 'Decoração de interiores' },
-      { id: 'architecture',          name: 'Arquitetura' },
-      { id: 'home_moving',           name: 'Mudança de casa' },
-      { id: 'rental_property',       name: 'Aluguel de imóveis' },
-      { id: 'luxury_real_estate',    name: 'Imóveis de luxo' },
-      { id: 'first_home',            name: 'Primeiro imóvel' },
-      { id: 'condominium',           name: 'Condomínios' },
-      { id: 'construction',          name: 'Construção civil' },
-    ],
-  },
-  {
-    label: 'Saúde',
-    items: [
-      { id: 'health_wellness', name: 'Saúde e bem-estar' },
-      { id: 'fitness',         name: 'Fitness e academia' },
-      { id: 'nutrition',       name: 'Nutrição' },
-      { id: 'yoga',            name: 'Yoga e meditação' },
-      { id: 'mental_health',   name: 'Saúde mental' },
-      { id: 'dental',          name: 'Odontologia' },
-      { id: 'aesthetics',      name: 'Estética e beleza' },
-      { id: 'medical',         name: 'Medicina e clínicas' },
-      { id: 'pharmacy',        name: 'Farmácia' },
-      { id: 'health_insurance',name: 'Plano de saúde' },
-    ],
-  },
-  {
-    label: 'Educação',
-    items: [
-      { id: 'education',        name: 'Educação' },
-      { id: 'online_courses',   name: 'Cursos online' },
-      { id: 'higher_education', name: 'Ensino superior' },
-      { id: 'languages',        name: 'Idiomas' },
-      { id: 'technology_edu',   name: 'Tecnologia e TI' },
-      { id: 'mba',              name: 'MBA e pós-graduação' },
-      { id: 'professional_dev', name: 'Desenvolvimento profissional' },
-      { id: 'kids_education',   name: 'Educação infantil' },
-      { id: 'enem_vestibular',  name: 'ENEM e vestibular' },
-    ],
-  },
-  {
-    label: 'Serviços',
-    items: [
-      { id: 'consulting',         name: 'Consultoria' },
-      { id: 'accounting',         name: 'Contabilidade' },
-      { id: 'legal_services',     name: 'Serviços jurídicos' },
-      { id: 'insurance',          name: 'Seguros' },
-      { id: 'cleaning',           name: 'Limpeza e manutenção' },
-      { id: 'events',             name: 'Eventos e festas' },
-      { id: 'photography',        name: 'Fotografia' },
-      { id: 'marketing_services', name: 'Marketing digital' },
-      { id: 'delivery',           name: 'Delivery e logística' },
-      { id: 'pet_services',       name: 'Pet shop e veterinária' },
-    ],
-  },
-  {
-    label: 'Vendas e Comércio',
-    items: [
-      { id: 'ecommerce',    name: 'E-commerce' },
-      { id: 'fashion',      name: 'Moda e vestuário' },
-      { id: 'electronics',  name: 'Eletrônicos' },
-      { id: 'automotive',   name: 'Automotivo' },
-      { id: 'food_beverage',name: 'Alimentação e bebidas' },
-      { id: 'furniture',    name: 'Móveis e decoração' },
-      { id: 'sports_goods', name: 'Artigos esportivos' },
-      { id: 'cosmetics',    name: 'Cosméticos' },
-      { id: 'jewelry',      name: 'Joias e acessórios' },
-      { id: 'marketplace',  name: 'Marketplace' },
-    ],
-  },
-  {
-    label: 'Financeiro',
-    items: [
-      { id: 'investing',          name: 'Investimentos' },
-      { id: 'personal_finance',   name: 'Finanças pessoais' },
-      { id: 'entrepreneurship',   name: 'Empreendedorismo' },
-      { id: 'credit',             name: 'Crédito e empréstimos' },
-      { id: 'cryptocurrency',     name: 'Criptomoedas' },
-      { id: 'stock_market',       name: 'Bolsa de valores' },
-      { id: 'passive_income',     name: 'Renda passiva' },
-      { id: 'financial_planning', name: 'Planejamento financeiro' },
-    ],
-  },
-  {
-    label: 'Estilo de Vida',
-    items: [
-      { id: 'travel',         name: 'Viagens e turismo' },
-      { id: 'gastronomy',     name: 'Gastronomia' },
-      { id: 'family',         name: 'Família e filhos' },
-      { id: 'luxury',         name: 'Luxo e lifestyle' },
-      { id: 'sustainability', name: 'Sustentabilidade' },
-      { id: 'culture',        name: 'Cultura e arte' },
-      { id: 'gaming',         name: 'Games e entretenimento' },
-      { id: 'music',          name: 'Música' },
-    ],
-  },
-];
+interface MetaInterest {
+  id: string;
+  name: string;
+  topic?: string;
+  path?: string[];
+  audienceLower?: number;
+  audienceUpper?: number;
+}
 
-const ALL_INTERESTS = INTEREST_CATEGORIES.flatMap(c => c.items);
+function formatAudienceSize(lower?: number, upper?: number): string | null {
+  if (!lower) return null;
+  const fmt = (n: number) =>
+    n >= 1_000_000 ? `${(n / 1_000_000).toFixed(0)}M` :
+    n >= 1_000     ? `${(n / 1_000).toFixed(0)}K`     : String(n);
+  return upper ? `${fmt(lower)}–${fmt(upper)}` : `${fmt(lower)}+`;
+}
 
-function InterestsPicker({ interests, onChange }: { interests: any[]; onChange: (v: any[]) => void }) {
-  const [query, setQuery]               = useState('');
-  const [activeCategory, setActiveCategory] = useState(INTEREST_CATEGORIES[0].label);
+function InterestsPicker({ interests, onChange, clientId }: {
+  interests: any[];
+  onChange: (v: any[]) => void;
+  clientId?: string | null;
+}) {
+  const [query, setQuery]         = useState('');
+  const [results, setResults]     = useState<MetaInterest[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [apiMsg, setApiMsg]       = useState('');   // warning/error from API
+  const [configured, setConfigured] = useState(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const filtered = query.length >= 2
-    ? ALL_INTERESTS.filter(
-        i => !interests.some((sel: any) => sel.id === i.id) &&
-          i.name.toLowerCase().includes(query.toLowerCase())
-      )
-    : [];
+  async function fetchInterests(q: string) {
+    if (q.trim().length < 2) { setResults([]); return; }
+    setSearching(true); setApiMsg('');
+    try {
+      const params = new URLSearchParams({ q: q.trim() });
+      if (clientId) params.append('clientId', clientId);
+      const res  = await fetch(`/api/admin/campanhas/interests/search?${params}`, { credentials: 'include' });
+      const data = await res.json();
+      setConfigured(data.configured !== false);
+      setResults(data.data || []);
+      if (data.message) setApiMsg(data.message);
+    } catch {
+      setApiMsg('Erro de conexão ao buscar interesses.');
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }
 
-  const categoryItems = INTEREST_CATEGORIES.find(c => c.label === activeCategory)?.items.filter(
-    i => !interests.some((sel: any) => sel.id === i.id)
-  ) ?? [];
+  function handleQueryChange(value: string) {
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchInterests(value), 350);
+  }
 
-  function addInterest(item: { id: string; name: string }) { onChange([...interests, item]); setQuery(''); }
+  function addInterest(item: MetaInterest) {
+    if (!interests.some((i: any) => i.id === item.id)) {
+      onChange([...interests, { id: item.id, name: item.name }]);
+    }
+    setQuery(''); setResults([]);
+  }
+
   function addCustom() {
     if (query.trim().length < 2) return;
-    const id = query.trim().toLowerCase().replace(/\s+/g, '_');
+    const id = `custom_${query.trim().toLowerCase().replace(/\s+/g, '_')}`;
     if (interests.some((i: any) => i.id === id)) return;
-    onChange([...interests, { id, name: query.trim() }]); setQuery('');
+    onChange([...interests, { id, name: query.trim() }]);
+    setQuery(''); setResults([]);
   }
+
   function removeInterest(id: string) { onChange(interests.filter((i: any) => i.id !== id)); }
+
+  const filteredResults = results.filter(r => !interests.some((i: any) => i.id === r.id));
 
   return (
     <div className="space-y-4">
+
+      {/* Selected chips */}
       {interests.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {interests.map((i: any) => (
-            <span key={i.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-sm text-indigo-700">
+            <span key={i.id}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-sm text-indigo-700 font-medium">
               {i.name}
-              <button onClick={() => removeInterest(i.id)} className="text-indigo-400 hover:text-indigo-700 transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+              <button onClick={() => removeInterest(i.id)}
+                className="text-indigo-300 hover:text-indigo-600 transition-colors ml-0.5">
+                <XMarkIcon className="w-3.5 h-3.5" />
               </button>
             </span>
           ))}
+          <button onClick={() => onChange([])}
+            className="text-xs px-3 py-1.5 rounded-full border border-dashed border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 transition-all">
+            Limpar todos
+          </button>
         </div>
       )}
-      <div className="max-w-lg">
-        <input type="text" value={query} onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { filtered.length > 0 ? addInterest(filtered[0]) : addCustom(); } }}
-          placeholder="Buscar interesses em todos os segmentos..."
-          className={cn(inputCls, 'w-full')} />
+
+      {/* Search input */}
+      <div className="max-w-lg relative">
+        <input
+          type="text"
+          value={query}
+          onChange={e => handleQueryChange(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              if (filteredResults.length > 0) addInterest(filteredResults[0]);
+              else if (query.trim().length >= 2) addCustom();
+            }
+          }}
+          placeholder="Buscar interesses na Meta (ex: imóveis, fitness, viagens)..."
+          className={cn(inputCls, 'w-full pr-9')}
+        />
+        {searching && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
       </div>
-      {query.length >= 2 ? (
-        <div className="space-y-2">
-          <p className="text-xs text-gray-400">{filtered.length} resultado(s) encontrado(s)</p>
-          <div className="flex flex-wrap gap-2">
-            {filtered.slice(0, 12).map(item => (
-              <button key={item.id} onClick={() => addInterest(item)}
-                className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-indigo-300 transition-all">
-                + {item.name}
-              </button>
-            ))}
-            {filtered.length === 0 && query.trim().length >= 2 && (
-              <button onClick={addCustom}
-                className="text-xs px-3 py-1.5 rounded-full border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition-all">
-                + Adicionar "{query.trim()}" como interesse personalizado
-              </button>
-            )}
+
+      {/* Status messages */}
+      {!configured && (
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl p-3">
+          <span className="text-amber-500 shrink-0 mt-0.5">⚠️</span>
+          <div>
+            <p className="text-xs font-semibold text-amber-800">Token Meta não configurado</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Configure em <a href="/admin/campanhas/configuracoes/redes" target="_blank"
+                className="underline">Configurações → Redes de Anúncios</a> para buscar
+              interesses reais com IDs válidos.
+            </p>
           </div>
         </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-1.5">
-            {INTEREST_CATEGORIES.map(cat => (
-              <button key={cat.label} onClick={() => setActiveCategory(cat.label)}
-                className={cn('text-xs px-3 py-1.5 rounded-lg transition-all font-medium',
-                  activeCategory === cat.label
-                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                    : 'text-gray-500 hover:text-gray-700 border border-transparent'
-                )}>
-                {cat.label}
-              </button>
-            ))}
-          </div>
+      )}
+      {configured && apiMsg && (
+        <p className="text-xs text-amber-600 font-medium">⚠️ {apiMsg}</p>
+      )}
+
+      {/* Results from Meta API */}
+      {query.length >= 2 && filteredResults.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            {filteredResults.length} interesse{filteredResults.length !== 1 ? 's' : ''} encontrado{filteredResults.length !== 1 ? 's' : ''} na Meta API
+          </p>
           <div className="flex flex-wrap gap-2">
-            {categoryItems.slice(0, 10).map(item => (
-              <button key={item.id} onClick={() => addInterest(item)}
-                className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-indigo-300 transition-all">
-                + {item.name}
-              </button>
-            ))}
-            {categoryItems.length === 0 && (
-              <p className="text-xs text-gray-400">Todos os interesses desta categoria já foram selecionados.</p>
-            )}
+            {filteredResults.map(item => {
+              const audience = formatAudienceSize(item.audienceLower, item.audienceUpper);
+              return (
+                <button key={item.id} onClick={() => addInterest(item)}
+                  className="group flex items-center gap-2 text-xs px-3 py-2 rounded-xl border border-gray-200 text-gray-700 hover:border-indigo-300 hover:text-indigo-700 hover:bg-indigo-50 transition-all">
+                  <span>+ {item.name}</span>
+                  {audience && (
+                    <span className="text-[9px] font-bold text-gray-400 group-hover:text-indigo-400 bg-gray-100 group-hover:bg-indigo-100 rounded-full px-1.5 py-0.5 transition-all">
+                      {audience}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
+          <p className="text-[10px] text-gray-400">↩ Enter para adicionar o primeiro resultado</p>
+        </div>
+      )}
+
+      {/* No results + add custom */}
+      {query.length >= 2 && !searching && filteredResults.length === 0 && !apiMsg && configured && (
+        <div className="flex items-center gap-3">
+          <button onClick={addCustom}
+            className="text-xs px-3 py-2 rounded-xl border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition-all">
+            + Adicionar "{query.trim()}" como interesse livre
+          </button>
+          <p className="text-xs text-gray-400">Nenhum resultado na Meta API. Interesses livres não têm ID validado.</p>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {query.length === 0 && interests.length === 0 && (
+        <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+          <p className="text-xs text-gray-500 font-medium mb-1">
+            💡 Os interesses são buscados diretamente na Meta API
+          </p>
+          <p className="text-xs text-gray-400">
+            Os resultados incluem IDs reais do Meta e o tamanho estimado da audiência.
+            Ex: "imóveis", "construção civil", "financiamento".
+          </p>
         </div>
       )}
     </div>
