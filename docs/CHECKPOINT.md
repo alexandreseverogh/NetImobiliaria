@@ -101,12 +101,32 @@ Documentada a **Camada Operacional de Lançamento de Campanhas** (subseções 1.
 | **Tenant** | Meta credentials, website, segment | `/admin/campanhas/configuracoes` → Identidade Meta | ✅ |
 | **Cliente** | page_id, pixel_id, instagram, website (override) | `/admin/clientes/{id}` → aba Configurações Meta | ✅ |
 
+## Última entrega — Fluxo de Lançamento Unificado (2026-05-29)
+
+- ✅ **`/admin/campanhas/nova`** refatorado como Fase 1 (Criativos) + Fase 2 (Wizard)
+  - Seleção de pasta via File System Access API (Chrome/Edge) com fallback `webkitdirectory`
+  - Grid de imagens com seleção múltipla (máx 6) e thumbnails no footer
+  - Seção "Para quem?" exibida **apenas para tenants** (oculta para Master)
+  - `CreateGuard` **removido** do botão "Configurar Campanha" — era o bug que ocultava o botão para Master
+  - `contextReady` como única guarda de negócio: `isMaster || campaignFor === 'own' || !!selectedClientId`
+- ✅ **`/admin/campanhas/criativos`** substituído por redirect para `/nova`
+- ✅ **`/api/admin/auth/me`** — campo `is_system_role` adicionado ao `userResponse`
+- ✅ **`isMaster` detection** — `user?.is_system_role` + localStorage fallback (login sempre tem `is_system_role`)
+
+### Bugs corrigidos
+
+| Bug | Causa | Fix |
+|-----|-------|-----|
+| "Para quem?" aparecia para Master | `is_system_role` não retornado por `/me` | Adicionado ao `userResponse` + fallback localStorage |
+| Botão "Configurar Campanha" ausente/desabilitado para Master | `CreateGuard resource="campanhas"` retornava null (sem permissão explícita na DB) | Removido `CreateGuard` — `disabled={!contextReady}` suficiente |
+
 ## Próximos passos imediatos
 
-1. Testar fluxo completo: Settings → Identidade Meta → salvar page_id → Wizard → lançar campanha
-2. `StepReview` no `CampaignWizard` — mostrar `specialAdCategory`, `pixelId`, `customEventType` no resumo final
-3. **FASE 4** do plano mestre (Campaign State Machine)
-4. Testes end-to-end: briefings, Agente Decisor, Desperdício de Verba
+1. Testar fluxo completo Master: selecionar criativos → "Configurar Campanha" → Wizard → lançar
+2. Testar fluxo Tenant: "Para um Cliente" → selecionar cliente → criativos → lançar
+3. `StepReview` no `CampaignWizard` — mostrar `specialAdCategory`, `pixelId`, `customEventType` no resumo final
+4. Remover item "IMPORTAÇÃO DE CRIATIVOS" do sidebar (agora redirecionado; item confuso)
+5. **FASE 4** do plano mestre (Campaign State Machine)
 
 ---
 

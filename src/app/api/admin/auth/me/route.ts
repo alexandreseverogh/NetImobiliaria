@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
       role_name: userWithPermissions.role_name || 'Usuário',
       role_description: userWithPermissions.role_description || 'Usuário do sistema',
       role_level: userWithPermissions.role_level || 0,  // Nível hierárquico
+      is_system_role: (userWithPermissions as any).is_system_role === true, // Master/platform admin
       permissoes: userWithPermissions.permissoes || {},
       auditConfigs: (userWithPermissions as any).auditConfigs || {},
       status: userWithPermissions.ativo ? 'ATIVO' : 'INATIVO',

@@ -1,11 +1,21 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { createCampaign, getMetaIdentity, type Creative } from '@/lib/marketing-api';
 import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency } from '@/lib/marketing-utils';
 import { LocationPicker, type LocationEntry } from './LocationPicker';
-import { ShieldCheckIcon, BoltIcon } from '@heroicons/react/24/outline';
+import {
+  ShieldCheckIcon, BoltIcon, XMarkIcon, RocketLaunchIcon,
+} from '@heroicons/react/24/outline';
 
+/* ── shared input class ──────────────────────────────────── */
+const inputCls =
+  'px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-900 ' +
+  'placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all disabled:opacity-60';
+
+/* ── types ───────────────────────────────────────────────── */
 interface Props {
   selectedImages?: Creative[];
   onClose: () => void;
@@ -14,113 +24,117 @@ interface Props {
   clientId?: string | null;
 }
 
-/** Chip indicando campo preenchido automaticamente */
+/* ── AutoChip ────────────────────────────────────────────── */
 function AutoChip({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-[10px] font-black text-indigo-300 uppercase tracking-wide">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-200 rounded-full text-[10px] font-black text-indigo-600 uppercase tracking-wide">
       <BoltIcon className="h-2.5 w-2.5" />
       {label}
     </span>
   );
 }
 
+/* ── steps (Fase 2 — sem criativos, gerenciado fora do wizard) ── */
 const STEPS = [
-  { key: 'rede',     label: 'Rede',       desc: 'Plataforma de anuncios' },
-  { key: 'tipo',     label: 'Tipo',       desc: 'Formato do anuncio' },
-  { key: 'texto',    label: 'Texto & CTA',desc: 'Conteudo e acao' },
-  { key: 'publico',  label: 'Publico',    desc: 'Segmentacao' },
-  { key: 'orcamento',label: 'Orcamento',  desc: 'Investimento e agenda' },
-  { key: 'objetivo', label: 'Objetivo',   desc: 'Meta da campanha' },
-  { key: 'revisao',  label: 'Revisao',    desc: 'Confirmar e lancar' },
+  { key: 'rede',      label: 'Rede',         desc: 'Plataforma de anúncios' },
+  { key: 'tipo',      label: 'Tipo',          desc: 'Formato do anúncio' },
+  { key: 'texto',     label: 'Texto & CTA',   desc: 'Conteúdo e ação' },
+  { key: 'publico',   label: 'Público',       desc: 'Segmentação' },
+  { key: 'orcamento', label: 'Orçamento',     desc: 'Investimento e agenda' },
+  { key: 'objetivo',  label: 'Objetivo',      desc: 'Meta da campanha' },
+  { key: 'revisao',   label: 'Revisão',       desc: 'Confirmar e lançar' },
 ];
 
+/* ── Section card ────────────────────────────────────────── */
 function Section({ title, children, className }: { title?: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn('glass-card p-6 space-y-5', className)}>
-      {title && <h4 className="text-base font-semibold text-white tracking-wide">{title}</h4>}
+    <div className={cn('bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5', className)}>
+      {title && <h4 className="text-base font-semibold text-gray-900 tracking-wide">{title}</h4>}
       {children}
     </div>
   );
 }
 
+/* ── Field label ─────────────────────────────────────────── */
 function Label({ children }: { children: React.ReactNode }) {
-  return <label className="text-sm font-medium text-gray-400 mb-1.5 block">{children}</label>;
+  return (
+    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">
+      {children}
+    </label>
+  );
 }
 
+/* ══════════════════════════════════════════════════════════
+   MAIN WIZARD COMPONENT — FASE 2 (configuração da campanha)
+══════════════════════════════════════════════════════════ */
 export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId }: Props) {
   const selectedImages = selectedImagesProp ?? [];
-  const [step, setStep] = useState(0);
+  const [step, setStep]             = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
-  // Campos automáticos resolvidos da identidade Meta + segmento
   const [autoFields, setAutoFields] = useState({
-    pixelId:          '',
+    pixelId:           '',
     specialAdCategory: 'NONE',
-    customEventType:  'LEAD',
-    objective:        'OUTCOME_LEADS',
-    websiteDefault:   '',
+    customEventType:   'LEAD',
+    objective:         'OUTCOME_LEADS',
+    websiteDefault:    '',
   });
 
   const [form, setForm] = useState({
-    networkCode: 'meta',
+    networkCode:  'meta',
     creativeType: selectedImages.length === 1 ? 'SINGLE_IMAGE' : '',
-    name: '',
-    body: '',
-    headline: '',
-    linkUrl: '',
-    ctaType: 'WHATSAPP_MESSAGE',
-    whatsappNumber: '',
-    whatsappMessage: 'Ola! Vi o anuncio e quero saber mais!',
-    ageMin: 18,
-    ageMax: 65,
+    name:         '',
+    body:         '',
+    headline:     '',
+    linkUrl:      '',
+    ctaType:      'WHATSAPP_MESSAGE',
+    whatsappNumber:  '',
+    whatsappMessage: 'Olá! Vi o anúncio e quero saber mais!',
+    ageMin:  18,
+    ageMax:  65,
     genders: [] as number[],
     locationEntries: [] as LocationEntry[],
     locations: { countries: ['BR'] } as any,
     interests: [] as any[],
-    dailyBudget: 20,
-    startTime: new Date().toISOString().split('T')[0],
-    endTime: '',
+    dailyBudget:  20,
+    startTime:    new Date().toISOString().split('T')[0],
+    endTime:      '',
     scheduleDays: [0, 1, 2, 3, 4, 5, 6],
     scheduleTimeSlots: [{ start: 6, end: 23 }] as { start: number; end: number }[],
-    objective: 'OUTCOME_LEADS',
-    // Campos de conversão (resolvidos do segmento + editáveis)
-    specialAdCategory: '',  // '' = usar autoFields
-    pixelId:           '',  // '' = usar autoFields
-    customEventType:   '',  // '' = usar autoFields
+    objective:         'OUTCOME_LEADS',
+    specialAdCategory: '',
+    pixelId:           '',
+    customEventType:   '',
   });
 
-  // Pré-preencher campos automáticos: MetaIdentity + segment defaults via API
+  /* pre-fill from identity + segment */
   useEffect(() => {
     async function loadAutoFields() {
       try {
-        // Buscar identidade Meta (pixel, website)
         const identity = await getMetaIdentity().catch(() => null);
-        // Buscar segment defaults via endpoint de campanhas
         const endpoint = clientId
           ? `/api/admin/campanhas/segment-defaults?clientId=${clientId}&network=meta`
           : `/api/admin/campanhas/segment-defaults?network=meta`;
         const segDefaults = await fetch(endpoint, { credentials: 'include' })
-          .then(r => r.ok ? r.json() : null)
-          .catch(() => null);
+          .then(r => r.ok ? r.json() : null).catch(() => null);
 
         const resolved = {
-          pixelId:           identity?.pixelId           || '',
-          websiteDefault:    identity?.website            || '',
+          pixelId:           identity?.pixelId          || '',
+          websiteDefault:    identity?.website           || '',
           specialAdCategory: segDefaults?.specialAdCategory || 'NONE',
           customEventType:   segDefaults?.customEventType   || 'LEAD',
-          objective:         segDefaults?.objective          || 'OUTCOME_LEADS',
+          objective:         segDefaults?.objective         || 'OUTCOME_LEADS',
         };
         setAutoFields(resolved);
-        // Pré-preencher linkUrl com o site (somente se estiver vazio)
         setForm(f => ({
           ...f,
           linkUrl:   f.linkUrl   || resolved.websiteDefault,
           objective: f.objective === 'OUTCOME_LEADS' ? resolved.objective : f.objective,
         }));
-      } catch { /* fallback gracioso: não quebra o wizard */ }
+      } catch { /* graceful fallback */ }
     }
     loadAutoFields();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
   function updateForm(updates: Partial<typeof form>) {
@@ -131,11 +145,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     if (entries.length === 0) return { countries: ['BR'] };
     return {
       custom_locations: entries.map(e => ({
-        latitude: e.latitude,
-        longitude: e.longitude,
-        radius: e.radius,
-        distance_unit: 'kilometer',
-        name: e.name,
+        latitude: e.latitude, longitude: e.longitude,
+        radius: e.radius, distance_unit: 'kilometer', name: e.name,
       })),
     };
   }
@@ -144,32 +155,30 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     setSubmitting(true);
     try {
       await createCampaign({
-        networkCode:      form.networkCode,
-        name:             form.name || `Campanha ${new Date().toLocaleDateString('pt-BR')}`,
-        objective:        form.objective,
-        creativeType:     form.creativeType || 'SINGLE_IMAGE',
-        images:           selectedImages.map(img => img.path),
-        body:             form.body,
-        headline:         form.headline,
-        linkUrl:          form.linkUrl,
-        ctaType:          form.ctaType,
-        whatsappNumber:   form.whatsappNumber,
-        whatsappMessage:  form.whatsappMessage,
-        ageMin:           form.ageMin,
-        ageMax:           form.ageMax,
-        genders:          form.genders,
-        locations:        buildLocationsPayload(form.locationEntries),
-        interests:        form.interests,
-        dailyBudget:      form.dailyBudget,
-        startTime:        form.startTime,
-        endTime:          form.endTime || undefined,
-        scheduleDays:     form.scheduleDays,
+        networkCode:       form.networkCode,
+        name:              form.name || `Campanha ${new Date().toLocaleDateString('pt-BR')}`,
+        objective:         form.objective,
+        creativeType:      form.creativeType || 'SINGLE_IMAGE',
+        images:            selectedImages.map(img => img.path),
+        body:              form.body,
+        headline:          form.headline,
+        linkUrl:           form.linkUrl,
+        ctaType:           form.ctaType,
+        whatsappNumber:    form.whatsappNumber,
+        whatsappMessage:   form.whatsappMessage,
+        ageMin:            form.ageMin,
+        ageMax:            form.ageMax,
+        genders:           form.genders,
+        locations:         buildLocationsPayload(form.locationEntries),
+        interests:         form.interests,
+        dailyBudget:       form.dailyBudget,
+        startTime:         form.startTime,
+        endTime:           form.endTime || undefined,
+        scheduleDays:      form.scheduleDays,
         scheduleTimeSlots: form.scheduleTimeSlots,
-        // Campos de conversão — usa override manual se informado, senão usa auto
         specialAdCategory: form.specialAdCategory || autoFields.specialAdCategory || 'NONE',
         pixelId:           form.pixelId           || autoFields.pixelId           || undefined,
         customEventType:   form.customEventType   || autoFields.customEventType   || 'LEAD',
-        // Cliente associado
         clientId:          clientId || undefined,
       });
       onSuccess();
@@ -182,75 +191,88 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-surface/95 backdrop-blur-md">
-      {/* Sidebar com steps */}
-      <div className="w-64 shrink-0 border-r border-card-border bg-surface flex flex-col">
-        <div className="p-6 border-b border-card-border">
-          <h2 className="text-xl font-bold text-white">Nova Campanha</h2>
-          <p className="text-xs text-gray-500 mt-1">{selectedImages.length} criativo(s) selecionado(s)</p>
+    <div className="fixed inset-0 z-50 flex bg-white">
+
+      {/* ── Sidebar ── */}
+      <div className="w-64 shrink-0 border-r border-gray-100 bg-white flex flex-col">
+
+        {/* Brand + phase indicator */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[9px] font-black bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 uppercase tracking-widest">Fase 1</span>
+            <span className="text-[9px] text-gray-300">→</span>
+            <span className="text-[9px] font-black bg-indigo-100 text-indigo-600 rounded-full px-2 py-0.5 uppercase tracking-widest">Fase 2</span>
+          </div>
+          <h2 className="text-xl font-black text-gray-900">Configurar Campanha</h2>
+          <p className="text-xs text-gray-400 mt-1">
+            {selectedImages.length === 0
+              ? 'Sem criativos anexados'
+              : `${selectedImages.length} criativo(s) selecionado(s)`}
+          </p>
         </div>
-        <nav className="flex-1 p-4 space-y-1">
+
+        {/* Steps nav */}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {STEPS.map((s, i) => (
             <button
               key={s.key}
               onClick={() => setStep(i)}
               className={cn(
                 'w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3',
-                i === step
-                  ? 'bg-primary/15 border border-primary/30'
-                  : i < step
-                    ? 'hover:bg-surface-light/30'
-                    : 'opacity-50'
+                i === step   ? 'bg-indigo-50 border border-indigo-100' :
+                i < step     ? 'hover:bg-gray-50 cursor-pointer' :
+                               'opacity-40 cursor-default'
               )}
             >
               <div className={cn(
                 'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
-                i === step
-                  ? 'bg-primary text-white'
-                  : i < step
-                    ? 'bg-primary/30 text-primary-light'
-                    : 'bg-surface-light text-gray-500'
+                i === step   ? 'bg-indigo-600 text-white' :
+                i < step     ? 'bg-indigo-100 text-indigo-600' :
+                               'bg-gray-100 text-gray-400'
               )}>
                 {i < step ? (
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
-                ) : (
-                  i + 1
-                )}
+                ) : i + 1}
               </div>
               <div>
                 <p className={cn(
-                  'text-sm font-medium',
-                  i === step ? 'text-white' : i < step ? 'text-gray-300' : 'text-gray-500'
+                  'text-sm font-semibold',
+                  i === step ? 'text-gray-900' : i < step ? 'text-gray-700' : 'text-gray-400'
                 )}>{s.label}</p>
-                <p className="text-[11px] text-gray-500">{s.desc}</p>
+                <p className="text-[11px] text-gray-400">{s.desc}</p>
               </div>
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-card-border">
-          <button onClick={onClose} className="w-full btn-secondary text-sm">
-            Cancelar
+
+        <div className="p-4 border-t border-gray-100">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-all"
+          >
+            ← Voltar aos Criativos
           </button>
         </div>
       </div>
 
-      {/* Conteudo principal */}
+      {/* ── Main content ── */}
       <div className="flex-1 flex flex-col min-w-0">
+
         {/* Header */}
-        <div className="px-10 py-5 border-b border-card-border flex items-center justify-between shrink-0">
+        <div className="px-10 py-5 border-b border-gray-100 bg-white flex items-center justify-between shrink-0">
           <div>
-            <h3 className="text-lg font-semibold text-white">{STEPS[step].label}</h3>
+            <h3 className="text-lg font-black text-gray-900">{STEPS[step].label}</h3>
             <p className="text-sm text-gray-500">{STEPS[step].desc}</p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            Passo {step + 1} de {STEPS.length}
-          </div>
+          <span className="text-sm font-medium text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+            {step + 1} / {STEPS.length}
+          </span>
         </div>
 
-        {/* Conteudo scrollavel */}
-        <div className="flex-1 overflow-y-auto p-10">
+        {/* Scrollable step content */}
+        <div className="flex-1 overflow-y-auto p-10 bg-gray-50">
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
@@ -260,32 +282,52 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               transition={{ duration: 0.2 }}
               className="max-w-4xl"
             >
-              {step === 0 && <StepNetwork form={form} updateForm={updateForm} />}
-              {step === 1 && <StepType form={form} updateForm={updateForm} selectedImages={selectedImages} />}
-              {step === 2 && <StepTextCta form={form} updateForm={updateForm} />}
+              {step === 0 && <StepNetwork   form={form} updateForm={updateForm} />}
+              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} />}
+              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} />}
-              {step === 4 && <StepBudget form={form} updateForm={updateForm} />}
+              {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
               {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} />}
-              {step === 6 && <StepReview form={form} selectedImages={selectedImages} />}
+              {step === 6 && <StepReview    form={form} selectedImages={selectedImages} />}
             </motion.div>
           </AnimatePresence>
         </div>
 
-        {/* Footer com navegacao */}
-        <div className="px-10 py-5 border-t border-card-border flex justify-between shrink-0">
+        {/* Footer navigation */}
+        <div className="px-10 py-5 border-t border-gray-100 bg-white flex justify-between items-center shrink-0">
           <button
             onClick={() => step > 0 ? setStep(step - 1) : onClose()}
-            className="btn-secondary"
+            className="px-6 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-all"
           >
-            {step === 0 ? 'Cancelar' : 'Voltar'}
+            {step === 0 ? '← Criativos' : '← Voltar'}
           </button>
+
           {step < STEPS.length - 1 ? (
-            <button onClick={() => setStep(step + 1)} className="btn-primary px-8">
-              Proximo
+            <button
+              onClick={() => setStep(step + 1)}
+              className="px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+            >
+              Próximo →
             </button>
           ) : (
-            <button onClick={handleSubmit} disabled={submitting} className="btn-primary px-8">
-              {submitting ? 'Lancando...' : 'Lancar Campanha'}
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="inline-flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-60"
+              style={{ background: submitting ? '#94a3b8' : 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+            >
+              {submitting ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Lançando...
+                </>
+              ) : (
+                <>
+                  <RocketLaunchIcon className="h-4 w-4" />
+                  Lançar Campanha
+                </>
+              )}
             </button>
           )}
         </div>
@@ -294,17 +336,13 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   );
 }
 
-/* ===================== STEP 0 — REDE ===================== */
+/* ══════════════════════════════════════════════════════════
+   STEP 0 — REDE
+══════════════════════════════════════════════════════════ */
 
 interface NetworkOption {
-  id: string;
-  code: string;
-  name: string;
-  icon: string;
-  color: string;
-  network_active: boolean;
-  capabilities: { supported?: boolean };
-  connected?: boolean;
+  id: string; code: string; name: string; icon: string; color: string;
+  network_active: boolean; capabilities: { supported?: boolean }; connected?: boolean;
 }
 
 function StepNetwork({ form, updateForm }: any) {
@@ -315,8 +353,10 @@ function StepNetwork({ form, updateForm }: any) {
     axios.get('/api/admin/campanhas/configuracoes/redes')
       .then(r => setNetworks(r.data.networks || []))
       .catch(() => {
-        // fallback: ao menos mostrar Meta se a API falhar
-        setNetworks([{ id: '', code: 'meta', name: 'Meta Ads', icon: 'meta', color: '#1877f2', network_active: true, capabilities: { supported: true }, connected: true }]);
+        setNetworks([{
+          id: '', code: 'meta', name: 'Meta Ads', icon: 'meta', color: '#1877f2',
+          network_active: true, capabilities: { supported: true }, connected: true,
+        }]);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -325,11 +365,9 @@ function StepNetwork({ form, updateForm }: any) {
 
   if (loading) {
     return (
-      <Section title="Rede de Anuncios">
+      <Section title="Rede de Anúncios">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-32 rounded-xl bg-surface-light/30 animate-pulse" />
-          ))}
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-32 rounded-xl bg-gray-100 animate-pulse" />)}
         </div>
       </Section>
     );
@@ -337,10 +375,10 @@ function StepNetwork({ form, updateForm }: any) {
 
   return (
     <div className="space-y-8">
-      <Section title="Rede de Anuncios">
-        <p className="text-sm text-gray-400 -mt-2 mb-4">
-          Selecione a plataforma onde esta campanha sera veiculada.
-          Cada campanha tem seu proprio budget independente.
+      <Section title="Rede de Anúncios">
+        <p className="text-sm text-gray-500 -mt-2 mb-4">
+          Selecione a plataforma onde esta campanha será veiculada.
+          Cada campanha tem seu próprio budget independente.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {networks.map(net => {
@@ -352,10 +390,10 @@ function StepNetwork({ form, updateForm }: any) {
                 disabled={!isSupported || !net.connected}
                 onClick={() => isSupported && net.connected && updateForm({ networkCode: net.code })}
                 className={cn(
-                  'glass-card p-5 text-center transition-all relative',
-                  isSelected && 'ring-2 ring-primary bg-primary/10',
+                  'bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center transition-all relative',
+                  isSelected && 'ring-2 ring-indigo-500 bg-indigo-50 border-indigo-200',
                   (!isSupported || !net.connected) && 'opacity-50 cursor-not-allowed',
-                  isSupported && net.connected && !isSelected && 'hover:bg-surface-light/30 cursor-pointer',
+                  isSupported && net.connected && !isSelected && 'hover:bg-gray-50 cursor-pointer',
                 )}
               >
                 <div
@@ -364,16 +402,16 @@ function StepNetwork({ form, updateForm }: any) {
                 >
                   {ICONS[net.code] || net.code.slice(0, 2).toUpperCase()}
                 </div>
-                <p className="text-sm font-medium text-white">{net.name}</p>
+                <p className="text-sm font-semibold text-gray-900">{net.name}</p>
                 {net.connected ? (
-                  <p className="text-xs text-emerald-400 mt-1">Conectado</p>
+                  <p className="text-xs text-emerald-600 mt-1 font-medium">Conectado</p>
                 ) : isSupported ? (
-                  <p className="text-xs text-amber-400 mt-1">Nao conectado</p>
+                  <p className="text-xs text-amber-500 mt-1">Não conectado</p>
                 ) : (
-                  <p className="text-xs text-gray-500 mt-1">Em breve</p>
+                  <p className="text-xs text-gray-400 mt-1">Em breve</p>
                 )}
                 {isSelected && (
-                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center">
                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                     </svg>
@@ -384,10 +422,10 @@ function StepNetwork({ form, updateForm }: any) {
           })}
         </div>
         {networks.some(n => n.capabilities?.supported !== false && !n.connected) && (
-          <p className="text-xs text-gray-500 mt-3">
-            Redes com "Nao conectado" precisam de credenciais em{' '}
-            <a href="/admin/campanhas/configuracoes/redes" target="_blank" className="text-indigo-400 underline">
-              Configuracoes → Redes
+          <p className="text-xs text-gray-400 mt-3">
+            Redes com "Não conectado" precisam de credenciais em{' '}
+            <a href="/admin/campanhas/configuracoes/redes" target="_blank" className="text-indigo-600 underline">
+              Configurações → Redes
             </a>.
           </p>
         )}
@@ -396,29 +434,33 @@ function StepNetwork({ form, updateForm }: any) {
   );
 }
 
-/* ===================== STEP 1 — TIPO ===================== */
+/* ══════════════════════════════════════════════════════════
+   STEP 1 — TIPO
+══════════════════════════════════════════════════════════ */
 
 function StepType({ form, updateForm, selectedImages }: any) {
+  /* Single image: show preview + name field */
   if (selectedImages.length === 1) {
     return (
       <div className="space-y-8">
         <Section title="Criativo Selecionado">
           <div className="flex items-start gap-8">
-            <div className="w-56 h-56 rounded-2xl overflow-hidden border border-card-border shrink-0">
-              <img src={selectedImages[0].url} alt="" className="w-full h-full object-cover" />
+            <div className="w-56 h-56 rounded-2xl overflow-hidden border border-gray-200 shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={selectedImages[0].path} alt="" className="w-full h-full object-cover" />
             </div>
             <div className="flex-1 space-y-4 pt-2">
-              <p className="text-gray-300">Formato: <span className="text-white font-medium">Imagem unica</span></p>
+              <p className="text-sm text-gray-600">Formato: <span className="text-gray-900 font-semibold">Imagem única</span></p>
               <div>
                 <Label>Nome da campanha</Label>
                 <input
                   type="text"
-                  placeholder="Ex: Lancamento Edif. Aurora - Maio 2026"
+                  placeholder="Ex: Lançamento Edif. Aurora — Maio 2026"
                   value={form.name}
                   onChange={e => updateForm({ name: e.target.value })}
-                  className="input-field w-full"
+                  className={cn(inputCls, 'w-full')}
                 />
-                <p className="text-xs text-gray-500 mt-1.5">Opcional. Se vazio, sera gerado automaticamente.</p>
+                <p className="text-xs text-gray-400 mt-1.5">Opcional. Se vazio, será gerado automaticamente.</p>
               </div>
             </div>
           </div>
@@ -427,87 +469,116 @@ function StepType({ form, updateForm, selectedImages }: any) {
     );
   }
 
+  /* No images: show info + name field only */
+  if (selectedImages.length === 0) {
+    return (
+      <div className="space-y-8">
+        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-start gap-3">
+          <span className="text-xl shrink-0">📭</span>
+          <div>
+            <p className="text-sm font-bold text-amber-800">Nenhum criativo selecionado</p>
+            <p className="text-sm text-amber-700 mt-1">
+              A campanha será criada sem imagem. Você poderá adicionar criativos diretamente no Meta Ads Manager após o lançamento.
+            </p>
+          </div>
+        </div>
+        <Section title="Identificação">
+          <div>
+            <Label>Nome da campanha</Label>
+            <input
+              type="text"
+              placeholder="Ex: Lançamento Edif. Aurora — Maio 2026"
+              value={form.name}
+              onChange={e => updateForm({ name: e.target.value })}
+              className={cn(inputCls, 'w-full max-w-lg')}
+            />
+            <p className="text-xs text-gray-400 mt-1.5">Opcional. Se vazio, será gerado automaticamente.</p>
+          </div>
+        </Section>
+      </div>
+    );
+  }
+
+  /* Multiple images: show format cards */
   return (
     <div className="space-y-8">
-      <Section title="Formato do Anuncio">
+      <Section title="Formato do Anúncio">
         <div className="grid grid-cols-2 gap-5">
-          <button
-            onClick={() => updateForm({ creativeType: 'CAROUSEL' })}
-            className={cn(
-              'glass-card p-6 text-center transition-all hover:bg-surface-light/30',
-              form.creativeType === 'CAROUSEL' && 'ring-2 ring-primary bg-primary/5'
-            )}
-          >
-            <div className="text-4xl mb-3">🎠</div>
-            <p className="text-lg font-medium text-white">Carrossel</p>
-            <p className="text-sm text-gray-400 mt-1">Multiplas imagens deslizaveis em um unico anuncio</p>
-          </button>
-          <button
-            onClick={() => updateForm({ creativeType: 'SINGLE_IMAGE' })}
-            className={cn(
-              'glass-card p-6 text-center transition-all hover:bg-surface-light/30',
-              form.creativeType === 'SINGLE_IMAGE' && 'ring-2 ring-primary bg-primary/5'
-            )}
-          >
-            <div className="text-4xl mb-3">📸</div>
-            <p className="text-lg font-medium text-white">Multiplos Anuncios</p>
-            <p className="text-sm text-gray-400 mt-1">Um anuncio separado para cada imagem</p>
-          </button>
+          {[
+            { value: 'CAROUSEL',     emoji: '🎠', label: 'Carrossel',          desc: 'Múltiplas imagens deslizáveis em um único anúncio' },
+            { value: 'SINGLE_IMAGE', emoji: '📸', label: 'Múltiplos Anúncios', desc: 'Um anúncio separado para cada imagem' },
+          ].map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => updateForm({ creativeType: opt.value })}
+              className={cn(
+                'bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center transition-all',
+                form.creativeType === opt.value
+                  ? 'ring-2 ring-indigo-500 bg-indigo-50 border-indigo-200'
+                  : 'hover:bg-gray-50'
+              )}
+            >
+              <div className="text-4xl mb-3">{opt.emoji}</div>
+              <p className="text-lg font-semibold text-gray-900">{opt.label}</p>
+              <p className="text-sm text-gray-500 mt-1">{opt.desc}</p>
+            </button>
+          ))}
         </div>
       </Section>
-
-      <Section title="Identificacao">
+      <Section title="Identificação">
         <div>
           <Label>Nome da campanha</Label>
           <input
             type="text"
-            placeholder="Ex: Lancamento Edif. Aurora - Maio 2026"
+            placeholder="Ex: Lançamento Edif. Aurora — Maio 2026"
             value={form.name}
             onChange={e => updateForm({ name: e.target.value })}
-            className="input-field w-full max-w-lg"
+            className={cn(inputCls, 'w-full max-w-lg')}
           />
-          <p className="text-xs text-gray-500 mt-1.5">Opcional. Se vazio, sera gerado automaticamente.</p>
+          <p className="text-xs text-gray-400 mt-1.5">Opcional. Se vazio, será gerado automaticamente.</p>
         </div>
       </Section>
     </div>
   );
 }
 
-/* ===================== STEP 2 — TEXTO & CTA ===================== */
+/* ══════════════════════════════════════════════════════════
+   STEP 2 — TEXTO & CTA
+══════════════════════════════════════════════════════════ */
 
 function StepTextCta({ form, updateForm }: any) {
   return (
     <div className="space-y-8">
-      <Section title="Conteudo do Anuncio">
+      <Section title="Conteúdo do Anúncio">
         <div>
-          <Label>Texto do Anuncio *</Label>
+          <Label>Texto do Anúncio *</Label>
           <textarea
             value={form.body}
             onChange={e => updateForm({ body: e.target.value })}
-            placeholder="Escreva o texto principal do seu anuncio..."
+            placeholder="Escreva o texto principal do seu anúncio..."
             rows={5}
-            className="input-field w-full resize-none"
+            className={cn(inputCls, 'w-full resize-none')}
           />
         </div>
         <div className="max-w-lg">
-          <Label>Titulo / Headline</Label>
+          <Label>Título / Headline</Label>
           <input
             type="text"
             value={form.headline}
             onChange={e => updateForm({ headline: e.target.value })}
-            placeholder="Titulo curto e impactante"
-            className="input-field w-full"
+            placeholder="Título curto e impactante"
+            className={cn(inputCls, 'w-full')}
           />
         </div>
       </Section>
 
-      <Section title="Chamada para Acao (CTA)">
+      <Section title="Chamada para Ação (CTA)">
         <div className="max-w-sm">
           <Label>Tipo de CTA</Label>
           <select
             value={form.ctaType}
             onChange={e => updateForm({ ctaType: e.target.value })}
-            className="input-field w-full"
+            className={cn(inputCls, 'w-full')}
           >
             {CTA_TYPES.map(cta => (
               <option key={cta.value} value={cta.value}>{cta.label}</option>
@@ -518,22 +589,22 @@ function StepTextCta({ form, updateForm }: any) {
         {form.ctaType === 'WHATSAPP_MESSAGE' ? (
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <Label>Numero WhatsApp (com DDI+DDD)</Label>
+              <Label>Número WhatsApp (com DDI+DDD)</Label>
               <input
                 type="text"
                 value={form.whatsappNumber}
                 onChange={e => updateForm({ whatsappNumber: e.target.value })}
                 placeholder="5581999999999"
-                className="input-field w-full"
+                className={cn(inputCls, 'w-full')}
               />
             </div>
             <div>
-              <Label>Mensagem Pre-preenchida</Label>
+              <Label>Mensagem Pré-preenchida</Label>
               <textarea
                 value={form.whatsappMessage}
                 onChange={e => updateForm({ whatsappMessage: e.target.value })}
                 rows={2}
-                className="input-field w-full resize-none"
+                className={cn(inputCls, 'w-full resize-none')}
               />
             </div>
           </div>
@@ -545,9 +616,9 @@ function StepTextCta({ form, updateForm }: any) {
               value={form.linkUrl}
               onChange={e => updateForm({ linkUrl: e.target.value })}
               placeholder="https://seusite.com.br"
-              className="input-field w-full"
+              className={cn(inputCls, 'w-full')}
             />
-            <p className="text-[11px] text-gray-500 mt-1.5">
+            <p className="text-[11px] text-gray-400 mt-1.5">
               Pré-preenchido com o site configurado na conta. Edite para usar uma landing page específica.
             </p>
           </div>
@@ -557,55 +628,42 @@ function StepTextCta({ form, updateForm }: any) {
   );
 }
 
-/* ===================== STEP 3 — PUBLICO ===================== */
+/* ══════════════════════════════════════════════════════════
+   STEP 3 — PÚBLICO
+══════════════════════════════════════════════════════════ */
 
 function StepTargeting({ form, updateForm }: any) {
   return (
     <div className="space-y-8">
-      <Section title="Demografico">
+      <Section title="Demográfico">
         <div className="grid grid-cols-2 gap-8">
           <div>
-            <Label>Faixa Etaria</Label>
+            <Label>Faixa Etária</Label>
             <div className="flex items-center gap-3">
-              <input
-                type="number"
-                value={form.ageMin}
+              <input type="number" value={form.ageMin}
                 onChange={e => updateForm({ ageMin: parseInt(e.target.value) })}
-                min={13}
-                max={65}
-                className="input-field w-24"
-              />
-              <span className="text-gray-500">ate</span>
-              <input
-                type="number"
-                value={form.ageMax}
+                min={13} max={65} className={cn(inputCls, 'w-24')} />
+              <span className="text-gray-400 text-sm">até</span>
+              <input type="number" value={form.ageMax}
                 onChange={e => updateForm({ ageMax: parseInt(e.target.value) })}
-                min={13}
-                max={65}
-                className="input-field w-24"
-              />
-              <span className="text-gray-500">anos</span>
+                min={13} max={65} className={cn(inputCls, 'w-24')} />
+              <span className="text-gray-400 text-sm">anos</span>
             </div>
           </div>
-
           <div>
-            <Label>Genero</Label>
+            <Label>Gênero</Label>
             <div className="flex gap-2">
               {[
-                { value: [], label: 'Todos' },
+                { value: [],  label: 'Todos' },
                 { value: [1], label: 'Masculino' },
                 { value: [2], label: 'Feminino' },
               ].map(opt => (
-                <button
-                  key={opt.label}
-                  onClick={() => updateForm({ genders: opt.value })}
-                  className={cn(
-                    'px-5 py-2.5 rounded-xl border transition-all text-sm font-medium',
+                <button key={opt.label} onClick={() => updateForm({ genders: opt.value })}
+                  className={cn('px-5 py-2.5 rounded-xl border transition-all text-sm font-medium',
                     JSON.stringify(form.genders) === JSON.stringify(opt.value)
-                      ? 'border-primary bg-primary/20 text-white'
-                      : 'border-card-border text-gray-400 hover:text-white hover:border-gray-500'
-                  )}
-                >
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                      : 'border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                  )}>
                   {opt.label}
                 </button>
               ))}
@@ -613,126 +671,120 @@ function StepTargeting({ form, updateForm }: any) {
           </div>
         </div>
       </Section>
-
-      <Section title="Localizacao">
-        <LocationPicker
-          locations={form.locationEntries}
-          onChange={entries => updateForm({ locationEntries: entries })}
-        />
+      <Section title="Localização">
+        <LocationPicker locations={form.locationEntries} onChange={entries => updateForm({ locationEntries: entries })} />
       </Section>
-
       <Section title="Interesses">
-        <InterestsPicker
-          interests={form.interests}
-          onChange={interests => updateForm({ interests })}
-        />
+        <InterestsPicker interests={form.interests} onChange={interests => updateForm({ interests })} />
       </Section>
     </div>
   );
 }
 
-/* ===================== INTERESTS PICKER ===================== */
+/* ══════════════════════════════════════════════════════════
+   INTERESTS PICKER
+══════════════════════════════════════════════════════════ */
 
 const INTEREST_CATEGORIES: { label: string; items: { id: string; name: string }[] }[] = [
   {
-    label: 'Imobiliario',
+    label: 'Imobiliário',
     items: [
-      { id: 'real_estate', name: 'Imoveis' },
-      { id: 'real_estate_investing', name: 'Investimento imobiliario' },
-      { id: 'mortgage_loan', name: 'Financiamento imobiliario' },
-      { id: 'interior_design', name: 'Decoracao de interiores' },
-      { id: 'architecture', name: 'Arquitetura' },
-      { id: 'home_moving', name: 'Mudanca de casa' },
-      { id: 'rental_property', name: 'Aluguel de imoveis' },
-      { id: 'luxury_real_estate', name: 'Imoveis de luxo' },
-      { id: 'first_home', name: 'Primeiro imovel' },
-      { id: 'condominium', name: 'Condominios' },
-      { id: 'construction', name: 'Construcao civil' },
+      { id: 'real_estate',           name: 'Imóveis' },
+      { id: 'real_estate_investing', name: 'Investimento imobiliário' },
+      { id: 'mortgage_loan',         name: 'Financiamento imobiliário' },
+      { id: 'interior_design',       name: 'Decoração de interiores' },
+      { id: 'architecture',          name: 'Arquitetura' },
+      { id: 'home_moving',           name: 'Mudança de casa' },
+      { id: 'rental_property',       name: 'Aluguel de imóveis' },
+      { id: 'luxury_real_estate',    name: 'Imóveis de luxo' },
+      { id: 'first_home',            name: 'Primeiro imóvel' },
+      { id: 'condominium',           name: 'Condomínios' },
+      { id: 'construction',          name: 'Construção civil' },
     ],
   },
   {
-    label: 'Saude',
+    label: 'Saúde',
     items: [
-      { id: 'health_wellness', name: 'Saude e bem-estar' },
-      { id: 'fitness', name: 'Fitness e academia' },
-      { id: 'nutrition', name: 'Nutricao' },
-      { id: 'yoga', name: 'Yoga e meditacao' },
-      { id: 'mental_health', name: 'Saude mental' },
-      { id: 'dental', name: 'Odontologia' },
-      { id: 'aesthetics', name: 'Estetica e beleza' },
-      { id: 'medical', name: 'Medicina e clinicas' },
-      { id: 'pharmacy', name: 'Farmacia' },
-      { id: 'health_insurance', name: 'Plano de saude' },
+      { id: 'health_wellness', name: 'Saúde e bem-estar' },
+      { id: 'fitness',         name: 'Fitness e academia' },
+      { id: 'nutrition',       name: 'Nutrição' },
+      { id: 'yoga',            name: 'Yoga e meditação' },
+      { id: 'mental_health',   name: 'Saúde mental' },
+      { id: 'dental',          name: 'Odontologia' },
+      { id: 'aesthetics',      name: 'Estética e beleza' },
+      { id: 'medical',         name: 'Medicina e clínicas' },
+      { id: 'pharmacy',        name: 'Farmácia' },
+      { id: 'health_insurance',name: 'Plano de saúde' },
     ],
   },
   {
-    label: 'Educacao',
+    label: 'Educação',
     items: [
-      { id: 'education', name: 'Educacao' },
-      { id: 'online_courses', name: 'Cursos online' },
+      { id: 'education',        name: 'Educação' },
+      { id: 'online_courses',   name: 'Cursos online' },
       { id: 'higher_education', name: 'Ensino superior' },
-      { id: 'languages', name: 'Idiomas' },
-      { id: 'technology_edu', name: 'Tecnologia e TI' },
-      { id: 'mba', name: 'MBA e pos-graduacao' },
+      { id: 'languages',        name: 'Idiomas' },
+      { id: 'technology_edu',   name: 'Tecnologia e TI' },
+      { id: 'mba',              name: 'MBA e pós-graduação' },
       { id: 'professional_dev', name: 'Desenvolvimento profissional' },
-      { id: 'kids_education', name: 'Educacao infantil' },
-      { id: 'enem_vestibular', name: 'ENEM e vestibular' },
+      { id: 'kids_education',   name: 'Educação infantil' },
+      { id: 'enem_vestibular',  name: 'ENEM e vestibular' },
     ],
   },
   {
-    label: 'Servicos',
+    label: 'Serviços',
     items: [
-      { id: 'consulting', name: 'Consultoria' },
-      { id: 'accounting', name: 'Contabilidade' },
-      { id: 'legal_services', name: 'Servicos juridicos' },
-      { id: 'insurance', name: 'Seguros' },
-      { id: 'cleaning', name: 'Limpeza e manutencao' },
-      { id: 'events', name: 'Eventos e festas' },
-      { id: 'photography', name: 'Fotografia' },
+      { id: 'consulting',         name: 'Consultoria' },
+      { id: 'accounting',         name: 'Contabilidade' },
+      { id: 'legal_services',     name: 'Serviços jurídicos' },
+      { id: 'insurance',          name: 'Seguros' },
+      { id: 'cleaning',           name: 'Limpeza e manutenção' },
+      { id: 'events',             name: 'Eventos e festas' },
+      { id: 'photography',        name: 'Fotografia' },
       { id: 'marketing_services', name: 'Marketing digital' },
-      { id: 'delivery', name: 'Delivery e logistica' },
-      { id: 'pet_services', name: 'Pet shop e veterinaria' },
+      { id: 'delivery',           name: 'Delivery e logística' },
+      { id: 'pet_services',       name: 'Pet shop e veterinária' },
     ],
   },
   {
-    label: 'Vendas e Comercio',
+    label: 'Vendas e Comércio',
     items: [
-      { id: 'ecommerce', name: 'E-commerce' },
-      { id: 'fashion', name: 'Moda e vestuario' },
-      { id: 'electronics', name: 'Eletronicos' },
-      { id: 'automotive', name: 'Automotivo' },
-      { id: 'food_beverage', name: 'Alimentacao e bebidas' },
-      { id: 'furniture', name: 'Moveis e decoracao' },
+      { id: 'ecommerce',    name: 'E-commerce' },
+      { id: 'fashion',      name: 'Moda e vestuário' },
+      { id: 'electronics',  name: 'Eletrônicos' },
+      { id: 'automotive',   name: 'Automotivo' },
+      { id: 'food_beverage',name: 'Alimentação e bebidas' },
+      { id: 'furniture',    name: 'Móveis e decoração' },
       { id: 'sports_goods', name: 'Artigos esportivos' },
-      { id: 'cosmetics', name: 'Cosmeticos' },
-      { id: 'jewelry', name: 'Joias e acessorios' },
-      { id: 'marketplace', name: 'Marketplace' },
+      { id: 'cosmetics',    name: 'Cosméticos' },
+      { id: 'jewelry',      name: 'Joias e acessórios' },
+      { id: 'marketplace',  name: 'Marketplace' },
     ],
   },
   {
     label: 'Financeiro',
     items: [
-      { id: 'investing', name: 'Investimentos' },
-      { id: 'personal_finance', name: 'Financas pessoais' },
-      { id: 'entrepreneurship', name: 'Empreendedorismo' },
-      { id: 'credit', name: 'Credito e emprestimos' },
-      { id: 'cryptocurrency', name: 'Criptomoedas' },
-      { id: 'stock_market', name: 'Bolsa de valores' },
-      { id: 'passive_income', name: 'Renda passiva' },
+      { id: 'investing',          name: 'Investimentos' },
+      { id: 'personal_finance',   name: 'Finanças pessoais' },
+      { id: 'entrepreneurship',   name: 'Empreendedorismo' },
+      { id: 'credit',             name: 'Crédito e empréstimos' },
+      { id: 'cryptocurrency',     name: 'Criptomoedas' },
+      { id: 'stock_market',       name: 'Bolsa de valores' },
+      { id: 'passive_income',     name: 'Renda passiva' },
       { id: 'financial_planning', name: 'Planejamento financeiro' },
     ],
   },
   {
     label: 'Estilo de Vida',
     items: [
-      { id: 'travel', name: 'Viagens e turismo' },
-      { id: 'gastronomy', name: 'Gastronomia' },
-      { id: 'family', name: 'Familia e filhos' },
-      { id: 'luxury', name: 'Luxo e lifestyle' },
+      { id: 'travel',         name: 'Viagens e turismo' },
+      { id: 'gastronomy',     name: 'Gastronomia' },
+      { id: 'family',         name: 'Família e filhos' },
+      { id: 'luxury',         name: 'Luxo e lifestyle' },
       { id: 'sustainability', name: 'Sustentabilidade' },
-      { id: 'culture', name: 'Cultura e arte' },
-      { id: 'gaming', name: 'Games e entretenimento' },
-      { id: 'music', name: 'Musica' },
+      { id: 'culture',        name: 'Cultura e arte' },
+      { id: 'gaming',         name: 'Games e entretenimento' },
+      { id: 'music',          name: 'Música' },
     ],
   },
 ];
@@ -740,7 +792,7 @@ const INTEREST_CATEGORIES: { label: string; items: { id: string; name: string }[
 const ALL_INTERESTS = INTEREST_CATEGORIES.flatMap(c => c.items);
 
 function InterestsPicker({ interests, onChange }: { interests: any[]; onChange: (v: any[]) => void }) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery]               = useState('');
   const [activeCategory, setActiveCategory] = useState(INTEREST_CATEGORIES[0].label);
 
   const filtered = query.length >= 2
@@ -754,37 +806,23 @@ function InterestsPicker({ interests, onChange }: { interests: any[]; onChange: 
     i => !interests.some((sel: any) => sel.id === i.id)
   ) ?? [];
 
-  function addInterest(item: { id: string; name: string }) {
-    onChange([...interests, item]);
-    setQuery('');
-  }
-
+  function addInterest(item: { id: string; name: string }) { onChange([...interests, item]); setQuery(''); }
   function addCustom() {
     if (query.trim().length < 2) return;
     const id = query.trim().toLowerCase().replace(/\s+/g, '_');
     if (interests.some((i: any) => i.id === id)) return;
-    onChange([...interests, { id, name: query.trim() }]);
-    setQuery('');
+    onChange([...interests, { id, name: query.trim() }]); setQuery('');
   }
-
-  function removeInterest(id: string) {
-    onChange(interests.filter((i: any) => i.id !== id));
-  }
+  function removeInterest(id: string) { onChange(interests.filter((i: any) => i.id !== id)); }
 
   return (
     <div className="space-y-4">
       {interests.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {interests.map((i: any) => (
-            <span
-              key={i.id}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/20 border border-primary/30 text-sm text-primary-light"
-            >
+            <span key={i.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-sm text-indigo-700">
               {i.name}
-              <button
-                onClick={() => removeInterest(i.id)}
-                className="text-primary-light/60 hover:text-white transition-colors"
-              >
+              <button onClick={() => removeInterest(i.id)} className="text-indigo-400 hover:text-indigo-700 transition-colors">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -793,41 +831,25 @@ function InterestsPicker({ interests, onChange }: { interests: any[]; onChange: 
           ))}
         </div>
       )}
-
       <div className="max-w-lg">
-        <input
-          type="text"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              if (filtered.length > 0) addInterest(filtered[0]);
-              else addCustom();
-            }
-          }}
+        <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { filtered.length > 0 ? addInterest(filtered[0]) : addCustom(); } }}
           placeholder="Buscar interesses em todos os segmentos..."
-          className="input-field w-full"
-        />
+          className={cn(inputCls, 'w-full')} />
       </div>
-
       {query.length >= 2 ? (
         <div className="space-y-2">
-          <p className="text-xs text-gray-500">{filtered.length} resultado(s) encontrado(s)</p>
+          <p className="text-xs text-gray-400">{filtered.length} resultado(s) encontrado(s)</p>
           <div className="flex flex-wrap gap-2">
             {filtered.slice(0, 12).map(item => (
-              <button
-                key={item.id}
-                onClick={() => addInterest(item)}
-                className="text-xs px-3 py-1.5 rounded-full border border-card-border text-gray-400 hover:text-white hover:border-primary/50 transition-all"
-              >
+              <button key={item.id} onClick={() => addInterest(item)}
+                className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-indigo-300 transition-all">
                 + {item.name}
               </button>
             ))}
             {filtered.length === 0 && query.trim().length >= 2 && (
-              <button
-                onClick={addCustom}
-                className="text-xs px-3 py-1.5 rounded-full border border-dashed border-primary/40 text-primary-light hover:bg-primary/10 transition-all"
-              >
+              <button onClick={addCustom}
+                className="text-xs px-3 py-1.5 rounded-full border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition-all">
                 + Adicionar "{query.trim()}" como interesse personalizado
               </button>
             )}
@@ -837,32 +859,25 @@ function InterestsPicker({ interests, onChange }: { interests: any[]; onChange: 
         <div className="space-y-3">
           <div className="flex flex-wrap gap-1.5">
             {INTEREST_CATEGORIES.map(cat => (
-              <button
-                key={cat.label}
-                onClick={() => setActiveCategory(cat.label)}
-                className={cn(
-                  'text-xs px-3 py-1.5 rounded-lg transition-all font-medium',
+              <button key={cat.label} onClick={() => setActiveCategory(cat.label)}
+                className={cn('text-xs px-3 py-1.5 rounded-lg transition-all font-medium',
                   activeCategory === cat.label
-                    ? 'bg-primary/20 text-primary-light border border-primary/30'
-                    : 'text-gray-500 hover:text-gray-300 border border-transparent'
-                )}
-              >
+                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                    : 'text-gray-500 hover:text-gray-700 border border-transparent'
+                )}>
                 {cat.label}
               </button>
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
             {categoryItems.slice(0, 10).map(item => (
-              <button
-                key={item.id}
-                onClick={() => addInterest(item)}
-                className="text-xs px-3 py-1.5 rounded-full border border-card-border text-gray-400 hover:text-white hover:border-primary/50 transition-all"
-              >
+              <button key={item.id} onClick={() => addInterest(item)}
+                className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-indigo-300 transition-all">
                 + {item.name}
               </button>
             ))}
             {categoryItems.length === 0 && (
-              <p className="text-xs text-gray-500">Todos os interesses desta categoria ja foram selecionados.</p>
+              <p className="text-xs text-gray-400">Todos os interesses desta categoria já foram selecionados.</p>
             )}
           </div>
         </div>
@@ -871,7 +886,9 @@ function InterestsPicker({ interests, onChange }: { interests: any[]; onChange: 
   );
 }
 
-/* ===================== STEP 4 — ORCAMENTO ===================== */
+/* ══════════════════════════════════════════════════════════
+   STEP 4 — ORÇAMENTO
+══════════════════════════════════════════════════════════ */
 
 function StepBudget({ form, updateForm }: any) {
   return (
@@ -879,123 +896,80 @@ function StepBudget({ form, updateForm }: any) {
       <Section title="Investimento">
         <div className="grid grid-cols-2 gap-8">
           <div>
-            <Label>Orcamento Diario</Label>
+            <Label>Orçamento Diário</Label>
             <div className="flex items-center gap-2">
-              <span className="text-gray-400 font-medium">R$</span>
-              <input
-                type="number"
-                value={form.dailyBudget}
+              <span className="text-gray-500 font-semibold text-sm">R$</span>
+              <input type="number" value={form.dailyBudget}
                 onChange={e => updateForm({ dailyBudget: parseFloat(e.target.value) })}
-                min={1}
-                step={1}
-                className="input-field w-32"
-              />
-              <span className="text-gray-500">/ dia</span>
+                min={1} step={1} className={cn(inputCls, 'w-32')} />
+              <span className="text-gray-400 text-sm">/ dia</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1.5">Estimativa mensal: <span className="text-primary-light font-medium">{formatCurrency(form.dailyBudget * 30)}</span></p>
+            <p className="text-xs text-gray-400 mt-1.5">
+              Estimativa mensal:{' '}
+              <span className="text-indigo-600 font-semibold">{formatCurrency(form.dailyBudget * 30)}</span>
+            </p>
           </div>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Data Inicio</Label>
-                <input
-                  type="date"
-                  value={form.startTime}
-                  onChange={e => updateForm({ startTime: e.target.value })}
-                  className="input-field w-full"
-                />
-              </div>
-              <div>
-                <Label>Data Fim (opcional)</Label>
-                <input
-                  type="date"
-                  value={form.endTime}
-                  onChange={e => updateForm({ endTime: e.target.value })}
-                  className="input-field w-full"
-                />
-              </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Data Início</Label>
+              <input type="date" value={form.startTime}
+                onChange={e => updateForm({ startTime: e.target.value })} className={cn(inputCls, 'w-full')} />
+            </div>
+            <div>
+              <Label>Data Fim (opcional)</Label>
+              <input type="date" value={form.endTime}
+                onChange={e => updateForm({ endTime: e.target.value })} className={cn(inputCls, 'w-full')} />
             </div>
           </div>
         </div>
       </Section>
 
-      <Section title="Programacao de Veiculacao">
+      <Section title="Programação de Veiculação">
         <div className="grid grid-cols-2 gap-8">
           <div>
             <Label>Dias da Semana</Label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {DAYS_OF_WEEK.map(day => (
-                <button
-                  key={day.value}
+                <button key={day.value}
                   onClick={() => {
                     const days = form.scheduleDays.includes(day.value)
                       ? form.scheduleDays.filter((d: number) => d !== day.value)
                       : [...form.scheduleDays, day.value];
                     updateForm({ scheduleDays: days });
                   }}
-                  className={cn(
-                    'w-11 h-11 rounded-xl text-sm font-medium transition-all',
+                  className={cn('w-11 h-11 rounded-xl text-sm font-semibold transition-all',
                     form.scheduleDays.includes(day.value)
-                      ? 'bg-primary text-white'
-                      : 'bg-surface-light/50 text-gray-400 border border-card-border hover:border-gray-500'
-                  )}
-                >
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300'
+                  )}>
                   {day.label}
                 </button>
               ))}
             </div>
           </div>
-
           <div>
-            <Label>Horarios de Veiculacao</Label>
+            <Label>Horários de Veiculação</Label>
             <div className="space-y-3">
               {form.scheduleTimeSlots.map((slot: { start: number; end: number }, i: number) => (
                 <div key={i} className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    value={slot.start}
-                    onChange={e => {
-                      const slots = [...form.scheduleTimeSlots];
-                      slots[i] = { ...slots[i], start: parseInt(e.target.value) };
-                      updateForm({ scheduleTimeSlots: slots });
-                    }}
-                    min={0}
-                    max={23}
-                    className="input-field w-20"
-                  />
-                  <span className="text-gray-500">h ate</span>
-                  <input
-                    type="number"
-                    value={slot.end}
-                    onChange={e => {
-                      const slots = [...form.scheduleTimeSlots];
-                      slots[i] = { ...slots[i], end: parseInt(e.target.value) };
-                      updateForm({ scheduleTimeSlots: slots });
-                    }}
-                    min={0}
-                    max={23}
-                    className="input-field w-20"
-                  />
-                  <span className="text-gray-500">h</span>
+                  <input type="number" value={slot.start}
+                    onChange={e => { const slots = [...form.scheduleTimeSlots]; slots[i] = { ...slots[i], start: parseInt(e.target.value) }; updateForm({ scheduleTimeSlots: slots }); }}
+                    min={0} max={23} className={cn(inputCls, 'w-20')} />
+                  <span className="text-gray-400 text-sm">h até</span>
+                  <input type="number" value={slot.end}
+                    onChange={e => { const slots = [...form.scheduleTimeSlots]; slots[i] = { ...slots[i], end: parseInt(e.target.value) }; updateForm({ scheduleTimeSlots: slots }); }}
+                    min={0} max={23} className={cn(inputCls, 'w-20')} />
+                  <span className="text-gray-400 text-sm">h</span>
                   {form.scheduleTimeSlots.length > 1 && (
-                    <button
-                      onClick={() => {
-                        const slots = form.scheduleTimeSlots.filter((_: any, idx: number) => idx !== i);
-                        updateForm({ scheduleTimeSlots: slots });
-                      }}
-                      className="text-red-400 hover:text-red-300 text-lg px-2"
-                      title="Remover intervalo"
-                    >
-                      ✕
+                    <button onClick={() => { const slots = form.scheduleTimeSlots.filter((_: any, idx: number) => idx !== i); updateForm({ scheduleTimeSlots: slots }); }}
+                      className="text-red-400 hover:text-red-600 transition-colors" title="Remover">
+                      <XMarkIcon className="h-4 w-4" />
                     </button>
                   )}
                 </div>
               ))}
-              <button
-                onClick={() => updateForm({ scheduleTimeSlots: [...form.scheduleTimeSlots, { start: 0, end: 6 }] })}
-                className="text-sm text-primary hover:text-primary/80"
-              >
+              <button onClick={() => updateForm({ scheduleTimeSlots: [...form.scheduleTimeSlots, { start: 0, end: 6 }] })}
+                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
                 + Adicionar intervalo
               </button>
             </div>
@@ -1006,7 +980,9 @@ function StepBudget({ form, updateForm }: any) {
   );
 }
 
-/* ===================== STEP 5 — OBJETIVO & CONVERSÃO ===================== */
+/* ══════════════════════════════════════════════════════════
+   STEP 5 — OBJETIVO & CONVERSÃO
+══════════════════════════════════════════════════════════ */
 
 function StepObjective({ form, updateForm, autoFields }: any) {
   const effectiveSpecial = form.specialAdCategory || autoFields.specialAdCategory || 'NONE';
@@ -1017,117 +993,86 @@ function StepObjective({ form, updateForm, autoFields }: any) {
   const isAutoEvent      = !form.customEventType   && !!autoFields.customEventType;
 
   const SPECIAL_AD_OPTIONS = [
-    { value: 'NONE',                       label: 'Nenhuma (padrão)' },
-    { value: 'HOUSING',                    label: 'Habitação / Imóveis' },
-    { value: 'EMPLOYMENT',                 label: 'Emprego / Vagas' },
-    { value: 'CREDIT',                     label: 'Crédito' },
-    { value: 'FINANCIAL_PRODUCTS_SERVICES',label: 'Serviços Financeiros' },
-    { value: 'ISSUES_ELECTIONS_POLITICS',  label: 'Política / Eleições' },
+    { value: 'NONE',                        label: 'Nenhuma (padrão)' },
+    { value: 'HOUSING',                     label: 'Habitação / Imóveis' },
+    { value: 'EMPLOYMENT',                  label: 'Emprego / Vagas' },
+    { value: 'CREDIT',                      label: 'Crédito' },
+    { value: 'FINANCIAL_PRODUCTS_SERVICES', label: 'Serviços Financeiros' },
+    { value: 'ISSUES_ELECTIONS_POLITICS',   label: 'Política / Eleições' },
   ];
-
   const EVENT_OPTIONS = [
-    { value: 'LEAD',               label: 'Lead / Contato' },
-    { value: 'PURCHASE',           label: 'Compra / Venda' },
+    { value: 'LEAD',                  label: 'Lead / Contato' },
+    { value: 'PURCHASE',              label: 'Compra / Venda' },
     { value: 'COMPLETE_REGISTRATION', label: 'Cadastro completo' },
-    { value: 'ADD_TO_CART',        label: 'Adicionar ao carrinho' },
-    { value: 'INITIATED_CHECKOUT', label: 'Iniciar checkout' },
-    { value: 'SCHEDULE',           label: 'Agendamento' },
-    { value: 'CONTACT',            label: 'Contato' },
+    { value: 'ADD_TO_CART',           label: 'Adicionar ao carrinho' },
+    { value: 'INITIATED_CHECKOUT',    label: 'Iniciar checkout' },
+    { value: 'SCHEDULE',              label: 'Agendamento' },
+    { value: 'CONTACT',               label: 'Contato' },
   ];
 
   return (
     <div className="space-y-8">
-      {/* Objetivo da campanha */}
       <Section title="Qual o objetivo principal desta campanha?">
         <div className="grid grid-cols-2 gap-4">
           {OBJECTIVES.map(obj => (
-            <button
-              key={obj.value}
-              onClick={() => updateForm({ objective: obj.value })}
-              className={cn(
-                'glass-card p-5 text-left transition-all hover:bg-surface-light/30 flex items-center gap-4',
-                form.objective === obj.value && 'ring-2 ring-primary bg-primary/5'
-              )}
-            >
+            <button key={obj.value} onClick={() => updateForm({ objective: obj.value })}
+              className={cn('bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left transition-all flex items-center gap-4',
+                form.objective === obj.value ? 'ring-2 ring-indigo-500 bg-indigo-50 border-indigo-200' : 'hover:bg-gray-50'
+              )}>
               <span className="text-3xl shrink-0">{obj.icon}</span>
               <div>
-                <p className="font-medium text-white">{obj.label}</p>
-                {obj.value === autoFields.objective && (
-                  <AutoChip label="segmento" />
-                )}
+                <p className="font-semibold text-gray-900">{obj.label}</p>
+                {obj.value === autoFields.objective && <AutoChip label="segmento" />}
               </div>
             </button>
           ))}
         </div>
       </Section>
 
-      {/* Conversão & Pixel */}
       <Section title="Rastreamento e Conversão">
-        <p className="text-sm text-gray-400 -mt-2 mb-2">
-          Campos marcados com <span className="text-indigo-300 font-semibold">⚡ automático</span> são
-          preenchidos a partir do segmento de negócio e das configurações da conta.
-          Você pode sobrescrever qualquer um deles.
+        <p className="text-sm text-gray-500 -mt-2 mb-2">
+          Campos com <span className="text-indigo-600 font-semibold">⚡ automático</span> são preenchidos
+          a partir do segmento e das configurações da conta. Você pode sobrescrever.
         </p>
-
         <div className="grid grid-cols-2 gap-6">
-          {/* Special Ad Category */}
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <label className="text-sm font-medium text-gray-400">Categoria Especial de Anúncio</label>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Categoria Especial</label>
               {isAutoSpecial && <AutoChip label="segmento" />}
             </div>
-            <select
-              value={effectiveSpecial}
+            <select value={effectiveSpecial}
               onChange={e => updateForm({ specialAdCategory: e.target.value === autoFields.specialAdCategory ? '' : e.target.value })}
-              className="input-field w-full"
-            >
-              {SPECIAL_AD_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
+              className={cn(inputCls, 'w-full')}>
+              {SPECIAL_AD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            <p className="text-[11px] text-gray-500 mt-1">
-              Obrigatório para imóveis, emprego, crédito. Restringe segmentação.
-            </p>
+            <p className="text-[11px] text-gray-400 mt-1">Obrigatório para imóveis, emprego, crédito.</p>
           </div>
-
-          {/* Custom Event Type */}
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <label className="text-sm font-medium text-gray-400">Evento de Conversão</label>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Evento de Conversão</label>
               {isAutoEvent && <AutoChip label="segmento" />}
             </div>
-            <select
-              value={effectiveEvent}
+            <select value={effectiveEvent}
               onChange={e => updateForm({ customEventType: e.target.value === autoFields.customEventType ? '' : e.target.value })}
-              className="input-field w-full"
-            >
-              {EVENT_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
+              className={cn(inputCls, 'w-full')}>
+              {EVENT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            <p className="text-[11px] text-gray-500 mt-1">
-              Evento do Pixel a ser otimizado nesta campanha.
-            </p>
+            <p className="text-[11px] text-gray-400 mt-1">Evento do Pixel a ser otimizado.</p>
           </div>
         </div>
-
-        {/* Pixel ID */}
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <ShieldCheckIcon className="h-4 w-4 text-indigo-400" />
-            <label className="text-sm font-medium text-gray-400">Meta Pixel ID</label>
+            <ShieldCheckIcon className="h-4 w-4 text-indigo-500" />
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Meta Pixel ID</label>
             {isAutoPixel && <AutoChip label="configurações" />}
           </div>
-          <input
-            type="text"
-            value={effectivePixel}
+          <input type="text" value={effectivePixel}
             onChange={e => updateForm({ pixelId: e.target.value || '' })}
             placeholder={isAutoPixel ? `${autoFields.pixelId} (da conta)` : 'Ex: 876543210987654'}
-            className={cn('input-field w-full max-w-sm', !effectivePixel && 'border-amber-500/40')}
-          />
+            className={cn(inputCls, 'w-full max-w-sm', !effectivePixel && 'border-amber-300 focus:ring-amber-400')} />
           {!effectivePixel && (
-            <p className="text-[11px] text-amber-400 mt-1">
-              ⚠️ Sem Pixel, a campanha não rastreia conversões. Configure em Configurações → Identidade Meta.
+            <p className="text-[11px] text-amber-600 mt-1">
+              ⚠️ Sem Pixel, a campanha não rastreia conversões.
             </p>
           )}
         </div>
@@ -1136,34 +1081,36 @@ function StepObjective({ form, updateForm, autoFields }: any) {
   );
 }
 
-/* ===================== STEP 6 — REVISAO ===================== */
+/* ══════════════════════════════════════════════════════════
+   STEP 6 — REVISÃO
+══════════════════════════════════════════════════════════ */
 
 function StepReview({ form, selectedImages }: any) {
   return (
     <div className="space-y-8">
       <Section title="Resumo da Campanha">
-        <div className="divide-y divide-card-border">
-          <Row label="Criativos" value={`${selectedImages.length} imagem(ns) - ${form.creativeType === 'CAROUSEL' ? 'Carrossel' : 'Simples'}`} />
-          <Row label="Texto" value={form.body || '(nao informado)'} />
-          <Row label="CTA" value={CTA_TYPES.find(c => c.value === form.ctaType)?.label || form.ctaType} />
-          {form.ctaType === 'WHATSAPP_MESSAGE' && <Row label="WhatsApp" value={form.whatsappNumber || '(nao informado)'} />}
-          <Row label="Publico" value={`${form.ageMin}-${form.ageMax} anos, ${form.genders.length === 0 ? 'Todos' : form.genders.includes(1) ? 'Masculino' : 'Feminino'}`} />
-          <Row label="Localizacao" value={form.locationEntries.length === 0 ? 'Brasil inteiro' : form.locationEntries.map((l: LocationEntry) => `${l.name} (${l.radius}km)`).join('; ')} />
-          <Row label="Interesses" value={form.interests.length === 0 ? '(nenhum selecionado)' : form.interests.map((i: any) => i.name).join(', ')} />
-          <Row label="Orcamento" value={`${formatCurrency(form.dailyBudget)} / dia (${formatCurrency(form.dailyBudget * 30)} / mes)`} />
-          <Row label="Periodo" value={`${form.startTime} ${form.endTime ? `ate ${form.endTime}` : '(sem data fim)'}`} />
-          <Row label="Dias" value={form.scheduleDays.map((d: number) => DAYS_OF_WEEK[d]?.label).join(', ')} />
-          <Row label="Horarios" value={form.scheduleTimeSlots.map((s: any) => `${s.start}h - ${s.end}h`).join(', ')} />
-          <Row label="Objetivo" value={OBJECTIVES.find(o => o.value === form.objective)?.label || form.objective} />
+        <div className="divide-y divide-gray-100">
+          <Row label="Criativos"   value={`${selectedImages.length} imagem(ns) — ${form.creativeType === 'CAROUSEL' ? 'Carrossel' : selectedImages.length === 0 ? 'Sem criativo' : 'Simples'}`} />
+          <Row label="Texto"       value={form.body || '(não informado)'} />
+          <Row label="CTA"         value={CTA_TYPES.find(c => c.value === form.ctaType)?.label || form.ctaType} />
+          {form.ctaType === 'WHATSAPP_MESSAGE' && <Row label="WhatsApp" value={form.whatsappNumber || '(não informado)'} />}
+          <Row label="Público"     value={`${form.ageMin}–${form.ageMax} anos, ${form.genders.length === 0 ? 'Todos' : form.genders.includes(1) ? 'Masculino' : 'Feminino'}`} />
+          <Row label="Localização" value={form.locationEntries.length === 0 ? 'Brasil inteiro' : form.locationEntries.map((l: LocationEntry) => `${l.name} (${l.radius}km)`).join('; ')} />
+          <Row label="Interesses"  value={form.interests.length === 0 ? '(nenhum selecionado)' : form.interests.map((i: any) => i.name).join(', ')} />
+          <Row label="Orçamento"   value={`${formatCurrency(form.dailyBudget)} / dia (${formatCurrency(form.dailyBudget * 30)} / mês)`} />
+          <Row label="Período"     value={`${form.startTime} ${form.endTime ? `até ${form.endTime}` : '(sem data fim)'}`} />
+          <Row label="Dias"        value={form.scheduleDays.map((d: number) => DAYS_OF_WEEK[d]?.label).join(', ')} />
+          <Row label="Horários"    value={form.scheduleTimeSlots.map((s: any) => `${s.start}h — ${s.end}h`).join(', ')} />
+          <Row label="Objetivo"    value={OBJECTIVES.find(o => o.value === form.objective)?.label || form.objective} />
         </div>
       </Section>
-
-      <div className="glass-card p-4 border-primary/20 bg-primary/5 flex items-center gap-3">
-        <svg className="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex items-center gap-3">
+        <svg className="w-5 h-5 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <p className="text-sm text-gray-300">
-          A campanha sera criada com status <span className="text-primary-light font-medium">PAUSADA</span>. Ative manualmente apos revisar no Meta Ads Manager.
+        <p className="text-sm text-indigo-700">
+          A campanha será criada com status <span className="font-bold">PAUSADA</span>.
+          Ative manualmente após revisar no Meta Ads Manager.
         </p>
       </div>
     </div>
@@ -1174,9 +1121,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between items-start py-3">
       <span className="text-sm font-medium text-gray-400 w-32 shrink-0">{label}</span>
-      <span className="text-sm text-gray-200 text-right flex-1">{value}</span>
+      <span className="text-sm text-gray-900 text-right flex-1">{value}</span>
     </div>
   );
 }
-
-
