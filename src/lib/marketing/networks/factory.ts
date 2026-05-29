@@ -41,15 +41,23 @@ export function buildNetworkService(
 
 /**
  * Loads tenant credentials from the DB and returns a ready adapter.
- * Falls back to legacy tenants columns for Meta if tenant_network_credentials is empty.
+ * Applies client-level overrides (page_id, pixel_id, instagram_actor_id, website)
+ * on top of tenant credentials when clientId is provided.
+ *
+ * Resolution cascade (per field):
+ *   client.page_id ?? tenant.credentials.page_id
+ *   client.pixel_id ?? tenant.credentials.pixel_id
+ *   client.instagram_actor_id ?? tenant.credentials.instagram_actor_id
+ *   (access_token, ad_account_id, app_id, app_secret → always from tenant)
  */
 export async function getNetworkServiceForTenant(
   tenantId: string,
   networkCode: NetworkCode,
+  clientId?: string | null,
 ): Promise<AdNetworkService> {
   const pool = getPool();
 
-  // Try new tenant_network_credentials table first
+  // 1. Tenant credentials (base)
   const res = await pool.query(
     `SELECT tnc.credentials, tnc.account_id, n.code
      FROM public.tenant_network_credentials tnc
@@ -61,16 +69,13 @@ export async function getNetworkServiceForTenant(
     [tenantId, networkCode],
   );
 
+  let baseCredentials: NetworkCredentials | null = null;
+
   if (res.rows[0]) {
     const { credentials, account_id } = res.rows[0];
-    // credentials JSONB contém: access_token, app_id, app_secret,
-    // page_id, pixel_id, instagram_actor_id (adicionados via Settings → Identidade Meta)
-    const merged: NetworkCredentials = { ...credentials, ad_account_id: account_id };
-    return buildNetworkService(networkCode, merged);
-  }
-
-  // Legacy fallback for Meta: use tenants columns directly
-  if (networkCode === 'meta') {
+    baseCredentials = { ...credentials, ad_account_id: account_id };
+  } else if (networkCode === 'meta') {
+    // Legacy fallback
     const legacy = await pool.query(
       `SELECT meta_token, meta_ad_account_id, meta_app_id, meta_app_secret
        FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
@@ -78,20 +83,41 @@ export async function getNetworkServiceForTenant(
     );
     const t = legacy.rows[0];
     if (t?.meta_token && t?.meta_ad_account_id) {
-      return buildNetworkService('meta', {
+      baseCredentials = {
         access_token:  t.meta_token,
         ad_account_id: t.meta_ad_account_id,
         app_id:        t.meta_app_id,
         app_secret:    t.meta_app_secret,
-        // page_id não existe nas colunas legado — adapter lançará erro orientativo
-      });
+      };
     }
   }
 
-  throw new Error(
-    `Tenant não possui credenciais configuradas para a rede "${networkCode}". ` +
-    `Configure em Configurações → Redes de Anúncios.`,
-  );
+  if (!baseCredentials) {
+    throw new Error(
+      `Tenant não possui credenciais configuradas para a rede "${networkCode}". ` +
+      `Configure em Configurações → Redes de Anúncios.`,
+    );
+  }
+
+  // 2. Cascata: client overrides para page_id, pixel_id, instagram_actor_id
+  if (clientId) {
+    const clientRes = await pool.query(
+      `SELECT page_id, pixel_id, instagram_actor_id
+       FROM public.clientes
+       WHERE uuid = $1::uuid AND tenant_id = $2::uuid
+       LIMIT 1`,
+      [clientId, tenantId],
+    );
+    const c = clientRes.rows[0];
+    if (c) {
+      // client value takes precedence over tenant value when non-empty
+      if (c.page_id)            baseCredentials.page_id            = c.page_id;
+      if (c.pixel_id)           baseCredentials.pixel_id           = c.pixel_id;
+      if (c.instagram_actor_id) baseCredentials.instagram_actor_id = c.instagram_actor_id;
+    }
+  }
+
+  return buildNetworkService(networkCode, baseCredentials);
 }
 
 /**

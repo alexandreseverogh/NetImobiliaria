@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
       const networkService = await getNetworkServiceForTenant(
         payload.tenantId,
         networkCode as NetworkCode,
+        clientId || null,   // cascata: client.page_id ?? tenant.page_id
       );
 
       const result = await networkService.createCampaign({
