@@ -48,11 +48,13 @@ Documentada a **Camada Operacional de Lançamento de Campanhas** (subseções 1.
 **Sequência executada:**
 
 - [x] Checkpoint iniciado
-- [x] **Migração DB** — SQL escrito em `prisma/migration-2026-05-29-launch-layer.sql`
-  - ⚠️ **PENDENTE EXECUÇÃO MANUAL** — Docker Desktop CLI inacessível nesta sessão
-  - Comando: `docker exec -i netimobiliaria-db psql -U postgres -d net_imobiliaria < prisma/migration-2026-05-29-launch-layer.sql`
-  - Colunas: `system_segments.network_defaults JSONB`, `tenants.website TEXT`, `clientes.website TEXT`
-  - Seeds: `network_defaults` para imobiliário, automotivo, varejo, serviços
+- [x] **Migração DB** — executada via rota temporária (psql local + pool Prisma)
+  - ✅ `system_segments.network_defaults JSONB` criada e seedada
+  - ✅ `tenants.website TEXT` criada
+  - ✅ `clientes.website TEXT` criada
+  - ✅ GIN index `idx_system_segments_network_defaults` criado
+  - ✅ Seeds aplicados: imobiliaria (HOUSING), carros, geral, master, saude
+  - Slugs reais confirmados: `imobiliaria`, `carros`, `geral`, `master`, `saude`
 - [x] **Hotfix 1** — bug `page_id` corrigido em `src/lib/marketing/networks/meta/metaAdsAdapter.ts`
   - `object_story_spec.page_id` agora usa `this.pageId` (das credentials) e não `this.adAccountId`
   - Lança erro claro se `page_id` não configurado
@@ -82,14 +84,10 @@ Documentada a **Camada Operacional de Lançamento de Campanhas** (subseções 1.
 
 ## Próximos passos imediatos
 
-1. **⚠️ EXECUTAR MIGRAÇÃO DB** (obrigatório antes de usar novos campos):
-   ```
-   docker exec -i netimobiliaria-db psql -U postgres -d net_imobiliaria < prisma/migration-2026-05-29-launch-layer.sql
-   ```
-2. Verificar `StepReview` no `CampaignWizard` — adicionar `specialAdCategory`, `pixelId`, `customEventType` no resumo final
-3. Após migração — testar fluxo completo: Settings → Identidade Meta → salvar page_id → Wizard → lançar campanha
-4. **FASE 4** do plano mestre (Campaign State Machine)
-5. Testes end-to-end: `POST /api/admin/campanhas/briefings/generate`, Agente Decisor, Desperdício de Verba
+1. Verificar `StepReview` no `CampaignWizard` — adicionar `specialAdCategory`, `pixelId`, `customEventType` no resumo final
+2. Testar fluxo completo: Settings → Identidade Meta → salvar page_id → Wizard → lançar campanha
+3. **FASE 4** do plano mestre (Campaign State Machine)
+4. Testes end-to-end: `POST /api/admin/campanhas/briefings/generate`, Agente Decisor, Desperdício de Verba
 
 ---
 
