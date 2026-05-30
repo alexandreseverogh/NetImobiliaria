@@ -13,7 +13,7 @@ import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
 import { ArrowPathIcon, SparklesIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { CampaignLifecycleBadge } from '@/components/marketing/CampaignLifecycleBadge';
-import type { LifecycleStatus } from '@/lib/marketing/services/campaignStateMachine';
+import type { LifecycleStatus } from '@/lib/marketing/services/campaignLifecycleTypes';
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
@@ -90,6 +90,26 @@ export function DashboardPage() {
       });
     } catch (err) { console.error('[Dashboard] Erro ao carregar dados:', err); }
     finally { setLoading(false); }
+  }
+
+  async function handleLifecycleTransition(campaignId: string, toStatus: LifecycleStatus) {
+    await fetch(`/api/admin/campanhas/campaigns/${campaignId}/lifecycle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toStatus, reason: 'Alteração manual via dashboard' }),
+    });
+    // Atualiza localmente sem recarregar tudo
+    setData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        campaigns: prev.campaigns.map(c =>
+          c.id === campaignId
+            ? { ...c, lifecycleStatus: toStatus, lifecycleChangedAt: new Date().toISOString() }
+            : c
+        ),
+      };
+    });
   }
 
   async function handleSync() {
@@ -454,7 +474,7 @@ export function DashboardPage() {
                             campaignId={c.id}
                             status={(c.lifecycleStatus || 'DRAFT') as LifecycleStatus}
                             changedAt={c.lifecycleChangedAt ?? undefined}
-                            compact
+                            onTransition={toStatus => handleLifecycleTransition(c.id, toStatus)}
                           />
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">{c.objective.replace('OUTCOME_', '')}</td>

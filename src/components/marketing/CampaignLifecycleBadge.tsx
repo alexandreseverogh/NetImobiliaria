@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   LIFECYCLE_LABELS,
   LIFECYCLE_COLORS,
   LIFECYCLE_EMOJI,
   VALID_TRANSITIONS,
   type LifecycleStatus,
-} from '@/lib/marketing/services/campaignStateMachine';
+} from '@/lib/marketing/services/campaignLifecycleTypes';
 import { ChevronDownIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 interface LifecycleEvent {
@@ -22,6 +22,7 @@ interface Props {
   campaignId: string;
   status: LifecycleStatus;
   changedAt?: string;
+  /** Se omitido, o badge busca lazy ao abrir o painel */
   history?: LifecycleEvent[];
   onTransition?: (toStatus: LifecycleStatus) => Promise<void>;
   compact?: boolean;
@@ -35,11 +36,13 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 export function CampaignLifecycleBadge({
-  campaignId, status, changedAt, history = [], onTransition, compact = false,
+  campaignId, status, changedAt, history: historyProp, onTransition, compact = false,
 }: Props) {
-  const [showMenu, setShowMenu]     = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showMenu, setShowMenu]         = useState(false);
+  const [showHistory, setShowHistory]   = useState(false);
   const [transitioning, setTransitioning] = useState(false);
+  const [history, setHistory]           = useState<LifecycleEvent[]>(historyProp ?? []);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const validNext = VALID_TRANSITIONS[status] ?? [];
 
@@ -53,6 +56,26 @@ export function CampaignLifecycleBadge({
       setTransitioning(false);
     }
   }
+
+  const toggleHistory = useCallback(async () => {
+    const next = !showHistory;
+    setShowHistory(next);
+    // Busca lazy apenas na primeira abertura e se não veio via prop
+    if (next && history.length === 0 && !historyProp) {
+      setHistoryLoading(true);
+      try {
+        const res = await fetch(`/api/admin/campanhas/campaigns/${campaignId}/lifecycle`);
+        if (res.ok) {
+          const data = await res.json();
+          setHistory(data.history ?? []);
+        }
+      } catch {
+        // silencioso
+      } finally {
+        setHistoryLoading(false);
+      }
+    }
+  }, [showHistory, history.length, historyProp, campaignId]);
 
   return (
     <div className="relative inline-flex flex-col gap-1">
@@ -76,9 +99,9 @@ export function CampaignLifecycleBadge({
         )}
 
         {/* Botão de histórico */}
-        {!compact && history.length > 0 && (
+        {!compact && (
           <button
-            onClick={() => setShowHistory(v => !v)}
+            onClick={toggleHistory}
             className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
             title="Ver histórico"
           >
@@ -113,37 +136,48 @@ export function CampaignLifecycleBadge({
       )}
 
       {/* Histórico de transições */}
-      {showHistory && history.length > 0 && (
+      {showHistory && (
         <div className="absolute top-8 left-0 z-30 bg-white border border-gray-200 rounded-xl shadow-xl p-3 w-80">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Histórico</p>
             <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-gray-700 text-xs">✕</button>
           </div>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {history.map((ev, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs">
-                <span className="text-gray-300 font-mono mt-0.5">│</span>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${LIFECYCLE_COLORS[ev.from_status as LifecycleStatus] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {ev.from_status}
-                    </span>
-                    <span className="text-gray-300">→</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${LIFECYCLE_COLORS[ev.to_status as LifecycleStatus] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {ev.to_status}
-                    </span>
-                    <span className="text-[9px] text-gray-400">{SOURCE_LABEL[ev.trigger_source] ?? ev.trigger_source}</span>
+
+          {historyLoading && (
+            <p className="text-[10px] text-gray-400 py-2 text-center">Carregando...</p>
+          )}
+
+          {!historyLoading && history.length === 0 && (
+            <p className="text-[10px] text-gray-400 py-2 text-center">Nenhuma transição registrada</p>
+          )}
+
+          {!historyLoading && history.length > 0 && (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {history.map((ev, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className="text-gray-300 font-mono mt-0.5">│</span>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${LIFECYCLE_COLORS[ev.from_status as LifecycleStatus] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {ev.from_status}
+                      </span>
+                      <span className="text-gray-300">→</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${LIFECYCLE_COLORS[ev.to_status as LifecycleStatus] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {ev.to_status}
+                      </span>
+                      <span className="text-[9px] text-gray-400">{SOURCE_LABEL[ev.trigger_source] ?? ev.trigger_source}</span>
+                    </div>
+                    {ev.reason && (
+                      <p className="text-[9px] text-gray-500 mt-0.5">{ev.reason}</p>
+                    )}
+                    <p className="text-[9px] text-gray-400">
+                      {new Date(ev.created_at).toLocaleString('pt-BR')}
+                    </p>
                   </div>
-                  {ev.reason && (
-                    <p className="text-[9px] text-gray-500 mt-0.5">{ev.reason}</p>
-                  )}
-                  <p className="text-[9px] text-gray-400">
-                    {new Date(ev.created_at).toLocaleString('pt-BR')}
-                  </p>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
