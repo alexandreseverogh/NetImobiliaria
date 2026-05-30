@@ -135,6 +135,7 @@ export async function resolveSegmentNetworkDefaults(
   customEventType: string;
   optimizationGoal: string;
   billingEvent: string;
+  suggestedInterests: { id: string; name: string }[];
 }> {
   const pool = getPool();
 
@@ -160,11 +161,12 @@ export async function resolveSegmentNetworkDefaults(
 
   // Fallback gracioso: sem segmento ou sem network_defaults → defaults neutros
   const SAFE_DEFAULTS = {
-    specialAdCategory: 'NONE',
-    objective:         'OUTCOME_LEADS',
-    customEventType:   'LEAD',
-    optimizationGoal:  'LEAD_GENERATION',
-    billingEvent:      'IMPRESSIONS',
+    specialAdCategory:  'NONE',
+    objective:          'OUTCOME_LEADS',
+    customEventType:    'LEAD',
+    optimizationGoal:   'LEAD_GENERATION',
+    billingEvent:       'IMPRESSIONS',
+    suggestedInterests: [] as { id: string; name: string }[],
   };
 
   if (!segmentId) return SAFE_DEFAULTS;
@@ -179,10 +181,11 @@ export async function resolveSegmentNetworkDefaults(
 
   const cats = nd.special_ad_categories;
   return {
-    specialAdCategory: Array.isArray(cats) && cats.length > 0 ? cats[0] : 'NONE',
-    objective:         nd.objective         || SAFE_DEFAULTS.objective,
-    customEventType:   nd.custom_event_type || SAFE_DEFAULTS.customEventType,
-    optimizationGoal:  nd.optimization_goal || SAFE_DEFAULTS.optimizationGoal,
-    billingEvent:      nd.billing_event     || SAFE_DEFAULTS.billingEvent,
+    specialAdCategory:  Array.isArray(cats) && cats.length > 0 ? cats[0] : 'NONE',
+    objective:          nd.objective         || SAFE_DEFAULTS.objective,
+    customEventType:    nd.custom_event_type || SAFE_DEFAULTS.customEventType,
+    optimizationGoal:   nd.optimization_goal || SAFE_DEFAULTS.optimizationGoal,
+    billingEvent:       nd.billing_event     || SAFE_DEFAULTS.billingEvent,
+    suggestedInterests: Array.isArray(nd.suggested_interests) ? nd.suggested_interests : [],
   };
 }

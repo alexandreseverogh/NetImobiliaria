@@ -2,17 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import { useApi } from '@/hooks/useApi'
-import { 
-  PlusIcon, 
-  Squares2X2Icon, 
-  SwatchIcon, 
-  HashtagIcon, 
+import {
+  PlusIcon,
+  Squares2X2Icon,
+  SwatchIcon,
+  HashtagIcon,
   PencilSquareIcon,
   CheckCircleIcon,
   XCircleIcon,
-  CommandLineIcon
+  CommandLineIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
+import { SegmentInterestsModal } from '@/components/admin/master/SegmentInterestsModal'
 
 interface Segment {
   id: string
@@ -40,6 +42,7 @@ export default function MasterSegmentsPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingSegment, setEditingSegment] = useState<Segment | null>(null)
+  const [interestsSegment, setInterestsSegment] = useState<Segment | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -231,15 +234,25 @@ export default function MasterSegmentsPage() {
                     </span>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <UpdateGuard resource="master-segments">
+                    <div className="flex items-center justify-end gap-3">
                       <button
-                        onClick={() => handleEdit(segment)}
-                        className="text-indigo-600 font-black hover:text-indigo-800 transition-colors inline-flex items-center"
+                        onClick={() => setInterestsSegment(segment)}
+                        className="text-indigo-500 hover:text-indigo-700 transition-colors inline-flex items-center gap-1 text-sm font-semibold"
+                        title="Gerenciar interesses Meta para este segmento"
                       >
-                        <PencilSquareIcon className="h-4 w-4 mr-1" />
-                        Editar nicho
+                        <SparklesIcon className="h-4 w-4" />
+                        Interesses Meta
                       </button>
-                    </UpdateGuard>
+                      <UpdateGuard resource="master-segments">
+                        <button
+                          onClick={() => handleEdit(segment)}
+                          className="text-gray-500 font-semibold hover:text-gray-800 transition-colors inline-flex items-center text-sm"
+                        >
+                          <PencilSquareIcon className="h-4 w-4 mr-1" />
+                          Editar
+                        </button>
+                      </UpdateGuard>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -403,6 +416,15 @@ export default function MasterSegmentsPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Interests Modal */}
+      {interestsSegment && (
+        <SegmentInterestsModal
+          segment={interestsSegment}
+          network="meta"
+          onClose={() => setInterestsSegment(null)}
+        />
       )}
     </div>
   )

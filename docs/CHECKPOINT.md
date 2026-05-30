@@ -120,11 +120,33 @@ Documentada a **Camada Operacional de Lançamento de Campanhas** (subseções 1.
 | "Para quem?" aparecia para Master | `is_system_role` não retornado por `/me` | Adicionado ao `userResponse` + fallback localStorage |
 | Botão "Configurar Campanha" ausente/desabilitado para Master | `CreateGuard resource="campanhas"` retornava null (sem permissão explícita na DB) | Removido `CreateGuard` — `disabled={!contextReady}` suficiente |
 
+## Última entrega — Interesses Meta reais + Curadoria por segmento (2026-05-30)
+
+### Problema resolvido
+Os interesses no wizard usavam IDs fake (strings textuais) que o Meta ignorava silenciosamente.
+Interesses agora usam IDs numéricos reais da Meta Targeting Search API.
+
+### O que foi implementado
+- **`/api/admin/campanhas/interests/search`** — busca real na Meta Graph API (`/search?type=adinterest&locale=pt_BR`); fallback gracioso se token não configurado
+- **`InterestsPicker`** reescrito — busca com debounce 350ms, exibe audience size real, interesses livres como fallback
+- **`InterestsPicker`** colapsado em "Avançado" — com banner explicando impacto variável (especialmente HOUSING)
+- **`suggestedInterests` por segmento** — `network_defaults.meta.suggested_interests` em `system_segments`
+  - `resolveSegmentNetworkDefaults` retorna `suggestedInterests[]`
+  - Wizard carrega e exibe chips ⚡ do segmento antes da busca livre
+- **`/api/admin/master/segments/[id]/interests`** (GET + PATCH) — Master gerencia seeds por segmento
+- **`SegmentInterestsModal`** — modal na página `/admin/master/segmentos` com busca Meta API + salvar
+- **Página de Segmentos do Master** — botão "✨ Interesses Meta" por segmento
+
+### Fluxo de curadoria pelo Master
+1. `/admin/master/segmentos` → clicar "Interesses Meta" no segmento
+2. Modal abre → busca na Meta API → clica para adicionar → salva
+3. Todos os tenants daquele segmento passam a ver os chips sugeridos no wizard
+
 ## Próximos passos imediatos
 
 1. Testar fluxo completo Master: selecionar criativos → "Configurar Campanha" → Wizard → lançar
-2. Testar fluxo Tenant: "Para um Cliente" → selecionar cliente → criativos → lançar
-3. `StepReview` no `CampaignWizard` — mostrar `specialAdCategory`, `pixelId`, `customEventType` no resumo final
+2. Master adicionar interesses via modal de segmentos (validar que chips aparecem no wizard)
+3. Testar fluxo Tenant: "Para um Cliente" → selecionar cliente → criativos → lançar
 4. Remover item "IMPORTAÇÃO DE CRIATIVOS" do sidebar (agora redirecionado; item confuso)
 5. **FASE 4** do plano mestre (Campaign State Machine)
 

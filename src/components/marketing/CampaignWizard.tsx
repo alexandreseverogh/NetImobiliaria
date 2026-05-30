@@ -7,7 +7,7 @@ import { createCampaign, getMetaIdentity, type Creative } from '@/lib/marketing-
 import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency } from '@/lib/marketing-utils';
 import { LocationPicker, type LocationEntry } from './LocationPicker';
 import {
-  ShieldCheckIcon, BoltIcon, XMarkIcon, RocketLaunchIcon,
+  ShieldCheckIcon, BoltIcon, XMarkIcon, RocketLaunchIcon, ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 
 /* ── shared input class ──────────────────────────────────── */
@@ -73,11 +73,12 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   const [submitting, setSubmitting] = useState(false);
 
   const [autoFields, setAutoFields] = useState({
-    pixelId:           '',
-    specialAdCategory: 'NONE',
-    customEventType:   'LEAD',
-    objective:         'OUTCOME_LEADS',
-    websiteDefault:    '',
+    pixelId:            '',
+    specialAdCategory:  'NONE',
+    customEventType:    'LEAD',
+    objective:          'OUTCOME_LEADS',
+    websiteDefault:     '',
+    suggestedInterests: [] as { id: string; name: string }[],
   });
 
   const [form, setForm] = useState({
@@ -121,11 +122,12 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           .then(r => r.ok ? r.json() : null).catch(() => null);
 
         const resolved = {
-          pixelId:           identity?.pixelId          || '',
-          websiteDefault:    identity?.website           || '',
-          specialAdCategory: segDefaults?.specialAdCategory || 'NONE',
-          customEventType:   segDefaults?.customEventType   || 'LEAD',
-          objective:         segDefaults?.objective         || 'OUTCOME_LEADS',
+          pixelId:            identity?.pixelId              || '',
+          websiteDefault:     identity?.website              || '',
+          specialAdCategory:  segDefaults?.specialAdCategory || 'NONE',
+          customEventType:    segDefaults?.customEventType   || 'LEAD',
+          objective:          segDefaults?.objective         || 'OUTCOME_LEADS',
+          suggestedInterests: segDefaults?.suggestedInterests || [],
         };
         setAutoFields(resolved);
         setForm(f => ({
@@ -312,7 +314,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} />}
               {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} />}
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} />}
-              {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} />}
+              {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
               {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} />}
               {step === 6 && <StepReview    form={form} selectedImages={selectedImages} />}
@@ -659,7 +661,16 @@ function StepTextCta({ form, updateForm }: any) {
    STEP 3 — PÚBLICO
 ══════════════════════════════════════════════════════════ */
 
-function StepTargeting({ form, updateForm, clientId }: any) {
+function StepTargeting({ form, updateForm, clientId, suggestedInterests }: any) {
+  const [showInterests, setShowInterests] = useState(false);
+  const hasInterests = form.interests.length > 0;
+
+  // Auto-expand if there are already selected interests
+  useEffect(() => {
+    if (hasInterests) setShowInterests(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="space-y-8">
       <Section title="Demográfico">
@@ -698,16 +709,58 @@ function StepTargeting({ form, updateForm, clientId }: any) {
           </div>
         </div>
       </Section>
+
       <Section title="Localização">
         <LocationPicker locations={form.locationEntries} onChange={entries => updateForm({ locationEntries: entries })} />
       </Section>
-      <Section title="Interesses">
-        <InterestsPicker
-          interests={form.interests}
-          onChange={interests => updateForm({ interests })}
-          clientId={clientId}
-        />
-      </Section>
+
+      {/* ── Interesses: colapsável (impacto baixo, avançado) ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <button
+          onClick={() => setShowInterests(v => !v)}
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-all text-left"
+        >
+          <div>
+            <p className="text-base font-semibold text-gray-900">Interesses</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Segmentação por interesse — opcional, avançado
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {hasInterests && (
+              <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full uppercase tracking-wide">
+                {form.interests.length} selecionado{form.interests.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            {(suggestedInterests || []).length > 0 && !hasInterests && (
+              <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                {(suggestedInterests || []).length} sugestão{(suggestedInterests || []).length !== 1 ? 'ões' : ''} do segmento
+              </span>
+            )}
+            <ChevronDownIcon className={cn('h-5 w-5 text-gray-400 transition-transform duration-200', showInterests && 'rotate-180')} />
+          </div>
+        </button>
+
+        {showInterests && (
+          <div className="px-6 pb-6 pt-2 border-t border-gray-100">
+            <div className="mb-4 bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-start gap-2.5">
+              <span className="shrink-0 mt-0.5">💡</span>
+              <p className="text-xs text-amber-800">
+                <span className="font-semibold">Interesses são opcionais e de impacto variável.</span>{' '}
+                Campanhas sem interesse (broad) frequentemente superam campanhas restritas, pois o algoritmo
+                do Meta tem acesso a muito mais sinais de conversão do que interesses declarados.
+                Para campanhas de <strong>habitação (HOUSING)</strong>, parte do targeting por interesse é restrito por lei.
+              </p>
+            </div>
+            <InterestsPicker
+              interests={form.interests}
+              onChange={interests => updateForm({ interests })}
+              clientId={clientId}
+              suggestedInterests={suggestedInterests || []}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -733,10 +786,11 @@ function formatAudienceSize(lower?: number, upper?: number): string | null {
   return upper ? `${fmt(lower)}–${fmt(upper)}` : `${fmt(lower)}+`;
 }
 
-function InterestsPicker({ interests, onChange, clientId }: {
+function InterestsPicker({ interests, onChange, clientId, suggestedInterests }: {
   interests: any[];
   onChange: (v: any[]) => void;
   clientId?: string | null;
+  suggestedInterests?: { id: string; name: string }[];
 }) {
   const [query, setQuery]         = useState('');
   const [results, setResults]     = useState<MetaInterest[]>([]);
@@ -788,6 +842,7 @@ function InterestsPicker({ interests, onChange, clientId }: {
   function removeInterest(id: string) { onChange(interests.filter((i: any) => i.id !== id)); }
 
   const filteredResults = results.filter(r => !interests.some((i: any) => i.id === r.id));
+  const segmentChips = (suggestedInterests || []).filter(s => !interests.some((i: any) => i.id === s.id));
 
   return (
     <div className="space-y-4">
@@ -809,6 +864,23 @@ function InterestsPicker({ interests, onChange, clientId }: {
             className="text-xs px-3 py-1.5 rounded-full border border-dashed border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 transition-all">
             Limpar todos
           </button>
+        </div>
+      )}
+
+      {/* Segment suggestions */}
+      {segmentChips.length > 0 && (
+        <div>
+          <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+            <BoltIcon className="h-3 w-3" /> Sugeridos para este segmento
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {segmentChips.map(item => (
+              <button key={item.id} onClick={() => addInterest(item)}
+                className="text-xs px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-medium transition-all">
+                + {item.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
