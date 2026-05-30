@@ -714,6 +714,46 @@ monta a requisição.
 
 ---
 
+## 1.7. THRESHOLDS DA STATE MACHINE CONFIGURÁVEIS POR ENV (pendente — 2026-05-30)
+
+### Problema
+
+Os thresholds de inferência automática de lifecycle estão hardcoded em `src/lib/marketing/services/campaignStateMachine.ts`:
+
+| Constante | Valor atual | Linha |
+|-----------|-------------|-------|
+| Frequência máxima antes de FATIGUED | `3.5` | 206 |
+| Queda de CTR mínima para FATIGUED | `30%` (`0.30`) | 207 |
+| Dias mínimos em LEARNING para STABLE | `7` | 219 |
+| Conversões mínimas para sair de LEARNING | `50` | 219 |
+
+### Solução planejada
+
+Mover para variáveis de ambiente com defaults razoáveis:
+
+```ts
+// campaignStateMachine.ts — topo do arquivo
+const FATIGUE_MAX_FREQUENCY     = parseFloat(process.env.LIFECYCLE_FATIGUE_FREQUENCY    || '3.5');
+const FATIGUE_MIN_CTR_DROP      = parseFloat(process.env.LIFECYCLE_FATIGUE_CTR_DROP     || '0.30');
+const LEARNING_MIN_DAYS         = parseInt  (process.env.LIFECYCLE_LEARNING_DAYS        || '7');
+const LEARNING_MIN_CONVERSIONS  = parseInt  (process.env.LIFECYCLE_LEARNING_CONVERSIONS || '50');
+```
+
+Substituir literais nas condições de `inferLifecycleStatus()` pelas constantes acima.
+
+### Escopo
+
+- [ ] Extrair 4 constantes no topo de `campaignStateMachine.ts`
+- [ ] Substituir literais hardcoded pelas constantes
+- [ ] Documentar as 4 vars em `.env.example`
+- [ ] Testar: ajustar threshold via env e confirmar que a inferência muda
+
+### Prioridade
+
+Baixa/média — não bloqueia nada. Útil antes de colocar em produção para calibrar sem deploy.
+
+---
+
 ## 2. Arquitetura de Dados Consolidada
 
 ### 2.1. Diagrama ER (visão final)
