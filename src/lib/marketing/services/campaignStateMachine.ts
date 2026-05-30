@@ -68,10 +68,10 @@ export async function transitionCampaign(
   const now = new Date();
   await pool.query(
     `UPDATE campanhasmarketingdigital."Campaign"
-        SET lifecycle_status     = $1,
-            lifecycle_changed_at = $2,
-            learning_started_at  = CASE WHEN $1 = 'LEARNING' THEN $2 ELSE learning_started_at END,
-            stable_since         = CASE WHEN $1 = 'STABLE'   THEN $2 ELSE stable_since END
+        SET lifecycle_status     = $1::varchar,
+            lifecycle_changed_at = $2::timestamp,
+            learning_started_at  = CASE WHEN $1::varchar = 'LEARNING' THEN $2::timestamp ELSE learning_started_at END,
+            stable_since         = CASE WHEN $1::varchar = 'STABLE'   THEN $2::timestamp ELSE stable_since END
       WHERE id = $3`,
     [toStatus, now, campaignId],
   );

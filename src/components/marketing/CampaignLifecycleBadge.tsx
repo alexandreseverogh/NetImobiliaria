@@ -8,6 +8,7 @@ import {
   VALID_TRANSITIONS,
   type LifecycleStatus,
 } from '@/lib/marketing/services/campaignLifecycleTypes';
+import { adminFetch } from '@/lib/auth/adminFetch';
 import { ChevronDownIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 interface LifecycleEvent {
@@ -64,7 +65,7 @@ export function CampaignLifecycleBadge({
     if (next && history.length === 0 && !historyProp) {
       setHistoryLoading(true);
       try {
-        const res = await fetch(`/api/admin/campanhas/campaigns/${campaignId}/lifecycle`);
+        const res = await adminFetch(`/api/admin/campanhas/campaigns/${campaignId}/lifecycle`, { method: 'GET' });
         if (res.ok) {
           const data = await res.json();
           setHistory(data.history ?? []);

@@ -12,6 +12,7 @@ import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart
 import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
 import { ArrowPathIcon, SparklesIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { adminFetch } from '@/lib/auth/adminFetch';
 import { CampaignLifecycleBadge } from '@/components/marketing/CampaignLifecycleBadge';
 import type { LifecycleStatus } from '@/lib/marketing/services/campaignLifecycleTypes';
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
@@ -93,11 +94,16 @@ export function DashboardPage() {
   }
 
   async function handleLifecycleTransition(campaignId: string, toStatus: LifecycleStatus) {
-    await fetch(`/api/admin/campanhas/campaigns/${campaignId}/lifecycle`, {
+    const res = await adminFetch(`/api/admin/campanhas/campaigns/${campaignId}/lifecycle`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ toStatus, reason: 'Alteração manual via dashboard' }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error('[Lifecycle] POST falhou', res.status, err);
+      alert(`Erro ao alterar status: ${err.error ?? res.status}`);
+      return; // não atualiza local se a API falhou
+    }
     // Atualiza localmente sem recarregar tudo
     setData(prev => {
       if (!prev) return prev;
