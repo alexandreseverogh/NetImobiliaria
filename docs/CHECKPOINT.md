@@ -207,6 +207,21 @@ Interesses agora usam IDs numéricos reais da Meta Targeting Search API.
   - `marketing-api.ts` Campaign interface atualizada com `lifecycleStatus`, `lifecycleChangedAt`
   - Prisma schema atualizado + `prisma generate` executado
 
+### Validação em produção (30/05/2026)
+
+| Cenário | Status |
+|---------|--------|
+| Badge renderiza STABLE / PAUSED / FATIGUED / SCALING | ✅ |
+| Transição manual STABLE → FATIGUED via dropdown | ✅ |
+| Transição manual STABLE → SCALING via dropdown | ✅ |
+| Histórico lazy (fetch on demand) com fonte Manual | ✅ |
+| `CampaignLifecycleEvent` gravado corretamente no banco | ✅ |
+
+**Bugs corrigidos durante validação:**
+- `can't resolve 'fs'` — tipos extraídos para `campaignLifecycleTypes.ts` (sem imports Node.js)
+- 401 silencioso — `fetch` direto não enviava token; criado `adminFetch` helper
+- `inconsistent types deduced for parameter $1` — adicionado `$1::varchar` / `$2::timestamp` no UPDATE
+
 ### Arquitetura do Estado Machine
 
 ```
