@@ -209,7 +209,7 @@ export function DashboardPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-4 mb-6">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[140px]">
               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Campanha</label>
@@ -281,7 +281,7 @@ export function DashboardPage() {
             {[...Array(4)].map((_, i) => <div key={i} className="bg-white rounded-2xl border border-gray-100 h-80 animate-pulse" />)}
           </div>
         ) : !data || data.currentPeriod.insights.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-16 text-center">
+          <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-16 text-center">
             <p className="text-sm font-black text-gray-900 mb-1">Nenhum dado disponível</p>
             <p className="text-xs text-gray-400">Sincronize os dados do Meta ou aguarde as campanhas gerarem resultados.</p>
           </div>
@@ -290,7 +290,7 @@ export function DashboardPage() {
             {/* Performance Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-6">
                 <MultiMetricChart data={chartData} title="Performance Multi-Métrica"
                   metrics={[
                     { key: 'spend',  label: 'Gasto (R$)', color: '#6366f1', type: 'area' },
@@ -301,7 +301,7 @@ export function DashboardPage() {
               </motion.div>
 
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-6">
                 <h3 className="text-sm font-black text-gray-900 mb-4">CPL Timeline</h3>
                 <MultiMetricChart data={cplData} metrics={[
                   { key: 'spend', label: 'Gasto (R$)', color: '#6366f1', type: 'area' },
@@ -311,13 +311,13 @@ export function DashboardPage() {
               </motion.div>
 
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-6">
                 <h3 className="text-sm font-black text-gray-900 mb-4">Funil de Conversão</h3>
                 <FunnelChart data={data.funnelData} />
               </motion.div>
 
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-6">
                 <h3 className="text-sm font-black text-gray-900 mb-4">Distribuição por Campanha</h3>
                 {campaignSpendData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={260}>
@@ -350,7 +350,7 @@ export function DashboardPage() {
                     { label: 'CPC (R$)',          color: '#ef4444', hist: predictions.historical.cpc,    pred: predictions.cpc,    fmt: (v: number) => `R$${v.toFixed(2)}` },
                   ].map((p, i) => (
                     <motion.div key={p.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-                      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                      className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-6">
                       <PredictionChart label={p.label} color={p.color}
                         historical={predictions.historical.dates.map((d, j) => ({ date: d, value: p.hist[j] }))}
                         predictions={p.pred} formatter={p.fmt} />
@@ -392,7 +392,7 @@ export function DashboardPage() {
               {briefing
                 ? <BriefingCard briefing={briefing} />
                 : (
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+                  <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-10 text-center">
                     <p className="text-sm font-black text-gray-900 mb-1">Nenhum briefing gerado ainda</p>
                     <p className="text-xs text-gray-400">Clique em "Gerar Novo" ou aguarde o envio automático (08h e 18h).</p>
                   </div>
@@ -426,7 +426,7 @@ export function DashboardPage() {
                     const s = styles[insight.type] || styles.ALERT;
                     return (
                       <motion.div key={i} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
-                        className={cn('bg-white rounded-2xl border border-gray-100 shadow-sm p-4 border-l-4', s.border)}>
+                        className={cn('bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-4 border-l-4', s.border)}>
                         <div className="flex items-center justify-between mb-2">
                           <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide ${s.badge}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{insight.type}
@@ -445,7 +445,7 @@ export function DashboardPage() {
             )}
 
             {/* Campaigns Table */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-50">
                 <h3 className="text-sm font-black text-gray-900">Campanhas</h3>
               </div>
@@ -515,18 +515,33 @@ function KpiCard({ label, value, color, delta, invertDelta }: {
 }) {
   let deltaColor = 'text-gray-400';
   let deltaIcon  = '';
+  let deltaBg    = '';
   if (delta !== undefined && Math.abs(delta) > 0.5) {
     const isPositive = delta > 0;
     const isGood     = invertDelta ? !isPositive : isPositive;
-    deltaColor = isGood ? 'text-emerald-600' : 'text-red-500';
+    deltaColor = isGood ? 'text-emerald-700' : 'text-red-600';
+    deltaBg    = isGood ? 'bg-emerald-50' : 'bg-red-50';
     deltaIcon  = isPositive ? '↑' : '↓';
   }
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 flex flex-col gap-1">
-      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-tight">{label}</span>
-      <span className={cn('text-base font-black font-mono leading-tight', color)}>{value}</span>
+    <div className="
+      group bg-white rounded-2xl border border-gray-100/80
+      shadow-[0_2px_8px_rgba(0,0,0,0.05),0_0_1px_rgba(0,0,0,0.04)]
+      hover:shadow-[0_6px_20px_rgba(0,0,0,0.09),0_0_1px_rgba(0,0,0,0.04)]
+      hover:-translate-y-0.5 transition-all duration-200
+      p-3.5 flex flex-col gap-1.5 min-w-0 overflow-hidden
+    ">
+      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none truncate">
+        {label}
+      </span>
+      <span className={cn('text-sm font-black font-mono leading-tight truncate', color)}>
+        {value}
+      </span>
       {delta !== undefined && (
-        <span className={cn('text-[9px] font-mono font-bold', deltaColor)}>
+        <span className={cn(
+          'self-start text-[9px] font-black px-1.5 py-0.5 rounded-md leading-none',
+          deltaColor, deltaBg || 'bg-gray-100 text-gray-400',
+        )}>
           {deltaIcon} {Math.abs(delta).toFixed(1)}%
         </span>
       )}
@@ -540,7 +555,7 @@ function BriefingCard({ briefing, compact }: { briefing: StrategicBriefingData; 
   const date      = new Date(briefing.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className={cn('bg-white rounded-2xl border border-gray-100 shadow-sm p-5', compact && 'opacity-75')}>
+    <div className={cn('bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] p-5', compact && 'opacity-75')}>
       <div className="flex items-center gap-2 mb-3">
         <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-violet-50 text-violet-700 border border-violet-100 uppercase tracking-wide">{typeLabel}</span>
         <span className="text-xs text-gray-400">{date}</span>
