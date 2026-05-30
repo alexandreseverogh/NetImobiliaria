@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useApi } from '@/hooks/useApi'
-import { PlusIcon, BuildingOfficeIcon, GlobeAltIcon, Cog6ToothIcon, UsersIcon, CheckCircleIcon, PhotoIcon, Squares2X2Icon, PencilSquareIcon, IdentificationIcon, EyeIcon, EyeSlashIcon, CalendarDaysIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, BuildingOfficeIcon, GlobeAltIcon, Cog6ToothIcon, UsersIcon, CheckCircleIcon, PhotoIcon, Squares2X2Icon, PencilSquareIcon, IdentificationIcon, EyeIcon, EyeSlashIcon, CalendarDaysIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 
 import Link from 'next/link'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
@@ -95,7 +95,10 @@ export default function MasterTenantsPage() {
 
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingTenant, setEditingTenant] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<'geral' | 'modulos' | 'google_calendar'>('geral')
+  const [activeTab, setActiveTab] = useState<'geral' | 'modulos' | 'google_calendar' | 'meta'>('geral')
+  const [editingMeta, setEditingMeta] = useState({ pageId: '', pixelId: '', instagramActorId: '', website: '' })
+  const [metaSavingModal, setMetaSavingModal] = useState(false)
+  const [metaSavedModal, setMetaSavedModal] = useState(false)
   const [newTab, setNewTab] = useState<'geral' | 'modulos' | 'google_calendar'>('geral')
   const [availableModules, setAvailableModules] = useState<any[]>([])
   const [tenantModules, setTenantModules] = useState<string[]>([]) // Array de IDs de módulos ativos
@@ -337,11 +340,51 @@ export default function MasterTenantsPage() {
     setShowEditModal(true)
   }
 
+  const fetchTenantMeta = async (tenantId: string) => {
+    setEditingMeta({ pageId: '', pixelId: '', instagramActorId: '', website: '' })
+    try {
+      const res = await get(`/api/admin/master/tenants/${tenantId}/meta-identity`)
+      if (res.ok) {
+        const d = await res.json()
+        setEditingMeta({ pageId: d.pageId || '', pixelId: d.pixelId || '', instagramActorId: d.instagramActorId || '', website: d.website || '' })
+      }
+    } catch { /* silent */ }
+  }
+
+  const handleSaveMetaInModal = async () => {
+    if (!editingTenant) return
+    setMetaSavingModal(true)
+    try {
+      const res = await fetch(`/api/admin/master/tenants/${editingTenant.id}/meta-identity`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(editingMeta),
+      })
+      if (res.ok) {
+        setMetaSavedModal(true)
+        setTimeout(() => setMetaSavedModal(false), 3000)
+      } else {
+        alert('Erro ao salvar configurações Meta')
+      }
+    } catch { alert('Erro de conexão') }
+    finally { setMetaSavingModal(false) }
+  }
+
+  const openMetaTab = (tenant: any) => {
+    setEditingTenant({ ...tenant })
+    setActiveTab('meta')
+    setIsModulesModified(false)
+    fetchTenantMeta(tenant.id)
+    setShowEditModal(true)
+  }
+
   const openEdit = (tenant: any) => {
     setEditingTenant({ ...tenant })
     setActiveTab('geral')
     setIsModulesModified(false)
     fetchTenantModules(tenant.id)
+    fetchTenantMeta(tenant.id)
     setShowEditModal(true)
     // Reset check state
     setUserFound(false)
@@ -543,10 +586,10 @@ export default function MasterTenantsPage() {
                            </button>
                          </UpdateGuard>
                       </div>
-                      <Link href={`/admin/master/tenants/${tenant.id}`} className="flex items-center gap-1 mt-2 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all w-fit">
+                      <button onClick={() => openMetaTab(tenant)} className="flex items-center gap-1 mt-2 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all w-fit">
                         <IdentificationIcon className="h-3 w-3" />
                         Config. Meta
-                      </Link>
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -825,10 +868,15 @@ export default function MasterTenantsPage() {
                      className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'modulos' ? 'bg-white text-indigo-700 shadow-md' : 'text-blue-200/70 hover:text-white hover:bg-white/10'}`}>
                      2. Modularização
                    </button>
-                   <button type="button" onClick={() => setActiveTab('google_calendar')} 
+                   <button type="button" onClick={() => setActiveTab('google_calendar')}
                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'google_calendar' ? 'bg-white text-emerald-700 shadow-md' : 'text-blue-200/70 hover:text-white hover:bg-white/10'}`}>
                      <CalendarDaysIcon className="h-3 w-3" />
                      3. Google Calendar
+                   </button>
+                   <button type="button" onClick={() => { setActiveTab('meta'); fetchTenantMeta(editingTenant.id) }}
+                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'meta' ? 'bg-white text-indigo-700 shadow-md' : 'text-blue-200/70 hover:text-white hover:bg-white/10'}`}>
+                     <IdentificationIcon className="h-3 w-3" />
+                     4. Config. Meta
                    </button>
                 </div>
               </div>
@@ -1145,6 +1193,69 @@ export default function MasterTenantsPage() {
                   )}
                 </div>
 
+              ) : activeTab === 'meta' ? (
+
+                <div className="animate-fade-in space-y-6 max-w-xl">
+                  {/* Header */}
+                  <div className="rounded-2xl p-5 text-white" style={{ background: 'linear-gradient(135deg,#6366f1,#4f46e5)' }}>
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Identidade Meta Ads</p>
+                    <h3 className="text-base font-black">Page ID · Pixel · Instagram · Site</h3>
+                  </div>
+
+                  {/* Alerta page_id ausente */}
+                  {!editingMeta.pageId && (
+                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <ExclamationTriangleIcon className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold text-amber-700">Facebook Page ID não configurado</p>
+                        <p className="text-xs text-amber-600 mt-0.5">Sem Page ID os criativos não podem ser enviados ao Meta.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    {/* Page ID */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Facebook Page ID</label>
+                        <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-red-500 bg-red-50">Obrigatório</span>
+                      </div>
+                      <input type="text" value={editingMeta.pageId} onChange={e => setEditingMeta(m => ({ ...m, pageId: e.target.value }))}
+                        placeholder="Ex: 105308234567890"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                      <p className="text-[11px] text-gray-400 mt-1">ID numérico da Página do Facebook deste tenant.</p>
+                    </div>
+                    {/* Pixel ID */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Meta Pixel ID</label>
+                        <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-violet-500 bg-violet-50">Conversões</span>
+                      </div>
+                      <input type="text" value={editingMeta.pixelId} onChange={e => setEditingMeta(m => ({ ...m, pixelId: e.target.value }))}
+                        placeholder="Ex: 876543210987654"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    {/* Instagram Actor ID */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Instagram Actor ID</label>
+                        <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-gray-400 bg-gray-100">Opcional</span>
+                      </div>
+                      <input type="text" value={editingMeta.instagramActorId} onChange={e => setEditingMeta(m => ({ ...m, instagramActorId: e.target.value }))}
+                        placeholder="Ex: 17841234567890"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    {/* Website */}
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Website</label>
+                      <input type="text" value={editingMeta.website} onChange={e => setEditingMeta(m => ({ ...m, website: e.target.value }))}
+                        placeholder="Ex: www.imobiliaria.com.br"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                      <p className="text-[11px] text-gray-400 mt-1">Pré-preenche o Link da campanha no wizard.</p>
+                    </div>
+                  </div>
+                </div>
+
               ) : (
 
                 <div className="animate-fade-in space-y-6">
@@ -1179,8 +1290,15 @@ export default function MasterTenantsPage() {
               <div className="mt-auto pt-10 border-t border-gray-100 flex justify-end gap-4">
                 <button type="button" onClick={() => setShowEditModal(false)}
                    className="px-8 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-all">Cancelar</button>
-                <button type="submit"
-                   className="px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-indigo-600 text-white shadow-xl hover:bg-indigo-700 transition-all">Efetivar Configurações Master</button>
+                {activeTab === 'meta' ? (
+                  <button type="button" onClick={handleSaveMetaInModal} disabled={metaSavingModal}
+                    className="flex items-center gap-2 px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-indigo-600 text-white shadow-xl hover:bg-indigo-700 transition-all disabled:opacity-50">
+                    {metaSavedModal ? <><CheckCircleIcon className="h-4 w-4" /> Salvo!</> : metaSavingModal ? 'Salvando...' : 'Salvar Config. Meta'}
+                  </button>
+                ) : (
+                  <button type="submit"
+                    className="px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-indigo-600 text-white shadow-xl hover:bg-indigo-700 transition-all">Efetivar Configurações Master</button>
+                )}
               </div>
             </form>
           </div>
