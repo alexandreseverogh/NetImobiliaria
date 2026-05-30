@@ -95,32 +95,37 @@ export default function TenantDetailPage() {
   useEffect(() => { fetchData() }, [id])
 
   async function fetchData() {
+    setLoading(true)
     try {
-      setLoading(true)
-      const [tenantRes, segmentsRes, featuresRes, metaRes] = await Promise.all([
-        get(`/api/admin/master/tenants/${id}`),
+      // Tenant é crítico — se falhar mostra erro
+      const tenantRes = await get(`/api/admin/master/tenants/${id}`)
+      if (!tenantRes.ok) {
+        console.error('[tenant/detail] tenant fetch failed:', tenantRes.status)
+        return
+      }
+      const tenantData = await tenantRes.json()
+      setTenant(tenantData.tenant)
+
+      // Demais chamadas são não-críticas — falha individual não bloqueia
+      const [segmentsRes, featuresRes, metaRes] = await Promise.allSettled([
         get('/api/admin/master/segments'),
         get(`/api/admin/master/tenants/${id}/features`),
         get(`/api/admin/master/tenants/${id}/meta-identity`),
       ])
 
-      if (tenantRes.ok) {
-        const d = await tenantRes.json()
-        setTenant(d.tenant)
+      if (segmentsRes.status === 'fulfilled' && segmentsRes.value.ok) {
+        const d = await segmentsRes.value.json()
+        setSegments(d.segments ?? [])
       }
-      if (segmentsRes.ok) {
-        const d = await segmentsRes.json()
-        setSegments(d.segments)
+      if (featuresRes.status === 'fulfilled' && featuresRes.value.ok) {
+        const d = await featuresRes.value.json()
+        setFeatures(d.features ?? [])
       }
-      if (featuresRes.ok) {
-        const d = await featuresRes.json()
-        setFeatures(d.features)
-      }
-      if (metaRes.ok) {
-        setMeta(await metaRes.json())
+      if (metaRes.status === 'fulfilled' && metaRes.value.ok) {
+        setMeta(await metaRes.value.json())
       }
     } catch (err) {
-      console.error('Erro ao buscar dados:', err)
+      console.error('[tenant/detail] fetchData error:', err)
     } finally {
       setLoading(false)
     }

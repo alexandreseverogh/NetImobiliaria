@@ -543,7 +543,10 @@ export default function MasterTenantsPage() {
                            </button>
                          </UpdateGuard>
                       </div>
-                      <Link href={`/admin/master/tenants/${tenant.id}`} className="text-[8px] text-gray-400 font-black uppercase tracking-widest mt-1 block">Detalhes Avançados</Link>
+                      <Link href={`/admin/master/tenants/${tenant.id}`} className="flex items-center gap-1 mt-2 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all w-fit">
+                        <IdentificationIcon className="h-3 w-3" />
+                        Config. Meta
+                      </Link>
                     </td>
                   </tr>
                 ))
