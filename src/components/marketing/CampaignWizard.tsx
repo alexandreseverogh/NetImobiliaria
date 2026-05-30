@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { createCampaign, getMetaIdentity, type Creative } from '@/lib/marketing-api';
+import { createCampaign, getMetaIdentity, getWhatsAppConfig, type Creative } from '@/lib/marketing-api';
 import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency } from '@/lib/marketing-utils';
 import { LocationPicker, type LocationEntry } from './LocationPicker';
 import {
@@ -56,9 +56,9 @@ function Section({ title, children, className }: { title?: string; children: Rea
 }
 
 /* ── Field label ─────────────────────────────────────────── */
-function Label({ children }: { children: React.ReactNode }) {
+function Label({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">
+    <label className={cn('text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block', className)}>
       {children}
     </label>
   );
@@ -79,6 +79,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     objective:          'OUTCOME_LEADS',
     websiteDefault:     '',
     suggestedInterests: [] as { id: string; name: string }[],
+    whatsappNumber:     '',
+    whatsappMessage:    '',
   });
 
   const [form, setForm] = useState({
@@ -110,30 +112,57 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     customEventType:   '',
   });
 
-  /* pre-fill from identity + segment */
+  /* pre-fill from identity + segment + whatsapp */
   useEffect(() => {
     async function loadAutoFields() {
       try {
-        const identity = await getMetaIdentity().catch(() => null);
-        const endpoint = clientId
-          ? `/api/admin/campanhas/segment-defaults?clientId=${clientId}&network=meta`
-          : `/api/admin/campanhas/segment-defaults?network=meta`;
-        const segDefaults = await fetch(endpoint, { credentials: 'include' })
-          .then(r => r.ok ? r.json() : null).catch(() => null);
+        // Carregar em paralelo: identidade Meta, WhatsApp config e segment defaults
+        const [identity, whatsapp, clientSettings, segDefaultsRaw] = await Promise.all([
+          getMetaIdentity().catch(() => null),
+          getWhatsAppConfig().catch(() => null),
+          clientId
+            ? fetch(`/api/admin/clientes/${clientId}/campaign-settings`, { credentials: 'include' })
+                .then(r => r.ok ? r.json() : null).catch(() => null)
+            : Promise.resolve(null),
+          fetch(
+            clientId
+              ? `/api/admin/campanhas/segment-defaults?clientId=${clientId}&network=meta`
+              : `/api/admin/campanhas/segment-defaults?network=meta`,
+            { credentials: 'include' },
+          ).then(r => r.ok ? r.json() : null).catch(() => null),
+        ]);
+
+        const segDefaults = segDefaultsRaw;
+
+        // Cascade de pixel/website: cliente → fallback tenant (via campaign-settings) → identity
+        const resolvedPixelId = clientSettings?.pixelId
+          || clientSettings?.fallback?.pixelId
+          || identity?.pixelId
+          || '';
+        const resolvedWebsite = clientSettings?.website
+          || clientSettings?.fallback?.website
+          || identity?.website
+          || '';
 
         const resolved = {
-          pixelId:            identity?.pixelId              || '',
-          websiteDefault:     identity?.website              || '',
+          pixelId:            resolvedPixelId,
+          websiteDefault:     resolvedWebsite,
           specialAdCategory:  segDefaults?.specialAdCategory || 'NONE',
           customEventType:    segDefaults?.customEventType   || 'LEAD',
           objective:          segDefaults?.objective         || 'OUTCOME_LEADS',
           suggestedInterests: segDefaults?.suggestedInterests || [],
+          whatsappNumber:     whatsapp?.phoneNumber    || '',
+          whatsappMessage:    whatsapp?.defaultMessage || '',
         };
+
         setAutoFields(resolved);
         setForm(f => ({
           ...f,
-          linkUrl:   f.linkUrl   || resolved.websiteDefault,
-          objective: f.objective === 'OUTCOME_LEADS' ? resolved.objective : f.objective,
+          linkUrl:         f.linkUrl         || resolved.websiteDefault,
+          objective:       f.objective === 'OUTCOME_LEADS' ? resolved.objective : f.objective,
+          // Pré-preencher WhatsApp apenas se o campo ainda estiver vazio (não sobrescreve digitado)
+          whatsappNumber:  f.whatsappNumber  || resolved.whatsappNumber,
+          whatsappMessage: f.whatsappMessage || resolved.whatsappMessage,
         }));
       } catch { /* graceful fallback */ }
     }
@@ -313,7 +342,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
             >
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} />}
               {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} />}
-              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} />}
+              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
               {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} />}
@@ -575,7 +604,10 @@ function StepType({ form, updateForm, selectedImages }: any) {
    STEP 2 — TEXTO & CTA
 ══════════════════════════════════════════════════════════ */
 
-function StepTextCta({ form, updateForm }: any) {
+function StepTextCta({ form, updateForm, autoFields }: any) {
+  const isAutoWhatsapp = !!autoFields?.whatsappNumber && form.whatsappNumber === autoFields.whatsappNumber;
+  const isAutoMessage  = !!autoFields?.whatsappMessage && form.whatsappMessage === autoFields.whatsappMessage;
+
   return (
     <div className="space-y-8">
       <Section title="Conteúdo do Anúncio">
@@ -618,7 +650,10 @@ function StepTextCta({ form, updateForm }: any) {
         {form.ctaType === 'WHATSAPP_MESSAGE' ? (
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <Label>Número WhatsApp (com DDI+DDD)</Label>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Label className="mb-0">Número WhatsApp (com DDI+DDD)</Label>
+                {isAutoWhatsapp && <AutoChip label="configurações" />}
+              </div>
               <input
                 type="text"
                 value={form.whatsappNumber}
@@ -628,7 +663,10 @@ function StepTextCta({ form, updateForm }: any) {
               />
             </div>
             <div>
-              <Label>Mensagem Pré-preenchida</Label>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Label className="mb-0">Mensagem Pré-preenchida</Label>
+                {isAutoMessage && <AutoChip label="configurações" />}
+              </div>
               <textarea
                 value={form.whatsappMessage}
                 onChange={e => updateForm({ whatsappMessage: e.target.value })}
@@ -1317,8 +1355,8 @@ function StepObjective({ form, updateForm, autoFields }: any) {
             placeholder={isAutoPixel ? `${autoFields.pixelId} (da conta)` : 'Ex: 876543210987654'}
             className={cn(inputCls, 'w-full max-w-sm', !effectivePixel && 'border-amber-300 focus:ring-amber-400')} />
           {!effectivePixel && (
-            <p className="text-[11px] text-amber-600 mt-1">
-              ⚠️ Sem Pixel, a campanha não rastreia conversões.
+            <p className="text-[11px] text-gray-400 mt-1">
+              Sem Pixel configurado — conversões não serão rastreadas.
             </p>
           )}
         </div>

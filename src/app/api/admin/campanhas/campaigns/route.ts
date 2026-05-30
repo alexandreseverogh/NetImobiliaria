@@ -79,13 +79,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Lookup network_id from the ad_networks catalog
-    const netRes = await pool.query(
-      `SELECT id FROM public.ad_networks WHERE code = $1 LIMIT 1`,
-      [networkCode],
-    );
-    const networkId: string | null = netRes.rows[0]?.id ?? null;
-
     // 1. Criar campanha
     const campaign = await prisma.campaign.create({
       data: {
@@ -95,9 +88,7 @@ export async function POST(request: NextRequest) {
         objective,
         specialAdCategory,
         status: 'PAUSED',
-        // FASE 1: store network reference
-        ...(networkId ? { networkId } : {}),
-      } as any,
+      },
     });
 
     // 2. Criar adSet

@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-05-29
+> **Atualizado em:** 2026-05-30
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -142,13 +142,42 @@ Interesses agora usam IDs numéricos reais da Meta Targeting Search API.
 2. Modal abre → busca na Meta API → clica para adicionar → salva
 3. Todos os tenants daquele segmento passam a ver os chips sugeridos no wizard
 
+## Última entrega — Meta Pixel, WhatsApp auto e Config. Meta no tenant (2026-05-30)
+
+### Bugs corrigidos
+
+| Bug | Causa | Fix |
+|-----|-------|-----|
+| Prisma `Unknown argument 'networkId'` ao criar campanha | Campo nunca existiu no schema `Campaign` | Removido query e spread `networkId` de `src/app/api/admin/campanhas/campaigns/route.ts` |
+
+### Novos arquivos
+
+- **`src/components/analytics/MetaPixel.tsx`** — componente Client que injeta o snippet fbevents.js via `next/script strategy="afterInteractive"`; rastreia PageView a cada mudança de rota
+- **`src/lib/analytics/getMetaPixelId.ts`** — Server helper: busca `credentials->>'pixel_id'` do tenant em `tenant_network_credentials`; falha silenciosa → string vazia
+- **`src/app/api/admin/master/tenants/[id]/meta-identity/route.ts`** — GET/PUT para Master gerenciar `page_id`, `pixel_id`, `instagram_actor_id` (JSONB merge) e `website` de qualquer tenant; protegido por `is_system_role`
+
+### Atualizações
+
+- **`src/app/artemis4/layout.tsx`** — agora Server Component assíncrono; busca `pixel_id` do tenant master (`00000000-0000-0000-0000-000000000001`) e injeta `<MetaPixel>` se configurado
+- **`src/components/marketing/CampaignWizard.tsx`** — WhatsApp Level 1: `loadAutoFields` busca `getWhatsAppConfig()` em paralelo e pré-preenche `whatsappNumber` + `whatsappMessage` com `AutoChip`; aviso pixel alterado para cinza neutro
+- **`src/app/admin/master/tenants/[id]/page.tsx`** — reescrito completamente com tabs "Dados do Tenant" | "Config. Meta"; Config. Meta exibe campos: Facebook Page ID (obrigatório), Meta Pixel ID (conversões), Instagram Actor ID (opcional), Website
+
+### Arquitetura de 3 camadas — COMPLETA (atualizada)
+
+| Camada | Config Meta | UI | Status |
+|--------|-------------|----|--------|
+| **Master** | page_id, pixel_id, instagram, website | `/admin/master/tenants/{id}` → aba Config. Meta | ✅ |
+| **Tenant** | Meta credentials, website | `/admin/campanhas/configuracoes` → Identidade Meta | ✅ |
+| **Cliente** | page_id, pixel_id, instagram, website (override) | `/admin/clientes/{id}` → aba Configurações Meta | ✅ |
+
 ## Próximos passos imediatos
 
-1. Testar fluxo completo Master: selecionar criativos → "Configurar Campanha" → Wizard → lançar
-2. Master adicionar interesses via modal de segmentos (validar que chips aparecem no wizard)
-3. Testar fluxo Tenant: "Para um Cliente" → selecionar cliente → criativos → lançar
-4. Remover item "IMPORTAÇÃO DE CRIATIVOS" do sidebar (agora redirecionado; item confuso)
-5. **FASE 4** do plano mestre (Campaign State Machine)
+1. Configurar `pixel_id` do Master via `/admin/master/tenants/[master-id]` → Config. Meta (para Artemis4 funcionar)
+2. Testar fluxo completo Master: selecionar criativos → "Configurar Campanha" → Wizard → lançar
+3. Master adicionar interesses via modal de segmentos (validar que chips aparecem no wizard)
+4. Testar fluxo Tenant: "Para um Cliente" → selecionar cliente → criativos → lançar
+5. Remover item "IMPORTAÇÃO DE CRIATIVOS" do sidebar (agora redirecionado; item confuso)
+6. **FASE 4** do plano mestre (Campaign State Machine)
 
 ---
 
