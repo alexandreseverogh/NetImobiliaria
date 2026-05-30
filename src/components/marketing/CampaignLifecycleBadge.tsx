@@ -61,8 +61,8 @@ export function CampaignLifecycleBadge({
   const toggleHistory = useCallback(async () => {
     const next = !showHistory;
     setShowHistory(next);
-    // Busca lazy apenas na primeira abertura e se não veio via prop
-    if (next && history.length === 0 && !historyProp) {
+    // Sempre re-busca ao abrir (dados frescos), exceto se veio via prop
+    if (next && !historyProp) {
       setHistoryLoading(true);
       try {
         const res = await adminFetch(`/api/admin/campanhas/campaigns/${campaignId}/lifecycle`, { method: 'GET' });
@@ -76,7 +76,7 @@ export function CampaignLifecycleBadge({
         setHistoryLoading(false);
       }
     }
-  }, [showHistory, history.length, historyProp, campaignId]);
+  }, [showHistory, historyProp, campaignId]);
 
   return (
     <div className="relative inline-flex flex-col gap-1">
@@ -160,11 +160,11 @@ export function CampaignLifecycleBadge({
                   <div>
                     <div className="flex items-center gap-1.5">
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${LIFECYCLE_COLORS[ev.from_status as LifecycleStatus] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {ev.from_status}
+                        {LIFECYCLE_EMOJI[ev.from_status as LifecycleStatus]} {LIFECYCLE_LABELS[ev.from_status as LifecycleStatus] ?? ev.from_status}
                       </span>
                       <span className="text-gray-300">→</span>
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${LIFECYCLE_COLORS[ev.to_status as LifecycleStatus] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {ev.to_status}
+                        {LIFECYCLE_EMOJI[ev.to_status as LifecycleStatus]} {LIFECYCLE_LABELS[ev.to_status as LifecycleStatus] ?? ev.to_status}
                       </span>
                       <span className="text-[9px] text-gray-400">{SOURCE_LABEL[ev.trigger_source] ?? ev.trigger_source}</span>
                     </div>
