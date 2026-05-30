@@ -4,6 +4,7 @@ import { getNetworkServiceForTenant } from '../networks/factory';
 import { runDecisor } from './agentDecisor';
 import { generateStrategicBriefing } from './strategicBriefing';
 import { notifyWhatsApp, notifySlack } from './agentNotificador';
+import { inferLifecycleStatus } from './campaignStateMachine';
 
 const SYNC_SCHEDULE = process.env.AGENT_SYNC_SCHEDULE || '0 */6 * * *';
 const BRIEFING_MORNING_SCHEDULE = process.env.BRIEFING_MORNING_SCHEDULE || '0 8 * * *';
@@ -186,6 +187,13 @@ export async function syncMetrics() {
         }
       } catch (err) {
         console.error(`Erro ao sincronizar campanha ${campaign.id}:`, err);
+      }
+
+      // FASE 4 — infere lifecycle após sync (falha silenciosa)
+      try {
+        await inferLifecycleStatus(campaign.id);
+      } catch (err) {
+        console.error(`[Lifecycle] Erro ao inferir status da campanha ${campaign.id}:`, err);
       }
     }
   }

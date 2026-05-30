@@ -12,6 +12,8 @@ import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart
 import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
 import { ArrowPathIcon, SparklesIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { CampaignLifecycleBadge } from '@/components/marketing/CampaignLifecycleBadge';
+import type { LifecycleStatus } from '@/lib/marketing/services/campaignStateMachine';
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
@@ -427,6 +429,7 @@ export function DashboardPage() {
                     <tr className="bg-gray-50">
                       <th className="text-left px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome</th>
                       <th className="text-left px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                      <th className="text-left px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ciclo de Vida</th>
                       <th className="text-left px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Objetivo</th>
                       <th className="text-right px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Budget/dia</th>
                       <th className="text-right px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Criado em</th>
@@ -446,6 +449,14 @@ export function DashboardPage() {
                             )} />{c.status}
                           </span>
                         </td>
+                        <td className="px-6 py-4">
+                          <CampaignLifecycleBadge
+                            campaignId={c.id}
+                            status={(c.lifecycleStatus || 'DRAFT') as LifecycleStatus}
+                            changedAt={c.lifecycleChangedAt ?? undefined}
+                            compact
+                          />
+                        </td>
                         <td className="px-6 py-4 text-sm text-gray-600">{c.objective.replace('OUTCOME_', '')}</td>
                         <td className="px-6 py-4 text-sm font-mono text-gray-700 text-right">
                           {c.adSets[0] ? formatCurrency(c.adSets[0].dailyBudget / 100) : '—'}
@@ -457,7 +468,7 @@ export function DashboardPage() {
                     ))}
                     {campaigns.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-400">
+                        <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-400">
                           Nenhuma campanha criada ainda
                         </td>
                       </tr>

@@ -170,14 +170,70 @@ Interesses agora usam IDs numéricos reais da Meta Targeting Search API.
 | **Tenant** | Meta credentials, website | `/admin/campanhas/configuracoes` → Identidade Meta | ✅ |
 | **Cliente** | page_id, pixel_id, instagram, website (override) | `/admin/clientes/{id}` → aba Configurações Meta | ✅ |
 
+## Última entrega — FASE 4: Campaign State Machine (2026-05-30)
+
+### O que foi implementado
+
+- **Migração DB** — `prisma/migration-2026-05-30-fase4-lifecycle.sql` (executada via pool raw SQL)
+  - `Campaign.lifecycle_status VARCHAR(20) DEFAULT 'DRAFT'`
+  - `Campaign.lifecycle_changed_at TIMESTAMP`
+  - `Campaign.learning_started_at TIMESTAMP`
+  - `Campaign.stable_since TIMESTAMP`
+  - Índice `idx_campaign_lifecycle` em `(lifecycle_status, tenant_id)`
+  - Seed: ACTIVE → STABLE, PAUSED → PAUSED, outros → DRAFT
+  - Tabela `CampaignLifecycleEvent` (audit log de transições; `campaign_id TEXT` pois Campaign.id é TEXT)
+
+- **`src/lib/marketing/services/campaignStateMachine.ts`** — máquina de estados completa
+  - 8 estados: `DRAFT | READY | LEARNING | STABLE | SCALING | FATIGUED | PAUSED | KILLED`
+  - `VALID_TRANSITIONS` — mapa de transições permitidas por estado
+  - `transitionCampaign()` — valida, atualiza `lifecycle_status`, registra em `CampaignLifecycleEvent`
+  - `inferLifecycleStatus()` — regras automáticas: frequência > 3.5 + CTR drop > 30% → FATIGUED; ≥7 dias ou ≥50 conversões → STABLE; primeiros dados → LEARNING; pausado externamente → PAUSED
+  - `getLifecycleHistory()` — histórico paginado
+
+- **`src/app/api/admin/campanhas/campaigns/[id]/lifecycle/route.ts`**
+  - GET — retorna histórico de transições (até 50)
+  - POST — transição manual com `{ toStatus, reason }`
+
+- **`src/components/marketing/CampaignLifecycleBadge.tsx`** — badge rico com:
+  - Emoji + label colorido por estado
+  - Dropdown de transições manuais (via `onTransition` prop)
+  - Painel de histórico (ícone ⏰)
+  - Props: `campaignId, status, changedAt?, history?, onTransition?, compact?`
+
+- **`src/lib/marketing/services/agentDecisor.ts`** — integrado: após PAUSE executa `transitionCampaign('PAUSED', 'AGENT')`
+- **`src/lib/marketing/services/agentMonitor.ts`** — integrado: após cada sync de métricas chama `inferLifecycleStatus()`
+
+- **Dashboard** — `CampaignLifecycleBadge` integrado na tabela de campanhas (coluna "Ciclo de Vida")
+  - `marketing-api.ts` Campaign interface atualizada com `lifecycleStatus`, `lifecycleChangedAt`
+  - Prisma schema atualizado + `prisma generate` executado
+
+### Arquitetura do Estado Machine
+
+```
+DRAFT → READY → LEARNING → STABLE ⇄ SCALING
+                             ↓          ↓
+                          FATIGUED ←────┘
+                             ↓
+                          PAUSED → READY
+                             ↓
+                           KILLED
+```
+
+### Trigger sources
+- `SYNC` — inferido automaticamente pelo agentMonitor
+- `AGENT` — decisão automática do agentDecisor
+- `MANUAL` — operador via API/UI
+- `CRON` — jobs agendados (futuro)
+
+---
+
 ## Próximos passos imediatos
 
 1. Configurar `pixel_id` do Master via `/admin/master/tenants/[master-id]` → Config. Meta (para Artemis4 funcionar)
-2. Testar fluxo completo Master: selecionar criativos → "Configurar Campanha" → Wizard → lançar
-3. Master adicionar interesses via modal de segmentos (validar que chips aparecem no wizard)
-4. Testar fluxo Tenant: "Para um Cliente" → selecionar cliente → criativos → lançar
+2. **Opção A (pendente para amanhã)** — Destravar lançamento real no Meta: access_token, blob: → URL hospedada, localhost → domínio produção
+3. Testar fluxo completo Master: selecionar criativos → "Configurar Campanha" → Wizard → lançar
+4. Dashboard: adicionar `onTransition` no badge (requisitar permissão ao usuário antes)
 5. Remover item "IMPORTAÇÃO DE CRIATIVOS" do sidebar (agora redirecionado; item confuso)
-6. **FASE 4** do plano mestre (Campaign State Machine)
 
 ---
 

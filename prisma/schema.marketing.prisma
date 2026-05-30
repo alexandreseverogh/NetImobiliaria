@@ -35,24 +35,48 @@ model MarketingInitiative {
 }
 
 model Campaign {
-  id                String    @id @default(uuid())
-  tenantId          String?   @map("tenant_id") @db.Uuid
-  clientId          String?   @map("client_id") @db.Uuid
-  metaCampaignId    String?   @unique
-  name              String
-  objective         String
-  status            String    @default("PAUSED")
-  specialAdCategory String?
-  initiativeId      String?   @map("initiative_id") @db.Uuid
-  initiative        MarketingInitiative? @relation(fields: [initiativeId], references: [id], onDelete: SetNull)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                  String    @id @default(uuid())
+  tenantId            String?   @map("tenant_id") @db.Uuid
+  clientId            String?   @map("client_id") @db.Uuid
+  metaCampaignId      String?   @unique
+  name                String
+  objective           String
+  status              String    @default("PAUSED")
+  specialAdCategory   String?
+  initiativeId        String?   @map("initiative_id") @db.Uuid
+  initiative          MarketingInitiative? @relation(fields: [initiativeId], references: [id], onDelete: SetNull)
+  // FASE 4 — lifecycle
+  lifecycleStatus     String    @default("DRAFT") @map("lifecycle_status") @db.VarChar(20)
+  lifecycleChangedAt  DateTime? @map("lifecycle_changed_at")
+  learningStartedAt   DateTime? @map("learning_started_at")
+  stableSince         DateTime? @map("stable_since")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  adSets AdSet[]
+  adSets             AdSet[]
+  lifecycleEvents    CampaignLifecycleEvent[]
 
   @@index([tenantId])
   @@index([clientId])
   @@index([initiativeId])
+  @@index([lifecycleStatus, tenantId])
+}
+
+model CampaignLifecycleEvent {
+  id              String    @id @default(uuid())
+  campaignId      String    @map("campaign_id")
+  campaign        Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  tenantId        String?   @map("tenant_id") @db.Uuid
+  fromStatus      String?   @map("from_status") @db.VarChar(20)
+  toStatus        String    @map("to_status") @db.VarChar(20)
+  triggerSource   String    @map("trigger_source") @db.VarChar(20)
+  reason          String?
+  metricsSnapshot Json?     @map("metrics_snapshot")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([campaignId])
+  @@index([tenantId])
+  @@map("CampaignLifecycleEvent")
 }
 
 model AdSet {

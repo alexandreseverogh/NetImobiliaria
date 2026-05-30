@@ -3,6 +3,7 @@ import { generateAiInsights } from './aiInsights';
 import { notifyApprovalRequired, notifyExecuted, notifyAlert } from './agentNotificador';
 import { invokeForContext } from '../../intelligence/llmInvoker';
 import { getNetworkServiceForTenant } from '../networks/factory';
+import { transitionCampaign } from './campaignStateMachine';
 
 const CONFIDENCE_THRESHOLD = parseFloat(process.env.AGENT_CONFIDENCE_THRESHOLD || '0.85');
 const DEFENSIVE_TYPES = ['PAUSE'];
@@ -105,6 +106,8 @@ export async function executeAction(action: any, tenantId: string | null) {
         where: { id: action.campaignId },
         data: { status: 'PAUSED' },
       });
+      // FASE 4 — atualiza lifecycle
+      await transitionCampaign(action.campaignId, 'PAUSED', 'AGENT', action.description);
     } else if (action.type === 'SCALE') {
       const adSet = await prisma.adSet.findFirst({ where: { campaignId: action.campaignId } });
       if (adSet) {

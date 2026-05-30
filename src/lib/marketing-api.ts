@@ -32,6 +32,9 @@ export interface Campaign {
   objective: string;
   status: string;
   specialAdCategory?: string;
+  // FASE 4 — lifecycle
+  lifecycleStatus?: string;
+  lifecycleChangedAt?: string | null;
   createdAt: string;
   adSets: AdSet[];
 }
