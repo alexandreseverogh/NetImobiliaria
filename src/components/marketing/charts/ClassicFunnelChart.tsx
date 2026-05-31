@@ -116,55 +116,72 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark }: Props) {
             fill="none"
             style={{ filter: isDark ? 'drop-shadow(0 4px 24px rgba(0,0,0,0.6))' : 'drop-shadow(0 4px 16px rgba(0,0,0,0.15))' }}
           >
-            {[0, 1, 2, 3].map(i => (
-              <g key={i}>
-                {/* Trapézio colorido */}
-                <polygon
-                  points={poly(i)}
-                  fill={isDark ? STAGES[i].dark.fill : STAGES[i].light.fill}
-                />
-                {/* Brilho superior (highlight) */}
-                <polygon
-                  points={poly(i)}
-                  fill="url(#shine)"
-                  opacity={isDark ? 0.06 : 0.12}
-                />
-                {/* Linha divisória branca */}
-                {i > 0 && (
-                  <line
-                    x1={SEGS[i].xl} y1={SEGS[i].y}
-                    x2={SEGS[i].xr} y2={SEGS[i].y}
-                    stroke="white" strokeWidth="2" strokeOpacity={isDark ? 0.2 : 0.4}
+            {[0, 1, 2, 3].map(i => {
+              // Largura disponível no centro do segmento (para dimensionar a fonte)
+              const midT = 0.5;
+              const midXl = SEGS[i].xl + (SEGS[i + 1].xl - SEGS[i].xl) * midT;
+              const midXr = SEGS[i].xr + (SEGS[i + 1].xr - SEGS[i].xr) * midT;
+              const segW  = midXr - midXl;
+              // Fontes menores nos segmentos mais estreitos
+              const fLabel = segW >= 100 ? 12 : segW >= 60 ? 11 : 9;
+              const fValue = segW >= 100 ? 11 : segW >= 60 ? 10 : 8;
+              return (
+                <g key={i}>
+                  {/* Trapézio colorido */}
+                  <polygon
+                    points={poly(i)}
+                    fill={isDark ? STAGES[i].dark.fill : STAGES[i].light.fill}
                   />
-                )}
-                {/* Ícone + label centrados */}
-                <text
-                  x={SVG_W / 2} y={SEGS[i].y + H / 2 - 5}
-                  textAnchor="middle" dominantBaseline="middle"
-                  fill="white" fontSize="12" fontWeight="800"
-                  style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}
-                  opacity="0.95"
-                >
-                  {STAGES[i].label}
-                </text>
-                <text
-                  x={SVG_W / 2} y={SEGS[i].y + H / 2 + 12}
-                  textAnchor="middle" dominantBaseline="middle"
-                  fill="white" fontSize="11" fontWeight="600"
-                  style={{ fontFamily: 'ui-monospace,monospace' }}
-                  opacity="0.75"
-                >
-                  {fmt(values[i])}
-                </text>
-              </g>
-            ))}
+                  {/* Brilho superior (highlight) */}
+                  <polygon
+                    points={poly(i)}
+                    fill="url(#shine)"
+                    opacity={isDark ? 0.06 : 0.12}
+                  />
+                  {/* Linha divisória branca */}
+                  {i > 0 && (
+                    <line
+                      x1={SEGS[i].xl} y1={SEGS[i].y}
+                      x2={SEGS[i].xr} y2={SEGS[i].y}
+                      stroke="white" strokeWidth="2" strokeOpacity={isDark ? 0.2 : 0.4}
+                    />
+                  )}
+                  {/* Label centrado — com sombra para ser legível em qualquer fundo */}
+                  <text
+                    x={SVG_W / 2} y={SEGS[i].y + H / 2 - 5}
+                    textAnchor="middle" dominantBaseline="middle"
+                    fill="white" fontSize={fLabel} fontWeight="800"
+                    filter="url(#txt-shadow)"
+                    style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}
+                    opacity="0.97"
+                  >
+                    {STAGES[i].label}
+                  </text>
+                  <text
+                    x={SVG_W / 2} y={SEGS[i].y + H / 2 + 12}
+                    textAnchor="middle" dominantBaseline="middle"
+                    fill="white" fontSize={fValue} fontWeight="600"
+                    filter="url(#txt-shadow)"
+                    style={{ fontFamily: 'ui-monospace,monospace' }}
+                    opacity="0.85"
+                  >
+                    {fmt(values[i])}
+                  </text>
+                </g>
+              );
+            })}
 
-            {/* Gradiente de brilho no topo */}
+            {/* Defs: gradiente de brilho + sombra para texto */}
             <defs>
               <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%"   stopColor="white" stopOpacity="1" />
                 <stop offset="60%"  stopColor="white" stopOpacity="0" />
               </linearGradient>
+              {/* Sombra escura que garante legibilidade em qualquer fundo */}
+              <filter id="txt-shadow" x="-40%" y="-40%" width="180%" height="180%">
+                <feDropShadow dx="0" dy="1" stdDeviation="2"
+                  floodColor="#000000" floodOpacity="0.55" />
+              </filter>
             </defs>
           </svg>
         </div>

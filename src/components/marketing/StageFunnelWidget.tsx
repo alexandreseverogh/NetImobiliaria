@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SparklesIcon, ChevronDownIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, ChevronDownIcon, ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import type { FunnelData7, FunnelStage, ClientFilter } from '@/lib/marketing-api';
 import { generateFunnelDiagnosis, updateCampaignFunnelStage } from '@/lib/marketing-api';
 import { formatCurrency } from '@/lib/marketing-utils';
@@ -38,21 +38,27 @@ function pct(n: number, decimals = 1) {
   return `${n.toFixed(decimals)}%`;
 }
 
+function compactCurrency(value: number) {
+  if (value >= 1000) return `R$${(value / 1000).toFixed(1)}k`;
+  if (value > 0)     return `R$${value.toFixed(0)}`;
+  return 'R$0';
+}
+
 function RateArrow({ label, value, isBottleneck }: { label: string; value: number; isBottleneck?: boolean }) {
   const color = value === 0 ? 'text-slate-300' :
     value < 1 ? 'text-red-500' : value < 3 ? 'text-amber-500' : 'text-emerald-600';
 
   return (
-    <div className="flex flex-col items-center justify-center shrink-0 w-16">
-      <span className={`text-[9px] font-black uppercase tracking-widest mb-0.5 ${isBottleneck ? 'text-red-500' : 'text-slate-400'}`}>
+    <div className="flex flex-col items-center justify-center shrink-0 w-10">
+      <span className={`text-[8px] font-black uppercase tracking-widest mb-0.5 text-center leading-tight ${isBottleneck ? 'text-red-500' : 'text-slate-400'}`}>
         {label}
       </span>
-      <div className={`flex items-center gap-1 ${color}`}>
-        <span className="text-xs font-black">{pct(value)}</span>
+      <div className={`flex items-center ${color}`}>
+        <span className="text-[10px] font-black">{pct(value)}</span>
       </div>
       <div className="flex items-center mt-0.5">
-        {isBottleneck && <ExclamationTriangleIcon className="h-3 w-3 text-red-400 mr-0.5" />}
-        <svg className={`h-4 w-8 ${isBottleneck ? 'text-red-300' : 'text-slate-200'}`} viewBox="0 0 32 16" fill="none">
+        {isBottleneck && <ExclamationTriangleIcon className="h-2.5 w-2.5 text-red-400 mr-0.5" />}
+        <svg className={`h-3 w-6 ${isBottleneck ? 'text-red-300' : 'text-slate-200'}`} viewBox="0 0 32 16" fill="none">
           <path d="M0 8 H26 M22 4 L28 8 L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
@@ -64,32 +70,32 @@ function StageCard({ stage, isBottleneck, isDark }: { stage: FunnelStage; isBott
   const c = STAGE_COLORS[stage.code] ?? STAGE_COLORS.TOF;
 
   return (
-    <div className={`flex-1 rounded-2xl border-2 p-4 transition-all ${c.bg} ${c.border} ${isBottleneck ? 'ring-2 ring-red-300 ring-offset-1' : ''}`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">{stage.icon}</span>
-          <div>
-            <p className={`text-[10px] font-black uppercase tracking-widest ${c.text}`}>{stage.label}</p>
-            <p className="text-[9px] text-slate-400">{stage.campaigns_count} campanha{stage.campaigns_count !== 1 ? 's' : ''}</p>
+    <div className={`flex-1 min-w-0 rounded-xl border-2 p-2.5 transition-all ${c.bg} ${c.border} ${isBottleneck ? 'ring-2 ring-red-300 ring-offset-1' : ''}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-base shrink-0">{stage.icon}</span>
+          <div className="min-w-0">
+            <p className={`text-[9px] font-black uppercase tracking-widest truncate ${c.text}`}>{stage.label}</p>
+            <p className="text-[8px] text-slate-400">{stage.campaigns_count} camp.</p>
           </div>
         </div>
         {isBottleneck && (
-          <span className="text-[8px] font-black bg-red-100 text-red-600 border border-red-200 rounded-full px-1.5 py-0.5 uppercase tracking-wide">
+          <span className="text-[7px] font-black bg-red-100 text-red-600 border border-red-200 rounded-full px-1 py-0.5 uppercase tracking-wide shrink-0 ml-1">
             Gargalo
           </span>
         )}
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {[
-          { label: 'Investido',    value: formatCurrency(stage.spend) },
-          { label: 'Impressões',   value: stage.impressions > 0 ? stage.impressions.toLocaleString('pt-BR') : '—' },
-          { label: 'Cliques',      value: stage.clicks > 0       ? stage.clicks.toLocaleString('pt-BR')      : '—' },
-          { label: 'Leads',        value: stage.leads > 0        ? String(stage.leads)                        : '—' },
+          { label: 'Invest.',  value: compactCurrency(stage.spend) },
+          { label: 'Impr.',    value: stage.impressions > 0 ? (stage.impressions >= 1000 ? `${(stage.impressions/1000).toFixed(1)}k` : String(stage.impressions)) : '—' },
+          { label: 'Cliques',  value: stage.clicks > 0 ? (stage.clicks >= 1000 ? `${(stage.clicks/1000).toFixed(1)}k` : String(stage.clicks)) : '—' },
+          { label: 'Leads',    value: stage.leads > 0 ? String(stage.leads) : '—' },
         ].map(m => (
-          <div key={m.label} className="flex justify-between items-center">
-            <span className="text-[10px] text-slate-500">{m.label}</span>
-            <span className={`text-xs font-bold ${c.text}`}>{m.value}</span>
+          <div key={m.label} className="flex justify-between items-center gap-1">
+            <span className="text-[9px] text-slate-500 shrink-0">{m.label}</span>
+            <span className={`text-[10px] font-bold truncate ${c.text}`}>{m.value}</span>
           </div>
         ))}
       </div>
@@ -97,11 +103,22 @@ function StageCard({ stage, isBottleneck, isDark }: { stage: FunnelStage; isBott
   );
 }
 
+const LEGEND_ITEMS = [
+  { icon: '📢', label: 'TOF — Topo do Funil',   desc: 'Awareness · Traffic · Reach. Público frio, objetivo: visibilidade.' },
+  { icon: '🎯', label: 'MOF — Meio do Funil',   desc: 'Engagement. Público morno, objetivo: interesse e consideração.' },
+  { icon: '💰', label: 'BOF — Fundo do Funil',  desc: 'Leads · Sales · Conversions. Público quente, objetivo: converter.' },
+  { icon: '→',  label: 'CTR',                   desc: 'Cliques ÷ Impressões × 100. Mede a atração do anúncio no Topo.' },
+  { icon: '→',  label: 'Lead Rate',             desc: 'Leads ÷ Cliques × 100. Mede a conversão do clique em lead no Meio.' },
+  { icon: '⚠️', label: 'Gargalo',               desc: 'Estágio com maior share de budget mas menor taxa de conversão ao próximo passo.' },
+  { icon: '💲', label: 'CPL Geral',             desc: 'Custo Por Lead = Investimento Total ÷ Leads Totais do período.' },
+];
+
 export function StageFunnelWidget({ data, isDark = false, clientId }: Props) {
   const [diagnosis, setDiagnosis]     = useState<string | null>(null);
   const [diagnosing, setDiagnosing]   = useState(false);
   const [showDiagnosis, setShowDiagnosis] = useState(false);
   const [diagError, setDiagError]     = useState<string | null>(null);
+  const [showLegend, setShowLegend]   = useState(false);
 
   const { stages, conversionRates, bottleneck } = data;
   const tof = stages.find(s => s.code === 'TOF')!;
@@ -142,9 +159,45 @@ export function StageFunnelWidget({ data, isDark = false, clientId }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+
+      {/* ── Botão legenda ── */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowLegend(v => !v)}
+          className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          <InformationCircleIcon className="h-3.5 w-3.5" />
+          {showLegend ? 'Ocultar legenda' : 'Como interpretar?'}
+        </button>
+      </div>
+
+      {/* ── Painel legenda colapsável ── */}
+      <AnimatePresence>
+        {showLegend && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 grid grid-cols-1 gap-1.5">
+              {LEGEND_ITEMS.map(item => (
+                <div key={item.label} className="flex items-start gap-2">
+                  <span className="text-sm shrink-0 w-5 text-center leading-tight">{item.icon}</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black text-slate-700">{item.label} </span>
+                    <span className="text-[10px] text-slate-400">{item.desc}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Estágios + Taxas ── */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-stretch gap-1.5">
         <StageCard stage={tof} isBottleneck={bottleneck === 'TOF'} isDark={isDark} />
         <RateArrow label="CTR" value={conversionRates.tof_ctr} isBottleneck={bottleneck === 'TOF'} />
         <StageCard stage={mof} isBottleneck={bottleneck === 'MOF'} isDark={isDark} />

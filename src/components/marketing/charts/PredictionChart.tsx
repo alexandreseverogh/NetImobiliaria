@@ -11,15 +11,35 @@ interface Props {
   height?: number;
   formatter?: (v: number) => string;
   isDark?: boolean;
+  /** Multiplicador σ vindo da API — determina o label da banda dinamicamente */
+  sigmaMult?: number;
+}
+
+/**
+ * Converte multiplicador σ em percentual de confiança (distribuição normal).
+ * Usa aproximação de Abramowitz & Stegun para erf(z/√2).
+ * Exemplos: 1.0σ→68%, 1.5σ→87%, 1.96σ→95%, 2.0σ→95%
+ */
+function sigmaToConfidencePct(z: number): number {
+  const x = Math.abs(z / Math.SQRT2);
+  const p = 0.3275911;
+  const [a1, a2, a3, a4, a5] = [0.254829592, -0.284496736, 1.421413741, -1.453152027, 1.061405429];
+  const t = 1 / (1 + p * x);
+  const erf = 1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+  return Math.round(erf * 100);
 }
 
 export function PredictionChart({
   historical, predictions, label, color,
-  height = 260, formatter, isDark = true,
+  height = 260, formatter, isDark = true, sigmaMult,
 }: Props) {
   const todayStr = new Date().toISOString().split('T')[0];
   // Safe pattern id — strip special chars
   const sid = label.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  // Label da banda calculado dinamicamente a partir do σ retornado pela API
+  const bandaLabel = sigmaMult != null
+    ? `Banda ~${sigmaToConfidencePct(sigmaMult)}%`
+    : 'Banda';
 
   const combined = [
     ...historical.map(h => ({
@@ -77,7 +97,7 @@ export function PredictionChart({
               background: `repeating-linear-gradient(45deg, ${color}22, ${color}22 2px, ${color}44 2px, ${color}44 4px)`,
               border: `1px solid ${color}40`,
             }} />
-            Banda 95%
+            {bandaLabel}
           </span>
         </div>
       </div>

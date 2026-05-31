@@ -370,6 +370,23 @@ Mover para variáveis de ambiente. Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFOR
 Card visual do dashboard usa `8` e `12` hardcoded; regra de IA já usa `benchmarkResolver`.
 Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` seção 1.8.
 
+### 1.10 — Revisão do modelo de predições (pendente)
+O modelo atual usa **regressão linear simples** com banda de confiança `±1.5σ` (≈86.6%).
+Limitações conhecidas:
+- `stdDev` calculado sobre valores brutos (não resíduos da regressão) → superestima incerteza
+- Ignora sazonalidade semanal dos dados de campanha (leads caem no fim de semana)
+- Banda fixa; não se estreita com mais dados históricos
+
+**Candidatos avaliados para substituição:**
+| Modelo | Vantagem | Requisito |
+|--------|----------|-----------|
+| Holt-Winters (ES triplo) | Captura sazonalidade semanal, implementável em TS | ≥ 2 ciclos (≥14 dias histórico) |
+| ARIMA | Autocorrelação | Complexo em JS, lib externa |
+| Prophet-like | Tendência + sazonalidade + feriados | Depende de port TS ou serviço Python |
+
+**Recomendação:** Holt-Winters com período 7 — melhor custo/benefício para séries diárias de campanhas.
+**Ponto de entrada:** `src/app/api/admin/campanhas/dashboard/predictions/route.ts`, parâmetro `?model=linear|holt-winters` para comparar antes de migrar.
+
 ### 1.9 — Gestão de Providers e Modelos LLM pelo Master (pendente)
 UI CRUD para a tabela `LlmModel` em `/admin/master/ia-plataforma` (nova aba "Catálogo de Modelos").
 Permite ao Master adicionar providers, ativar/desativar modelos e marcar recomendados sem SQL.

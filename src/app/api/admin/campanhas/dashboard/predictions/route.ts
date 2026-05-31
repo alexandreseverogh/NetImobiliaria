@@ -95,6 +95,10 @@ export async function GET(request: NextRequest) {
     const sortedDays = [...dailyMap.keys()].sort();
     const today = new Date();
 
+    // Multiplicador de sigma para o intervalo de confiança da banda de projeção.
+    // ±1.5σ ≈ 86.6 % de confiança (distribuição normal).
+    const SIGMA_MULT = 1.5;
+
     function predict(values: number[]) {
       const points = values.map((y, x) => ({ x, y }));
       const { slope, intercept } = linearRegression(points);
@@ -110,8 +114,8 @@ export async function GET(request: NextRequest) {
         result.push({
           date: futureDate.toISOString().split('T')[0],
           predicted: Math.round(predicted * 100) / 100,
-          upperBound: Math.round((predicted + 1.5 * stdDev) * 100) / 100,
-          lowerBound: Math.round(Math.max(0, predicted - 1.5 * stdDev) * 100) / 100,
+          upperBound: Math.round((predicted + SIGMA_MULT * stdDev) * 100) / 100,
+          lowerBound: Math.round(Math.max(0, predicted - SIGMA_MULT * stdDev) * 100) / 100,
         });
       }
       return result;
@@ -155,6 +159,7 @@ export async function GET(request: NextRequest) {
       leads: predict(leadValues),
       ctr: predict(ctrValues),
       cpc: predict(cpcValues),
+      sigmaMult: SIGMA_MULT,
       historical: {
         dates: sortedDays,
         spend: spendValues,

@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     // Verificar permissão de execução server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'EXECUTE');
+    const denied = await requireApiPermission(request, 'dashboard-campanhas', 'READ');
     if (denied) return denied;
 
     const payload = getTokenPayload(request);

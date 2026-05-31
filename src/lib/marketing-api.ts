@@ -354,6 +354,8 @@ export interface PredictionData {
   leads: PredictionPoint[];
   ctr: PredictionPoint[];
   cpc: PredictionPoint[];
+  /** Multiplicador de sigma usado nas bandas (ex: 1.5 → ±1.5σ ≈ 86.6 %) */
+  sigmaMult?: number;
   historical: {
     dates: string[];
     spend: number[];

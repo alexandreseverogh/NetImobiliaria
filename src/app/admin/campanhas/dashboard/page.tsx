@@ -471,7 +471,8 @@ export function DashboardPage() {
                       className={`rounded-2xl p-6 ${cardBase}`}>
                       <PredictionChart isDark={isDark} label={p.label} color={p.color}
                         historical={predictions.historical.dates.map((dt, j) => ({ date: dt, value: (p.hist as number[])[j] }))}
-                        predictions={p.pred as any} formatter={p.fmt as any} />
+                        predictions={p.pred as any} formatter={p.fmt as any}
+                        sigmaMult={predictions.sigmaMult} />
                     </motion.div>
                   ))}
                 </div>
