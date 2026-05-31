@@ -36,9 +36,20 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const campaignId     = searchParams.get('campaignId');
-    const clientId       = searchParams.get('clientId');
-    const projectionDays = parseInt(searchParams.get('days') || '30');
+    const campaignId      = searchParams.get('campaignId');
+    const clientId        = searchParams.get('clientId');
+    const objectiveFilter = searchParams.get('objectiveFilter');
+    const statusFilter    = searchParams.get('statusFilter');
+    const adSetId         = searchParams.get('adSetId');
+    const startDateStr    = searchParams.get('startDate');
+    const endDateStr      = searchParams.get('endDate');
+    const projectionDays  = parseInt(searchParams.get('days') || '30');
+
+    // Janela histórica: usa o período selecionado (mínimo 14 dias para regressão)
+    const histEnd   = endDateStr   ? new Date(endDateStr)   : new Date();
+    const histStart = startDateStr
+      ? new Date(startDateStr)
+      : new Date(histEnd.getTime() - 60 * 86400000);
 
     const campaignWhere: any = { tenantId: payload.tenantId };
     if (campaignId) campaignWhere.id = campaignId;
@@ -47,6 +58,9 @@ export async function GET(request: NextRequest) {
     } else if (clientId) {
       campaignWhere.clientId = clientId;
     }
+    if (objectiveFilter) campaignWhere.objective = objectiveFilter;
+    if (statusFilter)    campaignWhere.status    = statusFilter;
+    if (adSetId)         campaignWhere.adSets    = { some: { id: adSetId } };
 
     const campaigns = await prisma.campaign.findMany({ where: campaignWhere });
     const campaignIds = campaigns.map(c => c.id);
@@ -59,7 +73,7 @@ export async function GET(request: NextRequest) {
       where: {
         tenantId: payload.tenantId,
         campaignId: { in: campaignIds },
-        date: { gte: new Date(Date.now() - 60 * 86400000) },
+        date: { gte: histStart, lte: histEnd },
       },
       orderBy: { date: 'asc' },
     });
@@ -120,7 +134,8 @@ export async function GET(request: NextRequest) {
       FROM campanhasmarketingdigital."Lead"
       WHERE "tenant_id" = ${payload.tenantId}::uuid
         AND "campaignId" = ANY(${campaignIds})
-        AND "clickedAt" >= ${new Date(Date.now() - 60 * 86400000)}::timestamp
+        AND "clickedAt" >= ${histStart}::timestamp
+        AND "clickedAt" <= ${histEnd}::timestamp
       GROUP BY DATE("clickedAt")
       ORDER BY date ASC
     `;

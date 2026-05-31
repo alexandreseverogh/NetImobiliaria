@@ -13,10 +13,18 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const campaignId = searchParams.get('campaignId') || undefined;
-    const clientId   = searchParams.get('clientId')   || undefined;
+    const campaignId      = searchParams.get('campaignId')      || undefined;
+    const clientId        = searchParams.get('clientId')        || undefined;
+    const objectiveFilter = searchParams.get('objectiveFilter') || undefined;
+    const statusFilter    = searchParams.get('statusFilter')    || undefined;
+    const adSetId         = searchParams.get('adSetId')         || undefined;
+    const startDate       = searchParams.get('startDate')       || undefined;
+    const endDate         = searchParams.get('endDate')         || undefined;
 
-    const insights = await generateAiInsights(campaignId, payload.tenantId, clientId);
+    const insights = await generateAiInsights(
+      campaignId, payload.tenantId, clientId,
+      { objectiveFilter, statusFilter, adSetId, startDate, endDate },
+    );
 
     return NextResponse.json(insights);
   } catch (error: any) {

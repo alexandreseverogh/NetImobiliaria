@@ -107,10 +107,19 @@ function calculateTrend(insights: any[]): 'up' | 'down' | 'stable' {
   return 'stable';
 }
 
+interface AiInsightFilters {
+  objectiveFilter?: string;
+  statusFilter?: string;
+  adSetId?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
 export async function generateAiInsights(
   campaignId?: string,
   tenantId?: string,
   clientId?: string,
+  filters?: AiInsightFilters,
 ) {
   const where: any = {};
   if (campaignId) where.id = campaignId;
@@ -120,6 +129,9 @@ export async function generateAiInsights(
   } else if (clientId) {
     where.clientId = clientId;
   }
+  if (filters?.objectiveFilter) where.objective = filters.objectiveFilter;
+  if (filters?.statusFilter)    where.status    = filters.statusFilter;
+  if (filters?.adSetId)         where.adSets    = { some: { id: filters.adSetId } };
 
   const campaigns = await prisma.campaign.findMany({ where });
 
@@ -139,6 +151,11 @@ export async function generateAiInsights(
   for (const campaign of campaigns) {
     const insightWhere: any = { campaignId: campaign.id };
     if (tenantId) insightWhere.tenantId = tenantId;
+    if (filters?.startDate || filters?.endDate) {
+      insightWhere.date = {};
+      if (filters.startDate) insightWhere.date.gte = new Date(filters.startDate);
+      if (filters.endDate)   insightWhere.date.lte = new Date(filters.endDate);
+    }
 
     const insights = await prisma.insight.findMany({
       where: insightWhere,

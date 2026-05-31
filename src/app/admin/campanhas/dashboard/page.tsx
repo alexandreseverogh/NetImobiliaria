@@ -85,16 +85,21 @@ export function DashboardPage() {
       if (adSetFilter)                         params.adSetId         = adSetFilter;
       if (clientFilter && clientFilter !== 'all') params.clientId     = clientFilter;
 
-      const funnelParams: any = {
-        startDate: params.startDate,
-        endDate:   params.endDate,
+      // Parâmetros compartilhados por todos os endpoints
+      const sharedFilters: any = {
+        startDate:       params.startDate,
+        endDate:         params.endDate,
+        ...(selectedCampaign                             && { campaignId:      selectedCampaign }),
+        ...(objectiveFilter                              && { objectiveFilter }),
+        ...(statusFilter                                 && { statusFilter }),
+        ...(adSetFilter                                  && { adSetId:         adSetFilter }),
+        ...(clientFilter && clientFilter !== 'all'       && { clientId:        clientFilter }),
       };
-      if (clientFilter && clientFilter !== 'all') funnelParams.clientId = clientFilter;
 
       const [dashData, predData, funData] = await Promise.all([
         getDashboardFull(params).catch((e) => { console.error('[Dashboard] getDashboardFull:', e); return null; }),
-        getDashboardPredictions({ campaignId: selectedCampaign || undefined }).catch(() => null),
-        getFunnelData(funnelParams).catch(() => null),
+        getDashboardPredictions(sharedFilters).catch(() => null),
+        getFunnelData(sharedFilters).catch(() => null),
       ]);
       if (dashData) setData(dashData);
       if (predData) setPredictions(predData);
@@ -103,7 +108,7 @@ export function DashboardPage() {
       Promise.all([
         getLatestBriefing().catch(() => null),
         getBriefings({ limit: 5 }).catch(() => []),
-        getAiInsights({ campaignId: selectedCampaign || undefined }).catch(() => []),
+        getAiInsights(sharedFilters).catch(() => []),
       ]).then(([latestBriefing, history, aiData]) => {
         setBriefing(latestBriefing);
         setBriefingHistory(history as StrategicBriefingData[]);
@@ -506,6 +511,18 @@ export function DashboardPage() {
                   </ExecuteGuard>
                 </div>
               </div>
+              {/* Aviso quando filtros ativos (briefing não é dinâmico) */}
+              {(selectedCampaign || objectiveFilter || statusFilter || adSetFilter || (clientFilter && clientFilter !== 'all')) && (
+                <div className={`mb-3 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-semibold border ${
+                  isDark
+                    ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                    : 'bg-amber-50 border-amber-200 text-amber-700'
+                }`}>
+                  <span>⚠️</span>
+                  Briefing gerado para dados globais — não reflete os filtros ativos. Clique em "Gerar Novo" para um briefing filtrado.
+                </div>
+              )}
+
               {briefing
                 ? <BriefingCard briefing={briefing} isDark={isDark} />
                 : (
