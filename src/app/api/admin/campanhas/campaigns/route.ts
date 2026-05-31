@@ -46,10 +46,16 @@ export async function POST(request: NextRequest) {
     if (!payload?.tenantId) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
-    // Verificar permissão: Master tem passe global; tenant precisa de permissão campanhasmarketingdigital
+    // Verificar permissão — slugs reais do JWT:
+    //   Master global       → is_system_role = true
+    //   Tenant com acesso   → permissoes['lancar-campanha'] = ADMIN|CREATE|UPDATE
+    //                      ou permissoes['campanhasmarketingdigital'] (fallback legado)
     const isMaster = (payload as any).is_system_role === true;
     const permissoes = (payload as any).permissoes || {};
-    const hasPermission = isMaster || ['CREATE','UPDATE','ADMIN'].includes(permissoes['campanhasmarketingdigital']);
+    const ALLOWED = ['CREATE', 'UPDATE', 'ADMIN'];
+    const hasPermission = isMaster
+      || ALLOWED.includes(permissoes['lancar-campanha'])
+      || ALLOWED.includes(permissoes['campanhasmarketingdigital']);
     if (!hasPermission) {
       return NextResponse.json({ error: 'Acesso negado', detail: 'Sem permissão para criar campanhas' }, { status: 403 });
     }
