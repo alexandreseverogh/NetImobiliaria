@@ -619,7 +619,7 @@ function RetrovisorSection({ isDark, children }: { isDark: boolean; children: Re
         <RetrovisorIcon isDark={isDark} />
         <div>
           <p className={`text-[9px] font-black uppercase tracking-[0.35em] mb-0.5 ${isDark ? 'text-amber-700' : 'text-amber-500'}`}>
-            Retrovisão
+            Retrovisor
           </p>
           <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
             Performance Histórica
@@ -667,35 +667,63 @@ function FarolSection({ isDark, children }: { isDark: boolean; children: React.R
 // ═════════════════════════════════════════════════════════════════════════════
 
 function RetrovisorIcon({ isDark }: { isDark: boolean }) {
-  const s = isDark ? '#d97706' : '#b45309';   // amber stroke
-  const f = isDark ? 'rgba(217,119,6,0.10)' : 'rgba(180,83,9,0.07)'; // mirror fill
-  const g = isDark ? 'rgba(217,119,6,0.15)' : 'rgba(180,83,9,0.08)'; // halo
+  const s  = isDark ? '#d97706' : '#b45309';                          // amber stroke
+  const f  = isDark ? 'rgba(217,119,6,0.10)' : 'rgba(180,83,9,0.07)'; // mirror fill
+  const g  = isDark ? 'rgba(217,119,6,0.15)' : 'rgba(180,83,9,0.08)'; // halo
+  const rf = isDark ? 'rgba(217,119,6,0.09)' : 'rgba(180,83,9,0.07)'; // road fill
   return (
     <svg width="56" height="52" viewBox="0 0 56 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        {/* Clip road elements to inside the glass area */}
+        <clipPath id="retrovisor-glass">
+          <rect x="6" y="21" width="44" height="16" rx="4.5" />
+        </clipPath>
+      </defs>
+
       {/* Halo behind mirror body */}
       <rect x="0" y="14" width="56" height="28" rx="9" fill={g} />
 
       {/* ── Mirror frame — wide modern rectangular shape ── */}
       <rect x="2" y="17" width="52" height="24" rx="7" stroke={s} strokeWidth="2.2" fill={f} />
 
-      {/* Inner glass bezel (inset) */}
+      {/* Inner glass bezel */}
       <rect x="5.5" y="20.5" width="45" height="17" rx="5" stroke={s} strokeWidth="0.8" strokeOpacity="0.3" fill="none" />
 
-      {/* Convex-glass reflection arc — horizontal curve across glass */}
-      <path d="M10 27 Q28 23 46 27" stroke={s} strokeWidth="1.2" strokeOpacity="0.24" fill="none" />
+      {/* ─── Sinuous road receding into the distance ─── */}
+      {/* Road surface fill (between left and right S-curve edges) */}
+      <path
+        d="M 21 37 C 16 32, 27 28, 24 24 C 22 21.5, 26 21, 28 21
+           C 30 21, 34 21.5, 32 24 C 29 28, 40 32, 35 37 Z"
+        fill={rf}
+        clipPath="url(#retrovisor-glass)"
+      />
+      {/* Left road edge — S-curve to vanishing point */}
+      <path
+        d="M 21 37 C 16 32, 27 28, 24 24 C 22 21.5, 26 21, 28 21"
+        stroke={s} strokeWidth="0.9" strokeOpacity="0.50" fill="none"
+        clipPath="url(#retrovisor-glass)"
+      />
+      {/* Right road edge — mirrored S-curve */}
+      <path
+        d="M 35 37 C 40 32, 29 28, 32 24 C 34 21.5, 30 21, 28 21"
+        stroke={s} strokeWidth="0.9" strokeOpacity="0.50" fill="none"
+        clipPath="url(#retrovisor-glass)"
+      />
+      {/* Center dashes — sinuous, follow road centerline */}
+      <path
+        d="M 28 22 C 28 23.5, 27 25.5, 26.5 27.5 C 26 29.5, 27.5 32, 28 35"
+        stroke={s} strokeWidth="0.7" strokeOpacity="0.32"
+        strokeDasharray="1.8 2.4" fill="none"
+        clipPath="url(#retrovisor-glass)"
+      />
 
-      {/* Shimmer / glare patch — left side */}
-      <rect x="8" y="22" width="14" height="9" rx="3" fill={s} fillOpacity="0.18" transform="skewX(-7)" />
+      {/* Convex-glass reflection shimmer */}
+      <path d="M 10 26 Q 28 22.5 46 26" stroke={s} strokeWidth="1" strokeOpacity="0.18" fill="none" />
+      {/* Glare patch — upper-left corner */}
+      <rect x="8" y="22" width="10" height="5" rx="2" fill={s} fillOpacity="0.13" transform="skewX(-8)" clipPath="url(#retrovisor-glass)" />
 
-      {/* Faint secondary glare — right side */}
-      <rect x="38" y="22" width="6" height="5" rx="2" fill={s} fillOpacity="0.10" transform="skewX(-7)" />
-
-      {/* Very faint electrochromic sensor dot (modern auto-dimming mirrors) */}
-      <circle cx="28" cy="29" r="1.5" fill={s} fillOpacity="0.18" />
-
-      {/* ── Mounting arm — short, from top of mirror to windshield ── */}
+      {/* ── Mounting arm ── */}
       <line x1="28" y1="17" x2="28" y2="8" stroke={s} strokeWidth="2.5" strokeLinecap="round" />
-
       {/* Ball joint housing */}
       <circle cx="28" cy="6" r="4.5" stroke={s} strokeWidth="1.5" fill={f} />
       {/* Ball joint core */}
