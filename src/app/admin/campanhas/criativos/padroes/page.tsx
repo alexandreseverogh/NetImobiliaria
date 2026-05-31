@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ChartBarIcon, SparklesIcon, ArrowLeftIcon, ArrowPathIcon,
-  TrophyIcon, XMarkIcon, LightBulbIcon, CheckIcon,
+  TrophyIcon, XMarkIcon, LightBulbIcon, CheckIcon, RocketLaunchIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 
@@ -75,6 +76,15 @@ function ConceptModal({ concepts, pattern, onClose }: {
   onClose: () => void;
 }) {
   const [saved, setSaved] = useState<number[]>([]);
+  const router = useRouter();
+
+  function useInWizard(c: Concept) {
+    const params = new URLSearchParams();
+    if (c.body)      params.set('body',      c.body);
+    if (c.headline)  params.set('headline',  c.headline);
+    if (c.hook_text) params.set('hookText',  c.hook_text);
+    router.push(`/admin/campanhas/nova?${params.toString()}`);
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -111,16 +121,26 @@ function ConceptModal({ concepts, pattern, onClose }: {
                       {FORMAT_LABELS[c.format] ?? c.format}
                     </span>
                   </div>
-                  <button
-                    onClick={() => setSaved(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                      saved.includes(i)
-                        ? 'bg-green-100 text-green-700 border border-green-200'
-                        : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700'
-                    }`}
-                  >
-                    {saved.includes(i) ? <><CheckIcon className="h-3 w-3" /> Salvo</> : 'Salvar'}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setSaved(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                        saved.includes(i)
+                          ? 'bg-green-100 text-green-700 border border-green-200'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {saved.includes(i) ? <><CheckIcon className="h-3 w-3" /> Salvo</> : 'Salvar'}
+                    </button>
+                    <button
+                      onClick={() => useInWizard(c)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
+                      title="Pré-preenche o wizard de campanha com este copy"
+                    >
+                      <RocketLaunchIcon className="h-3 w-3" />
+                      Usar no Wizard
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2 text-xs">

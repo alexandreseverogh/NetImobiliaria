@@ -28,6 +28,15 @@ interface Props {
    * Usados para vincular o ad_id após o lançamento e fechar o loop de correlação.
    */
   getAssetIds?: () => Promise<string[]>;
+  /**
+   * Pré-preenchimento vindo de "Usar no Wizard" na página Padrões Vencedores.
+   * Popula os campos de texto antes do usuário chegar ao step 2.
+   */
+  initialValues?: {
+    body?:     string;
+    headline?: string;
+    hookText?: string;  // exibido como dica no step 2
+  };
 }
 
 /* ── AutoChip ────────────────────────────────────────────── */
@@ -73,7 +82,7 @@ function Label({ children, className }: { children: React.ReactNode; className?:
 /* ══════════════════════════════════════════════════════════
    MAIN WIZARD COMPONENT — FASE 2 (configuração da campanha)
 ══════════════════════════════════════════════════════════ */
-export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds }: Props) {
+export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds, initialValues }: Props) {
   const selectedImages = selectedImagesProp ?? [];
   const [step, setStep]             = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -93,8 +102,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     networkCode:  'meta',
     creativeType: selectedImages.length === 1 ? 'SINGLE_IMAGE' : '',
     name:         '',
-    body:         '',
-    headline:     '',
+    body:         initialValues?.body     || '',
+    headline:     initialValues?.headline || '',
     linkUrl:      '',
     ctaType:      'WHATSAPP_MESSAGE',
     whatsappNumber:  '',
@@ -352,7 +361,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
             >
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} />}
               {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} />}
-              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} />}
+              {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
               {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} />}
@@ -614,12 +623,27 @@ function StepType({ form, updateForm, selectedImages }: any) {
    STEP 2 — TEXTO & CTA
 ══════════════════════════════════════════════════════════ */
 
-function StepTextCta({ form, updateForm, autoFields }: any) {
+function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }: any) {
   const isAutoWhatsapp = !!autoFields?.whatsappNumber && form.whatsappNumber === autoFields.whatsappNumber;
   const isAutoMessage  = !!autoFields?.whatsappMessage && form.whatsappMessage === autoFields.whatsappMessage;
 
   return (
     <div className="space-y-8">
+
+      {/* Banner: texto pré-preenchido pela IA */}
+      {isPrefilled && (
+        <div className="flex items-start gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl px-5 py-4">
+          <span className="text-lg shrink-0">✨</span>
+          <div>
+            <p className="text-sm font-bold text-indigo-800">Texto gerado pela IA</p>
+            <p className="text-xs text-indigo-600 mt-0.5">
+              Headline e copy foram pré-preenchidos a partir do conceito que você escolheu em <strong>Padrões Vencedores</strong>.
+              Edite à vontade antes de lançar.
+            </p>
+          </div>
+        </div>
+      )}
+
       <Section title="Conteúdo do Anúncio">
         <div>
           <Label>Texto do Anúncio *</Label>
@@ -630,6 +654,16 @@ function StepTextCta({ form, updateForm, autoFields }: any) {
             rows={5}
             className={cn(inputCls, 'w-full resize-none')}
           />
+          {hookTextHint && (
+            <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+              <span className="text-xs shrink-0 mt-0.5">🪝</span>
+              <p className="text-xs text-amber-800">
+                <span className="font-bold">Hook sugerido:</span>{' '}
+                <span className="italic">"{hookTextHint}"</span>
+                <span className="text-amber-600 ml-1">(já incluído no texto acima)</span>
+              </p>
+            </div>
+          )}
         </div>
         <div className="max-w-lg">
           <Label>Título / Headline</Label>

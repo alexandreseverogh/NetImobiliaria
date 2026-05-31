@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import dynamic from 'next/dynamic';
 import {
@@ -32,7 +32,13 @@ function isImage(name: string) {
 ══════════════════════════════════════════════════════════ */
 export default function NovaCampanhaPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
+
+  /* Pré-preenchimento via query params (vem de "Usar no Wizard" na página Padrões) */
+  const prefillBody     = searchParams?.get('body')     || '';
+  const prefillHeadline = searchParams?.get('headline') || '';
+  const prefillHookText = searchParams?.get('hookText') || '';
 
   /* master detectado via is_system_role
    * Prioridade: user.is_system_role (do auth context, após /me ser corrigido)
@@ -224,6 +230,11 @@ export default function NovaCampanhaPage() {
         onClose={() => setShowWizard(false)}
         onSuccess={handleSuccess}
         getAssetIds={() => uploadPromiseRef.current}
+        initialValues={
+          (prefillBody || prefillHeadline)
+            ? { body: prefillBody || undefined, headline: prefillHeadline || undefined, hookText: prefillHookText || undefined }
+            : undefined
+        }
       />
     );
   }
