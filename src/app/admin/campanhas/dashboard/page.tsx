@@ -667,10 +667,10 @@ function FarolSection({ isDark, children }: { isDark: boolean; children: React.R
 // ═════════════════════════════════════════════════════════════════════════════
 
 function RetrovisorIcon({ isDark }: { isDark: boolean }) {
-  const s  = isDark ? '#d97706' : '#b45309';                          // amber stroke
-  const f  = isDark ? 'rgba(217,119,6,0.10)' : 'rgba(180,83,9,0.07)'; // mirror fill
-  const g  = isDark ? 'rgba(217,119,6,0.15)' : 'rgba(180,83,9,0.08)'; // halo
-  const rf = isDark ? 'rgba(217,119,6,0.09)' : 'rgba(180,83,9,0.07)'; // road fill
+  const s  = isDark ? '#22d3ee' : '#0891b2';                            // cyan stroke
+  const f  = isDark ? 'rgba(34,211,238,0.10)' : 'rgba(8,145,178,0.07)'; // mirror fill
+  const g  = isDark ? 'rgba(34,211,238,0.15)' : 'rgba(8,145,178,0.08)'; // halo
+  const rf = isDark ? 'rgba(34,211,238,0.09)' : 'rgba(8,145,178,0.07)'; // road fill
   return (
     <svg width="56" height="52" viewBox="0 0 56 52" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
