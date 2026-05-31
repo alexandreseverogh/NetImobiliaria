@@ -34,7 +34,7 @@ export const LIFECYCLE_COLORS: Record<LifecycleStatus, string> = {
   SCALING:  'bg-emerald-100 text-emerald-700',
   FATIGUED: 'bg-red-100 text-red-700',
   PAUSED:   'bg-orange-100 text-orange-700',
-  KILLED:   'bg-zinc-700/40 text-zinc-400 border border-zinc-600/30',
+  KILLED:   'bg-zinc-700 text-zinc-300 border border-zinc-500/60',
 };
 
 export const LIFECYCLE_EMOJI: Record<LifecycleStatus, string> = {
