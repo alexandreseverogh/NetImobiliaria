@@ -82,6 +82,10 @@ export interface InsightData {
   ctr: number;
   conversions: number;
   frequency: number;
+  // FASE 5 — Video Metrics
+  videoViews3s?: number;
+  videoViews15s?: number;
+  thruplayViews?: number;
 }
 
 export interface AiInsightData {

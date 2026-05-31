@@ -19,6 +19,10 @@ const GLOBAL_FALLBACKS: Record<string, number> = {
   spend_no_lead: 50,
   min_leads_scale: 5,
   min_days_running: 3,
+  // FASE 5 — Hook Rate (% de impressões que assistem 3s)
+  hook_rate_critical: 8,
+  hook_rate_min: 12,
+  hook_rate_good: 22,
 };
 
 /**

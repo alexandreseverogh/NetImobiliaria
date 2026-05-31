@@ -13,6 +13,9 @@ interface CampaignData {
   avgFrequency: number;
   trend: 'up' | 'down' | 'stable';
   daysRunning: number;
+  // FASE 5 — Video Metrics
+  hasVideoMetrics: boolean;
+  avgHookRate: number;  // video_views_3s / impressions * 100
 }
 
 interface InsightRule {
@@ -74,6 +77,22 @@ const RULES: InsightRule[] = [
     },
     confidence: () => 0.75,
   },
+  // FASE 5 — Hook Rate fraco (só dispara para campanhas com vídeo)
+  {
+    check: (d, b) => d.hasVideoMetrics && d.avgHookRate > 0 && d.avgHookRate < (b.hook_rate_min ?? 12),
+    type: 'ALERT',
+    title: 'Hook Rate fraco',
+    description: (d, b) => {
+      const isCritical = d.avgHookRate < (b.hook_rate_critical ?? 8);
+      return isCritical
+        ? `Hook Rate ${d.avgHookRate.toFixed(1)}% na campanha "${d.campaignName}" está CRÍTICO (mínimo: ${b.hook_rate_critical ?? 8}%). O vídeo não está retendo atenção — considere pausar e regravar a abertura.`
+        : `Hook Rate ${d.avgHookRate.toFixed(1)}% na campanha "${d.campaignName}" está abaixo do esperado (ideal: ${b.hook_rate_min ?? 12}%). Revise os primeiros 3 segundos do vídeo.`;
+    },
+    confidence: (d, b) => {
+      const gap = (b.hook_rate_min ?? 12) - d.avgHookRate;
+      return Math.min(0.95, 0.6 + gap * 0.03);
+    },
+  },
 ];
 
 function calculateTrend(insights: any[]): 'up' | 'down' | 'stable' {
@@ -108,12 +127,12 @@ export async function generateAiInsights(
   const segment = tenantId ? await resolveSegment(tenantId, clientId) : null;
   const benchmarks = tenantId
     ? await resolveBenchmarks(
-        ['cpl_ideal', 'ctr_min', 'ctr_scale', 'frequency_max', 'spend_no_lead', 'min_leads_scale', 'min_days_running'],
+        ['cpl_ideal', 'ctr_min', 'ctr_scale', 'frequency_max', 'spend_no_lead', 'min_leads_scale', 'min_days_running', 'hook_rate_critical', 'hook_rate_min'],
         tenantId,
         segment?.id ?? null,
         clientId,
       )
-    : { cpl_ideal: 30, ctr_min: 1, ctr_scale: 2, frequency_max: 3, spend_no_lead: 50, min_leads_scale: 5, min_days_running: 3 };
+    : { cpl_ideal: 30, ctr_min: 1, ctr_scale: 2, frequency_max: 3, spend_no_lead: 50, min_leads_scale: 5, min_days_running: 3, hook_rate_critical: 8, hook_rate_min: 12 };
 
   const allInsights: any[] = [];
 
@@ -138,6 +157,13 @@ export async function generateAiInsights(
     const totalClicks      = insights.reduce((s, i) => s + i.clicks, 0);
     const avgFrequency     = insights.reduce((s, i) => s + (i.frequency || 0), 0) / insights.length;
 
+    // FASE 5 — Video Metrics
+    const totalVideoViews3s = insights.reduce((s, i) => s + (i.videoViews3s || 0), 0);
+    const hasVideoMetrics   = totalVideoViews3s > 0;
+    const avgHookRate       = hasVideoMetrics && totalImpressions > 0
+      ? (totalVideoViews3s / totalImpressions) * 100
+      : 0;
+
     const data: CampaignData = {
       campaignId: campaign.id,
       campaignName: campaign.name,
@@ -149,6 +175,8 @@ export async function generateAiInsights(
       avgFrequency,
       trend: calculateTrend(insights),
       daysRunning: insights.length,
+      hasVideoMetrics,
+      avgHookRate,
     };
 
     for (const rule of RULES) {

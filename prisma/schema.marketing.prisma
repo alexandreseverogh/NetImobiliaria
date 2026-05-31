@@ -121,25 +121,33 @@ model Ad {
 }
 
 model Insight {
-  id          String   @id @default(uuid())
-  tenantId    String?  @map("tenant_id") @db.Uuid
-  campaignId  String
-  adSetId     String?
-  adId        String?
-  date        DateTime
-  impressions Int      @default(0)
-  reach       Int      @default(0)
-  clicks      Int      @default(0)
-  spend       Float    @default(0)
-  cpc         Float?
-  cpm         Float?
-  ctr         Float?
-  conversions Int      @default(0)
-  frequency   Float?
-  engagement  Int      @default(0)
-  videoViews  Int?
-  breakdowns  Json?
-  createdAt   DateTime @default(now())
+  id               String   @id @default(uuid())
+  tenantId         String?  @map("tenant_id") @db.Uuid
+  campaignId       String
+  adSetId          String?
+  adId             String?
+  date             DateTime
+  impressions      Int      @default(0)
+  reach            Int      @default(0)
+  clicks           Int      @default(0)
+  spend            Float    @default(0)
+  cpc              Float?
+  cpm              Float?
+  ctr              Float?
+  conversions      Int      @default(0)
+  frequency        Float?
+  engagement       Int      @default(0)
+  videoViews       Int?
+  // FASE 5 — Video Metrics
+  videoViews3s     Int      @default(0) @map("video_views_3s")
+  videoViews15s    Int      @default(0) @map("video_views_15s")
+  videoViews25Pct  Int      @default(0) @map("video_views_25_pct")
+  videoViews50Pct  Int      @default(0) @map("video_views_50_pct")
+  videoViews75Pct  Int      @default(0) @map("video_views_75_pct")
+  videoViews100Pct Int      @default(0) @map("video_views_100_pct")
+  thruplayViews    Int      @default(0) @map("thruplay_views")
+  breakdowns       Json?
+  createdAt        DateTime @default(now())
 
   @@index([campaignId, date])
   @@index([tenantId])

@@ -163,15 +163,23 @@ export async function syncMetrics() {
         for (const day of insights) {
           const insightId = `${campaign.id}-${day.date}`;
           const insightBase = {
-            impressions: day.impressions,
-            reach:       day.reach,
-            clicks:      day.clicks,
-            spend:       day.spend,
-            cpc:         day.cpc,
-            cpm:         day.cpm,
-            ctr:         day.ctr,
-            frequency:   day.frequency,
-            breakdowns:  {},
+            impressions:      day.impressions,
+            reach:            day.reach,
+            clicks:           day.clicks,
+            spend:            day.spend,
+            cpc:              day.cpc,
+            cpm:              day.cpm,
+            ctr:              day.ctr,
+            frequency:        day.frequency,
+            // FASE 5 — Video Metrics
+            videoViews3s:     day.videoViews3s     ?? 0,
+            videoViews15s:    day.videoViews15s    ?? 0,
+            videoViews25Pct:  day.videoViews25Pct  ?? 0,
+            videoViews50Pct:  day.videoViews50Pct  ?? 0,
+            videoViews75Pct:  day.videoViews75Pct  ?? 0,
+            videoViews100Pct: day.videoViews100Pct ?? 0,
+            thruplayViews:    day.thruplayViews    ?? 0,
+            breakdowns:       (day as any).breakdowns ?? {},
           };
           await prisma.insight.upsert({
             where: { id: insightId },

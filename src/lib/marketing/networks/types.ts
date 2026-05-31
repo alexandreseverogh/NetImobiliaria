@@ -21,6 +21,15 @@ export interface NetworkInsight {
   frequency: number;
   conversions: number;
   leads: number;
+  // FASE 5 — Video Metrics
+  videoViews3s?: number;
+  videoViews15s?: number;
+  videoViews25Pct?: number;
+  videoViews50Pct?: number;
+  videoViews75Pct?: number;
+  videoViews100Pct?: number;
+  thruplayViews?: number;
+  breakdowns?: Record<string, any>;
 }
 
 export interface TargetingResult {

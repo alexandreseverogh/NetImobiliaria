@@ -271,10 +271,18 @@ export class MetaAdsAdapter implements AdNetworkService {
         fields: [
           'impressions', 'reach', 'clicks', 'spend', 'cpc', 'cpm', 'ctr',
           'actions', 'frequency',
-          // ROI + conversão (seção 1.6 — FASE 5 estendida)
+          // ROI + conversão (seção 1.6)
           'action_values', 'cost_per_action_type',
           'quality_ranking', 'engagement_rate_ranking', 'conversion_rate_ranking',
           'link_clicks', 'landing_page_views',
+          // FASE 5 — Video Metrics
+          'video_3_sec_watched_actions',
+          'video_15_sec_watched_actions',
+          'video_p25_watched_actions',
+          'video_p50_watched_actions',
+          'video_p75_watched_actions',
+          'video_p100_watched_actions',
+          'video_thruplay_watched_actions',
         ].join(','),
         time_range:     JSON.stringify({ since: dateRange.since, until: dateRange.until }),
         time_increment: 1,
@@ -285,9 +293,13 @@ export class MetaAdsAdapter implements AdNetworkService {
     return (res.data.data || []).map((row: any) => {
       const actions: any[]       = row.actions || [];
       const actionValues: any[]  = row.action_values || [];
-      const leads      = actions.find((a) => a.action_type === 'lead')?.value || 0;
-      const purchases  = actions.find((a) => a.action_type === 'offsite_conversion.fb_pixel_purchase')?.value || 0;
-      const purchaseValue = actionValues.find((a) => a.action_type === 'offsite_conversion.fb_pixel_purchase')?.value || 0;
+      const leads      = actions.find((a: any) => a.action_type === 'lead')?.value || 0;
+      const purchases  = actions.find((a: any) => a.action_type === 'offsite_conversion.fb_pixel_purchase')?.value || 0;
+      const purchaseValue = actionValues.find((a: any) => a.action_type === 'offsite_conversion.fb_pixel_purchase')?.value || 0;
+
+      // FASE 5 — extrai views de video (Meta retorna arrays de action_type objects)
+      const pickVideoAction = (arr: any[] | undefined) =>
+        parseInt((arr?.[0]?.value) || 0);
 
       return {
         date:        row.date_start,
@@ -301,7 +313,15 @@ export class MetaAdsAdapter implements AdNetworkService {
         frequency:   parseFloat(row.frequency  || 0),
         conversions: parseInt(purchases),
         leads:       parseInt(leads),
-        // Campos de ROI (FASE 5 estendida) — armazenados em breakdowns
+        // FASE 5 — Video Metrics
+        videoViews3s:     pickVideoAction(row.video_3_sec_watched_actions),
+        videoViews15s:    pickVideoAction(row.video_15_sec_watched_actions),
+        videoViews25Pct:  pickVideoAction(row.video_p25_watched_actions),
+        videoViews50Pct:  pickVideoAction(row.video_p50_watched_actions),
+        videoViews75Pct:  pickVideoAction(row.video_p75_watched_actions),
+        videoViews100Pct: pickVideoAction(row.video_p100_watched_actions),
+        thruplayViews:    pickVideoAction(row.video_thruplay_watched_actions),
+        // Campos de ROI — armazenados em breakdowns
         breakdowns: {
           purchase_value:       parseFloat(purchaseValue),
           quality_ranking:      row.quality_ranking,

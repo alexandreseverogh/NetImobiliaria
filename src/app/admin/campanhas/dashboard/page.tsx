@@ -163,6 +163,13 @@ export function DashboardPage() {
     cpl: (dailyLeadsMap.get(cd.date) || 0) > 0 ? cd.spend / (dailyLeadsMap.get(cd.date) || 1) : 0,
   }));
 
+  // FASE 5 — Hook Rate (video_views_3s / impressions * 100)
+  const totalVideoViews3s = data?.currentPeriod.insights.reduce((s, i) => s + ((i as any).videoViews3s || 0), 0) ?? 0;
+  const totalImpressions  = t?.impressions || 0;
+  const hookRate          = totalVideoViews3s > 0 && totalImpressions > 0
+    ? (totalVideoViews3s / totalImpressions) * 100
+    : null;
+
   const campaignSpendData = campaigns
     .filter(c => c.adSets.length > 0)
     .map((c, i) => ({
@@ -262,7 +269,7 @@ export function DashboardPage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-11 gap-3 mb-6">
+        <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6 ${hookRate !== null ? 'xl:grid-cols-12' : 'xl:grid-cols-11'}`}>
           <KpiCard label="Gasto"      value={formatCurrency(t?.spend || 0)}                    delta={d?.spend}       color="text-red-600"    invertDelta />
           <KpiCard label="Impressões" value={formatNumber(t?.impressions || 0)}                 delta={d?.impressions} color="text-blue-600" />
           <KpiCard label="Alcance"    value={formatNumber(t?.reach || 0)}                       delta={d?.reach}       color="text-cyan-600" />
@@ -274,6 +281,14 @@ export function DashboardPage() {
           <KpiCard label="Leads"      value={formatNumber(data?.currentPeriod.leadCount || 0)}  delta={d?.leads}       color="text-indigo-600" />
           <KpiCard label="CPL"        value={formatCurrency(cpl)}                               color="text-teal-600" />
           <KpiCard label="Budget/dia" value={formatCurrency(campaignSpendData.reduce((s, c) => s + c.value, 0))} color="text-gray-900" />
+          {hookRate !== null && (
+            <KpiCard
+              label="Hook Rate"
+              value={`${hookRate.toFixed(1)}%`}
+              color={hookRate < 8 ? 'text-red-600' : hookRate < 12 ? 'text-amber-600' : 'text-emerald-600'}
+              tooltip="Vídeos: views 3s / impressões × 100"
+            />
+          )}
         </div>
 
         {loading ? (
@@ -510,8 +525,8 @@ export function DashboardPage() {
   );
 }
 
-function KpiCard({ label, value, color, delta, invertDelta }: {
-  label: string; value: string; color: string; delta?: number; invertDelta?: boolean;
+function KpiCard({ label, value, color, delta, invertDelta, tooltip }: {
+  label: string; value: string; color: string; delta?: number; invertDelta?: boolean; tooltip?: string;
 }) {
   let deltaColor = 'text-gray-400';
   let deltaIcon  = '';
@@ -524,7 +539,7 @@ function KpiCard({ label, value, color, delta, invertDelta }: {
     deltaIcon  = isPositive ? '↑' : '↓';
   }
   return (
-    <div className="
+    <div title={tooltip} className="
       group bg-white rounded-2xl border border-gray-100/80
       shadow-[0_2px_8px_rgba(0,0,0,0.05),0_0_1px_rgba(0,0,0,0.04)]
       hover:shadow-[0_6px_20px_rgba(0,0,0,0.09),0_0_1px_rgba(0,0,0,0.04)]
