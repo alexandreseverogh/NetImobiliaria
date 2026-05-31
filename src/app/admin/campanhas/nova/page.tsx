@@ -13,6 +13,7 @@ import type { Creative, ClientWithCreativesPath } from '@/lib/marketing-api';
 import { getClientCreativePaths } from '@/lib/marketing-api';
 import { cn } from '@/lib/marketing-utils';
 import { useAuth } from '@/hooks/useAuth';
+import { adminFetch } from '@/lib/auth/adminFetch';
 
 const CampaignWizard = dynamic(
   () => import('@/components/marketing/CampaignWizard').then(m => m.CampaignWizard),
@@ -175,10 +176,9 @@ export default function NovaCampanhaPage() {
         fd.append('file', file);
         if (clientId) fd.append('clientId', clientId);
         try {
-          const res = await fetch('/api/admin/campanhas/criativos/upload', {
+          const res = await adminFetch('/api/admin/campanhas/criativos/upload', {
             method: 'POST',
             body: fd,
-            credentials: 'include',
           });
           if (!res.ok) return null;
           const data = await res.json();
