@@ -12,6 +12,7 @@ import {
 import { formatCurrency, formatNumber, formatPercent, cn, OBJECTIVES } from '@/lib/marketing-utils';
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
 import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
+import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelChart';
 import { StageFunnelWidget } from '@/components/marketing/StageFunnelWidget';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
 import { ArrowPathIcon, SparklesIcon, ClockIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
@@ -439,6 +440,14 @@ export function DashboardPage() {
                   )}
                 </motion.div>
               </div>
+              {/* ── Funil Clássico (largura total) ── */}
+              {data.funnelData && (
+                <ClassicFunnelChart
+                  funnelData={data.funnelData}
+                  leadCount={data.currentPeriod.leadCount}
+                  isDark={isDark}
+                />
+              )}
             </RetrovisorSection>
 
             {/* ══════════════════════════════════════════════════════════════
