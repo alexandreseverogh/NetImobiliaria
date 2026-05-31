@@ -47,6 +47,8 @@ export interface Campaign {
   // FASE 4 — lifecycle
   lifecycleStatus?: string;
   lifecycleChangedAt?: string | null;
+  // FASE 7 — funnel stage
+  funnelStage?: string;
   createdAt: string;
   adSets: AdSet[];
 }
@@ -360,6 +362,55 @@ export interface PredictionData {
   };
   insufficientData?: boolean;
 }
+
+// ─── Funil (FASE 7) ──────────────────────────────────────────────────────────
+
+export interface FunnelStage {
+  code: string;
+  label: string;
+  icon: string;
+  campaigns_count: number;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  leads: number;
+  conversions: number;
+}
+
+export interface FunnelConversionRates {
+  tof_ctr:     number;   // CTR do topo (impressões→cliques)
+  mof_ltr:     number;   // Lead-through-rate do meio (cliques→leads)
+  bof_cvr:     number;   // Conversion rate do fundo (leads→conversões)
+  overall_ctr: number;
+  overall_ltr: number;
+  overall_cpl: number;
+}
+
+export interface FunnelData7 {
+  stages:          FunnelStage[];
+  conversionRates: FunnelConversionRates;
+  totals: {
+    spend: number; impressions: number; clicks: number;
+    leads: number; conversions: number; cpl: number;
+  };
+  bottleneck: string | null;
+  period: { startDate: string; endDate: string };
+}
+
+export const getFunnelData = (params?: {
+  startDate?: string; endDate?: string; clientId?: ClientFilter;
+}) => api.get<FunnelData7>('/dashboard/funnel', { params }).then(r => r.data);
+
+export const generateFunnelDiagnosis = (body: {
+  stages: FunnelStage[];
+  conversionRates: FunnelConversionRates;
+  totals: FunnelData7['totals'];
+  period: { startDate: string; endDate: string };
+  clientId?: ClientFilter;
+}) => api.post<{ diagnosis: string; generatedAt: string }>('/dashboard/funnel/diagnosis', body).then(r => r.data);
+
+export const updateCampaignFunnelStage = (id: string, funnelStage: string) =>
+  api.patch(`/campaigns/${id}/funnel-stage`, { funnelStage }).then(r => r.data);
 
 export const getDashboardFull = (params?: {
   startDate?: string;

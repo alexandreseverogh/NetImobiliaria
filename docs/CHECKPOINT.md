@@ -316,6 +316,50 @@ Thresholds por segmento resolvidos via `benchmarkResolver` (4 camadas: cliente �
 
 ---
 
+## Última entrega — FASE 7: Funnel Stage Classification (2026-05-31)
+
+### O que foi implementado
+
+- **Migração DB** — `prisma/migration-2026-05-31-fase7-funnel-stage.sql` (executada via Node.js pool)
+  - `Campaign.funnel_stage VARCHAR(20) DEFAULT 'TOF'`
+  - Índice `idx_campaign_funnel ON (funnel_stage, tenant_id)`
+  - Backfill automático: `OUTCOME_AWARENESS/TRAFFIC/REACH → TOF`, `OUTCOME_ENGAGEMENT → MOF`, `OUTCOME_LEADS/SALES/APP_PROMOTION/CONVERSIONS → BOF`
+  - Seed de prompt template `funnel_diagnosis` em `public.system_prompt_templates`
+
+- **`prisma/schema.marketing.prisma`** — campo `funnelStage String @default("TOF")` adicionado ao model `Campaign`
+
+- **`src/app/api/admin/campanhas/dashboard/funnel/route.ts`** — GET
+  - Agrega métricas por estágio (TOF/MOF/BOF) via `COALESCE(funnel_stage, CASE objective...)` para fallback gracioso
+  - Calcula taxas: `tof_ctr` (impressões→cliques), `mof_ltr` (cliques→leads), `bof_cvr` (leads→conversões)
+  - Identifica `bottleneck`: estágio com maior share de budget e pior conversão
+  - Retorna `{ stages, conversionRates, totals, bottleneck, period }`
+
+- **`src/app/api/admin/campanhas/dashboard/funnel/diagnosis/route.ts`** — POST
+  - Chama `invokeForContext({ templateKey: 'funnel_diagnosis', ... })`
+  - Formata `funnel_data` e `conversion_rates` como texto estruturado
+  - Retorna `{ diagnosis, generatedAt }`
+
+- **`src/app/api/admin/campanhas/campaigns/[id]/funnel-stage/route.ts`** — PATCH
+  - Override manual de `funnel_stage` (valida `TOF | MOF | BOF`)
+  - Verifica ownership por `tenant_id`
+
+- **`src/components/marketing/StageFunnelWidget.tsx`** (novo componente)
+  - `StageCard`: card por estágio com spend/impressões/cliques/leads, destaque vermelho no gargalo
+  - `RateArrow`: seta de conversão com cor semáforo (vermelho < 1%, âmbar < 3%, verde ≥ 3%)
+  - Totais resumidos: Investimento Total / Leads Totais / CPL Geral
+  - Botão "Diagnosticar gargalo com IA" → POST `/diagnosis` → painel colapsável via `AnimatePresence`
+  - Diagnóstico cacheado no state (toggle show/hide após primeira chamada)
+
+- **`src/lib/marketing-api.ts`** — novos tipos `FunnelStage`, `FunnelConversionRates`, `FunnelData7`; novas funções `getFunnelData`, `generateFunnelDiagnosis`, `updateCampaignFunnelStage`; campo `funnelStage?` em `Campaign`
+
+- **`src/app/admin/campanhas/dashboard/page.tsx`** — `StageFunnelWidget` integrado no card "Funil de Conversão" (substitui `FunnelChart` quando dados disponíveis)
+
+### Validação
+- TypeScript check em todos os novos arquivos: exit code 0 (sem erros)
+- Migração executada com sucesso: 4/4 statements OK
+
+---
+
 ## Pendências registradas
 
 ### 1.7 — Thresholds da State Machine por ENV (pendente)

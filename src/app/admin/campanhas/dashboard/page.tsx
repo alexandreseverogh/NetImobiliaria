@@ -4,12 +4,15 @@ import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   getDashboardFull, getDashboardPredictions, getLatestBriefing, generateBriefing, getBriefings, syncInsights,
+  getFunnelData,
   type DashboardFullData, type PredictionData, type StrategicBriefingData, type AiInsightData,
+  type FunnelData7,
   getAiInsights,
 } from '@/lib/marketing-api';
 import { formatCurrency, formatNumber, formatPercent, cn, OBJECTIVES } from '@/lib/marketing-utils';
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
 import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
+import { StageFunnelWidget } from '@/components/marketing/StageFunnelWidget';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
 import { ArrowPathIcon, SparklesIcon, ClockIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
@@ -27,6 +30,7 @@ const PALETTE_LIGHT = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#
 // ═════════════════════════════════════════════════════════════════════════════
 export function DashboardPage() {
   const [data, setData]                     = useState<DashboardFullData | null>(null);
+  const [funnelData7, setFunnelData7]       = useState<FunnelData7 | null>(null);
   const [predictions, setPredictions]       = useState<PredictionData | null>(null);
   const [briefing, setBriefing]             = useState<StrategicBriefingData | null>(null);
   const [briefingHistory, setBriefingHistory] = useState<StrategicBriefingData[]>([]);
@@ -80,12 +84,20 @@ export function DashboardPage() {
       if (adSetFilter)                         params.adSetId         = adSetFilter;
       if (clientFilter && clientFilter !== 'all') params.clientId     = clientFilter;
 
-      const [dashData, predData] = await Promise.all([
+      const funnelParams: any = {
+        startDate: params.startDate,
+        endDate:   params.endDate,
+      };
+      if (clientFilter && clientFilter !== 'all') funnelParams.clientId = clientFilter;
+
+      const [dashData, predData, funData] = await Promise.all([
         getDashboardFull(params).catch((e) => { console.error('[Dashboard] getDashboardFull:', e); return null; }),
         getDashboardPredictions({ campaignId: selectedCampaign || undefined }).catch(() => null),
+        getFunnelData(funnelParams).catch(() => null),
       ]);
       if (dashData) setData(dashData);
       if (predData) setPredictions(predData);
+      if (funData)  setFunnelData7(funData);
 
       Promise.all([
         getLatestBriefing().catch(() => null),
@@ -391,8 +403,19 @@ export function DashboardPage() {
 
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
                   className={`rounded-2xl p-6 ${cardBase}`}>
-                  <h3 className={`text-sm font-black mb-4 ${tx}`}>Funil de Conversão</h3>
-                  <FunnelChart data={data.funnelData} isDark={isDark} />
+                  <h3 className={`text-sm font-black mb-4 ${tx}`}>
+                    Funil por Estágio
+                    <span className="ml-2 text-[9px] font-black bg-indigo-100 text-indigo-600 rounded-full px-1.5 py-0.5 uppercase tracking-wide align-middle">FASE 7</span>
+                  </h3>
+                  {funnelData7 ? (
+                    <StageFunnelWidget
+                      data={funnelData7}
+                      isDark={isDark}
+                      clientId={clientFilter !== 'all' ? clientFilter as any : undefined}
+                    />
+                  ) : (
+                    <FunnelChart data={data.funnelData} isDark={isDark} />
+                  )}
                 </motion.div>
 
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
