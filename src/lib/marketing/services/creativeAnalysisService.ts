@@ -2,8 +2,15 @@
  * creativeAnalysisService.ts
  * FASE 6 — Creative Intelligence Layer
  *
- * Analisa criativos (imagem) via Vision LLM (Anthropic Claude).
- * Popula CreativeAnalysis com estrutura, narrativa e copy.
+ * Analisa criativos (imagem) via Vision LLM.
+ * Usa o mesmo provider/modelo/key configurados em Master → IA da Plataforma
+ * (linha global da Settings, tenant_id IS NULL).
+ *
+ * Suporte multi-provider:
+ *   anthropic           → Anthropic SDK (messages com image block base64)
+ *   openai | gemini |   → OpenAI-compatible SDK (chat.completions com image_url data URL)
+ *   groq | deepseek |
+ *   openrouter | ...
  */
 
 import fs from 'fs';
@@ -40,18 +47,7 @@ const EMPTY_RESULT: CreativeAnalysisResult = {
   key_visual_elements: [], confidence: 0,
 };
 
-// ── Vision LLM call ────────────────────────────────────────────────────────────
-
-async function callVisionLlm(
-  imageBase64: string,
-  mimeType: string,
-  apiKey: string,
-  model: string,
-): Promise<CreativeAnalysisResult> {
-  const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  const client = new Anthropic({ apiKey });
-
-  const prompt = `Você é um especialista em análise de criativos para anúncios de performance digital.
+const VISION_PROMPT = `Você é um especialista em análise de criativos para anúncios de performance digital.
 Analise esta imagem e retorne APENAS um JSON válido, sem markdown, sem texto extra.
 
 {
@@ -69,32 +65,13 @@ Analise esta imagem e retorne APENAS um JSON válido, sem markdown, sem texto ex
   "confidence": 0.85
 }`;
 
-  const msg = await client.messages.create({
-    model,
-    max_tokens: 800,
-    messages: [{
-      role: 'user',
-      content: [
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: mimeType as any, data: imageBase64 },
-        },
-        { type: 'text', text: prompt },
-      ],
-    }],
-  });
+// ── Get LLM config (lê a linha global do Master) ──────────────────────────────
 
-  const text = msg.content[0]?.type === 'text' ? msg.content[0].text.trim() : '';
-  // Strip markdown code fences if present
-  const clean = text.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
-  return JSON.parse(clean) as CreativeAnalysisResult;
-}
-
-// ── Get LLM config ────────────────────────────────────────────────────────────
-
-async function getLlmConfig(): Promise<{ apiKey: string; model: string }> {
-  let apiKey = process.env.ANTHROPIC_API_KEY || '';
-  let model  = 'claude-opus-4-5';
+async function getLlmConfig(): Promise<{ apiKey: string; model: string; provider: string; baseUrl?: string }> {
+  let provider = 'anthropic';
+  let model    = 'claude-opus-4-5';
+  let apiKey   = process.env.ANTHROPIC_API_KEY || '';
+  let baseUrl: string | undefined;
 
   try {
     const res = await getPool().query(
@@ -103,11 +80,75 @@ async function getLlmConfig(): Promise<{ apiKey: string; model: string }> {
        WHERE tenant_id IS NULL LIMIT 1`
     );
     const cfg = res.rows[0];
-    if (cfg?.llmApiKey)   apiKey = cfg.llmApiKey;
-    if (cfg?.llmModel)    model  = cfg.llmModel;
+    if (cfg?.llmProvider) provider = cfg.llmProvider;
+    if (cfg?.llmModel)    model    = cfg.llmModel;
+    if (cfg?.llmApiKey)   apiKey   = cfg.llmApiKey;
   } catch { /* fallback to env */ }
 
-  return { apiKey, model };
+  // Para providers OpenAI-compatible: buscar baseUrl na tabela LlmModel
+  if (provider !== 'anthropic') {
+    try {
+      const res = await getPool().query(
+        `SELECT base_url FROM campanhasmarketingdigital."LlmModel"
+         WHERE provider = $1 AND model_id = $2 AND is_active = true LIMIT 1`,
+        [provider, model]
+      );
+      baseUrl = res.rows[0]?.base_url ?? undefined;
+    } catch { /* ignore */ }
+  }
+
+  return { provider, model, apiKey, baseUrl };
+}
+
+// ── Vision LLM call — multi-provider ─────────────────────────────────────────
+
+async function callVisionLlm(
+  imageBase64: string,
+  mimeType: string,
+  cfg: Awaited<ReturnType<typeof getLlmConfig>>,
+): Promise<CreativeAnalysisResult> {
+  const { provider, model, apiKey, baseUrl } = cfg;
+
+  let rawText: string;
+
+  if (provider === 'anthropic') {
+    // ── Anthropic SDK nativo ──────────────────────────────────────────────────
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const msg = await client.messages.create({
+      model,
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mimeType as any, data: imageBase64 } },
+          { type: 'text', text: VISION_PROMPT },
+        ],
+      }],
+    });
+    rawText = msg.content[0]?.type === 'text' ? msg.content[0].text.trim() : '';
+  } else {
+    // ── OpenAI-compatible (OpenAI, Gemini via OpenAI-compat, Groq, DeepSeek…) ─
+    if (!baseUrl) throw new Error(`baseUrl não encontrada para provider "${provider}" / modelo "${model}"`);
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey, baseURL: baseUrl });
+    const res = await client.chat.completions.create({
+      model,
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+          { type: 'text', text: VISION_PROMPT },
+        ] as any,
+      }],
+    });
+    rawText = res.choices[0]?.message?.content?.trim() ?? '';
+  }
+
+  // Strip markdown code fences
+  const clean = rawText.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+  return JSON.parse(clean) as CreativeAnalysisResult;
 }
 
 // ── Main: analyzeCreativeAsset ─────────────────────────────────────────────────
@@ -144,14 +185,16 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
     const mimeType = asset.mime_type || 'image/jpeg';
 
     // 4. Obter config LLM e chamar Vision
-    const { apiKey, model } = await getLlmConfig();
-    if (!apiKey) throw new Error('API Key não configurada. Configure em Master → IA da Plataforma.');
+    const llmCfg = await getLlmConfig();
+    if (!llmCfg.apiKey) throw new Error('API Key não configurada. Configure em Master → IA da Plataforma.');
+
+    console.log(`[CreativeAnalysis] Usando provider=${llmCfg.provider} modelo=${llmCfg.model}`);
 
     let result: CreativeAnalysisResult;
     try {
-      result = await callVisionLlm(imageBase64, mimeType, apiKey, model);
+      result = await callVisionLlm(imageBase64, mimeType, llmCfg);
     } catch (visionErr: any) {
-      // Se vision falhar (modelo sem suporte), usar resultado vazio
+      // Se vision falhar (modelo sem suporte a imagens), registrar com fallback
       console.warn('[CreativeAnalysis] Vision falhou, usando fallback:', visionErr.message);
       result = { ...EMPTY_RESULT, confidence: 0 };
     }
@@ -182,7 +225,7 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
         result.is_ugc_style, result.is_corporate_style,
         result.hook_type, result.emotional_tone, result.angle, result.cta_style,
         result.scene_description, result.key_visual_elements || [],
-        model, result.confidence || 0.8,
+        llmCfg.model, result.confidence || 0.8,
         JSON.stringify(result),
       ]
     );
@@ -221,11 +264,8 @@ export async function generateCreativeConcepts(params: {
   avg_cpl: string;
   ads_count: string;
 }): Promise<CreativeConcept[]> {
-  const { apiKey, model } = await getLlmConfig();
-  if (!apiKey) throw new Error('API Key não configurada.');
-
-  const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  const client = new Anthropic({ apiKey });
+  const llmCfg = await getLlmConfig();
+  if (!llmCfg.apiKey) throw new Error('API Key não configurada.');
 
   const prompt = `Você é um especialista em criação de anúncios para o segmento ${params.segment}.
 
@@ -255,14 +295,28 @@ Retorne APENAS este JSON válido (sem markdown):
   ]
 }`;
 
-  const msg = await client.messages.create({
-    model,
-    max_tokens: 2000,
-    messages: [{ role: 'user', content: prompt }],
-  });
+  let rawText: string;
 
-  const text = msg.content[0]?.type === 'text' ? msg.content[0].text.trim() : '{}';
-  const clean = text.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+  if (llmCfg.provider === 'anthropic') {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: llmCfg.apiKey });
+    const msg = await client.messages.create({
+      model: llmCfg.model, max_tokens: 2000,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    rawText = msg.content[0]?.type === 'text' ? msg.content[0].text.trim() : '{}';
+  } else {
+    if (!llmCfg.baseUrl) throw new Error(`baseUrl não encontrada para provider "${llmCfg.provider}"`);
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey: llmCfg.apiKey, baseURL: llmCfg.baseUrl });
+    const res = await client.chat.completions.create({
+      model: llmCfg.model, max_tokens: 2000,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    rawText = res.choices[0]?.message?.content?.trim() ?? '{}';
+  }
+
+  const clean = rawText.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
   const parsed = JSON.parse(clean);
   return parsed.concepts || [];
 }
