@@ -45,6 +45,7 @@
 8. [FASE 4 — Campaign State Machine](#fase-4--campaign-state-machine)
 9. [FASE 5 — Video Metrics + Hook Rate](#fase-5--video-metrics--hook-rate)
 10. [FASE 6 — Creative Intelligence Layer](#fase-6--creative-intelligence-layer)
+    - [FASE 6.5 — Produção de Criativos por Reaproveitamento (Estágio A: imagens / Estágio B: vídeos)](#fase-65--produção-de-criativos-por-reaproveitamento-pendente--2026-05-31)
 11. [FASE 7 — Funnel Stage Classification](#fase-7--funnel-stage-classification)
 12. [FASE 8 — Tracking Health Monitor](#fase-8--tracking-health-monitor)
 13. [FASE 9 — Audit Report Estruturado](#fase-9--audit-report-estruturado)
@@ -2367,6 +2368,222 @@ Modal aberto ao clicar "Gerar conceitos similares":
 ✅ Custo de LLM < $1/mês por tenant
 ✅ Análise é cacheada (não re-roda em criativos já analisados)
 ```
+
+---
+
+## FASE 6.5 — Produção de Criativos por Reaproveitamento (pendente — 2026-05-31)
+
+> **Status:** planejado · **Pré-requisito:** FASE 6 (cérebro) + object storage (S3/R2)
+> **Segregação:** Estágio A (imagens, **custo zero**) → avançar agora · Estágio B (vídeos, custo permitido) → futuro
+
+### 6.5.0. Objetivo e princípio orientador
+
+A FASE 6 identifica **o que funciona** (padrões vencedores) e **rascunha o copy** (conceitos da IA).
+A FASE 6.5 transforma isso em **arquivos de criativo prontos para lançar**, fechando o último elo da
+cadeia: `Dados → Padrão → Conceito → Arquivo renderizado → Lançamento → Novos dados`.
+
+**Princípio inegociável — REAPROVEITAR, não gerar do zero:**
+- Para imóveis (HOUSING), **a foto do imóvel é sempre uma foto real existente**. Nunca sintetizada.
+- A "produção" consiste em **recompor, reenquadrar, sobrepor copy e branding, e (no Estágio B) animar**
+  os criativos que já existem na biblioteca — priorizando os já marcados como vencedores pela FASE 6.
+- Isso reduz simultaneamente os três maiores riscos: **custo, latência e risco legal**.
+
+**Guardrail global (ambos estágios):** geração nunca lança automaticamente. Todo artefato passa por
+**gate de aprovação humana** antes de virar `CreativeAsset` lançável. Nenhuma alteração pode modificar
+a estrutura/metragem real do imóvel.
+
+---
+
+### ESTÁGIO A — Motor de Variações de Imagem (CUSTO ZERO)
+
+#### 6.5.A.1. Restrição de custo
+
+Este estágio **não pode incidir custos de adoção de tecnologia**. Portanto:
+- ❌ **Proibido:** APIs pagas de geração de imagem (Gemini Flash Image, FLUX, Firefly, DALL·E).
+- ❌ **Proibido:** GPU/inferência self-hosted (servidor com custo).
+- ✅ **Permitido:** composição programática determinística com bibliotecas **gratuitas** já no stack.
+
+A "inteligência" continua vindo da FASE 6 (conceitos já gerados) — **sem custo de LLM adicional**, pois
+reaproveita o texto que o gerador de conceitos já produziu.
+
+#### 6.5.A.2. Tecnologias (todas gratuitas)
+
+| Tech | Papel | Custo |
+|------|-------|-------|
+| **Sharp** (já no stack Next.js) | Resize, recorte inteligente (`strategy: attention`/`entropy`), composição de camadas, exportação PNG/JPG/WebP | Grátis |
+| **Templating SVG → Sharp** | Layout de texto/branding como SVG (tipografia total), rasterizado e sobreposto à foto | Grátis |
+| **Smart crop por foco** | `sharp.strategy.attention` (entropia) para reenquadrar 1:1 / 9:16 / 4:5 sem cortar o ponto de interesse | Grátis |
+| Object storage (S3 / Cloudflare R2) | Persistir o render — **infra compartilhada** que também resolve o bug do `blob:` no lançamento; R2 tem free tier de 10 GB | ~Grátis |
+
+> Observação: o storage **não é custo de adoção da feature** — é dívida de infra já existente
+> (pendência do blob URL). A FASE 6.5.A apenas o consome.
+
+#### 6.5.A.3. Pipeline (Estágio A)
+
+```
+Padrão vencedor / criativo da galeria
+   └─ pick: CreativeAsset existente (preferir alto CTR / baixo CPL, tags vencedoras)
+        └─ conceito da FASE 6 (hook, headline, CTA, preço) — JÁ EXISTE
+             └─ escolha de CreativeTemplate (estilo: UGC ou Corporativo, casando o padrão)
+                  └─ Sharp compõe:
+                       1. resize + smart-crop da foto → cada formato
+                       2. render SVG (texto + logo + cores da marca + badge CTA)
+                       3. composite (foto base + camada SVG)
+                       4. export 1:1 (feed), 9:16 (stories/reels), 4:5 (feed vertical)
+                  └─ N variantes (ex.: 3 templates × 3 formatos)
+                       └─ GATE DE APROVAÇÃO HUMANA
+                            └─ aprovado → S3 → novo CreativeAsset (derived_from = source, ai_generated = true)
+                                 └─ disponível no Wizard → lançamento
+```
+
+Como o render é rápido (sub-segundo a poucos segundos) e gratuito, o job pode ser **síncrono com
+loading state** para 1 criativo, ou **fila leve (pg-boss / Postgres)** para lotes. Sem webhooks externos.
+
+#### 6.5.A.4. Modelo de dados (Estágio A)
+
+```sql
+-- Template reutilizável (curado pelo Master ou pelo tenant)
+CreativeTemplate (
+  id UUID PK,
+  tenant_id UUID NULL,          -- NULL = template global do Master
+  name TEXT,
+  style TEXT,                   -- 'ugc' | 'corporate'
+  layout JSONB,                 -- zonas: {image, headline, body, cta, logo} + tipografia/cores
+  formats TEXT[],               -- ['1:1','9:16','4:5']
+  is_active BOOL,
+  created_at TIMESTAMP
+)
+
+-- Job de geração (compartilhado A e B)
+CreativeGenerationJob (
+  id UUID PK,
+  tenant_id UUID,
+  source_asset_id UUID,         -- foto base reaproveitada
+  pattern_ref JSONB NULL,       -- padrão vencedor que originou
+  concept JSONB NULL,           -- copy usado (hook/headline/cta)
+  template_id UUID NULL,
+  modality TEXT,                -- 'image' (A) | 'video' (B)
+  status TEXT,                  -- PENDING | RUNDONE | NEEDS_REVIEW | APPROVED | REJECTED | FAILED
+  output_urls TEXT[],           -- renders no S3
+  cost_cents INT DEFAULT 0,     -- sempre 0 no Estágio A
+  provider TEXT NULL,           -- NULL no Estágio A (Sharp interno)
+  created_at TIMESTAMP,
+  reviewed_by UUID NULL,
+  reviewed_at TIMESTAMP NULL
+)
+```
+
+`CreativeAsset` ganha 2 colunas: `derived_from_asset_id UUID NULL` e `ai_generated BOOL DEFAULT false`,
+fechando a rastreabilidade (qual foto original deu origem a qual variação).
+
+#### 6.5.A.5. Endpoints (Estágio A)
+
+```
+GET  /api/admin/campanhas/criativos/templates          → lista templates (global + tenant)
+POST /api/admin/campanhas/criativos/generate           → cria job (modality='image'); body: {sourceAssetId, conceptId|conceptInline, templateIds[], formats[]}
+GET  /api/admin/campanhas/criativos/generate/[jobId]   → status + output_urls
+POST /api/admin/campanhas/criativos/generate/[jobId]/approve   → vira CreativeAsset(s)
+POST /api/admin/campanhas/criativos/generate/[jobId]/reject
+```
+
+#### 6.5.A.6. UI (Estágio A)
+
+- Botão **"🎨 Gerar variações"** em dois pontos:
+  - na **galeria** (sobre um criativo existente)
+  - em **Padrões Vencedores** (ao lado de "Usar no Wizard", aplicando o conceito ao criativo vencedor)
+- Modal de **galeria de candidatos** → preview por formato → **Aprovar / Rejeitar / Regerar**
+- Ao aprovar → entra na biblioteca marcado "✨ Derivado por IA" e fica disponível no Wizard
+- Reaproveita o padrão visual do `ConceptModal` atual (evolução natural)
+
+#### 6.5.A.7. Escopo de implementação (Estágio A)
+
+- [ ] Object storage (S3/R2) + migração de upload da biblioteca para storage real (resolve blob URL)
+- [ ] Migração: `CreativeTemplate`, `CreativeGenerationJob`, colunas `derived_from_asset_id`/`ai_generated`
+- [ ] Serviço `creativeRenderService.ts` — Sharp + SVG templating + smart crop multi-formato
+- [ ] 2–3 templates iniciais (UGC + Corporativo) curados como JSON layout
+- [ ] Endpoints generate/status/approve/reject
+- [ ] UI: botão "Gerar variações" (galeria + padrões) + modal de candidatos + aprovação
+- [ ] Guardrails: brand kit obrigatório, sem alteração da foto-base (apenas overlay/crop), aprovação humana
+- [ ] Critério de aceite: variação renderizada, aprovada, lançada via Wizard — **custo $0**
+
+#### 6.5.A.8. Riscos (Estágio A)
+
+| Risco | Mitigação |
+|-------|-----------|
+| Recorte cortar elemento-chave do imóvel | `strategy: attention` + preview obrigatório antes de aprovar |
+| Texto ilegível sobre foto clara/escura | scrim/gradiente automático na zona de texto (SVG) |
+| Inconsistência de marca | brand kit (logo/cor/fonte) imposto pelo template |
+| Legal/HOUSING | overlay não altera o imóvel; aprovação humana sempre |
+
+**Complexidade:** 🟢 Baixa-Média · **Custo:** 🟢 Zero · **Risco legal:** 🟢 Mínimo · **ROI:** 🟢 Altíssimo
+
+---
+
+### ESTÁGIO B — Motor de Vídeo (CUSTOS PERMITIDOS) — futuro
+
+#### 6.5.B.1. Premissa
+
+Construído **sobre a infra do Estágio A** (fila, storage, aprovação, templates, rastreabilidade já
+existem). O Estágio B adiciona apenas a modalidade `video` e o que ela exige: providers externos,
+custo, rate-limit e webhooks (geração de vídeo leva minutos).
+
+**Mantém o princípio de reaproveitamento:** o vídeo é montado **a partir das fotos reais** — nunca
+texto→vídeo do imóvel.
+
+#### 6.5.B.2. Tecnologias (com custo)
+
+| Abordagem | Tech | Custo aprox. | Latência |
+|-----------|------|--------------|----------|
+| Montagem template (Ken Burns + transições + copy + trilha) sobre fotos reais | **Creatomate / Shotstack / Json2Video** | ~$0,01–0,10/render | segundos-min |
+| Image-to-video (parallax/movimento de câmera real a partir da foto) | **Luma / Kling / Runway / Google Veo** | ~$0,30–1,50 / clipe 5s | minutos |
+| ❌ Texto→vídeo do imóvel do zero | — | — | **Proibido (aluciona o imóvel)** |
+
+#### 6.5.B.3. Adições sobre o Estágio A
+
+- **Abstração de provider de vídeo** — espelhar a estratégia da tabela `LlmModel` (seção 1.9):
+  tabela `VideoProvider` (provider, base_url, custo_unitário, is_active) gerida pelo Master.
+- **Custo e governança:** `cost_cents` populado por job; **teto de gasto + rate-limit por tenant**;
+  dashboard de consumo.
+- **Assíncrono real:** webhooks dos providers (geração leva minutos) → handler atualiza `status`.
+- **Trilha sonora licenciada** (biblioteca livre de royalties) para evitar claims de áudio.
+
+#### 6.5.B.4. Escopo (Estágio B) — esboço
+
+- [ ] Tabela `VideoProvider` + UI Master (análoga à 1.9)
+- [ ] Adapter por provider (Creatomate/Shotstack primeiro; image-to-video depois)
+- [ ] Webhook handlers + atualização de `CreativeGenerationJob.status`
+- [ ] Controles de custo: teto por tenant, rate-limit, dashboard de consumo
+- [ ] Templates de reel (estrutura de cenas) + biblioteca de trilhas
+- [ ] Reuso integral da UI de aprovação do Estágio A (agora com player de vídeo)
+
+**Complexidade:** 🟠 Média-Alta · **Custo:** 🟡 Baixo (template) a Médio (i2v) · **Risco legal:** 🟡 Médio
+
+---
+
+### 6.5.9. Critérios de Aceite — FASE 6.5
+
+```
+ESTÁGIO A (custo zero):
+✅ Botão "Gerar variações" sobre criativo existente / padrão vencedor
+✅ Render Sharp+SVG produz 1:1, 9:16 e 4:5 reaproveitando a foto real
+✅ Copy da FASE 6 aplicado como overlay (sem nova chamada de LLM)
+✅ Gate de aprovação humana antes de virar CreativeAsset lançável
+✅ Variação aprovada disponível no Wizard e lançável
+✅ Custo de tecnologia = $0 (sem API paga, sem GPU)
+✅ Rastreabilidade: derived_from_asset_id preenchido
+
+ESTÁGIO B (futuro, custo permitido):
+✅ Reel montado a partir das fotos reais (sem síntese do imóvel)
+✅ Provider de vídeo configurável pelo Master (análogo a LlmModel)
+✅ cost_cents rastreado por job + teto de gasto por tenant
+✅ Geração assíncrona via webhook + aprovação humana
+```
+
+### 6.5.10. Prioridade
+
+- **Estágio A:** Média-Alta — entrega o último elo do loop FASE 6 a custo zero; recomendado após
+  resolver o object storage (que já é pendência). Maior valor com menor risco.
+- **Estágio B:** Baixa (futuro) — só após Estágio A validado em produção e com governança de custo pronta.
 
 ---
 

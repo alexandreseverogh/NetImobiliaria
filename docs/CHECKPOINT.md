@@ -326,13 +326,29 @@ Mover para variáveis de ambiente. Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFOR
 Card visual do dashboard usa `8` e `12` hardcoded; regra de IA já usa `benchmarkResolver`.
 Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` seção 1.8.
 
-### 1.9 — Gestão de Providers e Modelos LLM pelo Master (pendente) ← NOVO
+### 1.9 — Gestão de Providers e Modelos LLM pelo Master (pendente)
 UI CRUD para a tabela `LlmModel` em `/admin/master/ia-plataforma` (nova aba "Catálogo de Modelos").
 Permite ao Master adicionar providers, ativar/desativar modelos e marcar recomendados sem SQL.
 Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` seção 1.9.
 
 **Endpoints a criar:** `GET/POST /api/admin/master/llm-models`, `PUT/PATCH/DELETE /api/admin/master/llm-models/[id]`
 **Arquivos principais:** `src/app/admin/master/ia-plataforma/page.tsx` (nova aba), `src/lib/marketing-api.ts`
+
+### FASE 6.5 — Produção de Criativos por Reaproveitamento (pendente) ← NOVO
+Fecha o último elo do loop FASE 6: transforma padrão vencedor + conceito da IA em **arquivos de
+criativo prontos para lançar**, reaproveitando fotos reais existentes (nunca síntese do imóvel).
+Segregado em 2 estágios. Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` seção FASE 6.5.
+
+- **Estágio A — Imagens (CUSTO ZERO, avançar agora):** composição programática com **Sharp + SVG**
+  (grátis, já no stack); overlay do copy já gerado + branding + smart-crop multi-formato (1:1/9:16/4:5);
+  gate de aprovação humana → vira CreativeAsset lançável. Sem API paga, sem GPU.
+  - Requer: object storage (S3/R2) — que também resolve a pendência do `blob:` no lançamento.
+  - Novas tabelas: `CreativeTemplate`, `CreativeGenerationJob` + colunas `derived_from_asset_id`/`ai_generated`.
+- **Estágio B — Vídeos (custos permitidos, futuro):** reels a partir das fotos reais (Ken Burns +
+  Creatomate/Shotstack; image-to-video Luma/Kling/Veo). Provider configurável pelo Master (análogo à 1.9),
+  com teto de gasto + rate-limit + webhooks. Reusa toda a infra do Estágio A.
+
+**Prioridade:** Estágio A média-alta (após object storage); Estágio B baixa/futuro.
 
 ---
 
