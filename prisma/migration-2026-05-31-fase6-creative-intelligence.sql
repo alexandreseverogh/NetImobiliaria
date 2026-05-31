@@ -175,6 +175,6 @@ WHERE slug = 'importacao-criativos';
 INSERT INTO campanhasmarketingdigital."LlmModel"
   (id, provider, provider_label, model_id, model_label, base_url, is_free, is_active, is_recommended, notes, sort_order)
 VALUES
-  (gen_random_uuid(), 'groq', 'Groq', 'meta-llama/llama-4-scout-17b-16e-instruct',   'Llama 4 Scout 17B (Vision)',    'https://api.groq.com/openai/v1', true, true, false, 'Suporte a Vision (imagens). Free tier.', 50),
-  (gen_random_uuid(), 'groq', 'Groq', 'meta-llama/llama-4-maverick-17b-128e-instruct','Llama 4 Maverick 17B (Vision)', 'https://api.groq.com/openai/v1', true, true, false, 'Suporte a Vision (imagens). Free tier.', 51)
+  (gen_random_uuid(), 'groq', 'Groq', 'meta-llama/llama-4-scout-17b-16e-instruct',    'Llama 4 Scout 17B (Vision)',    'https://api.groq.com/openai/v1', true, true,  true,  'Suporte a Vision (imagens). Free tier. Recomendado para análise de criativos.', 50),
+  (gen_random_uuid(), 'groq', 'Groq', 'meta-llama/llama-4-maverick-17b-128e-instruct', 'Llama 4 Maverick 17B (Vision)', 'https://api.groq.com/openai/v1', true, false, false, 'Requer acesso especial no Groq (não disponível no free tier padrão).', 51)
 ON CONFLICT DO NOTHING;
