@@ -121,6 +121,17 @@ function AssetCard({ asset, onReanalyze }: { asset: CreativeAsset; onReanalyze: 
       <div className="p-3 space-y-2">
         <p className="text-xs font-semibold text-slate-800 truncate">{asset.original_name}</p>
 
+        {/* Vinculado a campanha */}
+        {asset.ad_id && (
+          <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 rounded px-1.5 py-0.5 w-fit">
+            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.1-1.1" />
+            </svg>
+            Vinculado à campanha
+          </div>
+        )}
+
         {/* Erro de análise */}
         {status === 'failed' && asset.error_message && (
           <p className="text-[9px] text-red-600 bg-red-50 rounded px-1.5 py-1 leading-relaxed line-clamp-3" title={asset.error_message}>
