@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ComposedChart, Area, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  ComposedChart, Area, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 
 interface MetricConfig {
@@ -18,41 +18,52 @@ interface Props {
   xKey?: string;
   height?: number;
   title?: string;
+  isDark?: boolean;
 }
 
-const tooltipStyle = {
-  background: '#1e1b4b',
-  border: '1px solid rgba(124,58,237,0.3)',
-  borderRadius: '12px',
-};
-
-export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, title }: Props) {
+export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, title, isDark = true }: Props) {
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
 
-  const toggleMetric = (key: string) => {
+  const toggleMetric = (key: string) =>
     setHiddenKeys(prev => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
-  };
 
-  const hasRight = metrics.some(m => m.yAxisId === 'right');
+  const hasRight      = metrics.some(m => m.yAxisId === 'right');
   const visibleMetrics = metrics.filter(m => !hiddenKeys.has(m.key));
+
+  const gridColor  = isDark ? 'rgba(255,255,255,0.04)' : '#f1f5f9';
+  const axisColor  = isDark ? '#475569' : '#94a3b8';
+  const tooltipCss = {
+    contentStyle: {
+      background:   isDark ? '#0d1421' : '#ffffff',
+      border:       isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0',
+      borderRadius: '12px',
+      fontSize:     '12px',
+      fontWeight:   500,
+      color:        isDark ? '#f1f5f9' : '#111827',
+      boxShadow:    isDark ? '0 8px 32px rgba(0,0,0,0.5)' : '0 4px 6px -1px rgba(0,0,0,0.1)',
+    },
+  };
 
   return (
     <div>
-      {title && <h3 className="text-sm font-medium text-gray-300 mb-4">{title}</h3>}
-      <div className="flex flex-wrap gap-2 mb-3">
+      {title && (
+        <h3 className={`text-sm font-black mb-4 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{title}</h3>
+      )}
+      {/* Legend toggles */}
+      <div className="flex flex-wrap gap-2 mb-4">
         {metrics.map(m => (
           <button
             key={m.key}
             onClick={() => toggleMetric(m.key)}
-            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full transition-opacity"
-            style={{ opacity: hiddenKeys.has(m.key) ? 0.35 : 1 }}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full transition-all hover:opacity-90 active:scale-95"
+            style={{ opacity: hiddenKeys.has(m.key) ? 0.28 : 1 }}
           >
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: m.color }} />
-            <span className="text-gray-300">{m.label}</span>
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
+            <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{m.label}</span>
           </button>
         ))}
       </div>
@@ -60,34 +71,53 @@ export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, t
         <ComposedChart data={data}>
           <defs>
             {metrics.filter(m => m.type === 'area').map(m => (
-              <linearGradient key={m.key} id={`grad-${m.key}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={m.color} stopOpacity={0.3} />
+              <linearGradient key={m.key} id={`mmcgrad-${m.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor={m.color} stopOpacity={isDark ? 0.32 : 0.18} />
                 <stop offset="95%" stopColor={m.color} stopOpacity={0} />
               </linearGradient>
             ))}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#312e81" />
-          <XAxis dataKey={xKey} stroke="#6b7280" fontSize={11} />
-          <YAxis yAxisId="left" stroke="#6b7280" fontSize={11} />
-          {hasRight && <YAxis yAxisId="right" orientation="right" stroke="#6b7280" fontSize={11} />}
-          <Tooltip contentStyle={tooltipStyle} />
+          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+          <XAxis
+            dataKey={xKey}
+            stroke={axisColor} fontSize={11}
+            tick={{ fill: axisColor }}
+            axisLine={{ stroke: axisColor, strokeOpacity: 0.3 }}
+            tickLine={false}
+          />
+          <YAxis
+            yAxisId="left"
+            stroke={axisColor} fontSize={11}
+            tick={{ fill: axisColor }}
+            axisLine={false} tickLine={false}
+          />
+          {hasRight && (
+            <YAxis
+              yAxisId="right" orientation="right"
+              stroke={axisColor} fontSize={11}
+              tick={{ fill: axisColor }}
+              axisLine={false} tickLine={false}
+            />
+          )}
+          <Tooltip {...tooltipCss} />
           {visibleMetrics.map(m => {
             const yId = m.yAxisId || 'left';
-            if (m.type === 'area') {
-              return (
-                <Area key={m.key} type="monotone" dataKey={m.key} stroke={m.color}
-                  fill={`url(#grad-${m.key})`} yAxisId={yId} name={m.label} />
-              );
-            }
-            if (m.type === 'bar') {
-              return (
-                <Bar key={m.key} dataKey={m.key} fill={m.color} yAxisId={yId}
-                  radius={[4, 4, 0, 0]} name={m.label} barSize={20} />
-              );
-            }
+            if (m.type === 'area') return (
+              <Area key={m.key} type="monotone" dataKey={m.key}
+                stroke={m.color} strokeWidth={2.5}
+                fill={`url(#mmcgrad-${m.key})`}
+                yAxisId={yId} name={m.label} />
+            );
+            if (m.type === 'bar') return (
+              <Bar key={m.key} dataKey={m.key} fill={m.color}
+                fillOpacity={isDark ? 0.8 : 0.9}
+                yAxisId={yId} radius={[4, 4, 0, 0]} name={m.label} barSize={20} />
+            );
             return (
-              <Line key={m.key} type="monotone" dataKey={m.key} stroke={m.color}
-                strokeWidth={2} dot={false} yAxisId={yId} name={m.label} />
+              <Line key={m.key} type="monotone" dataKey={m.key}
+                stroke={m.color} strokeWidth={2}
+                dot={false} activeDot={{ r: 4, fill: m.color, stroke: 'transparent' }}
+                yAxisId={yId} name={m.label} />
             );
           })}
         </ComposedChart>
@@ -95,5 +125,3 @@ export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, t
     </div>
   );
 }
-
-
