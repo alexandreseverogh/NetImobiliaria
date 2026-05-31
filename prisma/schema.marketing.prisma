@@ -259,3 +259,67 @@ model StrategicBriefing {
   @@index([tenantId])
   @@index([clientId])
 }
+
+model CreativeAsset {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id") @db.Uuid
+  clientId      String?   @map("client_id") @db.Uuid
+  originalName  String    @map("original_name")
+  storagePath   String    @map("storage_path")
+  storageUrl    String    @map("storage_url")
+  fileSize      Int?      @map("file_size")
+  mimeType      String?   @default("image/jpeg") @map("mime_type")
+  format        String?   @default("image")
+  width         Int?
+  height        Int?
+  hash          String?
+  campaignId    String?   @map("campaign_id")
+  adId          String?   @map("ad_id")
+  isActive      Boolean   @default(true) @map("is_active")
+  uploadedAt    DateTime  @default(now()) @map("uploaded_at")
+
+  analysis      CreativeAnalysis?
+
+  @@index([tenantId])
+  @@index([hash])
+  @@map("CreativeAsset")
+}
+
+model CreativeAnalysis {
+  id                  String    @id @default(uuid())
+  assetId             String    @unique @map("asset_id")
+  tenantId            String    @map("tenant_id") @db.Uuid
+
+  hasPeople           Boolean   @default(false) @map("has_people")
+  hasProperty         Boolean   @default(false) @map("has_property")
+  hasTextOverlay      Boolean   @default(false) @map("has_text_overlay")
+  isUgcStyle          Boolean   @default(false) @map("is_ugc_style")
+  isCorporateStyle    Boolean   @default(false) @map("is_corporate_style")
+
+  hookType            String?   @map("hook_type") @db.VarChar(50)
+  emotionalTone       String?   @map("emotional_tone") @db.VarChar(50)
+  angle               String?   @db.VarChar(50)
+  ctaStyle            String?   @map("cta_style") @db.VarChar(20)
+
+  bodyWordCount       Int       @default(0) @map("body_word_count")
+  headlineWordCount   Int       @default(0) @map("headline_word_count")
+  hasEmoji            Boolean   @default(false) @map("has_emoji")
+  hasPrice            Boolean   @default(false) @map("has_price")
+  hasUrgencyWords     Boolean   @default(false) @map("has_urgency_words")
+
+  sceneDescription    String?   @map("scene_description")
+  keyVisualElements   String[]  @map("key_visual_elements")
+
+  analyzedAt          DateTime  @default(now()) @map("analyzed_at")
+  llmModelUsed        String?   @map("llm_model_used") @db.VarChar(100)
+  llmConfidence       Decimal?  @map("llm_confidence") @db.Decimal(3, 2)
+  rawAnalysis         Json?     @map("raw_analysis")
+  analysisStatus      String    @default("pending") @map("analysis_status") @db.VarChar(20)
+  errorMessage        String?   @map("error_message")
+
+  asset               CreativeAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@index([tenantId])
+  @@map("CreativeAnalysis")
+}

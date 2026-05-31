@@ -60,6 +60,8 @@ export default function NovaCampanhaPage() {
   const [filter, setFilter]                 = useState('');
   const [loadingFolder, setLoadingFolder]   = useState(false);
   const [folderError, setFolderError]       = useState('');
+  // FASE 6: mapa nome→File para upload silencioso na biblioteca
+  const [fileObjects, setFileObjects]       = useState<Map<string, File>>(new Map());
 
   /* ── Phase 2: wizard ────────────────────────────────── */
   const [showWizard, setShowWizard] = useState(false);
@@ -115,6 +117,7 @@ export default function NovaCampanhaPage() {
 
   async function readFromDirectoryHandle(dirHandle: any) {
     const found: Creative[] = [];
+    const newFileMap = new Map<string, File>();
     for await (const entry of dirHandle.values()) {
       if (entry.kind === 'file' && isImage(entry.name)) {
         const file: File = await entry.getFile();
@@ -122,16 +125,18 @@ export default function NovaCampanhaPage() {
         found.push({
           name: entry.name,
           url:  blobUrl,
-          path: blobUrl,   /* blob URL como path para envio à API */
+          path: blobUrl,
           size: file.size,
           modifiedAt: new Date(file.lastModified).toISOString(),
         });
+        newFileMap.set(entry.name, file);
       }
     }
     found.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
     setFolderName(dirHandle.name);
     setAllImages(found);
     setSelected([]);
+    setFileObjects(newFileMap);
     if (found.length === 0) {
       setFolderError('Nenhuma imagem encontrada. Verifique se a pasta contém arquivos JPG, PNG ou WebP.');
     }
@@ -140,16 +145,36 @@ export default function NovaCampanhaPage() {
   function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files    = Array.from(e.target.files || []);
     const imgFiles = files.filter(f => isImage(f.name));
+    const newFileMap = new Map<string, File>();
     const found: Creative[] = imgFiles.map(file => {
       const blobUrl = URL.createObjectURL(file);
+      newFileMap.set(file.name, file);
       return { name: file.name, url: blobUrl, path: blobUrl, size: file.size,
         modifiedAt: new Date(file.lastModified).toISOString() };
     });
     found.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
     const folder = files[0]?.webkitRelativePath?.split('/')[0] || 'Pasta selecionada';
     setFolderName(folder); setAllImages(found); setSelected([]);
+    setFileObjects(newFileMap);
     if (found.length === 0) setFolderError('Nenhuma imagem encontrada nesta pasta.');
     e.target.value = '';
+  }
+
+  /* FASE 6: upload silencioso dos criativos selecionados na biblioteca */
+  function uploadSelectedToLibrary(clientId: string | null) {
+    if (!selected.length) return;
+    selected.forEach(img => {
+      const file = fileObjects.get(img.name);
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      if (clientId) fd.append('clientId', clientId);
+      fetch('/api/admin/campanhas/criativos/upload', {
+        method: 'POST',
+        body: fd,
+        credentials: 'include',
+      }).catch(() => { /* silencioso */ });
+    });
   }
 
   /* ── image selection ────────────────────────────────── */
@@ -538,7 +563,7 @@ export default function NovaCampanhaPage() {
           </div>
 
           <button
-            onClick={() => setShowWizard(true)}
+            onClick={() => { uploadSelectedToLibrary(effectiveClientId); setShowWizard(true); }}
             disabled={!contextReady}
             className="inline-flex items-center gap-2 px-7 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: contextReady ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#94a3b8' }}
