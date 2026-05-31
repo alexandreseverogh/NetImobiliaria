@@ -754,6 +754,52 @@ Baixa/média — não bloqueia nada. Útil antes de colocar em produção para c
 
 ---
 
+## 1.8. KPI HOOK RATE — THRESHOLDS DINÂMICOS NO CARD VISUAL (pendente — 2026-05-31)
+
+### Problema
+
+O card "Hook Rate" no dashboard usa thresholds **hardcoded** para determinar a cor semáforo:
+
+```tsx
+// src/app/admin/campanhas/dashboard/page.tsx
+color={hookRate < 8 ? 'text-red-600' : hookRate < 12 ? 'text-amber-600' : 'text-emerald-600'}
+```
+
+Enquanto isso, a **regra de IA** (`aiInsights.ts`) resolve os mesmos thresholds via `benchmarkResolver` (4 camadas: cliente → tenant → segmento → global fallback), consumindo `hook_rate_critical` e `hook_rate_min` dos `system_benchmarks`.
+
+**Inconsistência:** se o Master alterar o benchmark de um segmento (ex.: Carros: crítico = 9%, mínimo = 14%), a regra de IA se adapta, mas o card visual do dashboard continua mostrando 8% e 12% como referência.
+
+### Solução planejada
+
+1. A API `/dashboard/full` deve retornar os benchmarks resolvidos para o tenant/cliente logado junto com os dados:
+   ```ts
+   // No response do dashboard
+   benchmarks: {
+     hook_rate_critical: number,
+     hook_rate_min: number,
+   }
+   ```
+
+2. O dashboard usa os valores vindos da API em vez dos literais:
+   ```tsx
+   const hookCritical = data?.benchmarks?.hook_rate_critical ?? 8;
+   const hookMin      = data?.benchmarks?.hook_rate_min      ?? 12;
+   color={hookRate < hookCritical ? 'text-red-600' : hookRate < hookMin ? 'text-amber-600' : 'text-emerald-600'}
+   ```
+
+### Escopo
+
+- [ ] `dashboard/full/route.ts` — chamar `resolveBenchmarks(['hook_rate_critical', 'hook_rate_min'], tenantId, segmentId, clientId)` e incluir no response
+- [ ] `DashboardFullData` em `marketing-api.ts` — adicionar `benchmarks?: { hook_rate_critical: number; hook_rate_min: number }`
+- [ ] `dashboard/page.tsx` — substituir literais `8` e `12` pelas variáveis dinâmicas com fallback
+- [ ] Testar: alterar benchmark no Master e confirmar que o card muda de cor
+
+### Prioridade
+
+Baixa — não bloqueia nada. Necessário antes de disponibilizar benchmarks por segmento para clientes finais.
+
+---
+
 ## 2. Arquitetura de Dados Consolidada
 
 ### 2.1. Diagrama ER (visão final)
