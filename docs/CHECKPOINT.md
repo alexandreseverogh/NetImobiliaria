@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-05-30
+> **Atualizado em:** 2026-05-31
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -297,6 +297,42 @@ Thresholds por segmento resolvidos via `benchmarkResolver` (4 camadas: cliente �
 | `website` como coluna em tenants + clientes | Client-owned site nunca hardcoded; pré-preenche na UI |
 | Sem camada "semi-auto" | Só 2 baldes: automático (vem do banco) ou manual (informado na UI) |
 | YouTube = canal sob Google Ads | Sem row separado em ad_networks; mesmo adapter/credentials |
+
+---
+
+## Últimas entregas — 2026-05-31
+
+### "Usar no Wizard" — loop IA → Campanha fechado
+
+- ✅ **`ConceptModal`** (`padroes/page.tsx`) — botão **"Usar no Wizard"** por conceito gerado:
+  navega para `/admin/campanhas/nova?body=...&headline=...&hookText=...`
+- ✅ **`/nova`** — lê `useSearchParams` e passa `initialValues` ao `CampaignWizard`
+- ✅ **`CampaignWizard`** — aceita `initialValues.{body, headline, hookText}`:
+  - Popula `form.body` e `form.headline` no estado inicial
+  - Step 2: banner azul "✨ Texto gerado pela IA"
+  - Dica âmbar "🪝 Hook sugerido" abaixo do textarea
+
+**Loop completo:** Dados Meta → Padrões Vencedores → Conceito IA → Wizard pré-preenchido → Lançamento → Novos dados
+
+---
+
+## Pendências registradas
+
+### 1.7 — Thresholds da State Machine por ENV (pendente)
+Thresholds `LEARNING_DAYS`, `FATIGUE_FREQUENCY`, `FATIGUE_CTR_DROP` hardcoded em `campaignStateMachine.ts`.
+Mover para variáveis de ambiente. Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` seção 1.7.
+
+### 1.8 — Hook Rate KPI com thresholds dinâmicos (pendente)
+Card visual do dashboard usa `8` e `12` hardcoded; regra de IA já usa `benchmarkResolver`.
+Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` seção 1.8.
+
+### 1.9 — Gestão de Providers e Modelos LLM pelo Master (pendente) ← NOVO
+UI CRUD para a tabela `LlmModel` em `/admin/master/ia-plataforma` (nova aba "Catálogo de Modelos").
+Permite ao Master adicionar providers, ativar/desativar modelos e marcar recomendados sem SQL.
+Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` seção 1.9.
+
+**Endpoints a criar:** `GET/POST /api/admin/master/llm-models`, `PUT/PATCH/DELETE /api/admin/master/llm-models/[id]`
+**Arquivos principais:** `src/app/admin/master/ia-plataforma/page.tsx` (nova aba), `src/lib/marketing-api.ts`
 
 ---
 

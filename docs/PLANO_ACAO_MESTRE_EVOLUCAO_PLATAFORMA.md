@@ -800,6 +800,145 @@ Baixa — não bloqueia nada. Necessário antes de disponibilizar benchmarks por
 
 ---
 
+## 1.9. GESTÃO DE PROVIDERS E MODELOS LLM PELO MASTER (pendente — 2026-05-31)
+
+### Contexto
+
+A tabela `campanhasmarketingdigital."LlmModel"` já existe e é a fonte de verdade para todos os
+providers e modelos disponíveis na plataforma. Hoje ela é populada **apenas via SQL** (seeds nas
+migrations). O Master não tem interface para visualizar, adicionar, editar ou desativar entradas.
+
+A página `/admin/master/ia-plataforma` já permite ao Master **escolher qual provider/modelo usar**
+(dropdown lê de `LlmModel`), mas **não permite gerenciar o catálogo em si**.
+
+### Problema
+
+Adicionar um novo provider ou modelo (ex.: novo modelo da Groq, novo provider OpenRouter) exige:
+1. Escrever SQL manual
+2. Executar via migration ou rota temporária
+3. Reiniciar o servidor se necessário
+
+Isso é inaceitável para operação em produção. O Master deve poder:
+- Ativar/desativar modelos sem tocar código
+- Adicionar providers novos (ex.: `together.ai`, `openrouter.ai`, `mistral`) com base_url personalizada
+- Corrigir labels ou marcar `is_recommended` conforme testa a qualidade
+- Alterar `sort_order` para controlar a ordem de exibição nos dropdowns
+
+### Estrutura da tabela `LlmModel`
+
+```sql
+id            UUID  PK
+provider      TEXT  -- 'anthropic' | 'openai' | 'groq' | 'together' | ...
+provider_label TEXT -- 'Anthropic', 'OpenAI', 'Groq', ...
+model_id      TEXT  -- ID real usado na chamada de API (ex: 'llama-4-scout-17b-16e-instruct')
+model_label   TEXT  -- Label amigável exibida no dropdown
+base_url      TEXT  -- Null para Anthropic SDK; URL OpenAI-compat para demais
+is_free       BOOL  -- Indica tier gratuito
+is_active     BOOL  -- Se aparece nas opções do dropdown (toggle rápido)
+is_recommended BOOL -- Marcado com destaque visual
+quality_score INT   -- 0–100 para ordenação por qualidade
+context_window INT  -- Tokens de contexto
+notes         TEXT  -- Notas para o operador (ex: "requer acesso especial")
+sort_order    INT   -- Ordem de exibição dentro do provider
+```
+
+### Solução planejada
+
+#### UI — nova aba "Catálogo de Modelos" em `/admin/master/ia-plataforma`
+
+A página existente passa a ter 2 abas:
+
+```
+[Configuração Ativa]    [Catálogo de Modelos]
+```
+
+**Aba "Catálogo de Modelos":**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Anthropic                              [+ Adicionar modelo]    │
+│  ─────────────────────────────────────────────────────────────  │
+│  ✅ claude-3-5-sonnet-20241022   ⭐ Recomendado   [✎] [🗑️]     │
+│  ✅ claude-3-haiku-20240307                        [✎] [🗑️]     │
+│                                                                  │
+│  Groq                                   [+ Adicionar modelo]    │
+│  ─────────────────────────────────────────────────────────────  │
+│  ✅ llama-4-scout-17b...  🆓 Grátis  ⭐  [✎] [🗑️]             │
+│  ❌ llama-4-maverick...   🆓 Grátis      [✎] [🗑️]  (inativo)  │
+│                                                                  │
+│  [+ Adicionar Provider]                                         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Modal "Editar / Adicionar modelo":**
+
+```
+Provider *       [Anthropic ▼]  ou  [+ provider livre: ______]
+base_url         [__________________________]  (vazio = Anthropic SDK)
+Model ID *       [claude-3-5-sonnet-20241022]  (ID real da API)
+Label *          [Claude 3.5 Sonnet]
+Qualidade        [85  ]  (0–100)
+Context window   [200000]
+Gratuito?        [✓]
+Recomendado?     [✓]
+Ativo?           [✓]
+Notas            [________________________]
+Ordem            [10  ]
+```
+
+#### API — novos endpoints
+
+```
+GET  /api/admin/master/llm-models           → lista todos (agrupados por provider)
+POST /api/admin/master/llm-models           → cria novo modelo
+PUT  /api/admin/master/llm-models/[id]      → edita campos
+PATCH /api/admin/master/llm-models/[id]     → toggle is_active / is_recommended
+DELETE /api/admin/master/llm-models/[id]    → remove (só se não é o modelo ativo global)
+```
+
+Todos protegidos por `is_system_role = true`.
+
+**Regra de segurança:** impedir DELETE (ou deactivate) do modelo que está atualmente selecionado
+como `llmModel` na linha global de `Settings WHERE tenant_id IS NULL`.
+
+#### Integração com a aba "Configuração Ativa"
+
+Ao salvar um novo modelo no catálogo, o dropdown da aba "Configuração Ativa" se atualiza
+automaticamente (ambas leem de `LlmModel`). O fluxo natural é:
+
+1. Master adiciona modelo no catálogo → testa via botão "Testar Conexão"
+2. Aprova → seleciona como modelo ativo na aba "Configuração Ativa"
+
+### Escopo de implementação
+
+- [ ] `GET/POST /api/admin/master/llm-models` — lista + criação
+- [ ] `PUT/PATCH/DELETE /api/admin/master/llm-models/[id]` — edição + toggle + remoção
+- [ ] Nova aba "Catálogo de Modelos" em `src/app/admin/master/ia-plataforma/page.tsx`
+  - Listagem agrupada por provider com toggle ativo/inativo inline
+  - Modal de criação/edição com todos os campos da tabela
+  - Proteção: não deixa desativar o modelo atualmente em uso
+- [ ] `POST /api/admin/master/llm-models/[id]/test` — testa o modelo específico (reutiliza lógica do test existente)
+- [ ] Atualizar `marketing-api.ts` com os novos endpoints
+- [ ] Documentar providers compatíveis com `baseUrl` OpenAI-compat:
+  - Groq: `https://api.groq.com/openai/v1`
+  - Together AI: `https://api.together.xyz/v1`
+  - OpenRouter: `https://openrouter.ai/api/v1`
+  - Mistral: `https://api.mistral.ai/v1`
+  - Ollama (local): `http://localhost:11434/v1`
+
+### Dependências
+
+- Tabela `LlmModel` já existe ✅
+- API key por provider já está em `Settings` global (campo `llmApiKey`) — limitação atual: apenas 1 API key global; providers diferentes exigem keys diferentes → avaliar se `LlmModel` deve ter `api_key_env_var TEXT` para apontar para variável de ambiente por provider
+- Endpoint `/api/admin/campanhas/settings/llm/models` já existe e retorna agrupado → pode ser reutilizado/movido para o novo namespace `/master/llm-models`
+
+### Prioridade
+
+**Média** — bloqueia adição de providers novos em produção. Não bloqueia o fluxo de campanhas
+atual (Anthropic + Groq já seedados). Recomendado implementar antes do lançamento em produção.
+
+---
+
 ## 2. Arquitetura de Dados Consolidada
 
 ### 2.1. Diagrama ER (visão final)
