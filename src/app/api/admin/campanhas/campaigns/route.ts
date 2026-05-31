@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
       // Novos campos (revisão 2026-05-29 — camada de lançamento 1.6)
       pixelId,
       customEventType,
+      // FASE 6: IDs dos CreativeAssets na biblioteca (para vincular ad_id após lançamento)
+      assetIds,
     } = body;
 
     // Valida clientId (deve pertencer ao tenant)
@@ -137,6 +139,22 @@ export async function POST(request: NextRequest) {
         trackingId,
       },
     });
+
+    // 4b. FASE 6: vincular CreativeAssets ao ad criado (fecha o loop de correlação visual)
+    if (Array.isArray(assetIds) && assetIds.length > 0) {
+      try {
+        await pool.query(
+          `UPDATE campanhasmarketingdigital."CreativeAsset"
+           SET ad_id = $1, campaign_id = $2
+           WHERE id = ANY($3::uuid[]) AND tenant_id = $4::uuid`,
+          [ad.id, campaign.id, assetIds, payload.tenantId]
+        );
+        console.log(`[FASE6] Vinculados ${assetIds.length} asset(s) ao ad ${ad.id}`);
+      } catch (linkErr: any) {
+        // Não bloquear o lançamento por erro de vinculação
+        console.warn('[FASE6] Falha ao vincular assets:', linkErr.message);
+      }
+    }
 
     // 5. Publicar na rede de anúncios selecionada
     try {

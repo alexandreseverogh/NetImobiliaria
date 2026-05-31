@@ -62,6 +62,8 @@ export default function NovaCampanhaPage() {
   const [folderError, setFolderError]       = useState('');
   // FASE 6: mapa nome→File para upload silencioso na biblioteca
   const [fileObjects, setFileObjects]       = useState<Map<string, File>>(new Map());
+  // FASE 6: promessa de upload iniciada ao abrir o wizard; resolvida antes do submit
+  const uploadPromiseRef = useRef<Promise<string[]>>(Promise.resolve([]));
 
   /* ── Phase 2: wizard ────────────────────────────────── */
   const [showWizard, setShowWizard] = useState(false);
@@ -161,20 +163,33 @@ export default function NovaCampanhaPage() {
   }
 
   /* FASE 6: upload silencioso dos criativos selecionados na biblioteca */
-  function uploadSelectedToLibrary(clientId: string | null) {
-    if (!selected.length) return;
-    selected.forEach(img => {
-      const file = fileObjects.get(img.name);
-      if (!file) return;
-      const fd = new FormData();
-      fd.append('file', file);
-      if (clientId) fd.append('clientId', clientId);
-      fetch('/api/admin/campanhas/criativos/upload', {
-        method: 'POST',
-        body: fd,
-        credentials: 'include',
-      }).catch(() => { /* silencioso */ });
-    });
+  // FASE 6: faz upload dos criativos selecionados para a biblioteca e retorna os assetIds
+  // gerados. A Promise é iniciada ao abrir o wizard e resolvida antes do submit.
+  function uploadSelectedToLibrary(clientId: string | null): Promise<string[]> {
+    if (!selected.length) return Promise.resolve([]);
+    return Promise.allSettled(
+      selected.map(async img => {
+        const file = fileObjects.get(img.name);
+        if (!file) return null;
+        const fd = new FormData();
+        fd.append('file', file);
+        if (clientId) fd.append('clientId', clientId);
+        try {
+          const res = await fetch('/api/admin/campanhas/criativos/upload', {
+            method: 'POST',
+            body: fd,
+            credentials: 'include',
+          });
+          if (!res.ok) return null;
+          const data = await res.json();
+          return (data.asset?.id as string) ?? null;
+        } catch { return null; }
+      })
+    ).then(results =>
+      results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled' && r.value !== null)
+        .map(r => r.value)
+    );
   }
 
   /* ── image selection ────────────────────────────────── */
@@ -208,6 +223,7 @@ export default function NovaCampanhaPage() {
         clientId={effectiveClientId}
         onClose={() => setShowWizard(false)}
         onSuccess={handleSuccess}
+        getAssetIds={() => uploadPromiseRef.current}
       />
     );
   }
@@ -563,7 +579,11 @@ export default function NovaCampanhaPage() {
           </div>
 
           <button
-            onClick={() => { uploadSelectedToLibrary(effectiveClientId); setShowWizard(true); }}
+            onClick={() => {
+              // Inicia uploads em paralelo; promise resolvida antes do submit do wizard
+              uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
+              setShowWizard(true);
+            }}
             disabled={!contextReady}
             className="inline-flex items-center gap-2 px-7 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: contextReady ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#94a3b8' }}

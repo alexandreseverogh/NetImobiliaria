@@ -22,6 +22,12 @@ interface Props {
   onSuccess: () => void;
   /** UUID do cliente selecionado (null = campanha do próprio tenant). */
   clientId?: string | null;
+  /**
+   * FASE 6: promessa iniciada no /nova ao abrir o wizard.
+   * Quando resolvida, retorna os IDs dos CreativeAssets enviados para a biblioteca.
+   * Usados para vincular o ad_id após o lançamento e fechar o loop de correlação.
+   */
+  getAssetIds?: () => Promise<string[]>;
 }
 
 /* ── AutoChip ────────────────────────────────────────────── */
@@ -67,7 +73,7 @@ function Label({ children, className }: { children: React.ReactNode; className?:
 /* ══════════════════════════════════════════════════════════
    MAIN WIZARD COMPONENT — FASE 2 (configuração da campanha)
 ══════════════════════════════════════════════════════════ */
-export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId }: Props) {
+export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds }: Props) {
   const selectedImages = selectedImagesProp ?? [];
   const [step, setStep]             = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -212,6 +218,9 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         }));
       })();
 
+      // FASE 6: aguarda os uploads iniciados no /nova para obter os assetIds
+      const assetIds = getAssetIds ? await getAssetIds() : [];
+
       await createCampaign({
         networkCode:       form.networkCode,
         name:              form.name || `Campanha ${new Date().toLocaleDateString('pt-BR')}`,
@@ -238,6 +247,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         pixelId:           form.pixelId           || autoFields.pixelId           || undefined,
         customEventType:   form.customEventType   || autoFields.customEventType   || 'LEAD',
         clientId:          clientId || undefined,
+        assetIds:          assetIds.length > 0 ? assetIds : undefined,
       });
       onSuccess();
     } catch (err: any) {
