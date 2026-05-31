@@ -170,3 +170,11 @@ SET
   description = 'Biblioteca de criativos com análise de IA, tags automáticas e padrões de performance',
   icon        = 'PhotoIcon'
 WHERE slug = 'importacao-criativos';
+
+-- 6. Adicionar modelos Groq com suporte Vision (free tier)
+INSERT INTO campanhasmarketingdigital."LlmModel"
+  (id, provider, provider_label, model_id, model_label, base_url, is_free, is_active, is_recommended, notes, sort_order)
+VALUES
+  (gen_random_uuid(), 'groq', 'Groq', 'meta-llama/llama-4-scout-17b-16e-instruct',   'Llama 4 Scout 17B (Vision)',    'https://api.groq.com/openai/v1', true, true, false, 'Suporte a Vision (imagens). Free tier.', 50),
+  (gen_random_uuid(), 'groq', 'Groq', 'meta-llama/llama-4-maverick-17b-128e-instruct','Llama 4 Maverick 17B (Vision)', 'https://api.groq.com/openai/v1', true, true, false, 'Suporte a Vision (imagens). Free tier.', 51)
+ON CONFLICT DO NOTHING;
