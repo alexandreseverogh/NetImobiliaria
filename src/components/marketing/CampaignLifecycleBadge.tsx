@@ -123,16 +123,19 @@ export function CampaignLifecycleBadge({
           <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2 pb-1">
             Mover para
           </p>
-          {validNext.map(next => (
-            <button
-              key={next}
-              onClick={() => handleTransition(next)}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all text-left"
-            >
-              <span>{LIFECYCLE_EMOJI[next]}</span>
-              {LIFECYCLE_LABELS[next]}
-            </button>
-          ))}
+          {validNext.map(next => {
+            const isRestart = status === 'PAUSED' && next === 'READY';
+            return (
+              <button
+                key={next}
+                onClick={() => handleTransition(next)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all text-left"
+              >
+                <span>{isRestart ? '🔄' : LIFECYCLE_EMOJI[next]}</span>
+                {isRestart ? 'Reiniciar' : LIFECYCLE_LABELS[next]}
+              </button>
+            );
+          })}
         </div>
       )}
 
