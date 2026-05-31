@@ -60,19 +60,6 @@ export async function GET(request: NextRequest) {
       WHERE c.tenant_id = $1::uuid
         ${clientFilter}
       GROUP BY 1
-      ORDER BY
-        CASE COALESCE(c.funnel_stage,
-          CASE
-            WHEN c.objective IN ('OUTCOME_AWARENESS','OUTCOME_TRAFFIC','OUTCOME_REACH') THEN 'TOF'
-            WHEN c.objective IN ('OUTCOME_ENGAGEMENT')                                  THEN 'MOF'
-            ELSE 'BOF'
-          END
-        )
-          WHEN 'TOF' THEN 1
-          WHEN 'MOF' THEN 2
-          WHEN 'BOF' THEN 3
-          ELSE 4
-        END
     `, [payload.tenantId, startDate, endDate]);
 
     // ── Leads por estágio ──────────────────────────────────────────────────────
