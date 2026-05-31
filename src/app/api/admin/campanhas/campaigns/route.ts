@@ -3,7 +3,6 @@ import { prisma } from '@/lib/marketing/prisma';
 import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
-import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
 
 export const dynamic = 'force-dynamic';
@@ -43,13 +42,16 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/campanhas/campaigns
 export async function POST(request: NextRequest) {
   try {
-    // Verificar permissão de criação server-side
-    const denied = await requireApiPermission(request, 'campanhasmarketingdigital', 'CREATE');
-    if (denied) return denied;
-
     const payload = getTokenPayload(request);
     if (!payload?.tenantId) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+    // Verificar permissão: Master tem passe global; tenant precisa de permissão campanhasmarketingdigital
+    const isMaster = (payload as any).is_system_role === true;
+    const permissoes = (payload as any).permissoes || {};
+    const hasPermission = isMaster || ['CREATE','UPDATE','ADMIN'].includes(permissoes['campanhasmarketingdigital']);
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Acesso negado', detail: 'Sem permissão para criar campanhas' }, { status: 403 });
     }
 
     const body = await request.json();
