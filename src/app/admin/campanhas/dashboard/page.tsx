@@ -164,11 +164,21 @@ export function DashboardPage() {
   }));
 
   // FASE 5 — Hook Rate (video_views_3s / impressions * 100)
-  const totalVideoViews3s = data?.currentPeriod.insights.reduce((s, i) => s + ((i as any).videoViews3s || 0), 0) ?? 0;
-  const totalImpressions  = t?.impressions || 0;
-  const hookRate          = totalVideoViews3s > 0 && totalImpressions > 0
+  const totalVideoViews3s = data?.currentPeriod.insights.reduce(
+    (s, i) => s + (Number((i as any).videoViews3s) || 0), 0
+  ) ?? 0;
+  const totalImpressions  = Number(t?.impressions) || 0;
+  const hookRateRaw       = totalVideoViews3s > 0 && totalImpressions > 0
     ? (totalVideoViews3s / totalImpressions) * 100
     : null;
+  const hookRate          = hookRateRaw !== null && isFinite(hookRateRaw) ? hookRateRaw : null;
+  const hookRateColor     = hookRate === null
+    ? 'text-gray-600'
+    : hookRate < 8
+      ? 'text-red-600'
+      : hookRate < 12
+        ? 'text-amber-600'
+        : 'text-emerald-600';
 
   const campaignSpendData = campaigns
     .filter(c => c.adSets.length > 0)
@@ -285,7 +295,7 @@ export function DashboardPage() {
             <KpiCard
               label="Hook Rate"
               value={`${hookRate.toFixed(1)}%`}
-              color={hookRate < 8 ? 'text-red-600' : hookRate < 12 ? 'text-amber-600' : 'text-emerald-600'}
+              color={hookRateColor}
               tooltip="Vídeos: views 3s / impressões × 100"
             />
           )}
