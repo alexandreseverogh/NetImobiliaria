@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
         an.has_people, an.has_property, an.has_text_overlay,
         an.is_ugc_style, an.is_corporate_style,
         an.scene_description, an.key_visual_elements,
-        an.llm_confidence,
+        an.llm_confidence, an.error_message,
         an.has_emoji, an.has_price, an.has_urgency_words
       FROM campanhasmarketingdigital."CreativeAsset" a
       LEFT JOIN campanhasmarketingdigital."CreativeAnalysis" an ON an.asset_id = a.id

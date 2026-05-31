@@ -34,6 +34,7 @@ interface CreativeAsset {
   scene_description: string | null;
   key_visual_elements: string[] | null;
   llm_confidence: number | null;
+  error_message: string | null;
 }
 
 // ── Label maps ─────────────────────────────────────────────────────────────────
@@ -116,6 +117,13 @@ function AssetCard({ asset, onReanalyze }: { asset: CreativeAsset; onReanalyze: 
       {/* Info */}
       <div className="p-3 space-y-2">
         <p className="text-xs font-semibold text-slate-800 truncate">{asset.original_name}</p>
+
+        {/* Erro de análise */}
+        {status === 'failed' && asset.error_message && (
+          <p className="text-[9px] text-red-600 bg-red-50 rounded px-1.5 py-1 leading-relaxed line-clamp-3" title={asset.error_message}>
+            {asset.error_message}
+          </p>
+        )}
 
         {/* Tags de análise */}
         {status === 'done' && (

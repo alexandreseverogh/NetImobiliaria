@@ -191,14 +191,28 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
     console.log(`[CreativeAnalysis] Usando provider=${llmCfg.provider} modelo=${llmCfg.model}`);
 
     let result: CreativeAnalysisResult;
-    let visionFailed = false;
     try {
       result = await callVisionLlm(imageBase64, mimeType, llmCfg);
     } catch (visionErr: any) {
-      // Vision falhou (modelo sem suporte, quota, etc.) → marcar como failed
       console.warn('[CreativeAnalysis] Vision falhou:', visionErr.message);
+
+      // Detectar erro de modelo sem suporte a Vision (Groq, etc.)
+      const msg: string = visionErr.message ?? '';
+      if (
+        msg.includes('content must be a string') ||
+        msg.includes('does not support images') ||
+        msg.includes('image_url') ||
+        msg.includes('vision') ||
+        msg.includes('multimodal')
+      ) {
+        throw new Error(
+          `O modelo "${llmCfg.model}" (${llmCfg.provider}) não suporta análise de imagens (Vision). ` +
+          `Configure um modelo com suporte Vision em Master → IA da Plataforma ` +
+          `(ex: claude-3-5-sonnet, gpt-4o, llama-4-scout-17b-16e-instruct).`
+        );
+      }
       // Re-lançar para cair no catch externo que grava analysis_status = 'failed'
-      throw new Error(`Vision LLM falhou: ${visionErr.message}`);
+      throw new Error(`Vision LLM falhou: ${msg}`);
     }
 
     // 5. Persistir resultado
