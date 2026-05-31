@@ -12,10 +12,14 @@ export function getAdminAuthHeaders(): Record<string, string> {
 
 /** fetch autenticado — drop-in para o fetch nativo em Client Components admin */
 export async function adminFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  // Quando o body é FormData o browser precisa definir o Content-Type + boundary
+  // automaticamente. Não sobrescrevemos nesse caso.
+  const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
+
   return fetch(url, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...getAdminAuthHeaders(),
       ...(init.headers as Record<string, string> | undefined),
     },

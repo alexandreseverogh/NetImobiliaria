@@ -224,20 +224,32 @@ export default function GaleriaCreativosPage() {
     setUploading(true);
     setUploadMsg(`Enviando ${files.length} arquivo(s)...`);
     let success = 0;
+    const errors: string[] = [];
 
     for (const file of files) {
       const fd = new FormData();
       fd.append('file', file);
       try {
         const res = await adminFetch('/api/admin/campanhas/criativos/upload', { method: 'POST', body: fd });
-        if (res.ok) success++;
-      } catch { /* ignore */ }
+        if (res.ok) {
+          success++;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          errors.push(`${file.name}: ${errData.error ?? res.status}`);
+        }
+      } catch (err: any) {
+        errors.push(`${file.name}: ${err.message}`);
+      }
     }
 
-    setUploadMsg(`✅ ${success}/${files.length} enviado(s). Análise em andamento...`);
+    if (errors.length) {
+      setUploadMsg(`⚠️ ${success}/${files.length} enviados. Erros: ${errors.join(' | ')}`);
+    } else {
+      setUploadMsg(`✅ ${success}/${files.length} enviado(s). Análise em andamento...`);
+    }
     setUploading(false);
     e.target.value = '';
-    setTimeout(() => { setUploadMsg(''); loadAssets(); }, 3000);
+    setTimeout(() => { setUploadMsg(''); loadAssets(); }, errors.length ? 8000 : 3000);
   }
 
   const statusCounts = assets.reduce((acc, a) => {
