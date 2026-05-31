@@ -4,6 +4,18 @@ const api = axios.create({
   baseURL: '/api/admin/campanhas',
 });
 
+// Injeta o Bearer token do localStorage em todas as requisições
+api.interceptors.request.use(config => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('admin-auth-token');
+    if (token) {
+      config.headers = config.headers ?? {};
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
 export interface Creative {
   name: string;
   path: string;
