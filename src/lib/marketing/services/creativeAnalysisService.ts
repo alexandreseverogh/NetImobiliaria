@@ -77,7 +77,8 @@ async function getLlmConfig(): Promise<{ apiKey: string; model: string; provider
     const res = await getPool().query(
       `SELECT "llmProvider", "llmModel", "llmApiKey"
        FROM campanhasmarketingdigital."Settings"
-       WHERE tenant_id IS NULL LIMIT 1`
+       WHERE tenant_id IS NULL
+       ORDER BY id LIMIT 1`
     );
     const cfg = res.rows[0];
     if (cfg?.llmProvider) provider = cfg.llmProvider;

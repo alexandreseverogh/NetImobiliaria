@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
     const res = await pool.query(
       `SELECT "llmProvider", "llmModel", "llmApiKey"
        FROM campanhasmarketingdigital."Settings"
-       WHERE tenant_id IS NULL LIMIT 1`
+       WHERE tenant_id IS NULL
+       ORDER BY id
+       LIMIT 1`
     );
     const s = res.rows[0];
     const apiKey = s?.llmApiKey || '';
@@ -54,7 +56,7 @@ export async function PUT(request: NextRequest) {
 
     // Upsert da linha global: UPDATE se já existe, INSERT se não existe
     const existing = await pool.query(
-      `SELECT id FROM campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL LIMIT 1`
+      `SELECT id FROM campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL ORDER BY id LIMIT 1`
     );
 
     if (existing.rows.length > 0) {
