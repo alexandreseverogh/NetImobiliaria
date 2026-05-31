@@ -667,19 +667,39 @@ function FarolSection({ isDark, children }: { isDark: boolean; children: React.R
 // ═════════════════════════════════════════════════════════════════════════════
 
 function RetrovisorIcon({ isDark }: { isDark: boolean }) {
-  const s = isDark ? '#d97706' : '#b45309';
-  const f = isDark ? 'rgba(217,119,6,0.10)' : 'rgba(180,83,9,0.07)';
-  const g = isDark ? 'rgba(217,119,6,0.18)' : 'rgba(180,83,9,0.10)';
+  const s = isDark ? '#d97706' : '#b45309';   // amber stroke
+  const f = isDark ? 'rgba(217,119,6,0.10)' : 'rgba(180,83,9,0.07)'; // mirror fill
+  const g = isDark ? 'rgba(217,119,6,0.15)' : 'rgba(180,83,9,0.08)'; // halo
   return (
-    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="26" cy="21" rx="22" ry="15" fill={g} />
-      <ellipse cx="26" cy="21" rx="19" ry="13" stroke={s} strokeWidth="2" fill={f} />
-      <ellipse cx="26" cy="21" rx="14.5" ry="9.5" stroke={s} strokeWidth="1" strokeOpacity="0.3" fill="none" />
-      <ellipse cx="20" cy="16.5" rx="5.5" ry="3" fill={s} fillOpacity="0.22" transform="rotate(-18 20 16.5)" />
-      <ellipse cx="30" cy="15" rx="2" ry="1.3" fill={s} fillOpacity="0.15" />
-      <path d="M26 34 L26 46" stroke={s} strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M18.5 46 L33.5 46" stroke={s} strokeWidth="2.5" strokeLinecap="round" />
-      <rect x="22.5" y="32" width="7" height="4.5" rx="2.25" fill={s} fillOpacity="0.42" />
+    <svg width="56" height="52" viewBox="0 0 56 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Halo behind mirror body */}
+      <rect x="0" y="14" width="56" height="28" rx="9" fill={g} />
+
+      {/* ── Mirror frame — wide modern rectangular shape ── */}
+      <rect x="2" y="17" width="52" height="24" rx="7" stroke={s} strokeWidth="2.2" fill={f} />
+
+      {/* Inner glass bezel (inset) */}
+      <rect x="5.5" y="20.5" width="45" height="17" rx="5" stroke={s} strokeWidth="0.8" strokeOpacity="0.3" fill="none" />
+
+      {/* Convex-glass reflection arc — horizontal curve across glass */}
+      <path d="M10 27 Q28 23 46 27" stroke={s} strokeWidth="1.2" strokeOpacity="0.24" fill="none" />
+
+      {/* Shimmer / glare patch — left side */}
+      <rect x="8" y="22" width="14" height="9" rx="3" fill={s} fillOpacity="0.18" transform="skewX(-7)" />
+
+      {/* Faint secondary glare — right side */}
+      <rect x="38" y="22" width="6" height="5" rx="2" fill={s} fillOpacity="0.10" transform="skewX(-7)" />
+
+      {/* Very faint electrochromic sensor dot (modern auto-dimming mirrors) */}
+      <circle cx="28" cy="29" r="1.5" fill={s} fillOpacity="0.18" />
+
+      {/* ── Mounting arm — short, from top of mirror to windshield ── */}
+      <line x1="28" y1="17" x2="28" y2="8" stroke={s} strokeWidth="2.5" strokeLinecap="round" />
+
+      {/* Ball joint housing */}
+      <circle cx="28" cy="6" r="4.5" stroke={s} strokeWidth="1.5" fill={f} />
+      {/* Ball joint core */}
+      <circle cx="28" cy="6" r="2" fill={s} fillOpacity="0.70" />
     </svg>
   );
 }
