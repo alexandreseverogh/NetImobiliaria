@@ -191,15 +191,18 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
     console.log(`[CreativeAnalysis] Usando provider=${llmCfg.provider} modelo=${llmCfg.model}`);
 
     let result: CreativeAnalysisResult;
+    let visionFailed = false;
     try {
       result = await callVisionLlm(imageBase64, mimeType, llmCfg);
     } catch (visionErr: any) {
-      // Se vision falhar (modelo sem suporte a imagens), registrar com fallback
-      console.warn('[CreativeAnalysis] Vision falhou, usando fallback:', visionErr.message);
-      result = { ...EMPTY_RESULT, confidence: 0 };
+      // Vision falhou (modelo sem suporte, quota, etc.) → marcar como failed
+      console.warn('[CreativeAnalysis] Vision falhou:', visionErr.message);
+      // Re-lançar para cair no catch externo que grava analysis_status = 'failed'
+      throw new Error(`Vision LLM falhou: ${visionErr.message}`);
     }
 
     // 5. Persistir resultado
+    const finalStatus = (result.confidence ?? 0) > 0 ? 'done' : 'failed';
     await pool.query(
       `UPDATE campanhasmarketingdigital."CreativeAnalysis" SET
         has_people          = $2,
@@ -216,7 +219,7 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
         llm_model_used      = $13,
         llm_confidence      = $14,
         raw_analysis        = $15,
-        analysis_status     = 'done',
+        analysis_status     = $16,
         analyzed_at         = NOW()
       WHERE asset_id = $1`,
       [
@@ -225,8 +228,10 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
         result.is_ugc_style, result.is_corporate_style,
         result.hook_type, result.emotional_tone, result.angle, result.cta_style,
         result.scene_description, result.key_visual_elements || [],
-        llmCfg.model, result.confidence || 0.8,
+        llmCfg.model,
+        result.confidence ?? 0,   // nunca usar || 0.8 — gravar o valor real
         JSON.stringify(result),
+        finalStatus,
       ]
     );
 

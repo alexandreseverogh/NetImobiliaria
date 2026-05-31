@@ -153,13 +153,24 @@ function AssetCard({ asset, onReanalyze }: { asset: CreativeAsset; onReanalyze: 
               className="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5"
             >
               <SparklesIcon className="h-3 w-3" />
-              Analisar
+              {status === 'failed' ? 'Re-analisar' : 'Analisar'}
             </button>
           )}
-          {asset.llm_confidence != null && status === 'done' && (
-            <span className="text-[9px] text-slate-400">
-              {Math.round((asset.llm_confidence as number) * 100)}% conf.
-            </span>
+          {status === 'done' && (
+            <div className="flex items-center gap-2">
+              {asset.llm_confidence != null && (
+                <span className="text-[9px] text-slate-400">
+                  {Math.round((asset.llm_confidence as number) * 100)}% conf.
+                </span>
+              )}
+              <button
+                onClick={() => onReanalyze(asset.id)}
+                className="text-[9px] text-slate-300 hover:text-indigo-500 transition-colors"
+                title="Re-analisar"
+              >
+                <ArrowPathIcon className="h-3 w-3" />
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -214,7 +225,18 @@ export default function GaleriaCreativosPage() {
     setAssets(prev => prev.map(a =>
       a.id === assetId ? { ...a, analysis_status: 'running' } : a
     ));
-    setTimeout(() => loadAssets(), 10000);
+    setTimeout(() => loadAssets(), 12000);
+  }
+
+  async function handleReanalyzeAll() {
+    const targets = assets.filter(a => a.analysis_status !== 'running');
+    if (!targets.length) return;
+    setUploadMsg(`🔄 Re-analisando ${targets.length} criativo(s)...`);
+    for (const a of targets) {
+      await adminFetch(`/api/admin/campanhas/criativos/${a.id}/analyze`, { method: 'POST' });
+    }
+    setAssets(prev => prev.map(a => ({ ...a, analysis_status: 'running' as const })));
+    setTimeout(() => { setUploadMsg(''); loadAssets(); }, 15000);
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -280,6 +302,17 @@ export default function GaleriaCreativosPage() {
             <ChartBarIcon className="h-4 w-4" />
             Padrões Vencedores
           </Link>
+
+          {assets.length > 0 && (
+            <button
+              onClick={handleReanalyzeAll}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-slate-700 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-700 transition-all"
+              title="Re-analisar todos os criativos"
+            >
+              <SparklesIcon className="h-4 w-4" />
+              Re-analisar todos
+            </button>
+          )}
 
           <label className={cn(
             'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white cursor-pointer transition-all',
