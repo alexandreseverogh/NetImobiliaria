@@ -41,6 +41,9 @@ interface CreativeAsset {
 const HOOK_LABELS: Record<string, string> = {
   urgency: 'Urgência', curiosity: 'Curiosidade', social_proof: 'Prova Social',
   benefit: 'Benefício', story: 'História', problem: 'Problema', other: 'Outro',
+  // variações que LLMs costumam retornar fora do enum
+  investment: 'Investimento', price: 'Preço', lifestyle: 'Lifestyle',
+  family: 'Família', luxury: 'Luxo', social: 'Social',
 };
 const ANGLE_LABELS: Record<string, string> = {
   investment: 'Investimento', lifestyle: 'Lifestyle', family: 'Família',
