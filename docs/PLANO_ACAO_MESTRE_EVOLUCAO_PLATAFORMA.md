@@ -28,6 +28,17 @@
 > gaps se acomodam em colunas/JSONB que a FASE 1 já criou + curadoria por segmento da
 > FASE 0. Ver [seção 1.6](#16-camada-operacional-de-lançamento-de-campanhas-rev-2026-05-29).
 > Mescla com FASES 1, 5 e 11 (notas pontuais nessas fases). Apenas planejamento.
+>
+> **▶ REVISÃO 2026-06-01 — Signal-Driven Calibration (FASE 8.5).** Reflexão estratégica
+> sobre o "Farol de Milha": a camada de predição apoia-se em **regressão linear sobre
+> série histórica própria**, que (a) exige histórico que não temos (cold-start) e (b)
+> ignora variáveis exógenas. Decidida a **virada de paradigma** de *forecasting* para
+> **controle reativo de malha fechada**: escutar os sinais de diagnóstico nativos do
+> Meta (rankings de qualidade/engajamento/conversão, learning stage, tendência de CPM/
+> frequência, Recommendations API) — a "voz do mercado" — e convertê-los em **ações de
+> calibração** de campanha e criativo. Reaproveita o motor rule-based (FASE 5) e fecha o
+> loop com a Creative Intelligence (FASE 6/6.5). Ver
+> [FASE 8.5](#fase-85--signal-driven-calibration-escuta-da-voz-do-meta). Apenas planejamento.
 
 ---
 
@@ -48,6 +59,7 @@
     - [FASE 6.5 — Produção de Criativos por Reaproveitamento (Estágio A: imagens / Estágio B: vídeos)](#fase-65--produção-de-criativos-por-reaproveitamento-pendente--2026-05-31)
 11. [FASE 7 — Funnel Stage Classification](#fase-7--funnel-stage-classification)
 12. [FASE 8 — Tracking Health Monitor](#fase-8--tracking-health-monitor)
+    - [FASE 8.5 — Signal-Driven Calibration (Escuta da Voz do Meta)](#fase-85--signal-driven-calibration-escuta-da-voz-do-meta) *(revisão 2026-06-01)*
 13. [FASE 9 — Audit Report Estruturado](#fase-9--audit-report-estruturado)
 14. [FASE 10 — Portfolio Dashboard + Cross-Pollination](#fase-10--portfolio-dashboard--cross-pollination)
 15. [FASE 11 — Implementações de Outras Redes](#fase-11--implementações-de-outras-redes)
@@ -2698,6 +2710,454 @@ Widget no Dashboard:
 ```
 
 Página de detalhes mostra histórico do score e cada check.
+
+---
+
+## FASE 8.5 — Signal-Driven Anticipation (Escuta da Voz do Meta)
+
+**Duração estimada: 2-3 semanas | Pré-requisito: FASE 5 (adapter de insights) + FASE 6 (Creative Intelligence) | Status: PLANEJAMENTO — conceito refinado e aprovado em 2026-06-01**
+
+> **Origem.** Reflexão estratégica de 2026-06-01 sobre o "Farol de Milha". Constatou-se
+> que toda a camada de **predição** (gráficos de Gasto/Leads/CTR/CPC projetados) está
+> apoiada em **regressão linear sobre a própria série histórica** — um modelo que (a)
+> exige volume "interessante" de histórico que **não temos** (cold-start), e (b) mesmo
+> com histórico, prevê o futuro "olhando para o próprio umbigo", **sem variáveis
+> exógenas**. O mundo do leilão de anúncios é dinâmico. Esta fase substitui o paradigma.
+>
+> **Refinamento (mesmo dia).** Ficou claro que a saída desta fase NÃO é "uma curva de
+> predição melhor". A voz do Meta alimenta **um motor de sinais compartilhado** que
+> abastece **DUAS seções distintas** do dashboard, respeitando o eixo temporal: a seção
+> **Insights** ("o quê / agora") e a seção **Farol de Milha** ("quando / para onde").
+> Esta é a versão canônica — corrige a primeira redação, que erroneamente colocava os
+> cartões de ação dentro do Farol de Milha.
+
+### 8.5.0. A mudança de paradigma — em uma frase
+
+Sair de **previsão (forecasting)** — desenhar a curva dos próximos 30 dias extrapolando
+o passado — para **antecipação por indicadores leading (signal-driven anticipation)** —
+ler o sinal do leilão que **precede** o resultado futuro e (a) recomendar a ação agora e
+(b) estimar **quando** o evento futuro chega.
+
+| Dimensão | Forecasting (modelo atual) | Signal-Driven Anticipation (proposto) |
+|----------|----------------------------|---------------------------------------|
+| Pergunta que responde | "Quanto vou gastar no dia 30?" | "Para onde isto está indo e **quando** chega?" |
+| Natureza do dado | **Lagging** (resultado: CTR, CPC, leads) | **Leading** (causa: ranking, saturação, learning) |
+| Depende de histórico longo? | Sim, criticamente | **Não** — o Meta já processou bilhões de pontos |
+| Contempla o exógeno (concorrência)? | **Não** (só a própria série) | **Sim** — vários sinais são relativos aos rivais |
+| Saída | Curva projetada (número) | **Ação** (Insights) + **time-to-event** (Farol) |
+| Cold-start | Quebra (precisa de ~14-30 dias) | Funciona a partir da saída do learning (~dias) |
+
+**Os dois problemas morrem juntos:** vários sinais do Meta são **relativos aos
+concorrentes que disputam o mesmo público** (o leilão é o mercado). Logo, a variável
+exógena que faltava não precisa ser inventada — **o Meta já a embute no sinal**.
+
+### 8.5.1. Objetivo
+
+Construir um **motor de sinais** que escuta os diagnósticos nativos do Meta (a "voz da
+mídia social") e os distribui para duas saídas, sem depender de modelos preditivos sobre
+série histórica própria:
+
+1. **Insights** (presente) — recomendações de calibração acionáveis ("o quê / agora").
+2. **Farol de Milha** (futuro) — antecipações **time-to-event** e trajetórias de sinal
+   leading ("quando / para onde").
+
+Reaproveita o motor rule-based existente (`aiInsights.ts`, FASE 5) e fecha o loop com a
+Creative Intelligence (FASE 6/6.5).
+
+### 8.5.2. O EIXO TEMPORAL — a decisão arquitetural central
+
+Cada seção do dashboard tem um **tempo verbal** próprio. Misturá-los gera redundância
+(foi o erro da primeira redação). A regra:
+
+| Seção | Tempo | Pergunta | Dado | O que muda na FASE 8.5 |
+|-------|-------|----------|------|------------------------|
+| **Retrovisor** | Passado | "O que aconteceu?" | lagging descritivo | nada — permanece |
+| **Insights** | Presente | "O que está errado **agora** e o que fazer?" | hoje **lagging** (últimos 14d); vira **leading** | upgrade do `aiInsights.ts` |
+| **Farol de Milha** | **Futuro** | "Para onde vai e **quando** chega?" | leading → time-to-event | **substitui** a regressão |
+
+**Diagnóstico do estado atual (importante):** o `aiInsights.ts` de hoje roda regras
+sobre os **últimos 14 dias de métricas** (CTR, frequência, spend, tendência) — ou seja,
+os Insights atuais são **diagnóstico do passado recente** (lagging). A FASE 8.5 os
+**promove a leading** ao injetar os sinais do Meta (rankings, learning, tendências), sem
+mudar de seção.
+
+**Por que não há redundância entre Insights e Farol:** o **mesmo motor de sinais**
+alimenta as duas, mas com **enquadramentos diferentes**:
+
+```
+                       ┌──────────── INSIGHTS (presente) ─────────────┐
+                       │  "O QUÊ / agora": problema pontual + correção │
+  MOTOR DE SINAIS ────►│  🔴 engajamento below_average → trocar gancho │
+  (signalEngine.ts)    └───────────────────────────────────────────────┘
+   lê a voz do Meta    ┌──────────── FAROL DE MILHA (futuro) ─────────┐
+   uma única vez       │  "QUANDO / para onde": trajetória + prazo     │
+                       │  ⏳ fadiga em ~4 dias · sai do learning em ~2  │
+                       │     dias (faltam 18 conv) · saturação ↗        │
+                       └───────────────────────────────────────────────┘
+```
+
+- **Insights** responde **"o quê"** (recomendação pontual e imediata).
+- **Farol de Milha** responde **"quando / para onde"** (horizonte temporal).
+
+### 8.5.3. Leading vs. Lagging — por que o sinal "grita antes"
+
+```
+Hoje medimos OUTCOMES (lagging):  impressões → cliques → leads → conversões
+                                   ↑ só mudam DEPOIS que a performance já caiu
+
+O Meta emite CAUSAS (leading):     quality_ranking ↓  →  CTR vai cair
+                                   frequency ↑        →  fadiga chegando
+                                   CPM ↑              →  concorrência subindo
+                                   ↑ mudam ANTES do outcome — é a janela de ação
+```
+
+Um indicador **leading** é, por definição, "olhar para frente": é uma medição do
+**presente** cujo propósito é **preceder** o resultado futuro. "A frequência está
+subindo e baterá o limiar de fadiga em ~4 dias" **é** antecipação honesta — apoiada num
+sinal real, não num ajuste de reta sobre 5 pontos.
+
+### 8.5.4. A "voz do Meta" — catálogo completo de sinais
+
+Hoje o `metaAdsAdapter.fetchInsights` puxa apenas números crus (impressões, cliques,
+spend, e — desde a FASE 5 — métricas de vídeo). O Meta expõe muito mais. **Estes são
+os sinais a ingerir:**
+
+| Sinal (campo Meta API) | O que grita | Exógeno? | Disponibilidade | Alimenta |
+|------------------------|-------------|----------|-----------------|----------|
+| `quality_ranking` | "Seu criativo está abaixo da média **vs. concorrentes**" | ✅ puro mercado | após ~500 impressões | Insights |
+| `engagement_rate_ranking` | "Seu gancho engaja menos que os rivais" | ✅ | após ~500 impressões | Insights + Farol (trajetória) |
+| `conversion_rate_ranking` | "Sua oferta converte pior que a vizinhança" | ✅ | após delivery + conversões | Insights |
+| `learning_stage_info.status` | "Ainda estou aprendendo — **não mexa no budget**" | — | desde a impressão 0 | Insights + Farol (time-to-exit) |
+| `learning_stage_info.conversions` | "Faltam N conversões para sair do learning" | — | durante learning | Farol (time-to-exit) |
+| Tendência de **CPM** (Δ janela curta) | "A demanda/concorrência pelo seu público subiu" | ✅ leilão | desde os primeiros dados | Insights + Farol (trajetória) |
+| **Frequência** + first-impression-ratio | "Público saturando, fadiga a caminho" | parcial | desde os primeiros dados | Farol (time-to-fatigue) |
+| `delivery` / `effective_status` | "Ad reprovado / limitado / ativo" | — | imediato | Insights |
+| **Recommendations API** (`/recommendations`) | O Meta devolve recomendações prontas | ✅ | quando aplicável | Insights |
+| Breakdowns (placement / idade / hora / device) | "Migre budget para onde performa" | parcial | com volume mínimo | Insights |
+| `auction_overlap` / `audience_saturation` | "Seus próprios ad sets competem entre si" | parcial | com múltiplos ad sets | Insights |
+
+**Princípio:** os três `*_ranking` são o coração exógeno — o Meta os calcula
+**comparando você contra todos os anunciantes** que disputam o mesmo público. É
+literalmente a voz do mercado, não a do nosso umbigo.
+
+### 8.5.5. Arquitetura — motor compartilhado, duas saídas
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  metaAdsAdapter.fetchInsights / fetchAdSetDelivery / fetchRecommend  │
+│            (FASE 8.5 — ingestão dos sinais brutos)                   │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           ▼  persiste em Insight + lê tendência
+┌─────────────────────────────────────────────────────────────────────┐
+│  signalEngine.ts  (NOVO — núcleo compartilhado)                     │
+│   • normaliza categórico → contínuo                                 │
+│   • computePressure() → 0-100                                       │
+│   • detecta tendência (sinal de hoje vs. janela curta)             │
+└───────────────┬────────────────────────────────┬────────────────────┘
+                ▼                                 ▼
+┌───────────────────────────┐      ┌──────────────────────────────────┐
+│ insightsRules.ts (UPGRADE)│      │ anticipationEngine.ts (NOVO)     │
+│ → CalibrationAction[]      │      │ → TimeToEvent[] + Trajectory[]   │
+│ (o quê / agora)            │      │ (quando / para onde)             │
+└───────────┬───────────────┘      └───────────────┬──────────────────┘
+            ▼                                       ▼
+   Seção INSIGHTS                          Seção FAROL DE MILHA
+```
+
+### 8.5.6. Mudanças no Banco
+
+Persistir os sinais para detectar **tendência** (um ranking que cai vale mais que um
+ranking ruim estável). Estende o `Insight` existente.
+
+```sql
+-- Colunas de sinal no Insight (granularidade diária por ad, como as métricas de vídeo)
+ALTER TABLE campanhasmarketingdigital."Insight"
+  ADD COLUMN quality_ranking          VARCHAR(20),   -- below_average_10 | ... | above_average
+  ADD COLUMN engagement_rate_ranking  VARCHAR(20),
+  ADD COLUMN conversion_rate_ranking  VARCHAR(20),
+  ADD COLUMN learning_status          VARCHAR(20),   -- LEARNING | LEARNING_LIMITED | ACTIVE | ...
+  ADD COLUMN learning_conversions     INTEGER,       -- conversões acumuladas no learning
+  ADD COLUMN first_impression_ratio   DOUBLE PRECISION; -- p/ time-to-fatigue (saturação)
+
+-- VALIDAR ANTES (não duplicar): Insight.cpm e Insight.frequency já existem?
+-- O schema atual de marketing-api.ts expõe cpm/cpc/ctr/frequency em InsightData →
+-- provável que cpm e frequency JÁ existam na tabela. Conferir prisma/schema.marketing.prisma
+-- e migration history. Se existirem, NÃO recriar.
+
+-- Snapshot de calibração: a leitura consolidada (auditoria + cache do painel)
+CREATE TABLE campanhasmarketingdigital."CalibrationSignal" (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       UUID NOT NULL,
+  client_id       UUID,
+  campaign_id     TEXT NOT NULL,        -- Campaign.id é TEXT
+  ad_id           TEXT,                 -- nullable: sinal pode ser de campanha ou de ad
+  adset_id        TEXT,                 -- nullable: time-to-event é por ad set
+  pressure_score  INTEGER NOT NULL,     -- 0-100, "quão alto o Meta está gritando"
+  signals         JSONB NOT NULL,       -- snapshot bruto dos sinais lidos
+  recommendation  JSONB,                -- saída Insights: { action, target, reason, confidence, creativeDimension? }
+  anticipation    JSONB,                -- saída Farol: { events: TimeToEvent[], trajectories: Trajectory[] }
+  source          VARCHAR(20) NOT NULL, -- 'META_SIGNAL'
+  created_at      TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_calibration_signal ON campanhasmarketingdigital."CalibrationSignal"(tenant_id, campaign_id, created_at DESC);
+```
+
+> **Atenção schema:** o `Insight` já expõe `cpm`/`frequency` em `marketing-api.ts`
+> (`InsightData`), então provavelmente **já existem** na tabela. Conferir
+> `prisma/schema.marketing.prisma` ANTES da migração e reaproveitar. Seguir o padrão da
+> migração da FASE 5 (`prisma/migration-2026-05-31-fase5-video-metrics.sql`).
+
+### 8.5.7. Ingestão — estender o `metaAdsAdapter`
+
+Mesmo padrão já usado na FASE 5 (video metrics). Em
+`src/lib/marketing/networks/meta/metaAdsAdapter.ts`:
+
+```
+fetchInsights():
+  fields += [ 'quality_ranking', 'engagement_rate_ranking', 'conversion_rate_ranking' ]
+  // first_impression_ratio: derivar de reach/impressions ou breakdown se disponível
+
+fetchAdSetDelivery():   // learning_stage vem do AD SET, não do insight — chamada paralela
+  GET /{adset_id}?fields=learning_stage_info,effective_status,delivery
+
+fetchRecommendations(): // endpoint próprio, opcional/gracioso
+  GET /{ad_account_id}/recommendations   (fallback silencioso se vazio/sem permissão)
+```
+
+`NetworkInsight` (em `networks/types.ts`) ganha os campos de ranking + learning, como
+fez com os 7 campos de vídeo. `agentMonitor.syncMetrics` persiste no upsert do Insight.
+
+### 8.5.8. Normalização e Pressão — `signalEngine.ts` (núcleo compartilhado)
+
+Os rankings são categóricos; CPM/frequência são contínuos. Converter tudo numa leitura
+única de **pressão** (0-100 = "quão alto o Meta está gritando"):
+
+```typescript
+// src/lib/marketing/services/signalEngine.ts (NOVO — alimenta Insights E Farol)
+
+const RANKING_WEIGHT: Record<string, number> = {
+  below_average_10: 1.0,  // pior decil
+  below_average_20: 0.8,
+  below_average_35: 0.6,
+  average:          0.2,
+  above_average:    0.0,  // não grita
+};
+
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+
+export function computePressure(s: NormalizedSignals, w: SignalWeights): number {
+  const rankPressure =
+      w.engagement * RANKING_WEIGHT[s.engagementRanking ?? 'average']
+    + w.conversion * RANKING_WEIGHT[s.conversionRanking ?? 'average']
+    + w.quality    * RANKING_WEIGHT[s.qualityRanking    ?? 'average'];
+  const trendPressure =
+      clamp01((s.cpmDeltaPct - w.cpmThreshold) / 0.35)   // CPM subindo acima do limiar
+    + clamp01((s.frequency   - w.freqThreshold) / 2.0);  // freq acima do limiar
+  return Math.round(Math.min(100, rankPressure * 60 + trendPressure * 40));
+}
+
+// SignalWeights (w) resolvido por benchmarkResolver por segmento — NADA hardcoded (ver 8.5.13)
+```
+
+### 8.5.9. SAÍDA A — Insights ("o quê / agora")
+
+**Upgrade do `aiInsights.ts`**, que hoje é lagging (14 dias de métricas). Passa a consumir
+os sinais leading do `signalEngine`. Cada regra emite **ação acionável**:
+
+```typescript
+type CalibrationAction =
+  | { action: 'HOLD_BUDGET';     reason: string; confidence: number }
+  | { action: 'SWAP_CREATIVE';   creativeDimension: 'HOOK'|'VISUAL'|'OFFER'; reason: string; confidence: number }
+  | { action: 'EXPAND_AUDIENCE'; reason: string; confidence: number }
+  | { action: 'SHIFT_BUDGET';    target: 'placement'|'age'|'time'; reason: string; confidence: number }
+  | { action: 'REVIEW_OFFER';    reason: string; confidence: number }
+  | { action: 'SCALE';           reason: string; confidence: number };
+```
+
+| Sinal lido | Regra | Ação emitida |
+|------------|-------|--------------|
+| `learning_status = LEARNING` | Não tocar antes de estabilizar | `HOLD_BUDGET` — "Ad set ainda aprendendo, segure 48h" |
+| `engagement_rate_ranking = below_average` | Gancho fraco vs. mercado | `SWAP_CREATIVE(HOOK)` — "Meta diz seu gancho engaja menos que rivais; teste nova abertura" |
+| `conversion_rate_ranking = below_average` + cliques OK | Oferta/LP fraca | `REVIEW_OFFER` — "Tráfego converte pior que a vizinhança; revise oferta/landing" |
+| CPM ↑ 20% + frequência > 3.5 | Saturação do público | `EXPAND_AUDIENCE` — "Concorrência/saturação subindo; amplie o público" |
+| `quality_ranking = above_average` + leads OK + freq baixa | Tudo verde | `SCALE` — "Sinais saudáveis; pode escalar budget" |
+| Breakdown: placement X com CPL 3× melhor | Realocação | `SHIFT_BUDGET(placement)` — "Migre budget para Reels" |
+
+A seção Insights ganha o nível de **pressão** e o link `SWAP_CREATIVE → [Usar no Wizard]`.
+
+### 8.5.10. SAÍDA B — Farol de Milha ("quando / para onde")
+
+**`anticipationEngine.ts` (NOVO).** Aqui mora a antecipação honesta. NÃO há curva de
+regressão; há **time-to-event** (contagem regressiva fundamentada) e **trajetória de
+sinal leading**.
+
+```typescript
+// src/lib/marketing/services/anticipationEngine.ts (NOVO)
+
+interface TimeToEvent {
+  event: 'FATIGUE' | 'EXIT_LEARNING' | 'AUDIENCE_EXHAUSTION';
+  adsetId: string;
+  daysUntil: number | null;   // null = não estimável ainda
+  detail: string;             // "faltam 18 conversões", "freq 3.6→limiar 4.0"
+  confidence: number;
+}
+
+interface Trajectory {
+  signal: 'engagement_ranking' | 'cpm' | 'frequency';
+  direction: 'up' | 'down' | 'stable';
+  implication: string;        // "CTR tende a cair", "custo subindo"
+}
+```
+
+**Fórmulas (heurísticas fundamentadas, não regressão):**
+
+```
+① TIME-TO-FATIGUE (saturação do criativo)
+   A frequência cresce ~linearmente com impressões acumuladas no público.
+   Δf_dia   = (freq_hoje − freq_há_N_dias) / N        // taxa diária recente
+   f_limiar = benchmark.frequency_max (por segmento)   // ex.: 4.0
+   daysUntil = Δf_dia > 0 ? ceil((f_limiar − freq_hoje) / Δf_dia) : null
+   → "Fadiga estimada em ~4 dias (freq 3.6, subindo 0.1/dia, limiar 4.0)"
+
+② TIME-TO-EXIT-LEARNING
+   O Meta exige ~50 conversões em janela de 7 dias para sair do learning.
+   r_dia     = conversões_dia recente (média curta)
+   restantes = 50 − learning_conversions
+   daysUntil = r_dia > 0 ? ceil(restantes / r_dia) : null   // cap em 7d da janela
+   → "Sai do aprendizado em ~2 dias (faltam 18 de 50 conversões)"
+
+③ AUDIENCE-EXHAUSTION (esgotamento)
+   first_impression_ratio caindo → público sendo reexposto, não renovado.
+   Tendência de fir nos últimos dias; se < 0.2 e caindo → exhaustion próxima.
+   → "Público esgotando: 18% de impressões novas e caindo"
+```
+
+Todos os limiares (`frequency_max`, alvo de conversões, piso de `fir`) vêm do
+`benchmarkResolver` por segmento — **nada hardcoded** (ver 8.5.13).
+
+### 8.5.11. Os novos visuais do Farol de Milha (forward, sem regressão)
+
+Formas **novas**, distintas dos 4 gráficos atuais e da seção Insights:
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  🔭 Farol de Milha — Para onde isto vai                          ║
+║                                                                  ║
+║  ⏳ TIME-TO-EVENT (contagem regressiva fundamentada)             ║
+║  ┌────────────────────────────────────────────────────────────┐  ║
+║  │ Ad set "Lançamento" · Fadiga    ▓▓▓▓▓▓▓░░░  ~4 dias        │  ║
+║  │   freq 3.6 subindo 0.1/dia · limiar do segmento 4.0        │  ║
+║  ├────────────────────────────────────────────────────────────┤  ║
+║  │ Ad set "Remarketing" · Sai do aprendizado ▓▓▓▓▓▓▓▓░ ~2 dias│  ║
+║  │   faltam 18 de 50 conversões · ~9 conv/dia                 │  ║
+║  └────────────────────────────────────────────────────────────┘  ║
+║                                                                  ║
+║  ↗ TRAJETÓRIA DE SINAL (leading, direção — não outcome)          ║
+║  ┌────────────────────────────────────────────────────────────┐  ║
+║  │ engajamento  ▁▂▃▅▆ → ▼  "CTR tende a cair nos próximos dias"│  ║
+║  │ CPM          ▃▃▄▅▆ → ▲  "custo de mídia subindo (leilão)"   │  ║
+║  │ saturação    ▆▅▄▃▂ → ▼  "público esgotando, 18% novos"      │  ║
+║  └────────────────────────────────────────────────────────────┘  ║
+║                                                                  ║
+║  ▸ Projeção estatística (regressão linear)   [mostrar — legado] ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+Componentes novos (nenhum é "os 4 gráficos turbinados"):
+- **Barra de time-to-event** — progresso rumo a um limiar com prazo em dias (não linha de outcome).
+- **Sparkline de trajetória de sinal** — mini-série do *sinal leading* (ranking/CPM/saturação) com seta de direção e a *implicação* textual. Plota a **causa**, não o resultado.
+- **(Opcional) Projeção legada** — os 4 gráficos de regressão demovidos a um `<details>` colapsado, rotulados "legado", com aviso de baixa confiança.
+
+### 8.5.12. Destino dos 4 gráficos atuais de regressão (decisão)
+
+**Opção B — Demover (DECIDIDO).** Os gráficos `Gasto/Leads/CTR/CPC` (regressão linear,
+`PredictionChart`) **saem do protagonismo** do Farol de Milha. Ficam disponíveis num
+bloco colapsável `▸ Projeção estatística (legado)`, com o rótulo de baixa confiança já
+iniciado (`"Banda ~87%"`). Justificativa: extrapolação de reta sobre poucos pontos não é
+antecipação honesta; serve só como referência descritiva opcional. Remoção total fica
+como decisão reversível na implementação (não destruir o componente `PredictionChart`,
+apenas relegá-lo).
+
+### 8.5.13. Nada hardcoded — pesos e limiares por segmento
+
+Tudo que é número de calibração resolve via `benchmarkResolver` (4 camadas: cliente →
+tenant → segmento → fallback global), coerente com FASES 5/7:
+
+| Parâmetro | Onde é usado | Chave de benchmark |
+|-----------|--------------|--------------------|
+| Pesos da pressão (engagement/conversion/quality) | `signalEngine.computePressure` | `pressure_w_*` |
+| Limiar de CPM e frequência | `signalEngine` + `anticipationEngine` | `cpm_delta_max`, `frequency_max` |
+| Alvo de conversões p/ sair do learning | `anticipationEngine` ② | `learning_conv_target` (default 50) |
+| Piso de first_impression_ratio | `anticipationEngine` ③ | `fir_floor` (default 0.2) |
+
+### 8.5.14. Conexão com as outras fases (loop fechado)
+
+```
+        FASE 5  ───────────►  FASE 8.5  ───────────►  FASE 6
+   (adapter traz os         (signalEngine lê a voz;   (a ação SWAP_CREATIVE
+    sinais do Meta)          Insights = ação,          aponta QUAL dimensão
+                             Farol = time-to-event)    do criativo ajustar)
+                                   │
+                                   ▼
+                            FASE 6.5 (produção)
+                       gera o novo criativo calibrado
+                                   │
+                                   ▼
+                         lançamento → novos sinais → (volta ao topo)
+```
+
+O elo mais valioso: `SWAP_CREATIVE(creativeDimension)` não diz só "está ruim" — diz
+**qual dimensão** (gancho / visual / oferta) o Meta está reprovando, alimentando
+diretamente a Creative Intelligence (FASE 6) e a produção por reaproveitamento (FASE 6.5).
+
+### 8.5.15. Mapa de implementação — arquivo a arquivo
+
+| # | Arquivo | Tipo | Mudança |
+|---|---------|------|---------|
+| 1 | `prisma/migration-2026-XX-fase85-signals.sql` | NOVO | ALTER `Insight` (+rankings, learning, fir) · CREATE `CalibrationSignal` |
+| 2 | `prisma/schema.marketing.prisma` | EDIT | campos novos no model `Insight` + model `CalibrationSignal` |
+| 3 | `src/lib/marketing/networks/types.ts` | EDIT | `NetworkInsight` + ranking/learning/fir |
+| 4 | `src/lib/marketing/networks/meta/metaAdsAdapter.ts` | EDIT | `fetchInsights` (+3 rankings) · `fetchAdSetDelivery` · `fetchRecommendations` |
+| 5 | `src/lib/marketing/services/agentMonitor.ts` | EDIT | `syncMetrics` persiste os sinais no upsert do Insight |
+| 6 | `src/lib/marketing/services/signalEngine.ts` | NOVO | normalização + `computePressure` + detecção de tendência |
+| 7 | `src/lib/marketing/services/aiInsights.ts` | EDIT | consumir signalEngine → regras leading → `CalibrationAction[]` |
+| 8 | `src/lib/marketing/services/anticipationEngine.ts` | NOVO | `TimeToEvent[]` (fadiga, learning, exhaustion) + `Trajectory[]` |
+| 9 | `src/lib/intelligence/benchmarkResolver.ts` | EDIT | `GLOBAL_FALLBACKS` + chaves de calibração (8.5.13) |
+| 10 | `src/app/api/admin/campanhas/dashboard/anticipation/route.ts` | NOVO | GET — saída do Farol (time-to-event + trajetórias) |
+| 11 | `src/app/api/admin/campanhas/insights/ai/route.ts` | EDIT | retornar `CalibrationAction[]` enriquecido (pressão) |
+| 12 | `src/lib/marketing-api.ts` | EDIT | tipos `CalibrationAction`, `TimeToEvent`, `Trajectory` + fns |
+| 13 | `src/components/marketing/charts/TimeToEventBar.tsx` | NOVO | barra de contagem regressiva |
+| 14 | `src/components/marketing/charts/SignalTrajectory.tsx` | NOVO | sparkline de sinal leading + seta + implicação |
+| 15 | `src/app/admin/campanhas/dashboard/page.tsx` | EDIT | Farol: substituir grid de `PredictionChart` por novos; regressão → `<details>` legado |
+
+### 8.5.16. Sequência de implementação sugerida
+
+```
+1. Migração DB (#1, #2) — validar antes cpm/frequency existentes
+2. Ingestão (#3, #4, #5) — adapter traz sinais; syncMetrics persiste
+3. signalEngine (#6) + benchmarks (#9) — núcleo + zero hardcode
+4. SAÍDA A: upgrade aiInsights (#7, #11) — Insights vira leading
+5. SAÍDA B: anticipationEngine (#8) + API (#10) — time-to-event
+6. Tipos no client (#12)
+7. Componentes do Farol (#13, #14) + integração na page (#15)
+8. Amarrar SWAP_CREATIVE → "Usar no Wizard" (loop FASE 6/6.5)
+```
+
+### 8.5.17. Critérios de aceite
+
+```
+✅ Adapter ingere quality/engagement/conversion ranking + learning_stage + fir
+✅ Sinais persistidos diariamente no Insight (tendência detectável)
+✅ signalEngine.computePressure() resolve pesos via benchmarkResolver (zero hardcode)
+✅ SAÍDA A (Insights): cada regra emite ação acionável leading, com pressão e motivo
+✅ SWAP_CREATIVE indica a dimensão do criativo e linka ao Wizard
+✅ SAÍDA B (Farol): time-to-fatigue, time-to-exit-learning e trajetórias renderizam
+✅ Farol não contém cartões de ação (sem redundância com Insights)
+✅ Funciona sem histórico longo — só com dados pós-learning
+✅ 4 gráficos de regressão demovidos a bloco "legado" colapsável
+✅ Limiares (frequency_max, learning target, fir floor) por segmento
+```
 
 ---
 

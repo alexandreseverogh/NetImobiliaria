@@ -21,6 +21,7 @@ import { CampaignLifecycleBadge } from '@/components/marketing/CampaignLifecycle
 import type { LifecycleStatus } from '@/lib/marketing/services/campaignLifecycleTypes';
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import { TrackingHealthWidget } from '@/components/marketing/TrackingHealthWidget';
 
 // ─── Palettes ─────────────────────────────────────────────────────────────────
 const PALETTE_DARK  = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#60a5fa', '#e879f9'];
@@ -478,6 +479,24 @@ export function DashboardPage() {
                 </div>
               </FarolSection>
             )}
+
+            {/* ══════════════════════════════════════════════════════════════
+                TRACKING HEALTH — Saúde do Tracking (FASE 8)
+            ══════════════════════════════════════════════════════════════ */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`p-2.5 rounded-xl ${isDark ? 'bg-rose-500/10' : 'bg-rose-50'}`}>
+                  <span className="text-base leading-none">🩺</span>
+                </div>
+                <div>
+                  <h2 className={`text-lg font-black ${tx}`}>Tracking Health</h2>
+                  <p className={`text-xs ${txMuted}`}>Score 0-100 — monitoramento automático do tracking e pixel</p>
+                </div>
+              </div>
+              <TrackingHealthWidget
+                clientId={clientFilter !== 'all' ? clientFilter as string : null}
+              />
+            </div>
 
             {/* ── Briefing Estratégico AI ──────────────────────────────────── */}
             <div className="mb-8">

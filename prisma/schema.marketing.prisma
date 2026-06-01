@@ -325,3 +325,17 @@ model CreativeAnalysis {
   @@index([tenantId])
   @@map("CreativeAnalysis")
 }
+
+// FASE 8 — Tracking Health Monitor
+model TrackingHealthCheck {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id") @db.Uuid
+  clientId     String?  @map("client_id") @db.Uuid
+  overallScore Int      @map("overall_score")
+  checks       Json     // CheckResult[]
+  issues       Json     // HealthIssue[]
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("TrackingHealthCheck")
+}

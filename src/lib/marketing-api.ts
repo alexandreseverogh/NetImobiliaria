@@ -434,4 +434,52 @@ export const getDashboardPredictions = (params?: {
   startDate?: string; endDate?: string;
 }) => api.get<PredictionData>('/dashboard/predictions', { params }).then(r => r.data);
 
+/* ──────────────────────────────────────────────────────────────
+   FASE 8 — Tracking Health Monitor
+────────────────────────────────────────────────────────────── */
+
+export type HealthCheckStatus = 'ok' | 'warn' | 'critical' | 'skip';
+
+export interface TrackingCheckResult {
+  id: string;
+  label: string;
+  status: HealthCheckStatus;
+  value: string | number | null;
+  detail: string;
+}
+
+export interface TrackingHealthIssue {
+  severity: 'warn' | 'critical';
+  checkId: string;
+  message: string;
+}
+
+export interface TrackingHealthResult {
+  id?: string;
+  overallScore: number;
+  checks: TrackingCheckResult[];
+  issues: TrackingHealthIssue[];
+  createdAt?: string;
+}
+
+export interface TrackingHealthHistoryEntry {
+  id: string;
+  overallScore: number;
+  issueCount: number;
+  createdAt: string;
+}
+
+export interface TrackingHealthData {
+  latest: TrackingHealthResult | null;
+  history: TrackingHealthHistoryEntry[];
+}
+
+export const getTrackingHealth = (clientId?: string | null) =>
+  api.get<TrackingHealthData>('/tracking/health', {
+    params: clientId ? { clientId } : undefined,
+  }).then(r => r.data);
+
+export const runTrackingHealth = (clientId?: string | null) =>
+  api.post<TrackingHealthResult>('/tracking/health', clientId ? { clientId } : {}).then(r => r.data);
+
 export default api;

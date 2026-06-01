@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-05-31
+> **Atualizado em:** 2026-06-01
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -360,6 +360,54 @@ Thresholds por segmento resolvidos via `benchmarkResolver` (4 camadas: cliente �
 
 ---
 
+## Última entrega — FASE 8: Tracking Health Monitor (2026-06-01)
+
+### O que foi implementado
+
+- **Migração DB** — `prisma/migration-2026-06-01-fase8-tracking-health.sql` (executada)
+  - Tabela `campanhasmarketingdigital."TrackingHealthCheck"` (`id, tenant_id, client_id, overall_score, checks, issues, created_at`)
+  - 2 índices: `idx_tracking_health_tenant` (busca recente) + `idx_tracking_health_critical` (score ≤ 50)
+
+- **`prisma/schema.marketing.prisma`** — model `TrackingHealthCheck` adicionado + `prisma generate` executado
+
+- **`src/lib/marketing/services/trackingHealthService.ts`** — service com 7 checks:
+  1. `tracking_endpoint` — endpoint `/api/r/__health_check__` responde <500 (peso 20)
+  2. `leads_24h` — leads registrados nas últimas 24h (peso 20)
+  3. `duplicate_rate` — taxa de leads com mesmo IP em <30s (peso 15)
+  4. `pixel_configured` — pixel_id em client/tenant credentials (peso 15)
+  5. `access_token` — token Meta configurado + dias p/ expiração (peso 15)
+  6. `lead_latency` — latência de query como proxy de captura (peso 10)
+  7. `orphan_leads` — leads sem campaignId (peso 5)
+  - `runTrackingHealthCheck()` — executa os 7 checks em paralelo, calcula score 0-100
+  - `saveTrackingHealthCheck()` — persiste em `TrackingHealthCheck`
+  - `getTrackingHealthHistory()` — histórico paginado por tenant
+
+- **`src/app/api/admin/campanhas/tracking/health/route.ts`**
+  - `GET` — retorna `{ latest, history }` (latest = check mais recente, history = 30 últimos)
+  - `POST` — executa novo check, persiste e retorna resultado completo
+  - Auth: `requireApiPermission('dashboard-campanhas', 'READ')` + `getTokenPayload`
+
+- **`src/lib/marketing-api.ts`** — tipos `TrackingCheckResult`, `TrackingHealthIssue`, `TrackingHealthResult`, `TrackingHealthData`; funções `getTrackingHealth()` e `runTrackingHealth()`
+
+- **`src/components/marketing/TrackingHealthWidget.tsx`** — widget completo:
+  - Gauge SVG semi-circular (0-100) colorido por score (verde/âmbar/vermelho)
+  - Chips de issues (críticos + alertas) ou "Tudo OK"
+  - Estado sem dados → botão "Executar 1ª verificação"
+  - Lista expandível de todos os checks (accordion por check com detalhe)
+  - Botão ↺ para re-executar check a qualquer momento
+  - Loading skeleton
+
+- **`src/app/admin/campanhas/dashboard/page.tsx`** — widget integrado entre Farol de Milha e Briefing AI
+  - Props: `clientId` respeitando filtro de cliente ativo
+
+### Validação
+- Migração executada: 3/3 OK (tabela + 2 índices)
+- `prisma generate` executado sem erros
+- TypeScript: zero erros nos arquivos da FASE 8
+- `GET /api/admin/campanhas/tracking/health` → 401 sem auth (rota compilada e ativa)
+
+---
+
 ## Pendências registradas
 
 ### 1.7 — Thresholds da State Machine por ENV (pendente)
@@ -370,22 +418,23 @@ Mover para variáveis de ambiente. Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFOR
 Card visual do dashboard usa `8` e `12` hardcoded; regra de IA já usa `benchmarkResolver`.
 Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` seção 1.8.
 
-### 1.10 — Revisão do modelo de predições (pendente)
-O modelo atual usa **regressão linear simples** com banda de confiança `±1.5σ` (≈86.6%).
-Limitações conhecidas:
-- `stdDev` calculado sobre valores brutos (não resíduos da regressão) → superestima incerteza
-- Ignora sazonalidade semanal dos dados de campanha (leads caem no fim de semana)
-- Banda fixa; não se estreita com mais dados históricos
+### 1.10 — Revisão do modelo de predições → FASE 8.5 (pendente, conceito aprovado 2026-06-01)
+O modelo atual usa **regressão linear simples** com banda `±1.5σ` (≈86.6%). Limitações:
+- `stdDev` sobre valores brutos (não resíduos) → superestima incerteza
+- Cold-start: exige histórico longo que não temos
+- Ignora variáveis exógenas (concorrência/leilão) — "olha só para o próprio umbigo"
 
-**Candidatos avaliados para substituição:**
-| Modelo | Vantagem | Requisito |
-|--------|----------|-----------|
-| Holt-Winters (ES triplo) | Captura sazonalidade semanal, implementável em TS | ≥ 2 ciclos (≥14 dias histórico) |
-| ARIMA | Autocorrelação | Complexo em JS, lib externa |
-| Prophet-like | Tendência + sazonalidade + feriados | Depende de port TS ou serviço Python |
+**Decisão (2026-06-01):** em vez de trocar por outro modelo de forecasting (Holt-Winters/
+ARIMA descartados como solução principal), **virar o paradigma** para **controle reativo
+de malha fechada** — escutar a "voz do Meta" (rankings de qualidade/engajamento/conversão,
+learning stage, tendência de CPM/frequência, Recommendations API) e converter em **ações
+de calibração** de campanha + criativo. Não depende de histórico longo.
 
-**Recomendação:** Holt-Winters com período 7 — melhor custo/benefício para séries diárias de campanhas.
-**Ponto de entrada:** `src/app/api/admin/campanhas/dashboard/predictions/route.ts`, parâmetro `?model=linear|holt-winters` para comparar antes de migrar.
+**Documentado minuciosamente** em `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` →
+**FASE 8.5 — Signal-Driven Calibration (Escuta da Voz do Meta)** (12 subseções: paradigma,
+catálogo de sinais, migração DB, adapter, normalização/pressão, motor de regras, reframe
+do Farol de Milha, loop com FASE 5/6/6.5, limites, sequência e critérios de aceite).
+**Pré-requisito:** FASE 5 (adapter) + FASE 6 (Creative Intelligence).
 
 ### 1.9 — Gestão de Providers e Modelos LLM pelo Master (pendente)
 UI CRUD para a tabela `LlmModel` em `/admin/master/ia-plataforma` (nova aba "Catálogo de Modelos").
