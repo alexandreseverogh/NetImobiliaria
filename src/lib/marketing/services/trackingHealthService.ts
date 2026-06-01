@@ -288,7 +288,7 @@ async function checkPixelConfigured(
     SELECT credentials->>'pixel_id' AS pixel_id
     FROM public.tenant_network_credentials
     WHERE tenant_id = ${tenantId}::uuid
-      AND network_id = (SELECT id FROM public.ad_networks WHERE slug = 'meta' LIMIT 1)
+      AND network_id = (SELECT id FROM public.ad_networks WHERE code = 'meta' LIMIT 1)
     LIMIT 1
   `;
 
@@ -324,7 +324,7 @@ async function checkAccessToken(
     FROM public.tenant_network_credentials tnc
     JOIN public.tenants t ON t.id = tnc.tenant_id
     WHERE tnc.tenant_id = ${tenantId}::uuid
-      AND tnc.network_id = (SELECT id FROM public.ad_networks WHERE slug = 'meta' LIMIT 1)
+      AND tnc.network_id = (SELECT id FROM public.ad_networks WHERE code = 'meta' LIMIT 1)
     LIMIT 1
   `;
 
