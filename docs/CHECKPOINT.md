@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-01 (FASE 8.5 concluída)
+> **Atualizado em:** 2026-06-01 (UI improvements — gráficos + funil)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -405,6 +405,28 @@ Thresholds por segmento resolvidos via `benchmarkResolver` (4 camadas: cliente �
 - `prisma generate` executado sem erros
 - TypeScript: zero erros nos arquivos da FASE 8
 - `GET /api/admin/campanhas/tracking/health` → 401 sem auth (rota compilada e ativa)
+
+---
+
+## Última entrega — UI Improvements: Gráficos & Funil (2026-06-01)
+
+### Alterações implementadas
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/marketing/charts/MultiMetricChart.tsx` | Props `xLabel?`, `yLeftLabel?`, `yRightLabel?` adicionadas; auto-deriva rótulos a partir dos metrics; rótulos renderizados em XAxis e ambos YAxis; `margin` do ComposedChart ajustado para acomodar rótulos |
+| `src/components/marketing/charts/ClassicFunnelChart.tsx` | Reescrito: SVG 300×320px (era 220×240px), taper gentil (bottom 84px, era ~20px), filtro de texto mais forte (`stdDeviation="2.5" floodOpacity="0.70"`), título "Funil do Ciclo de Conversão em Vendas", cores th.num por estágio, `rateColor(rate, isDark)` |
+| `src/app/admin/campanhas/dashboard/page.tsx` | Badge "FASE 7" hardcoded removido do heading "Funil por Estágio"; CPL Timeline: Gasto removido, CPL como área primária (left) + Leads como barra (right); Pie chart: inline `label` truncado substituído por legenda externa custom (flex-wrap, percentual calculado, dots coloridos) |
+| `src/components/marketing/StageFunnelWidget.tsx` | Nota informativa quando MOF zero ("Sem campanhas OUTCOME_ENGAGEMENT no período"); mensagem de erro de diagnóstico mapeada: "Connection terminated" / timeout → texto amigável em PT-BR |
+| `src/app/api/admin/campanhas/dashboard/funnel/diagnosis/route.ts` | Timeout 28s via `Promise.race` + `setTimeout`; resposta HTTP 504 quando timeout; mensagem de erro diferenciada timeout vs erro genérico |
+
+### Comportamento dos rótulos de eixo (MultiMetricChart)
+
+- **X** — sempre "Data" por padrão (override via `xLabel`)
+- **Y esquerdo** — auto-deriva do primeiro metric sem `yAxisId` ou com `yAxisId: 'left'`
+- **Y direito** — auto-deriva do primeiro metric com `yAxisId: 'right'`
+
+Nenhum callsite precisou de alteração — o comportamento é 100% retrocompatível.
 
 ---
 

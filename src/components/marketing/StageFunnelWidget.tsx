@@ -142,7 +142,14 @@ export function StageFunnelWidget({ data, isDark = false, clientId }: Props) {
       setDiagnosis(result.diagnosis);
       setShowDiagnosis(true);
     } catch (e: any) {
-      setDiagError(e?.response?.data?.error || e.message || 'Erro ao gerar diagnóstico');
+      const raw = e?.response?.data?.error || e.message || '';
+      const isTimeout = raw.includes('Connection terminated') || raw.includes('timeout') ||
+        raw.includes('ECONNRESET') || raw.includes('Tempo limite');
+      setDiagError(
+        isTimeout
+          ? 'Tempo limite excedido — o servidor encerrou a conexão durante a análise. Tente novamente em alguns instantes.'
+          : raw || 'Erro ao gerar diagnóstico. Tente novamente.'
+      );
     } finally {
       setDiagnosing(false);
     }
@@ -204,6 +211,17 @@ export function StageFunnelWidget({ data, isDark = false, clientId }: Props) {
         <RateArrow label="Lead Rate" value={conversionRates.mof_ltr} isBottleneck={bottleneck === 'MOF'} />
         <StageCard stage={bof} isBottleneck={bottleneck === 'BOF'} isDark={isDark} />
       </div>
+
+      {/* ── Nota informativa: MOF zerado ── */}
+      {mof.campaigns_count === 0 && (
+        <div className="flex items-start gap-1.5 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+          <InformationCircleIcon className="h-3.5 w-3.5 text-indigo-400 shrink-0 mt-0.5" />
+          <p className="text-[10px] text-slate-500 leading-snug">
+            <span className="font-semibold text-indigo-600">Meio do Funil zerado</span> — não há campanhas ativas com objetivo{' '}
+            <span className="font-semibold">Engajamento (OUTCOME_ENGAGEMENT)</span> no período selecionado. Campanhas de Tráfego e Leads ficam no Topo e Fundo do Funil respectivamente.
+          </p>
+        </div>
+      )}
 
       {/* ── Totais resumidos ── */}
       <div className="grid grid-cols-3 gap-2">

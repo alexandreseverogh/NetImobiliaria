@@ -408,18 +408,14 @@ export function DashboardPage() {
                   className={`rounded-2xl p-6 ${cardBase}`}>
                   <h3 className={`text-sm font-black mb-4 ${tx}`}>CPL Timeline</h3>
                   <MultiMetricChart isDark={isDark} data={cplData} metrics={[
-                    { key: 'spend', label: 'Gasto (R$)', color: predColors[0], type: 'area' },
-                    { key: 'leads', label: 'Leads',      color: predColors[1], type: 'bar', yAxisId: 'right' },
-                    { key: 'cpl',   label: 'CPL (R$)',   color: predColors[2], type: 'line' },
+                    { key: 'cpl',   label: 'CPL (R$)',   color: predColors[0], type: 'area' },
+                    { key: 'leads', label: 'Leads',      color: predColors[1], type: 'bar',  yAxisId: 'right' },
                   ]} />
                 </motion.div>
 
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
                   className={`rounded-2xl p-6 ${cardBase}`}>
-                  <h3 className={`text-sm font-black mb-4 ${tx}`}>
-                    Funil por Estágio
-                    <span className="ml-2 text-[9px] font-black bg-indigo-100 text-indigo-600 rounded-full px-1.5 py-0.5 uppercase tracking-wide align-middle">FASE 7</span>
-                  </h3>
+                  <h3 className={`text-sm font-black mb-4 ${tx}`}>Funil por Estágio</h3>
                   {funnelData7 ? (
                     <StageFunnelWidget
                       data={funnelData7}
@@ -435,18 +431,33 @@ export function DashboardPage() {
                   className={`rounded-2xl p-6 ${cardBase}`}>
                   <h3 className={`text-sm font-black mb-4 ${tx}`}>Distribuição por Campanha</h3>
                   {campaignSpendData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <PieChart>
-                        <Pie data={campaignSpendData} dataKey="value" nameKey="name"
-                          cx="50%" cy="50%" outerRadius={100} innerRadius={42}
-                          paddingAngle={3}
-                          label={({ name, percent }) => `${name} ${((percent as number) * 100).toFixed(0)}%`}
-                          labelLine={false}>
-                          {campaignSpendData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                        </Pie>
-                        <Tooltip {...tooltipCss} />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                          <Pie data={campaignSpendData} dataKey="value" nameKey="name"
+                            cx="50%" cy="50%" outerRadius={84} innerRadius={34}
+                            paddingAngle={3}>
+                            {campaignSpendData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                          </Pie>
+                          <Tooltip {...tooltipCss} formatter={(v: any) => `R$${Number(v).toFixed(2)}/dia`} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* ── Legenda externa — evita truncamento ── */}
+                      <div className="flex flex-wrap gap-x-3 gap-y-1.5 justify-center mt-2 px-2">
+                        {(() => {
+                          const total = campaignSpendData.reduce((s, c) => s + c.value, 0);
+                          return campaignSpendData.map((d, i) => (
+                            <div key={i} className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                              <span className={`text-[10px] truncate max-w-[120px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`} title={d.name}>{d.name}</span>
+                              <span className={`text-[10px] font-bold shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
+                                {total > 0 ? ((d.value / total) * 100).toFixed(0) : 0}%
+                              </span>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    </>
                   ) : (
                     <p className={`text-sm text-center py-12 ${txMuted}`}>Sem dados de campanhas</p>
                   )}

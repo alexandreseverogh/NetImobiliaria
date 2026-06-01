@@ -38,18 +38,28 @@ export async function POST(request: NextRequest) {
     const startDate = period?.startDate ? new Date(period.startDate).toLocaleDateString('pt-BR') : '—';
     const endDate   = period?.endDate   ? new Date(period.endDate).toLocaleDateString('pt-BR')   : '—';
 
-    const diagnosis = await invokeForContext({
-      templateKey: 'funnel_diagnosis',
-      tenantId:    payload.tenantId,
-      clientId:    clientId || null,
-      variables: {
-        segment:          'Imóveis', // fallback; resolveSegment já está no invokeForContext
-        period:           `${startDate} a ${endDate}`,
-        funnel_data:      funnelDataLines,
-        conversion_rates: convLines,
-      },
-      maxTokens: 400,
-    });
+    const TIMEOUT_MS = 28_000; // 28 s — evita Connection Terminated do pool pg
+
+    const diagnosis = await Promise.race([
+      invokeForContext({
+        templateKey: 'funnel_diagnosis',
+        tenantId:    payload.tenantId,
+        clientId:    clientId || null,
+        variables: {
+          segment:          'Imóveis', // fallback; resolveSegment já está no invokeForContext
+          period:           `${startDate} a ${endDate}`,
+          funnel_data:      funnelDataLines,
+          conversion_rates: convLines,
+        },
+        maxTokens: 400,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('Tempo limite excedido (28s). Tente novamente.')),
+          TIMEOUT_MS
+        )
+      ),
+    ]);
 
     return NextResponse.json({
       diagnosis,
@@ -57,6 +67,11 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('POST /funnel/diagnosis error:', error);
-    return NextResponse.json({ error: error.message || 'Erro ao gerar diagnóstico' }, { status: 500 });
+    const isTimeout = (error.message ?? '').includes('Tempo limite') ||
+      (error.message ?? '').includes('Connection terminated');
+    return NextResponse.json(
+      { error: isTimeout ? 'Tempo limite excedido — tente novamente.' : (error.message || 'Erro ao gerar diagnóstico') },
+      { status: isTimeout ? 504 : 500 }
+    );
   }
 }

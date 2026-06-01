@@ -19,9 +19,15 @@ interface Props {
   height?: number;
   title?: string;
   isDark?: boolean;
+  /** Override do rótulo do eixo X (padrão: 'Data') */
+  xLabel?: string;
+  /** Override do rótulo do eixo Y esquerdo (padrão: primeiro metric do eixo left) */
+  yLeftLabel?: string;
+  /** Override do rótulo do eixo Y direito (padrão: primeiro metric do eixo right) */
+  yRightLabel?: string;
 }
 
-export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, title, isDark = true }: Props) {
+export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, title, isDark = true, xLabel, yLeftLabel, yRightLabel }: Props) {
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
 
   const toggleMetric = (key: string) =>
@@ -33,6 +39,11 @@ export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, t
 
   const hasRight      = metrics.some(m => m.yAxisId === 'right');
   const visibleMetrics = metrics.filter(m => !hiddenKeys.has(m.key));
+
+  // Auto-derive axis labels
+  const xl = xLabel       ?? 'Data';
+  const yl = yLeftLabel   ?? (metrics.find(m => !m.yAxisId || m.yAxisId === 'left')?.label ?? '');
+  const yr = yRightLabel  ?? (hasRight ? (metrics.find(m => m.yAxisId === 'right')?.label ?? '') : '');
 
   const gridColor  = isDark ? 'rgba(255,255,255,0.04)' : '#f1f5f9';
   const axisColor  = isDark ? '#475569' : '#94a3b8';
@@ -68,7 +79,10 @@ export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, t
         ))}
       </div>
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={data}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 4, right: yr ? 64 : hasRight ? 40 : 8, left: yl ? 16 : 4, bottom: xl ? 22 : 4 }}
+        >
           <defs>
             {metrics.filter(m => m.type === 'area').map(m => (
               <linearGradient key={m.key} id={`mmcgrad-${m.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -84,12 +98,14 @@ export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, t
             tick={{ fill: axisColor }}
             axisLine={{ stroke: axisColor, strokeOpacity: 0.3 }}
             tickLine={false}
+            label={xl ? { value: xl, position: 'insideBottom', offset: -8, fill: axisColor, fontSize: 10, fontWeight: 600 } : undefined}
           />
           <YAxis
             yAxisId="left"
             stroke={axisColor} fontSize={11}
             tick={{ fill: axisColor }}
             axisLine={false} tickLine={false}
+            label={yl ? { value: yl, angle: -90, position: 'insideLeft', offset: 14, fill: axisColor, fontSize: 10, fontWeight: 600, style: { textAnchor: 'middle' } } : undefined}
           />
           {hasRight && (
             <YAxis
@@ -97,6 +113,7 @@ export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, t
               stroke={axisColor} fontSize={11}
               tick={{ fill: axisColor }}
               axisLine={false} tickLine={false}
+              label={yr ? { value: yr, angle: 90, position: 'insideRight', offset: 14, fill: axisColor, fontSize: 10, fontWeight: 600, style: { textAnchor: 'middle' } } : undefined}
             />
           )}
           <Tooltip {...tooltipCss} />
