@@ -148,11 +148,37 @@ model Insight {
   videoViews75Pct  Int      @default(0) @map("video_views_75_pct")
   videoViews100Pct Int      @default(0) @map("video_views_100_pct")
   thruplayViews    Int      @default(0) @map("thruplay_views")
+  // FASE 8.5 — Signal-Driven Anticipation (sinais de diagnóstico do Meta)
+  qualityRanking         String?  @map("quality_ranking") @db.VarChar(20)
+  engagementRateRanking  String?  @map("engagement_rate_ranking") @db.VarChar(20)
+  conversionRateRanking  String?  @map("conversion_rate_ranking") @db.VarChar(20)
+  learningStatus         String?  @map("learning_status") @db.VarChar(20)
+  learningConversions    Int?     @map("learning_conversions")
+  firstImpressionRatio   Float?   @map("first_impression_ratio")
   breakdowns       Json?
   createdAt        DateTime @default(now())
 
   @@index([campaignId, date])
   @@index([tenantId])
+}
+
+// FASE 8.5 — Snapshot de calibração (cache do painel + auditoria)
+model CalibrationSignal {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id") @db.Uuid
+  clientId      String?  @map("client_id") @db.Uuid
+  campaignId    String   @map("campaign_id")
+  adId          String?  @map("ad_id")
+  adsetId       String?  @map("adset_id")
+  pressureScore Int      @map("pressure_score")
+  signals       Json
+  recommendation Json?
+  anticipation  Json?
+  source        String   @default("META_SIGNAL") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, campaignId, createdAt(sort: Desc)])
+  @@map("CalibrationSignal")
 }
 
 model WhatsAppConfig {

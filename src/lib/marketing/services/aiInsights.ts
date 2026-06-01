@@ -1,6 +1,7 @@
 import prisma from '../prisma';
 import { resolveSegment } from '../../intelligence/segmentResolver';
 import { resolveBenchmarks, BenchmarkMap } from '../../intelligence/benchmarkResolver';
+import { computeSignalsForCampaign, type NormalizedSignals } from './signalEngine';
 
 interface CampaignData {
   campaignId: string;
@@ -95,6 +96,81 @@ const RULES: InsightRule[] = [
   },
 ];
 
+/* ──────────────────────────────────────────────────────────────
+   FASE 8.5 — CalibrationAction (ações leading acionáveis)
+────────────────────────────────────────────────────────────── */
+
+export type CalibrationAction =
+  | { action: 'HOLD_BUDGET';     reason: string; confidence: number; pressureScore: number }
+  | { action: 'SWAP_CREATIVE';   creativeDimension: 'HOOK' | 'VISUAL' | 'OFFER'; reason: string; confidence: number; pressureScore: number }
+  | { action: 'EXPAND_AUDIENCE'; reason: string; confidence: number; pressureScore: number }
+  | { action: 'SHIFT_BUDGET';    target: 'placement' | 'age' | 'time'; reason: string; confidence: number; pressureScore: number }
+  | { action: 'REVIEW_OFFER';    reason: string; confidence: number; pressureScore: number }
+  | { action: 'SCALE';           reason: string; confidence: number; pressureScore: number };
+
+interface SignalRule {
+  id: string;
+  check: (s: NormalizedSignals) => boolean;
+  buildAction: (s: NormalizedSignals, campaignName: string) => CalibrationAction;
+}
+
+const SIGNAL_RULES: SignalRule[] = [
+  {
+    id: 'learning_hold',
+    check: s => s.learningStatus === 'LEARNING' || s.learningStatus === 'LEARNING_LIMITED',
+    buildAction: (s, name) => ({
+      action: 'HOLD_BUDGET',
+      reason: `"${name}" está em fase de aprendizado do Meta (${s.learningStatus}). Alterações de budget interrompem o aprendizado — aguarde estabilização.`,
+      confidence: 0.92,
+      pressureScore: s.pressureScore,
+    }),
+  },
+  {
+    id: 'engagement_ranking_weak',
+    check: s => ['below_average_10','below_average_20','below_average_35'].includes(s.engagementRanking ?? ''),
+    buildAction: (s, name) => ({
+      action: 'SWAP_CREATIVE',
+      creativeDimension: 'HOOK',
+      reason: `Meta classifica o engajamento de "${name}" como "${s.engagementRanking}" vs. concorrentes. O gancho está retendo menos que os rivais que disputam o mesmo público.`,
+      confidence: s.engagementRanking === 'below_average_10' ? 0.93 : s.engagementRanking === 'below_average_20' ? 0.85 : 0.75,
+      pressureScore: s.pressureScore,
+    }),
+  },
+  {
+    id: 'conversion_ranking_weak',
+    check: s => ['below_average_10','below_average_20'].includes(s.conversionRanking ?? ''),
+    buildAction: (s, name) => ({
+      action: 'REVIEW_OFFER',
+      reason: `Meta classifica a conversão de "${name}" como "${s.conversionRanking}" vs. concorrentes. O tráfego chega, mas a oferta ou landing page converte pior que a vizinhança.`,
+      confidence: s.conversionRanking === 'below_average_10' ? 0.90 : 0.80,
+      pressureScore: s.pressureScore,
+    }),
+  },
+  {
+    id: 'audience_saturation',
+    check: s => s.cpmDeltaPct > 0.20 && s.frequencyNow > 3.5,
+    buildAction: (s, name) => ({
+      action: 'EXPAND_AUDIENCE',
+      reason: `"${name}": CPM subiu ${(s.cpmDeltaPct * 100).toFixed(0)}% (concorrência/demanda crescendo) e frequência ${s.frequencyNow.toFixed(1)}x. Combinação indica saturação — amplie o público.`,
+      confidence: 0.82,
+      pressureScore: s.pressureScore,
+    }),
+  },
+  {
+    id: 'all_green_scale',
+    check: s => s.qualityRanking === 'above_average'
+              && s.engagementRanking !== 'below_average_10'
+              && s.cpmDeltaPct < 0.10
+              && s.frequencyNow < 3.0,
+    buildAction: (s, name) => ({
+      action: 'SCALE',
+      reason: `"${name}": quality_ranking acima da média, CPM estável e frequência saudável (${s.frequencyNow.toFixed(1)}x). Sinais do Meta favoráveis — pode escalar budget com baixo risco.`,
+      confidence: 0.80,
+      pressureScore: s.pressureScore,
+    }),
+  },
+];
+
 function calculateTrend(insights: any[]): 'up' | 'down' | 'stable' {
   if (insights.length < 4) return 'stable';
   const mid = Math.floor(insights.length / 2);
@@ -139,7 +215,8 @@ export async function generateAiInsights(
   const segment = tenantId ? await resolveSegment(tenantId, clientId) : null;
   const benchmarks = tenantId
     ? await resolveBenchmarks(
-        ['cpl_ideal', 'ctr_min', 'ctr_scale', 'frequency_max', 'spend_no_lead', 'min_leads_scale', 'min_days_running', 'hook_rate_critical', 'hook_rate_min'],
+        ['cpl_ideal', 'ctr_min', 'ctr_scale', 'frequency_max', 'spend_no_lead',
+         'min_leads_scale', 'min_days_running', 'hook_rate_critical', 'hook_rate_min'],
         tenantId,
         segment?.id ?? null,
         clientId,
@@ -147,6 +224,7 @@ export async function generateAiInsights(
     : { cpl_ideal: 30, ctr_min: 1, ctr_scale: 2, frequency_max: 3, spend_no_lead: 50, min_leads_scale: 5, min_days_running: 3, hook_rate_critical: 8, hook_rate_min: 12 };
 
   const allInsights: any[] = [];
+  const allCalibrationActions: (CalibrationAction & { campaignId: string; campaignName: string })[] = [];
 
   for (const campaign of campaigns) {
     const insightWhere: any = { campaignId: campaign.id };
@@ -196,6 +274,7 @@ export async function generateAiInsights(
       avgHookRate,
     };
 
+    // Lagging rules (FASE 5 e anteriores)
     for (const rule of RULES) {
       if (rule.check(data, benchmarks)) {
         allInsights.push({
@@ -208,7 +287,54 @@ export async function generateAiInsights(
         });
       }
     }
+
+    // FASE 8.5 — Leading signal rules (gracioso: não interrompe se falhar)
+    if (tenantId) {
+      try {
+        const signals = await computeSignalsForCampaign(
+          campaign.id, tenantId, clientId ?? null,
+        );
+        for (const rule of SIGNAL_RULES) {
+          if (rule.check(signals)) {
+            const action = rule.buildAction(signals, campaign.name);
+            allCalibrationActions.push({
+              ...action,
+              campaignId:   campaign.id,
+              campaignName: campaign.name,
+            });
+            // Também adicionar ao allInsights para retrocompatibilidade da UI
+            allInsights.push({
+              campaignId:   campaign.id,
+              campaignName: campaign.name,
+              type:         action.action,
+              title:        actionTitle(action),
+              description:  action.reason,
+              confidence:   action.confidence,
+              isLeading:    true,
+              pressureScore: signals.pressureScore,
+            });
+          }
+        }
+      } catch (err) {
+        // Sinais leading são opcionais — não interrompe o fluxo lagging
+        console.warn('[aiInsights] Erro ao computar sinais leading:', err);
+      }
+    }
   }
 
-  return allInsights.sort((a, b) => b.confidence - a.confidence);
+  return {
+    insights: allInsights.sort((a, b) => b.confidence - a.confidence),
+    calibrationActions: allCalibrationActions.sort((a, b) => b.confidence - a.confidence),
+  };
+}
+
+function actionTitle(a: CalibrationAction): string {
+  switch (a.action) {
+    case 'HOLD_BUDGET':     return '⏸ Segure o Budget (Learning)';
+    case 'SWAP_CREATIVE':   return `🔄 Trocar Criativo (${a.creativeDimension === 'HOOK' ? 'Gancho' : a.creativeDimension === 'VISUAL' ? 'Visual' : 'Oferta'})`;
+    case 'EXPAND_AUDIENCE': return '🔭 Expandir Público';
+    case 'SHIFT_BUDGET':    return '↗ Realocar Budget';
+    case 'REVIEW_OFFER':    return '📋 Revisar Oferta / Landing Page';
+    case 'SCALE':           return '🚀 Escalar Budget';
+  }
 }

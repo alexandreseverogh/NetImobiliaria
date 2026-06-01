@@ -150,7 +150,8 @@ export async function gatherBriefingContext(periodDays: number, tenantId?: strin
     prevLeads += prevLeadCount;
   }
 
-  const ruleInsights = await generateAiInsights(undefined, tenantId, clientId);
+  const aiResult = await generateAiInsights(undefined, tenantId, clientId);
+  const ruleInsights = aiResult.insights;
 
   return {
     date: now.toISOString().split('T')[0],

@@ -21,12 +21,14 @@ export async function GET(request: NextRequest) {
     const startDate       = searchParams.get('startDate')       || undefined;
     const endDate         = searchParams.get('endDate')         || undefined;
 
-    const insights = await generateAiInsights(
+    const result = await generateAiInsights(
       campaignId, payload.tenantId, clientId,
       { objectiveFilter, statusFilter, adSetId, startDate, endDate },
     );
 
-    return NextResponse.json(insights);
+    // Retrocompatibilidade: result.insights é o array original
+    // Adicionalmente expõe calibrationActions (FASE 8.5)
+    return NextResponse.json(result);
   } catch (error: any) {
     console.error('GET /insights/ai error:', error);
     return NextResponse.json({ error: error.message || 'Erro ao gerar insights' }, { status: 500 });

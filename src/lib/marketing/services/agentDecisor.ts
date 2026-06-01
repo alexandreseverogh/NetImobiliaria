@@ -10,7 +10,8 @@ const DEFENSIVE_TYPES = ['PAUSE'];
 const OFFENSIVE_TYPES = ['SCALE'];
 
 export async function runDecisor(tenantId?: string) {
-  const insights = await generateAiInsights(undefined, tenantId);
+  const result = await generateAiInsights(undefined, tenantId);
+  const insights = result.insights;
   const highConfidence = insights.filter(i => i.confidence >= CONFIDENCE_THRESHOLD);
 
   for (const insight of highConfidence) {

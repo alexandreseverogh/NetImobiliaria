@@ -179,6 +179,11 @@ export async function syncMetrics() {
             videoViews75Pct:  day.videoViews75Pct  ?? 0,
             videoViews100Pct: day.videoViews100Pct ?? 0,
             thruplayViews:    day.thruplayViews    ?? 0,
+            // FASE 8.5 — Sinais de diagnóstico do Meta
+            qualityRanking:        day.qualityRanking        ?? null,
+            engagementRateRanking: day.engagementRateRanking ?? null,
+            conversionRateRanking: day.conversionRateRanking ?? null,
+            firstImpressionRatio:  day.firstImpressionRatio  ?? null,
             breakdowns:       (day as any).breakdowns ?? {},
           };
           await prisma.insight.upsert({

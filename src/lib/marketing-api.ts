@@ -482,4 +482,61 @@ export const getTrackingHealth = (clientId?: string | null) =>
 export const runTrackingHealth = (clientId?: string | null) =>
   api.post<TrackingHealthResult>('/tracking/health', clientId ? { clientId } : {}).then(r => r.data);
 
+/* ──────────────────────────────────────────────────────────────
+   FASE 8.5 — Signal-Driven Anticipation
+────────────────────────────────────────────────────────────── */
+
+export type CalibrationAction =
+  | 'HOLD_BUDGET'
+  | 'SWAP_CREATIVE'
+  | 'EXPAND_AUDIENCE'
+  | 'SHIFT_BUDGET'
+  | 'REVIEW_OFFER'
+  | 'SCALE';
+
+export interface CalibrationInsight {
+  campaignId:   string;
+  campaignName: string;
+  action:       CalibrationAction;
+  title:        string;
+  detail:       string;
+  confidence:   number;
+}
+
+export interface TimeToEvent {
+  event:      'FATIGUE' | 'EXIT_LEARNING' | 'AUDIENCE_EXHAUSTION';
+  adsetId?:   string;
+  campaignId: string;
+  daysUntil:  number | null;
+  detail:     string;
+  confidence: number;
+}
+
+export interface Trajectory {
+  signal:      'engagement_ranking' | 'cpm' | 'frequency' | 'first_impression_ratio';
+  direction:   'up' | 'down' | 'stable';
+  implication: string;
+  values:      number[];
+}
+
+export interface AnticipationResult {
+  campaignId:   string;
+  events:       TimeToEvent[];
+  trajectories: Trajectory[];
+}
+
+export const getAnticipation = (params?: {
+  clientId?: ClientFilter;
+  campaignId?: string;
+}) => api.get<AnticipationResult[]>('/dashboard/anticipation', { params }).then(r => r.data);
+
+export const getCalibrationInsights = (params?: {
+  campaignId?: string;
+  clientId?: ClientFilter;
+  objectiveFilter?: string;
+  statusFilter?: string;
+}) => api.get<{ insights: AiInsightData[]; calibrationActions: CalibrationInsight[] }>(
+  '/insights/ai', { params }
+).then(r => r.data);
+
 export default api;

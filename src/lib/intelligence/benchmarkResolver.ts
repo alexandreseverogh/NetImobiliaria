@@ -23,6 +23,13 @@ const GLOBAL_FALLBACKS: Record<string, number> = {
   hook_rate_critical: 8,
   hook_rate_min: 12,
   hook_rate_good: 22,
+  // FASE 8.5 — Signal-Driven Anticipation
+  pressure_w_engagement: 0.40,  // peso do engagement_rate_ranking na pressão
+  pressure_w_conversion:  0.35,  // peso do conversion_rate_ranking na pressão
+  pressure_w_quality:     0.25,  // peso do quality_ranking na pressão
+  cpm_delta_max:          0.20,  // Δ% CPM acima disto é alarme (20%)
+  learning_conv_target:   50,    // conversões Meta p/ sair do learning
+  fir_floor:              0.20,  // first_impression_ratio mínimo saudável
 };
 
 /**

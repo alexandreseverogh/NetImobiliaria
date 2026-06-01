@@ -4,9 +4,9 @@ import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   getDashboardFull, getDashboardPredictions, getLatestBriefing, generateBriefing, getBriefings, syncInsights,
-  getFunnelData,
+  getFunnelData, getAnticipation,
   type DashboardFullData, type PredictionData, type StrategicBriefingData, type AiInsightData,
-  type FunnelData7,
+  type FunnelData7, type AnticipationResult, type TimeToEvent, type Trajectory,
   getAiInsights,
 } from '@/lib/marketing-api';
 import { formatCurrency, formatNumber, formatPercent, cn, OBJECTIVES } from '@/lib/marketing-utils';
@@ -22,6 +22,8 @@ import type { LifecycleStatus } from '@/lib/marketing/services/campaignLifecycle
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 import { TrackingHealthWidget } from '@/components/marketing/TrackingHealthWidget';
+import { TimeToEventBar }      from '@/components/marketing/charts/TimeToEventBar';
+import { SignalTrajectory }    from '@/components/marketing/charts/SignalTrajectory';
 
 // ─── Palettes ─────────────────────────────────────────────────────────────────
 const PALETTE_DARK  = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#60a5fa', '#e879f9'];
@@ -37,6 +39,7 @@ export function DashboardPage() {
   const [briefing, setBriefing]             = useState<StrategicBriefingData | null>(null);
   const [briefingHistory, setBriefingHistory] = useState<StrategicBriefingData[]>([]);
   const [aiInsights, setAiInsights]         = useState<AiInsightData[]>([]);
+  const [anticipationData, setAnticipationData] = useState<AnticipationResult[]>([]);
   const [loading, setLoading]               = useState(true);
   const [syncing, setSyncing]               = useState(false);
   const [generatingBriefing, setGeneratingBriefing] = useState(false);
@@ -109,11 +112,14 @@ export function DashboardPage() {
       Promise.all([
         getLatestBriefing().catch(() => null),
         getBriefings({ limit: 5 }).catch(() => []),
-        getAiInsights(sharedFilters).catch(() => []),
-      ]).then(([latestBriefing, history, aiData]) => {
+        getAiInsights(sharedFilters).catch(() => ({ insights: [], calibrationActions: [] })),
+        getAnticipation(clientFilter && clientFilter !== 'all' ? { clientId: clientFilter as string } : {}).catch(() => []),
+      ]).then(([latestBriefing, history, aiData, anticipation]) => {
         setBriefing(latestBriefing);
         setBriefingHistory(history as StrategicBriefingData[]);
-        setAiInsights(aiData as AiInsightData[]);
+        const aiResult = aiData as any;
+        setAiInsights(Array.isArray(aiResult) ? aiResult : (aiResult?.insights ?? []));
+        setAnticipationData(anticipation as AnticipationResult[]);
       });
     } catch (err) { console.error('[Dashboard] Erro ao carregar dados:', err); }
     finally { setLoading(false); }
@@ -457,28 +463,91 @@ export function DashboardPage() {
             </RetrovisorSection>
 
             {/* ══════════════════════════════════════════════════════════════
-                FAROL DE MILHA — Projeções & Tendências
+                FAROL DE MILHA — Sinais Leading & Antecipação (FASE 8.5)
             ══════════════════════════════════════════════════════════════ */}
-            {predictions && !predictions.insufficientData && (
-              <FarolSection isDark={isDark}>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                  {([
-                    { label: 'Gasto Diário (R$)', color: predColors[0], hist: predictions.historical.spend,  pred: predictions.spend,  fmt: (v: number) => `R$${v.toFixed(0)}` },
-                    { label: 'Leads Diários',     color: predColors[1], hist: predictions.historical.leads,  pred: predictions.leads,  fmt: (v: number) => v.toFixed(0) },
-                    { label: 'CTR (%)',           color: predColors[2], hist: predictions.historical.ctr,    pred: predictions.ctr,    fmt: (v: number) => `${v.toFixed(2)}%` },
-                    { label: 'CPC (R$)',          color: predColors[3], hist: predictions.historical.cpc,    pred: predictions.cpc,    fmt: (v: number) => `R$${v.toFixed(2)}` },
-                  ] as const).map((p, i) => (
-                    <motion.div key={p.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-                      className={`rounded-2xl p-6 ${cardBase}`}>
-                      <PredictionChart isDark={isDark} label={p.label} color={p.color}
-                        historical={predictions.historical.dates.map((dt, j) => ({ date: dt, value: (p.hist as number[])[j] }))}
-                        predictions={p.pred as any} formatter={p.fmt as any}
-                        sigmaMult={predictions.sigmaMult} />
-                    </motion.div>
-                  ))}
+            <FarolSection isDark={isDark}>
+              {anticipationData.length > 0 ? (
+                <div className="space-y-6">
+                  {/* ── TimeToEvent bars ──────────────────────────────────── */}
+                  {(() => {
+                    const allEvents = anticipationData.flatMap(r =>
+                      r.events.map(e => ({ ...e, campaignId: r.campaignId }))
+                    );
+                    if (allEvents.length === 0) return null;
+                    return (
+                      <div>
+                        <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-cyan-700' : 'text-sky-500'}`}>
+                          Contagem Regressiva de Eventos
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {allEvents.map((e, i) => {
+                            const campName = campaigns.find(c => c.id === e.campaignId)?.name;
+                            return (
+                              <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
+                                <TimeToEventBar event={e as TimeToEvent} campaignName={campName} />
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── Signal trajectories ───────────────────────────────── */}
+                  {(() => {
+                    const allTraj = anticipationData.flatMap(r => r.trajectories);
+                    if (allTraj.length === 0) return null;
+                    return (
+                      <div>
+                        <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-cyan-700' : 'text-sky-500'}`}>
+                          Trajetória dos Sinais Leading
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {allTraj.map((traj, i) => (
+                            <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
+                              <SignalTrajectory trajectory={traj as Trajectory} />
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-              </FarolSection>
-            )}
+              ) : (
+                <div className={`py-8 text-center text-sm ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Sem dados de sinais — aguardando primeira sincronização com campos de ranking Meta.
+                </div>
+              )}
+
+              {/* ── Projeções legadas (regressão linear) ─────────────────── */}
+              {predictions && !predictions.insufficientData && (
+                <details className="mt-6 group">
+                  <summary className={cn(
+                    'flex items-center gap-2 cursor-pointer select-none text-[10px] font-black uppercase tracking-widest',
+                    isDark ? 'text-slate-600 hover:text-slate-400' : 'text-slate-400 hover:text-slate-600'
+                  )}>
+                    <span className="transition-transform group-open:rotate-90">▶</span>
+                    Projeções por regressão linear (legado)
+                  </summary>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-4">
+                    {([
+                      { label: 'Gasto Diário (R$)', color: predColors[0], hist: predictions.historical.spend, pred: predictions.spend,  fmt: (v: number) => `R$${v.toFixed(0)}` },
+                      { label: 'Leads Diários',     color: predColors[1], hist: predictions.historical.leads, pred: predictions.leads,  fmt: (v: number) => v.toFixed(0) },
+                      { label: 'CTR (%)',           color: predColors[2], hist: predictions.historical.ctr,   pred: predictions.ctr,    fmt: (v: number) => `${v.toFixed(2)}%` },
+                      { label: 'CPC (R$)',          color: predColors[3], hist: predictions.historical.cpc,   pred: predictions.cpc,    fmt: (v: number) => `R$${v.toFixed(2)}` },
+                    ] as const).map((p, i) => (
+                      <motion.div key={p.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
+                        className={`rounded-2xl p-6 ${cardBase}`}>
+                        <PredictionChart isDark={isDark} label={p.label} color={p.color}
+                          historical={predictions.historical.dates.map((dt, j) => ({ date: dt, value: (p.hist as number[])[j] }))}
+                          predictions={p.pred as any} formatter={p.fmt as any}
+                          sigmaMult={predictions.sigmaMult} />
+                      </motion.div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </FarolSection>
 
             {/* ══════════════════════════════════════════════════════════════
                 TRACKING HEALTH — Saúde do Tracking (FASE 8)
@@ -718,10 +787,10 @@ function FarolSection({ isDark, children }: { isDark: boolean; children: React.R
             Farol de Milha
           </p>
           <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-            Projeções & Tendências
+            Sinais Leading & Antecipação
           </h2>
           <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
-            Regressão linear — banda de confiança hachureada
+            Quando / para onde — motor de sinais Meta (FASE 8.5)
           </p>
         </div>
       </div>

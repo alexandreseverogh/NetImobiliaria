@@ -321,7 +321,15 @@ export class MetaAdsAdapter implements AdNetworkService {
         videoViews75Pct:  pickVideoAction(row.video_p75_watched_actions),
         videoViews100Pct: pickVideoAction(row.video_p100_watched_actions),
         thruplayViews:    pickVideoAction(row.video_thruplay_watched_actions),
-        // Campos de ROI — armazenados em breakdowns
+        // FASE 8.5 — Sinais de diagnóstico elevados para campos top-level
+        qualityRanking:        row.quality_ranking        || undefined,
+        engagementRateRanking: row.engagement_rate_ranking || undefined,
+        conversionRateRanking: row.conversion_rate_ranking || undefined,
+        // first_impression_ratio: razão de impressões novas (proxy de saturação de audiência)
+        firstImpressionRatio:  parseInt(row.impressions || 0) > 0
+          ? parseInt(row.reach || 0) / parseInt(row.impressions || 1)
+          : undefined,
+        // Campos de ROI — armazenados em breakdowns (compatibilidade retroativa)
         breakdowns: {
           purchase_value:       parseFloat(purchaseValue),
           quality_ranking:      row.quality_ranking,
@@ -338,6 +346,57 @@ export class MetaAdsAdapter implements AdNetworkService {
         },
       };
     });
+  }
+
+  /**
+   * FASE 8.5 — Busca learning_stage_info de um ad set (sinal de learning do Meta).
+   * Retorna null graciosamente se não disponível.
+   */
+  async fetchAdSetDelivery(adSetId: string): Promise<{
+    learningStatus: string | null;
+    learningConversions: number | null;
+    effectiveStatus: string | null;
+  } | null> {
+    try {
+      const res = await axios.get(this.url(adSetId), {
+        params: {
+          fields: 'learning_stage_info,effective_status,delivery_status',
+          ...this.auth,
+        },
+      });
+      const d = res.data;
+      return {
+        learningStatus:      d.learning_stage_info?.status         ?? null,
+        learningConversions: d.learning_stage_info?.conversions_bitmask
+          ? null  // bitmask — não é o count diretamente
+          : d.learning_stage_info?.ad_set_budget_remaining != null
+            ? null  // fallback: não disponível via este campo
+            : null,
+        effectiveStatus: d.effective_status ?? null,
+      };
+    } catch {
+      return null;  // gracioso — não interrompe o fluxo
+    }
+  }
+
+  /**
+   * FASE 8.5 — Busca recomendações do Meta para a conta.
+   * Fallback silencioso se sem permissão ou vazio.
+   */
+  async fetchRecommendations(): Promise<Array<{
+    recommendation_type: string;
+    title: string;
+    message: string;
+    confidence: string;
+  }>> {
+    try {
+      const res = await axios.get(this.url(`${this.adAccountId}/recommendations`), {
+        params: { ...this.auth, fields: 'recommendation_type,title,message,confidence' },
+      });
+      return res.data.data || [];
+    } catch {
+      return [];  // gracioso — recomendações são opcionais
+    }
   }
 
   async searchTargeting(

@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-01
+> **Atualizado em:** 2026-06-01 (FASE 8.5 concluída)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -408,6 +408,76 @@ Thresholds por segmento resolvidos via `benchmarkResolver` (4 camadas: cliente �
 
 ---
 
+## Última entrega — FASE 8.5: Signal-Driven Anticipation (2026-06-01)
+
+### Paradigma
+
+Substituição do modelo de **regressão linear** (forecasting passivo) por **motor de sinais leading**
+(escuta ativa da "voz do Meta"). O Farol de Milha agora responde "quando / para onde" em vez de
+"o que foi previsto com base no passado".
+
+### Migração DB executada
+
+`prisma/migration-2026-06-01-fase85-signals.sql`:
+- 6 novas colunas em `campanhasmarketingdigital."Insight"`:
+  `quality_ranking`, `engagement_rate_ranking`, `conversion_rate_ranking`, `learning_status`,
+  `learning_conversions` (INT), `first_impression_ratio` (FLOAT)
+- Índices: `idx_insight_rankings` + `idx_insight_learning`
+- Nova tabela `campanhasmarketingdigital."CalibrationSignal"` (pressureScore + signals JSONB)
+- Seeds em `public.system_benchmarks`: `frequency_max`, `learning_conv_target`, `fir_floor`,
+  `pressure_w_engagement`, `pressure_w_conversion`, `pressure_w_quality`, `cpm_delta_max`
+
+### Arquivos novos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/lib/marketing/services/signalEngine.ts` | Motor de sinais — `computePressure()`, `detectTrend()`, `computeSignalsForCampaign()` |
+| `src/lib/marketing/services/anticipationEngine.ts` | `computeAnticipation()` — heurísticas TIME-TO-FATIGUE, EXIT-LEARNING, AUDIENCE-EXHAUSTION; retorna `TimeToEvent[]` + `Trajectory[]` |
+| `src/app/api/admin/campanhas/dashboard/anticipation/route.ts` | `GET /dashboard/anticipation` — todas as campanhas ativas em paralelo |
+| `src/components/marketing/charts/TimeToEventBar.tsx` | Barra de contagem regressiva (verde→vermelho por urgência) |
+| `src/components/marketing/charts/SignalTrajectory.tsx` | Sparkline de 7 pontos + seta direcional + implicação textual |
+
+### Arquivos modificados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `prisma/schema.marketing.prisma` | 6 campos no model `Insight` + model `CalibrationSignal` |
+| `src/lib/marketing/networks/types.ts` | 6 campos FASE 8.5 no `NetworkInsight` |
+| `src/lib/marketing/networks/meta/metaAdsAdapter.ts` | `fetchInsights` mapeia rankings + `firstImpressionRatio`; novos métodos `fetchAdSetDelivery()` e `fetchRecommendations()` |
+| `src/lib/marketing/services/agentMonitor.ts` | `insightBase` persiste 4 novos campos de sinal |
+| `src/lib/marketing/services/aiInsights.ts` | `CalibrationAction` union type; `SIGNAL_RULES` (5 regras); retorno `{ insights, calibrationActions }` |
+| `src/lib/intelligence/benchmarkResolver.ts` | 6 novos `GLOBAL_FALLBACKS` para sinais |
+| `src/lib/marketing/services/agentDecisor.ts` | Caller corrigido para `result.insights` |
+| `src/lib/marketing/services/strategicBriefing.ts` | Caller corrigido para `aiResult.insights` |
+| `src/app/api/admin/campanhas/insights/ai/route.ts` | Retorna objeto completo `{ insights, calibrationActions }` |
+| `src/lib/marketing-api.ts` | Tipos FASE 8.5 + `getAnticipation()` + `getCalibrationInsights()` |
+| `src/app/admin/campanhas/dashboard/page.tsx` | Farol de Milha substituído pelos novos componentes; projeções legadas em `<details>` colapsável |
+
+### Heurísticas implementadas
+
+| Evento | Lógica |
+|--------|--------|
+| `TIME-TO-FATIGUE` | `daysUntil = ceil((freqMax − freqNow) / Δfreq_dia)` |
+| `TIME-TO-EXIT-LEARNING` | `daysUntil = ceil(remaining_conv / avg_conv_3d)` |
+| `AUDIENCE-EXHAUSTION` | `first_impression_ratio < fir_floor` ou caindo (detectTrend) |
+
+### `computePressure()` — normalização de sinais
+
+```
+pressureScore = rankPressure × 60% + trendPressure × 40%
+rankPressure  = weighted avg dos 3 rankings Meta (engagement/conversion/quality)
+trendPressure = contribuição de CPM + frequência crescente
+```
+
+Limiares resolvidos via `benchmarkResolver` (4 camadas: client → tenant → segment → global fallback).
+
+### Validação pré-teste
+- TypeScript: zero erros nos arquivos FASE 8.5
+- Rota `/dashboard/anticipation` compilada e registrada
+- Dashboard page: Farol de Milha renderiza seção de sinais; projeções legadas em `<details>`
+
+---
+
 ## Pendências registradas
 
 ### 1.7 — Thresholds da State Machine por ENV (pendente)
@@ -418,23 +488,9 @@ Mover para variáveis de ambiente. Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFOR
 Card visual do dashboard usa `8` e `12` hardcoded; regra de IA já usa `benchmarkResolver`.
 Ver `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` seção 1.8.
 
-### 1.10 — Revisão do modelo de predições → FASE 8.5 (pendente, conceito aprovado 2026-06-01)
-O modelo atual usa **regressão linear simples** com banda `±1.5σ` (≈86.6%). Limitações:
-- `stdDev` sobre valores brutos (não resíduos) → superestima incerteza
-- Cold-start: exige histórico longo que não temos
-- Ignora variáveis exógenas (concorrência/leilão) — "olha só para o próprio umbigo"
-
-**Decisão (2026-06-01):** em vez de trocar por outro modelo de forecasting (Holt-Winters/
-ARIMA descartados como solução principal), **virar o paradigma** para **controle reativo
-de malha fechada** — escutar a "voz do Meta" (rankings de qualidade/engajamento/conversão,
-learning stage, tendência de CPM/frequência, Recommendations API) e converter em **ações
-de calibração** de campanha + criativo. Não depende de histórico longo.
-
-**Documentado minuciosamente** em `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` →
-**FASE 8.5 — Signal-Driven Calibration (Escuta da Voz do Meta)** (12 subseções: paradigma,
-catálogo de sinais, migração DB, adapter, normalização/pressão, motor de regras, reframe
-do Farol de Milha, loop com FASE 5/6/6.5, limites, sequência e critérios de aceite).
-**Pré-requisito:** FASE 5 (adapter) + FASE 6 (Creative Intelligence).
+### 1.10 — Revisão do modelo de predições → FASE 8.5 ✅ CONCLUÍDA (2026-06-01)
+Paradigma virado de regressão linear para **motor de sinais leading**. Ver seção
+"Última entrega — FASE 8.5" acima.
 
 ### 1.9 — Gestão de Providers e Modelos LLM pelo Master (pendente)
 UI CRUD para a tabela `LlmModel` em `/admin/master/ia-plataforma` (nova aba "Catálogo de Modelos").

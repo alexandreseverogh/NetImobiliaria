@@ -30,6 +30,13 @@ export interface NetworkInsight {
   videoViews100Pct?: number;
   thruplayViews?: number;
   breakdowns?: Record<string, any>;
+  // FASE 8.5 — Sinais de diagnóstico do Meta (leading indicators)
+  qualityRanking?:        string;  // below_average_10 | below_average_20 | below_average_35 | average | above_average
+  engagementRateRanking?: string;
+  conversionRateRanking?: string;
+  learningStatus?:        string;  // LEARNING | LEARNING_LIMITED | ACTIVE | ...
+  learningConversions?:   number;  // conversões acumuladas no período de learning
+  firstImpressionRatio?:  number;  // reach / impressions — proxy de saturação de audiência
 }
 
 export interface TargetingResult {
