@@ -120,23 +120,10 @@ export default function ClientSelector({
     if (open) setTimeout(() => searchRef.current?.focus(), 50);
   }, [open]);
 
-  // Persistir no sessionStorage
+  // Padrão é sempre 'own' (Minha Empresa) ao carregar a página — sem restaurar do sessionStorage.
   const persistValue = useCallback((v: ClientFilterValue) => {
-    if (storageKey) {
-      try { sessionStorage.setItem(`clientSelector_${storageKey}`, v); } catch { /* noop */ }
-    }
     onChange(v);
-  }, [onChange, storageKey]);
-
-  // Restaurar do sessionStorage
-  useEffect(() => {
-    if (!storageKey) return;
-    try {
-      const stored = sessionStorage.getItem(`clientSelector_${storageKey}`);
-      if (stored && stored !== value) onChange(stored as ClientFilterValue);
-    } catch { /* noop */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey]);
+  }, [onChange]);
 
   // Filtrar clientes pela busca
   const filtered = search.length >= 2
@@ -484,13 +471,7 @@ export function useClientSelector(storageKey?: string) {
   const [clientFilter, setClientFilter] = useState<ClientFilterValue>('own');
 
   useEffect(() => {
-    if (storageKey) {
-      try {
-        const stored = sessionStorage.getItem(`clientSelector_${storageKey}`);
-        if (stored) setClientFilter(stored as ClientFilterValue);
-      } catch { /* noop */ }
-    }
-
+    // Padrão é sempre 'own' ao carregar — não restaura do sessionStorage.
     fetch('/api/admin/campanhas/clients', { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(data => {
