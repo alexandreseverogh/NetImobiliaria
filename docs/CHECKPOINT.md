@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-02 (Fix completo leads: coluna SQL, backfill client_id, datas dd/mm/aaaa, default Minha Empresa)
+> **Atualizado em:** 2026-06-02 (DateInputPtBR global (13 páginas) + ClientSelector Padrões Vencedores)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -39,9 +39,25 @@
 - `src/components/ui/DateInputPtBR.tsx` — NOVO componente (máscara dd/mm/aaaa)
 - `CLAUDE.md` — convenção obrigatória DateInputPtBR
 
-**Pendente:**
-- Aplicar `DateInputPtBR` nas demais 13 páginas que ainda usam `<input type="date">`
-- Adicionar `ClientSelector` em `criativos/padroes/page.tsx`
+**Pendente:** — (todas as pendências desta sessão foram resolvidas)
+
+---
+
+### DateInputPtBR global + ClientSelector Padrões Vencedores (2026-06-02)
+
+**DateInputPtBR aplicado em 13 arquivos:**
+`admin/audit`, `admin/master/auditoria`, `admin/logs`, `admin/sessions`, `admin/security-monitor`,
+`admin/visitas_plataformas`, `campanhas/iniciativas/nova`, `DashboardFilters`, `AdvancedFilters`,
+`ExportReports`, `crm/MarketingCampaignModal`, `crm/page`, `crm/config/marketing`
+
+**DateInputPtBR:** prop `required?: boolean` adicionada.
+
+**ClientSelector em `criativos/padroes/page.tsx`:**
+- Hook `useClientSelector('padroes')` — default 'own' (Minha Empresa)
+- `vw_creative_patterns` recriada com `client_id` (JOIN com `Campaign`)
+- `patterns/route.ts`: filtro `clientId=own|uuid` via `client_id IS NULL` ou `client_id = $N`
+
+**Nenhum `<input type="date">` restante na aplicação** (exceto o JSDoc do próprio componente).
 
 ---
 
