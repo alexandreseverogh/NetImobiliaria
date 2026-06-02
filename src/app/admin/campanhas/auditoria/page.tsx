@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   ClipboardDocumentListIcon,
   ArrowPathIcon,
@@ -10,6 +10,7 @@ import {
   XCircleIcon,
   MinusCircleIcon,
 } from '@heroicons/react/24/outline';
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -87,34 +88,18 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 function ScoreGauge({ score }: { score: number }) {
   const color = score >= 70 ? '#16a34a' : score >= 45 ? '#d97706' : '#dc2626';
-  const pct = Math.min(100, Math.max(0, score));
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
-  const dashoffset = circumference * (1 - pct / 100);
+  const pct   = Math.min(100, Math.max(0, score));
 
   return (
     <div className="flex flex-col items-center gap-1">
       <svg width={140} height={80} viewBox="0 0 140 80">
-        {/* Background arc */}
+        <path d="M 10 70 A 60 60 0 0 1 130 70" fill="none" stroke="#e5e7eb" strokeWidth={12} strokeLinecap="round" />
         <path
           d="M 10 70 A 60 60 0 0 1 130 70"
-          fill="none"
-          stroke="#e5e7eb"
-          strokeWidth={12}
-          strokeLinecap="round"
-        />
-        {/* Progress arc */}
-        <path
-          d="M 10 70 A 60 60 0 0 1 130 70"
-          fill="none"
-          stroke={color}
-          strokeWidth={12}
-          strokeLinecap="round"
+          fill="none" stroke={color} strokeWidth={12} strokeLinecap="round"
           strokeDasharray={`${(pct / 100) * 188} 188`}
         />
-        <text x="70" y="68" textAnchor="middle" fontSize="28" fontWeight="800" fill={color}>
-          {score}
-        </text>
+        <text x="70" y="68" textAnchor="middle" fontSize="28" fontWeight="800" fill={color}>{score}</text>
       </svg>
       <p className="text-xs text-gray-500 font-medium">Score Geral /100</p>
     </div>
@@ -124,7 +109,7 @@ function ScoreGauge({ score }: { score: number }) {
 // ── Dimension Bar ─────────────────────────────────────────────
 
 function DimensionBar({ dim }: { dim: ScorecardDimension }) {
-  const barColor = dim.status === 'ok' ? 'bg-green-500' : dim.status === 'warn' ? 'bg-amber-500' : 'bg-red-500';
+  const barColor   = dim.status === 'ok' ? 'bg-green-500' : dim.status === 'warn' ? 'bg-amber-500' : 'bg-red-500';
   const StatusIcon = dim.status === 'ok' ? CheckCircleIcon : dim.status === 'warn' ? MinusCircleIcon : XCircleIcon;
   const iconColor  = dim.status === 'ok' ? 'text-green-500' : dim.status === 'warn' ? 'text-amber-500' : 'text-red-500';
 
@@ -137,10 +122,7 @@ function DimensionBar({ dim }: { dim: ScorecardDimension }) {
           <span className="text-sm font-bold text-gray-700">{dim.score}/100</span>
         </div>
         <div className="w-full bg-gray-100 rounded-full h-2 mb-1">
-          <div
-            className={`h-2 rounded-full transition-all duration-700 ${barColor}`}
-            style={{ width: `${dim.score}%` }}
-          />
+          <div className={`h-2 rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${dim.score}%` }} />
         </div>
         <p className="text-xs text-gray-500">{dim.detail}</p>
       </div>
@@ -151,22 +133,28 @@ function DimensionBar({ dim }: { dim: ScorecardDimension }) {
 // ── Main Page ─────────────────────────────────────────────────
 
 export default function AuditoriaPage() {
-  const [report, setReport]         = useState<AuditReport | null>(null);
-  const [loading, setLoading]       = useState(false);
-  const [days, setDays]             = useState(30);
-  const [withNarr, setWithNarr]     = useState(false);
-  const [error, setError]           = useState('');
-  const mountedRef                  = useRef(false);
+  const [report, setReport]     = useState<AuditReport | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [days, setDays]         = useState(30);
+  const [withNarr, setWithNarr] = useState(false);
+  const [error, setError]       = useState('');
 
-  const generate = useCallback(async (periodDays: number, narrative: boolean) => {
+  // ClientSelector — filtro por cliente (igual ao dashboard)
+  const { clients, loading: clientsLoading, clientFilter, setClientFilter } =
+    useClientSelector('auditoria');
+
+  // clientId para a API: 'all' → null (todas), 'own' → 'own', uuid → uuid
+  const clientId = clientFilter === 'all' ? null : clientFilter;
+
+  const generate = useCallback(async (periodDays: number, narrative: boolean, cid: string | null) => {
     setLoading(true);
     setError('');
     setReport(null);
     try {
-      const res  = await fetch('/api/admin/campanhas/auditoria', {
+      const res = await fetch('/api/admin/campanhas/auditoria', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ periodDays, withNarrative: narrative }),
+        body:    JSON.stringify({ periodDays, withNarrative: narrative, clientId: cid }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Erro ao gerar relatório');
@@ -178,24 +166,22 @@ export default function AuditoriaPage() {
     }
   }, []);
 
-  // Auto-gera ao montar e toda vez que o período muda (igual à página de Desperdício)
+  // Auto-gera ao trocar período ou cliente
   useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-    }
-    generate(days, false); // não inclui narrativa no auto-refresh
+    generate(days, false, clientId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days]);
+  }, [days, clientFilter]);
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString('pt-BR');
-  const fmtCur  = (n: number) => `R$${n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const fmtCur  = (n: number) =>
+    `R$${n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="max-w-5xl mx-auto">
 
-        {/* Header */}
-        <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        {/* ── Header ───────────────────────────────────────────── */}
+        <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-2">Campanhas</p>
             <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
@@ -209,24 +195,33 @@ export default function AuditoriaPage() {
 
           {/* Controls */}
           <div className="flex flex-col gap-2 items-end">
-            {/* Period selector */}
-            <div className="flex items-center gap-1.5 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
-              {PERIOD_OPTIONS.map(o => (
-                <button
-                  key={o.value}
-                  onClick={() => setDays(o.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    days === o.value
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
+            {/* Row 1: ClientSelector + period */}
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <ClientSelector
+                value={clientFilter}
+                onChange={setClientFilter}
+                clients={clients}
+                loading={clientsLoading}
+                storageKey="auditoria"
+              />
+              <div className="flex items-center gap-1 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
+                {PERIOD_OPTIONS.map(o => (
+                  <button
+                    key={o.value}
+                    onClick={() => setDays(o.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      days === o.value
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Narrative toggle + generate */}
+            {/* Row 2: Narrative toggle + refresh */}
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
                 <input
@@ -239,7 +234,7 @@ export default function AuditoriaPage() {
                 Narrativa LLM
               </label>
               <button
-                onClick={() => generate(days, withNarr)}
+                onClick={() => generate(days, withNarr, clientId)}
                 disabled={loading}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
               >
@@ -252,7 +247,7 @@ export default function AuditoriaPage() {
           </div>
         </div>
 
-        {/* Error */}
+        {/* ── Error ────────────────────────────────────────────── */}
         {error && (
           <div className="mb-6 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
             <ExclamationTriangleIcon className="h-4 w-4 shrink-0" />
@@ -260,16 +255,18 @@ export default function AuditoriaPage() {
           </div>
         )}
 
-        {/* Loading state */}
+        {/* ── Loading ───────────────────────────────────────────── */}
         {loading && (
-          <div className="text-center py-20 text-gray-400">
-            <ArrowPathIcon className="h-10 w-10 mx-auto mb-4 animate-spin text-indigo-500" />
-            <p className="text-base font-semibold text-gray-600">Analisando campanhas dos últimos {days} dias…</p>
+          <div className="text-center py-20">
+            <div className="h-8 w-8 mx-auto mb-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+            <p className="text-base font-semibold text-gray-600">
+              Analisando campanhas dos últimos {days} dias…
+            </p>
             <p className="text-sm mt-1 text-gray-400">Isso pode levar alguns segundos</p>
           </div>
         )}
 
-        {/* Report */}
+        {/* ── Report ───────────────────────────────────────────── */}
         {report && !loading && (
           <div className="space-y-6">
 
@@ -282,7 +279,6 @@ export default function AuditoriaPage() {
             {/* Score + Scorecard */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <div className="flex flex-col md:flex-row gap-6 items-start">
-
                 {/* Gauge */}
                 <div className="flex flex-col items-center gap-2 md:w-44 shrink-0">
                   <ScoreGauge score={report.overallScore} />
@@ -294,7 +290,6 @@ export default function AuditoriaPage() {
                     {report.overallScore >= 70 ? 'Saudável' : report.overallScore >= 45 ? 'Atenção' : 'Crítico'}
                   </p>
                 </div>
-
                 {/* Dimensions */}
                 <div className="flex-1 space-y-3">
                   <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider mb-3">Scorecard por Dimensão</h2>
@@ -307,7 +302,6 @@ export default function AuditoriaPage() {
 
             {/* Problems + Opportunities */}
             <div className="grid md:grid-cols-2 gap-6">
-
               {/* Problems */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                 <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -319,8 +313,8 @@ export default function AuditoriaPage() {
                     <div key={p.rank} className={`rounded-xl border p-3 ${IMPACT_COLORS[p.impact]}`}>
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <span className="text-xs font-black">#{p.rank} {p.title}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                          p.impact === 'high' ? 'bg-red-200 text-red-800'
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                          p.impact === 'high'   ? 'bg-red-200 text-red-800'
                           : p.impact === 'medium' ? 'bg-amber-200 text-amber-800'
                           : 'bg-blue-200 text-blue-800'
                         }`}>
@@ -328,9 +322,7 @@ export default function AuditoriaPage() {
                         </span>
                       </div>
                       <p className="text-xs opacity-80 leading-relaxed">{p.description}</p>
-                      {p.metric && (
-                        <p className="text-xs font-bold mt-1.5 opacity-90">📊 {p.metric}</p>
-                      )}
+                      {p.metric && <p className="text-xs font-bold mt-1.5 opacity-90">📊 {p.metric}</p>}
                     </div>
                   ))}
                 </div>
@@ -357,15 +349,11 @@ export default function AuditoriaPage() {
             {/* Wasted Spend */}
             {report.wastedSpend.total > 0 && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider mb-4">
-                  💸 Desperdício Consolidado
-                </h2>
+                <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider mb-4">💸 Desperdício Consolidado</h2>
                 <div className="flex items-center gap-4 mb-4">
                   <div className="text-3xl font-black text-red-600">{fmtCur(report.wastedSpend.total)}</div>
-                  <div className="text-xs text-gray-500">total estimado<br/>no período</div>
+                  <div className="text-xs text-gray-500">total estimado<br />no período</div>
                 </div>
-
-                {/* By category */}
                 {Object.entries(report.wastedSpend.byCategory).length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-4">
                     {Object.entries(report.wastedSpend.byCategory)
@@ -377,8 +365,6 @@ export default function AuditoriaPage() {
                       ))}
                   </div>
                 )}
-
-                {/* Top campaigns */}
                 {report.wastedSpend.topCampaigns.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">Campanhas com maior desperdício:</p>
@@ -398,9 +384,7 @@ export default function AuditoriaPage() {
 
             {/* Action Plan */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider mb-4">
-                🗓️ Plano de Ação
-              </h2>
+              <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider mb-4">🗓️ Plano de Ação</h2>
               <div className="space-y-2">
                 {report.actionPlan.map((item, i) => (
                   <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
