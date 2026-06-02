@@ -188,12 +188,18 @@ export async function saveAuditReport(
   const endDate = new Date(report.period.end);
   endDate.setHours(0, 0, 0, 0);
 
+  // 'own' é um valor de UI (campanhas sem cliente = client_id IS NULL).
+  // No DB, clientId deve ser null ou um UUID válido — nunca a string 'own'.
+  const dbClientId = (report.clientId === 'own' || !report.clientId)
+    ? null
+    : report.clientId;
+
   // Prisma não suporta upsert com campos nullable em unique constraints compostos.
   // Workaround: findFirst + create/update manualmente.
   const existing = await (prisma as any).auditReport.findFirst({
     where: {
       tenantId:    report.tenantId,
-      clientId:    report.clientId ?? null,
+      clientId:    dbClientId,
       periodStart: startDate,
       periodEnd:   endDate,
     },
@@ -221,7 +227,7 @@ export async function saveAuditReport(
   const created = await (prisma as any).auditReport.create({
     data: {
       tenantId:    report.tenantId,
-      clientId:    report.clientId ?? null,
+      clientId:    dbClientId,
       periodStart: startDate,
       periodEnd:   endDate,
       ...payload,
