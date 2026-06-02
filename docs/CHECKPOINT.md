@@ -1,12 +1,31 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-01 (Fix login loop — DB pool exhaustion)
+> **Atualizado em:** 2026-06-01 (FASE 9 — Audit Report Estruturado completo)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### FASE 9 — Audit Report Estruturado (2026-06-01)
+
+**Objetivo:** Relatório mensal/semanal com scorecard de saúde, top problemas, oportunidades, desperdício consolidado, plano de ação semanal e narrativa LLM opcional.
+
+**Arquivos criados:**
+- `prisma/migration-2026-06-01-fase9-audit-report.sql` — tabela `AuditReport` + 2 prompt templates (`audit_report_monthly`, `audit_report_weekly`)
+- `prisma/schema.marketing.prisma` — model `AuditReport` adicionado
+- `src/lib/marketing/services/auditReportService.ts` — serviço completo com 5 dimensões de scoring (Performance 30%, Spend Efficiency 25%, Funnel Health 20%, Tracking 15%, Creative 10%), builders de problemas/oportunidades/plano e narrativa LLM
+- `src/app/api/admin/campanhas/auditoria/route.ts` — GET (lista histórico) + POST (gera e persiste)
+- `src/app/admin/campanhas/auditoria/page.tsx` — Frontend com gauge, barras de dimensão, problemas/oportunidades, desperdício, plano de ação
+
+**Sidebar:** Item "Auditoria" inserido em `sidebar_menu_items` (id=119, parent=110/campanhas, order=113)
+
+**DB:** Migração executada, `prisma generate` rodado.
+
+**NOTA:** Prompt templates usam `template_key` + `content` (não `key`/`template`). Confirmado estrutura real da tabela `system_prompt_templates`.
+
+---
 
 ### Fix Login Loop — DB Pool Exhaustion (2026-06-01)
 

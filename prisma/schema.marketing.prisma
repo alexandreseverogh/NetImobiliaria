@@ -365,3 +365,24 @@ model TrackingHealthCheck {
   @@index([tenantId, createdAt(sort: Desc)])
   @@map("TrackingHealthCheck")
 }
+
+// FASE 9 — Audit Report Estruturado
+model AuditReport {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  clientId     String?  @map("client_id") @db.Uuid
+  periodStart  DateTime @map("period_start") @db.Date
+  periodEnd    DateTime @map("period_end") @db.Date
+  overallScore Int?     @map("overall_score")
+  scorecard    Json     @default("{}")
+  problems     Json     @default("[]")
+  opportunities Json    @default("[]")
+  wastedSpend  Json     @map("wasted_spend") @default("{}")
+  actionPlan   Json     @map("action_plan") @default("[]")
+  narrative    String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, clientId, periodStart, periodEnd], name: "uq_audit_report")
+  @@index([tenantId, periodStart(sort: Desc)])
+  @@map("AuditReport")
+}
