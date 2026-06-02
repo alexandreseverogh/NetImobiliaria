@@ -9,7 +9,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   XMarkIcon,
-  MagnifyingGlassIcon,
   ArrowPathIcon,
   MapPinIcon,
   RocketLaunchIcon,
@@ -771,7 +770,7 @@ export default function CampanhasModal({
   }, [isOpen, onClose]);
 
   const filtered = campaigns.filter(c => {
-    const matchSearch  = !search       || c.name.toLowerCase().includes(search.toLowerCase());
+    const matchSearch  = !search       || c.id === search;   // seleção exata pelo id
     const matchStatus  = !statusFilter || c.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -839,21 +838,22 @@ export default function CampanhasModal({
 
                   {/* Controls */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {/* Search */}
+                    {/* Campaign select — populated with loaded campaigns */}
                     <div className="relative hidden md:block">
-                      <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder="Buscar por nome..."
+                      <select
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all w-52 shadow-sm"
-                      />
-                      {search && (
-                        <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                          <XMarkIcon className="h-3.5 w-3.5" />
-                        </button>
-                      )}
+                        disabled={loading || campaigns.length === 0}
+                        className="py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed max-w-[260px]"
+                      >
+                        <option value="">
+                          {loading ? 'Carregando…' : `Todas as campanhas (${campaigns.length})`}
+                        </option>
+                        {campaigns.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                     </div>
 
                     {/* Status filter */}
@@ -884,17 +884,21 @@ export default function CampanhasModal({
                   </div>
                 </div>
 
-                {/* Mobile search */}
+                {/* Mobile filters */}
                 <div className="mt-3 md:hidden flex gap-2">
                   <div className="relative flex-1">
-                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Buscar..."
+                    <select
                       value={search}
                       onChange={e => setSearch(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
+                      disabled={loading || campaigns.length === 0}
+                      className="w-full py-2.5 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer disabled:opacity-50"
+                    >
+                      <option value="">{loading ? 'Carregando…' : 'Todas as campanhas'}</option>
+                      {campaigns.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                   </div>
                   <div className="relative">
                     <select
