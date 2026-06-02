@@ -1,12 +1,49 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-02 (Fix filtro campanha na página de Leads — stats API + getCampaigns com clientFilter)
+> **Atualizado em:** 2026-06-02 (Fix completo leads: coluna SQL, backfill client_id, datas dd/mm/aaaa, default Minha Empresa)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Fix Leads — Série de Bugs (2026-06-02)
+
+**Problemas corrigidos nesta sessão:**
+
+1. **Stats não filtravam por campanha** — `stats/route.ts` nunca lia `campaignId` dos searchParams.
+
+2. **Dados idênticos para clientes diferentes (raw SQL)** — query `leadsByDay` usava `"campaign_id"::uuid` (coluna errada + cast errado). Coluna correta é `"campaignId"` (TEXT, camelCase, sem `::uuid`).
+
+3. **Promise.all swallowando resultados** — quando stats retornava 500, `Promise.all` descartava leads e campanhas também. Fix: `Promise.allSettled` com verificação individual.
+
+4. **Historical leads sem client_id** — 299 leads criados antes da vinculação campaigns→clients tinham `client_id = NULL`. Backfill via `scripts/backfill-lead-clientid.mjs`: 273 para Alexandre, 26 para Gisele.
+
+5. **Datas em formato OS (mm/dd)** — `<input type="date">` substituído por `<DateInputPtBR>` com máscara dd/mm/aaaa. Adicionada convenção obrigatória no CLAUDE.md.
+
+6. **ClientSelector não defaultava para Minha Empresa** — `sessionStorage` era lido no mount e sobrescrevia o estado 'own'. Removidos ambos os `useEffect` de sessionStorage (hook + componente).
+
+**Estado atual verificado:**
+- `GET /leads?clientId=own` → 245 leads ✅
+- `GET /leads?clientId=<alexandre>` → 113 leads ✅
+- `GET /leads?clientId=<gisele>` → 26 leads ✅
+- `GET /leads/stats?clientId=<alexandre>` → totalLeads: 113 ✅
+
+**Arquivos modificados:**
+- `src/app/api/admin/campanhas/leads/stats/route.ts` — filtro campaignId + raw SQL parâmetrico correto
+- `src/app/api/admin/campanhas/leads/route.ts` — sem alteração (já correto)
+- `src/app/admin/campanhas/leads/page.tsx` — DateInputPtBR + Promise.allSettled + getCampaigns(clientFilter)
+- `src/lib/marketing-api.ts` — getLeadStats aceita campaignId
+- `src/components/marketing/ClientSelector.tsx` — removido sessionStorage read; default sempre 'own'
+- `src/components/ui/DateInputPtBR.tsx` — NOVO componente (máscara dd/mm/aaaa)
+- `CLAUDE.md` — convenção obrigatória DateInputPtBR
+
+**Pendente:**
+- Aplicar `DateInputPtBR` nas demais 13 páginas que ainda usam `<input type="date">`
+- Adicionar `ClientSelector` em `criativos/padroes/page.tsx`
+
+---
 
 ### Fix Leads — Filtro de Campanha nas Stats (2026-06-02)
 
