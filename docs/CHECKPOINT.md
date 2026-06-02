@@ -19,7 +19,12 @@
 - `src/app/api/admin/campanhas/auditoria/route.ts` — GET (lista histórico) + POST (gera e persiste)
 - `src/app/admin/campanhas/auditoria/page.tsx` — Frontend com gauge, barras de dimensão, problemas/oportunidades, desperdício, plano de ação
 
-**Sidebar:** Item "Auditoria" inserido em `sidebar_menu_items` (id=119, parent=110/campanhas, order=113)
+**Sidebar (corrigido):** O sistema usa `system_features` (não `sidebar_menu_items`). Inseridos:
+  - `system_features` id=101, category_id=30, sort_order=7
+  - `permissions` read(930) + execute(931)
+  - `role_permissions` para roles 41/42/47 (Master + Administrador)
+  - `tenant_feature_overrides` para tenants "Imobiliaria XYZ" e "Marketing Digital"
+  - Migration: `prisma/migration-2026-06-02-fase9-sidebar-auditoria.sql`
 
 **DB:** Migração executada, `prisma generate` rodado.
 
