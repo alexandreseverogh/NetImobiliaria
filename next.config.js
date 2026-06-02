@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-
+// last-restart: 2026-06-01 — reduced DB pool to fix max_connections exhaustion
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

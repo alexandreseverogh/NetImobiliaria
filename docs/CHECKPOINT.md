@@ -1,12 +1,31 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-01 (UI improvements — gráficos + funil)
+> **Atualizado em:** 2026-06-01 (Fix login loop — DB pool exhaustion)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Fix Login Loop — DB Pool Exhaustion (2026-06-01)
+
+**Problema:** Login em `http://localhost:3000/admin/login` ficava em loop infinito.
+
+**Causa raiz:** PostgreSQL Docker container atingiu `max_connections=100`. Múltiplos serviços Docker (app:3002, feed, lead-worker) + dev local (3000) consumiam todas as conexões disponíveis. A pool usava `min=2` (conexões de aquecimento), o que desperdiçava slots.
+
+**Sintoma técnico:** `/api/admin/auth/login` → 500 com `"Connection terminated due to connection timeout"` (pg-pool `connectionTimeoutMillis: 5000` esgotado). `useAuth.tsx` detectava falha no `/api/admin/auth/me` → `window.location.href = '/admin/login'` → loop.
+
+**Fix aplicado:**
+- `src/lib/database/connection.ts`: defaults ajustados para `max=10, min=0, idleTimeout=30s, connectionTimeout=30s, allowExitOnIdle=true`
+- `.env.local` (local, não commitado): `DB_POOL_MAX=5, DB_POOL_MIN=0`
+- `next.config.js`: comentário adicionado para triggering de restart do servidor (libera conexões antigas)
+
+**Verificação:** Login retorna 200 em ~600ms; `/api/admin/auth/me` retorna 200 em ~200ms (com cookie). Auth flow completo funcional.
+
+---
+
+
 
 ### Centralização LLM das Campanhas (2026-05-28)
 

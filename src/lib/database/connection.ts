@@ -30,14 +30,14 @@ const poolConfig: PoolConfig = {
   port: parseInt(dbPort),
 
   // ============================================================
-  // Pool otimizado para produção (suporta 5000+ usuários)
-  // Antes: max=20 → Depois: max=100, com mínimo sempre ativo
+  // Pool otimizado — conservador em dev (evita esgotar max_connections do PG)
+  // Em prod usa DB_POOL_MAX/MIN via variável de ambiente.
   // ============================================================
-  max: parseInt(process.env.DB_POOL_MAX || '100'),       // 100 conexões simultâneas
-  min: parseInt(process.env.DB_POOL_MIN || '5'),          // 5 conexões sempre ativas (warm pool)
-  idleTimeoutMillis: 60000,                               // 60s antes de fechar conexão ociosa
-  connectionTimeoutMillis: 5000,                          // 5s para estabelecer nova conexão
-  allowExitOnIdle: false,                                  // Nunca zera o pool em produção
+  max: parseInt(process.env.DB_POOL_MAX || '10'),         // 10 conexões simultâneas (dev-safe)
+  min: parseInt(process.env.DB_POOL_MIN || '0'),          // 0 conexões de aquecimento (lazy)
+  idleTimeoutMillis: 30000,                               // 30s antes de fechar conexão ociosa
+  connectionTimeoutMillis: 30000,                         // 30s para estabelecer nova conexão
+  allowExitOnIdle: true,                                  // Libera conexões quando ociosas
 
   // Timeouts de query (previne queries travadas)
   statement_timeout: 30000,                               // 30s máximo por query
