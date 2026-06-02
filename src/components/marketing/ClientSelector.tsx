@@ -490,13 +490,15 @@ export function useClientSelector(storageKey?: string) {
     }
 
     fetch('/api/admin/campanhas/clients', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : { clients: [] })
+      .then(r => r.ok ? r.json() : [])
       .then(data => {
-        setClients((data.clients || []).map((c: any) => ({
-          id:            c.id || c.uuid,
+        // API retorna array direto OU { clients: [] } — suporta ambos
+        const list: any[] = Array.isArray(data) ? data : (data.clients || []);
+        setClients(list.map((c: any) => ({
+          id:            c.id   || c.uuid,
           name:          c.name || c.nome || '',
           email:         c.email || null,
-          segmentName:   c.segmentName || c.segment_name || null,
+          segmentName:   c.segmentName || c.segment_name || c.segment_slug || null,
           segmentColor:  c.segmentColor || null,
           segmentIcon:   c.segmentIcon  || null,
           campaignCount: c.campaignCount ?? undefined,
