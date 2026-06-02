@@ -56,6 +56,57 @@ export default function ProductCockpitPage() {
   const [selectedModule, setSelectedModule] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
   const [showOrderModal, setShowOrderModal] = useState(false)
+  const [orderedFeatures, setOrderedFeatures] = useState<any[]>([])
+  const [savingOrder, setSavingOrder]   = useState(false)
+
+  // ── Ordenação de features ─────────────────────────────────────────────────
+  const openOrderModal = () => {
+    const list = features
+      .filter(f => !selectedCategory || f.category_id === selectedCategory)
+      .sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
+    setOrderedFeatures(list)
+    setShowOrderModal(true)
+  }
+
+  const moveFeatureUp = (idx: number) => {
+    if (idx === 0) return
+    setOrderedFeatures(prev => {
+      const next = [...prev]
+      ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+      return next
+    })
+  }
+
+  const moveFeatureDown = (idx: number) => {
+    setOrderedFeatures(prev => {
+      if (idx >= prev.length - 1) return prev
+      const next = [...prev]
+      ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+      return next
+    })
+  }
+
+  const saveFeatureOrder = async () => {
+    setSavingOrder(true)
+    try {
+      const response = await post('/api/admin/master/cockpit', {
+        action:     'REORDER_FEATURES_BULK',
+        orderedIds: orderedFeatures.map((f: any) => f.id),
+      })
+      if (response.ok) {
+        toast.success('Ordem das features salva!')
+        setShowOrderModal(false)
+        fetchData()
+      } else {
+        toast.error('Erro ao salvar ordem.')
+      }
+    } catch {
+      toast.error('Erro ao salvar ordem.')
+    } finally {
+      setSavingOrder(false)
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const fetchData = async () => {
     try {
@@ -203,7 +254,11 @@ export default function ProductCockpitPage() {
           <div className="flex items-center text-blue-900 font-black uppercase text-[10px] tracking-widest">
             <FolderIcon className="h-4 w-4 mr-2 text-blue-500" /> Categorias
           </div>
-          <button onClick={() => setShowOrderModal(true)} className="p-1.5 hover:bg-white rounded-lg text-blue-600 transition-colors">
+          <button
+            onClick={openOrderModal}
+            title="Ordenar features desta categoria"
+            className="p-1.5 hover:bg-white rounded-lg text-blue-600 transition-colors"
+          >
             <Bars3BottomLeftIcon className="h-4 w-4" />
           </button>
         </div>
@@ -378,6 +433,97 @@ export default function ProductCockpitPage() {
           activeTab === 'ecosystem' ? renderEcosystemTab() : renderSemanticTab()
         )}
       </main>
+
+      {/* ── Modal de Ordenação de Features ── */}
+      {showOrderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl flex flex-col max-h-[80vh]">
+
+            {/* Header */}
+            <div className="p-7 border-b border-slate-100 flex justify-between items-start shrink-0">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight italic flex items-center gap-2">
+                  <Bars3BottomLeftIcon className="h-5 w-5 text-blue-500" />
+                  Ordenar Features
+                </h3>
+                {selectedCategory && (
+                  <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1">
+                    Categoria: {categories.find((c: any) => c.id === selectedCategory)?.name || selectedCategory}
+                  </p>
+                )}
+                {!selectedCategory && (
+                  <p className="text-[10px] text-slate-400 mt-1">Todas as features</p>
+                )}
+              </div>
+              <button
+                onClick={() => setShowOrderModal(false)}
+                className="p-2 text-slate-400 hover:text-red-500 bg-slate-50 rounded-full transition-colors"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Feature list */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-2 custom-scrollbar">
+              {orderedFeatures.length === 0 ? (
+                <p className="text-center text-sm text-slate-400 py-8">
+                  Nenhuma feature encontrada para esta categoria.
+                </p>
+              ) : (
+                orderedFeatures.map((feat: any, idx: number) => (
+                  <div
+                    key={feat.id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-100 bg-slate-50 hover:border-blue-200 transition-all"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] font-black text-slate-300 w-5 shrink-0">{idx + 1}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-black text-slate-800 truncate">{feat.name}</p>
+                        <p className="text-[9px] font-mono text-slate-400">{feat.slug}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => moveFeatureUp(idx)}
+                        disabled={idx === 0}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
+                        title="Mover para cima"
+                      >
+                        <ChevronUpIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => moveFeatureDown(idx)}
+                        disabled={idx === orderedFeatures.length - 1}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
+                        title="Mover para baixo"
+                      >
+                        <ChevronDownIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-slate-100 flex gap-3 shrink-0">
+              <button
+                onClick={() => setShowOrderModal(false)}
+                className="flex-1 py-3 border border-slate-200 text-slate-500 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveFeatureOrder}
+                disabled={savingOrder || orderedFeatures.length === 0}
+                className="flex-2 px-8 py-3 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-500/20"
+              >
+                {savingOrder ? 'Salvando...' : 'Salvar Ordem'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Tags */}
       {showTagModal && (

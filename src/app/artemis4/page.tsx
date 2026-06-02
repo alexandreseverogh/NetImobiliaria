@@ -165,10 +165,13 @@ export default function Artemis4LandingPage() {
       }
     }
 
-    loadYoutubeAPI()
+    // Atrasa 700ms para não competir com a hidratação do React e o setup
+    // de event listeners — garante que o botão "Entrar" responda imediatamente.
+    const initTimer = setTimeout(loadYoutubeAPI, 700)
 
     return () => {
       clearTimeout(timeoutId)
+      clearTimeout(initTimer)
       if (playerRef.current && typeof playerRef.current.destroy === 'function') {
         try {
           playerRef.current.destroy()
@@ -523,9 +526,11 @@ export default function Artemis4LandingPage() {
       animationFrameId = requestAnimationFrame(render)
     }
 
-    render()
+    // Atrasa 300ms para permitir interatividade antes de iniciar o loop de canvas
+    const canvasStartTimer = setTimeout(() => render(), 300)
 
     return () => {
+      clearTimeout(canvasStartTimer)
       cancelAnimationFrame(animationFrameId)
       window.removeEventListener('resize', handleResize)
       window.removeEventListener('mousemove', handleMouseMove)
@@ -636,9 +641,16 @@ export default function Artemis4LandingPage() {
       animFrameId = requestAnimationFrame(seekLoop)
     }
 
-    animFrameId = requestAnimationFrame(seekLoop)
+    // Atrasa 700ms — sincronizado com o delay do YouTube para não competir
+    // com a hidratação inicial do React e o carregamento da página.
+    const telemetryStartTimer = setTimeout(() => {
+      animFrameId = requestAnimationFrame(seekLoop)
+    }, 700)
 
-    return () => cancelAnimationFrame(animFrameId)
+    return () => {
+      clearTimeout(telemetryStartTimer)
+      cancelAnimationFrame(animFrameId)
+    }
   }, [playerReady, useVideo])
 
   // Helper para mapeamento de ícones na UI (fallback se a imagem IA carregar lento)
