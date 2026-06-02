@@ -5,6 +5,7 @@ import { getLeads, getLeadStats, getCampaigns, type LeadData, type Campaign } fr
 import { formatDate } from '@/lib/marketing-utils';
 import { UsersIcon, PhoneIcon, ChartBarIcon, MegaphoneIcon } from '@heroicons/react/24/outline';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import DateInputPtBR from '@/components/ui/DateInputPtBR';
 
 const TOOLTIP_STYLE = {
   contentStyle: {
@@ -115,11 +116,11 @@ export function LeadsPage() {
             </div>
             <div>
               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">De</label>
-              <input type="date" value={filters.startDate} onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))} className={inputCls} />
+              <DateInputPtBR value={filters.startDate} onChange={iso => setFilters(f => ({ ...f, startDate: iso }))} className={inputCls} />
             </div>
             <div>
               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Até</label>
-              <input type="date" value={filters.endDate} onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))} className={inputCls} />
+              <DateInputPtBR value={filters.endDate} onChange={iso => setFilters(f => ({ ...f, endDate: iso }))} className={inputCls} />
             </div>
           </div>
         </div>

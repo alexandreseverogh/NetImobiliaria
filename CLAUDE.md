@@ -190,6 +190,33 @@ await prisma.settings.findFirst({ where: { tenantId } });
 
 ---
 
+## Convenções de UI — Obrigatórias
+
+### Datas — formato dd/mm/aaaa
+
+**NUNCA usar `<input type="date">`** em nenhuma página da aplicação.
+O input nativo exibe o formato do sistema operacional (mm/dd nos EUA) e foge do padrão brasileiro.
+
+**SEMPRE usar o componente `<DateInputPtBR>`:**
+```tsx
+import DateInputPtBR from '@/components/ui/DateInputPtBR';
+
+// value = ISO string (YYYY-MM-DD) ou ''
+// onChange = recebe ISO string quando completo
+<DateInputPtBR
+  value={startDate}
+  onChange={iso => setStartDate(iso)}
+  className={inputCls}
+/>
+```
+
+O componente fica em `src/components/ui/DateInputPtBR.tsx` e:
+- Exibe e aceita entrada no formato `dd/mm/aaaa` com máscara automática
+- Comunica com o estado em formato ISO `YYYY-MM-DD` (compatível com todos os `<input type="date">` substituídos)
+- Sincroniza quando o valor externo muda (ex.: botões de período)
+
+---
+
 ## Módulo de Tráfego Pago
 
 ### Páginas
