@@ -40,8 +40,8 @@ cron.schedule('0 18 * * 0', async () => {
 CRON_SECRET: ${PROD_CRON_SECRET}             # valida x-cron-secret nas rotas /api/cron/campanhas/*
 MARKETING_DATABASE_URL: ${PROD_MARKETING_DATABASE_URL}  # Prisma marketing schema
 ```
-> ⚠️ Atenção na VPS: definir `PROD_MARKETING_DATABASE_URL` e `STAGING_MARKETING_DATABASE_URL` no `.env` da VPS.
-> Esses dois vars também são necessários para os endpoints `/cron/campanhas/sync` e `/cron/campanhas/briefing` que existiam anteriormente.
+> ✅ `MARKETING_DATABASE_URL` é construída automaticamente no docker-compose a partir de variáveis já existentes
+> (`DB_USER`, `PROD_DB_PASSWORD`, `PROD_DB_NAME`) — nenhuma var nova precisa ser definida na VPS.
 
 **Arquivos modificados:**
 - `scripts/feed-cron-scheduler.js` — +2 cron.schedule() para audit-monthly e audit-weekly

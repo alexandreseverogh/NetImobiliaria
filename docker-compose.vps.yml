@@ -99,7 +99,7 @@ services:
       S3_FORCE_PATH_STYLE: "true"
       # Cron & Campanhas Marketing
       CRON_SECRET: ${PROD_CRON_SECRET}
-      MARKETING_DATABASE_URL: ${PROD_MARKETING_DATABASE_URL}
+      MARKETING_DATABASE_URL: "postgresql://${DB_USER:-postgres}:${PROD_DB_PASSWORD}@prod_db:5432/${PROD_DB_NAME:-net_imobiliaria}"
     expose:
       - "3000"
     healthcheck:
@@ -205,7 +205,7 @@ services:
       S3_FORCE_PATH_STYLE: "true"
       # Cron & Campanhas Marketing
       CRON_SECRET: ${STAGING_CRON_SECRET}
-      MARKETING_DATABASE_URL: ${STAGING_MARKETING_DATABASE_URL}
+      MARKETING_DATABASE_URL: "postgresql://${DB_USER:-postgres}:${STAGING_DB_PASSWORD}@staging_db:5432/${STAGING_DB_NAME:-net_imobiliaria_staging}"
     expose:
       - "3000"
     healthcheck:
