@@ -60,7 +60,8 @@ export async function GET(request: NextRequest) {
 
     if (campaignId) {
       params.push(campaignId);
-      conditions.push(`"campaign_id" = $${params.length}::uuid`);
+      // campaignId é TEXT (sem @map → coluna camelCase, sem cast ::uuid)
+      conditions.push(`"campaignId" = $${params.length}`);
     }
 
     const sql = `

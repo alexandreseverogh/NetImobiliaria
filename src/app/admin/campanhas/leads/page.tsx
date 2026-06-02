@@ -42,15 +42,24 @@ export function LeadsPage() {
       const apiFilters: any = { ...filters };
       if (clientFilter && clientFilter !== 'all') apiFilters.clientId = clientFilter;
 
-      const [leadsData, statsData, campaignsData] = await Promise.all([
+      const [leadsResult, statsResult, campaignsResult] = await Promise.allSettled([
         getLeads(apiFilters),
         getLeadStats(apiFilters),
         getCampaigns(clientFilter !== 'all' ? clientFilter : undefined),
       ]);
-      setLeads(leadsData.leads || []);
-      setTotal(leadsData.total || 0);
-      setStats(statsData);
-      setCampaigns(campaignsData);
+
+      if (leadsResult.status === 'fulfilled') {
+        setLeads(leadsResult.value.leads || []);
+        setTotal(leadsResult.value.total || 0);
+      }
+      if (statsResult.status === 'fulfilled') {
+        setStats(statsResult.value);
+      } else {
+        console.error('getLeadStats failed:', statsResult.reason);
+      }
+      if (campaignsResult.status === 'fulfilled') {
+        setCampaigns(campaignsResult.value);
+      }
     } catch { /* silent */ }
     finally { setLoading(false); }
   }
