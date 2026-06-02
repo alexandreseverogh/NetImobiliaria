@@ -816,87 +816,28 @@ function FarolSection({ isDark, children }: { isDark: boolean; children: React.R
 // ═════════════════════════════════════════════════════════════════════════════
 
 function RetrovisorIcon({ isDark }: { isDark: boolean }) {
-  const s  = isDark ? '#22d3ee' : '#0891b2';                            // cyan stroke
-  const f  = isDark ? 'rgba(34,211,238,0.10)' : 'rgba(8,145,178,0.07)'; // mirror fill
-  const g  = isDark ? 'rgba(34,211,238,0.15)' : 'rgba(8,145,178,0.08)'; // halo
-  const rf = isDark ? 'rgba(34,211,238,0.09)' : 'rgba(8,145,178,0.07)'; // road fill
   return (
-    <svg width="56" height="52" viewBox="0 0 56 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        {/* Clip road elements to inside the glass area */}
-        <clipPath id="retrovisor-glass">
-          <rect x="6" y="21" width="44" height="16" rx="4.5" />
-        </clipPath>
-      </defs>
-
-      {/* Halo behind mirror body */}
-      <rect x="0" y="14" width="56" height="28" rx="9" fill={g} />
-
-      {/* ── Mirror frame — wide modern rectangular shape ── */}
-      <rect x="2" y="17" width="52" height="24" rx="7" stroke={s} strokeWidth="2.2" fill={f} />
-
-      {/* Inner glass bezel */}
-      <rect x="5.5" y="20.5" width="45" height="17" rx="5" stroke={s} strokeWidth="0.8" strokeOpacity="0.3" fill="none" />
-
-      {/* ─── Sinuous road receding into the distance ─── */}
-      {/* Road surface fill (between left and right S-curve edges) */}
-      <path
-        d="M 21 37 C 16 32, 27 28, 24 24 C 22 21.5, 26 21, 28 21
-           C 30 21, 34 21.5, 32 24 C 29 28, 40 32, 35 37 Z"
-        fill={rf}
-        clipPath="url(#retrovisor-glass)"
-      />
-      {/* Left road edge — S-curve to vanishing point */}
-      <path
-        d="M 21 37 C 16 32, 27 28, 24 24 C 22 21.5, 26 21, 28 21"
-        stroke={s} strokeWidth="0.9" strokeOpacity="0.50" fill="none"
-        clipPath="url(#retrovisor-glass)"
-      />
-      {/* Right road edge — mirrored S-curve */}
-      <path
-        d="M 35 37 C 40 32, 29 28, 32 24 C 34 21.5, 30 21, 28 21"
-        stroke={s} strokeWidth="0.9" strokeOpacity="0.50" fill="none"
-        clipPath="url(#retrovisor-glass)"
-      />
-      {/* Center dashes — sinuous, follow road centerline */}
-      <path
-        d="M 28 22 C 28 23.5, 27 25.5, 26.5 27.5 C 26 29.5, 27.5 32, 28 35"
-        stroke={s} strokeWidth="0.7" strokeOpacity="0.32"
-        strokeDasharray="1.8 2.4" fill="none"
-        clipPath="url(#retrovisor-glass)"
-      />
-
-      {/* Convex-glass reflection shimmer */}
-      <path d="M 10 26 Q 28 22.5 46 26" stroke={s} strokeWidth="1" strokeOpacity="0.18" fill="none" />
-      {/* Glare patch — upper-left corner */}
-      <rect x="8" y="22" width="10" height="5" rx="2" fill={s} fillOpacity="0.13" transform="skewX(-8)" clipPath="url(#retrovisor-glass)" />
-
-      {/* ── Mounting arm ── */}
-      <line x1="28" y1="17" x2="28" y2="8" stroke={s} strokeWidth="2.5" strokeLinecap="round" />
-      {/* Ball joint housing */}
-      <circle cx="28" cy="6" r="4.5" stroke={s} strokeWidth="1.5" fill={f} />
-      {/* Ball joint core */}
-      <circle cx="28" cy="6" r="2" fill={s} fillOpacity="0.70" />
-    </svg>
+    <img
+      src="/retrovisor.png"
+      alt="Retrovisor"
+      width={56}
+      height={56}
+      className={`object-contain shrink-0 ${isDark ? 'opacity-90' : 'opacity-85'}`}
+      style={{ filter: isDark ? 'none' : 'brightness(0.95)' }}
+    />
   );
 }
 
 function FarolIcon({ isDark }: { isDark: boolean }) {
-  const s = isDark ? '#22d3ee' : '#0891b2';
-  const f = isDark ? 'rgba(34,211,238,0.10)' : 'rgba(8,145,178,0.07)';
-  const b = isDark ? 'rgba(34,211,238,0.05)' : 'rgba(8,145,178,0.04)';
   return (
-    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="14" cy="26" r="12" fill={f} />
-      <circle cx="14" cy="26" r="8"  stroke={s} strokeWidth="1.5" fill="none" strokeOpacity="0.45" />
-      <circle cx="14" cy="26" r="5"  stroke={s} strokeWidth="1.5" fill={f} />
-      <circle cx="14" cy="26" r="2.5" fill={s} fillOpacity="0.8" />
-      <path d="M20 22 L50 10 L50 42 L20 30 Z" fill={b} />
-      <path d="M20 22 L50 10" stroke={s} strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.72" />
-      <path d="M20 26 L50 26" stroke={s} strokeWidth="2"   strokeLinecap="round" />
-      <path d="M20 30 L50 42" stroke={s} strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.72" />
-      <path d="M10 26 Q14 22 18 26" stroke={s} strokeWidth="1" strokeOpacity="0.35" fill="none" />
-    </svg>
+    <img
+      src="/farol-de-milha.png"
+      alt="Farol de Milha"
+      width={56}
+      height={56}
+      className={`object-contain shrink-0 ${isDark ? 'opacity-90' : 'opacity-85'}`}
+      style={{ filter: isDark ? 'none' : 'brightness(0.95)' }}
+    />
   );
 }
 
