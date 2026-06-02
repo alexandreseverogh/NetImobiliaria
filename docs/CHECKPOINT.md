@@ -85,6 +85,30 @@
 
 ---
 
+### FASE 9 — Cron Jobs (9.5) — 100% concluída (2026-06-02)
+
+**Implementação do último item pendente da FASE 9 (seção 9.5 do plano mestre):**
+
+**`src/app/api/cron/campanhas/audit-monthly/route.ts`** (NOVO)
+- `POST /api/cron/campanhas/audit-monthly`
+- Agendamento: `0 9 1 * *` — 1º dia do mês às 09:00
+- Protegido por `CRON_SECRET` (header `x-cron-secret`)
+- Itera todos os tenants ativos via `getActiveTenants()`
+- Para cada tenant: gera relatório com `clientId=null` (empresa) + um por cada cliente com campanhas
+- `periodDays=30`, `withNarrative=false` (evita timeout no cron)
+- Retorna `{ tenants, totalReports, succeeded, failed, elapsedMs }`
+
+**`src/app/api/cron/campanhas/audit-weekly/route.ts`** (NOVO)
+- `POST /api/cron/campanhas/audit-weekly`
+- Agendamento: `0 18 * * 0` — todo domingo às 18:00
+- Mesma estrutura do mensal, mas `periodDays=7`
+- Suporta `{ withNarrative: true }` no body para ativar narrativa LLM
+- Tratamento de erro granular: falha em um relatório não interrompe os demais
+
+**FASE 9 — 100% CONCLUÍDA** ✅
+
+---
+
 ### Fix Leads — Filtro de Campanha nas Stats (2026-06-02)
 
 **Problema:** Selecionar uma campanha no dropdown da página `/admin/campanhas/leads` não alterava os dados exibidos (KPIs, gráficos). A tabela de leads filtrava corretamente, mas os stats (total, gráfico por dia, por campanha) sempre mostravam tudo.
