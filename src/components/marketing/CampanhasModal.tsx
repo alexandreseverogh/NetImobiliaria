@@ -2,8 +2,7 @@
 
 /**
  * CampanhasModal — modal full-page para consulta de campanhas lançadas.
- * Abre sobre a página /admin/campanhas/nova, respeita o contexto
- * "Minha Empresa" / "Para um Cliente" selecionado na página pai.
+ * v2: imagens via CreativeAsset, paginação, badges corretos, layout corrigido.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -17,6 +16,9 @@ import {
   PhotoIcon,
   ExclamationCircleIcon,
   ChevronDownIcon,
+  ArrowLeftIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
@@ -29,6 +31,7 @@ interface AdData {
   status: string;
   creativeType?: string | null;
   images: string[];
+  assetUrls?: string[];   // CDN URLs from CreativeAsset (enriched by GET route)
   body: string;
   headline?: string | null;
   linkUrl?: string | null;
@@ -38,13 +41,13 @@ interface AdData {
 interface AdSetData {
   id: string;
   name: string;
-  dailyBudget: number; // cents
+  dailyBudget: number;   // cents
   startTime: string;
   endTime?: string | null;
   optimizationGoal: string;
   ageMin: number;
   ageMax: number;
-  genders: string[];
+  genders: number[];      // Meta API: 1=Masculino, 2=Feminino, []=Todos
   locations: unknown;
   interests: unknown;
   scheduleDays: number[];
@@ -68,9 +71,12 @@ interface CampaignData {
   adSets: AdSetData[];
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────
 
+const ITEMS_PER_PAGE = 12;
 const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+// ── Helpers ───────────────────────────────────────────────────────
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -109,11 +115,13 @@ function objectiveLabel(obj: string): string {
   return OBJECTIVE_MAP[obj] || obj.replace(/_/g, ' ');
 }
 
-function genderLabel(genders: string[]): string {
+function genderLabel(genders: number[]): string {
   if (!genders || genders.length === 0) return 'Todos';
-  if (genders.includes('MALE') && genders.includes('FEMALE')) return 'Todos';
-  if (genders.includes('MALE')) return 'Masculino';
-  if (genders.includes('FEMALE')) return 'Feminino';
+  const hasMale   = genders.includes(1);
+  const hasFemale = genders.includes(2);
+  if (hasMale && hasFemale) return 'Todos';
+  if (hasMale)   return 'Masculino';
+  if (hasFemale) return 'Feminino';
   return 'Todos';
 }
 
@@ -128,14 +136,16 @@ function extractLocations(locations: unknown): string[] {
     const loc = locations as Record<string, unknown>;
     const result: string[] = [];
     const countries = loc.countries as string[] | undefined;
-    const cities = loc.cities as Record<string, string>[] | undefined;
-    const regions = loc.regions as Record<string, string>[] | undefined;
-    if (countries?.includes('BR') && !cities?.length && !regions?.length) result.push('Brasil');
-    cities?.forEach(c => { if (c.name || c.city) result.push(c.name || c.city); });
+    const cities    = loc.cities    as Record<string, string>[] | undefined;
+    const regions   = loc.regions   as Record<string, string>[] | undefined;
+    if (!cities?.length && !regions?.length) {
+      result.push(countries?.includes('BR') ? 'Brasil' : (countries?.[0] ?? 'Brasil'));
+    }
+    cities?.forEach(c => { const n = c.name || c.city; if (n) result.push(n); });
     regions?.forEach(r => { if (r.name) result.push(r.name); });
-    return result;
+    return result.length ? result : ['Brasil'];
   }
-  return [];
+  return ['Brasil'];
 }
 
 function extractInterests(interests: unknown): string[] {
@@ -148,62 +158,165 @@ function extractInterests(interests: unknown): string[] {
   return [];
 }
 
+function networkLabel(campaign: CampaignData): string {
+  if (campaign.metaCampaignId) return 'Meta Ads';
+  return 'Meta Ads'; // default — todos os lançamentos são via Meta
+}
+
+const CREATIVE_TYPE_MAP: Record<string, string> = {
+  SINGLE_IMAGE: 'Imagem Única',
+  VIDEO:        'Vídeo',
+  CAROUSEL:     'Carrossel',
+  COLLECTION:   'Coleção',
+  DYNAMIC:      'Dinâmico',
+  IMAGE:        'Imagem',
+};
+
+function fmtCreativeType(ct: string | null | undefined): string {
+  if (!ct) return '';
+  return CREATIVE_TYPE_MAP[ct] || ct.replace(/_/g, ' ');
+}
+
 // ── Status Badge ──────────────────────────────────────────────────
+// Values come from DB; status = Campaign.status | lifecycle_status
 
 function StatusBadge({ status }: { status: string }) {
   const cfg: Record<string, { label: string; cls: string }> = {
-    ACTIVE:    { label: 'Ativa',      cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    PAUSED:    { label: 'Pausada',    cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-    DELETED:   { label: 'Removida',   cls: 'bg-red-50 text-red-700 border-red-200' },
-    ARCHIVED:  { label: 'Arquivada',  cls: 'bg-gray-100 text-gray-500 border-gray-200' },
-    DRAFT:     { label: 'Rascunho',   cls: 'bg-sky-50 text-sky-700 border-sky-200' },
-    COMPLETED: { label: 'Concluída',  cls: 'bg-teal-50 text-teal-700 border-teal-200' },
-    IN_PROCESS:{ label: 'Em processo',cls: 'bg-violet-50 text-violet-700 border-violet-200' },
+    // campaign.status
+    ACTIVE:            { label: 'Ativa',           cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    PAUSED:            { label: 'Pausada',          cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+    DELETED:           { label: 'Removida',         cls: 'bg-red-50 text-red-700 border-red-200' },
+    ARCHIVED:          { label: 'Arquivada',        cls: 'bg-gray-100 text-gray-500 border-gray-200' },
+    // lifecycle_status
+    DRAFT:             { label: 'Rascunho',         cls: 'bg-sky-50 text-sky-700 border-sky-200' },
+    LEARNING:          { label: 'Aprendizado',      cls: 'bg-violet-50 text-violet-700 border-violet-200' },
+    LEARNING_LIMITED:  { label: 'Aprend. Limitado', cls: 'bg-violet-50 text-violet-600 border-violet-200' },
+    IN_PROCESS:        { label: 'Em andamento',     cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    STABLE:            { label: 'Estável',          cls: 'bg-teal-50 text-teal-700 border-teal-200' },
+    COMPLETED:         { label: 'Concluída',        cls: 'bg-teal-50 text-teal-600 border-teal-200' },
+    KILLED:            { label: 'Encerrada',        cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+    UNDER_REVIEW:      { label: 'Em revisão',       cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+    WITH_ISSUES:       { label: 'Com problemas',    cls: 'bg-orange-50 text-orange-700 border-orange-200' },
   };
   const { label, cls } = cfg[status] ?? {
-    label: status,
+    label: status.replace(/_/g, ' '),
     cls: 'bg-gray-100 text-gray-500 border-gray-200',
   };
   return (
-    <span
-      className={cn(
-        'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border',
-        cls,
-      )}
-    >
+    <span className={cn(
+      'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border',
+      cls,
+    )}>
       {label}
     </span>
   );
 }
 
-// ── Funnel Stage Badge ────────────────────────────────────────────
-
-const FUNNEL_LABELS: Record<string, string> = {
-  TOPO: 'Topo',
-  MEIO: 'Meio',
-  FUNDO: 'Fundo',
-  TOP: 'Topo',
-  MIDDLE: 'Meio',
-  BOTTOM: 'Fundo',
-};
+// ── Funnel Badge ──────────────────────────────────────────────────
+// funnelStage values from DB: TOF | MOF | BOF | TOPO | MEIO | FUNDO
 
 function FunnelBadge({ stage }: { stage: string }) {
-  const label = FUNNEL_LABELS[stage] ?? stage;
-  const cls =
-    stage === 'TOPO' || stage === 'TOP'
-      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-      : stage === 'MEIO' || stage === 'MIDDLE'
-      ? 'bg-violet-50 text-violet-700 border-violet-200'
-      : 'bg-rose-50 text-rose-700 border-rose-200';
+  const MAP: Record<string, { label: string; cls: string }> = {
+    TOF:    { label: 'Topo de Funil',  cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    TOPO:   { label: 'Topo de Funil',  cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    TOP:    { label: 'Topo de Funil',  cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    MOF:    { label: 'Meio de Funil',  cls: 'bg-violet-50 text-violet-700 border-violet-200' },
+    MEIO:   { label: 'Meio de Funil',  cls: 'bg-violet-50 text-violet-700 border-violet-200' },
+    MIDDLE: { label: 'Meio de Funil',  cls: 'bg-violet-50 text-violet-700 border-violet-200' },
+    BOF:    { label: 'Fundo de Funil', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+    FUNDO:  { label: 'Fundo de Funil', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+    BOTTOM: { label: 'Fundo de Funil', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+  };
+  const entry = MAP[stage];
+  if (!entry) return null;
   return (
-    <span
-      className={cn(
-        'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border',
-        cls,
-      )}
-    >
-      {label} de funil
+    <span className={cn(
+      'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border',
+      entry.cls,
+    )}>
+      {entry.label}
     </span>
+  );
+}
+
+// ── Creative Image Thumb ──────────────────────────────────────────
+
+function CreativeThumb({ url, index }: { url: string; index: number }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) {
+    return (
+      <div className="w-[68px] h-[68px] rounded-xl border border-gray-100 shrink-0 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <PhotoIcon className="h-5 w-5 text-gray-300" />
+      </div>
+    );
+  }
+  return (
+    <div className="w-[68px] h-[68px] rounded-xl overflow-hidden border border-gray-100 shrink-0 bg-gray-100 shadow-sm">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt={`Criativo ${index + 1}`}
+        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+        onError={() => setBroken(true)}
+      />
+    </div>
+  );
+}
+
+// ── Creative Strip ────────────────────────────────────────────────
+// Order: headline/body text FIRST, then thumbnails
+
+function CreativesStrip({ ads }: { ads: AdData[] }) {
+  // Prefer CDN asset URLs over blob URLs
+  const allImages = ads.flatMap(ad =>
+    (ad.assetUrls && ad.assetUrls.length > 0) ? ad.assetUrls : (ad.images ?? [])
+  ).slice(0, 8);
+
+  const firstAd = ads[0];
+
+  return (
+    <div className="space-y-3">
+      {/* Text content FIRST */}
+      {firstAd && (firstAd.headline || firstAd.body) && (
+        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1">
+          {firstAd.headline && (
+            <p className="text-xs font-bold text-gray-900 line-clamp-1">{firstAd.headline}</p>
+          )}
+          {firstAd.body && (
+            <p className="text-[11px] text-gray-500 line-clamp-3 leading-relaxed">{firstAd.body}</p>
+          )}
+          <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+            {firstAd.ctaType && (
+              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[9px] font-black uppercase tracking-wider">
+                {firstAd.ctaType.replace(/_/g, ' ')}
+              </span>
+            )}
+            {firstAd.creativeType && (
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-[9px] font-bold uppercase tracking-wider">
+                {fmtCreativeType(firstAd.creativeType)}
+              </span>
+            )}
+            {firstAd.linkUrl && (
+              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px] font-bold truncate max-w-[140px]" title={firstAd.linkUrl}>
+                {firstAd.linkUrl.replace(/^https?:\/\//, '').split('/')[0]}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Thumbnails SECOND */}
+      {allImages.length > 0 ? (
+        <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+          {allImages.map((url, i) => <CreativeThumb key={i} url={url} index={i} />)}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 text-gray-400 py-1">
+          <PhotoIcon className="h-4 w-4 shrink-0" />
+          <span className="text-[11px] font-medium">Sem imagens vinculadas</span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -217,56 +330,39 @@ interface ScheduleDisplayProps {
 }
 
 function ScheduleDisplay({
-  scheduleDays,
-  scheduleStartHour,
-  scheduleEndHour,
-  scheduleTimeSlots,
+  scheduleDays, scheduleStartHour, scheduleEndHour, scheduleTimeSlots,
 }: ScheduleDisplayProps) {
   // Custom per-day slots
   if (scheduleTimeSlots && typeof scheduleTimeSlots === 'object') {
     type SlotEntry = { day: number; startHour: number; endHour: number };
-    let slotEntries: SlotEntry[] = [];
+    let entries: SlotEntry[] = [];
 
     if (Array.isArray(scheduleTimeSlots)) {
-      slotEntries = (scheduleTimeSlots as SlotEntry[]).slice(0, 7);
+      entries = (scheduleTimeSlots as SlotEntry[]).slice(0, 7);
     } else {
-      slotEntries = Object.entries(scheduleTimeSlots as Record<string, unknown>).map(
-        ([day, val]) => {
-          const v = val as Record<string, number>;
-          return {
-            day: parseInt(day),
-            startHour: v?.start ?? v?.startHour ?? 0,
-            endHour: v?.end ?? v?.endHour ?? 24,
-          };
-        },
-      );
+      entries = Object.entries(scheduleTimeSlots as Record<string, unknown>).map(([day, v]) => {
+        const val = v as Record<string, number>;
+        return { day: parseInt(day), startHour: val?.start ?? val?.startHour ?? 0, endHour: val?.end ?? val?.endHour ?? 24 };
+      });
     }
 
-    if (slotEntries.length > 0) {
+    if (entries.length > 0) {
       return (
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-black text-violet-700 uppercase tracking-wider mb-0.5">
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-black text-violet-700 uppercase tracking-wider">
             Personalizado por dia
           </div>
           <div className="grid grid-cols-4 gap-1">
-            {slotEntries.map((slot, i) => {
-              const dayIdx = slot.day ?? i;
-              return (
-                <div
-                  key={i}
-                  className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-center"
-                >
-                  <p className="text-[9px] font-black text-indigo-600 uppercase tracking-wider">
-                    {DAY_LABELS[dayIdx] ?? `D${dayIdx}`}
-                  </p>
-                  <p className="text-[10px] font-semibold text-gray-700 leading-tight mt-0.5">
-                    {fmtHour(slot.startHour)}
-                    <span className="text-gray-400">–</span>
-                    {fmtHour(slot.endHour)}
-                  </p>
-                </div>
-              );
-            })}
+            {entries.map((slot, i) => (
+              <div key={i} className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-center">
+                <p className="text-[9px] font-black text-indigo-600 uppercase tracking-wider">
+                  {DAY_LABELS[slot.day ?? i] ?? `D${slot.day ?? i}`}
+                </p>
+                <p className="text-[10px] font-semibold text-gray-700 leading-tight mt-0.5">
+                  {fmtHour(slot.startHour)}<span className="text-gray-400">–</span>{fmtHour(slot.endHour)}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       );
@@ -278,7 +374,6 @@ function ScheduleDisplay({
 
   return (
     <div className="space-y-2">
-      {/* Day pills */}
       {allDays ? (
         <span className="inline-flex items-center px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[10px] font-black text-indigo-600 uppercase tracking-wider">
           Todos os dias
@@ -286,90 +381,21 @@ function ScheduleDisplay({
       ) : (
         <div className="flex gap-1 flex-wrap">
           {DAY_LABELS.map((d, i) => (
-            <span
-              key={i}
-              className={cn(
-                'w-7 h-7 flex items-center justify-center rounded-md text-[10px] font-black',
-                scheduleDays?.includes(i)
-                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
-                  : 'bg-gray-100 text-gray-400',
-              )}
-            >
+            <span key={i} className={cn(
+              'w-7 h-7 flex items-center justify-center rounded-md text-[10px] font-black',
+              scheduleDays?.includes(i)
+                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
+                : 'bg-gray-100 text-gray-400',
+            )}>
               {d.slice(0, 2)}
             </span>
           ))}
         </div>
       )}
-
-      {/* Hour range */}
       {(scheduleStartHour != null || scheduleEndHour != null) && (
         <p className="text-[11px] font-semibold text-gray-600">
-          {fmtHour(scheduleStartHour)}{' '}
-          <span className="text-gray-400">→</span>{' '}
-          {fmtHour(scheduleEndHour)}
+          {fmtHour(scheduleStartHour)} <span className="text-gray-400">→</span> {fmtHour(scheduleEndHour)}
         </p>
-      )}
-    </div>
-  );
-}
-
-// ── Creative Strip ────────────────────────────────────────────────
-
-function CreativesStrip({ ads }: { ads: AdData[] }) {
-  const allImages = ads.flatMap(ad => ad.images ?? []).slice(0, 6);
-  const firstAd = ads[0];
-
-  return (
-    <div className="space-y-3">
-      {allImages.length > 0 ? (
-        <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 scrollbar-thin scrollbar-thumb-gray-200">
-          {allImages.map((url, i) => (
-            <div
-              key={i}
-              className="w-[68px] h-[68px] rounded-xl overflow-hidden border border-gray-100 shrink-0 bg-gray-100 shadow-sm"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={url}
-                alt={`Criativo ${i + 1}`}
-                className="w-full h-full object-cover"
-                onError={e => {
-                  const el = e.target as HTMLImageElement;
-                  el.parentElement!.innerHTML =
-                    '<div class="w-full h-full flex items-center justify-center"><svg class="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 20.25h18M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"/></svg></div>';
-                }}
-              />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 text-gray-400 py-1">
-          <PhotoIcon className="h-4 w-4 shrink-0" />
-          <span className="text-[11px] font-medium">Sem criativos vinculados</span>
-        </div>
-      )}
-
-      {firstAd && (firstAd.headline || firstAd.body) && (
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1">
-          {firstAd.headline && (
-            <p className="text-xs font-bold text-gray-900 line-clamp-1">{firstAd.headline}</p>
-          )}
-          {firstAd.body && (
-            <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed">{firstAd.body}</p>
-          )}
-          <div className="flex items-center gap-2 pt-0.5">
-            {firstAd.ctaType && (
-              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[9px] font-black uppercase tracking-wider">
-                {firstAd.ctaType.replace(/_/g, ' ')}
-              </span>
-            )}
-            {firstAd.creativeType && (
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-[9px] font-bold uppercase tracking-wider">
-                {firstAd.creativeType.replace(/_/g, ' ')}
-              </span>
-            )}
-          </div>
-        </div>
       )}
     </div>
   );
@@ -378,23 +404,25 @@ function CreativesStrip({ ads }: { ads: AdData[] }) {
 // ── Campaign Card ─────────────────────────────────────────────────
 
 function CampaignCard({ campaign, index }: { campaign: CampaignData; index: number }) {
-  const [expanded, setExpanded] = useState(false);
-  const adSet = campaign.adSets[0];
-  const allAds = campaign.adSets.flatMap(as => as.ads);
-  const locations = adSet ? extractLocations(adSet.locations) : [];
+  const [interestsExpanded, setInterestsExpanded] = useState(false);
+  const adSet    = campaign.adSets[0];
+  const allAds   = campaign.adSets.flatMap(as => as.ads);
+  const locations = adSet ? extractLocations(adSet.locations) : ['Brasil'];
   const interests = adSet ? extractInterests(adSet.interests) : [];
-  const totalAds = campaign.adSets.reduce((n, as) => n + as.ads.length, 0);
+  const totalAds  = campaign.adSets.reduce((n, as) => n + as.ads.length, 0);
+  const network   = networkLabel(campaign);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.04, 0.3), type: 'spring', stiffness: 280, damping: 30 }}
+      transition={{ delay: Math.min(index * 0.035, 0.25), type: 'spring', stiffness: 280, damping: 30 }}
       className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden hover:shadow-md hover:border-gray-200 transition-all duration-200 flex flex-col"
     >
-      {/* ── Card header ── */}
+      {/* ── Header ── */}
       <div className="px-5 pt-5 pb-4 border-b border-gray-50">
-        <div className="flex items-start justify-between gap-3 mb-2.5">
+        {/* Badges row */}
+        <div className="flex items-start justify-between gap-2 mb-2.5">
           <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
             <StatusBadge status={campaign.status} />
             {campaign.lifecycleStatus && campaign.lifecycleStatus !== campaign.status && (
@@ -402,19 +430,27 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
             )}
             {campaign.funnelStage && <FunnelBadge stage={campaign.funnelStage} />}
           </div>
-          {campaign.metaCampaignId && (
-            <span className="text-[9px] font-bold text-gray-400 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 font-mono shrink-0 select-all">
-              {campaign.metaCampaignId.slice(0, 14)}…
+          {/* Network chip + Meta ID */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded-md text-[10px] font-black text-blue-700 uppercase tracking-wider whitespace-nowrap">
+              {network}
             </span>
-          )}
+            {campaign.metaCampaignId && (
+              <span className="text-[9px] font-bold text-gray-400 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5 font-mono hidden sm:inline-block select-all">
+                {campaign.metaCampaignId.slice(0, 12)}…
+              </span>
+            )}
+          </div>
         </div>
 
-        <h3 className="text-sm font-black text-gray-900 leading-snug mb-2 pr-1">
+        {/* Campaign name */}
+        <h3 className="text-sm font-black text-gray-900 leading-snug mb-2">
           {campaign.name}
         </h3>
 
+        {/* Objetivo + data */}
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600">
+          <span className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] font-bold text-indigo-700">
             <RocketLaunchIcon className="h-3 w-3 shrink-0" />
             {objectiveLabel(campaign.objective)}
           </span>
@@ -427,9 +463,9 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
       {/* ── AdSet section ── */}
       {adSet && (
         <div className="px-5 py-4 border-b border-gray-50 space-y-4 flex-1">
-          {/* Budget & period */}
+          {/* Budget & Período — uma linha cada */}
           <div className="flex items-stretch gap-3">
-            <div className="flex-1 bg-gradient-to-br from-indigo-50 to-indigo-100/60 border border-indigo-100 rounded-xl px-3 py-2.5">
+            <div className="flex-1 bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-100 rounded-xl px-3 py-2.5">
               <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">
                 Orçamento diário
               </p>
@@ -442,17 +478,16 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
                 Período
               </p>
               <p className="text-[11px] font-bold text-gray-700 leading-snug">
-                {fmtDate(adSet.startTime)}
+                {fmtDate(adSet.startTime)}{' '}
+                <span className="text-gray-400">→</span>{' '}
+                {adSet.endTime
+                  ? <span className="text-gray-700">{fmtDate(adSet.endTime)}</span>
+                  : <span className="text-gray-400 font-medium">sem data final</span>}
               </p>
-              {adSet.endTime ? (
-                <p className="text-[11px] font-bold text-gray-700">→ {fmtDate(adSet.endTime)}</p>
-              ) : (
-                <p className="text-[10px] font-bold text-gray-400">→ Contínuo</p>
-              )}
             </div>
           </div>
 
-          {/* Audience */}
+          {/* Público */}
           <div>
             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
               Público-alvo
@@ -472,7 +507,7 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
             </div>
           </div>
 
-          {/* Schedule */}
+          {/* Programação */}
           <div>
             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
               Programação
@@ -485,36 +520,30 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
             />
           </div>
 
-          {/* Locations */}
-          {locations.length > 0 && (
-            <div>
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
-                Localização
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {locations.slice(0, 5).map((loc, i) => (
-                  <span
-                    key={i}
-                    className="flex items-center gap-1 px-2 py-0.5 bg-sky-50 border border-sky-200 rounded-md text-[10px] font-bold text-sky-700"
-                  >
-                    <MapPinIcon className="h-2.5 w-2.5 shrink-0" />
-                    {loc}
-                  </span>
-                ))}
-                {locations.length > 5 && (
-                  <span className="px-2 py-0.5 bg-gray-100 rounded-md text-[10px] font-bold text-gray-500">
-                    +{locations.length - 5}
-                  </span>
-                )}
-              </div>
+          {/* Localização */}
+          <div>
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+              Localização
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {locations.slice(0, 5).map((loc, i) => (
+                <span key={i} className="flex items-center gap-1 px-2 py-0.5 bg-sky-50 border border-sky-200 rounded-md text-[10px] font-bold text-sky-700">
+                  <MapPinIcon className="h-2.5 w-2.5 shrink-0" />{loc}
+                </span>
+              ))}
+              {locations.length > 5 && (
+                <span className="px-2 py-0.5 bg-gray-100 rounded-md text-[10px] font-bold text-gray-500">
+                  +{locations.length - 5}
+                </span>
+              )}
             </div>
-          )}
+          </div>
 
-          {/* Interests — collapsed by default if many */}
+          {/* Interesses (colapsável) */}
           {interests.length > 0 && (
             <div>
               <button
-                onClick={() => setExpanded(p => !p)}
+                onClick={() => setInterestsExpanded(p => !p)}
                 className="flex items-center gap-1.5 mb-1.5 group"
               >
                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest group-hover:text-gray-600 transition-colors">
@@ -523,15 +552,13 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
                 <span className="text-[9px] font-bold text-gray-400 bg-gray-100 rounded-full px-1.5 py-0.5">
                   {interests.length}
                 </span>
-                <ChevronDownIcon
-                  className={cn(
-                    'h-3 w-3 text-gray-400 transition-transform',
-                    expanded && 'rotate-180',
-                  )}
-                />
+                <ChevronDownIcon className={cn(
+                  'h-3 w-3 text-gray-400 transition-transform',
+                  interestsExpanded && 'rotate-180',
+                )} />
               </button>
               <AnimatePresence initial={false}>
-                {expanded && (
+                {interestsExpanded && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -540,10 +567,7 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
                   >
                     <div className="flex flex-wrap gap-1 pt-0.5">
                       {interests.map((int, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-bold text-violet-700"
-                        >
+                        <span key={i} className="px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-bold text-violet-700">
                           {int}
                         </span>
                       ))}
@@ -551,22 +575,19 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
                   </motion.div>
                 )}
               </AnimatePresence>
-              {!expanded && (
+              {!interestsExpanded && (
                 <div className="flex flex-wrap gap-1">
-                  {interests.slice(0, 3).map((int, i) => (
-                    <span
-                      key={i}
-                      className="px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-bold text-violet-700"
-                    >
+                  {interests.slice(0, 4).map((int, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-bold text-violet-700">
                       {int}
                     </span>
                   ))}
-                  {interests.length > 3 && (
+                  {interests.length > 4 && (
                     <button
-                      onClick={() => setExpanded(true)}
+                      onClick={() => setInterestsExpanded(true)}
                       className="px-2 py-0.5 bg-gray-100 hover:bg-violet-50 rounded-md text-[10px] font-bold text-gray-500 hover:text-violet-700 transition-colors"
                     >
-                      +{interests.length - 3} mais
+                      +{interests.length - 4} mais
                     </button>
                   )}
                 </div>
@@ -576,7 +597,7 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
         </div>
       )}
 
-      {/* ── Creatives ── */}
+      {/* ── Criativos ── */}
       <div className="px-5 py-4 bg-gradient-to-b from-white to-gray-50/50">
         <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2.5">
           Criativos
@@ -598,12 +619,15 @@ function CardSkeleton() {
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden animate-pulse">
       <div className="px-5 pt-5 pb-4 border-b border-gray-50 space-y-3">
-        <div className="flex gap-2">
-          <div className="h-5 w-16 bg-gray-100 rounded-md" />
-          <div className="h-5 w-22 bg-gray-100 rounded-md" />
+        <div className="flex justify-between gap-3">
+          <div className="flex gap-2">
+            <div className="h-5 w-14 bg-gray-100 rounded-md" />
+            <div className="h-5 w-20 bg-gray-100 rounded-md" />
+          </div>
+          <div className="h-5 w-16 bg-blue-50 rounded-md" />
         </div>
         <div className="h-4 w-52 bg-gray-100 rounded" />
-        <div className="h-3 w-36 bg-gray-100 rounded" />
+        <div className="h-6 w-36 bg-indigo-50 rounded-lg" />
       </div>
       <div className="px-5 py-4 space-y-4">
         <div className="flex gap-3">
@@ -611,18 +635,80 @@ function CardSkeleton() {
           <div className="flex-1 h-16 bg-slate-50 rounded-xl" />
         </div>
         <div className="space-y-1.5">
-          <div className="h-3 w-20 bg-gray-100 rounded" />
+          <div className="h-2.5 w-20 bg-gray-100 rounded" />
           <div className="flex gap-1">
-            {[0, 1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="w-7 h-7 bg-gray-100 rounded-md" />
-            ))}
+            {[0,1,2,3,4,5,6].map(i => <div key={i} className="w-7 h-7 bg-gray-100 rounded-md" />)}
           </div>
         </div>
+        <div className="h-3 w-32 bg-gray-100 rounded" />
       </div>
-      <div className="px-5 py-4 border-t border-gray-50">
+      <div className="px-5 py-4 border-t border-gray-50 space-y-3">
+        <div className="h-16 w-full bg-slate-50 rounded-xl" />
         <div className="flex gap-2">
           {[1, 2, 3].map(i => <div key={i} className="w-[68px] h-[68px] bg-gray-100 rounded-xl" />)}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Pagination ────────────────────────────────────────────────────
+
+function Pagination({
+  total, page, perPage, onChange,
+}: { total: number; page: number; perPage: number; onChange: (p: number) => void }) {
+  const pages = Math.ceil(total / perPage);
+  if (pages <= 1) return null;
+
+  const pageNums: (number | '…')[] = [];
+  if (pages <= 7) {
+    for (let i = 1; i <= pages; i++) pageNums.push(i);
+  } else {
+    pageNums.push(1);
+    if (page > 3)           pageNums.push('…');
+    for (let i = Math.max(2, page - 1); i <= Math.min(pages - 1, page + 1); i++) pageNums.push(i);
+    if (page < pages - 2)   pageNums.push('…');
+    pageNums.push(pages);
+  }
+
+  return (
+    <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-200">
+      <p className="text-xs font-medium text-gray-500">
+        Mostrando {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} de {total} campanha{total !== 1 ? 's' : ''}
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onChange(page - 1)}
+          disabled={page === 1}
+          className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <ChevronLeftIcon className="h-4 w-4" />
+        </button>
+        {pageNums.map((n, i) =>
+          n === '…' ? (
+            <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+          ) : (
+            <button
+              key={n}
+              onClick={() => onChange(n as number)}
+              className={cn(
+                'w-8 h-8 rounded-lg text-sm font-bold transition-all',
+                n === page
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+              )}
+            >
+              {n}
+            </button>
+          )
+        )}
+        <button
+          onClick={() => onChange(page + 1)}
+          disabled={page === pages}
+          className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <ChevronRightIcon className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
@@ -642,39 +728,24 @@ export interface CampanhasModalProps {
 }
 
 export default function CampanhasModal({
-  isOpen,
-  onClose,
-  effectiveClientId,
-  campaignFor,
-  clientName,
-  isMaster = false,
+  isOpen, onClose, effectiveClientId, campaignFor, clientName, isMaster = false,
 }: CampanhasModalProps) {
   const [campaigns, setCampaigns] = useState<CampaignData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
+  const [search, setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [page, setPage]           = useState(1);
 
   const fetchCampaigns = useCallback(async () => {
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       const params = new URLSearchParams();
       if (!isMaster) {
-        if (effectiveClientId) {
-          params.set('clientId', effectiveClientId);
-        } else {
-          // own → filtra campanhas sem clientId
-          params.set('clientId', 'own');
-        }
+        params.set('clientId', effectiveClientId || 'own');
       }
-      // master → sem filtro → retorna todas
-
       const res = await adminFetch(`/api/admin/campanhas/campaigns?${params}`);
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || `Erro ${res.status}`);
-      }
+      if (!res.ok) throw new Error(await res.text() || `Erro ${res.status}`);
       const data = await res.json();
       setCampaigns(Array.isArray(data) ? data : []);
     } catch (e: unknown) {
@@ -684,31 +755,29 @@ export default function CampanhasModal({
     }
   }, [effectiveClientId, campaignFor, isMaster]);
 
-  // Fetch when opened
   useEffect(() => {
-    if (isOpen) {
-      fetchCampaigns();
-      setSearch('');
-      setStatusFilter('');
-    }
+    if (isOpen) { fetchCampaigns(); setSearch(''); setStatusFilter(''); setPage(1); }
   }, [isOpen, fetchCampaigns]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [search, statusFilter]);
 
   // Close on Escape
   useEffect(() => {
     if (!isOpen) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
 
   const filtered = campaigns.filter(c => {
-    const matchSearch =
-      !search || c.name.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = !statusFilter || c.status === statusFilter;
+    const matchSearch  = !search       || c.name.toLowerCase().includes(search.toLowerCase());
+    const matchStatus  = !statusFilter || c.status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  const totalFiltered = filtered.length;
+  const paginated     = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   const contextTitle = isMaster
     ? 'Todas as Campanhas'
@@ -717,7 +786,7 @@ export default function CampanhasModal({
     : 'Campanhas da Minha Empresa';
 
   const contextSubtitle = isMaster
-    ? 'Visão consolidada de todos os tenants'
+    ? 'Visão consolidada'
     : campaignFor === 'client' && clientName
     ? clientName
     : 'Minha Empresa';
@@ -729,54 +798,59 @@ export default function CampanhasModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
+          transition={{ duration: 0.15 }}
           className="fixed inset-0 z-50 flex flex-col bg-gray-950/50 backdrop-blur-[2px]"
-          onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
           <motion.div
-            initial={{ opacity: 0, y: 32, scale: 0.99 }}
+            initial={{ opacity: 0, y: 28, scale: 0.99 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 24, scale: 0.99 }}
+            exit={{ opacity: 0, y: 20, scale: 0.99 }}
             transition={{ type: 'spring', stiffness: 300, damping: 32 }}
             className="flex flex-col w-full h-full bg-gray-50 overflow-hidden"
           >
             {/* ── Modal header ── */}
-            <div className="shrink-0 bg-white border-b border-gray-100 shadow-[0_1px_3px_rgba(0,0,0,.06)]">
+            <div className="shrink-0 bg-white border-b border-gray-100 shadow-[0_1px_4px_rgba(0,0,0,.06)]">
               <div className="max-w-7xl mx-auto px-6 py-4">
                 <div className="flex items-center justify-between gap-4">
-                  {/* Title */}
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-0.5">
-                      {contextSubtitle}
-                    </p>
-                    <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                      {contextTitle}
-                      {!loading && campaigns.length > 0 && (
-                        <span className="text-sm font-bold text-gray-400">
-                          ({filtered.length}
-                          {filtered.length !== campaigns.length && `/${campaigns.length}`})
-                        </span>
-                      )}
-                    </h2>
+                  {/* ← Retornar + title */}
+                  <div className="flex items-center gap-4 min-w-0">
+                    <button
+                      onClick={onClose}
+                      className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-black text-gray-600 border border-gray-200 hover:border-gray-300 hover:text-gray-900 hover:bg-gray-50 transition-all shrink-0 active:scale-95"
+                    >
+                      <ArrowLeftIcon className="h-4 w-4" />
+                      Retornar
+                    </button>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-0.5">
+                        {contextSubtitle}
+                      </p>
+                      <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-baseline gap-2">
+                        {contextTitle}
+                        {!loading && campaigns.length > 0 && (
+                          <span className="text-sm font-bold text-gray-400">
+                            ({totalFiltered}
+                            {totalFiltered !== campaigns.length && `/${campaigns.length}`})
+                          </span>
+                        )}
+                      </h2>
+                    </div>
                   </div>
 
                   {/* Controls */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {/* Search — hidden on mobile */}
+                    {/* Search */}
                     <div className="relative hidden md:block">
                       <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                       <input
                         type="text"
-                        placeholder="Buscar campanha..."
+                        placeholder="Buscar por nome..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all w-48 shadow-sm"
+                        className="pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all w-52 shadow-sm"
                       />
                       {search && (
-                        <button
-                          onClick={() => setSearch('')}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
+                        <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                           <XMarkIcon className="h-3.5 w-3.5" />
                         </button>
                       )}
@@ -807,19 +881,10 @@ export default function CampanhasModal({
                     >
                       <ArrowPathIcon className={cn('h-5 w-5', loading && 'animate-spin')} />
                     </button>
-
-                    {/* Close */}
-                    <button
-                      onClick={onClose}
-                      className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
-                      title="Fechar (Esc)"
-                    >
-                      <XMarkIcon className="h-5 w-5" />
-                    </button>
                   </div>
                 </div>
 
-                {/* Mobile search row */}
+                {/* Mobile search */}
                 <div className="mt-3 md:hidden flex gap-2">
                   <div className="relative flex-1">
                     <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -852,13 +917,13 @@ export default function CampanhasModal({
             <div className="flex-1 overflow-y-auto">
               <div className="max-w-7xl mx-auto px-6 py-8">
 
-                {/* Error state */}
+                {/* Error */}
                 {error && (
                   <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4 mb-8">
                     <ExclamationCircleIcon className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-red-700">Erro ao carregar campanhas</p>
-                      <p className="text-xs text-red-500 mt-0.5">{error}</p>
+                      <p className="text-xs text-red-500 mt-0.5 break-words">{error}</p>
                     </div>
                     <button
                       onClick={fetchCampaigns}
@@ -869,31 +934,27 @@ export default function CampanhasModal({
                   </div>
                 )}
 
-                {/* Loading skeletons */}
+                {/* Skeletons */}
                 {loading && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {[1, 2, 3, 4, 5, 6].map(i => <CardSkeleton key={i} />)}
+                    {[1,2,3,4,5,6].map(i => <CardSkeleton key={i} />)}
                   </div>
                 )}
 
                 {/* Empty state */}
-                {!loading && !error && filtered.length === 0 && (
+                {!loading && !error && totalFiltered === 0 && (
                   <div className="flex flex-col items-center justify-center py-28 text-center">
                     <div className="w-24 h-24 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-3xl flex items-center justify-center mb-6 shadow-sm">
                       <RocketLaunchIcon className="h-12 w-12 text-indigo-300" />
                     </div>
                     <p className="text-lg font-black text-gray-700 mb-2">
-                      {search || statusFilter
-                        ? 'Nenhuma campanha encontrada'
-                        : 'Nenhuma campanha lançada ainda'}
+                      {search || statusFilter ? 'Nenhuma campanha encontrada' : 'Nenhuma campanha lançada ainda'}
                     </p>
                     <p className="text-sm text-gray-400 max-w-xs leading-relaxed">
                       {search || statusFilter
-                        ? 'Tente ajustar os filtros de busca ou status.'
-                        : `Use o botão "Configurar Campanha" para lançar sua primeira campanha ${
-                            campaignFor === 'client' && clientName
-                              ? `para ${clientName}`
-                              : 'da empresa'
+                        ? 'Ajuste os filtros de busca ou status.'
+                        : `Use "Configurar Campanha" para lançar ${
+                            campaignFor === 'client' && clientName ? `a primeira campanha de ${clientName}` : 'sua primeira campanha'
                           }.`}
                     </p>
                     {(search || statusFilter) && (
@@ -907,13 +968,21 @@ export default function CampanhasModal({
                   </div>
                 )}
 
-                {/* Campaign grid */}
-                {!loading && filtered.length > 0 && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filtered.map((campaign, i) => (
-                      <CampaignCard key={campaign.id} campaign={campaign} index={i} />
-                    ))}
-                  </div>
+                {/* Grid */}
+                {!loading && paginated.length > 0 && (
+                  <>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {paginated.map((campaign, i) => (
+                        <CampaignCard key={campaign.id} campaign={campaign} index={i} />
+                      ))}
+                    </div>
+                    <Pagination
+                      total={totalFiltered}
+                      page={page}
+                      perPage={ITEMS_PER_PAGE}
+                      onChange={p => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    />
+                  </>
                 )}
               </div>
             </div>

@@ -32,7 +32,42 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json(campaigns);
+    // Enrich ads with CreativeAsset storage URLs (ad.images may contain stale blob URLs)
+    const allAdIds = campaigns.flatMap(c =>
+      c.adSets.flatMap(as => as.ads.map(a => a.id))
+    );
+
+    const assetUrlMap: Record<string, string[]> = {};
+    if (allAdIds.length > 0) {
+      try {
+        const assetRows = await pool.query(
+          `SELECT ad_id, storage_url
+           FROM campanhasmarketingdigital."CreativeAsset"
+           WHERE tenant_id = $1::uuid
+             AND ad_id = ANY($2::text[])
+             AND is_active = true
+           ORDER BY uploaded_at DESC`,
+          [payload.tenantId, allAdIds],
+        );
+        for (const row of assetRows.rows) {
+          if (!assetUrlMap[row.ad_id]) assetUrlMap[row.ad_id] = [];
+          assetUrlMap[row.ad_id].push(row.storage_url);
+        }
+      } catch { /* non-critical — fallback to ad.images */ }
+    }
+
+    const enriched = campaigns.map(c => ({
+      ...c,
+      adSets: c.adSets.map(as => ({
+        ...as,
+        ads: as.ads.map(ad => ({
+          ...ad,
+          assetUrls: assetUrlMap[ad.id] ?? [],
+        })),
+      })),
+    }));
+
+    return NextResponse.json(enriched);
   } catch (error: any) {
     console.error('GET /campaigns error:', error);
     return NextResponse.json({ error: error.message || 'Erro ao listar campanhas' }, { status: 500 });
