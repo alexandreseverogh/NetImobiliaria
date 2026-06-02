@@ -187,39 +187,46 @@ export async function saveAuditReport(
   const endDate = new Date(report.period.end);
   endDate.setHours(0, 0, 0, 0);
 
-  const saved = await (prisma as any).auditReport.upsert({
+  // Prisma não suporta upsert com campos nullable em unique constraints compostos.
+  // Workaround: findFirst + create/update manualmente.
+  const existing = await (prisma as any).auditReport.findFirst({
     where: {
-      uq_audit_report: {
-        tenantId:    report.tenantId,
-        clientId:    report.clientId ?? null,
-        periodStart: startDate,
-        periodEnd:   endDate,
-      },
+      tenantId:    report.tenantId,
+      clientId:    report.clientId ?? null,
+      periodStart: startDate,
+      periodEnd:   endDate,
     },
-    create: {
-      tenantId:     report.tenantId,
-      clientId:     report.clientId ?? null,
-      periodStart:  startDate,
-      periodEnd:    endDate,
-      overallScore: report.overallScore,
-      scorecard:    report.scorecard as any,
-      problems:     report.problems as any,
-      opportunities: report.opportunities as any,
-      wastedSpend:  report.wastedSpend as any,
-      actionPlan:   report.actionPlan as any,
-      narrative:    report.narrative ?? null,
-    },
-    update: {
-      overallScore: report.overallScore,
-      scorecard:    report.scorecard as any,
-      problems:     report.problems as any,
-      opportunities: report.opportunities as any,
-      wastedSpend:  report.wastedSpend as any,
-      actionPlan:   report.actionPlan as any,
-      narrative:    report.narrative ?? null,
+    select: { id: true },
+  });
+
+  const payload = {
+    overallScore:  report.overallScore,
+    scorecard:     report.scorecard     as any,
+    problems:      report.problems      as any,
+    opportunities: report.opportunities as any,
+    wastedSpend:   report.wastedSpend   as any,
+    actionPlan:    report.actionPlan    as any,
+    narrative:     report.narrative ?? null,
+  };
+
+  if (existing) {
+    await (prisma as any).auditReport.update({
+      where: { id: existing.id },
+      data:  payload,
+    });
+    return existing.id as string;
+  }
+
+  const created = await (prisma as any).auditReport.create({
+    data: {
+      tenantId:    report.tenantId,
+      clientId:    report.clientId ?? null,
+      periodStart: startDate,
+      periodEnd:   endDate,
+      ...payload,
     },
   });
-  return saved.id;
+  return created.id as string;
 }
 
 export async function listAuditReports(
