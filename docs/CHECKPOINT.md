@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-02 (DateInputPtBR global (13 páginas) + ClientSelector Padrões Vencedores)
+> **Atualizado em:** 2026-06-02 (DateInputPtBR global + ClientSelector Padrões + CampanhasModal consulta)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -58,6 +58,30 @@
 - `patterns/route.ts`: filtro `clientId=own|uuid` via `client_id IS NULL` ou `client_id = $N`
 
 **Nenhum `<input type="date">` restante na aplicação** (exceto o JSDoc do próprio componente).
+
+---
+
+### Consultar Campanhas — Modal full-page (2026-06-02)
+
+**Funcionalidade:** Botão "Consultar Campanhas" + modal full-page para visualização das campanhas lançadas, acessível a partir de `/admin/campanhas/nova`.
+
+**Comportamento:**
+- **Para tenant (não-master):** botão na seção "Esta campanha é para", após "Para um Cliente"; respeita contexto selecionado (`clientId=own` ou `clientId=<uuid>`)
+- **Para master:** botão flutuante acima da seção Criativos; carrega todas as campanhas do tenant sem filtro
+
+**Componente:** `src/components/marketing/CampanhasModal.tsx` (NOVO)
+- Grid responsivo `1 col → 2 col (lg) → 3 col (xl)`
+- Cards com: status badges (ativa/pausada/arquivada/rascunho), funnel stage, objetivo, budget, período, público (idade/gênero), programação (dias da semana + horários, com suporte a `scheduleTimeSlots` por dia), localização (chips sky), interesses (chips violet, colapsável), tira de criativos (thumbnails + headline/body/CTA)
+- Busca por nome + filtro por status
+- Loading skeleton (6 cards), empty state, error state com retry
+- Fecha com Escape ou clique no overlay
+- Framer-motion enter/exit animation
+
+**Arquivos modificados:**
+- `src/components/marketing/CampanhasModal.tsx` — NOVO
+- `src/app/admin/campanhas/nova/page.tsx` — import + estado `showConsultarModal` + botão (tenant e master) + `<CampanhasModal />`
+
+**API usada:** `GET /api/admin/campanhas/campaigns?clientId=own|<uuid>` (já existia, sem alteração)
 
 ---
 

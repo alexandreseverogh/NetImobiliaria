@@ -7,13 +7,14 @@ import dynamic from 'next/dynamic';
 import {
   XMarkIcon, RocketLaunchIcon, ArrowLeftIcon, FolderOpenIcon,
   BuildingOfficeIcon, UserCircleIcon, MagnifyingGlassIcon, ArrowPathIcon,
-  CheckCircleIcon,
+  CheckCircleIcon, RectangleStackIcon,
 } from '@heroicons/react/24/outline';
 import type { Creative, ClientWithCreativesPath } from '@/lib/marketing-api';
 import { getClientCreativePaths } from '@/lib/marketing-api';
 import { cn } from '@/lib/marketing-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { adminFetch } from '@/lib/auth/adminFetch';
+import CampanhasModal from '@/components/marketing/CampanhasModal';
 
 const CampaignWizard = dynamic(
   () => import('@/components/marketing/CampaignWizard').then(m => m.CampaignWizard),
@@ -74,6 +75,9 @@ export default function NovaCampanhaPage() {
 
   /* ── Phase 2: wizard ────────────────────────────────── */
   const [showWizard, setShowWizard] = useState(false);
+
+  /* ── Consultar campanhas modal ──────────────────────── */
+  const [showConsultarModal, setShowConsultarModal] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supportsPickerAPI =
@@ -283,7 +287,7 @@ export default function NovaCampanhaPage() {
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
                 Esta campanha é para
               </p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={() => { setCampaignFor('own'); setSelectedClientId(''); setClientSearch(''); }}
                   className={cn(
@@ -307,6 +311,18 @@ export default function NovaCampanhaPage() {
                 >
                   <UserCircleIcon className="h-4 w-4" />
                   Para um Cliente
+                </button>
+
+                {/* Separador visual */}
+                <div className="hidden sm:block h-8 w-px bg-gray-200 mx-1" />
+
+                {/* Consultar campanhas */}
+                <button
+                  onClick={() => setShowConsultarModal(true)}
+                  className="flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-all border border-dashed border-slate-300 text-slate-600 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/60 active:scale-95"
+                >
+                  <RectangleStackIcon className="h-4 w-4" />
+                  Consultar Campanhas
                 </button>
               </div>
             </div>
@@ -419,6 +435,19 @@ export default function NovaCampanhaPage() {
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
+        )}
+
+        {/* ── Consultar Campanhas (acesso direto para Master) ── */}
+        {isMaster && (
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={() => setShowConsultarModal(true)}
+              className="flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm font-black transition-all border border-dashed border-slate-300 text-slate-600 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/60 active:scale-95 shadow-sm"
+            >
+              <RectangleStackIcon className="h-4 w-4" />
+              Consultar Campanhas
+            </button>
           </div>
         )}
 
@@ -605,6 +634,16 @@ export default function NovaCampanhaPage() {
         </div>
 
       </div>
+
+      {/* ── Modal: Consultar Campanhas ── */}
+      <CampanhasModal
+        isOpen={showConsultarModal}
+        onClose={() => setShowConsultarModal(false)}
+        effectiveClientId={effectiveClientId}
+        campaignFor={campaignFor}
+        clientName={selectedClient?.name}
+        isMaster={isMaster}
+      />
 
       {/* Hidden file input (fallback para browsers sem showDirectoryPicker) */}
       <input
