@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useApi } from '@/hooks/useApi';
+import DateInputPtBR from '@/components/ui/DateInputPtBR';
 import PermissionGuard from '@/components/admin/PermissionGuard';
 import {
   MagnifyingGlassIcon,
@@ -296,22 +297,20 @@ export default function LoginLogsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Data Inicial
               </label>
-              <input
-                type="date"
+              <DateInputPtBR
                 value={filters.start_date}
-                onChange={(e) => handleFilterChange('start_date', e.target.value)}
+                onChange={(iso) => handleFilterChange('start_date', iso)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Data Final
               </label>
-              <input
-                type="date"
+              <DateInputPtBR
                 value={filters.end_date}
-                onChange={(e) => handleFilterChange('end_date', e.target.value)}
+                onChange={(iso) => handleFilterChange('end_date', iso)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

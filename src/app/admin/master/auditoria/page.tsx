@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useApi } from '@/hooks/useApi'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import { 
   ShieldCheckIcon, 
   MapPinIcon, 
@@ -114,19 +115,17 @@ export default function GlobalAuditPage() {
           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap gap-4 items-end">
             <div className="flex-1 min-w-[200px]">
               <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">Data Início</label>
-              <input 
-                type="date" 
+              <DateInputPtBR
                 value={filters.startDate}
-                onChange={(e) => setFilters({...filters, startDate: e.target.value})}
+                onChange={(iso) => setFilters({...filters, startDate: iso})}
                 className="w-full bg-slate-50 border-none rounded-lg text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div className="flex-1 min-w-[200px]">
               <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">Data Fim</label>
-              <input 
-                type="date" 
+              <DateInputPtBR
                 value={filters.endDate}
-                onChange={(e) => setFilters({...filters, endDate: e.target.value})}
+                onChange={(iso) => setFilters({...filters, endDate: iso})}
                 className="w-full bg-slate-50 border-none rounded-lg text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
               />
             </div>

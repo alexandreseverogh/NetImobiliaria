@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { XMarkIcon, CurrencyDollarIcon, TagIcon, ChatBubbleBottomCenterTextIcon, CalendarIcon, MegaphoneIcon, ClockIcon, BuildingOfficeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 
 interface FormState {
   utm_campaign: string
@@ -303,14 +304,14 @@ export default function MarketingCampaignModal({ campaignToEdit, onClose, onSucc
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-2 block flex items-center">
                     <CalendarIcon className="h-3 w-3 mr-1" /> Data Início (Obrigatório)
                 </label>
-                <input required type="date" name="data_inicio" value={formData.data_inicio} onChange={handleChange} className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-sm" />
+                <DateInputPtBR required value={formData.data_inicio} onChange={iso => setFormData(f => ({ ...f, data_inicio: iso }))} className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-sm" />
              </div>
 
              <div>
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-2 block flex items-center">
                     <CalendarIcon className="h-3 w-3 mr-1" /> Data Fim (Opcional - Always On)
                 </label>
-                <input type="date" name="data_fim" value={formData.data_fim} onChange={handleChange} className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-sm" />
+                <DateInputPtBR value={formData.data_fim} onChange={iso => setFormData(f => ({ ...f, data_fim: iso }))} className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-sm" />
              </div>
           </div>
         </div>

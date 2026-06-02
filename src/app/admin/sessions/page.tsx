@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useApi } from '@/hooks/useApi'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import PermissionGuard from '@/components/admin/PermissionGuard'
 import { 
   ClockIcon, 
@@ -311,10 +312,9 @@ useEffect(() => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Data Inicial
                   </label>
-                  <input
-                    type="date"
+                  <DateInputPtBR
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={setStartDate}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -322,10 +322,9 @@ useEffect(() => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Data Final
                   </label>
-                  <input
-                    type="date"
+                  <DateInputPtBR
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    onChange={setEndDate}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

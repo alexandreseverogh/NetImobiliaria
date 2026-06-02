@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import DateInputPtBR from '@/components/ui/DateInputPtBR';
 
 interface AdvancedFiltersProps {
   onFiltersChange: (filters: any) => void;
@@ -141,10 +142,9 @@ export default function AdvancedFilters({ onFiltersChange, initialFilters = {} }
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Data Inicial
             </label>
-            <input
-              type="date"
+            <DateInputPtBR
               value={filters.start_date}
-              onChange={(e) => handleFilterChange('start_date', e.target.value)}
+              onChange={(iso) => handleFilterChange('start_date', iso)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -154,10 +154,9 @@ export default function AdvancedFilters({ onFiltersChange, initialFilters = {} }
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Data Final
             </label>
-            <input
-              type="date"
+            <DateInputPtBR
               value={filters.end_date}
-              onChange={(e) => handleFilterChange('end_date', e.target.value)}
+              onChange={(iso) => handleFilterChange('end_date', iso)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>

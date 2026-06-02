@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import PermissionGuard from '@/components/admin/PermissionGuard'
 import { useApi } from '@/hooks/useApi'
 import {
@@ -325,15 +326,15 @@ export default function VisitasPlataformaPage() {
                                 <>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-600 mb-1">De</label>
-                                        <input type="date" value={pendingFilters.from}
-                                            onChange={e => setPendingFilters(p => ({ ...p, from: e.target.value }))}
+                                        <DateInputPtBR value={pendingFilters.from}
+                                            onChange={iso => setPendingFilters(p => ({ ...p, from: iso }))}
                                             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-600 mb-1">Até</label>
-                                        <input type="date" value={pendingFilters.to}
-                                            onChange={e => setPendingFilters(p => ({ ...p, to: e.target.value }))}
+                                        <DateInputPtBR value={pendingFilters.to}
+                                            onChange={iso => setPendingFilters(p => ({ ...p, to: iso }))}
                                             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
                                         />
                                     </div>

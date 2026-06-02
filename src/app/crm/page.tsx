@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import {
   CurrencyDollarIcon,
   ShieldCheckIcon,
@@ -135,10 +136,10 @@ export default function CRMDashboard() {
 
           {timeframe === 'custom' && (
             <div className={`flex items-center space-x-2 ${t.selectorBg} rounded-xl p-1 mr-4`}>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+              <DateInputPtBR value={startDate} onChange={setStartDate}
                 className={`bg-transparent border-0 text-[10px] font-bold outline-none focus:ring-0 px-2 ${t.textPrimary}`} />
               <span className={`text-[10px] ${t.textMuted}`}>até</span>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+              <DateInputPtBR value={endDate} onChange={setEndDate}
                 className={`bg-transparent border-0 text-[10px] font-bold outline-none focus:ring-0 px-2 ${t.textPrimary}`} />
               <button onClick={fetchDashboardData} className={`p-1 rounded-lg transition-all ${t.hoverBg}`}>
                 <ArrowTrendingUpIcon className="h-4 w-4 text-emerald-400 rotate-90" />

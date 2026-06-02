@@ -34,12 +34,14 @@ export default function DateInputPtBR({
   className,
   style,
   disabled,
+  required,
 }: {
   value: string;
   onChange: (iso: string) => void;
   className?: string;
   style?: React.CSSProperties;
   disabled?: boolean;
+  required?: boolean;
 }) {
   const [display, setDisplay] = React.useState(isoToPtBr(value));
 
@@ -72,6 +74,7 @@ export default function DateInputPtBR({
       className={className}
       style={style}
       disabled={disabled}
+      required={required}
     />
   );
 }

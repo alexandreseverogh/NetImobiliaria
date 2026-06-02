@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useApi } from '@/hooks/useApi'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import { usePermissions } from '@/hooks/usePermissions'
 import { AuditRegistry } from '@/components/admin/audit/enrichment/registry'
 import UniversalAuditDetail from '@/components/admin/audit/enrichment/UniversalAuditDetail'
@@ -297,20 +298,18 @@ export default function AuditPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data Inicial</label>
-              <input
-                type="date"
+              <DateInputPtBR
                 value={filters.startDate}
-                onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                onChange={(iso) => handleFilterChange('startDate', iso)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data Final</label>
-              <input
-                type="date"
+              <DateInputPtBR
                 value={filters.endDate}
-                onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                onChange={(iso) => handleFilterChange('endDate', iso)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

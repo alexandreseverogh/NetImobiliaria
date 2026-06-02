@@ -9,6 +9,7 @@ import {
   TrophyIcon, XMarkIcon, LightBulbIcon, CheckIcon, RocketLaunchIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Pattern {
@@ -302,12 +303,18 @@ export default function PadroesPage() {
   const [concepts, setConcepts]     = useState<Concept[]>([]);
   const [activePattern, setActivePattern] = useState<Pattern | null>(null);
 
+  // ClientSelector — ALTA PRIORIDADE (CLAUDE.md)
+  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('padroes');
+
   useEffect(() => {
-    adminFetch('/api/admin/campanhas/criativos/patterns')
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (clientFilter && clientFilter !== 'all') params.set('clientId', clientFilter);
+    adminFetch(`/api/admin/campanhas/criativos/patterns?${params}`)
       .then(r => r.ok ? r.json() : { patterns: [] })
       .then(d => setPatterns(d.patterns || []))
       .finally(() => setLoading(false));
-  }, []);
+  }, [clientFilter]);
 
   async function handleGenerateConcepts(p: Pattern) {
     setGenerating(true);
@@ -340,7 +347,7 @@ export default function PadroesPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Link href="/admin/campanhas/criativos"
@@ -354,6 +361,15 @@ export default function PadroesPage() {
             Padrões de criativos correlacionados com performance real
           </p>
         </div>
+        {/* Seletor de cliente — Minha Empresa / Para um Cliente */}
+        <ClientSelector
+          value={clientFilter}
+          onChange={setClientFilter}
+          clients={clients}
+          loading={clientsLoading}
+          storageKey="padroes"
+          variant="toggle"
+        />
       </div>
 
       {/* Loading */}

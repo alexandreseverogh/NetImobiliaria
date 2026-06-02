@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import DateInputPtBR from '@/components/ui/DateInputPtBR';
 import { CheckIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -199,11 +200,11 @@ export default function NovaIniciativaPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelCls}>Data de início</label>
-                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls} />
+                  <DateInputPtBR value={startDate} onChange={setStartDate} className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Data de fim</label>
-                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputCls} />
+                  <DateInputPtBR value={endDate} onChange={setEndDate} className={inputCls} />
                 </div>
               </div>
               <div>

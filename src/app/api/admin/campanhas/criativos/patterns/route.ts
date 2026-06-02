@@ -16,15 +16,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
     const { tenantId } = payload;
+    const { searchParams } = new URL(request.url);
+    const clientId = searchParams.get('clientId');
+
+    const conditions: string[] = ['tenant_id = $1::uuid'];
+    const params: unknown[] = [tenantId];
+
+    if (clientId === 'own') {
+      conditions.push('client_id IS NULL');
+    } else if (clientId) {
+      params.push(clientId);
+      conditions.push(`client_id = $${params.length}::uuid`);
+    }
 
     const rows = await pool.query(
       `SELECT
         hook_type, is_ugc_style, angle, emotional_tone, is_corporate_style,
         ads_count, avg_ctr, avg_cpc, total_spend, avg_cpl, sample_ads
        FROM campanhasmarketingdigital.vw_creative_patterns
-       WHERE tenant_id = $1::uuid
+       WHERE ${conditions.join(' AND ')}
        ORDER BY avg_cpl ASC NULLS LAST, avg_ctr DESC NULLS LAST`,
-      [tenantId]
+      params
     );
 
     return NextResponse.json({ patterns: rows.rows });

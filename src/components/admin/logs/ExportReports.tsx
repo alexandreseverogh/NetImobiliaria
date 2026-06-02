@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ArrowDownTrayIcon, DocumentTextIcon, TableCellsIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import DateInputPtBR from '@/components/ui/DateInputPtBR';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -379,19 +380,17 @@ export default function ExportReports({ logs, stats }: ExportReportsProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Data Inicial</label>
-                <input
-                  type="date"
+                <DateInputPtBR
                   value={dateRange.start}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  onChange={(iso) => setDateRange(prev => ({ ...prev, start: iso }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Data Final</label>
-                <input
-                  type="date"
+                <DateInputPtBR
                   value={dateRange.end}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  onChange={(iso) => setDateRange(prev => ({ ...prev, end: iso }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import { useEstadosCidades } from '@/hooks/useEstadosCidades'
 import EstadoSelect from '@/components/shared/EstadoSelect'
 
@@ -78,10 +79,9 @@ export function DashboardFilters({ filters, onFilterChange, onApply, onClear }: 
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Data Inicial
           </label>
-          <input
-            type="date"
+          <DateInputPtBR
             value={filters.startDate}
-            onChange={(e) => onFilterChange({ startDate: e.target.value })}
+            onChange={(iso) => onFilterChange({ startDate: iso })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
@@ -91,10 +91,9 @@ export function DashboardFilters({ filters, onFilterChange, onApply, onClear }: 
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Data Final
           </label>
-          <input
-            type="date"
+          <DateInputPtBR
             value={filters.endDate}
-            onChange={(e) => onFilterChange({ endDate: e.target.value })}
+            onChange={(iso) => onFilterChange({ endDate: iso })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>

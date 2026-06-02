@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { MegaphoneIcon, CalendarDateRangeIcon, PlusIcon, PencilSquareIcon, ChartBarIcon, ServerStackIcon, ClockIcon } from '@heroicons/react/24/outline'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import MarketingCampaignModal from '@/components/crm/MarketingCampaignModal'
 import { useTheme } from '@/hooks/useTheme'
 
@@ -62,15 +63,15 @@ export default function CentralDeMediaPage() {
         <div className="flex flex-wrap items-center gap-3 mt-4 md:mt-0">
           {timeframe === 'custom' && (
             <div className={`flex items-center space-x-2 ${t.isDark ? 'bg-purple-900/10 border-purple-500/30' : 'bg-purple-50 border-purple-200'} border p-1 rounded-xl`}>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                className={`bg-transparent border-none text-xs font-bold focus:ring-0 cursor-pointer ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`} />
+              <DateInputPtBR value={startDate} onChange={setStartDate}
+                className={`bg-transparent border-none text-xs font-bold focus:ring-0 ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`} />
               <span className="text-purple-500 text-xs font-black">Até</span>
-              <input type="date" value={endDate} min={startDate}
-                onChange={e => {
-                  if (startDate && new Date(e.target.value) < new Date(startDate)) { alert('Data Final não pode ser menor que a Inicial.'); return }
-                  setEndDate(e.target.value)
+              <DateInputPtBR value={endDate}
+                onChange={iso => {
+                  if (startDate && iso && new Date(iso) < new Date(startDate)) { alert('Data Final não pode ser menor que a Inicial.'); return }
+                  setEndDate(iso)
                 }}
-                className={`bg-transparent border-none text-xs font-bold focus:ring-0 cursor-pointer ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`} />
+                className={`bg-transparent border-none text-xs font-bold focus:ring-0 ${t.isDark ? 'text-purple-200' : 'text-purple-700'}`} />
             </div>
           )}
           <div className="relative">
