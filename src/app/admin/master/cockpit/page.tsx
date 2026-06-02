@@ -132,6 +132,18 @@ export default function ProductCockpitPage() {
     fetchData()
   }, [])
 
+  // Sincroniza a lista de features ordenadas sempre que a categoria ou os dados mudam
+  useEffect(() => {
+    if (!selectedCategory) {
+      setOrderedFeatures([])
+      return
+    }
+    const assigned = features
+      .filter((f: any) => f.category_id === selectedCategory)
+      .sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
+    setOrderedFeatures(assigned)
+  }, [selectedCategory, features])
+
   const handleToggle = async (action: string, sourceId: any, targetId: any, currentStatus: boolean) => {
     const isAssigned = !currentStatus;
     try {
@@ -254,13 +266,7 @@ export default function ProductCockpitPage() {
           <div className="flex items-center text-blue-900 font-black uppercase text-[10px] tracking-widest">
             <FolderIcon className="h-4 w-4 mr-2 text-blue-500" /> Categorias
           </div>
-          <button
-            onClick={openOrderModal}
-            title="Ordenar features desta categoria"
-            className="p-1.5 hover:bg-white rounded-lg text-blue-600 transition-colors"
-          >
-            <Bars3BottomLeftIcon className="h-4 w-4" />
-          </button>
+          {/* As setas de ordenação estão na coluna Funcionalidades → */}
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {categories.map(cat => {
@@ -285,30 +291,92 @@ export default function ProductCockpitPage() {
       </div>
 
       {/* COLUNA 4: FEATURES */}
-      <div className={`flex-shrink-0 w-80 flex flex-col bg-white rounded-2xl shadow-sm border transition-all duration-300 ${selectedCategory ? 'border-emerald-200 opacity-100' : 'opacity-50 pointer-events-none grayscale'}`}>
+      <div className={`flex-shrink-0 w-96 flex flex-col bg-white rounded-2xl shadow-sm border transition-all duration-300 ${selectedCategory ? 'border-emerald-200 opacity-100' : 'opacity-50 pointer-events-none grayscale'}`}>
         <div className="p-4 bg-emerald-50/50 border-b border-emerald-100 flex items-center justify-between">
           <div className="flex items-center text-emerald-900 font-black uppercase text-[10px] tracking-widest">
             <SquaresPlusIcon className="h-4 w-4 mr-2 text-emerald-500" /> Funcionalidades
           </div>
+          {/* Botão Salvar Ordem — aparece quando há features atribuídas */}
+          {orderedFeatures.length > 0 && (
+            <button
+              onClick={saveFeatureOrder}
+              disabled={savingOrder}
+              className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider rounded-lg shadow-sm shadow-emerald-500/30 disabled:opacity-50 transition-all"
+            >
+              {savingOrder ? 'Salvando...' : '✓ Salvar Ordem'}
+            </button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {features.map(feat => {
-            const isAssigned = feat.category_id === selectedCategory;
-            return (
-              <div key={feat.id} className="flex items-center justify-between p-3 rounded-xl border border-transparent hover:bg-slate-50">
+
+          {/* ── Features ATRIBUÍDAS à categoria (com setas ↑↓) ── */}
+          {orderedFeatures.length > 0 && (
+            <>
+              <p className="text-[8px] font-black uppercase tracking-widest text-emerald-600 px-3 py-1.5">
+                ↕ Arraste a ordem — na sidebar
+              </p>
+              {orderedFeatures.map((feat: any, idx: number) => (
+                <div key={feat.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/40 hover:bg-emerald-50 transition-colors">
+                  {/* Setas ↑ / ↓ */}
+                  <div className="flex flex-col gap-0 shrink-0">
+                    <button
+                      onClick={() => moveFeatureUp(idx)}
+                      disabled={idx === 0}
+                      title="Mover para cima"
+                      className="p-0.5 rounded text-emerald-400 hover:text-emerald-700 hover:bg-emerald-100 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronUpIcon className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => moveFeatureDown(idx)}
+                      disabled={idx === orderedFeatures.length - 1}
+                      title="Mover para baixo"
+                      className="p-0.5 rounded text-emerald-400 hover:text-emerald-700 hover:bg-emerald-100 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronDownIcon className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Número de ordem */}
+                  <span className="text-[9px] font-black text-slate-300 w-4 shrink-0 text-center">{idx + 1}</span>
+
+                  {/* Nome e slug */}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-xs text-slate-800 truncate">{feat.name}</div>
+                    <div className="text-[9px] font-mono text-emerald-600">{feat.slug}</div>
+                  </div>
+
+                  {/* Toggle para desatribuir */}
+                  <button
+                    onClick={() => handleToggle('TOGGLE_CATEGORY_FEATURE', selectedCategory, feat.id, true)}
+                    className="h-5 w-9 rounded-full relative transition-colors bg-emerald-500 shrink-0"
+                  >
+                    <span className="absolute top-0.5 left-0.5 h-4 w-4 bg-white rounded-full transition-transform translate-x-4" />
+                  </button>
+                </div>
+              ))}
+              <div className="border-t border-slate-100 mt-2 pt-1" />
+            </>
+          )}
+
+          {/* ── Features NÃO atribuídas (sem setas) ── */}
+          {features
+            .filter((f: any) => f.category_id !== selectedCategory)
+            .map((feat: any) => (
+              <div key={feat.id} className="flex items-center justify-between p-3 rounded-xl border border-transparent hover:bg-slate-50 pl-10">
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-xs text-slate-800 truncate">{feat.name}</div>
                   <div className="text-[9px] font-mono text-slate-400">{feat.slug}</div>
                 </div>
-                <button 
-                  onClick={() => handleToggle('TOGGLE_CATEGORY_FEATURE', selectedCategory, feat.id, isAssigned)}
-                  className={`h-5 w-9 rounded-full relative transition-colors ${isAssigned ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                <button
+                  onClick={() => handleToggle('TOGGLE_CATEGORY_FEATURE', selectedCategory, feat.id, false)}
+                  className="h-5 w-9 rounded-full relative transition-colors bg-slate-200 shrink-0"
                 >
-                  <span className={`absolute top-0.5 left-0.5 h-4 w-4 bg-white rounded-full transition-transform ${isAssigned ? 'translate-x-4' : ''}`} />
+                  <span className="absolute top-0.5 left-0.5 h-4 w-4 bg-white rounded-full transition-transform" />
                 </button>
               </div>
-            )
-          })}
+            ))
+          }
         </div>
       </div>
     </div>
