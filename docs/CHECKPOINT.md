@@ -1,12 +1,28 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-02 (FASE 9 — ClientSelector toggle, filtro campanha, fix uuid 'own', fix datas dd/mm/aaaa)
+> **Atualizado em:** 2026-06-02 (Fix filtro campanha na página de Leads — stats API + getCampaigns com clientFilter)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Fix Leads — Filtro de Campanha nas Stats (2026-06-02)
+
+**Problema:** Selecionar uma campanha no dropdown da página `/admin/campanhas/leads` não alterava os dados exibidos (KPIs, gráficos). A tabela de leads filtrava corretamente, mas os stats (total, gráfico por dia, por campanha) sempre mostravam tudo.
+
+**Root cause:**
+1. `/api/admin/campanhas/leads/stats/route.ts` nunca lia `campaignId` dos searchParams.
+2. A query raw `leadsByDay` nunca incluía filtro de `campaign_id`.
+3. `getCampaigns()` era chamado sem `clientFilter`, então o dropdown mostrava campanhas de todos os clientes.
+
+**Fixes:**
+- `src/app/api/admin/campanhas/leads/stats/route.ts` — lê `campaignId`; aplica `where.campaignId = campaignId` no `count` e `groupBy`; query raw `leadsByDay` condicional com `AND "campaign_id" = ${campaignId}::uuid`
+- `src/lib/marketing-api.ts` — `getLeadStats` aceita `campaignId?: string` opcional
+- `src/app/admin/campanhas/leads/page.tsx` — `getCampaigns()` passa `clientFilter` para sincronizar dropdown com cliente selecionado
+
+---
 
 ### FASE 9 — Audit Report Estruturado (2026-06-01)
 

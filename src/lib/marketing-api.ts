@@ -174,6 +174,7 @@ export const getLeadStats = (params?: {
   clientId?: ClientFilter;
   startDate?: string;
   endDate?: string;
+  campaignId?: string;
 }) => api.get('/leads/stats', { params }).then(r => r.data);
 
 // ─── Configurações ────────────────────────────────────────────────────────────

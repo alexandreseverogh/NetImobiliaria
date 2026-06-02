@@ -12,9 +12,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const clientId  = searchParams.get('clientId');
-    const startDate = searchParams.get('startDate');
-    const endDate   = searchParams.get('endDate');
+    const clientId   = searchParams.get('clientId');
+    const startDate  = searchParams.get('startDate');
+    const endDate    = searchParams.get('endDate');
+    const campaignId = searchParams.get('campaignId');
 
     const where: any = { tenantId: payload.tenantId };
     if (clientId === 'own') {
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
     } else if (clientId) {
       where.clientId = clientId;
     }
+    if (campaignId) where.campaignId = campaignId;
     if (startDate || endDate) {
       where.clickedAt = {};
       if (startDate) where.clickedAt.gte = new Date(startDate);
@@ -39,16 +41,28 @@ export async function GET(request: NextRequest) {
     const parsedStartDate = startDate ? new Date(startDate) : new Date(0);
     const parsedEndDate = endDate ? new Date(endDate) : new Date();
 
-    const leadsByDay: any[] = await prisma.$queryRaw`
-      SELECT DATE("clickedAt") as date, COUNT(*)::int as count
-      FROM campanhasmarketingdigital."Lead"
-      WHERE "tenant_id" = ${payload.tenantId}::uuid
-        AND "clickedAt" >= ${parsedStartDate}::timestamp
-        AND "clickedAt" <= ${parsedEndDate}::timestamp
-      GROUP BY DATE("clickedAt")
-      ORDER BY date DESC
-      LIMIT 30
-    `;
+    const leadsByDay: any[] = campaignId
+      ? await prisma.$queryRaw`
+          SELECT DATE("clickedAt") as date, COUNT(*)::int as count
+          FROM campanhasmarketingdigital."Lead"
+          WHERE "tenant_id" = ${payload.tenantId}::uuid
+            AND "campaign_id" = ${campaignId}::uuid
+            AND "clickedAt" >= ${parsedStartDate}::timestamp
+            AND "clickedAt" <= ${parsedEndDate}::timestamp
+          GROUP BY DATE("clickedAt")
+          ORDER BY date DESC
+          LIMIT 30
+        `
+      : await prisma.$queryRaw`
+          SELECT DATE("clickedAt") as date, COUNT(*)::int as count
+          FROM campanhasmarketingdigital."Lead"
+          WHERE "tenant_id" = ${payload.tenantId}::uuid
+            AND "clickedAt" >= ${parsedStartDate}::timestamp
+            AND "clickedAt" <= ${parsedEndDate}::timestamp
+          GROUP BY DATE("clickedAt")
+          ORDER BY date DESC
+          LIMIT 30
+        `;
 
     // Normalizando dados do prisma raw para json
     const normalizedLeadsByDay = leadsByDay.map(r => ({

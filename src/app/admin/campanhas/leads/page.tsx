@@ -45,7 +45,7 @@ export function LeadsPage() {
       const [leadsData, statsData, campaignsData] = await Promise.all([
         getLeads(apiFilters),
         getLeadStats(apiFilters),
-        getCampaigns(),
+        getCampaigns(clientFilter !== 'all' ? clientFilter : undefined),
       ]);
       setLeads(leadsData.leads || []);
       setTotal(leadsData.total || 0);
