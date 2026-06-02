@@ -94,6 +94,7 @@ export async function generateAuditReport(
   clientId?: string | null,
   periodDays = 30,
   withNarrative = false,
+  campaignId?: string | null,
 ): Promise<AuditReportData> {
   const endDate   = new Date();
   const startDate = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
@@ -110,8 +111,8 @@ export async function generateAuditReport(
   const [wastedRaw, healthRaw, metricsRaw, funnelRaw] = await Promise.all([
     calculateWastedSpend(tenantId, clientId, periodDays).catch(() => null),
     runTrackingHealthCheck(tenantId, clientId).catch(() => null),
-    collectCampaignMetrics(tenantId, clientId, startDate),
-    collectFunnelMetrics(tenantId, clientId, startDate),
+    collectCampaignMetrics(tenantId, clientId, startDate, campaignId),
+    collectFunnelMetrics(tenantId, clientId, startDate, campaignId),
   ]);
 
   // ── Dimensão 1: Performance ────────────────────────────────
@@ -284,10 +285,12 @@ async function collectCampaignMetrics(
   tenantId: string,
   clientId: string | null | undefined,
   since: Date,
+  campaignId?: string | null,
 ): Promise<CampaignMetrics> {
   const campWhere: any = { tenantId };
   if (clientId === 'own') campWhere.clientId = null;
   else if (clientId)      campWhere.clientId = clientId;
+  if (campaignId)         campWhere.id       = campaignId;
 
   try {
     const campaigns = await prisma.campaign.findMany({
@@ -345,11 +348,13 @@ async function collectFunnelMetrics(
   tenantId: string,
   clientId: string | null | undefined,
   since: Date,
+  campaignId?: string | null,
 ): Promise<FunnelMetrics> {
   try {
     const campWhere: any = { tenantId };
     if (clientId === 'own') campWhere.clientId = null;
     else if (clientId)      campWhere.clientId = clientId;
+    if (campaignId)         campWhere.id       = campaignId;
 
     const campaigns = await prisma.campaign.findMany({
       where: campWhere,

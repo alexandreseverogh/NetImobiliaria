@@ -9,6 +9,7 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   MinusCircleIcon,
+  ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
@@ -61,6 +62,11 @@ interface AuditReport {
   };
   actionPlan: ActionItem[];
   narrative?: string;
+}
+
+interface CampaignOption {
+  id: string;
+  name: string;
 }
 
 // ── Constants ─────────────────────────────────────────────────
@@ -130,6 +136,34 @@ function DimensionBar({ dim }: { dim: ScorecardDimension }) {
   );
 }
 
+// ── Campaign Selector ─────────────────────────────────────────
+
+function CampaignSelect({
+  campaigns,
+  value,
+  onChange,
+}: {
+  campaigns: CampaignOption[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="h-9 pl-3 pr-8 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 shadow-sm hover:border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none cursor-pointer"
+      >
+        <option value="">Todas as campanhas</option>
+        {campaigns.map(c => (
+          <option key={c.id} value={c.id}>{c.name.length > 28 ? c.name.slice(0, 28) + '…' : c.name}</option>
+        ))}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────
 
 export default function AuditoriaPage() {
@@ -139,14 +173,33 @@ export default function AuditoriaPage() {
   const [withNarr, setWithNarr] = useState(false);
   const [error, setError]       = useState('');
 
-  // ClientSelector — filtro por cliente (igual ao dashboard)
+  // Filtro de cliente (toggle: Todas / Minha Empresa / Para um Cliente)
   const { clients, loading: clientsLoading, clientFilter, setClientFilter } =
     useClientSelector('auditoria');
-
-  // clientId para a API: 'all' → null (todas), 'own' → 'own', uuid → uuid
   const clientId = clientFilter === 'all' ? null : clientFilter;
 
-  const generate = useCallback(async (periodDays: number, narrative: boolean, cid: string | null) => {
+  // Filtro de campanha
+  const [campaigns, setCampaigns]         = useState<CampaignOption[]>([]);
+  const [campaignFilter, setCampaignFilter] = useState('');
+
+  // Carregar lista de campanhas (filtrada pelo cliente selecionado)
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (clientFilter && clientFilter !== 'all') params.set('clientId', clientFilter);
+    fetch(`/api/admin/campanhas/campaigns?${params}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setCampaigns((Array.isArray(data) ? data : []).map((c: any) => ({ id: c.id, name: c.name }))))
+      .catch(() => setCampaigns([]));
+    // Limpa filtro de campanha ao trocar cliente
+    setCampaignFilter('');
+  }, [clientFilter]);
+
+  const generate = useCallback(async (
+    periodDays: number,
+    narrative: boolean,
+    cid: string | null,
+    campId: string,
+  ) => {
     setLoading(true);
     setError('');
     setReport(null);
@@ -154,7 +207,12 @@ export default function AuditoriaPage() {
       const res = await fetch('/api/admin/campanhas/auditoria', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ periodDays, withNarrative: narrative, clientId: cid }),
+        body:    JSON.stringify({
+          periodDays,
+          withNarrative: narrative,
+          clientId:      cid,
+          campaignId:    campId || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Erro ao gerar relatório');
@@ -166,11 +224,11 @@ export default function AuditoriaPage() {
     }
   }, []);
 
-  // Auto-gera ao trocar período ou cliente
+  // Auto-gera ao trocar período, cliente ou campanha
   useEffect(() => {
-    generate(days, false, clientId);
+    generate(days, false, clientId, campaignFilter);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, clientFilter]);
+  }, [days, clientFilter, campaignFilter]);
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString('pt-BR');
   const fmtCur  = (n: number) =>
@@ -181,69 +239,94 @@ export default function AuditoriaPage() {
       <div className="max-w-5xl mx-auto">
 
         {/* ── Header ───────────────────────────────────────────── */}
-        <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-2">Campanhas</p>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-              <ClipboardDocumentListIcon className="h-8 w-8 text-indigo-600" />
-              Auditoria de Campanhas
-            </h1>
-            <p className="text-gray-500 mt-1 text-sm font-medium">
-              Relatório estruturado com scorecard, problemas, oportunidades e plano de ação
-            </p>
-          </div>
+        <div className="mb-6">
+          {/* Título */}
+          <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-2">Campanhas</p>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
+            <ClipboardDocumentListIcon className="h-8 w-8 text-indigo-600" />
+            Auditoria de Campanhas
+          </h1>
+          <p className="text-gray-500 mt-1 text-sm font-medium">
+            Relatório estruturado com scorecard, problemas, oportunidades e plano de ação
+          </p>
+        </div>
 
-          {/* Controls */}
-          <div className="flex flex-col gap-2 items-end">
-            {/* Row 1: ClientSelector + period */}
-            <div className="flex items-center gap-2 flex-wrap justify-end">
+        {/* ── Controls ─────────────────────────────────────────── */}
+        <div className="mb-6 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div className="flex flex-col gap-3">
+
+            {/* Linha 1: Toggle de contexto (Todas / Minha Empresa / Para um Cliente) */}
+            <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+                Contexto
+              </p>
               <ClientSelector
                 value={clientFilter}
                 onChange={setClientFilter}
                 clients={clients}
                 loading={clientsLoading}
                 storageKey="auditoria"
+                variant="toggle"
               />
-              <div className="flex items-center gap-1 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
-                {PERIOD_OPTIONS.map(o => (
-                  <button
-                    key={o.value}
-                    onClick={() => setDays(o.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      days === o.value
-                        ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
+            </div>
+
+            {/* Linha 2: Campanha + Período */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Campanha */}
+              <div className="flex flex-col gap-1">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Campanha</p>
+                <CampaignSelect
+                  campaigns={campaigns}
+                  value={campaignFilter}
+                  onChange={setCampaignFilter}
+                />
+              </div>
+
+              {/* Período */}
+              <div className="flex flex-col gap-1">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Período</p>
+                <div className="flex items-center gap-1 bg-gray-50 rounded-xl border border-gray-200 p-1">
+                  {PERIOD_OPTIONS.map(o => (
+                    <button
+                      key={o.value}
+                      onClick={() => setDays(o.value)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        days === o.value
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-gray-500 hover:text-gray-800 hover:bg-white'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Narrativa + Atualizar — push para a direita */}
+              <div className="ml-auto flex items-center gap-2">
+                <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={withNarr}
+                    onChange={e => setWithNarr(e.target.checked)}
+                    className="rounded border-gray-300 text-indigo-600"
+                  />
+                  <SparklesIcon className="h-3.5 w-3.5 text-purple-500" />
+                  Narrativa LLM
+                </label>
+                <button
+                  onClick={() => generate(days, withNarr, clientId, campaignFilter)}
+                  disabled={loading}
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
+                >
+                  {loading
+                    ? <><ArrowPathIcon className="h-4 w-4 animate-spin" /> Gerando...</>
+                    : <><ArrowPathIcon className="h-4 w-4" /> Atualizar</>
+                  }
+                </button>
               </div>
             </div>
 
-            {/* Row 2: Narrative toggle + refresh */}
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={withNarr}
-                  onChange={e => setWithNarr(e.target.checked)}
-                  className="rounded border-gray-300 text-indigo-600"
-                />
-                <SparklesIcon className="h-3.5 w-3.5 text-purple-500" />
-                Narrativa LLM
-              </label>
-              <button
-                onClick={() => generate(days, withNarr, clientId)}
-                disabled={loading}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
-              >
-                {loading
-                  ? <><ArrowPathIcon className="h-4 w-4 animate-spin" /> Gerando...</>
-                  : <><ArrowPathIcon className="h-4 w-4" /> Atualizar</>
-                }
-              </button>
-            </div>
           </div>
         </div>
 
@@ -274,6 +357,9 @@ export default function AuditoriaPage() {
             <div className="text-xs text-gray-500 font-medium text-center">
               Período: <strong>{fmtDate(report.period.start)}</strong> a <strong>{fmtDate(report.period.end)}</strong>
               {' '}· {report.period.days} dias
+              {campaignFilter && campaigns.find(c => c.id === campaignFilter) && (
+                <> · <span className="text-indigo-600">{campaigns.find(c => c.id === campaignFilter)?.name}</span></>
+              )}
             </div>
 
             {/* Score + Scorecard */}

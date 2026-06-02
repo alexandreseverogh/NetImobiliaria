@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
   const periodDays    = Number(body.periodDays ?? 30);
   const withNarrative = Boolean(body.withNarrative ?? false);
   const clientId      = body.clientId ?? null;
+  const campaignId    = body.campaignId ?? null;
 
   if (![7, 14, 30, 60, 90].includes(periodDays)) {
     return NextResponse.json({ error: 'periodDays inválido. Use: 7, 14, 30, 60 ou 90.' }, { status: 400 });
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
       clientId,
       periodDays,
       withNarrative,
+      campaignId,
     );
 
     const id = await saveAuditReport(report);

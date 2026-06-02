@@ -268,6 +268,7 @@ export function DashboardPage() {
               clients={clients}
               loading={clientsLoading}
               storageKey="dashboard"
+              variant="toggle"
             />
             {/* Dark / Light toggle */}
             <button
