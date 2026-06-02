@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ClipboardDocumentListIcon,
   ArrowPathIcon,
@@ -156,8 +156,9 @@ export default function AuditoriaPage() {
   const [days, setDays]             = useState(30);
   const [withNarr, setWithNarr]     = useState(false);
   const [error, setError]           = useState('');
+  const mountedRef                  = useRef(false);
 
-  const generate = useCallback(async () => {
+  const generate = useCallback(async (periodDays: number, narrative: boolean) => {
     setLoading(true);
     setError('');
     setReport(null);
@@ -165,7 +166,7 @@ export default function AuditoriaPage() {
       const res  = await fetch('/api/admin/campanhas/auditoria', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ periodDays: days, withNarrative: withNarr }),
+        body:    JSON.stringify({ periodDays, withNarrative: narrative }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Erro ao gerar relatório');
@@ -175,7 +176,16 @@ export default function AuditoriaPage() {
     } finally {
       setLoading(false);
     }
-  }, [days, withNarr]);
+  }, []);
+
+  // Auto-gera ao montar e toda vez que o período muda (igual à página de Desperdício)
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+    }
+    generate(days, false); // não inclui narrativa no auto-refresh
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days]);
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString('pt-BR');
   const fmtCur  = (n: number) => `R$${n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -229,13 +239,13 @@ export default function AuditoriaPage() {
                 Narrativa LLM
               </label>
               <button
-                onClick={generate}
+                onClick={() => generate(days, withNarr)}
                 disabled={loading}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
               >
                 {loading
                   ? <><ArrowPathIcon className="h-4 w-4 animate-spin" /> Gerando...</>
-                  : <><ArrowPathIcon className="h-4 w-4" /> Gerar Relatório</>
+                  : <><ArrowPathIcon className="h-4 w-4" /> Atualizar</>
                 }
               </button>
             </div>
@@ -250,20 +260,11 @@ export default function AuditoriaPage() {
           </div>
         )}
 
-        {/* Empty state */}
-        {!report && !loading && !error && (
-          <div className="text-center py-20 text-gray-400">
-            <ClipboardDocumentListIcon className="h-14 w-14 mx-auto mb-4 opacity-30" />
-            <p className="text-lg font-semibold">Nenhum relatório gerado</p>
-            <p className="text-sm mt-1">Selecione o período e clique em "Gerar Relatório"</p>
-          </div>
-        )}
-
         {/* Loading state */}
         {loading && (
           <div className="text-center py-20 text-gray-400">
             <ArrowPathIcon className="h-10 w-10 mx-auto mb-4 animate-spin text-indigo-500" />
-            <p className="text-base font-semibold text-gray-600">Analisando campanhas{withNarr ? ' e gerando narrativa' : ''}…</p>
+            <p className="text-base font-semibold text-gray-600">Analisando campanhas dos últimos {days} dias…</p>
             <p className="text-sm mt-1 text-gray-400">Isso pode levar alguns segundos</p>
           </div>
         )}
