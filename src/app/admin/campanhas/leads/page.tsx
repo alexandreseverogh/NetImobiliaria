@@ -83,13 +83,14 @@ export function LeadsPage() {
             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Leads WhatsApp</h1>
             <p className="text-gray-500 mt-1 text-sm font-medium">Rastreamento de cliques para o WhatsApp</p>
           </div>
-          {/* Seletor de cliente — ALTA PRIORIDADE */}
+          {/* Seletor de cliente — Minha Empresa / Para um Cliente */}
           <ClientSelector
             value={clientFilter}
             onChange={setClientFilter}
             clients={clients}
             loading={clientsLoading}
             storageKey="leads"
+            variant="toggle"
           />
         </div>
 

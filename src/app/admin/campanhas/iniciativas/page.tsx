@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { formatCurrency } from '@/lib/marketing-utils';
 import { PlusIcon, FlagIcon, ArrowRightIcon, CalendarIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import { CreateGuard } from '@/components/admin/PermissionGuard';
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
 type InitiativeStatus = 'PLANNED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
 
@@ -54,18 +55,22 @@ export default function IniciativasPage() {
   const [page, setPage]           = useState(1);
   const limit = 20;
 
+  // Seletor Minha Empresa / Para um Cliente — padrão 'own'
+  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('iniciativas');
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-      if (statusFilter) params.set('status', statusFilter);
+      if (statusFilter)           params.set('status',   statusFilter);
+      if (clientFilter !== 'all') params.set('clientId', clientFilter);
       const res  = await fetch(`/api/admin/campanhas/iniciativas?${params}`);
       const data = await res.json();
       setItems(data.items ?? []);
       setTotal(data.total ?? 0);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  }, [page, statusFilter]);
+  }, [page, statusFilter, clientFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -87,12 +92,22 @@ export default function IniciativasPage() {
             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Iniciativas de Marketing</h1>
             <p className="text-gray-500 mt-1 text-sm font-medium">Agrupe campanhas de diferentes redes sob um objetivo comum</p>
           </div>
-          <CreateGuard resource="iniciativas-campanhas">
-            <Link href="/admin/campanhas/iniciativas/nova"
-              className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20">
-              <PlusIcon className="h-4 w-4" /> Nova Iniciativa
-            </Link>
-          </CreateGuard>
+          <div className="flex items-center gap-3 flex-wrap">
+            <ClientSelector
+              value={clientFilter}
+              onChange={v => { setClientFilter(v); setPage(1); }}
+              clients={clients}
+              loading={clientsLoading}
+              storageKey="iniciativas"
+              variant="toggle"
+            />
+            <CreateGuard resource="iniciativas-campanhas">
+              <Link href="/admin/campanhas/iniciativas/nova"
+                className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20">
+                <PlusIcon className="h-4 w-4" /> Nova Iniciativa
+              </Link>
+            </CreateGuard>
+          </div>
         </div>
 
         {/* Filters */}

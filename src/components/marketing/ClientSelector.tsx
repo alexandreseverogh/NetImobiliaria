@@ -479,7 +479,9 @@ function DropdownOption({
 export function useClientSelector(storageKey?: string) {
   const [clients,      setClients]      = useState<ClientOption[]>([]);
   const [loading,      setLoading]      = useState(true);
-  const [clientFilter, setClientFilter] = useState<ClientFilterValue>('all');
+  // Padrão = 'own' (Minha Empresa). A convenção do módulo é nunca misturar
+  // dados do tenant com dados dos clientes sem seleção explícita do usuário.
+  const [clientFilter, setClientFilter] = useState<ClientFilterValue>('own');
 
   useEffect(() => {
     if (storageKey) {

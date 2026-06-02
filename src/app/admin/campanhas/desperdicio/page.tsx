@@ -5,6 +5,7 @@ import {
   ExclamationTriangleIcon, SparklesIcon, ChevronDownIcon, ChevronUpIcon, ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
 interface WastedCampaign {
   id: string; name: string; wasted: number; details: string;
@@ -44,15 +45,20 @@ export default function DesperdicioPage() {
   const [genNarr, setGenNarr]     = useState(false);
   const [expanded, setExpanded]   = useState<Record<string, boolean>>({});
 
+  // Seletor Minha Empresa / Para um Cliente — padrão 'own'
+  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('desperdicio');
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res  = await fetch(`/api/admin/campanhas/desperdicio?days=${days}`);
+      const params = new URLSearchParams({ days: String(days) });
+      if (clientFilter !== 'all') params.set('clientId', clientFilter);
+      const res  = await fetch(`/api/admin/campanhas/desperdicio?${params}`);
       const data = await res.json();
       if (res.ok) setReport(data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  }, [days]);
+  }, [days, clientFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -63,7 +69,7 @@ export default function DesperdicioPage() {
       const res  = await fetch('/api/admin/campanhas/desperdicio/narrativa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days }),
+        body: JSON.stringify({ days, clientId: clientFilter !== 'all' ? clientFilter : null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -95,18 +101,29 @@ export default function DesperdicioPage() {
             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Desperdício de Verba</h1>
             <p className="text-gray-500 mt-1 text-sm font-medium">Identifica e quantifica verba gasta sem retorno adequado</p>
           </div>
-          {/* Period selector */}
-          <div className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
-            {PERIOD_OPTIONS.map(o => (
-              <button key={o.value} onClick={() => setDays(o.value)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wide transition-all ${
-                  days === o.value
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}>
-                {o.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Seletor Minha Empresa / Para um Cliente */}
+            <ClientSelector
+              value={clientFilter}
+              onChange={setClientFilter}
+              clients={clients}
+              loading={clientsLoading}
+              storageKey="desperdicio"
+              variant="toggle"
+            />
+            {/* Period selector */}
+            <div className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
+              {PERIOD_OPTIONS.map(o => (
+                <button key={o.value} onClick={() => setDays(o.value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wide transition-all ${
+                    days === o.value
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

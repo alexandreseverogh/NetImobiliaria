@@ -40,8 +40,10 @@ export async function GET(request: NextRequest) {
     if (isUgc === 'false') { conditions.push(`an.is_ugc_style = false`); }
     if (hasProp === 'true')  { conditions.push(`an.has_property = true`); }
     if (hasProp === 'false') { conditions.push(`an.has_property = false`); }
-    if (status)    { conditions.push(`an.analysis_status = $${idx++}`);   values.push(status); }
-    if (clientId)  { conditions.push(`a.client_id = $${idx++}::uuid`);    values.push(clientId); }
+    if (status)             { conditions.push(`an.analysis_status = $${idx++}`);  values.push(status); }
+    // 'own' = criativos vinculados ao próprio tenant (client_id IS NULL)
+    if (clientId === 'own') { conditions.push(`a.client_id IS NULL`); }
+    else if (clientId)      { conditions.push(`a.client_id = $${idx++}::uuid`);  values.push(clientId); }
 
     const where = conditions.join(' AND ');
 

@@ -20,8 +20,10 @@ export async function GET(request: NextRequest) {
     const limit    = Math.min(100, Math.max(1, Number(searchParams.get('limit') || '20')));
 
     const where: any = { tenantId: payload.tenantId };
-    if (status)   where.status   = status;
-    if (clientId) where.clientId = clientId;
+    if (status) where.status = status;
+    // 'own' = campanhas do próprio tenant (clientId IS NULL)
+    if (clientId === 'own') where.clientId = null;
+    else if (clientId)      where.clientId = clientId;
 
     const [items, total] = await Promise.all([
       prisma.marketingInitiative.findMany({

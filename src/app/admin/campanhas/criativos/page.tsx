@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface CreativeAsset {
@@ -209,6 +210,9 @@ export default function GaleriaCreativosPage() {
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Seletor Minha Empresa / Para um Cliente — padrão 'own'
+  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('criativos');
+
   // Filtros
   const [filterHook,   setFilterHook]   = useState('');
   const [filterAngle,  setFilterAngle]  = useState('');
@@ -223,10 +227,11 @@ export default function GaleriaCreativosPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: '60', offset: '0' });
-      if (filterHook)   params.set('hookType', filterHook);
-      if (filterAngle)  params.set('angle', filterAngle);
-      if (filterUgc)    params.set('isUgc', filterUgc);
-      if (filterStatus) params.set('status', filterStatus);
+      if (filterHook)             params.set('hookType',  filterHook);
+      if (filterAngle)            params.set('angle',     filterAngle);
+      if (filterUgc)              params.set('isUgc',     filterUgc);
+      if (filterStatus)           params.set('status',    filterStatus);
+      if (clientFilter !== 'all') params.set('clientId',  clientFilter);
 
       const res = await adminFetch(`/api/admin/campanhas/criativos/library?${params}`);
       if (res.ok) {
@@ -238,7 +243,7 @@ export default function GaleriaCreativosPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filterHook, filterAngle, filterUgc, filterStatus]);
+  }, [filterHook, filterAngle, filterUgc, filterStatus, clientFilter]);
 
   useEffect(() => { loadAssets(); }, [loadAssets]);
 
@@ -305,7 +310,7 @@ export default function GaleriaCreativosPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       {/* ── Header ── */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <PhotoIcon className="h-6 w-6 text-indigo-600" />
@@ -316,7 +321,16 @@ export default function GaleriaCreativosPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Seletor Minha Empresa / Para um Cliente */}
+          <ClientSelector
+            value={clientFilter}
+            onChange={setClientFilter}
+            clients={clients}
+            loading={clientsLoading}
+            storageKey="criativos"
+            variant="toggle"
+          />
           <Link
             href="/admin/campanhas/criativos/padroes"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all"
