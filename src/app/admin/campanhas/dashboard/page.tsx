@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import {
@@ -330,14 +330,16 @@ export function DashboardPage() {
             </div>
             <div>
               <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>De</label>
-              <input type="date" value={startDate}
-                onChange={e => { setStartDate(e.target.value); setDateRange(''); }}
+              <DateInputPtBR
+                value={startDate}
+                onChange={iso => { setStartDate(iso); setDateRange(''); }}
                 style={selectStyle} className={selectBase} />
             </div>
             <div>
               <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Até</label>
-              <input type="date" value={endDate}
-                onChange={e => { setEndDate(e.target.value); setDateRange(''); }}
+              <DateInputPtBR
+                value={endDate}
+                onChange={iso => { setEndDate(iso); setDateRange(''); }}
                 style={selectStyle} className={selectBase} />
             </div>
             <div className={cn('flex gap-1 rounded-xl p-1 border',
@@ -841,6 +843,67 @@ function FarolIcon({ isDark }: { isDark: boolean }) {
   );
 }
 
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  DATE INPUT PT-BR  (máscara dd/mm/aaaa → ISO internamente)
+// ═════════════════════════════════════════════════════════════════════════════
+
+function ptBrToIso(v: string): string {
+  const [d, m, y] = v.split('/');
+  if (!d || !m || !y || y.length < 4) return '';
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+}
+function isoToPtBr(iso: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return '';
+  return `${d}/${m}/${y}`;
+}
+
+function DateInputPtBR({
+  value, onChange, style, className,
+}: {
+  value: string;
+  onChange: (iso: string) => void;
+  style?: React.CSSProperties;
+  className?: string;
+}) {
+  const [display, setDisplay] = React.useState(isoToPtBr(value));
+
+  // Sync when external value changes (ex: limpar ao clicar nos pills de período)
+  React.useEffect(() => {
+    setDisplay(isoToPtBr(value));
+  }, [value]);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    // Strip non-digits
+    let raw = e.target.value.replace(/\D/g, '').slice(0, 8);
+    // Auto-insert slashes: dd/mm/aaaa
+    if (raw.length > 4) raw = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4);
+    else if (raw.length > 2) raw = raw.slice(0, 2) + '/' + raw.slice(2);
+    setDisplay(raw);
+    // Notify parent only when complete (10 chars = dd/mm/aaaa)
+    if (raw.length === 10) {
+      const iso = ptBrToIso(raw);
+      if (iso) onChange(iso);
+    } else if (raw === '') {
+      onChange('');
+    }
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      maxLength={10}
+      placeholder="dd/mm/aaaa"
+      value={display}
+      onChange={handleChange}
+      style={style}
+      className={className}
+    />
+  );
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  KPI CARD
