@@ -1,12 +1,59 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-02 (DateInputPtBR global + ClientSelector Padrões + CampanhasModal consulta)
+> **Atualizado em:** 2026-06-02 (Deploy VPS — feed-cron-scheduler + docker-compose env vars para audit crons)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Deploy VPS — Audit Crons registrados no scheduler (2026-06-02)
+
+**Contexto:** Os novos crons `audit-monthly` e `audit-weekly` (FASE 9) são endpoints HTTP no `prod_app`.
+Para rodar na VPS precisam ser chamados pelo `prod_feed` container via `feed-cron-scheduler.js`.
+
+**Arquitetura de crons na VPS (resumo):**
+- `prod_feed` container → `scripts/feed-cron-scheduler.js` (node-cron) → chama HTTP `http://prod_app:3000/api/cron/...`
+- `agentMonitor.ts` tem crons INTERNOS ao Next.js (sync 6h, briefing 08h/18h) — esses NÃO passam pelo scheduler
+- Os novos audit crons seguem o padrão HTTP do scheduler
+
+**`scripts/feed-cron-scheduler.js`** — adicionados 2 novos `cron.schedule()`:
+```js
+// Audit mensal — 1º dia do mês às 09:00
+cron.schedule('0 9 1 * *', async () => {
+  await fetch(`${API_BASE_URL}/api/cron/campanhas/audit-monthly`, {
+    method: 'POST', headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' }
+  });
+}, { timezone: 'America/Sao_Paulo' });
+
+// Audit semanal — domingos às 18:00
+cron.schedule('0 18 * * 0', async () => {
+  await fetch(`${API_BASE_URL}/api/cron/campanhas/audit-weekly`, {
+    method: 'POST', headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' }
+  });
+}, { timezone: 'America/Sao_Paulo' });
+```
+
+**`docker-compose.vps.yml`** — adicionados em `prod_app` e `staging_app`:
+```yaml
+CRON_SECRET: ${PROD_CRON_SECRET}             # valida x-cron-secret nas rotas /api/cron/campanhas/*
+MARKETING_DATABASE_URL: ${PROD_MARKETING_DATABASE_URL}  # Prisma marketing schema
+```
+> ⚠️ Atenção na VPS: definir `PROD_MARKETING_DATABASE_URL` e `STAGING_MARKETING_DATABASE_URL` no `.env` da VPS.
+> Esses dois vars também são necessários para os endpoints `/cron/campanhas/sync` e `/cron/campanhas/briefing` que existiam anteriormente.
+
+**Arquivos modificados:**
+- `scripts/feed-cron-scheduler.js` — +2 cron.schedule() para audit-monthly e audit-weekly
+- `docker-compose.vps.yml` — CRON_SECRET + MARKETING_DATABASE_URL em prod_app e staging_app
+
+**Todos os 4 crons agendados no scheduler:**
+1. Feed sync diário → 03:00
+2. Transbordo leads → a cada 5 min
+3. Audit mensal → 1º dia do mês 09:00
+4. Audit semanal → domingos 18:00
+
+---
 
 ### Fix Leads — Série de Bugs (2026-06-02)
 

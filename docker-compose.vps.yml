@@ -97,6 +97,9 @@ services:
       S3_BUCKET: ${S3_BUCKET_PROD:-netimobiliaria-prod}
       S3_REGION: us-east-1
       S3_FORCE_PATH_STYLE: "true"
+      # Cron & Campanhas Marketing
+      CRON_SECRET: ${PROD_CRON_SECRET}
+      MARKETING_DATABASE_URL: ${PROD_MARKETING_DATABASE_URL}
     expose:
       - "3000"
     healthcheck:
@@ -200,6 +203,9 @@ services:
       S3_BUCKET: ${S3_BUCKET_STAGING:-netimobiliaria-staging}
       S3_REGION: us-east-1
       S3_FORCE_PATH_STYLE: "true"
+      # Cron & Campanhas Marketing
+      CRON_SECRET: ${STAGING_CRON_SECRET}
+      MARKETING_DATABASE_URL: ${STAGING_MARKETING_DATABASE_URL}
     expose:
       - "3000"
     healthcheck:

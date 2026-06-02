@@ -185,7 +185,73 @@ cron.schedule('*/5 * * * *', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
-console.log('✅ Agendador configurado para execução diária às 03:00 (America/Sao_Paulo).');
+// 3. AUDIT REPORT MENSAL — 1º dia do mês às 09:00
+// Gera relatório de auditoria (30 dias) para todos os tenants e seus clientes.
+cron.schedule('0 9 1 * *', async () => {
+  console.log(`\n📊 [${new Date().toISOString()}] Iniciando audit-monthly...`);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/audit-monthly`, {
+      method: 'POST',
+      headers: {
+        'x-cron-secret': CRON_SECRET,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error(`❌ [audit-monthly] Erro na resposta (${response.status}):`, errorData);
+      return;
+    }
+
+    const data = await response.json();
+    console.log(
+      `✅ [audit-monthly] tenants=${data.tenants} reports=${data.totalReports} ok=${data.succeeded} err=${data.failed} ${data.elapsedMs}ms`
+    );
+  } catch (error) {
+    console.error('❌ [audit-monthly] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
+// 4. AUDIT REPORT SEMANAL — todo domingo às 18:00
+// Gera relatório de auditoria (7 dias) para todos os tenants e seus clientes.
+cron.schedule('0 18 * * 0', async () => {
+  console.log(`\n📊 [${new Date().toISOString()}] Iniciando audit-weekly...`);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/audit-weekly`, {
+      method: 'POST',
+      headers: {
+        'x-cron-secret': CRON_SECRET,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error(`❌ [audit-weekly] Erro na resposta (${response.status}):`, errorData);
+      return;
+    }
+
+    const data = await response.json();
+    console.log(
+      `✅ [audit-weekly] tenants=${data.tenants} reports=${data.totalReports} ok=${data.succeeded} err=${data.failed} ${data.elapsedMs}ms`
+    );
+  } catch (error) {
+    console.error('❌ [audit-weekly] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
+console.log('✅ Agendador configurado:');
+console.log('   • Feed sync diário        → 03:00 (America/Sao_Paulo)');
+console.log('   • Transbordo de leads     → a cada 5 min');
+console.log('   • Audit report mensal     → 1º dia do mês às 09:00');
+console.log('   • Audit report semanal    → domingos às 18:00');
 console.log('\n🚀 Agendador rodando... (Ctrl+C para parar)\n');
 
 // Removido o boot sync imediato para respeitar a janela das 03:00h conforme solicitado pelo usuário.
