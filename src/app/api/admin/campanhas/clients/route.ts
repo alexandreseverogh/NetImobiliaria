@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
          c.segment_id,
          ss.name           AS segment_name,
          ss.slug           AS segment_slug,
+         c.logo_url,
          c.created_at      AS "createdAt"
        FROM public.clientes c
        LEFT JOIN public.system_segments ss ON ss.id = c.segment_id
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
 }
 
 // PATCH /api/admin/campanhas/clients
-// Update segment_id for a client
+// Atualiza segment_id e/ou logo_url de um cliente
 export async function PATCH(request: NextRequest) {
   try {
     const payload = getTokenPayload(request);
@@ -67,13 +68,22 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { clientId, segment_id } = body as { clientId: string; segment_id: string | null };
+    const { clientId, segment_id, logo_url } = body as {
+      clientId:   string;
+      segment_id?: string | null;
+      logo_url?:   string | null;
+    };
 
     if (!clientId) {
       return NextResponse.json({ error: 'clientId é obrigatório' }, { status: 400 });
     }
 
-    // Verify client belongs to this tenant
+    // Valida tamanho do logo (base64 ~= 1 MB → string de ~1.37 MB)
+    if (logo_url && logo_url.length > 1_500_000) {
+      return NextResponse.json({ error: 'Logo muito grande. Máximo: 1 MB.' }, { status: 400 });
+    }
+
+    // Verifica que o cliente pertence ao tenant
     const check = await pool.query(
       `SELECT uuid FROM public.clientes WHERE uuid = $1::uuid AND tenant_id = $2::uuid LIMIT 1`,
       [clientId, payload.tenantId],
@@ -82,9 +92,17 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
     }
 
+    // Monta SET dinâmico — só atualiza os campos enviados
+    const sets: string[] = ['updated_at = now()'];
+    const params: any[]  = [];
+
+    if (segment_id !== undefined) { params.push(segment_id ?? null); sets.push(`segment_id = $${params.length}`); }
+    if (logo_url   !== undefined) { params.push(logo_url   ?? null); sets.push(`logo_url   = $${params.length}`); }
+
+    params.push(clientId);
     await pool.query(
-      `UPDATE public.clientes SET segment_id = $1, updated_at = now() WHERE uuid = $2::uuid`,
-      [segment_id ?? null, clientId],
+      `UPDATE public.clientes SET ${sets.join(', ')} WHERE uuid = $${params.length}::uuid`,
+      params,
     );
 
     return NextResponse.json({ ok: true });

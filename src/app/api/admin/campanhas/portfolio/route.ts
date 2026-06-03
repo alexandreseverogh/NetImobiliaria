@@ -209,6 +209,7 @@ export async function GET(request: NextRequest) {
       segment_id: string | null;
       segment_name: string | null;
       segment_slug: string | null;
+      logo_url: string | null;
     }>();
 
     if (clientIds.length > 0) {
@@ -218,13 +219,15 @@ export async function GET(request: NextRequest) {
         segment_id: string | null;
         segment_name: string | null;
         segment_slug: string | null;
+        logo_url: string | null;
       }>(`
         SELECT
           c.uuid,
           c.nome,
           c.segment_id,
-          s.name  AS segment_name,
-          s.slug  AS segment_slug
+          s.name     AS segment_name,
+          s.slug     AS segment_slug,
+          c.logo_url
         FROM public.clientes c
         LEFT JOIN public.system_segments s ON s.id = c.segment_id
         WHERE c.uuid = ANY($1::uuid[])
@@ -329,7 +332,9 @@ export async function GET(request: NextRequest) {
         benchmarks,
         status:    computeStatus(cpl, benchmarks.cplIdeal, benchmarks.cplCritical, spend),
         campaigns: campaignsByClient.get(mapKey) ?? [],
-        logoUrl:   row.client_id ? null : (tenantInfo?.logo_url ?? null),
+        logoUrl:   row.client_id
+          ? (info?.logo_url ?? null)
+          : (tenantInfo?.logo_url ?? null),
       });
     }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -8,6 +8,7 @@ import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch'
 import { buscarEnderecoPorCep } from '@/lib/utils/geocoding'
 import EstadoSelect from '@/components/shared/EstadoSelect'
 import ClientCampaignSettings from '@/components/admin/clientes/ClientCampaignSettings'
+import ClientAvatar from '@/components/admin/ClientAvatar'
 
 interface Cliente {
   uuid: string
@@ -23,6 +24,7 @@ interface Cliente {
   cidade_fk?: string
   cep?: string
   origem_cadastro?: string
+  logo_url?: string | null
 }
 
 interface ValidationErrors {
@@ -41,6 +43,12 @@ export default function EditarClientePage() {
   const [error, setError] = useState<string | null>(null)
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [activeTab, setActiveTab] = useState<'dados' | 'meta'>('dados')
+
+  // Logo do cliente
+  const [logoUrl, setLogoUrl]         = useState<string | null>(null)
+  const [logoSaving, setLogoSaving]   = useState(false)
+  const [logoError, setLogoError]     = useState<string | null>(null)
+  const logoInputRef                  = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -109,6 +117,7 @@ export default function EditarClientePage() {
         })
 
         setCliente(clienteData)
+        setLogoUrl(clienteData.logo_url ?? null)
 
         // Preencher formulário com dados do cliente
         setFormData({
@@ -668,6 +677,72 @@ export default function EditarClientePage() {
     }
   }
 
+  // ── Upload / remoção de logo ──────────────────────────────────────────────
+
+  async function handleLogoFile(file: File) {
+    if (file.size > 1_048_576) {
+      setLogoError('Arquivo muito grande. Máximo: 1 MB.')
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      setLogoError('Apenas imagens são permitidas.')
+      return
+    }
+
+    // Converter para base64 via canvas (comprime para JPEG se necessário)
+    const url = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = e => {
+        const src = e.target?.result as string
+        const img = new Image()
+        img.onload = () => {
+          // Redimensiona para no máximo 256×256 mantendo proporção
+          const MAX = 256
+          const scale = Math.min(MAX / img.width, MAX / img.height, 1)
+          const w = Math.round(img.width  * scale)
+          const h = Math.round(img.height * scale)
+          const canvas = document.createElement('canvas')
+          canvas.width  = w
+          canvas.height = h
+          canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+          resolve(canvas.toDataURL('image/webp', 0.85))
+        }
+        img.onerror = reject
+        img.src = src
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+
+    await saveLogo(url)
+  }
+
+  async function saveLogo(url: string | null) {
+    if (!cliente) return
+    setLogoSaving(true)
+    setLogoError(null)
+    try {
+      const token = localStorage.getItem('admin-auth-token')
+      const res = await fetch('/api/admin/campanhas/clients', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ clientId: cliente.uuid, logo_url: url }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Erro ao salvar logo')
+      }
+      setLogoUrl(url)
+    } catch (e: any) {
+      setLogoError(e.message)
+    } finally {
+      setLogoSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -738,6 +813,57 @@ export default function EditarClientePage() {
 
       {/* ── ABA: DADOS DO CLIENTE ── */}
       {activeTab === 'dados' && <form onSubmit={handleSubmit} className="p-8 space-y-6">
+
+        {/* ── Logo ── */}
+        <div className="flex items-center gap-5 pb-6 border-b border-gray-100">
+          {/* preview */}
+          <ClientAvatar
+            name={formData.nome || cliente?.nome || '?'}
+            logoUrl={logoUrl}
+            size="xl"
+          />
+          {/* controles */}
+          <div>
+            <p className="text-sm font-semibold text-gray-800 mb-1">Logomarca do cliente</p>
+            <p className="text-xs text-gray-400 mb-3">
+              PNG, JPG ou WebP · máx. 1 MB · redimensionado para 256 × 256 px
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={logoSaving}
+                onClick={() => logoInputRef.current?.click()}
+                className="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition disabled:opacity-50"
+              >
+                {logoSaving ? 'Salvando…' : logoUrl ? '🔄 Alterar logo' : '📷 Carregar logo'}
+              </button>
+              {logoUrl && (
+                <button
+                  type="button"
+                  disabled={logoSaving}
+                  onClick={() => saveLogo(null)}
+                  className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition disabled:opacity-50"
+                >
+                  🗑️ Remover
+                </button>
+              )}
+            </div>
+            {logoError && <p className="text-xs text-red-500 mt-2">{logoError}</p>}
+          </div>
+          {/* input oculto */}
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) handleLogoFile(file)
+              e.target.value = ''   // reset para permitir re-upload do mesmo arquivo
+            }}
+          />
+        </div>
+
         {/* Nome */}
         <div>
           <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-2">

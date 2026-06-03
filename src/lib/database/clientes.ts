@@ -261,7 +261,7 @@ export async function findClienteByUuid(uuid: string): Promise<Cliente | null> {
   try {
     const result = await pool.query(
       `
-        SELECT 
+        SELECT
           uuid,
           nome,
           cpf,
@@ -277,11 +277,12 @@ export async function findClienteByUuid(uuid: string): Promise<Cliente | null> {
           cep,
           tenant_id,
           origem_cadastro,
+          logo_url,
           created_at,
           created_by,
           updated_at,
           updated_by
-        FROM clientes 
+        FROM clientes
         WHERE uuid = $1
       `,
       [uuid]

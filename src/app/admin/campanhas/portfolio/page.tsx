@@ -13,6 +13,7 @@ import { adminFetch } from '@/lib/auth/adminFetch';
 import { formatCurrency, formatNumber } from '@/lib/marketing-utils';
 import type { PortfolioResponse, PortfolioClient, PortfolioClientCampaign } from '@/app/api/admin/campanhas/portfolio/route';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import ClientAvatar from '@/components/admin/ClientAvatar';
 
 /* ── helpers ──────────────────────────────────────────────────────── */
 
@@ -56,48 +57,6 @@ function CplBar({ cpl, cplIdeal, cplCritical }: {
       <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
       </div>
-    </div>
-  );
-}
-
-/* ── client avatar ────────────────────────────────────────────────── */
-
-const SEGMENT_AVATAR_COLORS: Record<string, string> = {
-  imobiliaria: 'bg-blue-100 text-blue-700',   imobiliario: 'bg-blue-100 text-blue-700',
-  automotivo:  'bg-orange-100 text-orange-700', carros: 'bg-orange-100 text-orange-700',
-  saude:       'bg-rose-100 text-rose-700',
-  educacao:    'bg-violet-100 text-violet-700',
-  ecommerce:   'bg-emerald-100 text-emerald-700',
-  geral:       'bg-gray-100 text-gray-600',
-};
-
-function clientInitials(name: string): string {
-  return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
-}
-
-function ClientAvatar({ name, logoUrl, isOwn, segmentSlug, size = 'md' }: {
-  name: string;
-  logoUrl: string | null;
-  isOwn: boolean;
-  segmentSlug?: string | null;
-  size?: 'sm' | 'md';
-}) {
-  const dim = size === 'sm' ? 'w-7 h-7 text-[10px]' : 'w-9 h-9 text-xs';
-  if (logoUrl) {
-    return (
-      <img
-        src={logoUrl}
-        alt={name}
-        className={`${dim} rounded-full object-cover border border-gray-200 shrink-0`}
-      />
-    );
-  }
-  const colorClass = isOwn
-    ? 'bg-indigo-100 text-indigo-700'
-    : (SEGMENT_AVATAR_COLORS[(segmentSlug ?? '').toLowerCase()] ?? 'bg-slate-100 text-slate-600');
-  return (
-    <div className={`${dim} rounded-full flex items-center justify-center font-bold shrink-0 ${colorClass}`}>
-      {clientInitials(name)}
     </div>
   );
 }
@@ -686,8 +645,9 @@ export default function PortfolioPage() {
                         <ClientAvatar
                           name={client.clientName}
                           logoUrl={client.logoUrl}
-                          isOwn={isOwn}
+                          isTenant={isOwn}
                           segmentSlug={client.segment?.slug}
+                          size="md"
                         />
                         <div>
                           <p className="font-semibold text-gray-900 text-sm">
