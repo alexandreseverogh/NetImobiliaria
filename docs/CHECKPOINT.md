@@ -8,6 +8,31 @@
 
 ## Última tarefa concluída
 
+### FASE 13 — Top N Configurável (cross-insights) (2026-06-03) ✅
+
+**Objetivo:** remover hardcode `slice(0,3)` na polinização cruzada e tornar o número
+de "melhores CPLs" configurável (Top 3/5/10).
+
+**Arquivos modificados:**
+
+`src/app/api/admin/campanhas/portfolio/cross-insights/route.ts`
+- GET: novo `topN = clamp(parseInt(?top) , 1, 50)` (default 3); `sorted.slice(0, topN)`.
+- `CrossInsightsResponse` ganha campo `top: number`; `result.top = topN`.
+- POST: lê `body.top` (clamp 1..50) e repassa `&top=${topN}` ao GET interno.
+
+`src/app/admin/campanhas/portfolio/cross-insights/page.tsx`
+- Estado `top` ('3'); seletor Top 3/5/10; `load` e `generate` enviam o param.
+- Badge "Top N" / "Top N de M" na seção de melhores CPLs.
+- Grid responsivo `sm:grid-cols-2 lg:grid-cols-3` (acomoda 5/10).
+- **Bug corrigido (pré-existente):** `PerformerCard` recebia `{...p}` (com `clientName`)
+  mas espera `name` → nomes renderizavam em branco. Agora `name={p.clientName}`.
+
+**Verificação (runtime, preview artemis4):** seletor renderiza; trocar para Top 10
+dispara `GET ...?period=30&top=10`. (Sem dados de CPL no banco de teste, a seção de
+top performers não renderiza — wiring provado pela requisição.)
+
+---
+
 ### Plano — FASES 13–17 adicionadas ao plano mestre (2026-06-03) ✅
 
 **Contexto:** Após a verificação em runtime do wizard de campanhas (6/6 PASS) e a

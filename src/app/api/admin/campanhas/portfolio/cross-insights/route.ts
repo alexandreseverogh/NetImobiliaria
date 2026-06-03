@@ -32,6 +32,7 @@ export interface CrossInsight {
 export interface CrossInsightsResponse {
   generatedAt:   string;
   period:        number;
+  top:           number;   // FASE 13 — Top N solicitado
   totalClients:  number;
   narrative:     string | null;
   insights:      CrossInsight[];
@@ -171,6 +172,8 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const period = Math.min(Math.max(parseInt(searchParams.get('period') || '30'), 1), 365);
+  // FASE 13 — Top N configurável (default 3, faixa 1..50)
+  const topN = Math.min(Math.max(parseInt(searchParams.get('top') || '3'), 1), 50);
 
   try {
     // Reutiliza a lógica da rota de portfolio para agregar dados
@@ -285,7 +288,7 @@ export async function GET(request: NextRequest) {
     const insights = buildRuleBasedInsights(clientList);
 
     const sorted = [...clientList].filter(c => c.cpl !== null).sort((a, b) => (a.cpl ?? 0) - (b.cpl ?? 0));
-    const topPerformers   = sorted.slice(0, 3).map(c => ({ clientName: c.clientName, cpl: c.cpl, spend: c.spend }));
+    const topPerformers   = sorted.slice(0, topN).map(c => ({ clientName: c.clientName, cpl: c.cpl, spend: c.spend }));
     const underperformers = clientList
       .filter(c => c.status === 'critical')
       .map(c => ({
@@ -300,6 +303,7 @@ export async function GET(request: NextRequest) {
     const result: CrossInsightsResponse = {
       generatedAt:   new Date().toISOString(),
       period,
+      top:           topN,
       totalClients:  clientList.length,
       narrative:     null, // LLM opcional via POST
       insights,
@@ -327,6 +331,7 @@ export async function POST(request: NextRequest) {
 
   const body   = await request.json().catch(() => ({}));
   const period = Math.min(Math.max(parseInt(body.period || '30'), 1), 365);
+  const topN   = Math.min(Math.max(parseInt(body.top || '3'), 1), 50);  // FASE 13
 
   try {
     // Busca dados consolidados via GET interno
@@ -334,7 +339,7 @@ export async function POST(request: NextRequest) {
     const authCookie  = request.headers.get('cookie') || '';
 
     const dataRes = await fetch(
-      `${baseUrl}/api/admin/campanhas/portfolio/cross-insights?period=${period}`,
+      `${baseUrl}/api/admin/campanhas/portfolio/cross-insights?period=${period}&top=${topN}`,
       { headers: { cookie: authCookie } },
     );
     const data: CrossInsightsResponse = await dataRes.json();

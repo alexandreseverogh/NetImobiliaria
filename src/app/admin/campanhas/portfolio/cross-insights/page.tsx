@@ -136,12 +136,13 @@ export default function CrossInsightsPage() {
   const [generating, setGenerating] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
   const [period,    setPeriod]    = useState('30');
+  const [top,       setTop]       = useState('3');   // FASE 13 — Top N configurável
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res  = await adminFetch(`/api/admin/campanhas/portfolio/cross-insights?period=${period}`);
+      const res  = await adminFetch(`/api/admin/campanhas/portfolio/cross-insights?period=${period}&top=${top}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao carregar insights');
       setData(json);
@@ -150,7 +151,7 @@ export default function CrossInsightsPage() {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, top]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -161,7 +162,7 @@ export default function CrossInsightsPage() {
       const res  = await adminFetch('/api/admin/campanhas/portfolio/cross-insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ period: parseInt(period) }),
+        body: JSON.stringify({ period: parseInt(period), top: parseInt(top) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao gerar insights');
@@ -214,6 +215,17 @@ export default function CrossInsightsPage() {
               <option value="30">30 dias</option>
               <option value="60">60 dias</option>
               <option value="90">90 dias</option>
+            </select>
+
+            <select
+              value={top}
+              onChange={e => setTop(e.target.value)}
+              className="text-sm text-gray-700 bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none"
+              title="Quantos melhores CPLs exibir"
+            >
+              <option value="3">Top 3</option>
+              <option value="5">Top 5</option>
+              <option value="10">Top 10</option>
             </select>
 
             <button
@@ -292,10 +304,15 @@ export default function CrossInsightsPage() {
                     <div className="flex items-center gap-2 mb-4">
                       <TrophyIcon className="h-5 w-5 text-amber-500" />
                       <h2 className="font-bold text-gray-900">Melhores CPLs do Portfólio</h2>
+                      <span className="text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                        {data.topPerformers.length >= data.top
+                          ? `Top ${data.topPerformers.length}`
+                          : `Top ${data.topPerformers.length} de ${data.top}`}
+                      </span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {data.topPerformers.map((p, i) => (
-                        <PerformerCard key={p.clientName} {...p} rank={i} />
+                        <PerformerCard key={p.clientName} name={p.clientName} cpl={p.cpl} spend={p.spend} rank={i} />
                       ))}
                     </div>
                   </section>
