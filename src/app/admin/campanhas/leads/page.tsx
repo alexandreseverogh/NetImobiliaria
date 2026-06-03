@@ -8,6 +8,7 @@ import { getLeads, getLeadStats, getCampaigns, type LeadData, type Campaign } fr
 import {
   UsersIcon, PhoneIcon, ChartBarIcon, MegaphoneIcon,
   ChevronLeftIcon, ChevronRightIcon,
+  ChevronDoubleLeftIcon, ChevronDoubleRightIcon,
 } from '@heroicons/react/24/outline';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
@@ -324,6 +325,16 @@ export function LeadsPage() {
                   </span>
 
                   <div className="flex items-center gap-1">
+                    {/* Primeira página */}
+                    <button
+                      onClick={() => goToPage(1)}
+                      disabled={page === 1 || tableLoading}
+                      className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      aria-label="Primeira página"
+                    >
+                      <ChevronDoubleLeftIcon className="h-4 w-4" />
+                    </button>
+
                     {/* Anterior */}
                     <button
                       onClick={() => goToPage(page - 1)}
@@ -362,6 +373,16 @@ export function LeadsPage() {
                       aria-label="Próxima página"
                     >
                       <ChevronRightIcon className="h-4 w-4" />
+                    </button>
+
+                    {/* Última página */}
+                    <button
+                      onClick={() => goToPage(totalPages)}
+                      disabled={page === totalPages || tableLoading}
+                      className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      aria-label="Última página"
+                    >
+                      <ChevronDoubleRightIcon className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
