@@ -1,12 +1,78 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-03 (Option B — Portfolio: linhas expansíveis + modal analítico por campanha)
+> **Atualizado em:** 2026-06-03 (Fix gráfico "Leads por Campanha" + logo clientes + ClientAvatar)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Fix — Gráfico "Leads por Campanha" (2026-06-03) ✅
+
+**Problema:** O gráfico "Leads por Campanha" na página `/admin/campanhas/leads` sempre exibia um único retângulo grande em vez de barras individuais por campanha.
+
+**Causa raiz:** Quando a resolução de nome de campanha falhava no cliente (array `campaigns` vazio ou IDs sem correspondência), todos os itens de `leadsByCampaign` recebiam `name: 'N/A'`. O Recharts `BarChart` renderiza todas as barras na mesma posição X quando possuem o mesmo `name`, resultando em sobreposição visual.
+
+**Arquivos modificados:**
+
+`src/app/api/admin/campanhas/leads/stats/route.ts`
+- `leadsByCampaignRaw` ← `prisma.lead.groupBy` (sem alteração)
+- Nova etapa: busca nomes das campanhas via `prisma.campaign.findMany({ where: { id: { in: campaignIds } } })`
+- `leadsByCampaign` agora retorna `{ campaignId, campaignName, count }[]`
+  - Filtra entradas com `campaignId: null` (leads sem campanha vinculada)
+  - `campaignName` = nome da campanha OU primeiros 8 chars do UUID como fallback
+  - Ordenado por `count` decrescente
+
+`src/app/admin/campanhas/leads/page.tsx`
+- `campaignLeads` agora usa `d.campaignName` (do servidor) em vez de lookup `campaigns.find()`
+- Fallback: `d.campaignId?.slice(0, 8) || 'Sem campanha'` (garante nomes únicos)
+- Retrocompatível: `d.count ?? d._count?.id ?? 0`
+
+---
+
+### Logo de Clientes + ClientAvatar compartilhado (2026-06-03) ✅
+
+**Objetivo:** Exibir logomarca circular dos clientes na tabela Portfolio; suporte a upload/remoção na edição de cliente; componente reutilizável para futuras telas.
+
+**Arquivos criados:**
+
+`src/components/admin/ClientAvatar.tsx`
+- Props: `name`, `logoUrl?`, `segmentSlug?`, `isTenant?`, `size?` (`xs`–`xl`), `className?`
+- Mostra imagem se `logoUrl` disponível; fallback: iniciais coloridas por segmento
+- `SEGMENT_AVATAR_COLORS`: mapeamento slug → classes Tailwind (imobiliaria, saude, educacao, etc.)
+- Exports: `ClientAvatar` (default), `ClientAvatarWithFallback`, `getInitials`, `getSegmentAvatarColor`
+- Handler `onError` no `<img>`: troca automaticamente para fallback de iniciais
+
+`prisma/migration-2026-06-03-clientes-logo.sql`
+- `ALTER TABLE public.clientes ADD COLUMN IF NOT EXISTS logo_url TEXT DEFAULT NULL;`
+- ⚠️ **Executar manualmente no DBeaver antes de usar o upload de logo**
+
+**Arquivos modificados:**
+
+`src/app/api/admin/campanhas/clients/route.ts`
+- GET: adiciona `c.logo_url` ao SELECT
+- PATCH: reescrito com SET dinâmico — só atualiza os campos enviados (`segment_id` e/ou `logo_url`)
+- Validação: `logo_url` > 1.5 MB retorna 400
+
+`src/lib/database/clientes.ts`
+- `findClienteByUuid`: adiciona `logo_url` ao SELECT
+
+`src/app/admin/clientes/[id]/editar/page.tsx`
+- Importa `ClientAvatar`
+- Upload: `<input type="file" accept="image/*">` oculto → canvas resize 256×256 WebP 85%
+- `handleLogoFile(file)`: valida MIME + tamanho; redimensiona via Canvas API
+- `saveLogo(url)`: PATCH ao endpoint com Bearer token
+- UI: avatar grande (`size="xl"`) + botão "Carregar / Alterar logo" + botão "Remover"
+
+`src/app/api/admin/campanhas/portfolio/route.ts`
+- Queries de clientes e tenant agora incluem `logo_url`
+- `PortfolioClient.logoUrl` populado nos resultados
+
+`src/app/admin/campanhas/portfolio/page.tsx`
+- Importa `ClientAvatar` e exibe círculo de logo/iniciais na coluna de cliente da tabela
+
+---
 
 ### Option B — Portfolio: linhas expansíveis + modal analítico (2026-06-03) ✅
 

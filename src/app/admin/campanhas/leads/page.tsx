@@ -70,10 +70,10 @@ export function LeadsPage() {
     leads: d.count,
   })).reverse();
 
-  const campaignLeads = (stats.leadsByCampaign || []).map((d: any) => {
-    const campaign = campaigns.find(c => c.id === d.campaignId);
-    return { name: campaign?.name?.slice(0, 15) || 'N/A', leads: d._count.id };
-  });
+  const campaignLeads = (stats.leadsByCampaign || []).map((d: any) => ({
+    name:  (d.campaignName || d.campaignId?.slice(0, 8) || 'Sem campanha').slice(0, 18),
+    leads: d.count ?? d._count?.id ?? 0,
+  }));
 
   const leadsHoje = dailyData.length > 0 ? (dailyData[dailyData.length - 1]?.leads || 0) : 0;
   const mediaDia  = dailyData.length > 0 ? (total / Math.max(dailyData.length, 1)).toFixed(1) : '0';

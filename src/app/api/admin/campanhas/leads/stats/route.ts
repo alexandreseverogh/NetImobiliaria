@@ -33,11 +33,35 @@ export async function GET(request: NextRequest) {
 
     const totalLeads = await prisma.lead.count({ where });
 
-    const leadsByCampaign = await prisma.lead.groupBy({
+    const leadsByCampaignRaw = await prisma.lead.groupBy({
       by: ['campaignId'],
       where,
       _count: { id: true },
     });
+
+    // Resolve campaign names server-side so the client doesn't need a separate lookup.
+    // Also filter out null campaignId entries (leads with no campaign attached).
+    const campaignIds = leadsByCampaignRaw
+      .map(l => l.campaignId)
+      .filter((id): id is string => id !== null);
+
+    const campaignNameMap = new Map<string, string>();
+    if (campaignIds.length > 0) {
+      const campaigns = await prisma.campaign.findMany({
+        where: { id: { in: campaignIds } },
+        select: { id: true, name: true },
+      });
+      for (const c of campaigns) campaignNameMap.set(c.id, c.name);
+    }
+
+    const leadsByCampaign = leadsByCampaignRaw
+      .filter(l => l.campaignId !== null)
+      .map(l => ({
+        campaignId:   l.campaignId!,
+        campaignName: campaignNameMap.get(l.campaignId!) ?? l.campaignId!.slice(0, 8),
+        count:        l._count.id,
+      }))
+      .sort((a, b) => b.count - a.count);
 
     // ── Raw SQL leadsByDay — mesmos filtros dinâmicos ───────────────────────────
     const parsedStartDate = startDate ? new Date(startDate) : new Date(0);
