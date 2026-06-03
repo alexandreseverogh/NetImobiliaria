@@ -169,10 +169,23 @@ export function LeadsPage() {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <h3 className="text-sm font-black text-gray-900 mb-5">Leads por Dia</h3>
                 <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={dailyData}>
+                  <LineChart data={dailyData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                    <XAxis dataKey="date" stroke="#9ca3af" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#9ca3af" fontSize={11} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={{ stroke: '#e5e7eb' }}
+                      tick={{ fill: '#6b7280', fontSize: 11, fontWeight: 500 }}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: '#6b7280', fontSize: 11, fontWeight: 500 }}
+                      width={28}
+                      allowDecimals={false}
+                      tickCount={5}
+                    />
                     <Tooltip {...TOOLTIP_STYLE} />
                     <Line type="monotone" dataKey="leads" stroke="#10b981" strokeWidth={2.5} dot={{ fill: '#10b981', r: 3, strokeWidth: 0 }} name="Leads" />
                   </LineChart>
