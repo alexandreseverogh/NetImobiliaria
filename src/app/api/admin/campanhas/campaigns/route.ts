@@ -4,6 +4,7 @@ import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
+import { normalizeAngle } from '@/lib/marketing/angles';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,6 +112,8 @@ export async function POST(request: NextRequest) {
       customEventType,
       // FASE 6: IDs dos CreativeAssets na biblioteca (para vincular ad_id após lançamento)
       assetIds,
+      // FASE 14: ângulo de comunicação declarado (opcional; vazio = deixa o Vision inferir)
+      declaredAngle,
     } = body;
 
     // Valida clientId (deve pertencer ao tenant)
@@ -133,6 +136,7 @@ export async function POST(request: NextRequest) {
         objective,
         specialAdCategory,
         status: 'PAUSED',
+        declaredAngle: normalizeAngle(declaredAngle),  // FASE 14
       },
     });
 

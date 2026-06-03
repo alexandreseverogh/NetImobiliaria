@@ -8,6 +8,35 @@
 
 ## Última tarefa concluída
 
+### FASE 14a — Ângulo: captura no lançamento (2026-06-03) ✅
+
+**Objetivo:** capturar o ângulo de comunicação DECLARADO no lançamento (hoje o angle
+só é inferido pelo Vision a posteriori). Parte 14b (calibração) é a próxima.
+
+**DB:** `prisma/migration-2026-06-03-campaign-declared-angle.sql` — `ALTER TABLE
+campanhasmarketingdigital."Campaign" ADD COLUMN IF NOT EXISTS declared_angle VARCHAR(50)`
++ índice `idx_campaign_declared_angle (tenant_id, declared_angle)`. Aplicada no banco
+LOCAL via `scripts/run-migration-fase14.mjs`. ⚠️ **Ainda NÃO aplicada no VPS** (migração
+do VPS será feita toda de uma vez, depois).
+
+**Arquivos:**
+- `prisma/schema.marketing.prisma` — Campaign ganha `declaredAngle String? @db.VarChar(50)`.
+  `npx prisma generate` rodado (NÃO db push).
+- `src/lib/marketing/angles.ts` (NOVO) — taxonomia única de ângulos (investment, lifestyle,
+  family, price, urgency, social, luxury, other) + `ANGLE_OPTIONS`, `normalizeAngle`,
+  `angleLabel`. Mesma taxonomia do Vision, para comparar declarado × inferido.
+- `src/app/api/admin/campanhas/campaigns/route.ts` — POST destructura `declaredAngle` e
+  persiste `normalizeAngle(declaredAngle)` no `campaign.create`.
+- `src/components/marketing/CampaignWizard.tsx` — form.declaredAngle (''); seletor
+  "Ângulo da comunicação" na StepObjective (opcional, "Deixe a IA inferir"); enviado no
+  payload; linha "Ângulo" na revisão.
+
+**Verificação (runtime):** página /nova e wizard compilam sem erro; wizard abre com 7
+etapas; coluna+índice confirmados no banco; prisma generate OK. (UI do seletor não dirigida
+até o fim por gating de navegação do wizard + ação final destrutiva.)
+
+---
+
 ### FASE 13 — Top N Configurável (cross-insights) (2026-06-03) ✅
 
 **Objetivo:** remover hardcode `slice(0,3)` na polinização cruzada e tornar o número

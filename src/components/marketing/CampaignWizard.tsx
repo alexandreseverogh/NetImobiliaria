@@ -6,6 +6,7 @@ import axios from 'axios';
 import { createCampaign, getMetaIdentity, getWhatsAppConfig, type Creative } from '@/lib/marketing-api';
 import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency } from '@/lib/marketing-utils';
 import { LocationPicker, type LocationEntry } from './LocationPicker';
+import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
 import {
   ShieldCheckIcon, BoltIcon, XMarkIcon, RocketLaunchIcon, ChevronDownIcon,
 } from '@heroicons/react/24/outline';
@@ -125,6 +126,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     specialAdCategory: '',
     pixelId:           '',
     customEventType:   '',
+    declaredAngle:     '',   // FASE 14 — vazio = deixa o Vision inferir
   });
 
   /* pre-fill from identity + segment + whatsapp */
@@ -255,6 +257,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         specialAdCategory: form.specialAdCategory || autoFields.specialAdCategory || 'NONE',
         pixelId:           form.pixelId           || autoFields.pixelId           || undefined,
         customEventType:   form.customEventType   || autoFields.customEventType   || 'LEAD',
+        declaredAngle:     form.declaredAngle || undefined,   // FASE 14
         clientId:          clientId || undefined,
         assetIds:          assetIds.length > 0 ? assetIds : undefined,
       });
@@ -1405,6 +1408,23 @@ function StepObjective({ form, updateForm, autoFields }: any) {
           )}
         </div>
       </Section>
+
+      {/* FASE 14 — Ângulo de comunicação declarado (opcional) */}
+      <Section title="Ângulo da comunicação">
+        <p className="text-sm text-gray-500 -mt-2 mb-2">
+          Opcional — qual a <span className="font-semibold text-gray-700">intenção estratégica</span> deste
+          criativo? Ajuda a plataforma a comparar quais ângulos convertem melhor.
+          Deixe em branco para a IA inferir a partir da imagem.
+        </p>
+        <select
+          value={form.declaredAngle || ''}
+          onChange={e => updateForm({ declaredAngle: e.target.value })}
+          className={cn(inputCls, 'w-full max-w-sm')}
+        >
+          <option value="">Deixe a IA inferir</option>
+          {ANGLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </Section>
     </div>
   );
 }
@@ -1430,6 +1450,7 @@ function StepReview({ form, selectedImages }: any) {
           <Row label="Dias"        value={form.scheduleDays.map((d: number) => DAYS_OF_WEEK[d]?.label).join(', ')} />
           <Row label="Horários"    value={form.scheduleTimeSlots.map((s: any) => `${s.start}h — ${s.end}h`).join(', ')} />
           <Row label="Objetivo"    value={OBJECTIVES.find(o => o.value === form.objective)?.label || form.objective} />
+          <Row label="Ângulo"      value={form.declaredAngle ? angleLabel(form.declaredAngle) : 'IA infere'} />
         </div>
       </Section>
       <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex items-center gap-3">
