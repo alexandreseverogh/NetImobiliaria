@@ -18,6 +18,7 @@ import {
   ArrowLeftIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
@@ -70,8 +71,10 @@ interface CampaignData {
   createdAt: string;
   updatedAt: string;
   adSets: AdSetData[];
-  // FASE 14 — ângulo declarado
+  // FASE 14 — ângulo de comunicação
   declaredAngle?: string | null;
+  // FASE 14d — fonte: 'declared' | 'llm_auto' | null
+  angleSource?: string | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -242,12 +245,20 @@ function FunnelBadge({ stage }: { stage: string }) {
   );
 }
 
-// ── Angle Badge (FASE 14) — badge + edição inline ─────────────────
+// ── Angle Badge (FASE 14d) — badge com fonte visual + edição inline ──
 
-function AngleBadge({ campaignId, angle, onUpdated }: {
+/**
+ * Cores por fonte:
+ *   declared  → emerald (humano confirmou)
+ *   llm_auto  → blue    (IA classificou)
+ *   sem angle → amber   (sem classificação — call-to-action)
+ *   legacy    → violet  (dados anteriores à FASE 14d)
+ */
+function AngleBadge({ campaignId, angle, angleSource, onUpdated }: {
   campaignId: string;
   angle?: string | null;
-  onUpdated: (newAngle: string | null) => void;
+  angleSource?: string | null;
+  onUpdated: (newAngle: string | null, newSource: string | null) => void;
 }) {
   const [editing,  setEditing]  = useState(false);
   const [saving,   setSaving]   = useState(false);
@@ -261,7 +272,7 @@ function AngleBadge({ campaignId, angle, onUpdated }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ declaredAngle: selected || null }),
       });
-      onUpdated(selected || null);
+      onUpdated(selected || null, selected ? 'declared' : null);
       setEditing(false);
     } catch { /* silencioso */ } finally { setSaving(false); }
   }
@@ -273,9 +284,9 @@ function AngleBadge({ campaignId, angle, onUpdated }: {
           value={selected}
           onChange={e => setSelected(e.target.value)}
           autoFocus
-          className="text-[10px] font-semibold border border-violet-300 rounded-md px-1.5 py-0.5 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-violet-400"
+          className="text-[10px] font-semibold border border-blue-300 rounded-md px-1.5 py-0.5 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400"
         >
-          <option value="">IA infere</option>
+          <option value="">Sem ângulo</option>
           {ANGLE_OPTIONS.map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
@@ -283,7 +294,7 @@ function AngleBadge({ campaignId, angle, onUpdated }: {
         <button
           onClick={save}
           disabled={saving}
-          className="p-0.5 rounded text-violet-600 hover:bg-violet-50"
+          className="p-0.5 rounded text-blue-600 hover:bg-blue-50"
         >
           <CheckIcon className="h-3.5 w-3.5" />
         </button>
@@ -291,15 +302,403 @@ function AngleBadge({ campaignId, angle, onUpdated }: {
     );
   }
 
+  // Visual state
+  const hasAngle = !!angle;
+  const badgeCls = !hasAngle
+    ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+    : angleSource === 'declared'
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+    : angleSource === 'llm_auto'
+    ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+    : 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100';
+
+  const badgeTitle = !hasAngle
+    ? 'Sem ângulo — clique para classificar'
+    : angleSource === 'declared'
+    ? 'Ângulo confirmado por você — clique para editar'
+    : angleSource === 'llm_auto'
+    ? 'Classificado pela IA — clique para confirmar ou corrigir'
+    : 'Clique para editar o ângulo';
+
+  const badgeLabel = !hasAngle
+    ? 'Sem ângulo'
+    : `🎯 ${angleLabel(angle)}${angleSource === 'declared' ? ' ✓' : angleSource === 'llm_auto' ? ' · IA' : ''}`;
+
   return (
     <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border bg-violet-50 text-violet-700 border-violet-200 cursor-pointer hover:bg-violet-100 transition-colors"
-      title="Clique para editar ângulo"
+      className={cn(
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border cursor-pointer transition-colors',
+        badgeCls,
+      )}
+      title={badgeTitle}
       onClick={() => { setSelected(angle ?? ''); setEditing(true); }}
     >
-      🎯 {angle ? angleLabel(angle) : 'IA infere'}
-      <PencilIcon className="h-2.5 w-2.5 text-violet-400" />
+      {badgeLabel}
+      <PencilIcon className="h-2.5 w-2.5 opacity-50" />
     </span>
+  );
+}
+
+// ── Classify Banner (FASE 14d) ────────────────────────────────────
+
+function ClassifyBanner({ count, onClassify, onDismiss }: {
+  count: number;
+  onClassify: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-3.5 mb-6">
+      <div className="flex items-center gap-3 min-w-0">
+        <SparklesIcon className="h-5 w-5 text-blue-600 shrink-0" />
+        <div className="min-w-0">
+          <p className="text-sm font-black text-blue-900">
+            {count} campanha{count !== 1 ? 's' : ''} sem ângulo classificado
+          </p>
+          <p className="text-xs text-blue-600 mt-0.5 hidden sm:block">
+            Use a IA para classificar automaticamente pelo nome da campanha.
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={onClassify}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black hover:bg-blue-700 transition-colors shadow-sm shadow-blue-500/20 whitespace-nowrap"
+        >
+          <SparklesIcon className="h-3.5 w-3.5" />
+          Classificar com IA
+        </button>
+        <button
+          onClick={onDismiss}
+          className="p-1 text-blue-400 hover:text-blue-700 transition-colors rounded-lg hover:bg-blue-100"
+          title="Dispensar"
+        >
+          <XMarkIcon className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Classify Modal (FASE 14d) ─────────────────────────────────────
+
+type ClassifyStep = 'loading' | 'review' | 'saving' | 'done';
+
+interface ClassifyResultLocal {
+  id: string;
+  name: string;
+  suggestedAngle: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+const CONF_DOT: Record<string, string> = {
+  high:   'bg-emerald-400',
+  medium: 'bg-amber-400',
+  low:    'bg-red-400',
+};
+
+function ClassifyModal({ isOpen, onClose, onDone }: {
+  isOpen: boolean;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [step, setStep]               = useState<ClassifyStep>('loading');
+  const [results, setResults]         = useState<ClassifyResultLocal[]>([]);
+  const [editedAngles, setEditedAngles] = useState<Record<string, string>>({});
+  const [progress, setProgress]       = useState(0);
+  const [savedCount, setSavedCount]   = useState(0);
+  const [summary, setSummary]         = useState<[string, number][]>([]);
+  const [classifyError, setClassifyError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setStep('loading');
+    setResults([]);
+    setEditedAngles({});
+    setProgress(0);
+    setClassifyError('');
+
+    adminFetch('/api/admin/campanhas/portfolio/classify-angles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'preview' }),
+    })
+      .then(async res => {
+        if (!res.ok) throw new Error(await res.text() || `Erro ${res.status}`);
+        const data = await res.json();
+        setResults(data.results || []);
+        setStep('review');
+      })
+      .catch((err: Error) => {
+        setClassifyError(err.message || 'Erro ao classificar campanhas');
+        setStep('review');
+      });
+  }, [isOpen]);
+
+  const lowConfidenceCount = results.filter(r => r.confidence === 'low').length;
+
+  async function handleSave() {
+    setStep('saving');
+    setProgress(0);
+    const assignments = results.map(r => ({
+      id: r.id,
+      angle: editedAngles[r.id] ?? r.suggestedAngle,
+    }));
+
+    const interval = setInterval(() => {
+      setProgress(p => (p < 85 ? p + 8 : p));
+    }, 150);
+
+    try {
+      const res = await adminFetch('/api/admin/campanhas/portfolio/classify-angles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'confirm', assignments }),
+      });
+      const data = await res.json();
+      clearInterval(interval);
+      setProgress(100);
+      setSavedCount(data.saved ?? 0);
+
+      const sumMap: Record<string, number> = {};
+      for (const a of assignments) {
+        const key = editedAngles[a.id] ?? a.angle;
+        sumMap[key] = (sumMap[key] || 0) + 1;
+      }
+      setSummary(Object.entries(sumMap).sort((a, b) => b[1] - a[1]));
+
+      setTimeout(() => { setStep('done'); onDone(); }, 400);
+    } catch (err: any) {
+      clearInterval(interval);
+      setProgress(0);
+      setStep('review');
+      setClassifyError(err.message || 'Erro ao salvar classificações');
+    }
+  }
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-950/60 backdrop-blur-sm"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+          >
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <SparklesIcon className="h-5 w-5 text-blue-600" />
+                <h3 className="text-base font-black text-gray-900">Classificar Ângulos com IA</h3>
+              </div>
+              {step !== 'saving' && (
+                <button
+                  onClick={onClose}
+                  className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto">
+
+              {/* Loading */}
+              {step === 'loading' && (
+                <div className="flex flex-col items-center justify-center py-20 gap-4">
+                  <div className="relative w-12 h-12">
+                    <div className="w-12 h-12 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin" />
+                    <SparklesIcon className="h-5 w-5 text-blue-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-black text-gray-800">Analisando campanhas...</p>
+                    <p className="text-xs text-gray-400 mt-1">A IA está lendo os nomes e inferindo o ângulo de comunicação.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Review */}
+              {step === 'review' && (
+                <div className="p-6 space-y-4">
+                  {classifyError && (
+                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-700 font-medium">
+                      <ExclamationCircleIcon className="h-4 w-4 shrink-0" />
+                      {classifyError}
+                    </div>
+                  )}
+
+                  {results.length === 0 && !classifyError && (
+                    <p className="text-sm text-center text-gray-400 py-10">
+                      Nenhuma campanha sem ângulo encontrada.
+                    </p>
+                  )}
+
+                  {results.length > 0 && (
+                    <>
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <p className="text-sm font-bold text-gray-700">
+                          {results.length} campanha{results.length !== 1 ? 's' : ''} para classificar
+                        </p>
+                        {lowConfidenceCount > 0 && (
+                          <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                            <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                            {lowConfidenceCount} com baixa confiança — verifique
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="border border-gray-100 rounded-xl overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <th className="text-left px-4 py-2.5 font-black text-gray-500 uppercase tracking-wider text-[10px]">
+                                Campanha
+                              </th>
+                              <th className="text-left px-4 py-2.5 font-black text-gray-500 uppercase tracking-wider text-[10px] w-48">
+                                Ângulo sugerido
+                              </th>
+                              <th className="px-3 py-2.5 w-8" />
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {results.map(r => (
+                              <tr
+                                key={r.id}
+                                className={cn(
+                                  'transition-colors',
+                                  r.confidence === 'low' ? 'bg-amber-50/40' : 'bg-white hover:bg-gray-50/50',
+                                )}
+                              >
+                                <td className="px-4 py-2.5 text-gray-800 font-medium truncate max-w-[220px]" title={r.name}>
+                                  {r.name}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <select
+                                    value={editedAngles[r.id] ?? r.suggestedAngle}
+                                    onChange={e => setEditedAngles(prev => ({ ...prev, [r.id]: e.target.value }))}
+                                    className="w-full text-xs font-semibold border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400 appearance-none"
+                                  >
+                                    {ANGLE_OPTIONS.map(o => (
+                                      <option key={o.value} value={o.value}>{o.label}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  <span
+                                    className={cn('inline-block w-2.5 h-2.5 rounded-full', CONF_DOT[r.confidence])}
+                                    title={`Confiança: ${r.confidence}`}
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-[10px] text-gray-400">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />Alta confiança
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />Média
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />Baixa — verifique
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Saving */}
+              {step === 'saving' && (
+                <div className="flex flex-col items-center justify-center py-16 px-8 gap-5">
+                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-blue-500 rounded-full"
+                      animate={{ width: `${progress}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
+                  <p className="text-sm font-black text-gray-700">
+                    Salvando classificações... {Math.round(progress)}%
+                  </p>
+                </div>
+              )}
+
+              {/* Done */}
+              {step === 'done' && (
+                <div className="p-6 space-y-5">
+                  <div className="text-center py-2">
+                    <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
+                      <CheckIcon className="h-7 w-7 text-emerald-600" />
+                    </div>
+                    <p className="text-base font-black text-gray-900">
+                      {savedCount} campanha{savedCount !== 1 ? 's' : ''} classificada{savedCount !== 1 ? 's' : ''}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Os dados já estão disponíveis em Cross-Insights → Performance por Ângulo.
+                    </p>
+                  </div>
+
+                  {summary.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {summary.map(([ang, count]) => (
+                        <div key={ang} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3.5 py-2.5">
+                          <span className="text-xs font-bold text-gray-700 truncate">{angleLabel(ang)}</span>
+                          <span className="text-sm font-black text-gray-900 shrink-0 ml-2">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {(step === 'review' || step === 'done') && (
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 shrink-0">
+                {step === 'review' && (
+                  <>
+                    <button
+                      onClick={onClose}
+                      className="px-4 py-2 text-sm font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={results.length === 0}
+                      className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-black hover:bg-blue-700 transition-all shadow-sm shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <CheckIcon className="h-4 w-4" />
+                      Salvar {results.length > 0 ? results.length : ''} classificaç{results.length !== 1 ? 'ões' : 'ão'}
+                    </button>
+                  </>
+                )}
+                {step === 'done' && (
+                  <button
+                    onClick={onClose}
+                    className="px-5 py-2 bg-gray-900 text-white rounded-xl text-sm font-black hover:bg-gray-700 transition-all"
+                  >
+                    Fechar
+                  </button>
+                )}
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -469,8 +868,9 @@ function ScheduleDisplay({
 
 function CampaignCard({ campaign, index }: { campaign: CampaignData; index: number }) {
   const [interestsExpanded, setInterestsExpanded] = useState(false);
-  // FASE 14 — ângulo editável localmente sem recarregar a lista
-  const [localAngle, setLocalAngle] = useState<string | null>(campaign.declaredAngle ?? null);
+  // FASE 14/14d — ângulo + fonte editáveis localmente sem recarregar a lista
+  const [localAngle, setLocalAngle]             = useState<string | null>(campaign.declaredAngle ?? null);
+  const [localAngleSource, setLocalAngleSource] = useState<string | null>(campaign.angleSource ?? null);
   const adSet    = campaign.adSets[0];
   const allAds   = campaign.adSets.flatMap(as => as.ads);
   const locations = adSet ? extractLocations(adSet.locations) : ['Brasil'];
@@ -494,11 +894,12 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
             {campaign.lifecycleStatus && campaign.lifecycleStatus !== campaign.status && (
               <StatusBadge status={campaign.lifecycleStatus} />
             )}
-            {/* FASE 14 — ângulo de comunicação (sempre visível, editável inline) */}
+            {/* FASE 14/14d — ângulo de comunicação (sempre visível, editável inline) */}
             <AngleBadge
               campaignId={campaign.id}
               angle={localAngle}
-              onUpdated={setLocalAngle}
+              angleSource={localAngleSource}
+              onUpdated={(a, s) => { setLocalAngle(a); setLocalAngleSource(s); }}
             />
             {campaign.funnelStage && <FunnelBadge stage={campaign.funnelStage} />}
           </div>
@@ -808,6 +1209,9 @@ export default function CampanhasModal({
   const [search, setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [page, setPage]           = useState(1);
+  // FASE 14d — classificação em lote
+  const [showClassifyModal, setShowClassifyModal] = useState(false);
+  const [classifyDismissed, setClassifyDismissed] = useState(false);
 
   const fetchCampaigns = useCallback(async () => {
     setLoading(true); setError('');
@@ -828,7 +1232,13 @@ export default function CampanhasModal({
   }, [effectiveClientId, campaignFor, isMaster]);
 
   useEffect(() => {
-    if (isOpen) { fetchCampaigns(); setSearch(''); setStatusFilter(''); setPage(1); }
+    if (isOpen) {
+      fetchCampaigns();
+      setSearch('');
+      setStatusFilter('');
+      setPage(1);
+      setClassifyDismissed(false);
+    }
   }, [isOpen, fetchCampaigns]);
 
   // Reset to page 1 when filters change
@@ -841,6 +1251,9 @@ export default function CampanhasModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
+
+  // FASE 14d — contagem para o banner de classificação
+  const unclassifiedCount = campaigns.filter(c => !c.declaredAngle).length;
 
   const filtered = campaigns.filter(c => {
     const matchSearch  = !search       || c.id === search;   // seleção exata pelo id
@@ -1011,6 +1424,15 @@ export default function CampanhasModal({
                   </div>
                 )}
 
+                {/* FASE 14d — banner de classificação automática */}
+                {!loading && !error && unclassifiedCount > 0 && !classifyDismissed && (
+                  <ClassifyBanner
+                    count={unclassifiedCount}
+                    onClassify={() => setShowClassifyModal(true)}
+                    onDismiss={() => setClassifyDismissed(true)}
+                  />
+                )}
+
                 {/* Skeletons */}
                 {loading && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -1066,6 +1488,17 @@ export default function CampanhasModal({
           </motion.div>
         </motion.div>
       )}
+
+      {/* FASE 14d — Modal de classificação em lote (z-[60], acima do modal principal) */}
+      <ClassifyModal
+        isOpen={showClassifyModal}
+        onClose={() => setShowClassifyModal(false)}
+        onDone={() => {
+          setShowClassifyModal(false);
+          setClassifyDismissed(true);
+          fetchCampaigns(); // atualiza badges após classificação
+        }}
+      />
     </AnimatePresence>
   );
 }

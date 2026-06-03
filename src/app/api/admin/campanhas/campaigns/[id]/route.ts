@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
+import pool from '@/lib/database/connection';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import { normalizeAngle } from '@/lib/marketing/angles';
@@ -60,6 +61,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       where: { id: params.id },
       data: updateData,
     });
+
+    // FASE 14d — sincroniza angle_source quando declaredAngle é editado manualmente
+    if ('declaredAngle' in updateData) {
+      try {
+        await pool.query(
+          `UPDATE campanhasmarketingdigital."Campaign"
+           SET angle_source = $1 WHERE id = $2`,
+          [updateData.declaredAngle ? 'declared' : null, params.id],
+        );
+      } catch { /* non-critical */ }
+    }
 
     return NextResponse.json(updated);
   } catch (error: any) {

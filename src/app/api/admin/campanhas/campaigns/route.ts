@@ -57,8 +57,25 @@ export async function GET(request: NextRequest) {
       } catch { /* non-critical — fallback to ad.images */ }
     }
 
+    // Enrich with angle_source (FASE 14d — coluna existe no DB, fora do schema Prisma)
+    const angleSourceMap: Record<string, string | null> = {};
+    if (campaigns.length > 0) {
+      try {
+        const cids = campaigns.map(c => c.id);
+        const asRows = await pool.query<{ id: string; angle_source: string | null }>(
+          `SELECT id, angle_source FROM campanhasmarketingdigital."Campaign"
+           WHERE id = ANY($1::uuid[])`,
+          [cids],
+        );
+        for (const row of asRows.rows) {
+          angleSourceMap[row.id] = row.angle_source ?? null;
+        }
+      } catch { /* non-critical */ }
+    }
+
     const enriched = campaigns.map(c => ({
       ...c,
+      angleSource: angleSourceMap[c.id] ?? null,
       adSets: c.adSets.map(as => ({
         ...as,
         ads: as.ads.map(ad => ({

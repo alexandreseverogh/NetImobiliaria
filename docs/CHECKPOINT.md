@@ -1,12 +1,57 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-03 (FASE 14b concluída — calibração de ângulo)
+> **Atualizado em:** 2026-06-03 (FASE 14d concluída — auto-classificação de ângulo em lote)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### FASE 14d — Auto-classificação de ângulo em lote (2026-06-03) ✅
+
+**Objetivo:** eliminar trabalho manual de associar ângulo campanha a campanha. A IA classifica
+automaticamente todas as campanhas pelo nome, via job em lote com revisão humana antes de salvar.
+
+**Novo campo DB:** `angle_source VARCHAR(20)` em `Campaign`
+- `'declared'` = humano confirmou (via badge ou wizard)
+- `'llm_auto'` = classificado pelo job de IA
+- `NULL` = sem classificação (mostra banner)
+
+**Arquivos novos:**
+- `prisma/migration-2026-06-03-angle-source.sql` — ADD COLUMN angle_source
+- `prisma/migration-2026-06-03-classify-angle-prompt.sql` — INSERT template `classify_campaign_angle`
+- `scripts/run-migration-fase14d.mjs` — runner Node.js para DBeaver
+- `src/lib/marketing/services/angleClassifierService.ts` — serviço: `getUnclassifiedCount`,
+  `classifyCampaignAngles` (LLM preview, batches de 20), `saveAngleClassifications` (raw SQL)
+- `src/app/api/admin/campanhas/portfolio/classify-angles/route.ts` — `GET` (count) +
+  `POST mode=preview` (sugestões LLM) + `POST mode=confirm` (salva)
+
+**Arquivos modificados:**
+- `src/app/api/admin/campanhas/campaigns/route.ts` — enriquece resposta com `angleSource`
+  via query raw SQL (angle_source fora do schema Prisma)
+- `src/app/api/admin/campanhas/campaigns/[id]/route.ts` — PATCH seta `angle_source = 'declared'`
+  (ou null ao limpar) via raw SQL após update Prisma
+- `src/components/marketing/CampanhasModal.tsx`:
+  - `AngleBadge` reescrito: 3 estados visuais (amber=sem ângulo, blue=IA, emerald=declarado)
+    com tooltip explicativo; callback `onUpdated(angle, source)`
+  - `CampaignCard`: `localAngleSource` state rastreia fonte localmente
+  - Novo `ClassifyBanner`: aparece quando `unclassifiedCount > 0`, dismissável, botão "Classificar com IA"
+  - Novo `ClassifyModal`: 4 steps (loading→review→saving→done), tabela com dropdowns editáveis,
+    dots de confiança (emerald/amber/red), barra de progresso, resumo final por ângulo
+  - Main modal: `showClassifyModal` + `classifyDismissed` states; `onDone` → refresh campanhas
+
+**⚠️ MIGRATIONS PENDENTES (rodar no DBeaver):**
+```
+-- Migration 1
+prisma/migration-2026-06-03-angle-source.sql
+
+-- Migration 2  
+prisma/migration-2026-06-03-classify-angle-prompt.sql
+```
+Ou: `node scripts/run-migration-fase14d.mjs`
+
+---
 
 ### FASE 14c — Ciclo Visual de Ângulo (2026-06-03) ✅
 
