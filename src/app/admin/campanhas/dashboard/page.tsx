@@ -284,15 +284,17 @@ export function DashboardPage() {
             >
               {isDark ? <><SunIcon className="h-3.5 w-3.5" /> Claro</> : <><MoonIcon className="h-3.5 w-3.5" /> Escuro</>}
             </button>
-            {/* Help button */}
-            <DashboardHelpButton isDark={isDark} />
-            <ExecuteGuard resource="dashboard-campanhas">
-              <button onClick={handleSync} disabled={syncing}
-                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-indigo-500/25">
-                <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? 'Sincronizando...' : 'Sync Meta'}
-              </button>
-            </ExecuteGuard>
+            <div className="flex flex-col gap-1.5 items-stretch">
+              <ExecuteGuard resource="dashboard-campanhas">
+                <button onClick={handleSync} disabled={syncing}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-indigo-500/25">
+                  <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                  {syncing ? 'Sincronizando...' : 'Sync Meta'}
+                </button>
+              </ExecuteGuard>
+              {/* Help button — abaixo do Sync Meta */}
+              <DashboardHelpButton isDark={isDark} />
+            </div>
           </div>
         </div>
 
