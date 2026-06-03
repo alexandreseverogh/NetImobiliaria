@@ -4,6 +4,7 @@ import { notifyApprovalRequired, notifyExecuted, notifyAlert } from './agentNoti
 import { invokeForContext } from '../../intelligence/llmInvoker';
 import { getNetworkServiceForTenant } from '../networks/factory';
 import { transitionCampaign } from './campaignStateMachine';
+import { getAngleInsights } from './angleInsightsService';
 
 const CONFIDENCE_THRESHOLD = parseFloat(process.env.AGENT_CONFIDENCE_THRESHOLD || '0.85');
 const DEFENSIVE_TYPES = ['PAUSE'];
@@ -13,6 +14,9 @@ export async function runDecisor(tenantId?: string) {
   const result = await generateAiInsights(undefined, tenantId);
   const insights = result.insights;
   const highConfidence = insights.filter(i => i.confidence >= CONFIDENCE_THRESHOLD);
+
+  // FASE 14b — contexto de ângulo para enriquecer recomendações do agente
+  const angleCtx = await getAngleInsights(7, tenantId).catch(() => null);
 
   for (const insight of highConfidence) {
     // Evitar ações duplicadas nas últimas 24h para a mesma campanha+tipo
@@ -25,7 +29,7 @@ export async function runDecisor(tenantId?: string) {
     });
     if (recent) continue;
 
-    const enriched = await enrichWithClaude(insight, tenantId);
+    const enriched = await enrichWithClaude(insight, tenantId, angleCtx);
 
     // Busca tenantId da campanha se não recebido
     const campaign = await prisma.campaign.findUnique({ where: { id: insight.campaignId } });
@@ -62,7 +66,11 @@ export async function runDecisor(tenantId?: string) {
   }
 }
 
-async function enrichWithClaude(insight: any, tenantId?: string | null): Promise<{ description: string }> {
+async function enrichWithClaude(
+  insight: any,
+  tenantId?: string | null,
+  angleCtx?: import('./angleInsightsService').AngleInsightsResult | null,
+): Promise<{ description: string }> {
   try {
     const text = await invokeForContext({
       templateKey: 'agent_enrich',
@@ -72,6 +80,9 @@ async function enrichWithClaude(insight: any, tenantId?: string | null): Promise
         insight_title:       insight.title,
         insight_description: insight.description,
         confidence:          (insight.confidence * 100).toFixed(0),
+        // FASE 14b — contexto de ângulo (disponível para templates que declarem {{winning_angle}})
+        winning_angle:       angleCtx?.topAngle?.label   ?? 'não identificado',
+        worst_angle:         angleCtx?.worstAngle?.label ?? 'não identificado',
       },
       maxTokens: 200,
     });

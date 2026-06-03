@@ -1,12 +1,60 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-03 (Plano: FASES 13–17 adicionadas ao plano mestre)
+> **Atualizado em:** 2026-06-03 (FASE 14b concluída — calibração de ângulo)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Fix — AnimatePresence mode="wait" removido (2026-06-03) ✅
+
+**Problema:** `AnimatePresence mode="wait"` em `CampaignWizard.tsx` aguardava a exit
+animation completar antes de montar o próximo step. Em abas não visíveis (RAF throttling),
+o exit nunca completava → conteúdo do wizard congelava enquanto header avançava. Também
+causava timeout do screenshot no preview headless.
+
+**Fix:** Removida a prop `mode="wait"` (linha 356). `AnimatePresence` sem mode monta a
+entrada imediatamente → sem dependência de RAF do exit; transição ocorre mesmo com aba
+em background.
+
+---
+
+### FASE 14b — Calibração de Ângulo (2026-06-03) ✅
+
+**Objetivo:** agregar métricas (CPL, CTR, spend) por ângulo EFETIVO (declared_angle ??
+Vision angle), identificar ângulo vencedor/perdedor e injetar o sinal no briefing
+estratégico e no agentDecisor. Princípio ZERO HARDCODE: prompt no DB.
+
+**DB:** `prisma/migration-2026-06-03-angle-performance-insight.sql` — INSERT prompt
+`angle_performance_insight` (templateKey) em `public.system_prompt_templates`. Aplicada
+localmente via `scripts/run-migration-fase14b.mjs`. ⚠️ NÃO aplicada no VPS (batch depois).
+
+**Arquivos novos:**
+- `src/lib/marketing/services/angleInsightsService.ts` — `getAngleInsights(periodDays,
+  tenantId, clientId)`: raw SQL com JOIN Campaign → CreativeAsset → CreativeAnalysis para
+  ângulo Vision + JOIN Insight para métricas; agrupa por ângulo efetivo (declared_angle ??
+  Vision ?? 'unknown'); retorna `AngleInsightsResult` com `angleStats`, `topAngle`,
+  `worstAngle`, `textSummary` (rule-based, pronto para injeção em variável LLM).
+- `prisma/migration-2026-06-03-angle-performance-insight.sql` — prompt DB.
+- `scripts/run-migration-fase14b.mjs` — runner da migration.
+
+**Arquivos modificados:**
+- `src/lib/marketing/services/strategicBriefing.ts` — importa `getAngleInsights`;
+  `BriefingContext` ganha `angleInsights: AngleInsightsResult`; `gatherBriefingContext`
+  popula com `await getAngleInsights(...)`; `buildBriefingVariables` injeta
+  `angle_insights`, `winning_angle`, `worst_angle` como variáveis disponíveis para
+  templates que as declarem (retrocompatível: sem impacto em templates antigos).
+- `src/lib/marketing/services/agentDecisor.ts` — importa `getAngleInsights`; `runDecisor`
+  computa `angleCtx` uma vez no topo (7 dias); `enrichWithClaude` recebe `angleCtx?` e
+  injeta `winning_angle` / `worst_angle` nas variáveis do template `agent_enrich`.
+
+**Verificação:** migration aplicada com sucesso; tsc sem erros nos arquivos alterados;
+SQL testado — JOIN via `CreativeAsset.campaign_id` (snake_case, @map) →
+`CreativeAnalysis.asset_id` (FK), `Insight."campaignId"` (camelCase sem @map).
+
+---
 
 ### FASE 14a — Ângulo: captura no lançamento (2026-06-03) ✅
 

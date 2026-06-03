@@ -353,7 +353,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
 
         {/* Scrollable step content */}
         <div className="flex-1 overflow-y-auto p-10 bg-gray-50">
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             <motion.div
               key={step}
               initial={{ opacity: 0, y: 12 }}

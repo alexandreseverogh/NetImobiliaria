@@ -1,6 +1,7 @@
 import prisma from '../prisma';
 import { invokeForContext } from '../../intelligence/llmInvoker';
 import { generateAiInsights } from './aiInsights';
+import { getAngleInsights, type AngleInsightsResult } from './angleInsightsService';
 
 interface CampaignMetrics {
   campaignId: string;
@@ -48,6 +49,8 @@ interface BriefingContext {
     leads: number;
   };
   ruleInsights: any[];
+  // FASE 14b — ângulo de comunicação efetivo
+  angleInsights: AngleInsightsResult;
 }
 
 function calculateSpendTrend(insights: any[]): 'up' | 'down' | 'stable' {
@@ -153,6 +156,9 @@ export async function gatherBriefingContext(periodDays: number, tenantId?: strin
   const aiResult = await generateAiInsights(undefined, tenantId, clientId);
   const ruleInsights = aiResult.insights;
 
+  // FASE 14b — agrega métricas por ângulo efetivo (não bloqueia se falhar)
+  const angleInsights = await getAngleInsights(periodDays, tenantId, clientId);
+
   return {
     date: now.toISOString().split('T')[0],
     periodDays,
@@ -173,6 +179,7 @@ export async function gatherBriefingContext(periodDays: number, tenantId?: strin
       leads: pctDelta(totalLeads, prevLeads),
     },
     ruleInsights,
+    angleInsights,
   };
 }
 
@@ -205,6 +212,10 @@ function buildBriefingVariables(
     delta_leads:       formatDelta(context.deltas.leads),
     rule_insights:     ruleInsightsText,
     briefing_type:     type,
+    // FASE 14b — sinal de ângulo (disponível para templates que declarem {{angle_insights}})
+    angle_insights:    context.angleInsights?.textSummary ?? 'Análise de ângulo indisponível.',
+    winning_angle:     context.angleInsights?.topAngle?.label ?? 'não identificado',
+    worst_angle:       context.angleInsights?.worstAngle?.label ?? 'não identificado',
   };
 }
 
