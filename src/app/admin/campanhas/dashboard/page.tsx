@@ -16,6 +16,7 @@ import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelC
 import { StageFunnelWidget } from '@/components/marketing/StageFunnelWidget';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
 import { ArrowPathIcon, SparklesIcon, ClockIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
+import { DashboardHelpButton } from '@/components/marketing/DashboardHelpModal';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { CampaignLifecycleBadge } from '@/components/marketing/CampaignLifecycleBadge';
 import type { LifecycleStatus } from '@/lib/marketing/services/campaignLifecycleTypes';
@@ -283,6 +284,8 @@ export function DashboardPage() {
             >
               {isDark ? <><SunIcon className="h-3.5 w-3.5" /> Claro</> : <><MoonIcon className="h-3.5 w-3.5" /> Escuro</>}
             </button>
+            {/* Help button */}
+            <DashboardHelpButton isDark={isDark} />
             <ExecuteGuard resource="dashboard-campanhas">
               <button onClick={handleSync} disabled={syncing}
                 className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-indigo-500/25">
