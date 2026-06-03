@@ -252,8 +252,8 @@ export function DashboardPage() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className={`p-8 min-h-screen transition-colors duration-300 ${bg}`}>
-      <div className="max-w-7xl mx-auto">
+    <div className={`px-4 py-6 min-h-screen transition-colors duration-300 ${bg}`}>
+      <div className="w-full">
 
         {/* ── Header ────────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
