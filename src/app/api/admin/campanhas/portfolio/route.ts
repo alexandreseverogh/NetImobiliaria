@@ -51,6 +51,7 @@ export interface PortfolioClient {
   };
   status:    'ok' | 'warn' | 'critical' | 'nodata';
   campaigns: PortfolioClientCampaign[];
+  logoUrl:   string | null;
 }
 
 export interface PortfolioResponse {
@@ -241,12 +242,14 @@ export async function GET(request: NextRequest) {
       segment_id: string | null;
       segment_name: string | null;
       segment_slug: string | null;
+      logo_url: string | null;
     }>(`
       SELECT
-        t.name AS nome,
+        t.name     AS nome,
         t.segment_id,
-        s.name  AS segment_name,
-        s.slug  AS segment_slug
+        s.name     AS segment_name,
+        s.slug     AS segment_slug,
+        t.logo_url
       FROM public.tenants t
       LEFT JOIN public.system_segments s ON s.id = t.segment_id
       WHERE t.id = $1::uuid
@@ -326,6 +329,7 @@ export async function GET(request: NextRequest) {
         benchmarks,
         status:    computeStatus(cpl, benchmarks.cplIdeal, benchmarks.cplCritical, spend),
         campaigns: campaignsByClient.get(mapKey) ?? [],
+        logoUrl:   row.client_id ? null : (tenantInfo?.logo_url ?? null),
       });
     }
 
