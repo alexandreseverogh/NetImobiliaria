@@ -79,6 +79,24 @@ const METRICAS: HelpItem[] = [
     tip: 'CPM subindo sem mudança de segmentação indica aumento de concorrência no leilão do Meta.',
   },
   {
+    emoji: '🔷',
+    term: 'Pixel',
+    subtitle: 'O rastreador invisível do Meta',
+    what: 'O Pixel do Meta é um pequeno código (algumas linhas de JavaScript) instalado no seu site ou landing page. Ele age como uma "câmera de segurança digital" — registra silenciosamente tudo que os visitantes fazem depois de clicar no seu anúncio.',
+    how: `Quando alguém clica no anúncio e chega ao seu site, o Pixel "acende" e começa a observar. Ele registra eventos como:
+
+• Visitou a página (PageView)
+• Preencheu o formulário (Lead)
+• Chegou à página de obrigado (CompleteRegistration)
+
+Esses dados voltam automaticamente para o Meta Ads, que usa as informações para:
+1. Medir os resultados reais das campanhas (Conversões)
+2. Otimizar os anúncios — o algoritmo aprende quem converte e busca mais pessoas parecidas
+3. Criar públicos de remarketing (quem visitou mas não converteu)`,
+    tip: 'Sem o Pixel instalado corretamente, o Meta "voa às cegas" — não sabe se os cliques estão gerando resultados reais, e não consegue otimizar as campanhas de forma inteligente.',
+    benchmark: 'Verifique sempre o Tracking Health no dashboard — ele indica se o Pixel está funcionando. Score abaixo de 50 = dados não confiáveis.',
+  },
+  {
     emoji: '⚡',
     term: 'Conversões',
     subtitle: 'Ações rastreadas pelo pixel',
