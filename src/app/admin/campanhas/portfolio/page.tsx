@@ -210,15 +210,8 @@ function CampaignAnalyticsModal({ state, onClose }: { state: ModalState; onClose
         )}
 
         {/* footer */}
-        <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+        <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
           <p className="text-[11px] text-gray-400">ID: {campaign.id.slice(0, 8)}…</p>
-          <a
-            href={`/admin/campanhas/dashboard?campaignId=${campaign.id}`}
-            className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition"
-          >
-            Ver dashboard completo
-            <ArrowRightIcon className="h-3.5 w-3.5" />
-          </a>
         </div>
       </motion.div>
     </div>
@@ -686,16 +679,8 @@ export default function PortfolioPage() {
                       <StatusBadge status={client.status} />
                     </td>
 
-                    {/* dashboard link */}
-                    <td className="px-4 py-4 text-right">
-                      <a
-                        href={`/admin/campanhas/dashboard?clientId=${client.clientId ?? 'own'}`}
-                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1 justify-end whitespace-nowrap"
-                      >
-                        Dashboard
-                        <ArrowRightIcon className="h-3 w-3" />
-                      </a>
-                    </td>
+                    {/* ações (sem link externo — contexto de período distinto) */}
+                    <td className="px-4 py-4" />
                   </motion.tr>
 
                   {/* sub-rows (AnimatePresence for exit animation) */}
