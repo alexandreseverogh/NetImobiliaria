@@ -1,0 +1,273 @@
+/**
+ * GET /api/admin/campanhas/portfolio
+ * FASE 10 — Portfolio Dashboard: visão consolidada de todos os clientes do tenant.
+ *
+ * Query params:
+ *   period    — dias do período (default: 30)
+ *   segmentId — filtrar por segmento (opcional)
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getTokenPayload } from '@/lib/auth/jwt-node';
+import { requireApiPermission } from '@/lib/auth/apiPermissions';
+import pool from '@/lib/database/connection';
+
+export const dynamic = 'force-dynamic';
+
+/* ── tipos ──────────────────────────────────────────────────────── */
+
+export interface PortfolioClient {
+  clientId:    string | null;
+  clientName:  string;
+  segment:     { id: string; name: string; slug: string } | null;
+  metrics: {
+    spend:       number;
+    leads:       number;
+    cpl:         number | null;
+    ctr:         number | null;
+    impressions: number;
+    clicks:      number;
+    campaigns:   number;
+  };
+  benchmarks: {
+    cplIdeal:    number | null;
+    cplCritical: number | null;
+    ctrMin:      number | null;
+  };
+  status: 'ok' | 'warn' | 'critical' | 'nodata';
+}
+
+export interface PortfolioResponse {
+  period:       number;
+  totalClients: number;
+  totalSpend:   number;
+  totalLeads:   number;
+  avgCpl:       number | null;
+  clients:      PortfolioClient[];
+}
+
+/* ── helper de status ───────────────────────────────────────────── */
+
+function computeStatus(
+  cpl: number | null,
+  cplIdeal: number | null,
+  cplCritical: number | null,
+  spend: number,
+): 'ok' | 'warn' | 'critical' | 'nodata' {
+  if (spend === 0) return 'nodata';
+  if (cpl === null) return 'nodata';
+  if (cplCritical !== null && cpl >= cplCritical) return 'critical';
+  if (cplIdeal !== null && cpl > cplIdeal) return 'warn';
+  return 'ok';
+}
+
+/* ── GET ────────────────────────────────────────────────────────── */
+
+export async function GET(request: NextRequest) {
+  const denied = await requireApiPermission(request, 'dashboard-campanhas', 'READ');
+  if (denied) return denied;
+
+  const payload = getTokenPayload(request);
+  if (!payload?.tenantId) {
+    return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const period    = Math.min(Math.max(parseInt(searchParams.get('period') || '30'), 1), 365);
+  const segmentId = searchParams.get('segmentId') || null;
+
+  try {
+    /* ── 1. Métricas agregadas por cliente ──────────────────────── */
+    const metricsQuery = await pool.query<{
+      client_id:     string | null;
+      campaign_count: string;
+      total_spend:   string;
+      total_impressions: string;
+      total_clicks:  string;
+    }>(`
+      SELECT
+        camp.client_id,
+        COUNT(DISTINCT camp.id)         AS campaign_count,
+        COALESCE(SUM(i.spend), 0)       AS total_spend,
+        COALESCE(SUM(i.impressions), 0) AS total_impressions,
+        COALESCE(SUM(i.clicks), 0)      AS total_clicks
+      FROM campanhasmarketingdigital."Campaign" camp
+      LEFT JOIN campanhasmarketingdigital."Insight" i
+        ON i."campaignId" = camp.id
+        AND i.date >= NOW() - ($2 || ' days')::INTERVAL
+      WHERE camp.tenant_id = $1::uuid
+      GROUP BY camp.client_id
+    `, [payload.tenantId, period]);
+
+    /* ── 2. Leads por cliente ────────────────────────────────────── */
+    const leadsQuery = await pool.query<{
+      client_id: string | null;
+      lead_count: string;
+    }>(`
+      SELECT client_id, COUNT(*)::int AS lead_count
+      FROM campanhasmarketingdigital."Lead"
+      WHERE tenant_id = $1::uuid
+        AND "clickedAt" >= NOW() - ($2 || ' days')::INTERVAL
+      GROUP BY client_id
+    `, [payload.tenantId, period]);
+
+    const leadsMap = new Map<string, number>();
+    for (const row of leadsQuery.rows) {
+      leadsMap.set(row.client_id ?? '__own__', parseInt(row.lead_count));
+    }
+
+    /* ── 3. Info dos clientes (nome + segmento) ──────────────────── */
+    const clientIds = metricsQuery.rows
+      .map(r => r.client_id)
+      .filter((id): id is string => id !== null);
+
+    let clientInfoMap = new Map<string, {
+      nome: string;
+      segment_id: string | null;
+      segment_name: string | null;
+      segment_slug: string | null;
+    }>();
+
+    if (clientIds.length > 0) {
+      const clientQuery = await pool.query<{
+        uuid: string;
+        nome: string;
+        segment_id: string | null;
+        segment_name: string | null;
+        segment_slug: string | null;
+      }>(`
+        SELECT
+          c.uuid,
+          c.nome,
+          c.segment_id,
+          s.name  AS segment_name,
+          s.slug  AS segment_slug
+        FROM public.clientes c
+        LEFT JOIN public.system_segments s ON s.id = c.segment_id
+        WHERE c.uuid = ANY($1::uuid[])
+          AND c.tenant_id = $2::uuid
+      `, [clientIds, payload.tenantId]);
+
+      for (const row of clientQuery.rows) {
+        clientInfoMap.set(row.uuid, row);
+      }
+    }
+
+    /* ── 4. Tenant info (nome + segmento para campanhas próprias) ── */
+    const tenantRow = await pool.query<{
+      nome: string;
+      segment_id: string | null;
+      segment_name: string | null;
+      segment_slug: string | null;
+    }>(`
+      SELECT
+        t.nome_empresa AS nome,
+        t.segment_id,
+        s.name  AS segment_name,
+        s.slug  AS segment_slug
+      FROM public.tenants t
+      LEFT JOIN public.system_segments s ON s.id = t.segment_id
+      WHERE t.id = $1::uuid
+    `, [payload.tenantId]);
+    const tenantInfo = tenantRow.rows[0];
+
+    /* ── 5. Benchmarks por segmento ──────────────────────────────── */
+    const segmentIds = [
+      ...new Set([
+        ...Array.from(clientInfoMap.values()).map(c => c.segment_id).filter(Boolean),
+        tenantInfo?.segment_id,
+      ].filter((id): id is string => !!id)),
+    ];
+
+    const benchmarksMap = new Map<string, {
+      cplIdeal: number | null;
+      cplCritical: number | null;
+      ctrMin: number | null;
+    }>();
+
+    if (segmentIds.length > 0) {
+      const benchQuery = await pool.query<{
+        segment_id: string;
+        metric_key: string;
+        value: string;
+      }>(`
+        SELECT segment_id::text, metric_key, value
+        FROM public.system_benchmarks
+        WHERE segment_id = ANY($1::uuid[])
+          AND metric_key IN ('cpl_ideal', 'cpl_critical', 'ctr_min')
+      `, [segmentIds]);
+
+      for (const row of benchQuery.rows) {
+        if (!benchmarksMap.has(row.segment_id)) {
+          benchmarksMap.set(row.segment_id, { cplIdeal: null, cplCritical: null, ctrMin: null });
+        }
+        const b = benchmarksMap.get(row.segment_id)!;
+        if (row.metric_key === 'cpl_ideal')    b.cplIdeal    = parseFloat(row.value);
+        if (row.metric_key === 'cpl_critical') b.cplCritical = parseFloat(row.value);
+        if (row.metric_key === 'ctr_min')      b.ctrMin      = parseFloat(row.value);
+      }
+    }
+
+    /* ── 6. Montar resposta ──────────────────────────────────────── */
+    const clients: PortfolioClient[] = [];
+
+    for (const row of metricsQuery.rows) {
+      const mapKey   = row.client_id ?? '__own__';
+      const info     = row.client_id ? clientInfoMap.get(row.client_id) : null;
+      const segId    = info?.segment_id ?? tenantInfo?.segment_id ?? null;
+      const benchmarks = segId ? benchmarksMap.get(segId) ?? { cplIdeal: null, cplCritical: null, ctrMin: null }
+                                : { cplIdeal: null, cplCritical: null, ctrMin: null };
+
+      const spend       = parseFloat(row.total_spend);
+      const impressions = parseInt(row.total_impressions);
+      const clicks      = parseInt(row.total_clicks);
+      const leads       = leadsMap.get(mapKey) ?? 0;
+      const cpl         = leads > 0 ? spend / leads : null;
+      const ctr         = impressions > 0 ? (clicks / impressions) * 100 : null;
+
+      // Filtrar por segmento se solicitado
+      if (segmentId && segId !== segmentId) continue;
+
+      clients.push({
+        clientId:   row.client_id,
+        clientName: row.client_id
+          ? (info?.nome ?? 'Cliente')
+          : (tenantInfo?.nome ?? 'Minha Empresa'),
+        segment: segId && (info?.segment_name ?? tenantInfo?.segment_name)
+          ? {
+              id:   segId,
+              name: (info?.segment_name ?? tenantInfo?.segment_name) as string,
+              slug: (info?.segment_slug ?? tenantInfo?.segment_slug) as string,
+            }
+          : null,
+        metrics: { spend, leads, cpl, ctr, impressions, clicks, campaigns: parseInt(row.campaign_count) },
+        benchmarks,
+        status: computeStatus(cpl, benchmarks.cplIdeal, benchmarks.cplCritical, spend),
+      });
+    }
+
+    // Ordena: crítico → atenção → saudável → sem dados; depois por spend desc
+    const ORDER = { critical: 0, warn: 1, ok: 2, nodata: 3 };
+    clients.sort((a, b) =>
+      (ORDER[a.status] - ORDER[b.status]) || (b.metrics.spend - a.metrics.spend)
+    );
+
+    const totalSpend = clients.reduce((s, c) => s + c.metrics.spend, 0);
+    const totalLeads = clients.reduce((s, c) => s + c.metrics.leads, 0);
+    const avgCpl     = totalLeads > 0 ? totalSpend / totalLeads : null;
+
+    const result: PortfolioResponse = {
+      period,
+      totalClients: clients.length,
+      totalSpend,
+      totalLeads,
+      avgCpl,
+      clients,
+    };
+
+    return NextResponse.json(result);
+  } catch (error: any) {
+    console.error('GET /portfolio error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

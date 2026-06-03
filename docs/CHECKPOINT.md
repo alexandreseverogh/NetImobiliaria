@@ -1,12 +1,85 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-02 (Deploy VPS — feed-cron-scheduler + docker-compose env vars para audit crons)
+> **Atualizado em:** 2026-06-02 (FASE 10 — Portfolio Dashboard + Cross-Pollination)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### FASE 10 — Portfolio Dashboard + Cross-Pollination (2026-06-02) ✅
+
+**Objetivo:** Visão consolidada de todos os clientes do tenant com métricas agregadas, benchmarks por segmento, status de saúde CPL/CTR e insights cruzados entre clientes (cross-pollination).
+
+#### Arquivos criados
+
+**API:**
+
+- **`src/app/api/admin/campanhas/portfolio/route.ts`** — `GET /api/admin/campanhas/portfolio`
+  - Agrega campanhas/insights por `client_id` (cross-schema SQL: `campanhasmarketingdigital` + `public`)
+  - Joins: `Campaign` → `Insight` (spend/impressions/clicks), `Lead` (lead_count por cliente), `public.clientes` + `public.system_segments` (nome + segmento), `public.tenants` (Minha Empresa), `public.system_benchmarks` (CPL ideal/crítico, CTR mínimo)
+  - Status calculado: spend=0 → `nodata`; cpl ≥ cplCritical → `critical`; cpl > cplIdeal → `warn`; else `ok`
+  - Ordenação: critical→warn→ok→nodata; desempate por spend desc
+  - Query params: `period` (1–365 dias, default 30) + `segmentId` (filtro opcional)
+
+- **`src/app/api/admin/campanhas/portfolio/cross-insights/route.ts`** — `GET|POST /api/admin/campanhas/portfolio/cross-insights`
+  - GET: insights baseados em regras (sem LLM)
+  - POST: adiciona narrativa LLM opcional via `getLlmClientForCampaigns()`; fallback gracioso se LLM indisponível
+  - `buildRuleBasedInsights()` gera 5 tipos de insight:
+    - `cross-01`: oportunidade de transferência de padrão CPL (ok → critical)
+    - `critical-{name}`: alerta individual por cliente em CPL crítico
+    - `nodata-01`: clientes sem campanhas ativas
+    - `ctr-01`: benchmark de CTR bom → CTR fraco
+    - `segment-{name}`: gap de CPL dentro do mesmo segmento (só se diff ≥ 20%)
+  - `topPerformers` (top 3 por CPL) + `underperformers` (critical/warn com razão textual)
+
+**Frontend:**
+
+- **`src/app/admin/campanhas/portfolio/page.tsx`** — `/admin/campanhas/portfolio`
+  - `StatusBadge`: dot colorido (verde/âmbar/vermelho/cinza) + label
+  - `CplBar`: mini barra de progresso CPL vs ideal/crítico
+  - `SummaryCard`: 4 KPI cards (total investido, total leads, CPL médio, clientes ativos)
+  - `ColHeader`: colunas ordenáveis (clientName, spend, leads, cpl, status)
+  - Filtro por segmento (dinâmico, extraído dos dados) + seletor de período (7/14/30/60/90 dias)
+  - Aviso: "Status usa benchmark de CADA cliente — NÃO compare CPL absoluto entre segmentos"
+  - Link para `/admin/campanhas/portfolio/cross-insights`
+
+- **`src/app/admin/campanhas/portfolio/cross-insights/page.tsx`** — `/admin/campanhas/portfolio/cross-insights`
+  - `InsightCard`: colapsável, cor por tipo (vermelho=warning, emerald=opportunity, violet=pattern)
+  - `PerformerCard`: ranking com medalhas 🥇🥈🥉
+  - Grupo de insights por tipo: warnings primeiro, depois opportunities, patterns
+  - Card de narrativa LLM (gradiente violeta) quando `data.narrative` disponível
+  - Botão "Gerar análise IA" → POST endpoint → atualiza narrative
+  - Navegação ← de volta para portfolio
+
+**DB — Sidebar:**
+
+- **`prisma/migration-2026-06-02-fase10-portfolio-sidebar.sql`**
+  - `system_features`: Portfolio (sort_order=8) + Cross-Insights (sort_order=9), category_id=30
+  - `permissions`: read + execute para cada feature
+  - `role_permissions`: espelha roles da auditoria (41=Master, 42/47=Admin)
+  - `tenant_feature_overrides`: provisiona para todos os tenants que têm auditoria
+
+**marketing-api.ts:**
+- Tipos `PortfolioClient`, `PortfolioData`, `CrossInsight`, `CrossInsightsData` adicionados
+- Funções `getPortfolio()`, `getCrossInsights()`, `generateCrossInsightsNarrative()` adicionadas
+
+#### Fixes incluídos nesta sessão
+
+**Fix — Tracking Health 500 (3 causas):**
+1. `checkPixelConfigured` usava `campanhasmarketingdigital."clientes"` → corrigido para `public.clientes` (key `uuid`)
+2. `checkAccessToken` referenciava `meta_token_expires_at` (não existe) → corrigido para `tnc.expires_at`; JOIN desnecessário removido
+3. `clientId='own'` passado como UUID para Prisma → sanitizado em dashboard page + GET e POST da rota
+
+**Fix — `system_benchmarks` sem coluna `is_active`:**
+- Removido `AND is_active = true` das queries de portfolio e cross-insights
+
+**FASE 10 — 100% CONCLUÍDA** ✅
+
+**Pendente:** Executar a migração SQL na VPS (`migration-2026-06-02-fase10-portfolio-sidebar.sql`)
+
+---
 
 ### Deploy VPS — Audit Crons registrados no scheduler (2026-06-02)
 

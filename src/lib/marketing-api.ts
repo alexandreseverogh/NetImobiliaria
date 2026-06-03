@@ -540,4 +540,78 @@ export const getCalibrationInsights = (params?: {
   '/insights/ai', { params }
 ).then(r => r.data);
 
+/* ──────────────────────────────────────────────────────────────
+   FASE 10 — Portfolio Dashboard + Cross-Pollination
+────────────────────────────────────────────────────────────── */
+
+export interface PortfolioMetrics {
+  spend: number;
+  leads: number;
+  cpl: number | null;
+  ctr: number | null;
+  impressions: number;
+  clicks: number;
+  campaigns: number;
+}
+
+export interface PortfolioBenchmarks {
+  cplIdeal: number | null;
+  cplCritical: number | null;
+  ctrMin: number | null;
+}
+
+export interface PortfolioClient {
+  clientId: string | null;
+  clientName: string;
+  segment: { id: string; name: string; slug: string } | null;
+  metrics: PortfolioMetrics;
+  benchmarks: PortfolioBenchmarks;
+  status: 'ok' | 'warn' | 'critical' | 'nodata';
+}
+
+export interface PortfolioData {
+  period: number;
+  totalClients: number;
+  totalSpend: number;
+  totalLeads: number;
+  avgCpl: number | null;
+  clients: PortfolioClient[];
+}
+
+export const getPortfolio = (params?: {
+  period?: number;
+  segmentId?: string;
+}) => api.get<PortfolioData>('/campanhas/portfolio', { params }).then(r => r.data);
+
+/* ── Cross-Insights ── */
+
+export type CrossInsightType = 'opportunity' | 'warning' | 'pattern';
+
+export interface CrossInsight {
+  id: string;
+  type: CrossInsightType;
+  title: string;
+  description: string;
+  sourceClients: string[];
+  targetClients: string[];
+  metric?: string;
+  improvement?: string;
+}
+
+export interface CrossInsightsData {
+  generatedAt: string;
+  period: number;
+  totalClients: number;
+  narrative: string | null;
+  insights: CrossInsight[];
+  topPerformers: { clientName: string; cpl: number | null; spend: number }[];
+  underperformers: { clientName: string; cpl: number | null; spend: number; reason: string }[];
+}
+
+export const getCrossInsights = (params?: { period?: number }) =>
+  api.get<CrossInsightsData>('/campanhas/portfolio/cross-insights', { params }).then(r => r.data);
+
+export const generateCrossInsightsNarrative = (params?: { period?: number }) =>
+  api.post<CrossInsightsData>('/campanhas/portfolio/cross-insights', params ?? {}).then(r => r.data);
+
 export default api;
