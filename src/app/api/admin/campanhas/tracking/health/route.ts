@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const clientId = searchParams.get('clientId') || null;
+  const rawClientId = searchParams.get('clientId');
+  // 'own' significa "Minha Empresa" (sem clientId); não é um UUID válido
+  const clientId = (rawClientId && rawClientId !== 'own') ? rawClientId : null;
 
   try {
     const history = await getTrackingHealthHistory(payload.tenantId, 30, clientId);
@@ -64,7 +66,9 @@ export async function POST(request: NextRequest) {
   let clientId: string | null = null;
   try {
     const body = await request.json().catch(() => ({}));
-    clientId = body.clientId ?? null;
+    const raw = body.clientId ?? null;
+    // 'own' significa "Minha Empresa" (sem clientId); não é um UUID válido
+    clientId = (raw && raw !== 'own') ? raw : null;
   } catch { /* ignore */ }
 
   // URL base para o check do endpoint (usa PUBLIC_URL ou o host da request)

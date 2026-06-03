@@ -577,7 +577,7 @@ export function DashboardPage() {
                 </div>
               </div>
               <TrackingHealthWidget
-                clientId={clientFilter !== 'all' ? clientFilter as string : null}
+                clientId={(clientFilter && clientFilter !== 'all' && clientFilter !== 'own') ? clientFilter as string : null}
               />
             </div>
 
