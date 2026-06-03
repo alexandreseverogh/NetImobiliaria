@@ -262,7 +262,7 @@ export function DashboardPage() {
             <h1 className={`text-3xl font-black tracking-tight ${tx}`}>Dashboard</h1>
             <p className={`mt-1 text-sm font-medium ${txMuted}`}>{periodLabel}</p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-start gap-3 flex-wrap">
             <ClientSelector
               value={clientFilter}
               onChange={setClientFilter}
@@ -284,7 +284,8 @@ export function DashboardPage() {
             >
               {isDark ? <><SunIcon className="h-3.5 w-3.5" /> Claro</> : <><MoonIcon className="h-3.5 w-3.5" /> Escuro</>}
             </button>
-            <div className="flex flex-col gap-1.5 items-stretch">
+            {/* Sync Meta + Ajuda empilhados */}
+            <div className="flex flex-col gap-1.5">
               <ExecuteGuard resource="dashboard-campanhas">
                 <button onClick={handleSync} disabled={syncing}
                   className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-indigo-500/25">
@@ -292,7 +293,6 @@ export function DashboardPage() {
                   {syncing ? 'Sincronizando...' : 'Sync Meta'}
                 </button>
               </ExecuteGuard>
-              {/* Help button — abaixo do Sync Meta */}
               <DashboardHelpButton isDark={isDark} />
             </div>
           </div>
