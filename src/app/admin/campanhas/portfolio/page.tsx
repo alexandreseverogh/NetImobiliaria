@@ -12,6 +12,7 @@ import {
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { formatCurrency, formatNumber } from '@/lib/marketing-utils';
 import type { PortfolioResponse, PortfolioClient, PortfolioClientCampaign } from '@/app/api/admin/campanhas/portfolio/route';
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
 /* ── helpers ──────────────────────────────────────────────────────── */
 
@@ -230,6 +231,11 @@ export default function PortfolioPage() {
   const [sortField,  setSortField]  = useState<SortField>('spend');
   const [sortDir,    setSortDir]    = useState<SortDir>('desc');
 
+  // client selector — padrão 'all' para portfolio (visão consolidada)
+  const { clients: selectorClients, loading: clientsLoading, clientFilter, setClientFilter } =
+    useClientSelector('portfolio');
+  useEffect(() => { setClientFilter('all'); }, []);  // override do padrão 'own' do hook
+
   // expandable rows state
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   // analytics modal
@@ -280,6 +286,14 @@ export default function PortfolioPage() {
       return mul * (ORDER[a.status] - ORDER[b.status]);
     }
     return 0;
+  });
+
+  /* ── filtro de cliente ─────────────────────────────────────────── */
+
+  const filtered = sorted.filter(c => {
+    if (clientFilter === 'all') return true;
+    if (clientFilter === 'own') return c.clientId === null;
+    return c.clientId === clientFilter;
   });
 
   /* ── segmentos únicos para filtro ──────────────────────────────── */
@@ -351,6 +365,15 @@ export default function PortfolioPage() {
               </div>
             )}
 
+            {/* Seletor de cliente */}
+            <ClientSelector
+              value={clientFilter}
+              onChange={setClientFilter}
+              clients={selectorClients}
+              loading={clientsLoading}
+              storageKey="portfolio"
+            />
+
             {/* Período */}
             <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-2">
               <select
@@ -399,8 +422,8 @@ export default function PortfolioPage() {
 
         {/* ── summary cards ──────────────────────────────────────────── */}
         {data && (() => {
-          const ownRow      = data.clients.find(c => c.clientId === null);
-          const clientRows  = data.clients.filter(c => c.clientId !== null);
+          const ownRow      = filtered.find(c => c.clientId === null);
+          const clientRows  = filtered.filter(c => c.clientId !== null);
           const clientSpend = clientRows.reduce((s, c) => s + c.metrics.spend, 0);
           const clientLeads = clientRows.reduce((s, c) => s + c.metrics.leads, 0);
           const clientCpl   = clientLeads > 0 ? clientSpend / clientLeads : null;
@@ -440,13 +463,13 @@ export default function PortfolioPage() {
               {/* Clientes */}
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-1">
-                  👥 Clientes ({data.totalClients})
+                  👥 Clientes ({clientRows.length})
                 </p>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   <SummaryCard
                     icon={<UsersIcon className="h-6 w-6 text-slate-600" />}
                     label="Clientes ativos"
-                    value={String(data.totalClients)}
+                    value={String(clientRows.length)}
                     sub={`no período de ${period} dias`}
                     color="bg-slate-50"
                   />
@@ -483,7 +506,7 @@ export default function PortfolioPage() {
           {data && (
             <div className="flex items-center gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 flex-wrap">
               {(['ok', 'warn', 'critical', 'nodata'] as const).map(s => {
-                const count = data.clients.filter(c => c.status === s).length;
+                const count = filtered.filter(c => c.status === s).length;
                 if (count === 0) return null;
                 const labels = { ok: '🟢 Saudável', warn: '🟡 Atenção', critical: '🔴 Crítico', nodata: '⚪ Sem dados' };
                 return <span key={s}><b>{count}</b> {labels[s]}</span>;
@@ -498,17 +521,17 @@ export default function PortfolioPage() {
                 <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />
               ))}
             </div>
-          ) : sorted.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="p-16 text-center">
               <BriefcaseIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 font-medium">Nenhum cliente com campanhas no período</p>
-              <p className="text-gray-400 text-sm mt-1">Lance campanhas para clientes para visualizar o portfolio</p>
+              <p className="text-gray-500 font-medium">Nenhum resultado para este filtro</p>
+              <p className="text-gray-400 text-sm mt-1">Tente selecionar outro cliente ou período</p>
             </div>
           ) : (() => {
-            const ownRows    = sorted.filter(c => c.clientId === null);
-            const clientRows = sorted.filter(c => c.clientId !== null);
+            const ownRows    = filtered.filter(c => c.clientId === null);
+            const clientRows = filtered.filter(c => c.clientId !== null);
 
-            const renderCampaignSubRows = (client: typeof sorted[0]) => {
+            const renderCampaignSubRows = (client: typeof filtered[0]) => {
               const key = client.clientId ?? '__own__';
               if (!expandedClients.has(key)) return null;
               if (client.campaigns.length === 0) {
@@ -587,7 +610,7 @@ export default function PortfolioPage() {
               ));
             };
 
-            const renderRow = (client: typeof sorted[0], i: number, isOwn: boolean) => {
+            const renderRow = (client: typeof filtered[0], i: number, isOwn: boolean) => {
               const key       = client.clientId ?? '__own__';
               const isExpanded = expandedClients.has(key);
               const hasCamps  = client.campaigns.length > 0;
@@ -730,7 +753,7 @@ export default function PortfolioPage() {
         {/* ── rodapé ─────────────────────────────────────────────────── */}
         {data && (
           <p className="text-center text-xs text-gray-400 mt-6">
-            Portfolio atualizado agora · {period} dias · {data.totalClients} cliente{data.totalClients !== 1 ? 's' : ''}
+            Portfolio atualizado agora · {period} dias · {filtered.filter(c => c.clientId !== null).length} cliente{filtered.filter(c => c.clientId !== null).length !== 1 ? 's' : ''}{clientFilter !== 'all' ? ' (filtrado)' : ''}
           </p>
         )}
       </div>
