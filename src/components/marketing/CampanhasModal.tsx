@@ -21,6 +21,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
+import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
+import { PencilIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -68,6 +70,8 @@ interface CampaignData {
   createdAt: string;
   updatedAt: string;
   adSets: AdSetData[];
+  // FASE 14 — ângulo declarado
+  declaredAngle?: string | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -238,6 +242,67 @@ function FunnelBadge({ stage }: { stage: string }) {
   );
 }
 
+// ── Angle Badge (FASE 14) — badge + edição inline ─────────────────
+
+function AngleBadge({ campaignId, angle, onUpdated }: {
+  campaignId: string;
+  angle?: string | null;
+  onUpdated: (newAngle: string | null) => void;
+}) {
+  const [editing,  setEditing]  = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [selected, setSelected] = useState(angle ?? '');
+
+  async function save() {
+    setSaving(true);
+    try {
+      await adminFetch(`/api/admin/campanhas/campaigns/${campaignId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ declaredAngle: selected || null }),
+      });
+      onUpdated(selected || null);
+      setEditing(false);
+    } catch { /* silencioso */ } finally { setSaving(false); }
+  }
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <select
+          value={selected}
+          onChange={e => setSelected(e.target.value)}
+          autoFocus
+          className="text-[10px] font-semibold border border-violet-300 rounded-md px-1.5 py-0.5 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-violet-400"
+        >
+          <option value="">IA infere</option>
+          {ANGLE_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="p-0.5 rounded text-violet-600 hover:bg-violet-50"
+        >
+          <CheckIcon className="h-3.5 w-3.5" />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border bg-violet-50 text-violet-700 border-violet-200 cursor-pointer hover:bg-violet-100 transition-colors"
+      title="Clique para editar ângulo"
+      onClick={() => { setSelected(angle ?? ''); setEditing(true); }}
+    >
+      🎯 {angle ? angleLabel(angle) : 'IA infere'}
+      <PencilIcon className="h-2.5 w-2.5 text-violet-400" />
+    </span>
+  );
+}
+
 // ── Creative Image Thumb ──────────────────────────────────────────
 
 function CreativeThumb({ url, index }: { url: string; index: number }) {
@@ -404,6 +469,8 @@ function ScheduleDisplay({
 
 function CampaignCard({ campaign, index }: { campaign: CampaignData; index: number }) {
   const [interestsExpanded, setInterestsExpanded] = useState(false);
+  // FASE 14 — ângulo editável localmente sem recarregar a lista
+  const [localAngle, setLocalAngle] = useState<string | null>(campaign.declaredAngle ?? null);
   const adSet    = campaign.adSets[0];
   const allAds   = campaign.adSets.flatMap(as => as.ads);
   const locations = adSet ? extractLocations(adSet.locations) : ['Brasil'];
@@ -427,6 +494,12 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
             {campaign.lifecycleStatus && campaign.lifecycleStatus !== campaign.status && (
               <StatusBadge status={campaign.lifecycleStatus} />
             )}
+            {/* FASE 14 — ângulo de comunicação (sempre visível, editável inline) */}
+            <AngleBadge
+              campaignId={campaign.id}
+              angle={localAngle}
+              onUpdated={setLocalAngle}
+            />
             {campaign.funnelStage && <FunnelBadge stage={campaign.funnelStage} />}
           </div>
           {/* Network chip + Meta ID */}

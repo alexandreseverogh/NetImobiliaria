@@ -8,6 +8,31 @@
 
 ## Última tarefa concluída
 
+### FASE 14c — Ciclo Visual de Ângulo (2026-06-03) ✅
+
+**Objetivo:** fechar o ciclo de calibração com superfície visual — widget de
+performance por ângulo, badge editável nos cards de campanha e API dedicada.
+
+**Arquivos novos:**
+- `src/app/api/admin/campanhas/portfolio/angle-insights/route.ts` — `GET
+  ?period=N&clientId=X&narrative=true` retorna `AngleInsightsResult` +
+  narrativa LLM opcional (template `angle_performance_insight`).
+
+**Arquivos modificados:**
+- `src/app/api/admin/campanhas/campaigns/[id]/route.ts` — novo `PATCH`: atualiza
+  `declaredAngle` em campanhas existentes via `normalizeAngle()`.
+- `src/app/admin/campanhas/portfolio/cross-insights/page.tsx` — adicionada seção
+  "Performance por Ângulo" (FASE 14) com: `AngleWidget` (auto-fetch do período
+  selecionado), `AngleCplBar` (barra CPL com cor emerald/amber/red), cards
+  vencedor/perdedor, tabela por ângulo (spend vertical bar, CPL, CTR, camps),
+  botão "Análise IA" que chama `?narrative=true`.
+- `src/components/marketing/CampanhasModal.tsx` — `CampaignData` ganha
+  `declaredAngle?`; novo `AngleBadge` com edição inline (select + CheckIcon PATCH);
+  `CampaignCard` usa `localAngle` state para atualização sem reload; badge aparece
+  em todas as campanhas junto a StatusBadge/FunnelBadge.
+
+---
+
 ### Fix — AnimatePresence mode="wait" removido (2026-06-03) ✅
 
 **Problema:** `AnimatePresence mode="wait"` em `CampaignWizard.tsx` aguardava a exit
