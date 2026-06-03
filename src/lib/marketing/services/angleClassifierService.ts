@@ -27,7 +27,7 @@ export async function getUnclassifiedCount(tenantId: string): Promise<number> {
   const { rows } = await pool.query<{ count: number }>(
     `SELECT COUNT(*)::int AS count
      FROM campanhasmarketingdigital."Campaign"
-     WHERE "tenantId" = $1
+     WHERE tenant_id = $1
        AND (declared_angle IS NULL OR declared_angle = '')`,
     [tenantId],
   );
@@ -44,10 +44,10 @@ export async function classifyCampaignAngles(
   const { rows: campaigns } = await pool.query<{ id: string; name: string }>(
     hasIds
       ? `SELECT id, name FROM campanhasmarketingdigital."Campaign"
-         WHERE "tenantId" = $1 AND id = ANY($2::uuid[])
+         WHERE tenant_id = $1 AND id = ANY($2::uuid[])
          ORDER BY "createdAt" DESC`
       : `SELECT id, name FROM campanhasmarketingdigital."Campaign"
-         WHERE "tenantId" = $1
+         WHERE tenant_id = $1
            AND (declared_angle IS NULL OR declared_angle = '')
          ORDER BY "createdAt" DESC
          LIMIT 200`,
@@ -128,7 +128,7 @@ export async function saveAngleClassifications(
          SET declared_angle = $1,
              angle_source    = 'llm_auto',
              "updatedAt"     = now()
-         WHERE id = $2 AND "tenantId" = $3`,
+         WHERE id = $2 AND tenant_id = $3`,
         [normalized, id, tenantId],
       );
       if ((rowCount ?? 0) > 0) saved++;

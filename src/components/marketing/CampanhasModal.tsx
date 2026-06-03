@@ -871,6 +871,12 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
   // FASE 14/14d — ângulo + fonte editáveis localmente sem recarregar a lista
   const [localAngle, setLocalAngle]             = useState<string | null>(campaign.declaredAngle ?? null);
   const [localAngleSource, setLocalAngleSource] = useState<string | null>(campaign.angleSource ?? null);
+
+  // Sincroniza quando fetchCampaigns atualiza a prop (ex: após classificação em lote)
+  useEffect(() => {
+    setLocalAngle(campaign.declaredAngle ?? null);
+    setLocalAngleSource(campaign.angleSource ?? null);
+  }, [campaign.declaredAngle, campaign.angleSource]);
   const adSet    = campaign.adSets[0];
   const allAds   = campaign.adSets.flatMap(as => as.ads);
   const locations = adSet ? extractLocations(adSet.locations) : ['Brasil'];
