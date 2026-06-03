@@ -245,8 +245,8 @@ export default function NovaCampanhaPage() {
 
   /* ── Phase 1: page ──────────────────────────────────── */
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-gray-50 px-4 py-6">
+      <div className="w-full">
 
         {/* ── Header ── */}
         <div className="mb-8">

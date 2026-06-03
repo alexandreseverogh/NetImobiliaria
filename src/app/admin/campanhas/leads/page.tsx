@@ -129,8 +129,8 @@ export function LeadsPage() {
 
   /* ── render ── */
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="max-w-6xl mx-auto">
+    <div className="px-4 py-6 bg-gray-50 min-h-screen">
+      <div className="w-full">
 
         {/* Header */}
         <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">

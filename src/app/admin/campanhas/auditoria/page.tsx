@@ -235,8 +235,8 @@ export default function AuditoriaPage() {
     `R$${n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="max-w-5xl mx-auto">
+    <div className="px-4 py-6 bg-gray-50 min-h-screen">
+      <div className="w-full">
 
         {/* ── Header ───────────────────────────────────────────── */}
         <div className="mb-6">
