@@ -1,11 +1,22 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { getLeads, getLeadStats, getCampaigns, type LeadData, type Campaign } from '@/lib/marketing-api';
 import { formatDate } from '@/lib/marketing-utils';
 import { UsersIcon, PhoneIcon, ChartBarIcon, MegaphoneIcon } from '@heroicons/react/24/outline';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
+
+const BAR_COLORS = [
+  '#6366f1', // indigo
+  '#10b981', // emerald
+  '#f59e0b', // amber
+  '#8b5cf6', // violet
+  '#06b6d4', // cyan
+  '#ec4899', // pink
+  '#ef4444', // red
+  '#84cc16', // lime
+];
 
 const TOOLTIP_STYLE = {
   contentStyle: {
@@ -176,7 +187,11 @@ export function LeadsPage() {
                     <XAxis dataKey="name" stroke="#9ca3af" fontSize={10} tickLine={false} />
                     <YAxis stroke="#9ca3af" fontSize={11} tickLine={false} axisLine={false} />
                     <Tooltip {...TOOLTIP_STYLE} />
-                    <Bar dataKey="leads" fill="#6366f1" radius={[6, 6, 0, 0]} name="Leads" />
+                    <Bar dataKey="leads" radius={[6, 6, 0, 0]} name="Leads">
+                      {campaignLeads.map((_, i) => (
+                        <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
