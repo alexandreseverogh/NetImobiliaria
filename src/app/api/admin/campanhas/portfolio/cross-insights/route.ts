@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import pool from '@/lib/database/connection';
+import { invokeForContext } from '@/lib/intelligence/llmInvoker';
 
 export const dynamic = 'force-dynamic';
 
@@ -338,30 +339,35 @@ export async function POST(request: NextRequest) {
     );
     const data: CrossInsightsResponse = await dataRes.json();
 
-    // Tenta gerar narrativa LLM
+    // Tenta gerar narrativa LLM via template cross_pollination_insights
     try {
-      const { getLlmClientForCampaigns } = await import('@/lib/marketing/services/llmClient');
-      const llmClient = await getLlmClientForCampaigns();
+      const topPerformersText = data.topPerformers.length > 0
+        ? data.topPerformers.map(c =>
+            `- ${c.clientName}: CPL R$${c.cpl?.toFixed(2) ?? 'N/A'}, Investimento R$${c.spend.toFixed(2)}`
+          ).join('\n')
+        : '- Sem dados suficientes no período';
 
-      const prompt = `Você é um especialista sênior em tráfego pago gerenciando um portfólio de ${data.totalClients} clientes.
+      const criticalAlertsText = data.underperformers.length > 0
+        ? data.underperformers.map(c => `- ${c.clientName}: ${c.reason}`).join('\n')
+        : '- Nenhum cliente em estado crítico';
 
-DADOS DO PERÍODO (${period} dias):
-${data.topPerformers.map(c =>
-  `- ${c.clientName}: CPL R$${c.cpl?.toFixed(2) ?? 'N/A'}, Investimento R$${c.spend.toFixed(2)}`
-).join('\n')}
+      const patternsText = data.insights.length > 0
+        ? data.insights.map(i => `- [${i.type.toUpperCase()}] ${i.title}`).join('\n')
+        : '- Nenhum padrão identificado no período';
 
-ALERTAS CRÍTICOS:
-${data.underperformers.length > 0
-  ? data.underperformers.map(c => `- ${c.clientName}: ${c.reason}`).join('\n')
-  : '- Nenhum cliente em estado crítico'}
-
-PADRÕES IDENTIFICADOS:
-${data.insights.map(i => `- [${i.type.toUpperCase()}] ${i.title}`).join('\n')}
-
-Em 3-4 frases concisas, destaque o padrão mais relevante para transferência entre clientes e a ação prioritária desta semana. Seja direto e prático.`;
-
-      const narrativeResult = await llmClient.complete(prompt);
-      data.narrative = narrativeResult;
+      data.narrative = await invokeForContext({
+        templateKey: 'cross_pollination_insights',
+        tenantId:    payload.tenantId,
+        clientId:    null,
+        variables: {
+          total_clients:  String(data.totalClients),
+          period:         String(period),
+          top_performers: topPerformersText,
+          critical_alerts: criticalAlertsText,
+          patterns:        patternsText,
+        },
+        maxTokens: 400,
+      });
     } catch (llmErr: any) {
       console.warn('[cross-insights] LLM não disponível:', llmErr.message);
       // continua sem narrativa
