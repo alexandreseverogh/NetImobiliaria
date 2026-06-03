@@ -1,12 +1,49 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-02 (FASE 10 — Portfolio Dashboard + Cross-Pollination)
+> **Atualizado em:** 2026-06-03 (Option B — Portfolio: linhas expansíveis + modal analítico por campanha)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Option B — Portfolio: linhas expansíveis + modal analítico (2026-06-03) ✅
+
+**Objetivo:** Ao clicar em `[▶]` numa linha de cliente do Portfolio, expandir sub-linhas com campanhas individuais; cada sub-linha tem botão `[📊 Analisar]` que abre um modal com as métricas daquela campanha.
+
+#### Arquivos modificados
+
+**`src/app/api/admin/campanhas/portfolio/route.ts`**
+- Novo tipo exportado: `PortfolioClientCampaign` (id, name, externalStatus, metrics, health)
+- `PortfolioClient` agora inclui `campaigns: PortfolioClientCampaign[]`
+- Adicionadas 2 novas queries SQL:
+  - Query 2b: métricas por campanha (spend/impressions/clicks agrupados por `camp.id`)
+  - Query 2c: leads por `campaignId` (tabela `Lead`)
+- Bloco 2d: agrupa as campanhas num `Map<clientKey, PortfolioClientCampaign[]>` e anexa ao client correspondente
+
+**`src/app/admin/campanhas/portfolio/page.tsx`**
+- Novo estado: `expandedClients: Set<string>` — controla quais linhas estão expandidas
+- Novo estado: `analyticsModal: ModalState | null` — controla o modal analítico
+- `toggleExpand(key)` — alterna expansão de uma linha
+- `renderCampaignSubRows(client)` — renderiza sub-linhas animadas (Framer Motion) com:
+  - `HealthDot` colorido por health
+  - Nome da campanha + status badge (ACTIVE/PAUSED)
+  - Spend / Leads + CTR / CPL
+  - Botão `[📊 Analisar]`
+- `renderRow` atualizado: chevron toggle `[▶/▼]` integrado na coluna Cliente
+- `CampaignAnalyticsModal` (inline): overlay com backdrop blur
+  - 6 cards de métricas: Investimento, Leads, CPL, Impressões, Cliques, CTR
+  - Barra CPL vs benchmark (quando disponível)
+  - Link "Ver dashboard completo →" para `/admin/campanhas/dashboard?campaignId=X`
+
+#### Comportamento
+- Linhas sem campanhas: chevron desabilitado (cor cinza, cursor default)
+- Linhas com campanhas: chevron clicável (▶ expandir / ▼ recolher)
+- Modal: abre instantaneamente (dados já na resposta do portfolio, sem fetch extra)
+- Modal fecha ao clicar fora (backdrop) ou no X
+
+---
 
 ### FASE 10 — Portfolio Dashboard + Cross-Pollination (2026-06-02) ✅
 

@@ -16,6 +16,21 @@ export const dynamic = 'force-dynamic';
 
 /* ── tipos ──────────────────────────────────────────────────────── */
 
+export interface PortfolioClientCampaign {
+  id:             string;
+  name:           string;
+  externalStatus: string;
+  metrics: {
+    spend:       number;
+    leads:       number;
+    cpl:         number | null;
+    impressions: number;
+    clicks:      number;
+    ctr:         number | null;
+  };
+  health: 'ok' | 'warn' | 'critical' | 'nodata';
+}
+
 export interface PortfolioClient {
   clientId:    string | null;
   clientName:  string;
@@ -34,7 +49,8 @@ export interface PortfolioClient {
     cplCritical: number | null;
     ctrMin:      number | null;
   };
-  status: 'ok' | 'warn' | 'critical' | 'nodata';
+  status:    'ok' | 'warn' | 'critical' | 'nodata';
+  campaigns: PortfolioClientCampaign[];
 }
 
 export interface PortfolioResponse {
@@ -116,6 +132,72 @@ export async function GET(request: NextRequest) {
       leadsMap.set(row.client_id ?? '__own__', parseInt(row.lead_count));
     }
 
+    /* ── 2b. Métricas por campanha individual ───────────────────────── */
+    const campaignMetricsQuery = await pool.query<{
+      campaign_id:     string;
+      campaign_name:   string;
+      campaign_status: string;
+      client_id:       string | null;
+      total_spend:     string;
+      total_impressions: string;
+      total_clicks:    string;
+    }>(`
+      SELECT
+        camp.id              AS campaign_id,
+        camp.name            AS campaign_name,
+        camp.status          AS campaign_status,
+        camp.client_id,
+        COALESCE(SUM(i.spend), 0)       AS total_spend,
+        COALESCE(SUM(i.impressions), 0) AS total_impressions,
+        COALESCE(SUM(i.clicks), 0)      AS total_clicks
+      FROM campanhasmarketingdigital."Campaign" camp
+      LEFT JOIN campanhasmarketingdigital."Insight" i
+        ON i."campaignId" = camp.id
+        AND i.date >= NOW() - ($2 || ' days')::INTERVAL
+      WHERE camp.tenant_id = $1::uuid
+      GROUP BY camp.id, camp.name, camp.status, camp.client_id
+      ORDER BY SUM(i.spend) DESC NULLS LAST
+    `, [payload.tenantId, period]);
+
+    /* ── 2c. Leads por campanha ─────────────────────────────────────── */
+    const leadsPerCampaignQuery = await pool.query<{
+      campaign_id: string;
+      lead_count:  string;
+    }>(`
+      SELECT "campaignId" AS campaign_id, COUNT(*)::int AS lead_count
+      FROM campanhasmarketingdigital."Lead"
+      WHERE tenant_id = $1::uuid
+        AND "clickedAt" >= NOW() - ($2 || ' days')::INTERVAL
+        AND "campaignId" IS NOT NULL
+      GROUP BY "campaignId"
+    `, [payload.tenantId, period]);
+
+    const leadsByCampaignMap = new Map<string, number>();
+    for (const r of leadsPerCampaignQuery.rows) {
+      leadsByCampaignMap.set(r.campaign_id, parseInt(r.lead_count));
+    }
+
+    /* ── 2d. Agrupar campanhas por cliente ──────────────────────────── */
+    const campaignsByClient = new Map<string, PortfolioClientCampaign[]>();
+    for (const r of campaignMetricsQuery.rows) {
+      const key      = r.client_id ?? '__own__';
+      const cSpend   = parseFloat(r.total_spend);
+      const cImpr    = parseInt(r.total_impressions);
+      const cClicks  = parseInt(r.total_clicks);
+      const cLeads   = leadsByCampaignMap.get(r.campaign_id) ?? 0;
+      const cCpl     = cLeads > 0 ? cSpend / cLeads : null;
+      const cCtr     = cImpr > 0  ? (cClicks / cImpr) * 100 : null;
+      const camp: PortfolioClientCampaign = {
+        id:             r.campaign_id,
+        name:           r.campaign_name,
+        externalStatus: r.campaign_status,
+        metrics:        { spend: cSpend, leads: cLeads, cpl: cCpl, impressions: cImpr, clicks: cClicks, ctr: cCtr },
+        health:         computeStatus(cCpl, null, null, cSpend),
+      };
+      if (!campaignsByClient.has(key)) campaignsByClient.set(key, []);
+      campaignsByClient.get(key)!.push(camp);
+    }
+
     /* ── 3. Info dos clientes (nome + segmento) ──────────────────── */
     const clientIds = metricsQuery.rows
       .map(r => r.client_id)
@@ -161,7 +243,7 @@ export async function GET(request: NextRequest) {
       segment_slug: string | null;
     }>(`
       SELECT
-        t.nome_empresa AS nome,
+        t.name AS nome,
         t.segment_id,
         s.name  AS segment_name,
         s.slug  AS segment_slug
@@ -242,7 +324,8 @@ export async function GET(request: NextRequest) {
           : null,
         metrics: { spend, leads, cpl, ctr, impressions, clicks, campaigns: parseInt(row.campaign_count) },
         benchmarks,
-        status: computeStatus(cpl, benchmarks.cplIdeal, benchmarks.cplCritical, spend),
+        status:    computeStatus(cpl, benchmarks.cplIdeal, benchmarks.cplCritical, spend),
+        campaigns: campaignsByClient.get(mapKey) ?? [],
       });
     }
 
@@ -258,7 +341,7 @@ export async function GET(request: NextRequest) {
 
     const result: PortfolioResponse = {
       period,
-      totalClients: clients.length,
+      totalClients: clients.filter(c => c.clientId !== null).length,
       totalSpend,
       totalLeads,
       avgCpl,
