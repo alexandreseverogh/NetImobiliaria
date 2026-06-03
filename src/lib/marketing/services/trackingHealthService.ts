@@ -270,8 +270,8 @@ async function checkPixelConfigured(
   if (clientId) {
     const r = await prisma.$queryRaw<{ pixel_id: string | null }[]>`
       SELECT pixel_id
-      FROM campanhasmarketingdigital."clientes"
-      WHERE id = ${clientId}::uuid
+      FROM public.clientes
+      WHERE uuid = ${clientId}::uuid
       LIMIT 1
     `;
     if (r[0]?.pixel_id) {
@@ -320,9 +320,8 @@ async function checkAccessToken(
     SELECT
       (credentials->>'access_token') IS NOT NULL AND
       (credentials->>'access_token') <> ''        AS has_token,
-      meta_token_expires_at::text                  AS expires_at
+      tnc.expires_at::text                         AS expires_at
     FROM public.tenant_network_credentials tnc
-    JOIN public.tenants t ON t.id = tnc.tenant_id
     WHERE tnc.tenant_id = ${tenantId}::uuid
       AND tnc.network_id = (SELECT id FROM public.ad_networks WHERE code = 'meta' LIMIT 1)
     LIMIT 1
