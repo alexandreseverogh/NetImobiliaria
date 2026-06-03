@@ -16,6 +16,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Pool } from 'pg';
+import { resolvePromptTemplate } from '@/lib/intelligence/promptResolver';
 
 let _pool: Pool | null = null;
 function getPool(): Pool {
@@ -47,23 +48,10 @@ const EMPTY_RESULT: CreativeAnalysisResult = {
   key_visual_elements: [], confidence: 0,
 };
 
-const VISION_PROMPT = `Você é um especialista em análise de criativos para anúncios de performance digital.
-Analise esta imagem e retorne APENAS um JSON válido, sem markdown, sem texto extra.
-
-{
-  "has_people": boolean,
-  "has_property": boolean,
-  "has_text_overlay": boolean,
-  "is_ugc_style": boolean,
-  "is_corporate_style": boolean,
-  "hook_type": "urgency|curiosity|social_proof|benefit|story|problem|other",
-  "emotional_tone": "aspirational|fear|joy|trust|excitement|neutral",
-  "angle": "investment|lifestyle|family|price|urgency|social|luxury|other",
-  "cta_style": "direct|soft|question|command|none",
-  "scene_description": "descrição objetiva da cena em 1 frase",
-  "key_visual_elements": ["elemento1", "elemento2"],
-  "confidence": 0.85
-}`;
+/** Substitui {{variavel}} pelo valor correspondente no mapa. */
+function applyVariables(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
+}
 
 // ── Get LLM config (lê a linha global do Master) ──────────────────────────────
 
@@ -107,6 +95,7 @@ async function callVisionLlm(
   imageBase64: string,
   mimeType: string,
   cfg: Awaited<ReturnType<typeof getLlmConfig>>,
+  visionPrompt: string,
 ): Promise<CreativeAnalysisResult> {
   const { provider, model, apiKey, baseUrl } = cfg;
 
@@ -123,7 +112,7 @@ async function callVisionLlm(
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: mimeType as any, data: imageBase64 } },
-          { type: 'text', text: VISION_PROMPT },
+          { type: 'text', text: visionPrompt },
         ],
       }],
     });
@@ -140,7 +129,7 @@ async function callVisionLlm(
         role: 'user',
         content: [
           { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
-          { type: 'text', text: VISION_PROMPT },
+          { type: 'text', text: visionPrompt },
         ] as any,
       }],
     });
@@ -185,15 +174,18 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
     const imageBase64 = buffer.toString('base64');
     const mimeType = asset.mime_type || 'image/jpeg';
 
-    // 4. Obter config LLM e chamar Vision
+    // 4. Obter config LLM, prompt do banco e chamar Vision
     const llmCfg = await getLlmConfig();
     if (!llmCfg.apiKey) throw new Error('API Key não configurada. Configure em Master → IA da Plataforma.');
+
+    const visionPrompt = await resolvePromptTemplate('creative_vision_analysis', null);
+    if (!visionPrompt) throw new Error('Prompt template não encontrado: creative_vision_analysis. Execute a migration SQL.');
 
     console.log(`[CreativeAnalysis] Usando provider=${llmCfg.provider} modelo=${llmCfg.model}`);
 
     let result: CreativeAnalysisResult;
     try {
-      result = await callVisionLlm(imageBase64, mimeType, llmCfg);
+      result = await callVisionLlm(imageBase64, mimeType, llmCfg, visionPrompt);
     } catch (visionErr: any) {
       console.warn('[CreativeAnalysis] Vision falhou:', visionErr.message);
 
@@ -287,33 +279,19 @@ export async function generateCreativeConcepts(params: {
   const llmCfg = await getLlmConfig();
   if (!llmCfg.apiKey) throw new Error('API Key não configurada.');
 
-  const prompt = `Você é um especialista em criação de anúncios para o segmento ${params.segment}.
+  const conceptTemplate = await resolvePromptTemplate('creative_concept_generation', null);
+  if (!conceptTemplate) throw new Error('Prompt template não encontrado: creative_concept_generation. Execute a migration SQL.');
 
-Com base no padrão vencedor abaixo, gere 5 conceitos de novos criativos.
-
-PADRÃO VENCEDOR:
-- Estilo: ${params.style}
-- Hook: ${params.hook_type}
-- Ângulo: ${params.angle}
-- Tom emocional: ${params.emotional_tone}
-- CTR médio: ${params.avg_ctr}%
-- CPL médio: R$ ${params.avg_cpl}
-- Anúncios testados: ${params.ads_count}
-
-Retorne APENAS este JSON válido (sem markdown):
-{
-  "concepts": [
-    {
-      "format": "image|video_15s|video_30s|carousel",
-      "scene": "descrição visual detalhada da cena",
-      "hook_text": "texto de abertura (primeiros 3 segundos ou primeira linha)",
-      "body": "texto do anúncio (2-3 frases diretas)",
-      "headline": "headline impactante (máx 40 chars)",
-      "cta": "texto do CTA",
-      "why_it_works": "motivo breve baseado no padrão"
-    }
-  ]
-}`;
+  const prompt = applyVariables(conceptTemplate, {
+    segment:       params.segment,
+    style:         params.style,
+    hook_type:     params.hook_type,
+    angle:         params.angle,
+    emotional_tone: params.emotional_tone,
+    avg_ctr:       params.avg_ctr,
+    avg_cpl:       params.avg_cpl,
+    ads_count:     params.ads_count,
+  });
 
   let rawText: string;
 
