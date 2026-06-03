@@ -3297,6 +3297,376 @@ Cada implementação inclui:
 
 ---
 
+## FASE 13 — Top N Configurável (Portfolio Cross-Insights)
+
+**Duração estimada: 0,5 dia | Pré-requisito: FASE 10 | Prioridade: 1 (quick win)**
+
+### 13.1. Objetivo
+
+Remover o hardcode `Top 3` na polinização cruzada e torná-lo um parâmetro
+configurável (Top 5 / Top 10), sem quebrar a UI atual.
+
+### 13.2. Diagnóstico do Estado Atual
+
+```
+ARQUIVO: src/app/api/admin/campanhas/portfolio/cross-insights/route.ts
+LINHA 288:
+  const topPerformers = sorted.slice(0, 3).map(...)
+
+• Não há razão técnica para o "3" — é convenção de exibição.
+• underperformers JÁ não é limitado (pega todos os críticos) — manter assim.
+```
+
+### 13.3. Mudanças
+
+```
+1. GET cross-insights: aceitar query param `?top=N`
+   - const top = Math.min(Math.max(parseInt(searchParams.get('top') || '3'), 1), 50);
+   - sorted.slice(0, top)
+2. POST cross-insights: repassar `top` para o GET interno (linha ~337).
+3. UI (portfolio/page.tsx): seletor [Top 3 ▾ | 5 | 10] que recarrega.
+4. Exibir "Top N de M clientes" quando N >= M (evita lista repetida com poucos clientes).
+```
+
+### 13.4. Critérios de Aceite — FASE 13
+
+```
+✅ ?top=5 e ?top=10 retornam exatamente N performers (ou M, se M < N)
+✅ Default sem param = 3 (retrocompatível)
+✅ Param fora de faixa é clampeado (1..50), nunca quebra
+✅ UI mostra "Top N de M" quando M <= N
+✅ underperformers permanece sem limite
+```
+
+---
+
+## FASE 14 — Ângulo Estratégico no Ciclo Completo
+
+**Duração estimada: ~3,5 dias | Pré-requisito: FASES 6, 8.5 | Prioridade: 2 (maior ROI)**
+
+### 14.1. Objetivo
+
+Fechar o ciclo do `angle` (ângulo de comunicação do criativo). Hoje o ângulo é
+capturado **só a posteriori** (Vision) e vive num silo (tela "Padrões"). Esta fase:
+(a) captura o ângulo **declarado** no lançamento; (b) injeta o ângulo na
+**calibração/decisão** (insights e briefing), permitindo recomendações do tipo
+*"ângulo X converte melhor que Y neste segmento"*.
+
+### 14.2. Diagnóstico do Estado Atual
+
+```
+EXISTE:
+• creativeAnalysisService.ts → Vision infere `angle`
+  (investment|lifestyle|family|price|urgency|social|luxury|other), persiste.
+• criativos/patterns e criativos/concepts LEEM o angle (tela Padrões).
+
+NÃO EXISTE:
+• Captura do angle DECLARADO no lançamento (nova/page.tsx e CampaignWizard.tsx
+  não têm campo de ângulo).
+• Uso do angle na calibração: grep `angle` em aiInsights / signalEngine /
+  agentDecisor / intelligence/ → ZERO referências. O ângulo nunca volta ao loop.
+```
+
+### 14.3. Modelo de Dados
+
+```sql
+-- Ângulo declarado no lançamento (taxonomia idêntica à do Vision p/ comparação)
+ALTER TABLE campanhasmarketingdigital."Campaign"
+  ADD COLUMN IF NOT EXISTS declared_angle TEXT NULL;  -- nullable, retrocompatível
+
+-- (opcional) índice p/ agregação por ângulo
+CREATE INDEX IF NOT EXISTS idx_campaign_declared_angle
+  ON campanhasmarketingdigital."Campaign" (tenant_id, declared_angle);
+```
+
+> Taxonomia do ângulo deve virar **dado curado** (não enum hardcoded). Reaproveitar
+> a lista do Vision; se for promovida a tabela, usar `system_*` (curadoria Master).
+> Enquanto isso, expor a lista via um único ponto (constante compartilhada lib),
+> não duplicada em cada tela.
+
+### 14.4. Captura no Lançamento
+
+```
+1. CampaignWizard.tsx (StepTexto&CTA ou StepObjetivo): <select> "Ângulo da comunicação"
+   - opcional, default vazio (não obriga — retrocompatível)
+   - placeholder: "Deixe a IA inferir" (se vazio, usa angle do Vision)
+2. nova/page.tsx: incluir declared_angle no payload de criação.
+3. POST campaigns: persistir Campaign.declared_angle.
+```
+
+### 14.5. Calibração / Feedback (o coração da fase)
+
+```
+1. Agregação por ângulo (novo helper em aiInsights ou signalEngine):
+   - Para o tenant/cliente, agrupar Insight por angle EFETIVO
+     (declared_angle ?? angle-do-Vision do criativo) e calcular:
+       CPL médio, CTR médio, nº de leads, spend, por ângulo × segmento.
+2. Sinal novo: "ângulo vencedor / ângulo perdedor" quando a diferença de CPL
+   entre o melhor e o pior ângulo do segmento ultrapassa um limite
+   (config em system_benchmarks, ex.: angle_cpl_delta_min = 20%).
+3. Injetar no agentDecisor: ao avaliar uma campanha, anexar o contexto
+   "ângulo desta campanha vs. ângulo vencedor do segmento".
+4. Injetar no briefing (strategicBriefing): bloco "Ângulos que estão performando".
+```
+
+### 14.6. Novo Prompt (ZERO HARDCODE)
+
+```sql
+INSERT INTO public.system_prompt_templates (code, segment_id, version, ...)
+VALUES (
+  'angle_performance_insight', NULL, 1, ...
+  -- Recebe: tabela ângulo × (CPL, CTR, leads, spend) do segmento/cliente
+  -- Produz: narrativa "qual ângulo está vencendo e por quê" + recomendação
+  --         de qual ângulo priorizar no próximo lançamento.
+);
+```
+
+### 14.7. Critérios de Aceite — FASE 14
+
+```
+✅ Wizard mostra seletor de ângulo (opcional); vazio = inferência do Vision
+✅ declared_angle persiste e aparece na revisão da campanha
+✅ Migração idempotente, coluna nullable (nenhuma campanha legada quebra)
+✅ Agregação ângulo × métrica disponível por tenant/cliente/segmento
+✅ Briefing e agentDecisor passam a citar ângulo vencedor quando há delta relevante
+✅ Prompt em system_prompt_templates com fallback rule-based (sem narrativa se LLM cair)
+✅ angle EFETIVO = declared_angle ?? angle(Vision) — nunca nulo na agregação
+```
+
+---
+
+## FASE 15 — Agentes de IA: Expansão de Ações e Garantia de Execução
+
+**Duração estimada: ~2,5–4 dias | Pré-requisito: FASES 4, 8.5 | Prioridade: 3**
+
+### 15.1. Objetivo
+
+A base dos agentes já está construída e funcional. Esta fase **endurece a
+execução** (garantir que o cron realmente roda em produção) e **amplia o
+repertório de ações** além de PAUSE/SCALE.
+
+### 15.2. Diagnóstico do Estado Atual
+
+```
+PRONTO E FUNCIONAL:
+• agentDecisor.ts — runDecisor: gera insights, filtra confidence >= 0.85,
+  dedupe 24h, enriquece (template agent_enrichment). PAUSE auto-executa
+  (defensivo); SCALE exige aprovação humana (1.3x budget); demais só notificam.
+• agentMonitor.ts — cron sync 6h (0 */6 * * *) + briefings 8h/18h (WhatsApp+Slack).
+• agentNotificador.ts — WhatsApp + Slack.
+• Integrado à state machine / lifecycle.
+
+LACUNAS:
+• Só 2 ações: PAUSE e SCALE. Faltam: trocar criativo, ajustar público,
+  realocar budget entre adsets, reduzir budget (de-scale defensivo).
+• startAgentMonitor() depende de processo Node persistente. Em Next/serverless,
+  node-cron NÃO sobrevive — precisa de worker dedicado ou cron externo.
+• Threshold 0.85 fixo por env — considerar configurável por tenant.
+```
+
+### 15.3. Garantia de Execução (crítico)
+
+```
+PROBLEMA: node-cron em processo Next não é confiável (serverless/edge mata o processo).
+OPÇÕES (escolher 1, documentar no deploy):
+  A. Worker Node dedicado (long-running) que importa startAgentMonitor() — VPS.
+  B. Cron externo (ex.: cron do SO / serviço) batendo num endpoint protegido
+     /api/agent/tick (com secret), que chama syncMetrics()+runDecisor().
+  C. Fila + scheduler gerenciado.
+RECOMENDADO p/ o VPS atual: (A) ou (B). Adicionar healthcheck + log do último ciclo
+  (tabela agent_heartbeat: last_run_at, ciclos_ok, erros) para auditar execução.
+```
+
+### 15.4. Expansão de Ações
+
+```
+Novas AgentAction.type (todas atrás de aprovação, exceto as defensivas):
+  • DOWNSCALE (defensivo)  — reduzir budget de campanha em sangria → pode auto-executar
+  • REALLOCATE_BUDGET      — mover verba entre adsets do mesmo cliente (aprovação)
+  • REFRESH_CREATIVE       — sinalizar fadiga e sugerir troca de criativo (aprovação)
+  • ADJUST_AUDIENCE        — sugerir ajuste de público (aprovação)
+Regras:
+  - Defensivo (corta sangria) = pode auto-executar; Ofensivo/estrutural = aprovação humana.
+  - Cada nova ação precisa de método correspondente no adapter (executeAction).
+  - Reusar dedupe 24h e confidence >= threshold.
+```
+
+### 15.5. Threshold Configurável
+
+```sql
+-- Em system_benchmarks (ou settings por tenant): limiar de confiança do agente
+-- metric_key = 'agent_confidence_min', default 0.85 (global), override por tenant.
+```
+
+### 15.6. Critérios de Aceite — FASE 15
+
+```
+✅ Existe mecanismo confiável de disparo (worker ou endpoint+cron externo) com secret
+✅ agent_heartbeat registra cada ciclo (sucesso/erro/timestamp)
+✅ Pelo menos DOWNSCALE (defensivo) e REALLOCATE_BUDGET (aprovação) implementados e2e
+✅ Cada nova ação tem método no adapter Meta e transição de state machine
+✅ Threshold de confiança resolvível por tenant (fallback global 0.85)
+✅ Toda ação ofensiva/estrutural exige aprovação; defensiva pode auto-executar
+✅ Prompts de enriquecimento permanecem em system_prompt_templates
+```
+
+---
+
+## FASE 16 — Postagem Orgânica no Meta
+
+**Duração estimada: ~3–4 dias | Pré-requisito: FASE 1 (credenciais Meta) | Prioridade: 4**
+
+### 16.1. Objetivo
+
+Permitir **publicar criativos organicamente** na Página/Feed (sem impulsionar),
+para nutrir presença entre campanhas pagas. Hoje TODA publicação é paga.
+
+### 16.2. Diagnóstico do Estado Atual
+
+```
+ARQUIVO: src/lib/marketing/networks/meta/metaAdsAdapter.ts
+• grep `organic | page_post | /feed | published` → NADA.
+• Todo o fluxo é pago: campaign → adset → ad com segmentação.
+• PORÉM já temos page_id nas credenciais (entregue na sessão de Settings Meta).
+```
+
+### 16.3. Capacidade Técnica
+
+```
+Graph API suporta publicação orgânica:
+  • POST /{page-id}/photos        (foto, published=true)
+  • POST /{page-id}/feed          (texto/link)
+  • POST /{page-id}/videos        (vídeo)
+Requer Page Access Token (derivado do token da página — já temos page_id).
+```
+
+### 16.4. Mudanças
+
+```
+1. Adapter: novo método publishOrganicPost({ pageId, message, mediaUrls, link })
+   - resolve Page Access Token a partir das credenciais do tenant
+   - publica e retorna o post_id (organic)
+2. Persistência: registrar post orgânico (tabela OrganicPost ou reuso de Ad com
+   flag is_organic=true + sem adset). Decisão de modelagem documentada antes de codar.
+3. UI: na galeria de criativos, ação "Publicar na página (orgânico)" separada de
+   "Lançar campanha (pago)". Permissão própria (CreateGuard).
+4. Confirmação dupla (ação publica conteúdo público) — alinhado aos critérios globais.
+```
+
+### 16.5. Critérios de Aceite — FASE 16
+
+```
+✅ publishOrganicPost publica foto/texto na página e retorna post_id
+✅ Page Access Token resolvido a partir das credenciais do tenant (sem hardcode)
+✅ Post orgânico fica registrado e rastreável (distinto de ad pago)
+✅ UI separa claramente orgânico × pago, com permissão e confirmação dupla
+✅ Falha de publicação retorna erro acionável (não quebra a galeria)
+✅ NÃO mistura com o fluxo de segmentação paga (sem adset/targeting)
+```
+
+---
+
+## FASE 17 — Google Ads + Google AI Max (aprofundamento)
+
+**Duração estimada: ~2–3 semanas (fase própria) | Pré-requisito: FASE 1 | Prioridade: 5**
+
+### 17.1. Objetivo
+
+Implementar a rede Google Ads com foco em **Performance Max / AI Max** — modelo
+*asset-based e automatizado*, fundamentalmente diferente do Meta. Esta fase é
+tratada à parte porque exige **repensar o paradigma**, não "encaixar" no wizard Meta.
+
+### 17.2. Diagnóstico do Estado Atual
+
+```
+ARQUIVO: src/lib/marketing/networks/google/index.ts → `export {}` (placeholder).
+ABSTRAÇÃO (boa): AdNetworkService, NetworkCode, factory já existem.
+CONFLITO: CreateCampaignInput (networks/types.ts) é 100% Meta-cêntrico —
+  pixelId, ageMin/Max, genders, interests, adset_schedule, optimizationGoal estilo Meta.
+```
+
+### 17.3. O Conflito de Paradigma (entender antes de codar)
+
+```
+META (atual):                      GOOGLE AI MAX / PERFORMANCE MAX:
+• Você define segmentação          • Você entrega ATIVOS (títulos, descrições,
+  granular (idade/gênero/             imagens, vídeos, logos) + SINAIS de audiência
+  interesse/horário).              • O Google decide segmentação, lances, canais
+• Adset com targeting explícito      (Search, Display, YouTube, Gmail, Maps, Discover)
+• Você controla o lance            • Lance automatizado por meta (tCPA / tROAS)
+• Estrutura: campaign>adset>ad     • Estrutura: campaign > asset group > listing group
+                                   • "Audience signals" = DICA, não segmentação dura
+```
+
+> Implicação: o wizard atual (steps Público/Agendamento granular) **não se aplica**
+> ao AI Max. Forçar isso gera UX errada e expectativa falsa de controle.
+
+### 17.4. Estratégia de Implementação
+
+```
+1. Tipo de input próprio: GoogleCampaignInput (NÃO generalizar à força o CreateCampaignInput).
+   - assetGroups[]: { headlines[], descriptions[], images[], videos[], logos[], finalUrl }
+   - audienceSignals: { segments[], keywords[], demographics? } (DICA, opcional)
+   - biddingStrategy: { type: 'MAXIMIZE_CONVERSIONS' | 'TCPA' | 'TROAS', target? }
+   - budget: diário; conversionGoal (precisa de conversão configurada / GTM-Ads link)
+2. GoogleAdsAdapter implementando AdNetworkService:
+   - createCampaign → cria PMax/AI Max campaign + asset group via Google Ads API
+   - fetchInsights → métricas Google (impr, clicks, cost, conversions, convValue, tCPA real)
+   - Mapear objetivos canônicos → goals do Google (LEADS, SALES, etc.)
+3. Wizard AI Max simplificado (fluxo SEPARADO do Meta):
+   - Step Ativos (upload de headlines/descrições/imagens/vídeos)
+   - Step Sinais de audiência (opcional, "ajuda o algoritmo a começar")
+   - Step Orçamento + estratégia de lance (tCPA/tROAS)
+   - Step Conversão (exige meta de conversão válida) + Revisão
+   - SEM steps de segmentação granular / agendamento por hora.
+4. Autenticação Google Ads:
+   - OAuth2 + developer token + customer_id; refresh token por tenant.
+   - Guardar credenciais no mesmo padrão de credentials por rede (nunca hardcode).
+5. Conversões: AI Max depende de sinal de conversão de qualidade.
+   - Pré-requisito: tracking de conversão (Google Ads tag / GA4 import / offline conv).
+   - Documentar dependência — sem conversão, AI Max performa mal.
+```
+
+### 17.5. Benchmarks e Vocabulário
+
+```
+• system_benchmarks ganha métricas Google (tCPA real, ROAS, conv. rate) com
+  diferenciação por rede.
+• Taxonomia/objetivos ampliados (asset-based) sem quebrar o vocabulário Meta.
+```
+
+### 17.6. Novo Prompt (se houver análise LLM específica)
+
+```sql
+-- Ex.: análise de qualidade de asset group / sugestão de ativos faltantes.
+INSERT INTO public.system_prompt_templates (code, segment_id, version, ...)
+VALUES ('google_assetgroup_review', NULL, 1, ...);
+```
+
+### 17.7. Riscos Específicos
+
+```
+⚠ API do Google Ads é mais complexa que a do Meta (resource names, mutate batches).
+⚠ AI Max dá MENOS controle — gestores acostumados ao Meta podem estranhar; educar na UI.
+⚠ Sem conversão bem configurada, AI Max desperdiça verba — bloquear lançamento sem meta.
+⚠ Atribuição cross-canal (YouTube/Display/Search no mesmo PMax) dificulta leitura de CPL.
+```
+
+### 17.8. Critérios de Aceite — FASE 17
+
+```
+✅ GoogleAdsAdapter implementa AdNetworkService (create + fetchInsights) e passa smoke
+✅ GoogleCampaignInput separado, sem poluir o input do Meta
+✅ Wizard AI Max simplificado (ativos + sinais + lance + conversão), SEM segmentação dura
+✅ OAuth2/developer token/customer_id por tenant, no padrão credentials (sem hardcode)
+✅ Lançamento bloqueado se não houver meta de conversão válida
+✅ Insights Google sincronizam com métricas próprias (cost, conversions, ROAS)
+✅ Benchmarks Google diferenciados por rede em system_benchmarks
+✅ UI educa sobre a natureza automatizada (expectativa de controle correta)
+```
+
+---
+
 ## 16. Fluxos End-to-End
 
 ### 16.1. Fluxo: Criar nova campanha Meta para cliente
@@ -3616,3 +3986,17 @@ PASSO 4: FASE 1 (multi-network)
  mas a tradução payload→API (adapter / mapCanonicalToNetwork versionado) é camada de código
  irredutível, atualizada junto com a mídia. Tabela do que é dado x código, nota sobre MCP e
  critérios de aceite da fronteira. Apenas planejamento.*
+*Versão 1.4 (2026-06-03) — Acréscimo das FASES 13–17 (evolução estratégica pós-verificação
+ do wizard), priorizadas por ROI/esforço e fundamentadas em leitura do código atual:
+ FASE 13 Top N Configurável (remove hardcode slice(0,3) em cross-insights/route.ts — quick win);
+ FASE 14 Ângulo Estratégico no Ciclo Completo (captura declared_angle no lançamento +
+ calibração: hoje o angle só é inferido pelo Vision e nunca volta ao loop de decisão);
+ FASE 15 Agentes de IA — garantia de execução (node-cron não sobrevive em serverless →
+ worker/endpoint+secret+heartbeat) e expansão de ações (DOWNSCALE, REALLOCATE_BUDGET,
+ REFRESH_CREATIVE, ADJUST_AUDIENCE) + threshold de confiança por tenant;
+ FASE 16 Postagem Orgânica no Meta (publishOrganicPost via page_id já existente, separado do
+ fluxo pago); FASE 17 Google Ads + Google AI Max em fase própria (paradigma asset-based ≠ Meta:
+ GoogleCampaignInput separado, wizard AI Max sem segmentação granular, OAuth2/customer_id por
+ tenant, bloqueio sem meta de conversão). Todos os prompts novos em system_prompt_templates
+ (ZERO HARDCODE) com fallback rule-based. Apenas planejamento — nenhuma alteração em código
+ ou banco foi feita nesta revisão do plano.*

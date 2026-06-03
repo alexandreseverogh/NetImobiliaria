@@ -1,12 +1,42 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-03 (Fix gráfico "Leads por Campanha" + logo clientes + ClientAvatar)
+> **Atualizado em:** 2026-06-03 (Plano: FASES 13–17 adicionadas ao plano mestre)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Plano — FASES 13–17 adicionadas ao plano mestre (2026-06-03) ✅
+
+**Contexto:** Após a verificação em runtime do wizard de campanhas (6/6 PASS) e a
+análise estratégica de 5 questões, o usuário pediu para formalizar tudo como FASES
+13+ no plano mestre, antes da implementação.
+
+**Arquivo modificado:** `docs/PLANO_ACAO_MESTRE_EVOLUCAO_PLATAFORMA.md` (v1.4)
+
+Acrescentadas 5 fases priorizadas por ROI/esforço, fundamentadas em leitura do código:
+- **FASE 13 — Top N Configurável** (quick win): remove hardcode `slice(0,3)` em
+  `cross-insights/route.ts:288`; param `?top=N`, clamp 1..50, "Top N de M".
+- **FASE 14 — Ângulo Estratégico no Ciclo Completo** (maior ROI): coluna
+  `Campaign.declared_angle` (nullable), captura no wizard, agregação ângulo×CPL/CTR,
+  injeção em agentDecisor/briefing, prompt `angle_performance_insight`.
+- **FASE 15 — Agentes: garantia de execução + expansão de ações**: node-cron não
+  sobrevive em serverless → worker/endpoint+secret+heartbeat; novas ações DOWNSCALE,
+  REALLOCATE_BUDGET, REFRESH_CREATIVE, ADJUST_AUDIENCE; threshold por tenant.
+- **FASE 16 — Postagem Orgânica no Meta**: `publishOrganicPost` via page_id existente,
+  separado do fluxo pago, confirmação dupla.
+- **FASE 17 — Google Ads + Google AI Max** (fase própria): paradigma asset-based ≠ Meta;
+  `GoogleCampaignInput` separado, wizard AI Max sem segmentação granular, OAuth2/
+  customer_id por tenant, bloqueio sem meta de conversão.
+
+**Próximo passo:** iniciar a implementação na ordem de prioridade (FASE 13 → 17).
+**Nota:** apenas planejamento — nenhuma alteração de código/banco nesta etapa.
+
+---
+
+### Fix — Gráfico "Leads por Campanha" + logo clientes (histórico anterior)
 
 ### Fix — Gráfico "Leads por Campanha" (2026-06-03) ✅
 
