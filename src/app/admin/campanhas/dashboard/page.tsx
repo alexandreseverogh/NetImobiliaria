@@ -619,17 +619,6 @@ export function DashboardPage() {
                   </ExecuteGuard>
                 </div>
               </div>
-              {/* Aviso quando filtros ativos (briefing não é dinâmico) */}
-              {(selectedCampaign || objectiveFilter || statusFilter || adSetFilter || (clientFilter && clientFilter !== 'all')) && (
-                <div className={`mb-3 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-semibold border ${
-                  isDark
-                    ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                    : 'bg-amber-50 border-amber-200 text-amber-700'
-                }`}>
-                  <span>⚠️</span>
-                  Briefing gerado para dados globais — não reflete os filtros ativos. Clique em "Gerar Novo" para um briefing filtrado.
-                </div>
-              )}
 
               {briefing
                 ? <BriefingCard briefing={briefing} isDark={isDark} />
