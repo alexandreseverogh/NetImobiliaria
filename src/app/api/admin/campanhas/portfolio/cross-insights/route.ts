@@ -36,12 +36,13 @@ export interface CrossInsight {
 }
 
 export interface CrossPerformer {
-  clientName:  string;
-  cpl:         number | null;
-  spend:       number;
-  leads:       number;
-  segmentName: string | null;
-  status:      'ok' | 'warn' | 'critical' | 'nodata';
+  clientName:   string;
+  cpl:          number | null;
+  spend:        number;
+  leads:        number;
+  segmentName:  string | null;
+  status:       'ok' | 'warn' | 'critical' | 'nodata';
+  cplCritical:  number | null;   // limite crítico do segmento (usado no POST p/ LLM)
 }
 
 export interface CrossSegment {
@@ -426,12 +427,13 @@ export async function GET(request: NextRequest) {
       ...realClients.filter(c => c.cpl !== null).sort((a, b) => a.cpl! - b.cpl!),
       ...realClients.filter(c => c.cpl === null),
     ].map(c => ({
-      clientName:  c.clientName,
-      cpl:         c.cpl,
-      spend:       c.spend,
-      leads:       c.leads,
-      segmentName: c.segment_name,
-      status:      c.status,
+      clientName:   c.clientName,
+      cpl:          c.cpl,
+      spend:        c.spend,
+      leads:        c.leads,
+      segmentName:  c.segment_name,
+      status:       c.status,
+      cplCritical:  c.cplCritical,
     }));
 
     const underperformers = realClients
@@ -500,6 +502,53 @@ export async function POST(request: NextRequest) {
       { headers: { cookie: authCookie } },
     );
     const data: CrossInsightsResponse = await dataRes.json();
+
+    // ── Enriquecer ações dos alertas críticos com LLM ────────────────
+    const criticalInsights = data.insights.filter(i => i.id.startsWith('critical-'));
+    if (criticalInsights.length > 0) {
+      const enrichments = criticalInsights.map(async (insight) => {
+        const clientName = insight.targetClients[0];
+        if (!clientName) return;
+
+        const performer = data.allPerformers.find(p => p.clientName === clientName);
+        const detail    = data.clientDetails.find(d => d.clientName === clientName);
+        if (!performer || performer.cpl === null || !performer.cplCritical) return;
+
+        const excessBrl = performer.cpl - performer.cplCritical;
+        const excessPct = Math.round((excessBrl / performer.cplCritical) * 100);
+
+        try {
+          const raw = await invokeForContext({
+            templateKey: 'cross_critical_actions',
+            tenantId:    payload.tenantId!,
+            clientId:    null,
+            variables: {
+              client_name:  clientName,
+              segment_name: detail?.segmentName ?? performer.segmentName ?? 'geral',
+              cpl_current:  performer.cpl.toFixed(2),
+              cpl_critical: performer.cplCritical.toFixed(2),
+              excess_pct:   String(excessPct),
+              excess_brl:   excessBrl.toFixed(2),
+            },
+            maxTokens: 300,
+          });
+
+          if (raw) {
+            // Extrai o array JSON da resposta (tolera markdown envolvendo)
+            const match = raw.match(/\[[\s\S]*\]/);
+            if (match) {
+              const parsed: unknown = JSON.parse(match[0]);
+              if (Array.isArray(parsed) && parsed.length >= 2) {
+                insight.actions = (parsed as string[]).map(String).slice(0, 4);
+              }
+            }
+          }
+        } catch {
+          // Silencioso: mantém as ações padrão
+        }
+      });
+      await Promise.allSettled(enrichments);
+    }
 
     try {
       const clientDetails  = data.clientDetails ?? [];
