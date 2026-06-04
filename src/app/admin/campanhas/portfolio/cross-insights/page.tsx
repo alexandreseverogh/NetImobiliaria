@@ -527,7 +527,12 @@ export default function CrossInsightsPage() {
                     <div className="flex items-center gap-2 mb-4">
                       <TrophyIcon className="h-5 w-5 text-amber-500" />
                       <h2 className="font-bold text-gray-900">Melhores CPLs do Portfólio</h2>
-                      <span className="text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                      <span
+                        className="text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full cursor-default"
+                        title={data.topPerformers.length < data.top
+                          ? `Portfólio tem ${data.topPerformers.length} cliente(s) com CPL — o seletor terá mais efeito conforme o portfólio crescer`
+                          : `Exibindo os ${data.top} melhores CPLs`}
+                      >
                         {data.topPerformers.length >= data.top
                           ? `Top ${data.topPerformers.length}`
                           : `Top ${data.topPerformers.length} de ${data.top}`}
@@ -607,7 +612,7 @@ export default function CrossInsightsPage() {
 
             {/* ── disclaimer ───────────────────────────────────────── */}
             <p className="text-center text-xs text-gray-400 mt-8">
-              Insights baseados em dados dos últimos {period} dias · {data.totalClients} cliente{data.totalClients !== 1 ? 's' : ''}
+              Insights baseados em dados dos últimos {period} dias · {data.totalClients} cliente{data.totalClients !== 1 ? 's' : ''} gerenciado{data.totalClients !== 1 ? 's' : ''}
               {' · '}Análise rule-based{data.narrative ? ' + IA' : ''}
             </p>
           </>

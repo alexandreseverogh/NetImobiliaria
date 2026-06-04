@@ -174,13 +174,14 @@ function buildRuleBasedInsights(
     if (!segGroups.has(c.segment_name)) segGroups.set(c.segment_name, []);
     segGroups.get(c.segment_name)!.push(c);
   }
-  for (const [segName, group] of segGroups.entries()) {
+  for (const [segName, group] of Array.from(segGroups.entries())) {
     if (group.length < 2) continue;
-    const withCpl = group.filter(c => c.cpl !== null);
+    type ClientEntry = typeof clients[0];
+    const withCpl = group.filter((c: ClientEntry) => c.cpl !== null);
     if (withCpl.length < 2) continue;
-    const cpls    = withCpl.map(c => c.cpl!).sort((a, b) => a - b);
-    const best    = withCpl.find(c => c.cpl === cpls[0])!;
-    const worst   = withCpl.find(c => c.cpl === cpls[cpls.length - 1])!;
+    const cpls    = withCpl.map((c: ClientEntry) => c.cpl!).sort((a: number, b: number) => a - b);
+    const best    = withCpl.find((c: ClientEntry) => c.cpl === cpls[0])!;
+    const worst   = withCpl.find((c: ClientEntry) => c.cpl === cpls[cpls.length - 1])!;
     if (best.clientName === worst.clientName) continue;
     const diff = Math.round(((worst.cpl! - best.cpl!) / best.cpl!) * 100);
     if (diff < 20) continue; // diferença insignificante
@@ -278,10 +279,10 @@ export async function GET(request: NextRequest) {
     const tenantInfo = tenantRow.rows[0];
 
     // Benchmarks
-    const segmentIds = [...new Set([
+    const segmentIds = Array.from(new Set([
       ...Array.from(clientInfoMap.values()).map(c => c.segment_id).filter(Boolean),
       tenantInfo?.segment_id,
-    ].filter(Boolean))] as string[];
+    ].filter(Boolean))) as string[];
 
     const benchMap = new Map<string, { cplIdeal: number | null; cplCritical: number | null; ctrMin: number | null }>();
     if (segmentIds.length > 0) {
@@ -336,9 +337,11 @@ export async function GET(request: NextRequest) {
 
     const insights = buildRuleBasedInsights(clientList);
 
-    const sorted = [...clientList].filter(c => c.cpl !== null).sort((a, b) => (a.cpl ?? 0) - (b.cpl ?? 0));
+    // Top performers e underperformers: apenas clientes gerenciados (exclui tenant)
+    const realClients = clientList.filter(c => !c.isTenant);
+    const sorted = [...realClients].filter(c => c.cpl !== null).sort((a, b) => (a.cpl ?? 0) - (b.cpl ?? 0));
     const topPerformers   = sorted.slice(0, topN).map(c => ({ clientName: c.clientName, cpl: c.cpl, spend: c.spend }));
-    const underperformers = clientList
+    const underperformers = realClients
       .filter(c => c.status === 'critical')
       .map(c => ({
         clientName: c.clientName,
@@ -362,7 +365,7 @@ export async function GET(request: NextRequest) {
       generatedAt:   new Date().toISOString(),
       period,
       top:           topN,
-      totalClients:  clientList.length,
+      totalClients:  realClients.length,  // apenas clientes gerenciados (exclui tenant)
       tenantName:    tenantInfo?.nome ?? 'Minha Empresa',
       narrative:     null, // LLM opcional via POST
       insights,
