@@ -382,13 +382,6 @@ export function DashboardPage() {
           )}
         </div>
 
-        {/* ── Winning Angle Chip (FASE 14) ──────────────────────────────────── */}
-        <WinningAngleChip
-          isDark={isDark}
-          period={parseInt(dateRange) || 30}
-          clientId={clientFilter}
-        />
-
         {/* ── Content ───────────────────────────────────────────────────────── */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -645,6 +638,13 @@ export function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* ── Ângulos Cobertura (FASE 14) ──────────────────────────────── */}
+            <WinningAngleChip
+              isDark={isDark}
+              period={parseInt(dateRange) || 30}
+              clientId={clientFilter}
+            />
 
             {/* ── AI Insights ─────────────────────────────────────────────── */}
             {aiInsights.length > 0 && (
