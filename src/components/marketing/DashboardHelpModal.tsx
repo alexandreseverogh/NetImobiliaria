@@ -66,7 +66,7 @@ const METRICAS: HelpItem[] = [
     subtitle: 'Cost Per Click — Custo por Clique',
     what: 'Quanto você paga, em média, por cada clique no seu anúncio. Fórmula: Gasto ÷ Cliques.',
     how: 'Quanto menor, melhor (você paga menos por cada pessoa que visita sua página). CPC alto pode indicar audiência muito concorrida ou criativo pouco relevante.',
-    benchmark: 'Para imóveis no Brasil: R$ 0,50–R$ 1,50 = ótimo / R$ 1,50–R$ 3,00 = normal / acima de R$ 3,00 = revisar criativo ou público.',
+    benchmark: 'Em tráfego pago no Brasil: R$ 0,50–R$ 1,50 = ótimo / R$ 1,50–R$ 3,00 = normal / acima de R$ 3,00 = revisar criativo ou público. Valores variam por segmento e ticket médio.',
     tip: 'A seta invertida — ↑ no CPC é negativo (está custando mais caro). ↓ é positivo.',
   },
   {
@@ -118,8 +118,8 @@ Esses dados voltam automaticamente para o Meta Ads, que usa as informações par
     subtitle: 'Cost Per Lead — Custo por Lead',
     what: 'Quanto você paga, em média, para captar cada lead. Fórmula: Gasto Total ÷ Número de Leads.',
     how: 'É a métrica-rainha para campanhas de geração de leads. Quanto menor o CPL, mais eficiente é sua campanha. Monitore a tendência: CPL subindo = eficiência caindo.',
-    benchmark: 'Para imóveis no Brasil: abaixo de R$ 20 = excelente / R$ 20–50 = bom / R$ 50–100 = aceitável / acima de R$ 100 = investigar.',
-    tip: 'Não existe CPL ideal universal — depende do ticket médio do imóvel. R$ 80 por lead é caro para imóveis populares, mas excelente para alto padrão.',
+    benchmark: 'Referências gerais em tráfego pago no Brasil: abaixo de R$ 20 = excelente / R$ 20–50 = bom / R$ 50–100 = aceitável / acima de R$ 100 = investigar. Os valores ideais variam muito por segmento e ticket médio do produto ou serviço.',
+    tip: 'Não existe CPL ideal universal — depende do ticket médio do seu produto ou serviço. R$ 80 por lead pode ser caro em um segmento e excelente em outro de maior valor.',
   },
   {
     emoji: '📅',
@@ -135,7 +135,7 @@ Esses dados voltam automaticamente para o Meta Ads, que usa as informações par
     what: 'Percentual de pessoas que assistiram ao menos 3 segundos do vídeo em relação ao total que teve o anúncio exibido. Fórmula: (Views 3s ÷ Impressões) × 100.',
     how: '"Hook" significa "gancho" — os primeiros 3 segundos são o gancho do vídeo. Um Hook Rate alto significa que o início do vídeo está prendendo a atenção. Só aparece quando há dados de visualização de vídeo.',
     benchmark: 'Abaixo de 8% = gancho fraco, revisar os primeiros 3s / 8–12% = regular / acima de 12% = bom / acima de 20% = excelente.',
-    tip: 'O segredo do Hook Rate está nos primeiros 2 segundos: mostre o resultado (imóvel, lifestyle) antes de qualquer texto ou logo.',
+    tip: 'O segredo do Hook Rate está nos primeiros 2 segundos: mostre o resultado (produto, transformação, lifestyle) antes de qualquer texto ou logo.',
   },
 ];
 
@@ -219,8 +219,8 @@ Cada briefing exibe seu próprio badge de período (ex: "7d", "30d") no canto do
     emoji: '🎯',
     term: 'Ângulo de Comunicação',
     subtitle: 'A perspectiva estratégica central do anúncio',
-    what: 'O ângulo é a lente pela qual o imóvel é apresentado ao potencial comprador — não o que você diz, mas por que a pessoa deveria se importar. É a motivação emocional ou racional que ancora o criativo.',
-    how: `A plataforma trabalha com 7 ângulos distintos para imóveis:
+    what: 'O ângulo é a lente pela qual seu produto ou serviço é apresentado ao potencial cliente — não o que você diz, mas por que a pessoa deveria se importar. É a motivação emocional ou racional que ancora o criativo.',
+    how: `A plataforma trabalha com 7 ângulos distintos:
 
 💼 Investimento — Valorização, rentabilidade, retorno financeiro
 🌴 Estilo de Vida — Qualidade de vida, lazer, bem-estar no cotidiano
@@ -239,7 +239,7 @@ Como a plataforma usa os ângulos:
 Por que isso importa:
 Concentrar todos os anúncios no mesmo ângulo limita o alcance — pessoas diferentes compram pelo investimento, pela família ou pelo estilo de vida. Diversificar ângulos e medir qual ressoa melhor com seu público é uma das alavancas mais eficientes de otimização.`,
     tip: 'Campanhas sem ângulo declarado aparecem como "não classificadas". Use o botão de classificação em lote (lista de campanhas) para deixar a IA sugerir o ângulo de cada uma — revise antes de confirmar.',
-    benchmark: 'Referência prática: imóveis populares e médio padrão tendem a responder melhor a Preço e Família. Alto padrão e luxo respondem melhor a Estilo de Vida, Investimento e Luxo.',
+    benchmark: 'Referência prática: produtos/serviços de ticket menor tendem a responder melhor a Preço e Urgência. Tickets mais altos e mercados premium respondem melhor a Estilo de Vida, Investimento e Luxo. Família e Social funcionam bem em qualquer segmento com apelo emocional forte.',
   },
   {
     emoji: '💡',
