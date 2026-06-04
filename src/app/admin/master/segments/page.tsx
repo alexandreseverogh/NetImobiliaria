@@ -273,20 +273,25 @@ export default function MasterSegmentsPage() {
       {/* Segment Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in fade-in zoom-in duration-300">
-            <div className="p-8 bg-indigo-600 text-white flex items-center justify-between">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] transform transition-all animate-in fade-in zoom-in duration-300">
+
+            {/* ── Cabeçalho fixo ── */}
+            <div className="p-5 bg-indigo-600 text-white flex items-center justify-between rounded-t-3xl shrink-0">
               <div>
-                <h2 className="text-2xl font-black">{editingSegment ? 'Editar Segmento' : 'Novo Segmento'}</h2>
-                <p className="text-indigo-100 font-medium">Configure a identidade do nicho.</p>
+                <h2 className="text-xl font-black">{editingSegment ? 'Editar Segmento' : 'Novo Segmento'}</h2>
+                <p className="text-indigo-100 text-sm font-medium">Configure a identidade do nicho.</p>
               </div>
-              <div 
-                className="h-12 w-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center border border-white/30"
+              <div
+                className="h-10 w-10 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center border border-white/30"
                 style={{ backgroundColor: formData.color_theme }}
               >
-                 <Squares2X2Icon className="h-6 w-6 text-white" />
+                <Squares2X2Icon className="h-5 w-5 text-white" />
               </div>
             </div>
-            <form onSubmit={handleSubmit} className="p-8 space-y-5">
+
+            {/* ── Formulário (scroll interno) + botões fixos no rodapé ── */}
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Nome do Segmento</label>
@@ -315,8 +320,8 @@ export default function MasterSegmentsPage() {
                   </div>
                 </div>
               <div>
-                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Paleta de Identidade (Tema)</label>
-                <div className="grid grid-cols-6 gap-3 mb-4">
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Paleta de Identidade (Tema)</label>
+                <div className="grid grid-cols-6 gap-3 mb-3">
                   {[
                     '#2563eb', '#7c3aed', '#db2777', '#dc2626', 
                     '#ea580c', '#d97706', '#059669', '#0891b2',
@@ -371,8 +376,8 @@ export default function MasterSegmentsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-4">Arquitetura de Motores (Provisionamento Base)</label>
-                <div className="grid grid-cols-1 gap-2 bg-gray-50 p-4 rounded-2xl border border-gray-100 max-h-48 overflow-y-auto custom-scrollbar">
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Arquitetura de Motores (Provisionamento Base)</label>
+                <div className="grid grid-cols-1 gap-2 bg-gray-50 p-3 rounded-2xl border border-gray-100 max-h-36 overflow-y-auto custom-scrollbar">
                   {availableModules.map(mod => (
                     <label key={mod.id} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
                       formData.module_ids.includes(mod.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-transparent hover:border-indigo-100'
@@ -395,7 +400,7 @@ export default function MasterSegmentsPage() {
                 <textarea 
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-sm h-16"
+                  className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-sm h-14"
                   placeholder="Descreva o propósito deste segmento..."
                 />
               </div>
@@ -480,15 +485,18 @@ export default function MasterSegmentsPage() {
                 <label htmlFor="is_active" className="text-sm font-bold text-gray-700 cursor-pointer">Segmento Ativo</label>
               </div>
 
-              <div className="flex gap-3 pt-4">
-                <button 
-                  type="button" 
+              </div>{/* fim scroll area */}
+
+              {/* ── Botões fixos no rodapé ── */}
+              <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
+                <button
+                  type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
+                  className="flex-1 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
                 >Cancelar</button>
-                <button 
+                <button
                   type="submit"
-                  className="flex-[2] py-3 bg-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105"
+                  className="flex-[2] py-2.5 bg-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105"
                 >Salvar Alterações</button>
               </div>
             </form>
