@@ -13,6 +13,7 @@ import { formatCurrency, formatNumber, formatPercent, cn, OBJECTIVES } from '@/l
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
 import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelChart';
+import { CplTimelineChart }  from '@/components/marketing/charts/CplTimelineChart';
 import { StageFunnelWidget } from '@/components/marketing/StageFunnelWidget';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
 import { ArrowPathIcon, SparklesIcon, ClockIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
@@ -434,11 +435,8 @@ export function DashboardPage() {
 
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                   className={`rounded-2xl p-6 ${cardBase}`}>
-                  <h3 className={`text-sm font-black mb-4 ${tx}`}>CPL Timeline</h3>
-                  <MultiMetricChart isDark={isDark} data={cplData} metrics={[
-                    { key: 'cpl',   label: 'CPL (R$)',   color: predColors[0], type: 'area' },
-                    { key: 'leads', label: 'Leads',      color: predColors[1], type: 'bar',  yAxisId: 'right' },
-                  ]} />
+                  <h3 className={`text-sm font-black mb-2 ${tx}`}>CPL Timeline</h3>
+                  <CplTimelineChart data={cplData} isDark={isDark} />
                 </motion.div>
 
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
