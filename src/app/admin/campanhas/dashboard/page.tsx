@@ -912,10 +912,41 @@ function DateInputPtBR({
 //  WINNING ANGLE CHIP (FASE 14)
 // ═════════════════════════════════════════════════════════════════════════════
 
-interface AngleChipResult {
-  topAngle:   { angle: string; label: string; cpl: number | null } | null;
-  worstAngle: { angle: string; label: string; cpl: number | null } | null;
+interface AngleStat {
+  angle: string;
+  label: string;
+  campaigns: number;
+  spend: number;
+  cpl: number | null;
 }
+
+interface AngleChipResult {
+  topAngle:   AngleStat | null;
+  worstAngle: AngleStat | null;
+  angleStats: AngleStat[];
+}
+
+// Cores por ângulo (pill de cobertura)
+const ANGLE_COLORS: Record<string, string> = {
+  investment: 'bg-indigo-500/15 text-indigo-400',
+  lifestyle:  'bg-emerald-500/15 text-emerald-400',
+  family:     'bg-pink-500/15 text-pink-400',
+  price:      'bg-amber-500/15 text-amber-400',
+  urgency:    'bg-red-500/15 text-red-400',
+  social:     'bg-cyan-500/15 text-cyan-400',
+  luxury:     'bg-violet-500/15 text-violet-400',
+  other:      'bg-slate-500/15 text-slate-400',
+};
+const ANGLE_COLORS_LIGHT: Record<string, string> = {
+  investment: 'bg-indigo-50 text-indigo-600',
+  lifestyle:  'bg-emerald-50 text-emerald-600',
+  family:     'bg-pink-50 text-pink-600',
+  price:      'bg-amber-50 text-amber-600',
+  urgency:    'bg-red-50 text-red-600',
+  social:     'bg-cyan-50 text-cyan-600',
+  luxury:     'bg-violet-50 text-violet-600',
+  other:      'bg-slate-50 text-slate-500',
+};
 
 function WinningAngleChip({ isDark, period, clientId }: {
   isDark: boolean;
@@ -931,13 +962,19 @@ function WinningAngleChip({ isDark, period, clientId }: {
     if (clientId && clientId !== 'all') params.set('clientId', clientId);
     adminFetch(`/api/admin/campanhas/portfolio/angle-insights?${params}`)
       .then(r => r.ok ? r.json() : null)
-      .then(d => setData(d ? { topAngle: d.topAngle ?? null, worstAngle: d.worstAngle ?? null } : null))
+      .then(d => setData(d ? {
+        topAngle:   d.topAngle   ?? null,
+        worstAngle: d.worstAngle ?? null,
+        angleStats: (d.angleStats ?? []) as AngleStat[],
+      } : null))
       .catch(() => setData(null))
       .finally(() => setChipLoading(false));
   }, [period, clientId]);
 
-  // Só exibe quando há pelo menos um ângulo vencedor com CPL
-  if (!chipLoading && !data?.topAngle) return null;
+  const classified = (data?.angleStats ?? []).filter(a => a.angle !== 'unknown' && a.campaigns > 0);
+
+  // Oculta só quando sem nenhum dado (nem ângulos classificados nem CPL)
+  if (!chipLoading && !data?.topAngle && classified.length === 0) return null;
 
   const bar = isDark
     ? 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.07)]'
@@ -955,47 +992,75 @@ function WinningAngleChip({ isDark, period, clientId }: {
     );
   }
 
+  const hasCpl = !!data?.topAngle;
+  // Modo cobertura: top 4 ângulos por nº de campanhas (quando sem CPL)
+  const coverageAngles = classified
+    .sort((a, b) => b.campaigns - a.campaigns)
+    .slice(0, 4);
+
   return (
     <div className={`rounded-2xl px-5 py-3 mb-6 flex items-center gap-5 flex-wrap ${bar}`}>
       <span className={`text-[10px] font-black uppercase tracking-widest shrink-0 ${txLabel}`}>
-        Ângulo · {period}d
+        {hasCpl ? `Ângulo · ${period}d` : `Ângulos · cobertura`}
       </span>
 
-      {/* Vencedor */}
-      {data?.topAngle && (
-        <span className="flex items-center gap-2">
-          <span className="text-base leading-none">🏆</span>
-          <span className={`text-xs font-black ${txMain}`}>
-            {angleLabel(data.topAngle.angle)}
-          </span>
-          {data.topAngle.cpl != null && (
-            <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
-              isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
-            }`}>
-              R$ {data.topAngle.cpl.toFixed(2)} CPL
+      {/* ── Modo CPL: vencedor / pior ── */}
+      {hasCpl && (
+        <>
+          <span className="flex items-center gap-2">
+            <span className="text-base leading-none">🏆</span>
+            <span className={`text-xs font-black ${txMain}`}>
+              {angleLabel(data!.topAngle!.angle)}
             </span>
+            {data!.topAngle!.cpl != null && (
+              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
+                isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
+              }`}>
+                R$ {data!.topAngle!.cpl.toFixed(2)} CPL
+              </span>
+            )}
+          </span>
+
+          {data?.worstAngle && (
+            <>
+              <span className={`text-[10px] ${txFaint}`}>vs</span>
+              <span className="flex items-center gap-2">
+                <span className={`text-xs font-medium ${txFaint}`}>
+                  ↓ {angleLabel(data.worstAngle.angle)}
+                </span>
+                {data.worstAngle.cpl != null && (
+                  <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
+                    isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-500'
+                  }`}>
+                    R$ {data.worstAngle.cpl.toFixed(2)} CPL
+                  </span>
+                )}
+              </span>
+            </>
           )}
-        </span>
+        </>
       )}
 
-      {/* Separador */}
-      {data?.topAngle && data?.worstAngle && (
-        <span className={`text-[10px] ${txFaint}`}>vs</span>
-      )}
-
-      {/* Pior */}
-      {data?.worstAngle && (
-        <span className="flex items-center gap-2">
-          <span className={`text-xs font-medium ${txFaint}`}>
-            ↓ {angleLabel(data.worstAngle.angle)}
+      {/* ── Modo cobertura: pills por ângulo ── */}
+      {!hasCpl && coverageAngles.map(a => {
+        const colorClass = isDark
+          ? (ANGLE_COLORS[a.angle] ?? ANGLE_COLORS.other)
+          : (ANGLE_COLORS_LIGHT[a.angle] ?? ANGLE_COLORS_LIGHT.other);
+        return (
+          <span
+            key={a.angle}
+            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${colorClass}`}
+          >
+            {a.label}
+            <span className="opacity-60 font-normal">{a.campaigns}×</span>
           </span>
-          {data.worstAngle.cpl != null && (
-            <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
-              isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-500'
-            }`}>
-              R$ {data.worstAngle.cpl.toFixed(2)} CPL
-            </span>
-          )}
+        );
+      })}
+
+      {/* Dica quando não há CPL ainda */}
+      {!hasCpl && (
+        <span className={`text-[10px] italic ${txFaint}`}>
+          CPL disponível após sincronização de métricas
         </span>
       )}
 

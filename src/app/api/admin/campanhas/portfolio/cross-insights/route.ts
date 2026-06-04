@@ -223,7 +223,7 @@ export async function GET(request: NextRequest) {
     }
 
     const tenantRow = await pool.query(`
-      SELECT t.nome_empresa AS nome, t.segment_id, s.name AS segment_name
+      SELECT t.name AS nome, t.segment_id, s.name AS segment_name
       FROM public.tenants t
       LEFT JOIN public.system_segments s ON s.id = t.segment_id
       WHERE t.id = $1::uuid
