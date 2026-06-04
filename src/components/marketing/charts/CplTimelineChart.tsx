@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { ResponsiveLine } from '@nivo/line';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -31,6 +32,10 @@ function Row({ label, value, color }: { label: string; value: string; color: str
 
 export function CplTimelineChart({ data, isDark }: Props) {
   // ── Derived stats ────────────────────────────────────────────────────────
+  // ── SSR guard: Nivo usa ResizeObserver (browser-only) ───────────────────
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const withLeads = data.filter(d => d.leads > 0 && d.cpl > 0);
   const bestDay   = withLeads.length > 0
     ? withLeads.reduce((b, d) => d.cpl < b.cpl ? d : b, withLeads[0])
@@ -183,47 +188,66 @@ export function CplTimelineChart({ data, isDark }: Props) {
   // ── Empty state ───────────────────────────────────────────────────────────
   if (data.every(d => d.cpl === 0)) {
     return (
-      <div className="h-[264px] flex items-center justify-center">
-        <p className={`text-sm ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+      <div style={{ height: 264, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontSize: 13, color: isDark ? '#475569' : '#94a3b8' }}>
           CPL disponível após captura de leads
         </p>
       </div>
     );
   }
 
+  // ── Loading skeleton (SSR pass) ───────────────────────────────────────────
+  if (!mounted) {
+    return (
+      <div style={{ height: 284 }}>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+          {[80, 96, 60].map((w, i) => (
+            <div key={i} style={{ height: 16, width: w, borderRadius: 8,
+              background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9' }} />
+          ))}
+        </div>
+        <div style={{ height: 240, borderRadius: 12,
+          background: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+          animation: 'pulse 2s infinite' }} />
+      </div>
+    );
+  }
+
   // ── Mini stats bar ────────────────────────────────────────────────────────
-  const statCls = (color: string) =>
-    `text-[11px] font-black tabular-nums` ;
+  const pill: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 6,
+    fontSize: 10, color: isDark ? '#64748b' : '#94a3b8',
+  };
 
   return (
     <div>
       {/* ── Stat pills ── */}
-      <div className="flex gap-4 mb-3 flex-wrap">
+      <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
         {avgCpl != null && (
-          <div className={`flex items-center gap-1.5 text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cplColor }} />
+          <div style={pill}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: cplColor, flexShrink: 0 }} />
             <span>Média</span>
-            <span className={statCls(cplColor)} style={{ color: cplColor }}>R$ {avgCpl.toFixed(2)}</span>
+            <span style={{ fontWeight: 900, color: cplColor, fontVariantNumeric: 'tabular-nums' }}>R$ {avgCpl.toFixed(2)}</span>
           </div>
         )}
         {bestDay && (
-          <div className={`flex items-center gap-1.5 text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+          <div style={pill}>
             <span>🏆</span>
             <span>Melhor</span>
-            <span className={statCls(bestColor)} style={{ color: bestColor }}>R$ {bestDay.cpl.toFixed(2)}</span>
+            <span style={{ fontWeight: 900, color: bestColor, fontVariantNumeric: 'tabular-nums' }}>R$ {bestDay.cpl.toFixed(2)}</span>
           </div>
         )}
         {totalLeads > 0 && (
-          <div className={`flex items-center gap-1.5 text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: leadColor }} />
+          <div style={pill}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: leadColor, flexShrink: 0 }} />
             <span>Leads</span>
-            <span className={statCls(leadColor)} style={{ color: leadColor }}>{totalLeads}</span>
+            <span style={{ fontWeight: 900, color: leadColor, fontVariantNumeric: 'tabular-nums' }}>{totalLeads}</span>
           </div>
         )}
       </div>
 
       {/* ── Chart ── */}
-      <div className="h-[240px]">
+      <div style={{ height: 240, position: 'relative' }}>
         <ResponsiveLine
           data={lineData}
           theme={nivoTheme}
