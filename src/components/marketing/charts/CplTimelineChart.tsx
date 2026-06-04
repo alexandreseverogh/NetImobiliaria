@@ -99,7 +99,7 @@ export function CplTimelineChart({ data, isDark }: Props) {
         border:       `1px solid ${isDark ? 'rgba(255,255,255,0.09)' : '#e2e8f0'}`,
         borderRadius: 14,
         padding:      '10px 14px',
-        color:        isDark ? '#f1f5f9' : '#0f172a',
+        color:        isDark ? '#cbd5e1' : '#0f172a',
         boxShadow:    isDark ? '0 8px 32px rgba(0,0,0,0.55)' : '0 4px 16px rgba(0,0,0,0.1)',
         minWidth:     168,
       }}>

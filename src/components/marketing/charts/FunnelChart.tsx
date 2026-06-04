@@ -32,7 +32,7 @@ export function FunnelChart({ data, isDark = true }: Props) {
                 {stage.label}
               </span>
               <div className="flex items-center gap-2.5">
-                <span className={`font-mono font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                <span className={`font-mono font-bold text-sm ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
                   {formatNumber(value)}
                 </span>
                 {conv && (

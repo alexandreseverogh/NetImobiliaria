@@ -54,7 +54,7 @@ export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, t
       borderRadius: '12px',
       fontSize:     '12px',
       fontWeight:   500,
-      color:        isDark ? '#f1f5f9' : '#111827',
+      color:        isDark ? '#cbd5e1' : '#111827',
       boxShadow:    isDark ? '0 8px 32px rgba(0,0,0,0.5)' : '0 4px 6px -1px rgba(0,0,0,0.1)',
     },
   };

@@ -93,8 +93,8 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel 
     ? 'bg-[rgba(13,20,33,0.92)] backdrop-blur-sm border border-[rgba(255,255,255,0.07)] shadow-[0_2px_16px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.03)]'
     : 'bg-white border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]';
 
-  const tx      = isDark ? 'text-slate-100' : 'text-slate-900';
-  const txFaint = isDark ? 'text-slate-600' : 'text-slate-400';
+  const tx      = isDark ? 'text-slate-300' : 'text-slate-900';
+  const txFaint = isDark ? 'text-slate-500' : 'text-slate-400';
   const divider = isDark ? 'border-[rgba(255,255,255,0.05)]' : 'border-slate-100';
 
   return (

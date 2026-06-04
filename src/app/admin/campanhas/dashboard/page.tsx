@@ -237,13 +237,13 @@ export function DashboardPage() {
   const cardBase = isDark
     ? 'bg-[rgba(13,20,33,0.92)] backdrop-blur-sm border border-[rgba(255,255,255,0.07)] shadow-[0_2px_16px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.03)]'
     : 'bg-white border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]';
-  const tx       = isDark ? 'text-slate-100' : 'text-slate-900';
-  const txMuted  = isDark ? 'text-slate-500' : 'text-slate-500';
-  const txFaint  = isDark ? 'text-slate-600' : 'text-slate-400';
+  const tx       = isDark ? 'text-slate-300' : 'text-slate-900';
+  const txMuted  = isDark ? 'text-slate-400' : 'text-slate-500';
+  const txFaint  = isDark ? 'text-slate-500' : 'text-slate-400';
   const divider  = isDark ? 'border-[rgba(255,255,255,0.05)]' : 'border-slate-100';
 
   const selectBase = isDark
-    ? 'border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-2.5 text-sm font-medium text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all'
+    ? 'border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all'
     : 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all';
   const selectStyle = isDark
     ? { colorScheme: 'dark' as const, backgroundColor: 'rgba(255,255,255,0.04)' }
@@ -258,7 +258,7 @@ export function DashboardPage() {
       background: isDark ? '#0d1421' : '#ffffff',
       border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0',
       borderRadius: '12px', fontSize: '12px', fontWeight: 500,
-      color: isDark ? '#f1f5f9' : '#0f172a',
+      color: isDark ? '#cbd5e1' : '#0f172a',
       boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.5)' : '0 4px 6px rgba(0,0,0,0.1)',
     },
   };
@@ -291,7 +291,7 @@ export function DashboardPage() {
               className={cn(
                 'flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-200',
                 isDark
-                  ? 'bg-[rgba(255,255,255,0.05)] text-slate-400 hover:bg-[rgba(255,255,255,0.09)] border border-[rgba(255,255,255,0.07)] hover:text-slate-200'
+                  ? 'bg-[rgba(255,255,255,0.05)] text-slate-400 hover:bg-[rgba(255,255,255,0.09)] border border-[rgba(255,255,255,0.07)] hover:text-slate-300'
                   : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 shadow-sm hover:text-slate-900'
               )}
             >
@@ -374,7 +374,7 @@ export function DashboardPage() {
                   <button key={value} onClick={() => handleQuickDate(value)}
                     className={cn('px-3 py-1.5 rounded-lg text-xs font-black transition-all', dateRange === value
                       ? 'bg-indigo-600 text-white shadow-sm'
-                      : isDark ? 'text-slate-500 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')}>
+                      : isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-900')}>
                     {label}
                   </button>
                 ))}
@@ -818,7 +818,7 @@ function RetrovisorSection({ isDark, children, periodLabel }: { isDark: boolean;
             <p className={`text-[9px] font-black uppercase tracking-[0.35em] mb-0.5 ${isDark ? 'text-amber-700' : 'text-amber-500'}`}>
               Retrovisor
             </p>
-            <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+            <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
               Performance Histórica
             </h2>
             <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
@@ -848,7 +848,7 @@ function FarolSection({ isDark, children, periodLabel }: { isDark: boolean; chil
             <p className={`text-[9px] font-black uppercase tracking-[0.35em] mb-0.5 ${isDark ? 'text-cyan-700' : 'text-sky-500'}`}>
               Farol de Milha
             </p>
-            <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+            <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
               Sinais Leading & Antecipação
             </h2>
             <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
@@ -1028,7 +1028,7 @@ function WinningAngleChip({ isDark, period, clientId }: {
     ? 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.07)]'
     : 'bg-white border border-slate-100 shadow-sm';
   const txLabel  = isDark ? 'text-slate-500' : 'text-slate-400';
-  const txMain   = isDark ? 'text-slate-200' : 'text-slate-700';
+  const txMain   = isDark ? 'text-slate-300' : 'text-slate-700';
   const txFaint  = isDark ? 'text-slate-500' : 'text-slate-400';
 
   if (chipLoading) {
@@ -1187,9 +1187,9 @@ function BriefingCard({ briefing, isDark, compact }: {
   const cardCls = isDark
     ? 'bg-[rgba(13,20,33,0.92)] backdrop-blur-sm border border-[rgba(255,255,255,0.07)] shadow-[0_2px_16px_rgba(0,0,0,0.5)]'
     : 'bg-white border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06)]';
-  const tx      = isDark ? 'text-slate-100' : 'text-slate-900';
-  const txMuted = isDark ? 'text-slate-500' : 'text-slate-500';
-  const txFaint = isDark ? 'text-slate-600' : 'text-slate-400';
+  const tx      = isDark ? 'text-slate-300' : 'text-slate-900';
+  const txMuted = isDark ? 'text-slate-400' : 'text-slate-500';
+  const txFaint = isDark ? 'text-slate-500' : 'text-slate-400';
   const badge   = isDark
     ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
     : 'bg-violet-50 text-violet-700 border border-violet-100';

@@ -310,16 +310,16 @@ function DashboardHelpModal({ isDark, onClose }: { isDark: boolean; onClose: () 
   const panel = isDark
     ? 'bg-[#0a0f1c] border border-[rgba(255,255,255,0.08)] shadow-[0_24px_80px_rgba(0,0,0,0.8)]'
     : 'bg-white border border-slate-200 shadow-[0_24px_80px_rgba(0,0,0,0.18)]';
-  const tx      = isDark ? 'text-slate-100' : 'text-slate-900';
+  const tx      = isDark ? 'text-slate-300' : 'text-slate-900';
   const txMuted = isDark ? 'text-slate-400' : 'text-slate-500';
-  const txFaint = isDark ? 'text-slate-600' : 'text-slate-400';
+  const txFaint = isDark ? 'text-slate-500' : 'text-slate-400';
   const divider = isDark ? 'border-[rgba(255,255,255,0.06)]' : 'border-slate-100';
 
   const tabActive = isDark
     ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
     : 'bg-indigo-600 text-white shadow-sm';
   const tabIdle = isDark
-    ? 'text-slate-500 hover:text-slate-200 hover:bg-[rgba(255,255,255,0.05)]'
+    ? 'text-slate-500 hover:text-slate-300 hover:bg-[rgba(255,255,255,0.05)]'
     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100';
 
   const items = tab === 'metricas' ? METRICAS : PAINEIS;
@@ -359,7 +359,7 @@ function DashboardHelpModal({ isDark, onClose }: { isDark: boolean; onClose: () 
               className={cn(
                 'shrink-0 p-2 rounded-xl transition-colors',
                 isDark
-                  ? 'text-slate-500 hover:text-slate-200 hover:bg-[rgba(255,255,255,0.07)]'
+                  ? 'text-slate-500 hover:text-slate-300 hover:bg-[rgba(255,255,255,0.07)]'
                   : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
               )}
             >
@@ -438,9 +438,9 @@ function HelpCard({ item, isDark }: { item: HelpItem; isDark: boolean }) {
   const card = isDark
     ? 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] hover:border-[rgba(99,102,241,0.25)] hover:bg-[rgba(255,255,255,0.05)]'
     : 'bg-slate-50/80 border-slate-200/80 hover:border-indigo-200 hover:bg-white';
-  const tx      = isDark ? 'text-slate-100' : 'text-slate-900';
+  const tx      = isDark ? 'text-slate-300' : 'text-slate-900';
   const txMuted = isDark ? 'text-slate-400' : 'text-slate-600';
-  const txFaint = isDark ? 'text-slate-600' : 'text-slate-400';
+  const txFaint = isDark ? 'text-slate-500' : 'text-slate-400';
   const tipBg   = isDark ? 'bg-amber-500/08 border-amber-500/15 text-amber-400' : 'bg-amber-50 border-amber-100 text-amber-700';
   const benchBg = isDark ? 'bg-emerald-500/08 border-emerald-500/15 text-emerald-400' : 'bg-emerald-50 border-emerald-100 text-emerald-700';
 
