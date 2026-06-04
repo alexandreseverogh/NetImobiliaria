@@ -611,18 +611,22 @@ export function DashboardPage() {
 
             {/* ── Briefing Estratégico AI ──────────────────────────────────── */}
             <div className="mb-8">
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${isDark ? 'bg-violet-500/10' : 'bg-violet-50'}`}>
-                    <SparklesIcon className={`h-5 w-5 ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
+              <div className="mb-5">
+                {/* Linha 1: título + badge (canto direito) */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-xl ${isDark ? 'bg-violet-500/10' : 'bg-violet-50'}`}>
+                      <SparklesIcon className={`h-5 w-5 ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
+                    </div>
+                    <div>
+                      <h2 className={`text-lg font-black ${tx}`}>Briefing Estratégico AI</h2>
+                      <p className={`text-xs ${txMuted}`}>Gerado por LLM com fallback rule-based</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className={`text-lg font-black ${tx}`}>Briefing Estratégico AI</h2>
-                    <p className={`text-xs ${txMuted}`}>Gerado por LLM com fallback rule-based</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
                   <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
+                </div>
+                {/* Linha 2: botões de ação (alinhados à direita) */}
+                <div className="flex justify-end gap-2">
                   <button onClick={() => setShowBriefingHistory(!showBriefingHistory)}
                     className={cn(
                       'flex items-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all',
