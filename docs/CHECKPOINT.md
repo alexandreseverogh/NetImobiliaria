@@ -1,12 +1,36 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-03 (FASE 14d concluída — auto-classificação de ângulo em lote)
+> **Atualizado em:** 2026-06-04 (cross-insights prompt v2 — tenant/segmento ciente)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Fix cross-insights — narrativa LLM tenant/segmento ciente (2026-06-04) ✅
+
+**Problema:** A IA confundia o tenant (empresa gestora) com os clientes gerenciados na narrativa
+de portfólio, e comparava clientes de segmentos diferentes de forma incorreta.
+
+**Solução:**
+- `isTenant` flag no `clientList` do GET — campanhas sem `client_id` = tenant, não cliente
+- `buildRuleBasedInsights` usa `realClients` (filtra tenant) para todos os insights cruzados
+- GET response inclui `tenantName` e `clientDetails[]` (com `isTenant`, `segmentName`, `status`)
+- POST handler constrói `client_context` com linhas `[TENANT]` vs `[CLIENTE]` + segmento por linha
+- Prompt v2 (`version = 2`): regras explícitas — nunca comparar tenant com clientes, nunca
+  comparar segmentos diferentes; variáveis: `{{tenant_name}}`, `{{client_context}}`
+
+**Arquivos modificados:**
+- `src/app/api/admin/campanhas/portfolio/cross-insights/route.ts`
+
+**Migration aplicada:**
+- `prisma/migration-2026-06-03-cross-pollination-prompt-v2.sql` — UPDATE `content` + `variables`
+  (aplicada localmente via node --input-type=module)
+
+**Migration PENDENTE VPS:** — junto ao batch de outras migrations
+
+---
 
 ### FASE 14d — Auto-classificação de ângulo em lote (2026-06-03) ✅
 
