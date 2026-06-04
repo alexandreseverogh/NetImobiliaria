@@ -270,234 +270,203 @@ export default function MasterSegmentsPage() {
         </div>
       </div>
 
-      {/* Segment Modal */}
+      {/* Segment Modal — 2 colunas, sem scroll */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] transform transition-all animate-in fade-in zoom-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all animate-in fade-in zoom-in duration-300">
 
-            {/* ── Cabeçalho fixo ── */}
-            <div className="p-5 bg-indigo-600 text-white flex items-center justify-between rounded-t-3xl shrink-0">
+            {/* ── Cabeçalho ── */}
+            <div className="px-6 py-4 bg-indigo-600 text-white flex items-center justify-between rounded-t-3xl">
               <div>
                 <h2 className="text-xl font-black">{editingSegment ? 'Editar Segmento' : 'Novo Segmento'}</h2>
                 <p className="text-indigo-100 text-sm font-medium">Configure a identidade do nicho.</p>
               </div>
               <div
-                className="h-10 w-10 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center border border-white/30"
+                className="h-10 w-10 rounded-2xl flex items-center justify-center border-2 border-white/40 shadow-inner"
                 style={{ backgroundColor: formData.color_theme }}
               >
-                <Squares2X2Icon className="h-5 w-5 text-white" />
+                <Squares2X2Icon className="h-5 w-5 text-white drop-shadow" />
               </div>
             </div>
 
-            {/* ── Formulário (scroll interno) + botões fixos no rodapé ── */}
-            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Nome do Segmento</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={formData.name}
-                    onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-medium"
-                    placeholder="Ex: Saúde Digital"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Slug</label>
-                  <div className="relative">
-                    <HashtagIcon className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
-                    <input 
+            {/* ── Formulário 2 colunas ── */}
+            <form onSubmit={handleSubmit}>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-6 pt-5 pb-4">
+
+                {/* ╔══════════════ COLUNA ESQUERDA ══════════════╗ */}
+                <div className="space-y-4">
+
+                  {/* Nome */}
+                  <div>
+                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Nome do Segmento</label>
+                    <input
                       required
-                      disabled={!!editingSegment}
-                      type="text" 
-                      value={formData.slug}
-                      onChange={e => setFormData({...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-')})}
-                      className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold disabled:bg-gray-50 disabled:text-gray-400 text-sm"
-                      placeholder="saude"
-                    />
-                  </div>
-                </div>
-              <div>
-                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Paleta de Identidade (Tema)</label>
-                <div className="grid grid-cols-6 gap-3 mb-3">
-                  {[
-                    '#2563eb', '#7c3aed', '#db2777', '#dc2626', 
-                    '#ea580c', '#d97706', '#059669', '#0891b2',
-                    '#0f172a', '#4b5563', '#9333ea', '#1e1b4b'
-                  ].map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setFormData({...formData, color_theme: color})}
-                      className={`h-10 w-10 rounded-full border-4 transition-all hover:scale-110 active:scale-90 shadow-sm ${
-                        formData.color_theme === color ? 'border-indigo-400 scale-110 shadow-indigo-200' : 'border-transparent'
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-                
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                  <input 
-                    type="color" 
-                    value={formData.color_theme}
-                    onChange={e => setFormData({...formData, color_theme: e.target.value})}
-                    className="h-8 w-8 rounded-lg border-0 p-0 cursor-pointer overflow-hidden shadow-sm"
-                  />
-                  <div className="flex-1">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cor Personalizada</p>
-                    <input 
-                      type="text" 
-                      value={formData.color_theme}
-                      onChange={e => setFormData({...formData, color_theme: e.target.value})}
-                      className="w-full bg-transparent font-mono text-xs font-bold uppercase outline-none text-gray-700"
-                      maxLength={7}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              </div>
-
-              <div>
-                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Ícone (Heroicon)</label>
-                <div className="relative">
-                  <CommandLineIcon className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
-                  <input 
-                    type="text" 
-                    value={formData.icon}
-                    onChange={e => setFormData({...formData, icon: e.target.value})}
-                    className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
-                    placeholder="activity, home, user..."
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Arquitetura de Motores (Provisionamento Base)</label>
-                <div className="grid grid-cols-1 gap-2 bg-gray-50 p-3 rounded-2xl border border-gray-100 max-h-36 overflow-y-auto custom-scrollbar">
-                  {availableModules.map(mod => (
-                    <label key={mod.id} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                      formData.module_ids.includes(mod.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-transparent hover:border-indigo-100'
-                    }`}>
-                      <span className="text-xs font-black uppercase tracking-tight">{mod.name}</span>
-                      <input 
-                        type="checkbox"
-                        checked={formData.module_ids.includes(mod.id)}
-                        onChange={() => toggleModule(mod.id)}
-                        className="h-4 w-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500 sr-only"
-                      />
-                      {formData.module_ids.includes(mod.id) && <CheckCircleIcon className="h-4 w-4" />}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Descrição</label>
-                <textarea 
-                  value={formData.description}
-                  onChange={e => setFormData({...formData, description: e.target.value})}
-                  className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-sm h-14"
-                  placeholder="Descreva o propósito deste segmento..."
-                />
-              </div>
-
-              {/* ── Benchmarks de Performance ── */}
-              <div>
-                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1">
-                  Benchmarks de Performance
-                </label>
-                <p className="text-[10px] text-gray-400 font-medium mb-3">
-                  Limites usados para classificar o status CPL dos clientes deste segmento.
-                </p>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
-                      CPL Ideal (R$)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={formData.cpl_ideal}
-                      onChange={e => setFormData({ ...formData, cpl_ideal: e.target.value })}
-                      placeholder="ex: 35"
+                      type="text"
+                      value={formData.name}
+                      onChange={e => setFormData({...formData, name: e.target.value})}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-medium text-sm"
+                      placeholder="Ex: Saúde Digital"
                     />
                   </div>
+
+                  {/* Slug + Ícone em linha */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Slug</label>
+                      <div className="relative">
+                        <HashtagIcon className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                          required
+                          disabled={!!editingSegment}
+                          type="text"
+                          value={formData.slug}
+                          onChange={e => setFormData({...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-')})}
+                          className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-gray-200 font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold disabled:bg-gray-50 disabled:text-gray-400 text-sm"
+                          placeholder="saude"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Ícone</label>
+                      <div className="relative">
+                        <CommandLineIcon className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={formData.icon}
+                          onChange={e => setFormData({...formData, icon: e.target.value})}
+                          className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-gray-200 font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                          placeholder="box, home..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Descrição */}
                   <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
-                      CPL Crítico (R$)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={formData.cpl_critical}
-                      onChange={e => setFormData({ ...formData, cpl_critical: e.target.value })}
-                      placeholder="ex: 80"
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all font-medium text-sm"
+                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Descrição</label>
+                    <textarea
+                      value={formData.description}
+                      onChange={e => setFormData({...formData, description: e.target.value})}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-sm h-16 resize-none"
+                      placeholder="Descreva o propósito deste segmento..."
                     />
                   </div>
+
+                  {/* Benchmarks */}
                   <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
-                      CTR Mínimo (%)
-                    </label>
+                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Benchmarks de Performance</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">CPL Ideal R$</label>
+                        <input type="number" min="0" step="0.01" value={formData.cpl_ideal}
+                          onChange={e => setFormData({ ...formData, cpl_ideal: e.target.value })}
+                          placeholder="35"
+                          className="w-full px-2.5 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm font-medium" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">CPL Crítico R$</label>
+                        <input type="number" min="0" step="0.01" value={formData.cpl_critical}
+                          onChange={e => setFormData({ ...formData, cpl_critical: e.target.value })}
+                          placeholder="80"
+                          className="w-full px-2.5 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-400 focus:border-transparent outline-none text-sm font-medium" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">CTR Mín %</label>
+                        <input type="number" min="0" step="0.1" value={formData.ctr_min}
+                          onChange={e => setFormData({ ...formData, ctr_min: e.target.value })}
+                          placeholder="0.8"
+                          className="w-full px-2.5 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm font-medium" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1.5 text-[9px] font-semibold">
+                      <span className="flex items-center gap-1 text-green-600"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />ok</span>
+                      <span className="flex items-center gap-1 text-amber-600"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />atenção</span>
+                      <span className="flex items-center gap-1 text-red-600"><span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />crítico</span>
+                    </div>
+                  </div>
+
+                  {/* Ativo */}
+                  <div className="flex items-center gap-2">
                     <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={formData.ctr_min}
-                      onChange={e => setFormData({ ...formData, ctr_min: e.target.value })}
-                      placeholder="ex: 0.8"
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-medium text-sm"
+                      type="checkbox" id="is_active"
+                      checked={formData.is_active}
+                      onChange={e => setFormData({...formData, is_active: e.target.checked})}
+                      className="h-4 w-4 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
                     />
+                    <label htmlFor="is_active" className="text-sm font-bold text-gray-700 cursor-pointer">Segmento Ativo</label>
                   </div>
                 </div>
-                {/* Visual legend */}
-                <div className="flex items-center gap-3 mt-2.5 text-[10px] font-semibold">
-                  <span className="flex items-center gap-1 text-green-600">
-                    <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-                    ≤ CPL Ideal → ok
-                  </span>
-                  <span className="flex items-center gap-1 text-amber-600">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-                    Ideal &lt; CPL &lt; Crítico → atenção
-                  </span>
-                  <span className="flex items-center gap-1 text-red-600">
-                    <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
-                    ≥ CPL Crítico → crítico
-                  </span>
+                {/* ╚══════════════ FIM COLUNA ESQUERDA ══════════════╝ */}
+
+                {/* ╔══════════════ COLUNA DIREITA ══════════════╗ */}
+                <div className="space-y-4">
+
+                  {/* Paleta */}
+                  <div>
+                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Paleta de Identidade</label>
+                    <div className="grid grid-cols-6 gap-2 mb-2">
+                      {[
+                        '#2563eb','#7c3aed','#db2777','#dc2626',
+                        '#ea580c','#d97706','#059669','#0891b2',
+                        '#0f172a','#4b5563','#9333ea','#1e1b4b',
+                      ].map(color => (
+                        <button
+                          key={color} type="button"
+                          onClick={() => setFormData({...formData, color_theme: color})}
+                          className={`h-9 w-9 rounded-full border-4 transition-all hover:scale-110 active:scale-90 shadow-sm ${
+                            formData.color_theme === color ? 'border-indigo-400 scale-110' : 'border-transparent'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                      <input type="color" value={formData.color_theme}
+                        onChange={e => setFormData({...formData, color_theme: e.target.value})}
+                        className="h-7 w-7 rounded-lg border-0 p-0 cursor-pointer overflow-hidden shadow-sm" />
+                      <div className="flex-1">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Personalizada</p>
+                        <input type="text" value={formData.color_theme}
+                          onChange={e => setFormData({...formData, color_theme: e.target.value})}
+                          className="w-full bg-transparent font-mono text-xs font-bold uppercase outline-none text-gray-700"
+                          maxLength={7} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Módulos */}
+                  <div>
+                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Motores (Módulos)</label>
+                    <div className="grid grid-cols-1 gap-1.5 bg-gray-50 p-3 rounded-2xl border border-gray-100 max-h-44 overflow-y-auto custom-scrollbar">
+                      {availableModules.map(mod => (
+                        <label key={mod.id} className={`flex items-center justify-between px-3 py-2 rounded-xl border-2 cursor-pointer transition-all ${
+                          formData.module_ids.includes(mod.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-transparent hover:border-indigo-100'
+                        }`}>
+                          <span className="text-xs font-black uppercase tracking-tight">{mod.name}</span>
+                          <input type="checkbox"
+                            checked={formData.module_ids.includes(mod.id)}
+                            onChange={() => toggleModule(mod.id)}
+                            className="sr-only" />
+                          {formData.module_ids.includes(mod.id) && <CheckCircleIcon className="h-4 w-4 shrink-0" />}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+                {/* ╚══════════════ FIM COLUNA DIREITA ══════════════╝ */}
+
               </div>
 
-              <div className="flex items-center gap-2 py-2">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={formData.is_active}
-                  onChange={e => setFormData({...formData, is_active: e.target.checked})}
-                  className="h-5 w-5 text-indigo-600 rounded-lg focus:ring-indigo-500 border-gray-300 transition-all"
-                />
-                <label htmlFor="is_active" className="text-sm font-bold text-gray-700 cursor-pointer">Segmento Ativo</label>
-              </div>
-
-              </div>{/* fim scroll area */}
-
-              {/* ── Botões fixos no rodapé ── */}
-              <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
-                >Cancelar</button>
-                <button
-                  type="submit"
-                  className="flex-[2] py-2.5 bg-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105"
-                >Salvar Alterações</button>
+              {/* ── Botões ── */}
+              <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
+                <button type="button" onClick={() => setShowModal(false)}
+                  className="flex-1 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all text-sm">
+                  Cancelar
+                </button>
+                <button type="submit"
+                  className="flex-[2] py-2.5 bg-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 text-sm">
+                  Salvar Alterações
+                </button>
               </div>
             </form>
           </div>
