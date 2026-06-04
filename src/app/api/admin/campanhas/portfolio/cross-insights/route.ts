@@ -30,15 +30,27 @@ export interface CrossInsight {
   improvement?: string;      // ex: "↓ 28% CPL"
 }
 
+/** Detalhe por conta para o contexto da LLM */
+export interface CrossClientDetail {
+  clientName:  string;
+  isTenant:    boolean;     // true = é o tenant (empresa gestora), não um cliente gerenciado
+  segmentName: string | null;
+  cpl:         number | null;
+  spend:       number;
+  status:      string;
+}
+
 export interface CrossInsightsResponse {
   generatedAt:   string;
   period:        number;
   top:           number;   // FASE 13 — Top N solicitado
   totalClients:  number;
+  tenantName:    string;   // nome do tenant para contexto LLM
   narrative:     string | null;
   insights:      CrossInsight[];
   topPerformers: { clientName: string; cpl: number | null; spend: number }[];
   underperformers: { clientName: string; cpl: number | null; spend: number; reason: string }[];
+  clientDetails: CrossClientDetail[];  // contexto enriquecido para LLM
 }
 
 /* ── builder de insights rule-based (sem LLM) ───────────────────── */
@@ -46,6 +58,7 @@ export interface CrossInsightsResponse {
 function buildRuleBasedInsights(
   clients: Array<{
     clientName: string;
+    isTenant: boolean;          // true = é a empresa gestora (tenant)
     cpl: number | null;
     spend: number;
     leads: number;
@@ -58,9 +71,12 @@ function buildRuleBasedInsights(
 ): CrossInsight[] {
   const insights: CrossInsight[] = [];
 
-  const ok       = clients.filter(c => c.status === 'ok');
-  const critical = clients.filter(c => c.status === 'critical');
-  const warn     = clients.filter(c => c.status === 'warn');
+  // Para comparações cruzadas, usa APENAS clientes gerenciados (não o tenant)
+  const realClients = clients.filter(c => !c.isTenant);
+
+  const ok       = realClients.filter(c => c.status === 'ok');
+  const critical = realClients.filter(c => c.status === 'critical');  // alertas só de clientes reais
+  const warn     = realClients.filter(c => c.status === 'warn');      // eslint-disable-line @typescript-eslint/no-unused-vars
 
   // Padrão: clientes saudáveis → podem inspirar os críticos
   if (ok.length > 0 && critical.length > 0) {
@@ -108,8 +124,8 @@ function buildRuleBasedInsights(
     }
   }
 
-  // Oportunidade: clientes sem dados (campanhas pausadas ou sem leads)
-  const nodata = clients.filter(c => c.status === 'nodata' && c.spend === 0);
+  // Oportunidade: clientes reais sem dados (campanhas pausadas ou sem leads)
+  const nodata = realClients.filter(c => c.status === 'nodata' && c.spend === 0);
   if (nodata.length > 0) {
     insights.push({
       id:   'nodata-01',
@@ -128,9 +144,9 @@ function buildRuleBasedInsights(
     });
   }
 
-  // Padrão de CTR
-  const goodCtr  = clients.filter(c => c.ctr !== null && c.ctr >= 1.5);
-  const poorCtr  = clients.filter(c => c.ctr !== null && c.ctr < 0.8);
+  // Padrão de CTR — só entre clientes reais do MESMO segmento
+  const goodCtr  = realClients.filter(c => c.ctr !== null && c.ctr >= 1.5);
+  const poorCtr  = realClients.filter(c => c.ctr !== null && c.ctr < 0.8);
   if (goodCtr.length > 0 && poorCtr.length > 0) {
     insights.push({
       id:   'ctr-01',
@@ -150,9 +166,10 @@ function buildRuleBasedInsights(
     });
   }
 
-  // Benchmarks por segmento
+  // Benchmarks por segmento — usa apenas clientes reais (exclui tenant)
+  // Tenant pode ter segmento diferente dos clientes que gerencia
   const segGroups = new Map<string, typeof clients>();
-  for (const c of clients) {
+  for (const c of realClients) {
     if (!c.segment_name) continue;
     if (!segGroups.has(c.segment_name)) segGroups.set(c.segment_name, []);
     segGroups.get(c.segment_name)!.push(c);
@@ -283,13 +300,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Monta lista consolidada
+    // Monta lista consolidada — isTenant identifica a empresa gestora
     const clientList = metricsQuery.rows.map(row => {
-      const mapKey  = row.client_id ?? '__own__';
-      const info    = row.client_id ? clientInfoMap.get(row.client_id) : null;
-      const segId   = info?.segment_id ?? tenantInfo?.segment_id ?? null;
-      const bench   = segId ? benchMap.get(segId) ?? { cplIdeal: null, cplCritical: null, ctrMin: null }
-                            : { cplIdeal: null, cplCritical: null, ctrMin: null };
+      const isTenant = row.client_id === null;
+      const mapKey   = row.client_id ?? '__own__';
+      const info     = row.client_id ? clientInfoMap.get(row.client_id) : null;
+      const segId    = info?.segment_id ?? tenantInfo?.segment_id ?? null;
+      const bench    = segId ? benchMap.get(segId) ?? { cplIdeal: null, cplCritical: null, ctrMin: null }
+                             : { cplIdeal: null, cplCritical: null, ctrMin: null };
 
       const spend  = parseFloat(row.total_spend);
       const imp    = parseInt(row.total_impressions);
@@ -307,7 +325,8 @@ export async function GET(request: NextRequest) {
       }
 
       return {
-        clientName:   row.client_id ? (info?.nome ?? 'Cliente') : (tenantInfo?.nome ?? 'Minha Empresa'),
+        isTenant,
+        clientName:   isTenant ? (tenantInfo?.nome ?? 'Minha Empresa') : (info?.nome ?? 'Cliente'),
         cpl, spend, leads, ctr, status,
         segment_name: info?.segment_name ?? tenantInfo?.segment_name ?? null,
         cplIdeal:    bench.cplIdeal,
@@ -330,15 +349,26 @@ export async function GET(request: NextRequest) {
           : 'CPL acima do limite',
       }));
 
+    const clientDetails: CrossClientDetail[] = clientList.map(c => ({
+      clientName:  c.clientName,
+      isTenant:    c.isTenant,
+      segmentName: c.segment_name,
+      cpl:         c.cpl,
+      spend:       c.spend,
+      status:      c.status,
+    }));
+
     const result: CrossInsightsResponse = {
       generatedAt:   new Date().toISOString(),
       period,
       top:           topN,
       totalClients:  clientList.length,
+      tenantName:    tenantInfo?.nome ?? 'Minha Empresa',
       narrative:     null, // LLM opcional via POST
       insights,
       topPerformers,
       underperformers,
+      clientDetails,
     };
 
     return NextResponse.json(result);
@@ -376,11 +406,31 @@ export async function POST(request: NextRequest) {
 
     // Tenta gerar narrativa LLM via template cross_pollination_insights
     try {
-      const topPerformersText = data.topPerformers.length > 0
-        ? data.topPerformers.map(c =>
-            `- ${c.clientName}: CPL R$${c.cpl?.toFixed(2) ?? 'N/A'}, Investimento R$${c.spend.toFixed(2)}`
-          ).join('\n')
-        : '- Sem dados suficientes no período';
+      // Contexto enriquecido: separa tenant de clientes gerenciados, inclui segmento
+      const clientDetails = data.clientDetails ?? [];
+
+      const managedClients = clientDetails.filter(c => !c.isTenant);
+      const tenantDetail   = clientDetails.find(c => c.isTenant);
+
+      const clientContextLines: string[] = [];
+      if (tenantDetail) {
+        const seg = tenantDetail.segmentName ?? 'sem segmento';
+        const cplStr = tenantDetail.cpl != null ? `CPL R$${tenantDetail.cpl.toFixed(2)}` : 'sem CPL';
+        clientContextLines.push(
+          `[TENANT — empresa gestora, NÃO é cliente gerenciado] ${data.tenantName} (${seg}): ${cplStr}, status=${tenantDetail.status}`
+        );
+      }
+      for (const c of managedClients) {
+        const seg = c.segmentName ?? 'sem segmento';
+        const cplStr = c.cpl != null ? `CPL R$${c.cpl.toFixed(2)}` : 'sem CPL';
+        clientContextLines.push(
+          `[CLIENTE] ${c.clientName} (${seg}): ${cplStr}, investimento R$${c.spend.toFixed(2)}, status=${c.status}`
+        );
+      }
+
+      const clientContextText = clientContextLines.length > 0
+        ? clientContextLines.join('\n')
+        : '- Sem dados de clientes no período';
 
       const criticalAlertsText = data.underperformers.length > 0
         ? data.underperformers.map(c => `- ${c.clientName}: ${c.reason}`).join('\n')
@@ -395,9 +445,10 @@ export async function POST(request: NextRequest) {
         tenantId:    payload.tenantId,
         clientId:    null,
         variables: {
-          total_clients:  String(data.totalClients),
-          period:         String(period),
-          top_performers: topPerformersText,
+          tenant_name:     data.tenantName,
+          total_clients:   String(managedClients.length),  // apenas clientes gerenciados
+          period:          String(period),
+          client_context:  clientContextText,
           critical_alerts: criticalAlertsText,
           patterns:        patternsText,
         },
