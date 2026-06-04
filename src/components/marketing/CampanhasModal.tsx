@@ -133,14 +133,35 @@ function genderLabel(genders: number[]): string {
 
 function extractLocations(locations: unknown): string[] {
   if (!locations) return [];
+
+  // Formato array (ex: [{ name: 'SP' }])
   if (Array.isArray(locations)) {
     return (locations as Record<string, string>[])
       .map(l => l.name || l.city || l.region || String(l))
       .filter(Boolean);
   }
+
   if (typeof locations === 'object' && locations !== null) {
     const loc = locations as Record<string, unknown>;
     const result: string[] = [];
+
+    // ── Formato wizard (LocationPicker): { custom_locations: [{ name, radius }] }
+    const customLocs = loc.custom_locations as Record<string, unknown>[] | undefined;
+    if (customLocs?.length) {
+      customLocs.forEach(cl => {
+        const name   = cl.name as string | undefined;
+        const radius = cl.radius as number | undefined;
+        if (name) result.push(radius ? `${name} (${radius}km)` : name);
+      });
+      return result;
+    }
+
+    // ── Formato antigo direto: { key: "BR:SP:Barueri", name: "Barueri" }
+    if (loc.name && typeof loc.name === 'string') {
+      return [loc.name];
+    }
+
+    // ── Formato Meta Ads com cities/regions/countries
     const countries = loc.countries as string[] | undefined;
     const cities    = loc.cities    as Record<string, string>[] | undefined;
     const regions   = loc.regions   as Record<string, string>[] | undefined;
@@ -151,6 +172,7 @@ function extractLocations(locations: unknown): string[] {
     regions?.forEach(r => { if (r.name) result.push(r.name); });
     return result.length ? result : ['Brasil'];
   }
+
   return ['Brasil'];
 }
 
