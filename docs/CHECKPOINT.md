@@ -1,12 +1,40 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-04 (cross-insights prompt v2 — tenant/segmento ciente)
+> **Atualizado em:** 2026-06-04 (Briefing Estratégico — documento autônomo do filtro)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Briefing Estratégico — documento autônomo do filtro de página (2026-06-04) ✅
+
+**Decisão de produto:** briefing é um documento de inteligência (snapshot), não um gráfico ao vivo.
+Deve ser independente do filtro de período da página e carregar seu próprio contexto temporal.
+
+**Mudanças:**
+- **Nova coluna DB:** `period_days INTEGER` em `StrategicBriefing`
+- **Prisma schema:** `periodDays Int? @map("period_days")` adicionado ao modelo
+- **`strategicBriefing.ts`:** os três `create()` (empty / sucesso LLM / fallback) agora salvam `periodDays`
+- **`marketing-api.ts`:** `StrategicBriefingData` inclui `periodDays?: number | null`
+- **Dashboard — seção Briefing:**
+  - Removido o `PeriodBadge` do filtro de página no cabeçalho da seção
+  - Botão "Gerar Novo" mostra o período que será usado: `Gerar · 7d`
+  - Descrição atualizada: "Documento autônomo — período registrado na geração"
+- **`BriefingCard`:** exibe badge de período próprio do documento (canto direito do cabeçalho)
+  — badge `null` para briefings históricos sem `period_days` (retrocompatível)
+
+**Arquivos modificados:**
+- `prisma/migration-2026-06-04-briefing-period-days.sql` (nova)
+- `prisma/schema.marketing.prisma`
+- `src/lib/marketing-api.ts`
+- `src/lib/marketing/services/strategicBriefing.ts`
+- `src/app/admin/campanhas/dashboard/page.tsx`
+
+**Migration aplicada:** localmente via psql 17. Pendente VPS (batch).
+
+---
 
 ### Fix cross-insights — narrativa LLM tenant/segmento ciente (2026-06-04) ✅
 

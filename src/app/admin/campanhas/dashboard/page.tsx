@@ -613,39 +613,37 @@ export function DashboardPage() {
             {/* ── Briefing Estratégico AI ──────────────────────────────────── */}
             <div className="mb-8">
               <div className="mb-5">
-                {/* Linha 1: título + badge (canto direito) */}
-                <div className="flex items-start justify-between gap-3 mb-3">
+                {/* Linha única: ícone + título + botões */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-3">
                     <div className={`p-2.5 rounded-xl ${isDark ? 'bg-violet-500/10' : 'bg-violet-50'}`}>
                       <SparklesIcon className={`h-5 w-5 ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
                     </div>
                     <div>
                       <h2 className={`text-lg font-black ${tx}`}>Briefing Estratégico AI</h2>
-                      <p className={`text-xs ${txMuted}`}>Gerado por LLM com fallback rule-based</p>
+                      <p className={`text-xs ${txMuted}`}>Documento autônomo — período registrado na geração</p>
                     </div>
                   </div>
-                  <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
-                </div>
-                {/* Linha 2: botões de ação (alinhados à direita) */}
-                <div className="flex justify-end gap-2">
-                  <button onClick={() => setShowBriefingHistory(!showBriefingHistory)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all',
-                      isDark
-                        ? 'bg-[rgba(255,255,255,0.05)] text-slate-400 hover:bg-[rgba(255,255,255,0.09)] border border-[rgba(255,255,255,0.06)]'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    )}>
-                    <ClockIcon className="h-3.5 w-3.5" />
-                    {showBriefingHistory ? 'Ocultar' : 'Histórico'}
-                  </button>
-                  <ExecuteGuard resource="dashboard-campanhas">
-                    <button onClick={handleGenerateBriefing} disabled={generatingBriefing}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-violet-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-violet-500/20">
-                      {generatingBriefing
-                        ? <><ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Gerando...</>
-                        : <><SparklesIcon className="h-3.5 w-3.5" /> Gerar Novo</>}
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setShowBriefingHistory(!showBriefingHistory)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all',
+                        isDark
+                          ? 'bg-[rgba(255,255,255,0.05)] text-slate-400 hover:bg-[rgba(255,255,255,0.09)] border border-[rgba(255,255,255,0.06)]'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      )}>
+                      <ClockIcon className="h-3.5 w-3.5" />
+                      {showBriefingHistory ? 'Ocultar' : 'Histórico'}
                     </button>
-                  </ExecuteGuard>
+                    <ExecuteGuard resource="dashboard-campanhas">
+                      <button onClick={handleGenerateBriefing} disabled={generatingBriefing}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-violet-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-violet-500/20">
+                        {generatingBriefing
+                          ? <><ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Gerando...</>
+                          : <><SparklesIcon className="h-3.5 w-3.5" /> Gerar · {periodBadgeLabel}</>}
+                      </button>
+                    </ExecuteGuard>
+                  </div>
                 </div>
               </div>
 
@@ -1184,6 +1182,9 @@ function BriefingCard({ briefing, isDark, compact }: {
   const c         = briefing.content;
   const typeLabel = briefing.type === 'morning' ? 'Matinal' : briefing.type === 'closing' ? 'Fechamento' : 'Manual';
   const date      = new Date(briefing.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const periodLabel = briefing.periodDays != null
+    ? (briefing.periodDays === 1 ? 'Hoje' : `${briefing.periodDays}d`)
+    : null;
 
   const cardCls = isDark
     ? 'bg-[rgba(13,20,33,0.92)] backdrop-blur-sm border border-[rgba(255,255,255,0.07)] shadow-[0_2px_16px_rgba(0,0,0,0.5)]'
@@ -1194,12 +1195,22 @@ function BriefingCard({ briefing, isDark, compact }: {
   const badge   = isDark
     ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
     : 'bg-violet-50 text-violet-700 border border-violet-100';
+  const periodBadge = isDark
+    ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+    : 'bg-indigo-50 text-indigo-500 border border-indigo-100';
 
   return (
     <div className={cn(`rounded-2xl p-5 ${cardCls}`, compact && 'opacity-70')}>
-      <div className="flex items-center gap-2 mb-3">
-        <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide ${badge}`}>{typeLabel}</span>
-        <span className={`text-xs ${txFaint}`}>{date}</span>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide ${badge}`}>{typeLabel}</span>
+          <span className={`text-xs ${txFaint}`}>{date}</span>
+        </div>
+        {periodLabel && (
+          <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest shrink-0 ${periodBadge}`}>
+            {periodLabel}
+          </span>
+        )}
       </div>
       {c.urgentAlerts?.length > 0 && (
         <div className="mb-3 space-y-1">

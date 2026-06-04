@@ -278,13 +278,14 @@ model LlmModel {
 }
 
 model StrategicBriefing {
-  id        String   @id @default(uuid())
-  tenantId  String?  @map("tenant_id") @db.Uuid
-  clientId  String?  @map("client_id") @db.Uuid
-  type      String
-  content   Json
-  summary   String
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  tenantId   String?  @map("tenant_id") @db.Uuid
+  clientId   String?  @map("client_id") @db.Uuid
+  type       String
+  periodDays Int?     @map("period_days")
+  content    Json
+  summary    String
+  createdAt  DateTime @default(now())
 
   @@index([tenantId])
   @@index([clientId])

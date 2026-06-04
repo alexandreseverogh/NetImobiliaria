@@ -236,10 +236,11 @@ export async function generateStrategicBriefing(type: 'morning' | 'closing' | 'm
     return prisma.strategicBriefing.create({
       data: {
         type,
-        tenantId: tenantId || null,
-        clientId: clientId  || null,
-        content: empty as any,
-        summary: empty.performanceSummary,
+        tenantId:   tenantId || null,
+        clientId:   clientId  || null,
+        periodDays: periodDays,
+        content:    empty as any,
+        summary:    empty.performanceSummary,
       },
     });
   }
@@ -271,10 +272,11 @@ export async function generateStrategicBriefing(type: 'morning' | 'closing' | 'm
     return prisma.strategicBriefing.create({
       data: {
         type,
-        tenantId: tenantId || null,
-        clientId: clientId  || null,
-        content: briefingContent as any,
-        summary: briefingContent.performanceSummary.slice(0, 500),
+        tenantId:   tenantId || null,
+        clientId:   clientId  || null,
+        periodDays: periodDays,
+        content:    briefingContent as any,
+        summary:    briefingContent.performanceSummary.slice(0, 500),
       },
     });
   } catch (err) {
@@ -295,10 +297,11 @@ export async function generateStrategicBriefing(type: 'morning' | 'closing' | 'm
     return prisma.strategicBriefing.create({
       data: {
         type,
-        tenantId: tenantId || null,
-        clientId: clientId  || null,
-        content: fallback as any,
-        summary: fallback.performanceSummary.slice(0, 500),
+        tenantId:   tenantId || null,
+        clientId:   clientId  || null,
+        periodDays: periodDays,
+        content:    fallback as any,
+        summary:    fallback.performanceSummary.slice(0, 500),
       },
     });
   }

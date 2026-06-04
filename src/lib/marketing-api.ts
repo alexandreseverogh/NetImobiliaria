@@ -282,6 +282,7 @@ export interface StrategicBriefingData {
   id: string;
   type: string;
   clientId?: string | null;
+  periodDays?: number | null;
   content: {
     urgentAlerts: string[];
     performanceSummary: string;
