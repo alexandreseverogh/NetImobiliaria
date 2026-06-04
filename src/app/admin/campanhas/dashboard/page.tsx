@@ -48,7 +48,7 @@ export function DashboardPage() {
   const [showBriefingHistory, setShowBriefingHistory] = useState(false);
   const [isDark, setIsDark]                 = useState(true); // dark by default
 
-  const [dateRange, setDateRange]           = useState('30');
+  const [dateRange, setDateRange]           = useState('1'); // 'Hoje' como padrão
   const [startDate, setStartDate]           = useState('');
   const [endDate, setEndDate]               = useState('');
   const [selectedCampaign, setSelectedCampaign] = useState('');
@@ -161,7 +161,7 @@ export function DashboardPage() {
   async function handleGenerateBriefing() {
     setGeneratingBriefing(true);
     try {
-      const b = await generateBriefing('manual');
+      const b = await generateBriefing('manual', undefined, effectivePeriodDays);
       setBriefing(b);
       setBriefingHistory(prev => [b, ...prev].slice(0, 5));
     } catch { alert('Erro ao gerar briefing'); }
@@ -216,8 +216,19 @@ export function DashboardPage() {
       color: COLORS[i % COLORS.length],
     }));
 
+  // Dias efetivos para APIs (usado também no briefing)
+  const effectivePeriodDays = startDate && endDate
+    ? Math.max(1, Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1)
+    : parseInt(dateRange) || 1;
+
+  const periodBadgeLabel = startDate && endDate
+    ? `${new Date(startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} – ${new Date(endDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`
+    : dateRange === '1' ? 'Hoje'
+    : `${dateRange}d`;
+
   const periodLabel = startDate && endDate
     ? `${new Date(startDate).toLocaleDateString('pt-BR')} — ${new Date(endDate).toLocaleDateString('pt-BR')}`
+    : dateRange === '1' ? 'Hoje'
     : `Últimos ${dateRange} dias`;
 
   // ─── Theme tokens ─────────────────────────────────────────────────────────
@@ -349,16 +360,24 @@ export function DashboardPage() {
                 onChange={iso => { setEndDate(iso); setDateRange(''); }}
                 style={selectStyle} className={selectBase} />
             </div>
-            <div className={cn('flex gap-1 rounded-xl p-1 border',
-              isDark ? 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.05)]' : 'bg-slate-50 border-slate-200')}>
-              {['7', '14', '30', '60'].map(v => (
-                <button key={v} onClick={() => handleQuickDate(v)}
-                  className={cn('px-3 py-1.5 rounded-lg text-xs font-black transition-all', dateRange === v
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : isDark ? 'text-slate-500 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')}>
-                  {v}d
-                </button>
-              ))}
+            <div>
+              <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Período</label>
+              <div className={cn('flex gap-1 rounded-xl p-1 border',
+                isDark ? 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.05)]' : 'bg-slate-50 border-slate-200')}>
+                {[
+                  { value: '1',  label: 'Hoje' },
+                  { value: '7',  label: '7d'   },
+                  { value: '15', label: '15d'  },
+                  { value: '30', label: '30d'  },
+                ].map(({ value, label }) => (
+                  <button key={value} onClick={() => handleQuickDate(value)}
+                    className={cn('px-3 py-1.5 rounded-lg text-xs font-black transition-all', dateRange === value
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : isDark ? 'text-slate-500 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -400,7 +419,7 @@ export function DashboardPage() {
             {/* ══════════════════════════════════════════════════════════════
                 RETROVISÃO — Performance Histórica
             ══════════════════════════════════════════════════════════════ */}
-            <RetrovisorSection isDark={isDark}>
+            <RetrovisorSection isDark={isDark} periodLabel={periodBadgeLabel}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                   className={`rounded-2xl p-6 ${cardBase}`}>
@@ -485,7 +504,7 @@ export function DashboardPage() {
             {/* ══════════════════════════════════════════════════════════════
                 FAROL DE MILHA — Sinais Leading & Antecipação (FASE 8.5)
             ══════════════════════════════════════════════════════════════ */}
-            <FarolSection isDark={isDark}>
+            <FarolSection isDark={isDark} periodLabel={periodBadgeLabel}>
               {anticipationData.length > 0 ? (
                 <div className="space-y-6">
                   {/* ── TimeToEvent bars ──────────────────────────────────── */}
@@ -573,14 +592,17 @@ export function DashboardPage() {
                 TRACKING HEALTH — Saúde do Tracking (FASE 8)
             ══════════════════════════════════════════════════════════════ */}
             <div className="mb-8">
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`p-2.5 rounded-xl ${isDark ? 'bg-rose-500/10' : 'bg-rose-50'}`}>
-                  <span className="text-base leading-none">🩺</span>
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl ${isDark ? 'bg-rose-500/10' : 'bg-rose-50'}`}>
+                    <span className="text-base leading-none">🩺</span>
+                  </div>
+                  <div>
+                    <h2 className={`text-lg font-black ${tx}`}>Tracking Health</h2>
+                    <p className={`text-xs ${txMuted}`}>Score 0-100 — monitoramento automático do tracking e pixel</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className={`text-lg font-black ${tx}`}>Tracking Health</h2>
-                  <p className={`text-xs ${txMuted}`}>Score 0-100 — monitoramento automático do tracking e pixel</p>
-                </div>
+                <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
               </div>
               <TrackingHealthWidget
                 clientId={(clientFilter && clientFilter !== 'all' && clientFilter !== 'own') ? clientFilter as string : null}
@@ -599,7 +621,8 @@ export function DashboardPage() {
                     <p className={`text-xs ${txMuted}`}>Gerado por LLM com fallback rule-based</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
+                  <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
                   <button onClick={() => setShowBriefingHistory(!showBriefingHistory)}
                     className={cn(
                       'flex items-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all',
@@ -649,9 +672,12 @@ export function DashboardPage() {
             {/* ── AI Insights ─────────────────────────────────────────────── */}
             {aiInsights.length > 0 && (
               <div className="mb-8">
-                <div className="mb-5">
-                  <h2 className={`text-lg font-black ${tx}`}>Insights da IA</h2>
-                  <p className={`text-xs mt-0.5 ${txMuted}`}>Análise automática de CTR, CPC, frequência e CPL — sem dependência de LLM</p>
+                <div className="flex items-start justify-between gap-3 mb-5">
+                  <div>
+                    <h2 className={`text-lg font-black ${tx}`}>Insights da IA</h2>
+                    <p className={`text-xs mt-0.5 ${txMuted}`}>Análise automática de CTR, CPC, frequência e CPL — sem dependência de LLM</p>
+                  </div>
+                  <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {aiInsights.map((insight, i) => {
@@ -692,8 +718,9 @@ export function DashboardPage() {
 
             {/* ── Campaigns Table ─────────────────────────────────────────── */}
             <div className={`rounded-2xl overflow-hidden ${cardBase}`}>
-              <div className={`px-6 py-4 border-b ${divider}`}>
+              <div className={`px-6 py-4 border-b ${divider} flex items-center justify-between`}>
                 <h3 className={`text-sm font-black ${tx}`}>Campanhas</h3>
+                <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -761,7 +788,21 @@ export function DashboardPage() {
 //  SECTION WRAPPERS — Retrovisão & Farol de Milha
 // ═════════════════════════════════════════════════════════════════════════════
 
-function RetrovisorSection({ isDark, children }: { isDark: boolean; children: React.ReactNode }) {
+/* ── Badge de período exibido no canto superior direito de cada seção ── */
+function PeriodBadge({ label, isDark }: { label: string; isDark: boolean }) {
+  return (
+    <span className={cn(
+      'text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest shrink-0',
+      isDark
+        ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+        : 'bg-indigo-50 text-indigo-500 border border-indigo-100',
+    )}>
+      {label}
+    </span>
+  );
+}
+
+function RetrovisorSection({ isDark, children, periodLabel }: { isDark: boolean; children: React.ReactNode; periodLabel?: string }) {
   return (
     <div className={cn(
       'rounded-3xl p-6 mb-8 border',
@@ -769,26 +810,29 @@ function RetrovisorSection({ isDark, children }: { isDark: boolean; children: Re
         ? 'border-[rgba(251,191,36,0.13)] shadow-[0_0_60px_rgba(251,191,36,0.03),inset_0_1px_0_rgba(251,191,36,0.06)] bg-[rgba(13,11,8,0.55)] backdrop-blur-sm'
         : 'border-amber-200/50 bg-gradient-to-br from-amber-50/50 to-white shadow-[0_4px_24px_rgba(245,158,11,0.05)]',
     )}>
-      <div className="flex items-center gap-4 mb-6">
-        <RetrovisorIcon isDark={isDark} />
-        <div>
-          <p className={`text-[9px] font-black uppercase tracking-[0.35em] mb-0.5 ${isDark ? 'text-amber-700' : 'text-amber-500'}`}>
-            Retrovisor
-          </p>
-          <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-            Performance Histórica
-          </h2>
-          <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
-            Dados reais do período selecionado
-          </p>
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4">
+          <RetrovisorIcon isDark={isDark} />
+          <div>
+            <p className={`text-[9px] font-black uppercase tracking-[0.35em] mb-0.5 ${isDark ? 'text-amber-700' : 'text-amber-500'}`}>
+              Retrovisor
+            </p>
+            <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+              Performance Histórica
+            </h2>
+            <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+              Dados reais do período selecionado
+            </p>
+          </div>
         </div>
+        {periodLabel && <PeriodBadge label={periodLabel} isDark={isDark} />}
       </div>
       {children}
     </div>
   );
 }
 
-function FarolSection({ isDark, children }: { isDark: boolean; children: React.ReactNode }) {
+function FarolSection({ isDark, children, periodLabel }: { isDark: boolean; children: React.ReactNode; periodLabel?: string }) {
   return (
     <div className={cn(
       'rounded-3xl p-6 mb-8 border',
@@ -796,19 +840,22 @@ function FarolSection({ isDark, children }: { isDark: boolean; children: React.R
         ? 'border-[rgba(34,211,238,0.13)] shadow-[0_0_60px_rgba(34,211,238,0.03),inset_0_1px_0_rgba(34,211,238,0.06)] bg-[rgba(7,13,20,0.55)] backdrop-blur-sm'
         : 'border-sky-200/50 bg-gradient-to-br from-sky-50/50 to-white shadow-[0_4px_24px_rgba(14,165,233,0.05)]',
     )}>
-      <div className="flex items-center gap-4 mb-6">
-        <FarolIcon isDark={isDark} />
-        <div>
-          <p className={`text-[9px] font-black uppercase tracking-[0.35em] mb-0.5 ${isDark ? 'text-cyan-700' : 'text-sky-500'}`}>
-            Farol de Milha
-          </p>
-          <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-            Sinais Leading & Antecipação
-          </h2>
-          <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
-            Quando / para onde — motor de sinais Meta (FASE 8.5)
-          </p>
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4">
+          <FarolIcon isDark={isDark} />
+          <div>
+            <p className={`text-[9px] font-black uppercase tracking-[0.35em] mb-0.5 ${isDark ? 'text-cyan-700' : 'text-sky-500'}`}>
+              Farol de Milha
+            </p>
+            <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+              Sinais Leading & Antecipação
+            </h2>
+            <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+              Quando / para onde — motor de sinais Meta (FASE 8.5)
+            </p>
+          </div>
         </div>
+        {periodLabel && <PeriodBadge label={periodLabel} isDark={isDark} />}
       </div>
       {children}
     </div>

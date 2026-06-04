@@ -299,8 +299,8 @@ export const getBriefings = (params?: { limit?: number; type?: string; clientId?
 export const getLatestBriefing = (params?: { type?: string; clientId?: ClientFilter }) =>
   api.get<StrategicBriefingData | null>('/briefings/latest', { params }).then(r => r.data);
 
-export const generateBriefing = (type: string, clientId?: string) =>
-  api.post<StrategicBriefingData>('/briefings/generate', { type, clientId }).then(r => r.data);
+export const generateBriefing = (type: string, clientId?: string, periodDays?: number) =>
+  api.post<StrategicBriefingData>('/briefings/generate', { type, clientId, periodDays }).then(r => r.data);
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 export interface DeltaData {

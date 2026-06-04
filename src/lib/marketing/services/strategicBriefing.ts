@@ -219,8 +219,8 @@ function buildBriefingVariables(
   };
 }
 
-export async function generateStrategicBriefing(type: 'morning' | 'closing' | 'manual', tenantId?: string, clientId?: string) {
-  const periodDays = type === 'closing' ? 1 : 7;
+export async function generateStrategicBriefing(type: 'morning' | 'closing' | 'manual', tenantId?: string, clientId?: string, periodDaysOverride?: number) {
+  const periodDays = periodDaysOverride ?? (type === 'closing' ? 1 : 7);
   const context = await gatherBriefingContext(periodDays, tenantId, clientId);
 
   if (context.campaigns.length === 0) {
