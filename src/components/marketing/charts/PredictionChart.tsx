@@ -62,7 +62,7 @@ export function PredictionChart({
 
   const todayLabel = formatDateLabel(todayStr);
   const gridColor  = isDark ? 'rgba(255,255,255,0.04)' : '#f1f5f9';
-  const axisColor  = isDark ? '#475569' : '#94a3b8';
+  const axisColor  = isDark ? '#94a3b8' : '#94a3b8';
   // Mask color must match effective card background
   const maskColor  = isDark ? '#0d1421' : '#f8fafc';
 

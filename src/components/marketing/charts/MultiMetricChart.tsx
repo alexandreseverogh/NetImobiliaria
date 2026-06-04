@@ -46,7 +46,7 @@ export function MultiMetricChart({ data, metrics, xKey = 'date', height = 280, t
   const yr = yRightLabel  ?? (hasRight ? (metrics.find(m => m.yAxisId === 'right')?.label ?? '') : '');
 
   const gridColor  = isDark ? 'rgba(255,255,255,0.04)' : '#f1f5f9';
-  const axisColor  = isDark ? '#475569' : '#94a3b8';
+  const axisColor  = isDark ? '#94a3b8' : '#94a3b8';
   const tooltipCss = {
     contentStyle: {
       background:   isDark ? '#0d1421' : '#ffffff',

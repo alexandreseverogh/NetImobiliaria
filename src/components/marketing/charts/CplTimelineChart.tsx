@@ -51,7 +51,7 @@ export function CplTimelineChart({ data, isDark }: Props) {
   const leadColor = isDark ? '#34d399' : '#059669';  // emerald
   const bestColor = isDark ? '#fbbf24' : '#d97706';  // amber
   const avgColor  = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.09)';
-  const textFaint = isDark ? '#475569' : '#94a3b8';
+  const textFaint = isDark ? '#94a3b8' : '#64748b';
 
   // ── Nivo data ─────────────────────────────────────────────────────────────
   const lineData = [{
