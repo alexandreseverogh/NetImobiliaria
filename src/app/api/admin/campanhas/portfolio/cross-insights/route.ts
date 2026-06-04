@@ -315,10 +315,22 @@ export async function GET(request: NextRequest) {
 
     const clientIds = metricsQuery.rows.map(r => r.client_id).filter((id): id is string => id !== null);
 
-    let clientInfoMap = new Map<string, { nome: string; segment_id: string | null; segment_name: string | null }>();
+    let clientInfoMap = new Map<string, {
+      nome: string;
+      segment_id: string | null;
+      segment_name: string | null;
+      cpl_ideal: string | null;    // NUMERIC → string in node-postgres
+      cpl_critical: string | null;
+      ctr_min: string | null;
+    }>();
     if (clientIds.length > 0) {
       const cq = await pool.query(`
-        SELECT c.uuid, c.nome, c.segment_id::text, s.name AS segment_name
+        SELECT
+          c.uuid, c.nome, c.segment_id::text,
+          s.name         AS segment_name,
+          s.cpl_ideal,
+          s.cpl_critical,
+          s.ctr_min
         FROM public.clientes c
         LEFT JOIN public.system_segments s ON s.id = c.segment_id
         WHERE c.uuid = ANY($1::uuid[]) AND c.tenant_id = $2::uuid
@@ -327,35 +339,17 @@ export async function GET(request: NextRequest) {
     }
 
     const tenantRow = await pool.query(`
-      SELECT t.name AS nome, t.segment_id::text, s.name AS segment_name
+      SELECT
+        t.name AS nome, t.segment_id::text,
+        s.name         AS segment_name,
+        s.cpl_ideal,
+        s.cpl_critical,
+        s.ctr_min
       FROM public.tenants t
       LEFT JOIN public.system_segments s ON s.id = t.segment_id
       WHERE t.id = $1::uuid
     `, [payload.tenantId]);
     const tenantInfo = tenantRow.rows[0];
-
-    // Benchmarks
-    const segmentIds = Array.from(new Set([
-      ...Array.from(clientInfoMap.values()).map(c => c.segment_id).filter(Boolean),
-      tenantInfo?.segment_id,
-    ].filter(Boolean))) as string[];
-
-    const benchMap = new Map<string, { cplIdeal: number | null; cplCritical: number | null; ctrMin: number | null }>();
-    if (segmentIds.length > 0) {
-      const bq = await pool.query(`
-        SELECT segment_id::text, metric_key, value
-        FROM public.system_benchmarks
-        WHERE segment_id = ANY($1::uuid[])
-          AND metric_key IN ('cpl_ideal', 'cpl_critical', 'ctr_min')
-      `, [segmentIds]);
-      for (const r of bq.rows) {
-        if (!benchMap.has(r.segment_id)) benchMap.set(r.segment_id, { cplIdeal: null, cplCritical: null, ctrMin: null });
-        const b = benchMap.get(r.segment_id)!;
-        if (r.metric_key === 'cpl_ideal')    b.cplIdeal    = parseFloat(r.value);
-        if (r.metric_key === 'cpl_critical') b.cplCritical = parseFloat(r.value);
-        if (r.metric_key === 'ctr_min')      b.ctrMin      = parseFloat(r.value);
-      }
-    }
 
     // Lista consolidada de clientes com dados enriquecidos
     const clientList: ClientEntry[] = metricsQuery.rows.map(row => {
@@ -363,8 +357,18 @@ export async function GET(request: NextRequest) {
       const mapKey   = row.client_id ?? '__own__';
       const info     = row.client_id ? clientInfoMap.get(row.client_id) : null;
       const segId    = info?.segment_id ?? tenantInfo?.segment_id ?? null;
-      const bench    = segId ? benchMap.get(segId) ?? { cplIdeal: null, cplCritical: null, ctrMin: null }
-                             : { cplIdeal: null, cplCritical: null, ctrMin: null };
+      // Benchmarks lidos diretamente das colunas de system_segments (via JOIN acima)
+      // node-postgres retorna NUMERIC como string — parseFloat necessário
+      const parseN = (v: any): number | null => {
+        if (v == null || v === '') return null;
+        const n = parseFloat(v);
+        return isNaN(n) ? null : n;
+      };
+      const bench = {
+        cplIdeal:    parseN(info?.cpl_ideal    ?? tenantInfo?.cpl_ideal),
+        cplCritical: parseN(info?.cpl_critical ?? tenantInfo?.cpl_critical),
+        ctrMin:      parseN(info?.ctr_min      ?? tenantInfo?.ctr_min),
+      };
 
       const spend  = parseFloat(row.total_spend);
       const imp    = parseInt(row.total_impressions);

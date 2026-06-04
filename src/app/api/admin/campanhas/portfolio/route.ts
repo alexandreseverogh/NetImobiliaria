@@ -63,6 +63,14 @@ export interface PortfolioResponse {
   clients:      PortfolioClient[];
 }
 
+/* ── helpers ────────────────────────────────────────────────────── */
+
+function parseNullable(v: string | number | null | undefined): number | null {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+
 /* ── helper de status ───────────────────────────────────────────── */
 
 function computeStatus(
@@ -210,6 +218,9 @@ export async function GET(request: NextRequest) {
       segment_name: string | null;
       segment_slug: string | null;
       logo_url: string | null;
+      cpl_ideal: string | null;
+      cpl_critical: string | null;
+      ctr_min: string | null;
     }>();
 
     if (clientIds.length > 0) {
@@ -220,14 +231,20 @@ export async function GET(request: NextRequest) {
         segment_name: string | null;
         segment_slug: string | null;
         logo_url: string | null;
+        cpl_ideal: string | null;
+        cpl_critical: string | null;
+        ctr_min: string | null;
       }>(`
         SELECT
           c.uuid,
           c.nome,
           c.segment_id,
-          s.name     AS segment_name,
-          s.slug     AS segment_slug,
-          c.logo_url
+          s.name         AS segment_name,
+          s.slug         AS segment_slug,
+          c.logo_url,
+          s.cpl_ideal,
+          s.cpl_critical,
+          s.ctr_min
         FROM public.clientes c
         LEFT JOIN public.system_segments s ON s.id = c.segment_id
         WHERE c.uuid = ANY($1::uuid[])
@@ -246,55 +263,29 @@ export async function GET(request: NextRequest) {
       segment_name: string | null;
       segment_slug: string | null;
       logo_url: string | null;
+      cpl_ideal: string | null;
+      cpl_critical: string | null;
+      ctr_min: string | null;
     }>(`
       SELECT
-        t.name     AS nome,
+        t.name         AS nome,
         t.segment_id,
-        s.name     AS segment_name,
-        s.slug     AS segment_slug,
-        t.logo_url
+        s.name         AS segment_name,
+        s.slug         AS segment_slug,
+        t.logo_url,
+        s.cpl_ideal,
+        s.cpl_critical,
+        s.ctr_min
       FROM public.tenants t
       LEFT JOIN public.system_segments s ON s.id = t.segment_id
       WHERE t.id = $1::uuid
     `, [payload.tenantId]);
     const tenantInfo = tenantRow.rows[0];
 
-    /* ── 5. Benchmarks por segmento ──────────────────────────────── */
-    const segmentIds = [
-      ...new Set([
-        ...Array.from(clientInfoMap.values()).map(c => c.segment_id).filter(Boolean),
-        tenantInfo?.segment_id,
-      ].filter((id): id is string => !!id)),
-    ];
-
-    const benchmarksMap = new Map<string, {
-      cplIdeal: number | null;
-      cplCritical: number | null;
-      ctrMin: number | null;
-    }>();
-
-    if (segmentIds.length > 0) {
-      const benchQuery = await pool.query<{
-        segment_id: string;
-        metric_key: string;
-        value: string;
-      }>(`
-        SELECT segment_id::text, metric_key, value
-        FROM public.system_benchmarks
-        WHERE segment_id = ANY($1::uuid[])
-          AND metric_key IN ('cpl_ideal', 'cpl_critical', 'ctr_min')
-      `, [segmentIds]);
-
-      for (const row of benchQuery.rows) {
-        if (!benchmarksMap.has(row.segment_id)) {
-          benchmarksMap.set(row.segment_id, { cplIdeal: null, cplCritical: null, ctrMin: null });
-        }
-        const b = benchmarksMap.get(row.segment_id)!;
-        if (row.metric_key === 'cpl_ideal')    b.cplIdeal    = parseFloat(row.value);
-        if (row.metric_key === 'cpl_critical') b.cplCritical = parseFloat(row.value);
-        if (row.metric_key === 'ctr_min')      b.ctrMin      = parseFloat(row.value);
-      }
-    }
+    /* ── 5. Benchmarks lidos diretamente de system_segments (JOIN acima) ── */
+    // Não é mais necessária uma query separada a system_benchmarks para
+    // cpl_ideal / cpl_critical / ctr_min — as colunas foram migradas para
+    // system_segments em 2026-06-04.
 
     /* ── 6. Montar resposta ──────────────────────────────────────── */
     const clients: PortfolioClient[] = [];
@@ -303,8 +294,12 @@ export async function GET(request: NextRequest) {
       const mapKey   = row.client_id ?? '__own__';
       const info     = row.client_id ? clientInfoMap.get(row.client_id) : null;
       const segId    = info?.segment_id ?? tenantInfo?.segment_id ?? null;
-      const benchmarks = segId ? benchmarksMap.get(segId) ?? { cplIdeal: null, cplCritical: null, ctrMin: null }
-                                : { cplIdeal: null, cplCritical: null, ctrMin: null };
+      // Benchmarks lidos diretamente das colunas de system_segments
+      const benchmarks = {
+        cplIdeal:    parseNullable(info?.cpl_ideal    ?? tenantInfo?.cpl_ideal),
+        cplCritical: parseNullable(info?.cpl_critical ?? tenantInfo?.cpl_critical),
+        ctrMin:      parseNullable(info?.ctr_min      ?? tenantInfo?.ctr_min),
+      };
 
       const spend       = parseFloat(row.total_spend);
       const impressions = parseInt(row.total_impressions);

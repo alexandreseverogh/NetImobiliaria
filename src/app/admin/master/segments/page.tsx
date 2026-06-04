@@ -27,6 +27,9 @@ interface Segment {
   created_at: string
   module_ids: string[]
   module_names: string
+  cpl_ideal:    number | null
+  cpl_critical: number | null
+  ctr_min:      number | null
 }
 
 interface Module {
@@ -51,7 +54,10 @@ export default function MasterSegmentsPage() {
     icon: 'box',
     color_theme: '#2563eb',
     is_active: true,
-    module_ids: [] as string[]
+    module_ids: [] as string[],
+    cpl_ideal:    '',
+    cpl_critical: '',
+    ctr_min:      '',
   })
 
   const fetchSegments = async () => {
@@ -85,7 +91,7 @@ export default function MasterSegmentsPage() {
       if (response.ok) {
         setShowModal(false)
         setEditingSegment(null)
-        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [] })
+        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], cpl_ideal: '', cpl_critical: '', ctr_min: '' })
         fetchSegments()
       } else {
         const err = await response.json()
@@ -99,13 +105,16 @@ export default function MasterSegmentsPage() {
   const handleEdit = (segment: Segment) => {
     setEditingSegment(segment)
     setFormData({
-      name: segment.name,
-      slug: segment.slug,
-      description: segment.description || '',
-      icon: segment.icon || 'box',
-      color_theme: segment.color_theme || '#2563eb',
-      is_active: segment.is_active,
-      module_ids: segment.module_ids || []
+      name:         segment.name,
+      slug:         segment.slug,
+      description:  segment.description || '',
+      icon:         segment.icon || 'box',
+      color_theme:  segment.color_theme || '#2563eb',
+      is_active:    segment.is_active,
+      module_ids:   segment.module_ids || [],
+      cpl_ideal:    segment.cpl_ideal    != null ? String(segment.cpl_ideal)    : '',
+      cpl_critical: segment.cpl_critical != null ? String(segment.cpl_critical) : '',
+      ctr_min:      segment.ctr_min      != null ? String(segment.ctr_min)      : '',
     })
     setShowModal(true)
   }
@@ -143,7 +152,7 @@ export default function MasterSegmentsPage() {
             <button
               onClick={() => {
                 setEditingSegment(null)
-                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [] })
+                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], cpl_ideal: '', cpl_critical: '', ctr_min: '' })
                 setShowModal(true)
               }}
               className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95"
@@ -391,8 +400,77 @@ export default function MasterSegmentsPage() {
                 />
               </div>
 
+              {/* ── Benchmarks de Performance ── */}
+              <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1">
+                  Benchmarks de Performance
+                </label>
+                <p className="text-[10px] text-gray-400 font-medium mb-3">
+                  Limites usados para classificar o status CPL dos clientes deste segmento.
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+                      CPL Ideal (R$)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.cpl_ideal}
+                      onChange={e => setFormData({ ...formData, cpl_ideal: e.target.value })}
+                      placeholder="ex: 35"
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-medium text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+                      CPL Crítico (R$)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.cpl_critical}
+                      onChange={e => setFormData({ ...formData, cpl_critical: e.target.value })}
+                      placeholder="ex: 80"
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all font-medium text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+                      CTR Mínimo (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.ctr_min}
+                      onChange={e => setFormData({ ...formData, ctr_min: e.target.value })}
+                      placeholder="ex: 0.8"
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-medium text-sm"
+                    />
+                  </div>
+                </div>
+                {/* Visual legend */}
+                <div className="flex items-center gap-3 mt-2.5 text-[10px] font-semibold">
+                  <span className="flex items-center gap-1 text-green-600">
+                    <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                    ≤ CPL Ideal → ok
+                  </span>
+                  <span className="flex items-center gap-1 text-amber-600">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                    Ideal &lt; CPL &lt; Crítico → atenção
+                  </span>
+                  <span className="flex items-center gap-1 text-red-600">
+                    <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                    ≥ CPL Crítico → crítico
+                  </span>
+                </div>
+              </div>
+
               <div className="flex items-center gap-2 py-2">
-                <input 
+                <input
                   type="checkbox"
                   id="is_active"
                   checked={formData.is_active}
