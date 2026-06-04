@@ -7,6 +7,7 @@ interface Props {
   funnelData: FunnelData;
   leadCount: number;
   isDark: boolean;
+  periodLabel?: string;
 }
 
 const STAGES = [
@@ -77,7 +78,7 @@ function segMidW(i: number): number {
   return ((SEGS[i].xr - SEGS[i].xl) + (SEGS[i + 1].xr - SEGS[i + 1].xl)) / 2;
 }
 
-export function ClassicFunnelChart({ funnelData, leadCount, isDark }: Props) {
+export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel }: Props) {
   const values = [funnelData.impressions, funnelData.clicks, leadCount, funnelData.conversions];
   const top    = values[0] || 1;
 
@@ -104,11 +105,22 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark }: Props) {
       className={`mt-5 rounded-2xl p-6 ${cardCls}`}
     >
       {/* ── Cabeçalho ── */}
-      <div className="flex items-baseline gap-3 mb-6">
-        <h3 className={`text-sm font-black ${tx}`}>Funil do Ciclo de Conversão em Vendas</h3>
-        <span className={`text-[9px] font-semibold uppercase tracking-wider ${txFaint}`}>
-          Impressões → Cliques → Leads → Conversões
-        </span>
+      <div className="flex items-start justify-between gap-3 mb-6">
+        <div className="flex items-baseline gap-3">
+          <h3 className={`text-sm font-black ${tx}`}>Funil do Ciclo de Conversão em Vendas</h3>
+          <span className={`text-[9px] font-semibold uppercase tracking-wider ${txFaint}`}>
+            Impressões → Cliques → Leads → Conversões
+          </span>
+        </div>
+        {periodLabel && (
+          <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest shrink-0 ${
+            isDark
+              ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+              : 'bg-indigo-50 text-indigo-500 border border-indigo-100'
+          }`}>
+            {periodLabel}
+          </span>
+        )}
       </div>
 
       {/* ── Layout: SVG (≈45%) + Métricas (≈55%) ── */}

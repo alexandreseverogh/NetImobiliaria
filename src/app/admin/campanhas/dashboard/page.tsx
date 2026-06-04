@@ -497,6 +497,7 @@ export function DashboardPage() {
                   funnelData={data.funnelData}
                   leadCount={data.currentPeriod.leadCount}
                   isDark={isDark}
+                  periodLabel={periodBadgeLabel}
                 />
               )}
             </RetrovisorSection>
