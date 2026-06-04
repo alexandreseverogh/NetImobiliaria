@@ -1,12 +1,39 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-04 (Benchmarks → system_segments + formulário Master)
+> **Atualizado em:** 2026-06-04 (Task 2 — LLM template para ações críticas)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Task 2: Ações críticas geradas por LLM — cross_critical_actions (2026-06-04) ✅
+
+**Decisão:** As 4 ações hardcoded dos alertas `critical-*` em `buildRuleBasedInsights`
+eram genéricas e idênticas para todo cliente. Substituídas por chamada LLM no POST,
+com contexto real: CPL atual, CPL crítico do segmento, excesso em R$ e %.
+
+**Mudanças:**
+- **`prisma/migration-2026-06-04-cross-critical-actions-prompt.sql`** (nova):
+  insere template `cross_critical_actions` em `system_prompt_templates` (global, version=1)
+  com variáveis: `client_name`, `segment_name`, `cpl_current`, `cpl_critical`,
+  `excess_pct`, `excess_brl`
+- **`cross-insights/route.ts`**:
+  - `CrossPerformer` ganha campo `cplCritical: number | null` (exposto no GET)
+  - `sorted` map inclui `cplCritical` na construção dos performers
+  - POST handler: novo bloco antes da narrativa que itera sobre insights `critical-*`,
+    chama `invokeForContext` em paralelo, faz parse do JSON array retornado e substitui
+    `insight.actions`; fallback silencioso para ações padrão se LLM falha ou retorna
+    JSON inválido
+
+**Comportamento em produção:**
+- `GET` → rápido, sem LLM, ações padrão (hardcoded)
+- `POST` (botão "Análise IA") → LLM enriquece ações críticas + gera narrativa de portfólio
+
+**Migration aplicada:** localmente. **Pendente VPS (batch).**
+
+---
 
 ### Task 1: Benchmarks migrados para system_segments (2026-06-04) ✅
 
