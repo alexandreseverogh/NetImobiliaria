@@ -194,9 +194,9 @@ Problemas comuns que derrubam o score:
   {
     emoji: '🤖',
     term: 'Briefing Estratégico AI',
-    subtitle: 'Análise inteligente gerada por LLM',
-    what: 'Relatório estratégico gerado automaticamente por Inteligência Artificial (modelo de linguagem avançado) com base nos dados reais das campanhas.',
-    how: `O briefing é gerado duas vezes ao dia (08h e 18h) ou manualmente. Ele analisa os dados do período e produz:
+    subtitle: 'Documento de inteligência autônomo',
+    what: 'Relatório estratégico gerado por Inteligência Artificial com base nos dados reais das campanhas. É um documento independente — não fica preso ao filtro de datas da página.',
+    how: `O briefing é gerado duas vezes ao dia (08h e 18h) ou sob demanda clicando "Gerar · Xd" (onde Xd é o período que você quer analisar). Ele produz:
 
 📋 Resumo de performance — como as campanhas se saíram
 ⚠️ Alertas urgentes — campanhas com CPL crítico ou problemas graves
@@ -204,8 +204,42 @@ Problemas comuns que derrubam o score:
 💡 Recomendações de budget — redistribuição inteligente do investimento
 ✅ Plano de ação — próximos passos concretos
 
-O briefing usa os mesmos dados que você vê no dashboard, mas os interpreta com contexto estratégico, identificando padrões que seriam difíceis de notar manualmente.`,
-    tip: '"Gerado por LLM com fallback rule-based" significa: tenta usar IA avançada primeiro; se indisponível, usa regras automáticas programadas. O resultado é similar em qualidade.',
+Por que o briefing é autônomo do filtro de datas?
+Porque briefing e filtro são ferramentas diferentes:
+
+🔍 O filtro de datas serve para exploração — você muda o período para inspecionar os gráficos em tempo real.
+
+📄 O briefing é um documento de inteligência — foi gerado num momento específico, para um período específico, e contém contexto comparativo (período atual vs. anterior). Alterar o filtro da página não recalcula o documento; ele permanece como estava quando foi criado.
+
+Cada briefing exibe seu próprio badge de período (ex: "7d", "30d") no canto do card, mostrando exatamente qual janela temporal foi analisada na geração. O histórico de briefings fica disponível clicando em "Histórico".`,
+    tip: 'Para gerar um briefing do período que você está analisando, ajuste o filtro de datas no topo da página e depois clique em "Gerar · Xd" — o botão já mostra qual período será usado.',
+    benchmark: '"Documento autônomo — período registrado na geração" significa que cada briefing carrega sua própria referência temporal, independente do que está filtrado na página.',
+  },
+  {
+    emoji: '🎯',
+    term: 'Ângulo de Comunicação',
+    subtitle: 'A perspectiva estratégica central do anúncio',
+    what: 'O ângulo é a lente pela qual o imóvel é apresentado ao potencial comprador — não o que você diz, mas por que a pessoa deveria se importar. É a motivação emocional ou racional que ancora o criativo.',
+    how: `A plataforma trabalha com 7 ângulos distintos para imóveis:
+
+💼 Investimento — Valorização, rentabilidade, retorno financeiro
+🌴 Estilo de Vida — Qualidade de vida, lazer, bem-estar no cotidiano
+👨‍👩‍👧 Família — Segurança, espaço, proximidade de escolas e serviços
+💲 Preço — Condições especiais, parcelas acessíveis, custo-benefício
+⏰ Urgência — Últimas unidades, oportunidade por tempo limitado
+👥 Social — Prestígio, status, pertencimento a uma comunidade exclusiva
+💎 Luxo — Alto padrão, acabamento diferenciado, exclusividade
+
+Como a plataforma usa os ângulos:
+• Ao criar uma campanha, você pode declarar o ângulo do criativo
+• A IA analisa campanhas sem ângulo e sugere classificação automática em lote
+• O dashboard exibe o ângulo com menor CPL (vencedor) e o de maior CPL (pior)
+• A análise completa por ângulo está em Portfólio → Cross-Insights
+
+Por que isso importa:
+Concentrar todos os anúncios no mesmo ângulo limita o alcance — pessoas diferentes compram pelo investimento, pela família ou pelo estilo de vida. Diversificar ângulos e medir qual ressoa melhor com seu público é uma das alavancas mais eficientes de otimização.`,
+    tip: 'Campanhas sem ângulo declarado aparecem como "não classificadas". Use o botão de classificação em lote (lista de campanhas) para deixar a IA sugerir o ângulo de cada uma — revise antes de confirmar.',
+    benchmark: 'Referência prática: imóveis populares e médio padrão tendem a responder melhor a Preço e Família. Alto padrão e luxo respondem melhor a Estilo de Vida, Investimento e Luxo.',
   },
   {
     emoji: '💡',
