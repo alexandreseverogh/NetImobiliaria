@@ -1,12 +1,34 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-04 (Briefing Estratégico — documento autônomo do filtro)
+> **Atualizado em:** 2026-06-04 (Benchmarks → system_segments + formulário Master)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Task 1: Benchmarks migrados para system_segments (2026-06-04) ✅
+
+**Decisão:** `cpl_ideal`, `cpl_critical`, `ctr_min` foram movidos de `system_benchmarks`
+para colunas diretas em `system_segments`, eliminando uma query extra de JOIN em cada request
+de portfólio e cross-insights. `system_benchmarks` permanece intacto para os demais métricas
+(hook_rate, frequency_max, etc.) e para o `benchmarkResolver.ts` 4-layer.
+
+**Mudanças:**
+- **`prisma/migration-2026-06-04-segment-benchmarks.sql`** (nova):
+  `ALTER TABLE + backfill` — 5 segmentos atualizados (4 com dados, Master Platform sem benchmarks)
+- **`src/app/api/admin/master/segments/route.ts`**: adicionados handlers `POST` (criar segmento)
+  e `PUT` (atualizar) com os 3 novos campos; GET já retorna `s.*`
+- **`src/app/admin/master/segments/page.tsx`**: seção "Benchmarks de Performance" no modal:
+  inputs CPL Ideal / CPL Crítico / CTR Mínimo + legenda de status (ok/atenção/crítico)
+- **`src/app/api/admin/campanhas/portfolio/cross-insights/route.ts`**: query de clientes e
+  tenants ampliada com `s.cpl_ideal, s.cpl_critical, s.ctr_min`; `benchMap` eliminado
+- **`src/app/api/admin/campanhas/portfolio/route.ts`**: mesma simplificação + helper `parseNullable`
+
+**Migration aplicada:** localmente via psql 17. **Pendente VPS (batch).**
+
+---
 
 ### Briefing Estratégico — documento autônomo do filtro de página (2026-06-04) ✅
 
