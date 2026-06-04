@@ -20,27 +20,38 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
 
   const cfg = {
     opportunity: {
-      icon:    <LightBulbIcon className="h-5 w-5" />,
-      color:   'bg-emerald-50 border-emerald-200',
-      badge:   'bg-emerald-100 text-emerald-700',
-      header:  'text-emerald-700',
-      label:   'Oportunidade',
+      icon:       <LightBulbIcon className="h-5 w-5" />,
+      color:      'bg-emerald-50 border-emerald-200',
+      badge:      'bg-emerald-100 text-emerald-700',
+      header:     'text-emerald-700',
+      actionBg:   'bg-emerald-100/60',
+      actionText: 'text-emerald-800',
+      bullet:     'bg-emerald-400',
+      label:      'Oportunidade',
     },
     warning: {
-      icon:    <ExclamationTriangleIcon className="h-5 w-5" />,
-      color:   'bg-red-50 border-red-200',
-      badge:   'bg-red-100 text-red-700',
-      header:  'text-red-700',
-      label:   'Alerta',
+      icon:       <ExclamationTriangleIcon className="h-5 w-5" />,
+      color:      'bg-red-50 border-red-200',
+      badge:      'bg-red-100 text-red-700',
+      header:     'text-red-700',
+      actionBg:   'bg-red-100/60',
+      actionText: 'text-red-900',
+      bullet:     'bg-red-400',
+      label:      'Alerta',
     },
     pattern: {
-      icon:    <ArrowTrendingUpIcon className="h-5 w-5" />,
-      color:   'bg-indigo-50 border-indigo-200',
-      badge:   'bg-indigo-100 text-indigo-700',
-      header:  'text-indigo-700',
-      label:   'Padrão',
+      icon:       <ArrowTrendingUpIcon className="h-5 w-5" />,
+      color:      'bg-indigo-50 border-indigo-200',
+      badge:      'bg-indigo-100 text-indigo-700',
+      header:     'text-indigo-700',
+      actionBg:   'bg-indigo-100/60',
+      actionText: 'text-indigo-900',
+      bullet:     'bg-indigo-400',
+      label:      'Padrão',
     },
   }[insight.type];
+
+  const actions: string[] = (insight as any).actions ?? [];
 
   return (
     <motion.div
@@ -52,7 +63,9 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
       <div className="flex items-start gap-3">
         <div className={`mt-0.5 shrink-0 ${cfg.header}`}>{cfg.icon}</div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+
+          {/* ── badges de tipo / métrica / melhoria ── */}
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>
             {insight.metric && (
               <span className="text-xs text-gray-500 bg-white/70 px-2 py-0.5 rounded-full border border-gray-200">
@@ -66,41 +79,62 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
             )}
           </div>
 
+          {/* ── título ── */}
           <p className={`font-semibold text-sm ${cfg.header} mb-1`}>{insight.title}</p>
 
-          <AnimatePresence>
-            {expanded && (
-              <motion.p
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="text-sm text-gray-600 overflow-hidden"
+          {/* ── descrição — sempre visível ── */}
+          <p className="text-sm text-gray-600 leading-relaxed mb-2">{insight.description}</p>
+
+          {/* ── chips de clientes envolvidos ── */}
+          {(insight.sourceClients.length > 0 || insight.targetClients.length > 0) && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {insight.sourceClients.map(c => (
+                <span key={c} className="text-xs bg-white/80 border border-gray-200 px-2 py-0.5 rounded-full text-gray-500">
+                  📤 referência: {c}
+                </span>
+              ))}
+              {insight.targetClients.map(c => (
+                <span key={c} className="text-xs bg-white/80 border border-gray-200 px-2 py-0.5 rounded-full text-gray-500">
+                  🎯 foco: {c}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* ── toggle: ações recomendadas ── */}
+          {actions.length > 0 && (
+            <>
+              <button
+                onClick={() => setExpanded(v => !v)}
+                className={`mt-1 text-xs font-semibold flex items-center gap-1 transition ${cfg.header} opacity-80 hover:opacity-100`}
               >
-                {insight.description}
-              </motion.p>
-            )}
-          </AnimatePresence>
+                {expanded
+                  ? <><ChevronUpIcon className="h-3 w-3" />Ocultar ações</>
+                  : <><ChevronDownIcon className="h-3 w-3" />O que fazer ({actions.length} passos)</>}
+              </button>
 
-          {/* clientes envolvidos */}
-          <div className="flex flex-wrap gap-2 mt-2">
-            {insight.sourceClients.map(c => (
-              <span key={c} className="text-xs bg-white/70 border border-gray-200 px-2 py-0.5 rounded-full text-gray-600">
-                📤 {c}
-              </span>
-            ))}
-            {insight.targetClients.map(c => (
-              <span key={c} className="text-xs bg-white/70 border border-gray-200 px-2 py-0.5 rounded-full text-gray-600">
-                📥 {c}
-              </span>
-            ))}
-          </div>
+              <AnimatePresence>
+                {expanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <ol className={`mt-3 rounded-xl p-4 space-y-2 ${cfg.actionBg}`}>
+                      {actions.map((action, i) => (
+                        <li key={i} className={`flex items-start gap-2.5 text-xs leading-relaxed ${cfg.actionText}`}>
+                          <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${cfg.bullet}`} />
+                          {action}
+                        </li>
+                      ))}
+                    </ol>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
 
-          <button
-            onClick={() => setExpanded(v => !v)}
-            className="mt-2 text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 transition"
-          >
-            {expanded ? <><ChevronUpIcon className="h-3 w-3" />Menos detalhes</> : <><ChevronDownIcon className="h-3 w-3" />Ver detalhes</>}
-          </button>
         </div>
       </div>
     </motion.div>

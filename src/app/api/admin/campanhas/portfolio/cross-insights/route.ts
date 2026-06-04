@@ -23,6 +23,7 @@ export interface CrossInsight {
   type:        'opportunity' | 'warning' | 'pattern';
   title:       string;
   description: string;
+  actions:     string[];     // ações recomendadas (sempre preenchido)
   sourceClients: string[];   // nomes dos clientes de onde vem o padrão
   targetClients: string[];   // clientes que podem se beneficiar
   metric?:     string;
@@ -70,6 +71,12 @@ function buildRuleBasedInsights(
       description: `${ok.map(c => c.clientName).join(', ')} operam com CPL dentro da meta. `
         + `Analisar estrutura de criativos e segmentação desses clientes pode ajudar `
         + `${critical.map(c => c.clientName).join(', ')} a reduzir o custo por lead.`,
+      actions: [
+        `Abrir o dashboard de ${ok[0].clientName} e documentar segmentação, ângulo de comunicação e criativos ativos`,
+        `Comparar públicos-alvo: faixa etária, localização e interesses entre os clientes`,
+        `Testar o mesmo ângulo/criativo de ${ok[0].clientName} em uma campanha de teste para ${critical[0].clientName}`,
+        `Verificar se o benchmark de CPL está calibrado para o segmento de cada cliente`,
+      ],
       sourceClients: ok.map(c => c.clientName),
       targetClients: critical.map(c => c.clientName),
       metric: 'CPL',
@@ -84,8 +91,15 @@ function buildRuleBasedInsights(
         id:   `critical-${c.clientName}`,
         type: 'warning',
         title: `${c.clientName} — CPL ${excess}% acima do limite crítico`,
-        description: `CPL atual de R$${c.cpl.toFixed(2)} supera o limite crítico de R$${c.cplCritical.toFixed(2)}. `
-          + `Revisar segmentação, criativos e orçamento diário com urgência.`,
+        description: `CPL atual R$${c.cpl.toFixed(2)} · limite crítico R$${c.cplCritical.toFixed(2)} · `
+          + `excesso de R$${(c.cpl - c.cplCritical).toFixed(2)} por lead.`,
+        actions: [
+          `Revisar segmentação: testar público mais qualificado (interesse comprovado em imóveis/produto)`,
+          `Analisar criativos ativos: pausar anúncio com menor CTR e testar variação de copy ou imagem`,
+          `Verificar orçamento diário: reduzir 20–30% e deixar o Meta otimizar por 5 dias antes de ajustar`,
+          `Comparar com cliente de CPL saudável no mesmo segmento e replicar estrutura de campanha`,
+          `Checar pixel: confirmar que conversões estão sendo rastreadas corretamente`,
+        ],
         sourceClients: [],
         targetClients: [c.clientName],
         metric: 'CPL',
@@ -103,6 +117,12 @@ function buildRuleBasedInsights(
       title: `${nodata.length} cliente(s) sem campanha ativa no período`,
       description: `${nodata.map(c => c.clientName).join(', ')} não registraram investimento no período. `
         + `Oportunidade para retomar campanhas usando padrões dos clientes saudáveis.`,
+      actions: [
+        `Verificar se as campanhas foram pausadas intencionalmente ou por falta de verba`,
+        `Reativar com orçamento mínimo (R$20–30/dia) para testar resposta do público`,
+        `Usar os melhores criativos de ${ok.map(c => c.clientName).join(', ')} como referência`,
+        `Definir meta de CPL e configurar alerta automático no dashboard`,
+      ],
       sourceClients: ok.map(c => c.clientName),
       targetClients: nodata.map(c => c.clientName),
     });
@@ -117,8 +137,13 @@ function buildRuleBasedInsights(
       type: 'pattern',
       title: `CTR elevado em ${goodCtr.length} cliente(s) — revisar ângulos criativos`,
       description: `${goodCtr.map(c => c.clientName).join(', ')} alcançam CTR acima de 1,5%, `
-        + `enquanto ${poorCtr.map(c => c.clientName).join(', ')} estão abaixo de 0,8%. `
-        + `Compartilhar ângulos de criativo e hooks de atenção entre as contas.`,
+        + `enquanto ${poorCtr.map(c => c.clientName).join(', ')} estão abaixo de 0,8%.`,
+      actions: [
+        `Analisar os hooks de abertura (primeiros 3s) dos criativos de ${goodCtr[0].clientName}`,
+        `Verificar o ângulo de comunicação: clientes com CTR alto costumam usar proposta clara na imagem`,
+        `Testar variação de thumbnail e headline nos anúncios de ${poorCtr[0].clientName}`,
+        `Checar posicionamentos: comparar CTR por placement (feed vs. stories vs. reels)`,
+      ],
       sourceClients: goodCtr.map(c => c.clientName),
       targetClients: poorCtr.map(c => c.clientName),
       metric: 'CTR',
@@ -146,9 +171,14 @@ function buildRuleBasedInsights(
       id:   `segment-${segName}`,
       type: 'opportunity',
       title: `Segmento ${segName}: CPL ${diff}% melhor em ${best.clientName}`,
-      description: `Dentro do segmento "${segName}", ${best.clientName} opera com CPL R$${best.cpl!.toFixed(2)}, `
-        + `enquanto ${worst.clientName} tem CPL R$${worst.cpl!.toFixed(2)}. `
-        + `Investigar diferenças de segmentação, criativos e configuração de campanha.`,
+      description: `${best.clientName} opera com CPL R$${best.cpl!.toFixed(2)} vs. `
+        + `R$${worst.cpl!.toFixed(2)} de ${worst.clientName} — mesmo segmento "${segName}".`,
+      actions: [
+        `Comparar configuração de campanha: objetivo, público, criativos e orçamento entre os dois clientes`,
+        `Verificar se ${worst.clientName} usa o mesmo tipo de conversão (leads form vs. landing page)`,
+        `Replicar a estrutura de adset de ${best.clientName} em uma campanha de teste para ${worst.clientName}`,
+        `Consultar Padrões Vencedores para verificar criativos de alta performance do segmento ${segName}`,
+      ],
       sourceClients: [best.clientName],
       targetClients: [worst.clientName],
       metric: 'CPL',
