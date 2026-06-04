@@ -273,7 +273,7 @@ export default function MasterSegmentsPage() {
       {/* Segment Modal — 2 colunas, sem scroll */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all animate-in fade-in zoom-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl transform transition-all animate-in fade-in zoom-in duration-300">
 
             {/* ── Cabeçalho ── */}
             <div className="px-6 py-4 bg-indigo-600 text-white flex items-center justify-between rounded-t-3xl">
@@ -291,10 +291,10 @@ export default function MasterSegmentsPage() {
 
             {/* ── Formulário 2 colunas ── */}
             <form onSubmit={handleSubmit}>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-6 pt-5 pb-4">
+              <div className="grid grid-cols-2 gap-x-8 gap-y-5 px-8 pt-6 pb-5">
 
                 {/* ╔══════════════ COLUNA ESQUERDA ══════════════╗ */}
-                <div className="space-y-4">
+                <div className="space-y-5">
 
                   {/* Nome */}
                   <div>
@@ -347,7 +347,7 @@ export default function MasterSegmentsPage() {
                     <textarea
                       value={formData.description}
                       onChange={e => setFormData({...formData, description: e.target.value})}
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-sm h-16 resize-none"
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-sm h-20 resize-none"
                       placeholder="Descreva o propósito deste segmento..."
                     />
                   </div>
@@ -399,7 +399,7 @@ export default function MasterSegmentsPage() {
                 {/* ╚══════════════ FIM COLUNA ESQUERDA ══════════════╝ */}
 
                 {/* ╔══════════════ COLUNA DIREITA ══════════════╗ */}
-                <div className="space-y-4">
+                <div className="space-y-5">
 
                   {/* Paleta */}
                   <div>
@@ -434,27 +434,28 @@ export default function MasterSegmentsPage() {
                     </div>
                   </div>
 
-                  {/* Módulos — grid 2 colunas compacto, sem scroll */}
+                  {/* Módulos — grid 2 colunas espaçoso; overflow ao crescer */}
                   <div>
-                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Motores (Módulos)</label>
-                    <div className="grid grid-cols-2 gap-1.5 bg-gray-50 p-2.5 rounded-2xl border border-gray-100">
+                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Motores (Módulos)</label>
+                    <div className="grid grid-cols-2 gap-2.5 bg-gray-50 p-4 rounded-2xl border border-gray-100 max-h-60 overflow-y-auto custom-scrollbar">
                       {availableModules.map(mod => (
-                        <label key={mod.id} className={`flex items-center gap-2 px-2.5 py-2 rounded-xl cursor-pointer transition-all select-none ${
+                        <label key={mod.id} className={`flex items-center gap-2.5 px-3.5 py-3 rounded-xl cursor-pointer transition-all select-none ${
                           formData.module_ids.includes(mod.id)
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 border border-gray-100'
+                            ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-300'
+                            : 'bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 border border-gray-200'
                         }`}>
                           <input type="checkbox"
                             checked={formData.module_ids.includes(mod.id)}
                             onChange={() => toggleModule(mod.id)}
                             className="sr-only" />
                           {formData.module_ids.includes(mod.id)
-                            ? <CheckCircleIcon className="h-3.5 w-3.5 shrink-0" />
-                            : <div className="h-3.5 w-3.5 shrink-0 rounded border border-gray-300" />}
-                          <span className="text-[10px] font-black uppercase tracking-tight leading-tight">{mod.name}</span>
+                            ? <CheckCircleIcon className="h-4 w-4 shrink-0" />
+                            : <div className="h-4 w-4 shrink-0 rounded border-2 border-gray-300" />}
+                          <span className="text-xs font-black uppercase tracking-tight leading-tight">{mod.name}</span>
                         </label>
                       ))}
                     </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5">Clique para ativar ou desativar módulos neste segmento.</p>
                   </div>
                 </div>
                 {/* ╚══════════════ FIM COLUNA DIREITA ══════════════╝ */}
@@ -462,7 +463,7 @@ export default function MasterSegmentsPage() {
               </div>
 
               {/* ── Botões ── */}
-              <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
+              <div className="flex gap-4 px-8 py-5 border-t border-gray-100">
                 <button type="button" onClick={() => setShowModal(false)}
                   className="flex-1 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all text-sm">
                   Cancelar
