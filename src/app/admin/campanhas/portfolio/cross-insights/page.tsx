@@ -6,14 +6,34 @@ import {
   SparklesIcon, ArrowPathIcon, ArrowLeftIcon,
   LightBulbIcon, ExclamationTriangleIcon, ArrowTrendingUpIcon,
   TrophyIcon, ChevronDownIcon, ChevronUpIcon,
-  ChatBubbleLeftRightIcon,
+  ChatBubbleLeftRightIcon, FunnelIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { formatCurrency } from '@/lib/marketing-utils';
-import type { CrossInsightsResponse, CrossInsight } from '@/app/api/admin/campanhas/portfolio/cross-insights/route';
+import type {
+  CrossInsightsResponse,
+  CrossInsight,
+  CrossPerformer,
+  CrossSegment,
+} from '@/app/api/admin/campanhas/portfolio/cross-insights/route';
 import type { AngleStat, AngleInsightsResult } from '@/lib/marketing/services/angleInsightsService';
 
-/* ── tipo badge de insight ──────────────────────────────────────────── */
+/* ── cores de segmento (badge) ──────────────────────────────────── */
+
+const SEG_COLORS: Record<string, string> = {
+  imobiliaria: 'bg-blue-50   text-blue-700   border-blue-200',
+  saude:       'bg-emerald-50 text-emerald-700 border-emerald-200',
+  carros:      'bg-orange-50 text-orange-700  border-orange-200',
+  educacao:    'bg-violet-50 text-violet-700  border-violet-200',
+  geral:       'bg-slate-50  text-slate-600   border-slate-200',
+};
+function segColor(name: string | null): string {
+  if (!name) return 'bg-gray-50 text-gray-500 border-gray-200';
+  const slug = name.toLowerCase().replace(/\s+/g, '');
+  return SEG_COLORS[slug] ?? 'bg-indigo-50 text-indigo-600 border-indigo-200';
+}
+
+/* ── InsightCard ────────────────────────────────────────────────── */
 
 function InsightCard({ insight, index }: { insight: CrossInsight; index: number }) {
   const [expanded, setExpanded] = useState(false);
@@ -25,7 +45,7 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
       badge:      'bg-emerald-100 text-emerald-700',
       header:     'text-emerald-700',
       actionBg:   'bg-emerald-100/60',
-      actionText: 'text-emerald-800',
+      actionText: 'text-emerald-900',
       bullet:     'bg-emerald-400',
       label:      'Oportunidade',
     },
@@ -64,9 +84,13 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
         <div className={`mt-0.5 shrink-0 ${cfg.header}`}>{cfg.icon}</div>
         <div className="flex-1 min-w-0">
 
-          {/* ── badges de tipo / métrica / melhoria ── */}
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+            {insight.segmentName && (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${segColor(insight.segmentName)}`}>
+                {insight.segmentName}
+              </span>
+            )}
             {insight.metric && (
               <span className="text-xs text-gray-500 bg-white/70 px-2 py-0.5 rounded-full border border-gray-200">
                 {insight.metric}
@@ -79,13 +103,9 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
             )}
           </div>
 
-          {/* ── título ── */}
           <p className={`font-semibold text-sm ${cfg.header} mb-1`}>{insight.title}</p>
-
-          {/* ── descrição — sempre visível ── */}
           <p className="text-sm text-gray-600 leading-relaxed mb-2">{insight.description}</p>
 
-          {/* ── chips de clientes envolvidos ── */}
           {(insight.sourceClients.length > 0 || insight.targetClients.length > 0) && (
             <div className="flex flex-wrap gap-2 mb-2">
               {insight.sourceClients.map(c => (
@@ -101,7 +121,6 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
             </div>
           )}
 
-          {/* ── toggle: ações recomendadas ── */}
           {actions.length > 0 && (
             <>
               <button
@@ -112,7 +131,6 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
                   ? <><ChevronUpIcon className="h-3 w-3" />Ocultar ações</>
                   : <><ChevronDownIcon className="h-3 w-3" />O que fazer ({actions.length} passos)</>}
               </button>
-
               <AnimatePresence>
                 {expanded && (
                   <motion.div
@@ -134,31 +152,160 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
               </AnimatePresence>
             </>
           )}
-
         </div>
       </div>
     </motion.div>
   );
 }
 
-/* ── performer card ─────────────────────────────────────────────────── */
+/* ── RankedTable — todos os performers ranqueados por CPL ───────── */
 
-function PerformerCard({ name, cpl, spend, rank }: {
-  name: string; cpl: number | null; spend: number; rank: number;
-}) {
-  const medals = ['🥇', '🥈', '🥉'];
-  return (
-    <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
-      <span className="text-2xl">{medals[rank] ?? '🏅'}</span>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-gray-900 text-sm truncate">{name}</p>
-        <p className="text-xs text-gray-400">{formatCurrency(spend)} investido</p>
+const MEDALS = ['🥇', '🥈', '🥉'];
+const INITIAL_ROWS = 8;
+
+function RankedTable({ performers }: { performers: CrossPerformer[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (performers.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-400 text-sm">
+        Nenhum cliente com dados no período selecionado.
       </div>
-      {cpl !== null && (
-        <div className="text-right shrink-0">
-          <p className="font-bold text-emerald-600 text-sm">{formatCurrency(cpl)}</p>
-          <p className="text-[10px] text-gray-400">por lead</p>
-        </div>
+    );
+  }
+
+  const visible = expanded ? performers : performers.slice(0, INITIAL_ROWS);
+  const hidden  = performers.length - INITIAL_ROWS;
+  const withCpl = performers.filter(p => p.cpl !== null);
+  const maxCpl  = withCpl.length > 0 ? Math.max(...withCpl.map(p => p.cpl!)) : 1;
+
+  function rowStyle(p: CrossPerformer, rank: number): string {
+    if (rank <= 3 && p.cpl !== null) return 'bg-emerald-50/60 hover:bg-emerald-50';
+    if (p.status === 'critical')     return 'bg-red-50/50    hover:bg-red-50';
+    if (p.status === 'warn')         return 'bg-amber-50/40  hover:bg-amber-50';
+    return 'hover:bg-gray-50';
+  }
+
+  function barColor(p: CrossPerformer, rank: number): string {
+    if (rank <= 3 && p.cpl !== null) return 'bg-emerald-500';
+    if (p.status === 'critical')     return 'bg-red-400';
+    if (p.status === 'warn')         return 'bg-amber-400';
+    return 'bg-indigo-400';
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+
+      {/* Cabeçalho da tabela */}
+      <div className="hidden sm:grid sm:grid-cols-[40px_1fr_110px_180px_64px_90px] gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">#</span>
+        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cliente</span>
+        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Segmento</span>
+        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">CPL</span>
+        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Leads</span>
+        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Investido</span>
+      </div>
+
+      {/* Linhas */}
+      <div className="divide-y divide-gray-50/80">
+        {visible.map((p, i) => {
+          const rank = i + 1;
+          return (
+            <motion.div
+              key={p.clientName}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.03 }}
+              className={`grid grid-cols-[40px_1fr_auto] sm:grid-cols-[40px_1fr_110px_180px_64px_90px] gap-x-3 gap-y-1 px-5 py-4 items-center transition-colors ${rowStyle(p, rank)}`}
+            >
+              {/* Rank / medal */}
+              <span className="text-base font-black text-center leading-none">
+                {rank <= 3 && p.cpl !== null ? MEDALS[rank - 1] : (
+                  <span className="text-xs font-bold text-gray-400">{rank}</span>
+                )}
+              </span>
+
+              {/* Nome + status label */}
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate">{p.clientName}</p>
+                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                  {rank <= 3 && p.cpl !== null && (
+                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wide">✅ top {rank}</span>
+                  )}
+                  {p.status === 'critical' && (
+                    <span className="text-[9px] font-black text-red-500 uppercase tracking-wide">⚠️ crítico</span>
+                  )}
+                  {p.status === 'warn' && (
+                    <span className="text-[9px] font-black text-amber-500 uppercase tracking-wide">⚡ atenção</span>
+                  )}
+                  {p.status === 'nodata' && (
+                    <span className="text-[9px] font-medium text-gray-400">sem dados</span>
+                  )}
+                  {/* Segmento visível só em mobile */}
+                  <span className={`sm:hidden text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${segColor(p.segmentName)}`}>
+                    {p.segmentName ?? '—'}
+                  </span>
+                </div>
+              </div>
+
+              {/* CPL em mobile (à direita na grid de 3 colunas) */}
+              {p.cpl !== null ? (
+                <div className="sm:hidden text-right">
+                  <p className="text-sm font-bold text-gray-800 tabular-nums">R$ {p.cpl.toFixed(2)}</p>
+                  <p className="text-[10px] text-gray-400">por lead</p>
+                </div>
+              ) : (
+                <span className="sm:hidden text-xs text-gray-400 italic text-right">sem leads</span>
+              )}
+
+              {/* Segmento badge — desktop */}
+              <span className={`hidden sm:inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full border self-center ${segColor(p.segmentName)}`}>
+                {p.segmentName ?? '—'}
+              </span>
+
+              {/* Barra de CPL — desktop */}
+              {p.cpl !== null ? (
+                <div className="hidden sm:flex items-center gap-2">
+                  <span className="text-xs font-bold text-gray-800 w-[68px] text-right shrink-0 tabular-nums">
+                    R$ {p.cpl.toFixed(2)}
+                  </span>
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${barColor(p, rank)}`}
+                      style={{ width: `${Math.min((p.cpl / maxCpl) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="hidden sm:block text-xs text-gray-400 italic">sem leads</span>
+              )}
+
+              {/* Leads — desktop */}
+              <span className="hidden sm:block text-xs font-medium text-gray-600 text-right tabular-nums">
+                {p.leads}
+              </span>
+
+              {/* Investido — desktop */}
+              <span className="hidden sm:block text-xs font-medium text-gray-600 text-right tabular-nums">
+                {formatCurrency(p.spend)}
+              </span>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Toggle expandir/recolher */}
+      {performers.length > INITIAL_ROWS && (
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="w-full py-3 text-xs font-semibold transition-colors border-t border-gray-100 flex items-center justify-center gap-1.5 text-indigo-600 hover:bg-indigo-50"
+        >
+          {expanded ? (
+            <><ChevronUpIcon className="h-3.5 w-3.5" />Recolher</>
+          ) : (
+            <><ChevronDownIcon className="h-3.5 w-3.5" />Ver mais {hidden} cliente{hidden !== 1 ? 's' : ''}</>
+          )}
+        </button>
       )}
     </div>
   );
@@ -185,38 +332,27 @@ function AngleCplBar({ cpl, maxCpl }: { cpl: number | null; maxCpl: number }) {
 }
 
 function AngleWidget({ period }: { period: string }) {
-  const [data,        setData]        = useState<AngleApiResult | null>(null);
-  const [loading,     setLoading]     = useState(true);
-  const [generating,  setGenerating]  = useState(false);
+  const [data,       setData]       = useState<AngleApiResult | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     adminFetch(`/api/admin/campanhas/portfolio/angle-insights?period=${period}`)
-      .then(r => r.json())
-      .then(d => setData(d))
-      .catch(() => setData(null))
+      .then(r => r.json()).then(setData).catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [period]);
 
   const generateNarrative = async () => {
     setGenerating(true);
     try {
-      const r = await adminFetch(
-        `/api/admin/campanhas/portfolio/angle-insights?period=${period}&narrative=true`,
-      );
-      const d = await r.json();
-      setData(d);
-    } finally {
-      setGenerating(false);
-    }
+      const r = await adminFetch(`/api/admin/campanhas/portfolio/angle-insights?period=${period}&narrative=true`);
+      setData(await r.json());
+    } finally { setGenerating(false); }
   };
 
-  const maxCpl = data?.angleStats
-    .filter(s => s.cpl !== null)
-    .reduce((m, s) => Math.max(m, s.cpl!), 0) ?? 0;
-
-  const maxSpend = data?.angleStats
-    .reduce((m, s) => Math.max(m, s.spend), 0) ?? 0;
+  const maxCpl   = data?.angleStats.filter(s => s.cpl !== null).reduce((m, s) => Math.max(m, s.cpl!), 0) ?? 0;
+  const maxSpend = data?.angleStats.reduce((m, s) => Math.max(m, s.spend), 0) ?? 0;
 
   return (
     <section>
@@ -224,18 +360,13 @@ function AngleWidget({ period }: { period: string }) {
         <h2 className="font-bold text-gray-900 flex items-center gap-2">
           <ChatBubbleLeftRightIcon className="h-5 w-5 text-violet-500" />
           Performance por Ângulo
-          <span className="text-xs font-normal text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">
-            FASE 14
-          </span>
         </h2>
         <button
           onClick={generateNarrative}
           disabled={generating || loading}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:opacity-90 disabled:opacity-50 transition shadow-sm"
         >
-          {generating
-            ? <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
-            : <SparklesIcon className="h-3.5 w-3.5" />}
+          {generating ? <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> : <SparklesIcon className="h-3.5 w-3.5" />}
           {generating ? 'Analisando...' : 'Análise IA'}
         </button>
       </div>
@@ -250,7 +381,6 @@ function AngleWidget({ period }: { period: string }) {
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
 
-          {/* LLM Narrative */}
           {data.narrative && (
             <div className="px-5 pt-5 pb-0">
               <div className="bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200 rounded-xl p-4 mb-4">
@@ -263,7 +393,6 @@ function AngleWidget({ period }: { period: string }) {
             </div>
           )}
 
-          {/* Winner / Loser summary */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 border-b border-gray-100">
             {data.topAngle && (
               <div className="flex items-center gap-3 p-5 border-r border-gray-100">
@@ -295,9 +424,7 @@ function AngleWidget({ period }: { period: string }) {
             )}
           </div>
 
-          {/* Per-angle table */}
           <div className="divide-y divide-gray-50">
-            {/* Header */}
             <div className="grid grid-cols-[1fr_56px_80px_140px_80px] gap-3 px-5 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">
               <span>Ângulo</span>
               <span className="text-right">Camp.</span>
@@ -318,12 +445,8 @@ function AngleWidget({ period }: { period: string }) {
                   className={`grid grid-cols-[1fr_56px_80px_140px_80px] gap-3 px-5 py-3.5 items-center hover:bg-gray-50 transition-colors ${isWinner ? 'bg-emerald-50/40' : isWorst ? 'bg-amber-50/30' : ''}`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    {/* Spend bar */}
                     <div className="w-1 h-8 rounded-full bg-gray-200 relative shrink-0">
-                      <div
-                        className="absolute bottom-0 left-0 w-full rounded-full bg-indigo-400 transition-all"
-                        style={{ height: `${spendPct}%` }}
-                      />
+                      <div className="absolute bottom-0 left-0 w-full rounded-full bg-indigo-400 transition-all" style={{ height: `${spendPct}%` }} />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">{s.label}</p>
@@ -338,9 +461,7 @@ function AngleWidget({ period }: { period: string }) {
                   <div className="flex justify-end">
                     <AngleCplBar cpl={s.cpl} maxCpl={maxCpl} />
                   </div>
-                  <span className="text-xs text-gray-600 text-right font-medium">
-                    {formatCurrency(s.spend)}
-                  </span>
+                  <span className="text-xs text-gray-600 text-right font-medium">{formatCurrency(s.spend)}</span>
                 </motion.div>
               );
             })}
@@ -354,18 +475,19 @@ function AngleWidget({ period }: { period: string }) {
 /* ── main ─────────────────────────────────────────────────────────── */
 
 export default function CrossInsightsPage() {
-  const [data,      setData]      = useState<CrossInsightsResponse | null>(null);
-  const [loading,   setLoading]   = useState(true);
+  const [data,       setData]       = useState<CrossInsightsResponse | null>(null);
+  const [loading,    setLoading]    = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [error,     setError]     = useState<string | null>(null);
-  const [period,    setPeriod]    = useState('30');
-  const [top,       setTop]       = useState('3');   // FASE 13 — Top N configurável
+  const [error,      setError]      = useState<string | null>(null);
+  const [period,     setPeriod]     = useState('30');
+  const [segment,    setSegment]    = useState('');   // '' = todos
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res  = await adminFetch(`/api/admin/campanhas/portfolio/cross-insights?period=${period}&top=${top}`);
+      const segParam = segment ? `&segmentId=${segment}` : '';
+      const res  = await adminFetch(`/api/admin/campanhas/portfolio/cross-insights?period=${period}${segParam}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao carregar insights');
       setData(json);
@@ -374,7 +496,7 @@ export default function CrossInsightsPage() {
     } finally {
       setLoading(false);
     }
-  }, [period, top]);
+  }, [period, segment]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -383,9 +505,9 @@ export default function CrossInsightsPage() {
     setError(null);
     try {
       const res  = await adminFetch('/api/admin/campanhas/portfolio/cross-insights', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ period: parseInt(period), top: parseInt(top) }),
+        body:    JSON.stringify({ period: parseInt(period), segmentId: segment || null }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao gerar insights');
@@ -397,7 +519,8 @@ export default function CrossInsightsPage() {
     }
   };
 
-  /* ── render ────────────────────────────────────────────────────── */
+  /* Segmentos disponíveis: carregados na resposta, nunca hardcoded */
+  const segments: CrossSegment[] = data?.segments ?? [];
 
   const insightGroups = {
     warning:     data?.insights.filter(i => i.type === 'warning')     ?? [],
@@ -405,11 +528,13 @@ export default function CrossInsightsPage() {
     pattern:     data?.insights.filter(i => i.type === 'pattern')     ?? [],
   };
 
+  const activeSegmentName = segments.find(s => s.id === segment)?.name ?? null;
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-5xl mx-auto">
 
-        {/* ── header ──────────────────────────────────────────────── */}
+        {/* ── Cabeçalho ─────────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <a
@@ -423,15 +548,23 @@ export default function CrossInsightsPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Insights Cruzados</h1>
-              <p className="text-sm text-gray-500">Padrões transferíveis entre clientes do portfólio</p>
+              <p className="text-sm text-gray-500">
+                Padrões transferíveis entre clientes
+                {activeSegmentName && (
+                  <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full border ${segColor(activeSegmentName)}`}>
+                    {activeSegmentName}
+                  </span>
+                )}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Período */}
             <select
               value={period}
               onChange={e => setPeriod(e.target.value)}
-              className="text-sm text-gray-700 bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none"
+              className="text-sm text-gray-700 bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="7">7 dias</option>
               <option value="14">14 dias</option>
@@ -440,24 +573,33 @@ export default function CrossInsightsPage() {
               <option value="90">90 dias</option>
             </select>
 
-            <select
-              value={top}
-              onChange={e => setTop(e.target.value)}
-              className="text-sm text-gray-700 bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none"
-              title="Quantos melhores CPLs exibir"
-            >
-              <option value="3">Top 3</option>
-              <option value="5">Top 5</option>
-              <option value="10">Top 10</option>
-            </select>
+            {/* Filtro de segmento — só aparece se há ≥ 2 segmentos */}
+            {segments.length >= 2 && (
+              <div className="relative">
+                <FunnelIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                <select
+                  value={segment}
+                  onChange={e => setSegment(e.target.value)}
+                  className="text-sm text-gray-700 bg-white border border-gray-200 rounded-xl pl-7 pr-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                  title="Filtrar por segmento"
+                >
+                  <option value="">Todos os segmentos</option>
+                  {segments.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.clientCount})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <button
               onClick={load}
               disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:bg-gray-50 transition"
+              className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:bg-gray-50 transition"
             >
               <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin text-indigo-500' : ''}`} />
-              Atualizar
+              <span className="hidden sm:inline">Atualizar</span>
             </button>
 
             <button
@@ -468,12 +610,30 @@ export default function CrossInsightsPage() {
               {generating
                 ? <ArrowPathIcon className="h-4 w-4 animate-spin" />
                 : <SparklesIcon className="h-4 w-4" />}
-              {generating ? 'Gerando análise...' : 'Gerar análise IA'}
+              {generating ? 'Gerando...' : 'Análise IA'}
             </button>
           </div>
         </div>
 
-        {/* ── erro ────────────────────────────────────────────────── */}
+        {/* ── Aviso de filtro de segmento ativo ─────────────────────── */}
+        {activeSegmentName && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-5 flex items-center gap-3 px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700"
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span>Exibindo apenas clientes do segmento <strong>{activeSegmentName}</strong>. Insights são comparações dentro deste segmento.</span>
+            <button
+              onClick={() => setSegment('')}
+              className="ml-auto text-xs font-semibold text-indigo-500 hover:text-indigo-700 shrink-0"
+            >
+              Limpar filtro ×
+            </button>
+          </motion.div>
+        )}
+
+        {/* ── Erro ──────────────────────────────────────────────────── */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center gap-2">
             <ExclamationTriangleIcon className="h-5 w-5 shrink-0" />
@@ -482,18 +642,18 @@ export default function CrossInsightsPage() {
           </div>
         )}
 
-        {/* ── loading ─────────────────────────────────────────────── */}
+        {/* ── Loading skeleton ───────────────────────────────────────── */}
         {loading && (
           <div className="space-y-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-32 bg-white rounded-2xl border border-gray-100 animate-pulse" />
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-28 bg-white rounded-2xl border border-gray-100 animate-pulse" />
             ))}
           </div>
         )}
 
         {!loading && data && (
           <>
-            {/* ── narrativa LLM ────────────────────────────────────── */}
+            {/* ── Narrativa LLM ─────────────────────────────────────── */}
             {data.narrative && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
@@ -511,42 +671,49 @@ export default function CrossInsightsPage() {
               </motion.div>
             )}
 
-            {/* ── sem dados ────────────────────────────────────────── */}
+            {/* ── Sem dados ─────────────────────────────────────────── */}
             {data.totalClients === 0 ? (
               <div className="text-center py-20">
                 <SparklesIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 font-medium">Nenhum cliente com campanhas no período</p>
+                <p className="text-gray-500 font-medium">
+                  {activeSegmentName
+                    ? `Nenhum cliente no segmento "${activeSegmentName}" com campanhas no período`
+                    : 'Nenhum cliente com campanhas no período'}
+                </p>
                 <p className="text-gray-400 text-sm mt-1">Adicione clientes e lance campanhas para ver insights cruzados</p>
               </div>
             ) : (
               <div className="space-y-8">
 
-                {/* ── top performers ───────────────────────────────── */}
-                {data.topPerformers.length > 0 && (
+                {/* ── Ranking completo de CPL ──────────────────────── */}
+                {data.allPerformers.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2 mb-4">
                       <TrophyIcon className="h-5 w-5 text-amber-500" />
-                      <h2 className="font-bold text-gray-900">Melhores CPLs do Portfólio</h2>
-                      <span
-                        className="text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full cursor-default"
-                        title={data.topPerformers.length < data.top
-                          ? `Portfólio tem ${data.topPerformers.length} cliente(s) com CPL — o seletor terá mais efeito conforme o portfólio crescer`
-                          : `Exibindo os ${data.top} melhores CPLs`}
-                      >
-                        {data.topPerformers.length >= data.top
-                          ? `Top ${data.topPerformers.length}`
-                          : `Top ${data.topPerformers.length} de ${data.top}`}
+                      <h2 className="font-bold text-gray-900">Ranking de CPL do Portfólio</h2>
+                      <span className="text-xs font-normal text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        {data.allPerformers.filter(p => p.cpl !== null).length} cliente{data.allPerformers.filter(p => p.cpl !== null).length !== 1 ? 's' : ''} com CPL
                       </span>
+                      {activeSegmentName && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${segColor(activeSegmentName)}`}>
+                          {activeSegmentName}
+                        </span>
+                      )}
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {data.topPerformers.map((p, i) => (
-                        <PerformerCard key={p.clientName} name={p.clientName} cpl={p.cpl} spend={p.spend} rank={i} />
-                      ))}
-                    </div>
+                    <RankedTable performers={data.allPerformers} />
+
+                    {/* Nota informativa sobre comparação cross-segment */}
+                    {!activeSegmentName && segments.length >= 2 && (
+                      <p className="mt-2 text-xs text-gray-400 flex items-center gap-1">
+                        <span>ℹ️</span>
+                        CPL absoluto não é comparável entre segmentos diferentes.
+                        Use o filtro de segmento para comparações válidas.
+                      </p>
+                    )}
                   </section>
                 )}
 
-                {/* ── alertas críticos ─────────────────────────────── */}
+                {/* ── Alertas críticos ──────────────────────────────── */}
                 {insightGroups.warning.length > 0 && (
                   <section>
                     <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -562,7 +729,7 @@ export default function CrossInsightsPage() {
                   </section>
                 )}
 
-                {/* ── oportunidades ────────────────────────────────── */}
+                {/* ── Oportunidades ─────────────────────────────────── */}
                 {insightGroups.opportunity.length > 0 && (
                   <section>
                     <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -578,7 +745,7 @@ export default function CrossInsightsPage() {
                   </section>
                 )}
 
-                {/* ── padrões ─────────────────────────────────────── */}
+                {/* ── Padrões ───────────────────────────────────────── */}
                 {insightGroups.pattern.length > 0 && (
                   <section>
                     <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -594,26 +761,32 @@ export default function CrossInsightsPage() {
                   </section>
                 )}
 
-                {/* ── sem insights ─────────────────────────────────── */}
+                {/* ── Sem insights ──────────────────────────────────── */}
                 {data.insights.length === 0 && (
                   <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
                     <SparklesIcon className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500 font-medium">Portfólio equilibrado</p>
                     <p className="text-gray-400 text-sm mt-1">
-                      Todos os clientes operam dentro dos benchmarks. Use "Gerar análise IA" para insights mais profundos.
+                      {activeSegmentName
+                        ? `Clientes do segmento "${activeSegmentName}" operam dentro dos benchmarks.`
+                        : 'Todos os clientes operam dentro dos benchmarks.'}
+                      {' '}Use "Análise IA" para insights mais profundos.
                     </p>
                   </div>
                 )}
 
-                {/* ── FASE 14: performance por ângulo ──────────────── */}
+                {/* ── Performance por Ângulo ────────────────────────── */}
                 <AngleWidget period={period} />
+
               </div>
             )}
 
-            {/* ── disclaimer ───────────────────────────────────────── */}
+            {/* ── Rodapé informativo ────────────────────────────────── */}
             <p className="text-center text-xs text-gray-400 mt-8">
-              Insights baseados em dados dos últimos {period} dias · {data.totalClients} cliente{data.totalClients !== 1 ? 's' : ''} gerenciado{data.totalClients !== 1 ? 's' : ''}
-              {' · '}Análise rule-based{data.narrative ? ' + IA' : ''}
+              Últimos {period} dias · {data.totalClients} cliente{data.totalClients !== 1 ? 's' : ''}
+              {activeSegmentName ? ` no segmento "${activeSegmentName}"` : ' no portfólio'}
+              {' · '}Insights gerados apenas entre clientes do mesmo segmento
+              {data.narrative ? ' · +análise IA' : ''}
             </p>
           </>
         )}
