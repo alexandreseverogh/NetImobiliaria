@@ -101,6 +101,12 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
                 {insight.improvement}
               </span>
             )}
+            {(insight as any).actionsSource === 'ai' && (
+              <span className="text-[10px] font-black text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full border border-violet-300 flex items-center gap-1 ml-auto">
+                <SparklesIcon className="h-2.5 w-2.5" />
+                IA
+              </span>
+            )}
           </div>
 
           <p className={`font-semibold text-sm ${cfg.header} mb-1`}>{insight.title}</p>
@@ -494,6 +500,7 @@ export default function CrossInsightsPage() {
   const [loading,    setLoading]    = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
+  const [aiWarning,  setAiWarning]  = useState<string | null>(null);
   const [period,     setPeriod]     = useState('30');
   const [segment,    setSegment]    = useState('');   // '' = todos
 
@@ -518,6 +525,7 @@ export default function CrossInsightsPage() {
   const generate = async () => {
     setGenerating(true);
     setError(null);
+    setAiWarning(null);
     try {
       const res  = await adminFetch('/api/admin/campanhas/portfolio/cross-insights', {
         method:  'POST',
@@ -527,6 +535,13 @@ export default function CrossInsightsPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao gerar insights');
       setData(json);
+
+      // Exibe aviso se LLM falhou no enriquecimento de ações críticas
+      if (json.aiError) {
+        setAiWarning(json.aiError);
+      } else if (!json.aiEnriched && (json.insights ?? []).some((i: any) => i.id?.startsWith('critical-'))) {
+        setAiWarning('LLM não enriqueceu as ações críticas. Verifique se cplCritical está configurado para o segmento.');
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -655,6 +670,25 @@ export default function CrossInsightsPage() {
             {error}
             <button onClick={load} className="ml-auto underline font-medium">Tentar novamente</button>
           </div>
+        )}
+
+        {/* ── Aviso LLM ─────────────────────────────────────────────── */}
+        {aiWarning && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-start gap-2"
+          >
+            <ExclamationTriangleIcon className="h-5 w-5 shrink-0 mt-0.5 text-amber-500" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold mb-0.5">Análise IA não pôde enriquecer as ações</p>
+              <p className="text-xs text-amber-700 break-words">{aiWarning}</p>
+              <p className="text-xs text-amber-600 mt-1">
+                Verifique: <strong>Master → IA da Plataforma</strong> (API Key configurada) e se o segmento tem <strong>CPL Crítico</strong> definido.
+              </p>
+            </div>
+            <button onClick={() => setAiWarning(null)} className="shrink-0 text-amber-400 hover:text-amber-600 text-lg leading-none">×</button>
+          </motion.div>
         )}
 
         {/* ── Loading skeleton ───────────────────────────────────────── */}

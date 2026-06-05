@@ -73,6 +73,9 @@ export interface CrossInsightsResponse {
   underperformers: { clientName: string; cpl: number | null; spend: number; reason: string }[];
   clientDetails:  CrossClientDetail[];
   segments:       CrossSegment[];        // segmentos disponíveis para o filtro
+  // Campos de diagnóstico LLM (presentes apenas na resposta POST)
+  aiEnriched?:    boolean;               // true se ao menos 1 insight teve ações enriquecidas
+  aiError?:       string | null;         // mensagem de erro se LLM falhou
 }
 
 /* ── tipo interno ────────────────────────────────────────────────── */
@@ -510,6 +513,9 @@ export async function POST(request: NextRequest) {
     const data: CrossInsightsResponse = await dataRes.json();
 
     // ── Enriquecer ações dos alertas críticos com LLM ────────────────
+    let aiEnriched = false;
+    let aiError: string | null = null;
+
     const criticalInsights = data.insights.filter(i => i.id.startsWith('critical-'));
     if (criticalInsights.length > 0) {
       const enrichments = criticalInsights.map(async (insight) => {
@@ -518,12 +524,18 @@ export async function POST(request: NextRequest) {
 
         const performer = data.allPerformers.find(p => p.clientName === clientName);
         const detail    = data.clientDetails.find(d => d.clientName === clientName);
-        if (!performer || performer.cpl === null || !performer.cplCritical) return;
+        if (!performer || performer.cpl === null || !performer.cplCritical) {
+          console.warn('[cross-insights] Pulando enriquecimento para', clientName,
+            '— cpl:', performer?.cpl, 'cplCritical:', performer?.cplCritical);
+          return;
+        }
 
         const excessBrl = performer.cpl - performer.cplCritical;
         const excessPct = Math.round((excessBrl / performer.cplCritical) * 100);
 
         try {
+          console.log('[cross-insights] Invocando LLM para', clientName,
+            '— template: cross_critical_actions, segmento:', detail?.segmentName ?? performer.segmentName);
           const raw = await invokeForContext({
             templateKey: 'cross_critical_actions',
             tenantId:    payload.tenantId!,
@@ -539,6 +551,8 @@ export async function POST(request: NextRequest) {
             maxTokens: 300,
           });
 
+          console.log('[cross-insights] Resposta LLM bruta para', clientName, ':', raw?.slice(0, 200));
+
           if (raw) {
             // Extrai o array JSON da resposta (tolera markdown envolvendo)
             const match = raw.match(/\[[\s\S]*\]/);
@@ -547,15 +561,28 @@ export async function POST(request: NextRequest) {
               if (Array.isArray(parsed) && parsed.length >= 2) {
                 insight.actions       = (parsed as string[]).map(String).slice(0, 4);
                 insight.actionsSource = 'ai';
+                aiEnriched = true;
+                console.log('[cross-insights] ✅ Ações LLM aplicadas para', clientName);
+              } else {
+                console.warn('[cross-insights] JSON inválido na resposta LLM para', clientName, ':', match[0]);
               }
+            } else {
+              console.warn('[cross-insights] Resposta LLM não contém JSON array para', clientName, ':', raw?.slice(0, 300));
             }
+          } else {
+            console.warn('[cross-insights] Resposta LLM vazia para', clientName);
           }
-        } catch {
-          // Silencioso: mantém as ações padrão
+        } catch (err: any) {
+          console.error('[cross-insights] ❌ Erro LLM para', clientName, ':', err.message);
+          if (!aiError) aiError = err.message;  // captura o primeiro erro
         }
       });
       await Promise.allSettled(enrichments);
     }
+
+    // Adiciona campos de diagnóstico LLM na resposta
+    (data as any).aiEnriched = aiEnriched;
+    (data as any).aiError    = aiError;
 
     try {
       const clientDetails  = data.clientDetails ?? [];
