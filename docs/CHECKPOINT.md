@@ -6,6 +6,25 @@
 
 ---
 
+## Tarefa em andamento
+
+### FASE 18.1 — Radar de Demanda (Google Trends × Ângulos) — INÍCIO 2026-06-05
+
+Implementação do Radar de Demanda: sinais exógenos (Google Trends) cruzados com força endógena
+(spend por ângulo). RadarChart premium com 8 vértices (ângulos de comunicação), área violeta
+(endógeno) × linha ciana (exógeno), chips LLM de ações por quadrante.
+
+Arquivos a criar:
+- `prisma/migration-2026-06-05-demand-radar.sql` — tabelas + prompt template
+- `src/lib/marketing/services/exogenousTrendsService.ts` — Google Trends fetcher
+- `src/lib/marketing/services/demandRadarService.ts` — fusão endógeno × exógeno
+- `src/app/api/cron/campanhas/exogenous-signals/route.ts` — cron diário
+- `src/app/api/admin/campanhas/dashboard/demand-radar/route.ts` — API pública
+- `src/components/marketing/charts/DemandRadar.tsx` — componente premium
+- Modificar: `src/app/admin/campanhas/dashboard/page.tsx` — integrar no Farol de Milha
+
+---
+
 ## Última tarefa concluída
 
 ### Task 2: Ações críticas geradas por LLM — cross_critical_actions (2026-06-04) ✅
