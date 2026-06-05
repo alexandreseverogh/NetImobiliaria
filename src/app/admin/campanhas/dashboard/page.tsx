@@ -27,6 +27,7 @@ import ClientSelector, { useClientSelector } from '@/components/marketing/Client
 import { TrackingHealthWidget } from '@/components/marketing/TrackingHealthWidget';
 import { TimeToEventBar }      from '@/components/marketing/charts/TimeToEventBar';
 import { SignalTrajectory }    from '@/components/marketing/charts/SignalTrajectory';
+import { DemandRadar }         from '@/components/marketing/charts/DemandRadar';
 
 // ─── Palettes ─────────────────────────────────────────────────────────────────
 const PALETTE_DARK  = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#60a5fa', '#e879f9'];
@@ -585,6 +586,15 @@ export function DashboardPage() {
                   </div>
                 </details>
               )}
+
+              {/* ── Radar de Demanda (FASE 18.1) ─────────────────────────── */}
+              <div className="mt-6">
+                <DemandRadar
+                  isDark={isDark}
+                  clientId={clientFilter && clientFilter !== 'all' ? parseInt(clientFilter) : undefined}
+                  periodDays={parseInt(dateRange) || 30}
+                />
+              </div>
             </FarolSection>
 
             {/* ══════════════════════════════════════════════════════════════
