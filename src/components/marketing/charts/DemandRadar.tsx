@@ -365,7 +365,7 @@ export function DemandRadar({ isDark = true, tenantId, clientId, periodDays = 30
   const border      = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
   const textPrimary = isDark ? '#e2e8f0' : '#1e293b';
   const textMuted   = isDark ? '#64748b' : '#94a3b8';
-  const gridColor   = isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0';
+  const gridColor   = isDark ? 'rgba(255,255,255,0.07)' : '#cbd5e1'; // light: slate-300 visível
   const axisColor   = isDark ? '#334155' : '#64748b'; // dark: slate-700 muted | light: slate-500 legível
 
   // ── Chart data — exogenous só quando não nulo ──────────────────────────
@@ -550,16 +550,16 @@ export function DemandRadar({ isDark = true, tenantId, clientId, periodDays = 30
                 <PolarGrid stroke={gridColor} strokeDasharray="3 3" />
                 <PolarAngleAxis
                   dataKey="label"
-                  tick={({ x, y, textAnchor, value }: any) => (
+                  tick={({ x, y, textAnchor, payload }: any) => (
                     <text
                       x={x} y={y}
-                      textAnchor={textAnchor}
+                      textAnchor={textAnchor ?? 'middle'}
                       fill={axisColor}
                       fontSize={11}
                       fontWeight={500}
                       style={{ userSelect: 'none' }}
                     >
-                      {value}
+                      {payload?.value ?? ''}
                     </text>
                   )}
                 />
@@ -568,9 +568,9 @@ export function DemandRadar({ isDark = true, tenantId, clientId, periodDays = 30
                   domain={[0, 100]}
                   tickCount={4}
                   stroke={gridColor}
-                  tick={({ x, y, value }: any) => (
+                  tick={({ x, y, payload }: any) => (
                     <text x={x} y={y} fill={axisColor} fontSize={9} textAnchor="middle">
-                      {value}
+                      {payload?.value ?? ''}
                     </text>
                   )}
                 />

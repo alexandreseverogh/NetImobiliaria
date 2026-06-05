@@ -552,11 +552,7 @@ export function DashboardPage() {
                     );
                   })()}
                 </div>
-              ) : (
-                <div className={`py-8 text-center text-sm ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
-                  Sem dados de sinais — aguardando primeira sincronização com campos de ranking Meta.
-                </div>
-              )}
+              ) : null}
 
               {/* ── Projeções legadas (regressão linear) ─────────────────── */}
               {predictions && !predictions.insufficientData && (
