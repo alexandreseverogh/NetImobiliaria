@@ -366,7 +366,7 @@ export function DemandRadar({ isDark = true, tenantId, clientId, periodDays = 30
   const textPrimary = isDark ? '#e2e8f0' : '#1e293b';
   const textMuted   = isDark ? '#64748b' : '#94a3b8';
   const gridColor   = isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0';
-  const axisColor   = isDark ? '#334155' : '#94a3b8'; // slate-700 dark — bem muted
+  const axisColor   = isDark ? '#334155' : '#64748b'; // dark: slate-700 muted | light: slate-500 legível
 
   // ── Chart data — exogenous só quando não nulo ──────────────────────────
   const chartData = data?.angles.map(a => ({
