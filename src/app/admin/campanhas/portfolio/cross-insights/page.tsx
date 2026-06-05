@@ -35,7 +35,7 @@ function segColor(name: string | null): string {
 
 /* ── InsightCard ────────────────────────────────────────────────── */
 
-function InsightCard({ insight, index }: { insight: CrossInsight; index: number }) {
+function InsightCard({ insight, index, enriching }: { insight: CrossInsight; index: number; enriching?: boolean }) {
   const [expanded, setExpanded] = useState(false);
 
   const cfg = {
@@ -101,12 +101,17 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
                 {insight.improvement}
               </span>
             )}
-            {(insight as any).actionsSource === 'ai' && (
+            {enriching && insight.type === 'warning' && (insight as any).actionsSource !== 'ai' ? (
+              <span className="text-[10px] font-semibold text-violet-500 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200 flex items-center gap-1 ml-auto animate-pulse">
+                <ArrowPathIcon className="h-2.5 w-2.5 animate-spin" />
+                Personalizando...
+              </span>
+            ) : (insight as any).actionsSource === 'ai' ? (
               <span className="text-[10px] font-black text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full border border-violet-300 flex items-center gap-1 ml-auto">
                 <SparklesIcon className="h-2.5 w-2.5" />
                 IA
               </span>
-            )}
+            ) : null}
           </div>
 
           <p className={`font-semibold text-sm ${cfg.header} mb-1`}>{insight.title}</p>
@@ -499,26 +504,61 @@ export default function CrossInsightsPage() {
   const [data,       setData]       = useState<CrossInsightsResponse | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [enriching,  setEnriching]  = useState(false);  // auto-enriquecimento em background
   const [error,      setError]      = useState<string | null>(null);
   const [aiWarning,  setAiWarning]  = useState<string | null>(null);
   const [period,     setPeriod]     = useState('30');
   const [segment,    setSegment]    = useState('');   // '' = todos
 
+  /** Auto-enriquece ações críticas com LLM após cada carga (sem narrativa) */
+  const autoEnrichCritical = useCallback(async (loadedData: CrossInsightsResponse) => {
+    const hasCritical = loadedData.insights.some(i => i.id.startsWith('critical-'));
+    if (!hasCritical) return;
+    setEnriching(true);
+    setAiWarning(null);
+    try {
+      const res  = await adminFetch('/api/admin/campanhas/portfolio/cross-insights', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          period:     parseInt(period),
+          segmentId:  segment || null,
+          enrichOnly: true,  // apenas enriquecer ações, sem gerar narrativa
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setAiWarning(json.error || 'Erro ao enriquecer ações com IA');
+        return;
+      }
+      // Mescla apenas os insights enriquecidos (preserva narrativa e outros dados já existentes)
+      setData(prev => prev ? { ...prev, insights: json.insights, aiEnriched: json.aiEnriched } : json);
+      if (json.aiError) setAiWarning(json.aiError);
+    } catch (e: any) {
+      setAiWarning(e.message);
+    } finally {
+      setEnriching(false);
+    }
+  }, [period, segment]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setAiWarning(null);
     try {
       const segParam = segment ? `&segmentId=${segment}` : '';
       const res  = await adminFetch(`/api/admin/campanhas/portfolio/cross-insights?period=${period}${segParam}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao carregar insights');
       setData(json);
+      // Auto-enriquecer ações críticas logo após carregar
+      autoEnrichCritical(json);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [period, segment]);
+  }, [period, segment, autoEnrichCritical]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -634,13 +674,14 @@ export default function CrossInsightsPage() {
 
             <button
               onClick={generate}
-              disabled={generating}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl text-sm text-white hover:opacity-90 transition shadow-sm"
+              disabled={generating || enriching}
+              title="Gera narrativa completa do portfólio + reprocessa ações críticas com IA"
+              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl text-sm text-white hover:opacity-90 transition shadow-sm disabled:opacity-60"
             >
-              {generating
+              {generating || enriching
                 ? <ArrowPathIcon className="h-4 w-4 animate-spin" />
                 : <SparklesIcon className="h-4 w-4" />}
-              {generating ? 'Gerando...' : 'Análise IA'}
+              {generating ? 'Gerando narrativa...' : enriching ? 'Personalizando ações...' : 'Análise IA'}
             </button>
           </div>
         </div>
@@ -773,7 +814,7 @@ export default function CrossInsightsPage() {
                       </span>
                     </h2>
                     <div className="space-y-3">
-                      {insightGroups.warning.map((ins, i) => <InsightCard key={ins.id} insight={ins} index={i} />)}
+                      {insightGroups.warning.map((ins, i) => <InsightCard key={ins.id} insight={ins} index={i} enriching={enriching} />)}
                     </div>
                   </section>
                 )}

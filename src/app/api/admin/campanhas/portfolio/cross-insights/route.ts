@@ -497,9 +497,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   }
 
-  const body      = await request.json().catch(() => ({}));
-  const period    = Math.min(Math.max(parseInt(body.period || '30'), 1), 365);
-  const segmentId = body.segmentId || null;
+  const body       = await request.json().catch(() => ({}));
+  const period     = Math.min(Math.max(parseInt(body.period || '30'), 1), 365);
+  const segmentId  = body.segmentId || null;
+  // enrichOnly=true → enriquecer ações críticas sem gerar narrativa (auto-chamado ao carregar a página)
+  const enrichOnly = body.enrichOnly === true;
 
   try {
     const baseUrl    = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:3000`;
@@ -584,6 +586,12 @@ export async function POST(request: NextRequest) {
     (data as any).aiEnriched = aiEnriched;
     (data as any).aiError    = aiError;
 
+    // Se enrichOnly, devolve imediatamente (sem narrativa — mais rápido para auto-enrichment)
+    if (enrichOnly) {
+      return NextResponse.json(data);
+    }
+
+    // ── Gera narrativa completa (apenas quando usuário clica em "Análise IA") ──
     try {
       const clientDetails  = data.clientDetails ?? [];
       const managedClients = clientDetails.filter(c => !c.isTenant);
