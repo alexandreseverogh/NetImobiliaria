@@ -155,8 +155,18 @@ export function DashboardPage() {
 
   async function handleSync() {
     setSyncing(true);
-    try { await syncInsights(); await loadData(); }
-    catch { alert('Erro ao sincronizar. Verifique as credenciais Meta.'); }
+    try {
+      const result = await syncInsights();
+      await loadData();
+      // Sincronização com erros parciais
+      if (result?.errors?.length) {
+        const firstErr = result.errors[0];
+        alert(`Sincronizado com avisos:\n${result.synced} registros salvos\n\nErro: ${firstErr}`);
+      }
+    } catch (err: any) {
+      const apiMsg = err?.response?.data?.error ?? err?.message ?? 'Erro desconhecido';
+      alert(`Erro ao sincronizar:\n${apiMsg}`);
+    }
     finally { setSyncing(false); }
   }
 
