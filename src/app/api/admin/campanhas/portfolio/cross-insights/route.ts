@@ -28,11 +28,12 @@ export interface CrossInsight {
   title:         string;
   description:   string;
   actions:       string[];
+  actionsSource: 'default' | 'ai';  // 'ai' = enriquecido pelo LLM no POST
   sourceClients: string[];
   targetClients: string[];
   metric?:       string;
   improvement?:  string;
-  segmentName?:  string;   // segmento de origem do insight (null = multi-segmento)
+  segmentName?:  string;
 }
 
 export interface CrossPerformer {
@@ -142,6 +143,7 @@ function buildRuleBasedInsights(clients: ClientEntry[]): CrossInsight[] {
           `Testar o mesmo ângulo/criativo de ${ok[0].clientName} em campanha de teste para ${critical[0].clientName}`,
           `Confirmar que o benchmark de CPL está calibrado para o segmento "${segName}"`,
         ],
+        actionsSource: 'default' as const,
         sourceClients: ok.map(c => c.clientName),
         targetClients: critical.map(c => c.clientName),
         metric:      'CPL',
@@ -170,6 +172,7 @@ function buildRuleBasedInsights(clients: ClientEntry[]): CrossInsight[] {
               `Replicar estrutura de adset de ${best.clientName} em campanha de teste para ${worst.clientName}`,
               `Consultar Padrões Vencedores para criativos de alta performance do segmento "${segName}"`,
             ],
+            actionsSource: 'default' as const,
             sourceClients: [best.clientName],
             targetClients: [worst.clientName],
             metric:      'CPL',
@@ -196,6 +199,7 @@ function buildRuleBasedInsights(clients: ClientEntry[]): CrossInsight[] {
           `Testar variação de thumbnail e headline nos anúncios de ${poorCtr[0].clientName}`,
           `Checar posicionamentos: CTR por placement (feed vs. stories vs. reels) dentro de "${segName}"`,
         ],
+        actionsSource: 'default' as const,
         sourceClients: goodCtr.map(c => c.clientName),
         targetClients: poorCtr.map(c => c.clientName),
         metric:      'CTR',
@@ -222,6 +226,7 @@ function buildRuleBasedInsights(clients: ClientEntry[]): CrossInsight[] {
           `Verificar orçamento diário: reduzir 20–30% e deixar o Meta otimizar por 5 dias`,
           `Checar pixel: confirmar que conversões estão sendo rastreadas corretamente`,
         ],
+        actionsSource: 'default' as const,
         sourceClients: [],
         targetClients: [c.clientName],
         metric:      'CPL',
@@ -261,6 +266,7 @@ function buildRuleBasedInsights(clients: ClientEntry[]): CrossInsight[] {
           : `Analisar Padrões Vencedores do segmento antes de reativar`,
         `Definir meta de CPL e configurar alerta automático no dashboard`,
       ],
+      actionsSource: 'default' as const,
       sourceClients: okClients.map(c => c.clientName),
       targetClients: allNodata.map(c => c.clientName),
     });
@@ -539,7 +545,8 @@ export async function POST(request: NextRequest) {
             if (match) {
               const parsed: unknown = JSON.parse(match[0]);
               if (Array.isArray(parsed) && parsed.length >= 2) {
-                insight.actions = (parsed as string[]).map(String).slice(0, 4);
+                insight.actions       = (parsed as string[]).map(String).slice(0, 4);
+                insight.actionsSource = 'ai';
               }
             }
           }

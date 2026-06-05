@@ -147,6 +147,21 @@ function InsightCard({ insight, index }: { insight: CrossInsight; index: number 
                         </li>
                       ))}
                     </ol>
+
+                    {/* Indicador de origem das ações */}
+                    {(insight as any).actionsSource === 'ai' ? (
+                      <p className="mt-2 text-[10px] font-semibold text-violet-600 flex items-center gap-1">
+                        <SparklesIcon className="h-3 w-3 shrink-0" />
+                        Ações geradas por IA com base nos dados reais deste cliente
+                      </p>
+                    ) : insight.type === 'warning' && (
+                      <p className="mt-2 text-[10px] text-gray-400 flex items-center gap-1">
+                        <SparklesIcon className="h-3 w-3 shrink-0 opacity-40" />
+                        Ações padrão · clique em{' '}
+                        <strong className="text-violet-500 font-black">✨ Análise IA</strong>
+                        {' '}para personalizar com os dados reais deste cliente
+                      </p>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
