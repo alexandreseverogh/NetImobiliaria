@@ -366,7 +366,7 @@ export function DemandRadar({ isDark = true, tenantId, clientId, periodDays = 30
   const textPrimary = isDark ? '#e2e8f0' : '#1e293b';
   const textMuted   = isDark ? '#64748b' : '#94a3b8';
   const gridColor   = isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0';
-  const axisColor   = isDark ? '#475569' : '#94a3b8';
+  const axisColor   = isDark ? '#334155' : '#94a3b8'; // slate-700 dark — bem muted
 
   // ── Chart data — exogenous só quando não nulo ──────────────────────────
   const chartData = data?.angles.map(a => ({
@@ -550,14 +550,29 @@ export function DemandRadar({ isDark = true, tenantId, clientId, periodDays = 30
                 <PolarGrid stroke={gridColor} strokeDasharray="3 3" />
                 <PolarAngleAxis
                   dataKey="label"
-                  tick={{ fontSize: 11, fill: axisColor, fontWeight: 500 }}
+                  tick={({ x, y, textAnchor, value }: any) => (
+                    <text
+                      x={x} y={y}
+                      textAnchor={textAnchor}
+                      fill={axisColor}
+                      fontSize={11}
+                      fontWeight={500}
+                      style={{ userSelect: 'none' }}
+                    >
+                      {value}
+                    </text>
+                  )}
                 />
                 <PolarRadiusAxis
                   angle={90}
                   domain={[0, 100]}
-                  tick={{ fontSize: 9, fill: axisColor }}
                   tickCount={4}
                   stroke={gridColor}
+                  tick={({ x, y, value }: any) => (
+                    <text x={x} y={y} fill={axisColor} fontSize={9} textAnchor="middle">
+                      {value}
+                    </text>
+                  )}
                 />
 
                 {/* Endogenous — área violeta */}
