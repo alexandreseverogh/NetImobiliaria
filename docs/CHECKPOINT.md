@@ -1,27 +1,40 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-04 (Task 2 — LLM template para ações críticas)
+> **Atualizado em:** 2026-06-05 (FASE 18.1 — Radar de Demanda)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
-## Tarefa em andamento
+## Última tarefa concluída
 
-### FASE 18.1 — Radar de Demanda (Google Trends × Ângulos) — INÍCIO 2026-06-05
+### FASE 18.1 — Radar de Demanda (Google Trends × Ângulos) — CONCLUÍDO 2026-06-05 ✅
 
-Implementação do Radar de Demanda: sinais exógenos (Google Trends) cruzados com força endógena
-(spend por ângulo). RadarChart premium com 8 vértices (ângulos de comunicação), área violeta
-(endógeno) × linha ciana (exógeno), chips LLM de ações por quadrante.
+Implementação completa do Radar de Demanda no Farol de Milha do dashboard.
 
-Arquivos a criar:
-- `prisma/migration-2026-06-05-demand-radar.sql` — tabelas + prompt template
-- `src/lib/marketing/services/exogenousTrendsService.ts` — Google Trends fetcher
+**Arquivos criados:**
+- `prisma/migration-2026-06-05-demand-radar.sql` — 3 tabelas + 24 termos seed + prompt template
+  - `campanhasmarketingdigital.angle_search_terms` — termos PT-BR por ângulo
+  - `campanhasmarketingdigital.exogenous_signals` — snapshots diários Google Trends
+  - `campanhasmarketingdigital.demand_radar_cache` — cache por tenant/client/data
+  - `public.system_prompt_templates['demand_radar_actions']` — prompt ZERO HARDCODE
+- `src/lib/marketing/services/exogenousTrendsService.ts` — Google Trends unofficial API
+  - Timeout 5s por request, fallback mock com jitter diário por ângulo
+  - 8 ângulos em paralelo via `Promise.allSettled`
 - `src/lib/marketing/services/demandRadarService.ts` — fusão endógeno × exógeno
-- `src/app/api/cron/campanhas/exogenous-signals/route.ts` — cron diário
-- `src/app/api/admin/campanhas/dashboard/demand-radar/route.ts` — API pública
-- `src/components/marketing/charts/DemandRadar.tsx` — componente premium
-- Modificar: `src/app/admin/campanhas/dashboard/page.tsx` — integrar no Farol de Milha
+  - Normalização share-of-spend → 0-100 por ângulo
+  - Classificação quadrante: oceano-azul/saturado/vigiar/ponto-morto
+- `src/app/api/cron/campanhas/exogenous-signals/route.ts` — cron diário (POST, x-cron-secret)
+- `src/app/api/admin/campanhas/dashboard/demand-radar/route.ts` — GET com cache-first
+
+**Arquivos modificados:**
+- `src/components/marketing/charts/DemandRadar.tsx` — RadarChart premium self-fetching
+  - Série violeta preenchida (endógeno) + linha ciana tracejada (exógeno)
+  - Painel lateral com chips por quadrante + legenda semântica
+  - Skeleton, estado de erro, botão de refresh, badge Trends ao vivo/estimativa
+- `src/app/admin/campanhas/dashboard/page.tsx` — DemandRadar inserido no FarolSection
+
+**Migração aplicada localmente** com psql (127.0.0.1:15432). VPS: pendente (all-at-once).
 
 ---
 
