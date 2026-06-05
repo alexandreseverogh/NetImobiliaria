@@ -371,11 +371,19 @@ export function DemandRadar({ isDark = true, tenantId, clientId, periodDays = 30
   // ── Chart data — exogenous só quando não nulo ──────────────────────────
   const chartData = data?.angles.map(a => ({
     ...a,
-    // recharts precisa de undefined (não null) para não desenhar o ponto
     exogenousPlot: a.exogenous !== null ? a.exogenous : undefined,
   })) ?? [];
 
   const hasAnyExogenous = data ? data.hasTrendsData : false;
+
+  // ── Label color map: cada ângulo recebe a cor do seu quadrante ──────────
+  const labelColorMap: Map<string, string> = new Map(
+    (data?.angles ?? []).map(a => {
+      if (!a.quadrant) return [a.label, axisColor];
+      const cfg = QUADRANT_CONFIG[a.quadrant];
+      return [a.label, isDark ? cfg.dark.text : cfg.light.text];
+    }),
+  );
   const exoLabel = data?.exogenousAvailability === 8
     ? '📶 Trends ao vivo'
     : data && data.exogenousAvailability > 0
@@ -550,29 +558,32 @@ export function DemandRadar({ isDark = true, tenantId, clientId, periodDays = 30
                 <PolarGrid stroke={gridColor} strokeDasharray="3 3" />
                 <PolarAngleAxis
                   dataKey="label"
-                  tick={({ x, y, textAnchor, payload }: any) => (
-                    <text
-                      x={x} y={y}
-                      textAnchor={textAnchor ?? 'middle'}
-                      fill={axisColor}
-                      fontSize={11}
-                      fontWeight={500}
-                      style={{ userSelect: 'none' }}
-                    >
-                      {payload?.value ?? ''}
-                    </text>
-                  )}
+                  tick={({ x, y, textAnchor, payload }: any) => {
+                    const label = payload?.value ?? '';
+                    const color = labelColorMap.get(label) ?? axisColor;
+                    const hasQuadrant = color !== axisColor;
+                    return (
+                      <text
+                        x={x} y={y}
+                        textAnchor={textAnchor ?? 'middle'}
+                        fill={color}
+                        fontSize={11}
+                        fontWeight={hasQuadrant ? 600 : 500}
+                        style={{ userSelect: 'none' }}
+                      >
+                        {label}
+                      </text>
+                    );
+                  }}
                 />
+                {/* Eixo radial: apenas linhas de grade, sem números */}
                 <PolarRadiusAxis
                   angle={90}
                   domain={[0, 100]}
                   tickCount={4}
                   stroke={gridColor}
-                  tick={({ x, y, payload }: any) => (
-                    <text x={x} y={y} fill={axisColor} fontSize={9} textAnchor="middle">
-                      {payload?.value ?? ''}
-                    </text>
-                  )}
+                  tick={false}
+                  axisLine={false}
                 />
 
                 {/* Endogenous — área violeta */}
