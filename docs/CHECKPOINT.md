@@ -21,6 +21,18 @@ ganham `segment_id`. Seed por segmento ativo.
 **Fases:** A) segmentTaxonomyService · B) Wizard+Vision por segmento · C) Radar por segmento ·
 D) Insights+Briefing por segmento · E) Tracking Health por cliente. Cada fase: migração local + commit + push.
 
+**Progresso:**
+- ✅ **Fase A** — migração `segment_angle_terms` (18 ângulos / 4 segmentos) + `segmentTaxonomyService`.
+- ✅ **Fase B** — wizard carrega ângulos do segmento do cliente (`segment-defaults` retorna `allowedAngles`).
+  Vision mantida agnóstica (roda no upload, sem segmento). `angles.ts` = fallback legado.
+- ✅ **Fase C** — Radar por segmento: cron popula `exogenous_signals` por segmento (Trends real),
+  `computeDemandRadarBySegment`, API retorna `{segments:[...]}`, UI empilha um radar por segmento.
+  Verificado: agregado → 2 segmentos (Imobiliário+Saúde), cliente único → 1 segmento.
+  ⚠️ Campanhas demo têm `declared_angle` genérico antigo (family/luxury…) → endógeno 0 nos novos
+  vértices até serem recriadas pelo wizard (ou migradas).
+- ⏳ **Fase D** — Insights IA + Briefing por segmento (pendente).
+- ⏳ **Fase E** — Tracking Health por cliente (pendente).
+
 ---
 
 ## Última tarefa concluída
