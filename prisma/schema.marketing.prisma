@@ -278,17 +278,20 @@ model LlmModel {
 }
 
 model StrategicBriefing {
-  id         String   @id @default(uuid())
-  tenantId   String?  @map("tenant_id") @db.Uuid
-  clientId   String?  @map("client_id") @db.Uuid
-  type       String
-  periodDays Int?     @map("period_days")
-  content    Json
-  summary    String
-  createdAt  DateTime @default(now())
+  id          String   @id @default(uuid())
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  clientId    String?  @map("client_id") @db.Uuid
+  segmentId   String?  @map("segment_id") @db.Uuid
+  segmentName String?  @map("segment_name")
+  type        String
+  periodDays  Int?     @map("period_days")
+  content     Json
+  summary     String
+  createdAt   DateTime @default(now())
 
   @@index([tenantId])
   @@index([clientId])
+  @@index([tenantId, segmentId])
 }
 
 model CreativeAsset {

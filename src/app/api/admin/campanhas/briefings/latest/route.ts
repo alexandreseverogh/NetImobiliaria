@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
-import { getLatestBriefing } from '@/lib/marketing/services/strategicBriefing';
+import { getLatestBriefingsForScope } from '@/lib/marketing/services/strategicBriefing';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,9 +16,10 @@ export async function GET(request: NextRequest) {
     const type     = searchParams.get('type')     || undefined;
     const clientId = searchParams.get('clientId') || undefined;
 
-    const briefing = await getLatestBriefing(type, payload.tenantId, clientId);
+    // FASE 18.2 — último briefing por segmento no escopo
+    const briefings = await getLatestBriefingsForScope(type, payload.tenantId, clientId);
 
-    return NextResponse.json(briefing ?? null);
+    return NextResponse.json(briefings);
   } catch (error: any) {
     console.error('GET /briefings/latest error:', error);
     return NextResponse.json({ error: error.message || 'Erro ao buscar briefing' }, { status: 500 });

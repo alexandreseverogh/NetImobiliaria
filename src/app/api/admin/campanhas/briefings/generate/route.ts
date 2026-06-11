@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
-import { generateStrategicBriefing } from '@/lib/marketing/services/strategicBriefing';
+import { generateBriefingsForScope } from '@/lib/marketing/services/strategicBriefing';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 
 export const dynamic = 'force-dynamic';
@@ -27,9 +27,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tipo inválido. Use: morning, closing ou manual' }, { status: 400 });
     }
 
-    const briefing = await generateStrategicBriefing(type, payload.tenantId, clientId, periodDays);
+    // FASE 18.2 — gera um briefing por segmento no escopo
+    const briefings = await generateBriefingsForScope(type, payload.tenantId, clientId, periodDays);
 
-    return NextResponse.json(briefing);
+    return NextResponse.json(briefings);
   } catch (error: any) {
     console.error('POST /briefings/generate error:', error);
     return NextResponse.json({ error: error.message || 'Erro ao gerar briefing' }, { status: 500 });

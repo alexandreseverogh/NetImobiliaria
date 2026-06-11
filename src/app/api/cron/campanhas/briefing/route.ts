@@ -19,20 +19,24 @@ export async function POST(request: NextRequest) {
     const type: 'morning' | 'closing' | 'manual' = body.type || 'manual';
 
     const { getActiveTenants } = await import('@/lib/marketing/services/agentMonitor');
-    const { generateStrategicBriefing } = await import('@/lib/marketing/services/strategicBriefing');
+    const { generateBriefingsForScope } = await import('@/lib/marketing/services/strategicBriefing');
     const { notifyWhatsApp, notifySlack } = await import('@/lib/marketing/services/agentNotificador');
 
     const tenants = await getActiveTenants();
 
     const results = await Promise.allSettled(
       tenants.map(async (tenantId: string) => {
-        const briefing = await generateStrategicBriefing(type, tenantId);
-        const content = briefing.content as any;
-        const msg = `*Briefing ${type.toUpperCase()}*\n\n${content?.performanceSummary || briefing.summary}`;
-        await Promise.allSettled([
-          notifyWhatsApp(msg, tenantId),
-          notifySlack(msg),
-        ]);
+        // FASE 18.2 — um briefing por segmento; notifica um resumo por segmento
+        const briefings = await generateBriefingsForScope(type, tenantId);
+        for (const briefing of briefings) {
+          const content = briefing.content as any;
+          const segLabel = (briefing as any).segmentName ? ` — ${(briefing as any).segmentName}` : '';
+          const msg = `*Briefing ${type.toUpperCase()}${segLabel}*\n\n${content?.performanceSummary || briefing.summary}`;
+          await Promise.allSettled([
+            notifyWhatsApp(msg, tenantId),
+            notifySlack(msg),
+          ]);
+        }
         return tenantId;
       })
     );

@@ -282,6 +282,8 @@ export interface StrategicBriefingData {
   id: string;
   type: string;
   clientId?: string | null;
+  segmentId?: string | null;
+  segmentName?: string | null;
   periodDays?: number | null;
   content: {
     urgentAlerts: string[];
@@ -297,11 +299,12 @@ export interface StrategicBriefingData {
 export const getBriefings = (params?: { limit?: number; type?: string; clientId?: ClientFilter }) =>
   api.get<StrategicBriefingData[]>('/briefings', { params }).then(r => r.data);
 
+// FASE 18.2 — retorna um briefing por segmento no escopo
 export const getLatestBriefing = (params?: { type?: string; clientId?: ClientFilter }) =>
-  api.get<StrategicBriefingData | null>('/briefings/latest', { params }).then(r => r.data);
+  api.get<StrategicBriefingData[]>('/briefings/latest', { params }).then(r => r.data);
 
 export const generateBriefing = (type: string, clientId?: string, periodDays?: number) =>
-  api.post<StrategicBriefingData>('/briefings/generate', { type, clientId, periodDays }).then(r => r.data);
+  api.post<StrategicBriefingData[]>('/briefings/generate', { type, clientId, periodDays }).then(r => r.data);
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 export interface DeltaData {

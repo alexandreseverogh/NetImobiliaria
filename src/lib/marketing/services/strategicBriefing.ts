@@ -1,7 +1,31 @@
 import prisma from '../prisma';
+import pool from '@/lib/database/connection';
 import { invokeForContext } from '../../intelligence/llmInvoker';
 import { generateAiInsights } from './aiInsights';
 import { getAngleInsights, type AngleInsightsResult } from './angleInsightsService';
+import { getActiveSegmentsForScope } from './segmentTaxonomyService';
+
+const S = 'campanhasmarketingdigital';
+
+/** IDs das campanhas de um segmento dentro do escopo (tenant + cliente opcional). */
+async function getSegmentCampaignIds(
+  tenantId: string,
+  segmentId: string,
+  clientId?: string,
+): Promise<string[]> {
+  const clientFilter = clientId && clientId !== 'own' && clientId !== 'all' ? clientId : null;
+  const { rows } = await pool.query(
+    `SELECT cam.id
+     FROM ${S}."Campaign" cam
+     LEFT JOIN public.clientes cl ON cl.uuid = cam.client_id
+     LEFT JOIN public.tenants  t  ON t.id    = cam.tenant_id
+     WHERE cam.tenant_id = $1::uuid
+       AND ( cl.segment_id = $2::uuid OR (cam.client_id IS NULL AND t.segment_id = $2::uuid) )
+       AND ($3::uuid IS NULL OR cam.client_id = $3::uuid)`,
+    [tenantId, segmentId, clientFilter],
+  );
+  return rows.map(r => r.id);
+}
 
 interface CampaignMetrics {
   campaignId: string;
@@ -70,16 +94,27 @@ function pctDelta(current: number, previous: number): number {
   return ((current - previous) / previous) * 100;
 }
 
-export async function gatherBriefingContext(periodDays: number, tenantId?: string, clientId?: string): Promise<BriefingContext> {
+export async function gatherBriefingContext(
+  periodDays: number,
+  tenantId?: string,
+  clientId?: string,
+  opts?: { segmentId?: string; precomputedRuleInsights?: any[] },
+): Promise<BriefingContext> {
   const now = new Date();
   const startDate = new Date(now.getTime() - periodDays * 86400000);
   const prevStartDate = new Date(startDate.getTime() - periodDays * 86400000);
+  const segmentId = opts?.segmentId;
 
   const campaignFilter: any = tenantId ? { tenantId } : {};
   if (clientId === 'own') {
     campaignFilter.clientId = null;
   } else if (clientId) {
     campaignFilter.clientId = clientId;
+  }
+  // FASE 18.2 — restringe às campanhas do segmento
+  if (segmentId && tenantId) {
+    const ids = await getSegmentCampaignIds(tenantId, segmentId, clientId);
+    campaignFilter.id = { in: ids.length > 0 ? ids : ['__none__'] };
   }
   const allCampaigns = await prisma.campaign.findMany({
     where: campaignFilter,
@@ -153,11 +188,12 @@ export async function gatherBriefingContext(periodDays: number, tenantId?: strin
     prevLeads += prevLeadCount;
   }
 
-  const aiResult = await generateAiInsights(undefined, tenantId, clientId);
-  const ruleInsights = aiResult.insights;
+  // FASE 18.2 — quando há insights pré-computados do segmento, usa-os (evita recomputar)
+  const ruleInsights = opts?.precomputedRuleInsights
+    ?? (await generateAiInsights(undefined, tenantId, clientId)).insights;
 
-  // FASE 14b — agrega métricas por ângulo efetivo (não bloqueia se falhar)
-  const angleInsights = await getAngleInsights(periodDays, tenantId, clientId);
+  // FASE 14b/18.2 — métricas por ângulo efetivo, filtradas pelo segmento quando aplicável
+  const angleInsights = await getAngleInsights(periodDays, tenantId, clientId, segmentId);
 
   return {
     date: now.toISOString().split('T')[0],
@@ -219,9 +255,20 @@ function buildBriefingVariables(
   };
 }
 
-export async function generateStrategicBriefing(type: 'morning' | 'closing' | 'manual', tenantId?: string, clientId?: string, periodDaysOverride?: number) {
+export async function generateStrategicBriefing(
+  type: 'morning' | 'closing' | 'manual',
+  tenantId?: string,
+  clientId?: string,
+  periodDaysOverride?: number,
+  segment?: { id: string; name: string },
+  precomputedRuleInsights?: any[],
+) {
   const periodDays = periodDaysOverride ?? (type === 'closing' ? 1 : 7);
-  const context = await gatherBriefingContext(periodDays, tenantId, clientId);
+  const context = await gatherBriefingContext(periodDays, tenantId, clientId, {
+    segmentId: segment?.id,
+    precomputedRuleInsights,
+  });
+  const segFields = { segmentId: segment?.id ?? null, segmentName: segment?.name ?? null };
 
   if (context.campaigns.length === 0) {
     const empty = {
@@ -238,6 +285,7 @@ export async function generateStrategicBriefing(type: 'morning' | 'closing' | 'm
         type,
         tenantId:   tenantId || null,
         clientId:   clientId  || null,
+        ...segFields,
         periodDays: periodDays,
         content:    empty as any,
         summary:    empty.performanceSummary,
@@ -274,6 +322,7 @@ export async function generateStrategicBriefing(type: 'morning' | 'closing' | 'm
         type,
         tenantId:   tenantId || null,
         clientId:   clientId  || null,
+        ...segFields,
         periodDays: periodDays,
         content:    briefingContent as any,
         summary:    briefingContent.performanceSummary.slice(0, 500),
@@ -299,12 +348,69 @@ export async function generateStrategicBriefing(type: 'morning' | 'closing' | 'm
         type,
         tenantId:   tenantId || null,
         clientId:   clientId  || null,
+        ...segFields,
         periodDays: periodDays,
         content:    fallback as any,
         summary:    fallback.performanceSummary.slice(0, 500),
       },
     });
   }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   FASE 18.2 — Orquestração por segmento
+────────────────────────────────────────────────────────────── */
+
+/**
+ * Gera um briefing POR SEGMENTO no escopo (tenant + cliente opcional).
+ * Cliente único → 1 briefing (segmento do cliente). Agregado → N briefings.
+ */
+export async function generateBriefingsForScope(
+  type: 'morning' | 'closing' | 'manual',
+  tenantId?: string,
+  clientId?: string,
+  periodDaysOverride?: number,
+) {
+  const periodDays = periodDaysOverride ?? (type === 'closing' ? 1 : 7);
+  if (!tenantId) return [await generateStrategicBriefing(type, tenantId, clientId, periodDays)];
+
+  const segments = await getActiveSegmentsForScope(tenantId, clientId);
+  if (segments.length === 0) {
+    // Sem segmentos no escopo → comporta como antes (1 briefing geral)
+    return [await generateStrategicBriefing(type, tenantId, clientId, periodDays)];
+  }
+
+  // Insights por segmento computados uma vez (benchmark correto por segmento)
+  const aiResult: any = await generateAiInsights(undefined, tenantId, clientId);
+  const bySeg = new Map<string, any[]>((aiResult.bySegment ?? []).map((g: any) => [g.segmentId, g.insights]));
+
+  const out = [];
+  for (const seg of segments) {
+    const ruleInsights = bySeg.get(seg.id) ?? [];
+    out.push(await generateStrategicBriefing(type, tenantId, clientId, periodDays, { id: seg.id, name: seg.name }, ruleInsights));
+  }
+  return out;
+}
+
+/** Último briefing POR SEGMENTO no escopo. */
+export async function getLatestBriefingsForScope(type?: string, tenantId?: string, clientId?: string) {
+  if (!tenantId) {
+    const b = await getLatestBriefing(type, tenantId, clientId);
+    return b ? [b] : [];
+  }
+  const segments = await getActiveSegmentsForScope(tenantId, clientId);
+  if (segments.length === 0) {
+    const b = await getLatestBriefing(type, tenantId, clientId);
+    return b ? [b] : [];
+  }
+  const out = [];
+  for (const seg of segments) {
+    const where: any = { tenantId, segmentId: seg.id };
+    if (type) where.type = type;
+    const b = await prisma.strategicBriefing.findFirst({ where, orderBy: { createdAt: 'desc' } });
+    if (b) out.push(b);
+  }
+  return out;
 }
 
 export async function getLatestBriefing(type?: string, tenantId?: string, clientId?: string) {

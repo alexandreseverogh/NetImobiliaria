@@ -41,6 +41,7 @@ export async function getAngleInsights(
   periodDays: number,
   tenantId?: string,
   clientId?: string,
+  segmentId?: string,   // FASE 18.2 — filtra por segmento (campanhas do segmento)
 ): Promise<AngleInsightsResult> {
   const empty: AngleInsightsResult = {
     periodDays,
@@ -62,6 +63,14 @@ export async function getAngleInsights(
       clientFilter = ` AND c.client_id = $${params.length}::uuid`;
     }
 
+    // FASE 18.2 — filtro por segmento (campanha de cliente do segmento, ou própria do tenant cujo segmento bate)
+    let segmentFilter = '';
+    if (segmentId) {
+      params.push(segmentId);
+      const p = params.length;
+      segmentFilter = ` AND ( cl.segment_id = $${p}::uuid OR (c.client_id IS NULL AND t.segment_id = $${p}::uuid) )`;
+    }
+
     // Junta Campaign → (CreativeAsset → CreativeAnalysis) para obter ângulo Vision,
     // e Campaign → Insight para agregar métricas do período.
     // Ângulo efetivo = declared_angle ?? Vision angle ?? 'unknown'
@@ -74,6 +83,8 @@ export async function getAngleInsights(
         COALESCE(SUM(i.impressions), 0)   AS total_impressions,
         COALESCE(SUM(i.conversions), 0)   AS total_conversions
       FROM ${S}."Campaign" c
+      LEFT JOIN public.clientes cl ON cl.uuid = c.client_id
+      LEFT JOIN public.tenants  t  ON t.id    = c.tenant_id
       -- ângulo Vision mais recente por campanha (fallback quando declared_angle é null)
       LEFT JOIN (
         SELECT DISTINCT ON (ca.campaign_id)
@@ -89,7 +100,7 @@ export async function getAngleInsights(
       LEFT JOIN ${S}."Insight" i
         ON i."campaignId" = c.id
         AND i.date >= NOW() - ($2 * INTERVAL '1 day')
-      WHERE c.tenant_id = $1::uuid${clientFilter}
+      WHERE c.tenant_id = $1::uuid${clientFilter}${segmentFilter}
       GROUP BY effective_angle
       ORDER BY total_spend DESC
     `;

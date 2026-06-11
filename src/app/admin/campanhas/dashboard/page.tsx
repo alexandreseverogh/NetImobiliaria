@@ -40,7 +40,7 @@ export function DashboardPage() {
   const [data, setData]                     = useState<DashboardFullData | null>(null);
   const [funnelData7, setFunnelData7]       = useState<FunnelData7 | null>(null);
   const [predictions, setPredictions]       = useState<PredictionData | null>(null);
-  const [briefing, setBriefing]             = useState<StrategicBriefingData | null>(null);
+  const [briefings, setBriefings]           = useState<StrategicBriefingData[]>([]);
   const [briefingHistory, setBriefingHistory] = useState<StrategicBriefingData[]>([]);
   const [aiInsights, setAiInsights]         = useState<AiInsightData[]>([]);
   const [aiInsightsBySegment, setAiInsightsBySegment] = useState<{ segmentId: string | null; segmentName: string; insights: any[] }[]>([]);
@@ -120,7 +120,7 @@ export function DashboardPage() {
         getAiInsights(sharedFilters).catch(() => ({ insights: [], calibrationActions: [] })),
         getAnticipation(clientFilter && clientFilter !== 'all' ? { clientId: clientFilter as string } : {}).catch(() => []),
       ]).then(([latestBriefing, history, aiData, anticipation]) => {
-        setBriefing(latestBriefing);
+        setBriefings(Array.isArray(latestBriefing) ? latestBriefing : (latestBriefing ? [latestBriefing as any] : []));
         setBriefingHistory(history as StrategicBriefingData[]);
         const aiResult = aiData as any;
         setAiInsights(Array.isArray(aiResult) ? aiResult : (aiResult?.insights ?? []));
@@ -175,9 +175,10 @@ export function DashboardPage() {
   async function handleGenerateBriefing() {
     setGeneratingBriefing(true);
     try {
-      const b = await generateBriefing('manual', undefined, effectivePeriodDays);
-      setBriefing(b);
-      setBriefingHistory(prev => [b, ...prev].slice(0, 5));
+      const bs = await generateBriefing('manual', undefined, effectivePeriodDays);
+      const arr = Array.isArray(bs) ? bs : (bs ? [bs as any] : []);
+      setBriefings(arr);
+      setBriefingHistory(prev => [...arr, ...prev].slice(0, 5));
     } catch { alert('Erro ao gerar briefing'); }
     finally { setGeneratingBriefing(false); }
   }
@@ -663,18 +664,32 @@ export function DashboardPage() {
                 </div>
               </div>
 
-              {briefing
-                ? <BriefingCard briefing={briefing} isDark={isDark} />
+              {briefings.length > 0
+                ? (
+                  <div className="space-y-5">
+                    {briefings.map(b => (
+                      <div key={b.id}>
+                        {b.segmentName && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                            <h3 className={`text-sm font-black ${tx}`}>{b.segmentName}</h3>
+                          </div>
+                        )}
+                        <BriefingCard briefing={b} isDark={isDark} />
+                      </div>
+                    ))}
+                  </div>
+                )
                 : (
                   <div className={`rounded-2xl p-10 text-center ${cardBase}`}>
                     <p className={`text-sm font-black mb-1 ${tx}`}>Nenhum briefing gerado ainda</p>
                     <p className={`text-xs ${txMuted}`}>Clique em "Gerar Novo" ou aguarde o envio automático (08h e 18h).</p>
                   </div>
                 )}
-              {showBriefingHistory && briefingHistory.length > 1 && (
+              {showBriefingHistory && briefingHistory.length > briefings.length && (
                 <div className="mt-4 space-y-3">
                   <p className={`text-[10px] font-black uppercase tracking-widest ${txFaint}`}>Histórico</p>
-                  {briefingHistory.filter(b => b.id !== briefing?.id).map(b => (
+                  {briefingHistory.filter(b => !briefings.some(cur => cur.id === b.id)).map(b => (
                     <BriefingCard key={b.id} briefing={b} isDark={isDark} compact />
                   ))}
                 </div>
