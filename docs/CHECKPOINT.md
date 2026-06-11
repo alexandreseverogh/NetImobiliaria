@@ -40,8 +40,26 @@ D) Insights+Briefing por segmento · E) Tracking Health por cliente. Cada fase: 
 Tracking Health um card por cliente. Cliente único colapsa para um bloco coerente. 100% dirigido por
 banco (system_segments + segment_angle_terms), zero hardcode, zero mock.
 
+### FASE 18.3 — Cadastro dinâmico de ângulos por segmento (IA) — CONCLUÍDO 2026-06-11 ✅
+
+Fecha o loop: ao criar/editar um segmento, o LLM (modelo global) propõe ângulos (slug+rótulo) +
+termos PT-BR de Google Trends para o nicho; o admin revisa/edita e salva em `segment_angle_terms`
+(sincroniza `creative_taxonomy.angles`). Assim, **segmentos novos ficam 100% dinâmicos** — radar,
+wizard, insights, briefing passam a funcionar sem tocar em código nem dados manuais.
+
+- Prompt `segment_angles_suggestion` (global, `system_prompt_templates`).
+- `segmentAngleSuggestionService` + rotas `master/segments/[id]/angles` (GET/POST sugerir/PUT salvar).
+- `SegmentAnglesModal` + botão "Ângulos & Demanda" na gestão de segmentos (Master).
+- Verificado: LLM gerou ângulos+termos PT-BR reais para nicho novo "Pet Shop".
+
+> **O que é dinâmico:** toda a maquinaria (radar/insights/briefing/cron) itera segmentos sozinha.
+> Segmento novo só precisa ter seus ângulos cadastrados — agora via IA+confirmação na UI Master.
+
+---
+
 **Migrações locais aplicadas (pendente VPS, all-at-once):**
-`migration-2026-06-11-segment-driven.sql` e `migration-2026-06-11-briefing-segment.sql`.
+`migration-2026-06-11-segment-driven.sql`, `migration-2026-06-11-briefing-segment.sql` e
+`migration-2026-06-11-segment-angles-prompt.sql`.
 **Nota:** rodar `npx prisma generate --schema=prisma/schema.marketing.prisma` após pull (campo
 `StrategicBriefing.segment_id/segment_name` adicionado ao schema). Cron diário de Trends:
 `POST /api/cron/campanhas/exogenous-signals` (header `x-cron-secret`).
