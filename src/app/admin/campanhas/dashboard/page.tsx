@@ -622,9 +622,32 @@ export function DashboardPage() {
                 </div>
                 <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
               </div>
-              <TrackingHealthWidget
-                clientId={(clientFilter && clientFilter !== 'all' && clientFilter !== 'own') ? clientFilter as string : null}
-              />
+              {/* FASE 18.2 — breakdown por cliente no modo agregado */}
+              {clientFilter === 'all' && clients.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Campanhas próprias do tenant */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                      <h3 className={`text-xs font-black uppercase tracking-widest ${txMuted}`}>Minha Empresa</h3>
+                    </div>
+                    <TrackingHealthWidget clientId={null} compact />
+                  </div>
+                  {clients.map(c => (
+                    <div key={c.id}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                        <h3 className={`text-xs font-black uppercase tracking-widest ${txMuted} truncate`} title={c.name}>{c.name}</h3>
+                      </div>
+                      <TrackingHealthWidget clientId={c.id} compact />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <TrackingHealthWidget
+                  clientId={(clientFilter && clientFilter !== 'all' && clientFilter !== 'own') ? clientFilter as string : null}
+                />
+              )}
             </div>
 
             {/* ── Briefing Estratégico AI ──────────────────────────────────── */}
