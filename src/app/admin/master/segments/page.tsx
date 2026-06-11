@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 import { SegmentInterestsModal } from '@/components/admin/master/SegmentInterestsModal'
+import { SegmentAnglesModal } from '@/components/admin/master/SegmentAnglesModal'
 
 interface Segment {
   id: string
@@ -46,6 +47,7 @@ export default function MasterSegmentsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingSegment, setEditingSegment] = useState<Segment | null>(null)
   const [interestsSegment, setInterestsSegment] = useState<Segment | null>(null)
+  const [anglesSegment, setAnglesSegment] = useState<Segment | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -244,6 +246,14 @@ export default function MasterSegmentsPage() {
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex items-center justify-end gap-3">
+                      <button
+                        onClick={() => setAnglesSegment(segment)}
+                        className="text-violet-500 hover:text-violet-700 transition-colors inline-flex items-center gap-1 text-sm font-semibold"
+                        title="Gerenciar ângulos e termos de demanda (IA)"
+                      >
+                        <SparklesIcon className="h-4 w-4" />
+                        Ângulos & Demanda
+                      </button>
                       <button
                         onClick={() => setInterestsSegment(segment)}
                         className="text-indigo-500 hover:text-indigo-700 transition-colors inline-flex items-center gap-1 text-sm font-semibold"
@@ -484,6 +494,14 @@ export default function MasterSegmentsPage() {
           segment={interestsSegment}
           network="meta"
           onClose={() => setInterestsSegment(null)}
+        />
+      )}
+
+      {/* Ângulos & Demanda Modal (FASE 18.3) */}
+      {anglesSegment && (
+        <SegmentAnglesModal
+          segment={anglesSegment}
+          onClose={() => setAnglesSegment(null)}
         />
       )}
     </div>
