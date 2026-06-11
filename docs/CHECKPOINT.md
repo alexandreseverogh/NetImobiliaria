@@ -6,9 +6,9 @@
 
 ---
 
-## Tarefa em andamento
+## Última tarefa concluída
 
-### FASE 18.2 — Dashboard dirigido por Segmento — INÍCIO 2026-06-11
+### FASE 18.2 — Dashboard dirigido por Segmento — CONCLUÍDO 2026-06-11 ✅
 
 No modo agregado (vários clientes de segmentos distintos), 4 seções do dashboard misturavam segmentos
 indevidamente. Decisão: quebrar por segmento (Radar, Insights IA, Briefing) e por cliente (Tracking Health),
@@ -30,8 +30,21 @@ D) Insights+Briefing por segmento · E) Tracking Health por cliente. Cada fase: 
   Verificado: agregado → 2 segmentos (Imobiliário+Saúde), cliente único → 1 segmento.
   ⚠️ Campanhas demo têm `declared_angle` genérico antigo (family/luxury…) → endógeno 0 nos novos
   vértices até serem recriadas pelo wizard (ou migradas).
-- ⏳ **Fase D** — Insights IA + Briefing por segmento (pendente).
-- ⏳ **Fase E** — Tracking Health por cliente (pendente).
+- ✅ **Fase D** — Insights IA por segmento (benchmark próprio de cada segmento; `aiInsights.bySegment`)
+  + Briefing Estratégico por segmento (`StrategicBriefing.segment_id`; um briefing por segmento;
+    rotas generate/latest e cron retornam/persistem por segmento).
+  Verificado: agregado → Insights e Briefings separados Imobiliário + Saúde.
+- ✅ **Fase E** — Tracking Health breakdown por cliente (um widget por cliente no modo agregado).
+
+**Resultado:** no modo "todos os clientes", Radar/Insights/Briefing exibem um bloco por segmento e
+Tracking Health um card por cliente. Cliente único colapsa para um bloco coerente. 100% dirigido por
+banco (system_segments + segment_angle_terms), zero hardcode, zero mock.
+
+**Migrações locais aplicadas (pendente VPS, all-at-once):**
+`migration-2026-06-11-segment-driven.sql` e `migration-2026-06-11-briefing-segment.sql`.
+**Nota:** rodar `npx prisma generate --schema=prisma/schema.marketing.prisma` após pull (campo
+`StrategicBriefing.segment_id/segment_name` adicionado ao schema). Cron diário de Trends:
+`POST /api/cron/campanhas/exogenous-signals` (header `x-cron-secret`).
 
 ---
 
