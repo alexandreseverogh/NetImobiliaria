@@ -43,6 +43,7 @@ export function DashboardPage() {
   const [briefing, setBriefing]             = useState<StrategicBriefingData | null>(null);
   const [briefingHistory, setBriefingHistory] = useState<StrategicBriefingData[]>([]);
   const [aiInsights, setAiInsights]         = useState<AiInsightData[]>([]);
+  const [aiInsightsBySegment, setAiInsightsBySegment] = useState<{ segmentId: string | null; segmentName: string; insights: any[] }[]>([]);
   const [anticipationData, setAnticipationData] = useState<AnticipationResult[]>([]);
   const [loading, setLoading]               = useState(true);
   const [syncing, setSyncing]               = useState(false);
@@ -123,6 +124,7 @@ export function DashboardPage() {
         setBriefingHistory(history as StrategicBriefingData[]);
         const aiResult = aiData as any;
         setAiInsights(Array.isArray(aiResult) ? aiResult : (aiResult?.insights ?? []));
+        setAiInsightsBySegment(aiResult?.bySegment ?? []);
         setAnticipationData(anticipation as AnticipationResult[]);
       });
     } catch (err) { console.error('[Dashboard] Erro ao carregar dados:', err); }
@@ -686,52 +688,74 @@ export function DashboardPage() {
               clientId={clientFilter}
             />
 
-            {/* ── AI Insights ─────────────────────────────────────────────── */}
-            {aiInsights.length > 0 && (
-              <div className="mb-8">
-                <div className="flex items-start justify-between gap-3 mb-5">
-                  <div>
-                    <h2 className={`text-lg font-black ${tx}`}>Insights da IA</h2>
-                    <p className={`text-xs mt-0.5 ${txMuted}`}>Análise automática de CTR, CPC, frequência e CPL — sem dependência de LLM</p>
+            {/* ── AI Insights (por segmento — FASE 18.2) ──────────────────── */}
+            {aiInsights.length > 0 && (() => {
+              type IS = { border: string; badge: string; dot: string; glow: string };
+              const ds: Record<string, IS> = {
+                PAUSE:    { border: 'border-l-red-500',    badge: 'bg-red-500/10 text-red-400 border border-red-500/20',        dot: 'bg-red-500',    glow: 'shadow-[0_0_24px_rgba(239,68,68,0.07)]'    },
+                SCALE:    { border: 'border-l-emerald-500',badge: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',dot:'bg-emerald-500',glow:'shadow-[0_0_24px_rgba(16,185,129,0.07)]' },
+                OPTIMIZE: { border: 'border-l-amber-500',  badge: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',   dot: 'bg-amber-500',  glow: 'shadow-[0_0_24px_rgba(245,158,11,0.07)]'  },
+                ALERT:    { border: 'border-l-orange-500', badge: 'bg-orange-500/10 text-orange-400 border border-orange-500/20', dot: 'bg-orange-500', glow: 'shadow-[0_0_24px_rgba(249,115,22,0.07)]'  },
+              };
+              const ls: Record<string, IS> = {
+                PAUSE:    { border: 'border-l-red-500',    badge: 'bg-red-50 text-red-600 border border-red-100',             dot: 'bg-red-500',    glow: '' },
+                SCALE:    { border: 'border-l-emerald-500',badge: 'bg-emerald-50 text-emerald-700 border border-emerald-100', dot: 'bg-emerald-500',glow: '' },
+                OPTIMIZE: { border: 'border-l-amber-500',  badge: 'bg-amber-50 text-amber-700 border border-amber-100',       dot: 'bg-amber-500',  glow: '' },
+                ALERT:    { border: 'border-l-orange-500', badge: 'bg-orange-50 text-orange-700 border border-orange-100',    dot: 'bg-orange-500', glow: '' },
+              };
+              const styles = isDark ? ds : ls;
+              // Se o serviço não trouxe bySegment, cai num grupo único.
+              const groups = aiInsightsBySegment.length > 0
+                ? aiInsightsBySegment.filter(g => g.insights.length > 0)
+                : [{ segmentId: null, segmentName: '', insights: aiInsights }];
+
+              const renderCard = (insight: any, i: number) => {
+                const s = styles[insight.type] || styles.ALERT;
+                return (
+                  <motion.div key={i} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
+                    className={cn(`rounded-2xl p-4 border-l-4 ${cardBase} ${s.border} ${s.glow}`)}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide ${s.badge}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{insight.type}
+                      </span>
+                      <span className={`text-[10px] font-bold ${txFaint}`}>
+                        Confiança: {(insight.confidence * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <h4 className={`text-sm font-black mb-1 ${tx}`}>{insight.title}</h4>
+                    <p className={`text-xs ${txMuted}`}>{insight.description}</p>
+                  </motion.div>
+                );
+              };
+
+              return (
+                <div className="mb-8">
+                  <div className="flex items-start justify-between gap-3 mb-5">
+                    <div>
+                      <h2 className={`text-lg font-black ${tx}`}>Insights da IA</h2>
+                      <p className={`text-xs mt-0.5 ${txMuted}`}>Análise automática por segmento — benchmark próprio de cada segmento</p>
+                    </div>
+                    <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
                   </div>
-                  <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {aiInsights.map((insight, i) => {
-                    type IS = { border: string; badge: string; dot: string; glow: string };
-                    const ds: Record<string, IS> = {
-                      PAUSE:    { border: 'border-l-red-500',    badge: 'bg-red-500/10 text-red-400 border border-red-500/20',        dot: 'bg-red-500',    glow: 'shadow-[0_0_24px_rgba(239,68,68,0.07)]'    },
-                      SCALE:    { border: 'border-l-emerald-500',badge: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',dot:'bg-emerald-500',glow:'shadow-[0_0_24px_rgba(16,185,129,0.07)]' },
-                      OPTIMIZE: { border: 'border-l-amber-500',  badge: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',   dot: 'bg-amber-500',  glow: 'shadow-[0_0_24px_rgba(245,158,11,0.07)]'  },
-                      ALERT:    { border: 'border-l-orange-500', badge: 'bg-orange-500/10 text-orange-400 border border-orange-500/20', dot: 'bg-orange-500', glow: 'shadow-[0_0_24px_rgba(249,115,22,0.07)]'  },
-                    };
-                    const ls: Record<string, IS> = {
-                      PAUSE:    { border: 'border-l-red-500',    badge: 'bg-red-50 text-red-600 border border-red-100',             dot: 'bg-red-500',    glow: '' },
-                      SCALE:    { border: 'border-l-emerald-500',badge: 'bg-emerald-50 text-emerald-700 border border-emerald-100', dot: 'bg-emerald-500',glow: '' },
-                      OPTIMIZE: { border: 'border-l-amber-500',  badge: 'bg-amber-50 text-amber-700 border border-amber-100',       dot: 'bg-amber-500',  glow: '' },
-                      ALERT:    { border: 'border-l-orange-500', badge: 'bg-orange-50 text-orange-700 border border-orange-100',    dot: 'bg-orange-500', glow: '' },
-                    };
-                    const styles = isDark ? ds : ls;
-                    const s = styles[insight.type] || styles.ALERT;
-                    return (
-                      <motion.div key={i} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
-                        className={cn(`rounded-2xl p-4 border-l-4 ${cardBase} ${s.border} ${s.glow}`)}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide ${s.badge}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{insight.type}
-                          </span>
-                          <span className={`text-[10px] font-bold ${txFaint}`}>
-                            Confiança: {(insight.confidence * 100).toFixed(0)}%
-                          </span>
+                  <div className="space-y-6">
+                    {groups.map((g, gi) => (
+                      <div key={g.segmentId ?? gi}>
+                        {g.segmentName && (
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                            <h3 className={`text-sm font-black ${tx}`}>{g.segmentName}</h3>
+                            <span className={`text-[10px] ${txFaint}`}>· {g.insights.length} insight(s)</span>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {g.insights.map(renderCard)}
                         </div>
-                        <h4 className={`text-sm font-black mb-1 ${tx}`}>{insight.title}</h4>
-                        <p className={`text-xs ${txMuted}`}>{insight.description}</p>
-                      </motion.div>
-                    );
-                  })}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* ── Campaigns Table ─────────────────────────────────────────── */}
             <div className={`rounded-2xl overflow-hidden ${cardBase}`}>

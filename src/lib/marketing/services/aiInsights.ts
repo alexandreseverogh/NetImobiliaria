@@ -1,7 +1,55 @@
 import prisma from '../prisma';
-import { resolveSegment } from '../../intelligence/segmentResolver';
+import pool from '@/lib/database/connection';
 import { resolveBenchmarks, BenchmarkMap } from '../../intelligence/benchmarkResolver';
 import { computeSignalsForCampaign, type NormalizedSignals } from './signalEngine';
+
+const S = 'campanhasmarketingdigital';
+
+/**
+ * Mapeia cada campanha ao seu segmento efetivo:
+ *   campanha de cliente → clientes.segment_id
+ *   campanha própria (client_id NULL) → tenants.segment_id
+ * Retorna Map<campaignId, { segmentId, segmentName }>.
+ */
+async function mapCampaignSegments(
+  campaignIds: string[],
+  tenantId: string,
+): Promise<Map<string, { segmentId: string | null; segmentName: string }>> {
+  const result = new Map<string, { segmentId: string | null; segmentName: string }>();
+  if (campaignIds.length === 0) return result;
+  try {
+    const { rows } = await pool.query(
+      `SELECT cam.id AS campaign_id,
+              COALESCE(cl.segment_id, t.segment_id) AS segment_id,
+              s.name AS segment_name
+       FROM ${S}."Campaign" cam
+       LEFT JOIN public.clientes cl ON cl.uuid = cam.client_id
+       LEFT JOIN public.tenants  t  ON t.id    = cam.tenant_id
+       LEFT JOIN public.system_segments s ON s.id = COALESCE(cl.segment_id, t.segment_id)
+       WHERE cam.id = ANY($1::text[]) AND cam.tenant_id = $2::uuid`,
+      [campaignIds, tenantId],
+    );
+    for (const r of rows) {
+      result.set(r.campaign_id, {
+        segmentId:   r.segment_id ?? null,
+        segmentName: r.segment_name ?? 'Sem segmento',
+      });
+    }
+  } catch (err) {
+    console.warn('[aiInsights] mapCampaignSegments falhou:', err);
+  }
+  return result;
+}
+
+const DEFAULT_BENCHMARKS: BenchmarkMap = {
+  cpl_ideal: 30, ctr_min: 1, ctr_scale: 2, frequency_max: 3, spend_no_lead: 50,
+  min_leads_scale: 5, min_days_running: 3, hook_rate_critical: 8, hook_rate_min: 12,
+} as BenchmarkMap;
+
+const BENCHMARK_KEYS = [
+  'cpl_ideal', 'ctr_min', 'ctr_scale', 'frequency_max', 'spend_no_lead',
+  'min_leads_scale', 'min_days_running', 'hook_rate_critical', 'hook_rate_min',
+];
 
 interface CampaignData {
   campaignId: string;
@@ -211,22 +259,38 @@ export async function generateAiInsights(
 
   const campaigns = await prisma.campaign.findMany({ where });
 
-  // Resolve benchmarks once for this tenant+client context
-  const segment = tenantId ? await resolveSegment(tenantId, clientId) : null;
-  const benchmarks = tenantId
-    ? await resolveBenchmarks(
-        ['cpl_ideal', 'ctr_min', 'ctr_scale', 'frequency_max', 'spend_no_lead',
-         'min_leads_scale', 'min_days_running', 'hook_rate_critical', 'hook_rate_min'],
-        tenantId,
-        segment?.id ?? null,
-        clientId,
-      )
-    : { cpl_ideal: 30, ctr_min: 1, ctr_scale: 2, frequency_max: 3, spend_no_lead: 50, min_leads_scale: 5, min_days_running: 3, hook_rate_critical: 8, hook_rate_min: 12 };
+  // FASE 18.2 — Benchmarks POR SEGMENTO (nunca aplicar 1 segmento a todos).
+  // Mapeia cada campanha ao seu segmento e resolve benchmarks por segmento.
+  const campaignSegments = tenantId
+    ? await mapCampaignSegments(campaigns.map(c => c.id), tenantId)
+    : new Map<string, { segmentId: string | null; segmentName: string }>();
+
+  const benchmarksBySegment = new Map<string, BenchmarkMap>();
+  if (tenantId) {
+    const uniqueSegmentIds = Array.from(
+      new Set(Array.from(campaignSegments.values()).map(v => v.segmentId).filter(Boolean) as string[]),
+    );
+    await Promise.all(uniqueSegmentIds.map(async segId => {
+      const bm = await resolveBenchmarks(BENCHMARK_KEYS, tenantId, segId, clientId).catch(() => DEFAULT_BENCHMARKS);
+      benchmarksBySegment.set(segId, bm);
+    }));
+  }
+
+  function benchmarksFor(campaignId: string): BenchmarkMap {
+    const seg = campaignSegments.get(campaignId);
+    if (seg?.segmentId && benchmarksBySegment.has(seg.segmentId)) {
+      return benchmarksBySegment.get(seg.segmentId)!;
+    }
+    return DEFAULT_BENCHMARKS;
+  }
 
   const allInsights: any[] = [];
   const allCalibrationActions: (CalibrationAction & { campaignId: string; campaignName: string })[] = [];
 
   for (const campaign of campaigns) {
+    const benchmarks = benchmarksFor(campaign.id);
+    const campSeg    = campaignSegments.get(campaign.id);
+    const segTag     = { segmentId: campSeg?.segmentId ?? null, segmentName: campSeg?.segmentName ?? 'Sem segmento' };
     const insightWhere: any = { campaignId: campaign.id };
     if (tenantId) insightWhere.tenantId = tenantId;
     if (filters?.startDate || filters?.endDate) {
@@ -284,6 +348,7 @@ export async function generateAiInsights(
           title: rule.title,
           description: rule.description(data, benchmarks),
           confidence: rule.confidence(data, benchmarks),
+          ...segTag,
         });
       }
     }
@@ -301,6 +366,7 @@ export async function generateAiInsights(
               ...action,
               campaignId:   campaign.id,
               campaignName: campaign.name,
+              ...segTag,
             });
             // Também adicionar ao allInsights para retrocompatibilidade da UI
             allInsights.push({
@@ -312,6 +378,7 @@ export async function generateAiInsights(
               confidence:   action.confidence,
               isLeading:    true,
               pressureScore: signals.pressureScore,
+              ...segTag,
             });
           }
         }
@@ -322,9 +389,29 @@ export async function generateAiInsights(
     }
   }
 
+  const sortedInsights = allInsights.sort((a, b) => b.confidence - a.confidence);
+  const sortedActions  = allCalibrationActions.sort((a, b) => b.confidence - a.confidence);
+
+  // FASE 18.2 — agrupamento por segmento (UI segrega multi-segmento)
+  const segIndex = new Map<string, { segmentId: string | null; segmentName: string; insights: any[]; calibrationActions: any[] }>();
+  const keyOf = (segId: string | null, name: string) => `${segId ?? 'none'}::${name}`;
+  for (const ins of sortedInsights) {
+    const k = keyOf(ins.segmentId ?? null, ins.segmentName ?? 'Sem segmento');
+    if (!segIndex.has(k)) segIndex.set(k, { segmentId: ins.segmentId ?? null, segmentName: ins.segmentName ?? 'Sem segmento', insights: [], calibrationActions: [] });
+    segIndex.get(k)!.insights.push(ins);
+  }
+  for (const act of sortedActions) {
+    const k = keyOf((act as any).segmentId ?? null, (act as any).segmentName ?? 'Sem segmento');
+    if (!segIndex.has(k)) segIndex.set(k, { segmentId: (act as any).segmentId ?? null, segmentName: (act as any).segmentName ?? 'Sem segmento', insights: [], calibrationActions: [] });
+    segIndex.get(k)!.calibrationActions.push(act);
+  }
+  const bySegment = Array.from(segIndex.values())
+    .sort((a, b) => a.segmentName.localeCompare(b.segmentName));
+
   return {
-    insights: allInsights.sort((a, b) => b.confidence - a.confidence),
-    calibrationActions: allCalibrationActions.sort((a, b) => b.confidence - a.confidence),
+    insights: sortedInsights,                 // plano (retrocompat)
+    calibrationActions: sortedActions,        // plano (retrocompat)
+    bySegment,                                // agrupado por segmento (FASE 18.2)
   };
 }
 
