@@ -1,8 +1,25 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-05 (FASE 18.1 — Radar de Demanda)
+> **Atualizado em:** 2026-06-11 (FASE 18.2 — Dashboard por segmento)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Tarefa em andamento
+
+### FASE 18.2 — Dashboard dirigido por Segmento — INÍCIO 2026-06-11
+
+No modo agregado (vários clientes de segmentos distintos), 4 seções do dashboard misturavam segmentos
+indevidamente. Decisão: quebrar por segmento (Radar, Insights IA, Briefing) e por cliente (Tracking Health),
+100% dirigido pelo banco (`system_segments.creative_taxonomy.angles`). Plano completo aprovado.
+
+**Fundação de dados:** nova tabela `campanhasmarketingdigital.segment_angle_terms` (segment_id, angle_slug,
+angle_label, search_term) substitui a global `angle_search_terms`; `exogenous_signals` e `demand_radar_cache`
+ganham `segment_id`. Seed por segmento ativo.
+
+**Fases:** A) segmentTaxonomyService · B) Wizard+Vision por segmento · C) Radar por segmento ·
+D) Insights+Briefing por segmento · E) Tracking Health por cliente. Cada fase: migração local + commit + push.
 
 ---
 
