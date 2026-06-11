@@ -97,6 +97,9 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     suggestedInterests: [] as { id: string; name: string }[],
     whatsappNumber:     '',
     whatsappMessage:    '',
+    // FASE 18.2 — ângulos do segmento do cliente (dirigido por banco)
+    allowedAngles:      [] as { slug: string; label: string }[],
+    segmentName:        '' as string,
   });
 
   const [form, setForm] = useState({
@@ -170,6 +173,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           suggestedInterests: segDefaults?.suggestedInterests || [],
           whatsappNumber:     whatsapp?.phoneNumber    || '',
           whatsappMessage:    whatsapp?.defaultMessage || '',
+          allowedAngles:      segDefaults?.allowedAngles || [],
+          segmentName:        segDefaults?.segmentName   || '',
         };
 
         setAutoFields(resolved);
@@ -368,7 +373,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
               {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} />}
-              {step === 6 && <StepReview    form={form} selectedImages={selectedImages} />}
+              {step === 6 && <StepReview    form={form} selectedImages={selectedImages} autoFields={autoFields} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -1409,12 +1414,17 @@ function StepObjective({ form, updateForm, autoFields }: any) {
         </div>
       </Section>
 
-      {/* FASE 14 — Ângulo de comunicação declarado (opcional) */}
+      {/* FASE 14/18.2 — Ângulo de comunicação declarado (opcional, dirigido por segmento) */}
       <Section title="Ângulo da comunicação">
         <p className="text-sm text-gray-500 -mt-2 mb-2">
           Opcional — qual a <span className="font-semibold text-gray-700">intenção estratégica</span> deste
           criativo? Ajuda a plataforma a comparar quais ângulos convertem melhor.
           Deixe em branco para a IA inferir a partir da imagem.
+          {autoFields?.segmentName && (
+            <span className="block mt-1 text-[11px] text-indigo-500 font-medium">
+              Ângulos do segmento: {autoFields.segmentName}
+            </span>
+          )}
         </p>
         <select
           value={form.declaredAngle || ''}
@@ -1422,7 +1432,12 @@ function StepObjective({ form, updateForm, autoFields }: any) {
           className={cn(inputCls, 'w-full max-w-sm')}
         >
           <option value="">Deixe a IA inferir</option>
-          {ANGLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {(autoFields?.allowedAngles?.length
+            ? autoFields.allowedAngles.map((o: { slug: string; label: string }) => ({ value: o.slug, label: o.label }))
+            : ANGLE_OPTIONS
+          ).map((o: { value: string; label: string }) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
         </select>
       </Section>
     </div>
@@ -1433,7 +1448,10 @@ function StepObjective({ form, updateForm, autoFields }: any) {
    STEP 6 — REVISÃO
 ══════════════════════════════════════════════════════════ */
 
-function StepReview({ form, selectedImages }: any) {
+function StepReview({ form, selectedImages, autoFields }: any) {
+  const resolveAngleLabel = (slug: string) =>
+    autoFields?.allowedAngles?.find((a: { slug: string; label: string }) => a.slug === slug)?.label
+      ?? angleLabel(slug);
   return (
     <div className="space-y-8">
       <Section title="Resumo da Campanha">
@@ -1450,7 +1468,7 @@ function StepReview({ form, selectedImages }: any) {
           <Row label="Dias"        value={form.scheduleDays.map((d: number) => DAYS_OF_WEEK[d]?.label).join(', ')} />
           <Row label="Horários"    value={form.scheduleTimeSlots.map((s: any) => `${s.start}h — ${s.end}h`).join(', ')} />
           <Row label="Objetivo"    value={OBJECTIVES.find(o => o.value === form.objective)?.label || form.objective} />
-          <Row label="Ângulo"      value={form.declaredAngle ? angleLabel(form.declaredAngle) : 'IA infere'} />
+          <Row label="Ângulo"      value={form.declaredAngle ? resolveAngleLabel(form.declaredAngle) : 'IA infere'} />
         </div>
       </Section>
       <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex items-center gap-3">

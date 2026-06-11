@@ -14,6 +14,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { resolveSegmentNetworkDefaults } from '@/lib/marketing/networks/factory';
+import { resolveSegment } from '@/lib/intelligence/segmentResolver';
+import { getSegmentAngles } from '@/lib/marketing/services/segmentTaxonomyService';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
 
 export const dynamic = 'force-dynamic';
@@ -29,13 +31,23 @@ export async function GET(request: NextRequest) {
     const networkCode = (searchParams.get('network') || 'meta') as NetworkCode;
     const clientId    = searchParams.get('clientId') || null;
 
-    const defaults = await resolveSegmentNetworkDefaults(
-      payload.tenantId,
-      clientId,
-      networkCode,
-    );
+    // Resolve network defaults + segmento (para ângulos dirigidos por segmento)
+    const [defaults, segment] = await Promise.all([
+      resolveSegmentNetworkDefaults(payload.tenantId, clientId, networkCode),
+      resolveSegment(payload.tenantId, clientId).catch(() => null),
+    ]);
 
-    return NextResponse.json(defaults);
+    // FASE 18.2 — ângulos do segmento (opções de ângulo do wizard, ZERO HARDCODE)
+    const allowedAngles = segment
+      ? await getSegmentAngles(segment.id).catch(() => [])
+      : [];
+
+    return NextResponse.json({
+      ...defaults,
+      segmentId:   segment?.id   ?? null,
+      segmentName: segment?.name ?? null,
+      allowedAngles,   // [{ slug, label }]
+    });
   } catch (error: any) {
     console.error('[segment-defaults] GET error:', error);
     // Fallback gracioso — o wizard não deve quebrar por causa deste endpoint
