@@ -1,55 +1,32 @@
 /**
- * FASE 18.1 — Exogenous Trends Service
- * Busca sinais de demanda reais do Google Trends via google-trends-api.
- * ZERO MOCK — se a API falhar, retorna null. Nunca inventa valores.
- *
- * Nota: Funciona de forma confiável no VPS (1 req/dia por ângulo, IP dedicado).
- * Em localhost pode receber 429 se o IP local já atingiu rate-limit do Google.
+ * FASE 18.2 — Exogenous Trends Service (dirigido por segmento)
+ * Busca sinais reais do Google Trends via google-trends-api, com termos vindos do
+ * banco (segment_angle_terms) por segmento. ZERO MOCK, ZERO HARDCODE.
+ * Se a API falhar, score = null (nunca inventa valores).
  */
 
 // google-trends-api não tem types oficiais — importação via require
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const googleTrends = require('google-trends-api');
 
-export type TrendAngle =
-  | 'investment'
-  | 'lifestyle'
-  | 'family'
-  | 'price'
-  | 'urgency'
-  | 'social'
-  | 'luxury'
-  | 'other';
+import { getSegmentSearchTerms } from './segmentTaxonomyService';
 
-export interface TrendScore {
-  angle:  TrendAngle;
-  score:  number | null;   // null = dado não disponível (sem mock)
-  term:   string;
-  source: 'trends' | 'unavailable';
+export interface AngleTrendScore {
+  angle:     string;          // angle_slug
+  label:     string;
+  term:      string;
+  score:     number | null;   // null = indisponível (sem mock)
+  source:    'trends' | 'unavailable';
   rawValues?: number[];
-  error?: string;
+  error?:    string;
 }
 
-// Termos primários PT-BR por ângulo (espelho do seed SQL)
-const PRIMARY_TERMS: Record<TrendAngle, string> = {
-  investment: 'apartamento para investimento',
-  lifestyle:  'apartamento de luxo',
-  family:     'apartamento família',
-  price:      'apartamento barato',
-  urgency:    'lançamento imobiliário',
-  social:     'condomínio clube',
-  luxury:     'apartamento alto padrão',
-  other:      'comprar imóvel',
-};
+const GEO       = 'BR';
+const LOCALE    = 'pt-BR';
+const TIMEZONE  = -180; // BRT
+const DAYS_BACK = 30;
+const REQUEST_DELAY_MS = 2500;
 
-const GEO        = 'BR';
-const LOCALE     = 'pt-BR';
-const TIMEZONE   = -180; // BRT = UTC-3
-const DAYS_BACK  = 30;
-
-/**
- * Calcula score 0-100 como média dos últimos 7 dias da série.
- */
 function computeScore(timelineData: any[]): number {
   const recent = timelineData.slice(-7);
   if (recent.length === 0) return 0;
@@ -58,90 +35,79 @@ function computeScore(timelineData: any[]): number {
 }
 
 /**
- * Busca score real do Google Trends para um ângulo.
- * Retorna null no score se a API não responder ou rate-limitar.
+ * Busca score real (0-100) do Google Trends para um termo. null se a API falhar.
  */
-export async function fetchAngleScore(angle: TrendAngle): Promise<TrendScore> {
-  const term = PRIMARY_TERMS[angle];
-
+async function fetchTermScore(term: string): Promise<{ score: number | null; rawValues?: number[]; error?: string }> {
   try {
     const startTime = new Date(Date.now() - DAYS_BACK * 24 * 60 * 60 * 1000);
     const endTime   = new Date();
 
     const raw: string = await googleTrends.interestOverTime({
-      keyword:   term,
-      geo:       GEO,
-      startTime,
-      endTime,
-      hl:        LOCALE,
-      timezone:  TIMEZONE,
+      keyword: term, geo: GEO, startTime, endTime, hl: LOCALE, timezone: TIMEZONE,
     });
 
     const json = JSON.parse(raw);
     const timelineData: any[] = json?.default?.timelineData ?? [];
-
-    if (timelineData.length === 0) {
-      return { angle, score: null, term, source: 'unavailable', error: 'empty_timeline' };
-    }
+    if (timelineData.length === 0) return { score: null, error: 'empty_timeline' };
 
     const rawValues = timelineData.map((pt: any) => pt?.value?.[0] ?? 0) as number[];
-    const score     = computeScore(timelineData);
-
-    return { angle, score, term, source: 'trends', rawValues };
-
+    return { score: computeScore(timelineData), rawValues };
   } catch (err: any) {
     const msg: string = err?.message ?? String(err);
     const reason = msg.includes('429') ? 'rate_limited'
-      : msg.includes('403')           ? 'forbidden'
+      : msg.includes('403')            ? 'forbidden'
       : msg.includes('not valid JSON') ? 'html_response'
       : 'fetch_error';
-
-    console.warn(`[exogenousTrends] ${angle} — ${reason}: ${msg.slice(0, 120)}`);
-    return { angle, score: null, term, source: 'unavailable', error: reason };
+    return { score: null, error: reason };
   }
 }
 
 /**
- * Busca scores reais para todos os 8 ângulos em sequência com delay entre
- * requests para reduzir chance de rate-limit (usado no cron diário).
+ * Busca scores reais para todos os ângulos de um segmento (termos do banco),
+ * sequencialmente com delay para respeitar o rate-limit do Google.
+ * Quando um ângulo tem vários termos, usa a média dos scores disponíveis.
  */
-export async function fetchAllAngleScoresCron(): Promise<TrendScore[]> {
-  const angles: TrendAngle[] = [
-    'investment', 'lifestyle', 'family', 'price',
-    'urgency', 'social', 'luxury', 'other',
-  ];
+export async function fetchSegmentAngleScores(segmentId: string): Promise<AngleTrendScore[]> {
+  const terms = await getSegmentSearchTerms(segmentId);
+  if (terms.length === 0) return [];
 
-  const results: TrendScore[] = [];
-  for (const angle of angles) {
-    const score = await fetchAngleScore(angle);
-    results.push(score);
-    // Delay entre requests para não saturar rate-limit
-    if (results.length < angles.length) {
-      await new Promise(r => setTimeout(r, 2500));
+  // Agrupa termos por ângulo
+  const byAngle = new Map<string, { label: string; terms: string[] }>();
+  for (const t of terms) {
+    if (!byAngle.has(t.angle)) byAngle.set(t.angle, { label: t.label, terms: [] });
+    byAngle.get(t.angle)!.terms.push(t.term);
+  }
+
+  const results: AngleTrendScore[] = [];
+  const angleEntries = Array.from(byAngle.entries());
+
+  for (let ai = 0; ai < angleEntries.length; ai++) {
+    const [angle, { label, terms: angleTerms }] = angleEntries[ai];
+    const scores: number[] = [];
+    let lastRaw: number[] | undefined;
+    let lastError: string | undefined;
+    let primaryTerm = angleTerms[0];
+
+    for (let ti = 0; ti < angleTerms.length; ti++) {
+      const r = await fetchTermScore(angleTerms[ti]);
+      if (r.score !== null) {
+        scores.push(r.score);
+        lastRaw = r.rawValues;
+      } else {
+        lastError = r.error;
+      }
+      // delay entre requests (exceto após o último de todos)
+      const isLast = ai === angleEntries.length - 1 && ti === angleTerms.length - 1;
+      if (!isLast) await new Promise(res => setTimeout(res, REQUEST_DELAY_MS));
+    }
+
+    if (scores.length > 0) {
+      const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      results.push({ angle, label, term: primaryTerm, score: avg, source: 'trends', rawValues: lastRaw });
+    } else {
+      results.push({ angle, label, term: primaryTerm, score: null, source: 'unavailable', error: lastError });
     }
   }
+
   return results;
-}
-
-/**
- * Busca scores em paralelo (usado para on-the-fly se necessário).
- * Menos gentil com o rate-limit — preferir fetchAllAngleScoresCron no cron.
- */
-export async function fetchAllAngleScores(): Promise<TrendScore[]> {
-  const angles: TrendAngle[] = [
-    'investment', 'lifestyle', 'family', 'price',
-    'urgency', 'social', 'luxury', 'other',
-  ];
-
-  const results = await Promise.allSettled(angles.map(fetchAngleScore));
-  return results.map((r, i) => {
-    if (r.status === 'fulfilled') return r.value;
-    return {
-      angle: angles[i],
-      score: null,
-      term:  PRIMARY_TERMS[angles[i]],
-      source: 'unavailable' as const,
-      error:  r.reason?.message ?? 'promise_rejected',
-    };
-  });
 }

@@ -593,11 +593,11 @@ export function DashboardPage() {
                 </details>
               )}
 
-              {/* ── Radar de Demanda (FASE 18.1) ─────────────────────────── */}
+              {/* ── Radar de Demanda por segmento (FASE 18.2) ────────────── */}
               <div className="mt-6">
                 <DemandRadar
                   isDark={isDark}
-                  clientId={clientFilter && clientFilter !== 'all' ? parseInt(clientFilter) : undefined}
+                  clientId={clientFilter && clientFilter !== 'all' ? clientFilter : undefined}
                   periodDays={parseInt(dateRange) || 30}
                 />
               </div>
