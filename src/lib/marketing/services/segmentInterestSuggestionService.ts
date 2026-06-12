@@ -5,7 +5,7 @@
  */
 
 import { invokeWithTemplate } from '@/lib/intelligence/llmInvoker';
-import { resolveMetaAccessToken, searchMetaInterests, type MetaInterest } from './metaInterestService';
+import { resolveMetaAccessToken, searchMetaInterestsCached, type MetaInterest } from './metaInterestService';
 
 export type InterestLayer = 'intencao' | 'estagio' | 'comportamento';
 
@@ -75,7 +75,7 @@ export async function suggestSegmentInterests(
   for (let i = 0; i < terms.length; i++) {
     const t = terms[i];
     try {
-      const matches = await searchMetaInterests(token, t.term, 3);
+      const matches = await searchMetaInterestsCached(token, t.term, 3);
       for (const m of matches.slice(0, 2)) {
         if (seen.has(m.id)) continue;
         seen.add(m.id);

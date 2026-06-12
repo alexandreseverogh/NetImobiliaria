@@ -34,7 +34,7 @@ export async function resolveMetaAccessToken(tenantId: string): Promise<string |
   return legacy.rows[0]?.meta_token || null;
 }
 
-/** Busca interesses reais na Meta Targeting Search API. */
+/** Busca interesses reais na Meta Targeting Search API (chamada direta, sem cache). */
 export async function searchMetaInterests(
   accessToken: string,
   query: string,
@@ -59,4 +59,62 @@ export async function searchMetaInterests(
     audienceUpper: item.audience_size_upper_bound as number | undefined,
     path:          Array.isArray(item.path) ? item.path : [],
   }));
+}
+
+const CACHE_TTL_DAYS = 30;
+const S = 'campanhasmarketingdigital';
+const normTerm = (q: string) => q.trim().toLowerCase().slice(0, 200);
+
+/**
+ * Busca com cache: evita rechamadas ao endpoint adinterest (rate-limit).
+ *  - hit fresco (< TTL) → retorna do banco, sem chamar a Meta.
+ *  - miss/expirado → chama a Meta, grava no cache.
+ *  - erro da Meta (ex: rate-limit) → serve cache STALE se existir; senão relança.
+ * IDs de interesse do Meta são globais → cache compartilhado por termo.
+ */
+export async function searchMetaInterestsCached(
+  accessToken: string,
+  query: string,
+  limit = 6,
+  geo = 'BR',
+  locale = 'pt_BR',
+): Promise<MetaInterest[]> {
+  const term = normTerm(query);
+  if (term.length < 2) return [];
+
+  // 1. Cache fresco?
+  let staleResults: MetaInterest[] | null = null;
+  try {
+    const { rows } = await pool.query(
+      `SELECT results, fetched_at FROM ${S}.meta_interest_cache
+       WHERE query_term = $1 AND geo = $2 AND locale = $3 LIMIT 1`,
+      [term, geo, locale],
+    );
+    if (rows[0]) {
+      const ageDays = (Date.now() - new Date(rows[0].fetched_at).getTime()) / 86400000;
+      const results = rows[0].results as MetaInterest[];
+      if (ageDays < CACHE_TTL_DAYS) return results;       // hit fresco
+      staleResults = results;                              // guarda p/ fallback
+    }
+  } catch { /* cache lookup não-fatal */ }
+
+  // 2. Chama a Meta
+  try {
+    const results = await searchMetaInterests(accessToken, query, limit);
+    // grava no cache (upsert)
+    try {
+      await pool.query(
+        `INSERT INTO ${S}.meta_interest_cache (query_term, geo, locale, results, fetched_at)
+         VALUES ($1, $2, $3, $4::jsonb, NOW())
+         ON CONFLICT (query_term, geo, locale)
+         DO UPDATE SET results = EXCLUDED.results, fetched_at = NOW()`,
+        [term, geo, locale, JSON.stringify(results)],
+      );
+    } catch { /* cache write não-fatal */ }
+    return results;
+  } catch (err) {
+    // 3. Meta falhou — serve cache stale se houver
+    if (staleResults) return staleResults;
+    throw err;
+  }
 }
