@@ -73,9 +73,20 @@ admin confirma. Token vem do tenant (`tenant_network_credentials`); IDs do Meta 
 
 ---
 
+### FASE 18.5 — Cache de interesses Meta — CONCLUÍDO 2026-06-11 ✅
+
+O endpoint `adinterest` do Meta tem rate-limit agressivo (OAuthException code 1 em rajadas).
+Cache compartilhado por termo (`meta_interest_cache`, TTL 30d; IDs globais e estáveis) elimina
+rechamadas. `searchMetaInterestsCached`: hit fresco não chama a Meta; erro da Meta → serve cache stale.
+Usado na sugestão por IA e na busca manual. Verificado: cache HIT serve IDs reais mesmo com a Meta
+em cooldown.
+
+---
+
 **Migrações locais aplicadas (pendente VPS, all-at-once):**
 `migration-2026-06-11-segment-driven.sql`, `migration-2026-06-11-briefing-segment.sql`,
-`migration-2026-06-11-segment-angles-prompt.sql` e `migration-2026-06-11-segment-interests-prompt.sql`.
+`migration-2026-06-11-segment-angles-prompt.sql`, `migration-2026-06-11-segment-interests-prompt.sql`
+e `migration-2026-06-11-meta-interest-cache.sql`.
 **Nota:** rodar `npx prisma generate --schema=prisma/schema.marketing.prisma` após pull (campo
 `StrategicBriefing.segment_id/segment_name` adicionado ao schema). Cron diário de Trends:
 `POST /api/cron/campanhas/exogenous-signals` (header `x-cron-secret`).
