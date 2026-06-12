@@ -1,8 +1,84 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { XMarkIcon, MagnifyingGlassIcon, BoltIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, MagnifyingGlassIcon, BoltIcon, CheckCircleIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
+
+/* ── Painel de ajuda (genérico, multi-segmento) ──────────────────────── */
+function InterestsHelpPanel() {
+  return (
+    <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 space-y-4 text-sm text-gray-700">
+      <div>
+        <p className="font-black text-gray-900 mb-1">Para que serve esta tela</p>
+        <p className="text-xs text-gray-600">
+          Define <span className="font-semibold">QUEM</span> vê os anúncios (público/segmentação no Meta).
+          O que você salvar aqui vira sugestão de 1 clique no wizard de campanha para todos os tenants
+          deste segmento. Os IDs são reais da Meta API — válidos para targeting.
+        </p>
+      </div>
+
+      <div>
+        <p className="font-black text-gray-900 mb-1">Regra de ouro: camadas que se cruzam</p>
+        <p className="text-xs text-gray-600 mb-2">
+          Não jogue uma lista solta de interesses. Combine <span className="font-semibold">1 da camada de
+          intenção + 1 ou 2 das outras</span>. Muitos interesses juntos (mais de 5–6) diluem o público e o
+          algoritmo do Meta perde foco.
+        </p>
+        <ul className="text-xs text-gray-600 space-y-1 list-none">
+          <li><span className="font-semibold text-indigo-700">1. Intenção</span> — quem está comprando/contratando agora (o que mais converte)</li>
+          <li><span className="font-semibold text-indigo-700">2. Estágio de vida / gatilho</span> — quem está prestes a precisar</li>
+          <li><span className="font-semibold text-indigo-700">3. Comportamento adjacente</span> — sinais de poder de compra ou afinidade</li>
+        </ul>
+      </div>
+
+      <div>
+        <p className="font-black text-gray-900 mb-1">Exemplos por segmento (a lógica vale para qualquer nicho)</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="text-left text-gray-400">
+                <th className="py-1 pr-3 font-bold">Segmento</th>
+                <th className="py-1 pr-3 font-bold">Intenção</th>
+                <th className="py-1 font-bold">Contexto (estágio / comportamento)</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-600">
+              <tr className="border-t border-indigo-100">
+                <td className="py-1 pr-3 font-semibold">Imobiliário</td>
+                <td className="py-1 pr-3">Financiamento imobiliário, Compra de imóveis</td>
+                <td className="py-1">Recém-casados, Decoração, Investimentos</td>
+              </tr>
+              <tr className="border-t border-indigo-100">
+                <td className="py-1 pr-3 font-semibold">Saúde</td>
+                <td className="py-1 pr-3">Plano de saúde, Telemedicina</td>
+                <td className="py-1">Bem-estar, Academia, Pais</td>
+              </tr>
+              <tr className="border-t border-indigo-100">
+                <td className="py-1 pr-3 font-semibold">Veículos</td>
+                <td className="py-1 pr-3">Compra de carro, Financiamento de veículos</td>
+                <td className="py-1">Test drive, Marcas de carro, Viagens</td>
+              </tr>
+              <tr className="border-t border-indigo-100">
+                <td className="py-1 pr-3 font-semibold">Educação</td>
+                <td className="py-1 pr-3">Cursos online, Vestibular</td>
+                <td className="py-1">Carreira, Concursos, Jovens adultos</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <p className="font-black text-gray-900 mb-1">Erros que reduzem o retorno</p>
+        <ul className="text-xs text-gray-600 space-y-0.5">
+          <li>❌ Interesse genérico demais (público gigante e raso) — cruze sempre com intenção</li>
+          <li>❌ Muitos interesses (mais de 5–6) — o Meta não consegue otimizar</li>
+          <li>❌ Interesses sem conexão com a oferta — cliques caros sem conversão</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 interface Interest { id: string; name: string; audienceLower?: number; audienceUpper?: number; }
 interface Segment  { id: string; name: string; slug: string; }
@@ -26,6 +102,7 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [saveOk, setSaveOk]       = useState(false);
+  const [showHelp, setShowHelp]   = useState(false);
 
   // Search state
   const [query, setQuery]         = useState('');
@@ -124,13 +201,30 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
               os tenants deste segmento.
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors ml-4 shrink-0">
-            <XMarkIcon className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2 ml-4 shrink-0">
+            <button
+              onClick={() => setShowHelp(v => !v)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all',
+                showHelp
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100',
+              )}
+              title="Como preencher esta tela"
+            >
+              <QuestionMarkCircleIcon className="h-4 w-4" />
+              Ajuda
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+          {showHelp && <InterestsHelpPanel />}
 
           {/* Current saved list */}
           <div>
