@@ -18,6 +18,7 @@ export interface InterestSuggestionResult {
   interests:       SuggestedInterest[];
   tokenConfigured: boolean;
   terms:           { term: string; layer: InterestLayer | null }[];
+  metaError:       string | null;   // erro da Meta API (ex: rate-limit), se houver
 }
 
 const LAYERS: InterestLayer[] = ['intencao', 'estagio', 'comportamento'];
@@ -63,22 +64,35 @@ export async function suggestSegmentInterests(
   // 2. Token do tenant (IDs do Meta são globais)
   const token = await resolveMetaAccessToken(tenantId);
   if (!token) {
-    return { interests: [], tokenConfigured: false, terms };
+    return { interests: [], tokenConfigured: false, terms, metaError: null };
   }
 
-  // 3. Resolve cada termo na Meta API (top 2 matches por termo, dedupe por id)
+  // 3. Resolve cada termo na Meta API (top 2 matches por termo, dedupe por id).
+  //    Pequeno intervalo entre chamadas para reduzir rate-limit (OAuthException code 1).
   const seen = new Set<string>();
   const interests: SuggestedInterest[] = [];
-  for (const t of terms) {
-    let matches: MetaInterest[] = [];
-    try { matches = await searchMetaInterests(token, t.term, 3); }
-    catch { matches = []; }
-    for (const m of matches.slice(0, 2)) {
-      if (seen.has(m.id)) continue;
-      seen.add(m.id);
-      interests.push({ ...m, layer: t.layer, suggestedTerm: t.term });
+  let metaError: string | null = null;
+  for (let i = 0; i < terms.length; i++) {
+    const t = terms[i];
+    try {
+      const matches = await searchMetaInterests(token, t.term, 3);
+      for (const m of matches.slice(0, 2)) {
+        if (seen.has(m.id)) continue;
+        seen.add(m.id);
+        interests.push({ ...m, layer: t.layer, suggestedTerm: t.term });
+      }
+    } catch (err: any) {
+      const fbErr = err?.response?.data?.error;
+      if (!metaError) {
+        metaError = fbErr?.code === 4 || fbErr?.code === 17 || fbErr?.code === 32
+          ? 'Limite de chamadas da Meta API atingido. Aguarde alguns minutos e tente novamente.'
+          : (fbErr?.message
+              ? `Meta API instável: ${fbErr.message}`
+              : 'Meta API instável no momento. Tente novamente em instantes.');
+      }
     }
+    if (i < terms.length - 1) await new Promise(r => setTimeout(r, 250));
   }
 
-  return { interests, tokenConfigured: true, terms };
+  return { interests, tokenConfigured: true, terms, metaError };
 }

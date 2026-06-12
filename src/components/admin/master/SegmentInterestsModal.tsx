@@ -113,6 +113,7 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
 
   // AI suggestion state (FASE 18.4)
   const [aiSuggestions, setAiSuggestions] = useState<(Interest & { layer?: string | null; suggestedTerm?: string })[]>([]);
+  const [aiTerms, setAiTerms]             = useState<{ term: string; layer: string | null }[]>([]);
   const [suggesting, setSuggesting]       = useState(false);
   const [suggestMsg, setSuggestMsg]       = useState('');
 
@@ -121,7 +122,7 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
   };
 
   async function handleSuggestAI() {
-    setSuggesting(true); setSuggestMsg('');
+    setSuggesting(true); setSuggestMsg(''); setAiSuggestions([]); setAiTerms([]);
     try {
       const res = await fetch(`/api/admin/master/segments/${segment.id}/interests/suggest`, {
         method: 'POST', credentials: 'include',
@@ -130,13 +131,20 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao sugerir');
+
+      setAiTerms(Array.isArray(data.terms) ? data.terms : []);
+
       if (data.tokenConfigured === false) {
-        setSuggestMsg('Token Meta não configurado — a IA propôs termos, mas não foi possível resolver IDs reais. Configure em Configurações → Redes.');
-        setAiSuggestions([]);
+        setSuggestMsg('Token Meta não configurado — a IA propôs termos abaixo, mas não foi possível resolver IDs reais. Configure em Configurações → Redes.');
       } else {
-        setAiSuggestions(Array.isArray(data.interests) ? data.interests : []);
-        if ((data.interests ?? []).length === 0) {
-          setSuggestMsg('Nenhum interesse correspondente encontrado na Meta API para os termos sugeridos.');
+        const interests = Array.isArray(data.interests) ? data.interests : [];
+        setAiSuggestions(interests);
+        if (interests.length === 0) {
+          setSuggestMsg(
+            data.metaError
+              ? data.metaError
+              : 'Nenhum ID exato encontrado na Meta API. Clique nos termos sugeridos abaixo para buscar manualmente.',
+          );
         }
       }
     } catch (e: any) {
@@ -348,6 +356,30 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
             </p>
 
             {suggestMsg && <p className="text-xs text-amber-600 font-medium">⚠️ {suggestMsg}</p>}
+
+            {/* Fallback: termos do LLM como atalhos de busca manual (quando IDs não resolvem) */}
+            {aiSuggestions.length === 0 && aiTerms.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-gray-400 font-medium">
+                  Termos sugeridos pela IA — clique para buscar na Meta API:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {aiTerms.map((t, i) => (
+                    <button key={i}
+                      onClick={() => { setQuery(t.term); searchMeta(t.term); }}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border border-violet-200 bg-violet-50/50 text-violet-700 hover:bg-violet-100 transition-all">
+                      <MagnifyingGlassIcon className="h-3 w-3" />
+                      {t.term}
+                      {t.layer && LAYER_LABEL[t.layer] && (
+                        <span className="text-[9px] font-bold text-violet-400 bg-white rounded-full px-1.5 py-0.5">
+                          {LAYER_LABEL[t.layer]}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {aiSuggestions.filter(s => !saved.some(sv => sv.id === s.id)).length > 0 && (
               <div className="flex flex-wrap gap-2">
