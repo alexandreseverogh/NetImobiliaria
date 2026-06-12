@@ -75,22 +75,29 @@ export async function PATCH(
       return NextResponse.json({ error: 'Cada interesse deve ter { id: string, name: string }' }, { status: 400 });
     }
 
-    // Merge aditivo: atualiza apenas suggested_interests dentro do network
-    // Preserva special_ad_categories, objective, etc.
-    await pool.query(
+    // Merge aditivo robusto: define network_defaults.<network> = (meta existente ou {})
+    // mesclado com suggested_interests. Cria o objeto <network> se não existir
+    // (jsonb_set puro não cria o nível intermediário ausente — bug em segmentos novos).
+    const { rowCount } = await pool.query(
       `UPDATE public.system_segments
        SET network_defaults = jsonb_set(
          COALESCE(network_defaults, '{}'::jsonb),
-         $1::text[],
-         $2::jsonb
+         ARRAY[$1::text],
+         COALESCE(network_defaults -> $1::text, '{}'::jsonb)
+           || jsonb_build_object('suggested_interests', $2::jsonb),
+         true
        )
        WHERE id = $3::uuid`,
       [
-        `{${network},suggested_interests}`,
+        network,
         JSON.stringify(interests),
         params.id,
       ],
     );
+
+    if (rowCount === 0) {
+      return NextResponse.json({ error: 'Segmento não encontrado' }, { status: 404 });
+    }
 
     return NextResponse.json({ ok: true, count: interests.length });
   } catch (err: any) {

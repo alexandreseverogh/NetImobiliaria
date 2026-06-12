@@ -197,22 +197,46 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
     setSaveOk(false);
   }
 
+  function addAllSuggestions() {
+    setSaved(prev => {
+      const ids = new Set(prev.map(s => s.id));
+      const additions = aiSuggestions
+        .filter(s => !ids.has(s.id))
+        .map(s => ({ id: s.id, name: s.name }));
+      return [...prev, ...additions];
+    });
+    setSaveOk(false);
+  }
+
   function removeInterest(id: string) {
     setSaved(prev => prev.filter(s => s.id !== id));
     setSaveOk(false);
   }
 
   /* ── Save ── */
+  const [saveErr, setSaveErr] = useState('');
   async function handleSave() {
-    setSaving(true); setSaveOk(false);
+    setSaving(true); setSaveOk(false); setSaveErr('');
     try {
-      await fetch(`/api/admin/master/segments/${segment.id}/interests`, {
+      const res = await fetch(`/api/admin/master/segments/${segment.id}/interests`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ network, interests: saved }),
       });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Falha ao salvar (HTTP ${res.status})`);
+      }
+      const d = await res.json().catch(() => ({}));
+      // Recarrega do servidor para refletir o que de fato foi persistido
+      const reload = await fetch(`/api/admin/master/segments/${segment.id}/interests?network=${network}`, { credentials: 'include' })
+        .then(r => r.json()).catch(() => null);
+      if (reload && Array.isArray(reload.interests)) setSaved(reload.interests);
       setSaveOk(true);
+      void d;
+    } catch (e: any) {
+      setSaveErr(e.message ?? 'Erro ao salvar');
     } finally {
       setSaving(false);
     }
@@ -302,16 +326,25 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 Sugestão por IA
               </p>
-              <button onClick={handleSuggestAI} disabled={suggesting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 text-white text-xs font-black uppercase tracking-wide hover:bg-violet-700 transition-all disabled:opacity-60">
-                {suggesting
-                  ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sugerindo...</>
-                  : <><SparklesIcon className="h-3.5 w-3.5" /> Sugerir com IA</>}
-              </button>
+              <div className="flex items-center gap-2">
+                {aiSuggestions.filter(s => !saved.some(sv => sv.id === s.id)).length > 0 && (
+                  <button onClick={addAllSuggestions}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-violet-200 text-violet-700 bg-violet-50 text-xs font-black uppercase tracking-wide hover:bg-violet-100 transition-all">
+                    + Adicionar todos
+                  </button>
+                )}
+                <button onClick={handleSuggestAI} disabled={suggesting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 text-white text-xs font-black uppercase tracking-wide hover:bg-violet-700 transition-all disabled:opacity-60">
+                  {suggesting
+                    ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sugerindo...</>
+                    : <><SparklesIcon className="h-3.5 w-3.5" /> Sugerir com IA</>}
+                </button>
+              </div>
             </div>
             <p className="text-xs text-gray-400">
               A IA propõe interesses do nicho deste segmento e resolve os IDs reais na Meta API.
-              Clique para adicionar os que fizerem sentido.
+              <span className="font-semibold text-violet-600"> Clique em cada chip (ou "Adicionar todos") para incluí-los</span> e
+              depois <span className="font-semibold text-violet-600">Salvar</span>.
             </p>
 
             {suggestMsg && <p className="text-xs text-amber-600 font-medium">⚠️ {suggestMsg}</p>}
@@ -413,9 +446,12 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
             {saved.length} interesse{saved.length !== 1 ? 's' : ''} configurado{saved.length !== 1 ? 's' : ''}
           </div>
           <div className="flex items-center gap-3">
-            {saveOk && (
+            {saveErr && (
+              <span className="text-xs text-red-600 font-semibold">⚠️ {saveErr}</span>
+            )}
+            {saveOk && !saveErr && (
               <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
-                <CheckCircleIcon className="h-4 w-4" /> Salvo!
+                <CheckCircleIcon className="h-4 w-4" /> Salvo ({saved.length})!
               </span>
             )}
             <button onClick={onClose}
