@@ -57,9 +57,25 @@ wizard, insights, briefing passam a funcionar sem tocar em código nem dados man
 
 ---
 
+### FASE 18.4 — Sugerir Interesses Meta por IA (híbrido) — CONCLUÍDO 2026-06-11 ✅
+
+A IA não inventa IDs do Meta. Padrão híbrido: LLM propõe NOMES de interesse por segmento
+(camadas intenção/estágio/comportamento) → o sistema resolve os **IDs reais na Meta Targeting API** →
+admin confirma. Token vem do tenant (`tenant_network_credentials`); IDs do Meta são globais.
+
+- Prompt `segment_interests_suggestion` + `metaInterestService` (resolveMetaAccessToken/searchMetaInterests)
+  + `segmentInterestSuggestionService`. Rota `master/segments/[id]/interests/suggest`.
+- Modal Interesses ganhou botão **"Ajuda"** (guia multi-segmento) e **"Sugerir com IA"** (chips por camada).
+- Verificado: tenant Marketing Digital → Meta resolveu IDs reais (Casamento, Financiamento, Decoração…).
+
+> Diferença vs Ângulos & Demanda: ângulos usam texto livre (Trends); interesses exigem IDs reais do Meta,
+> por isso o passo extra de resolução. Sem token Meta → IA ainda devolve os termos + aviso.
+
+---
+
 **Migrações locais aplicadas (pendente VPS, all-at-once):**
-`migration-2026-06-11-segment-driven.sql`, `migration-2026-06-11-briefing-segment.sql` e
-`migration-2026-06-11-segment-angles-prompt.sql`.
+`migration-2026-06-11-segment-driven.sql`, `migration-2026-06-11-briefing-segment.sql`,
+`migration-2026-06-11-segment-angles-prompt.sql` e `migration-2026-06-11-segment-interests-prompt.sql`.
 **Nota:** rodar `npx prisma generate --schema=prisma/schema.marketing.prisma` após pull (campo
 `StrategicBriefing.segment_id/segment_name` adicionado ao schema). Cron diário de Trends:
 `POST /api/cron/campanhas/exogenous-signals` (header `x-cron-secret`).
