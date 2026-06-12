@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { XMarkIcon, MagnifyingGlassIcon, BoltIcon, CheckCircleIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, MagnifyingGlassIcon, BoltIcon, CheckCircleIcon, QuestionMarkCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
 
 /* ── Painel de ajuda (genérico, multi-segmento) ──────────────────────── */
@@ -110,6 +110,41 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
   const [searching, setSearching] = useState(false);
   const [searchMsg, setSearchMsg] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // AI suggestion state (FASE 18.4)
+  const [aiSuggestions, setAiSuggestions] = useState<(Interest & { layer?: string | null; suggestedTerm?: string })[]>([]);
+  const [suggesting, setSuggesting]       = useState(false);
+  const [suggestMsg, setSuggestMsg]       = useState('');
+
+  const LAYER_LABEL: Record<string, string> = {
+    intencao: 'Intenção', estagio: 'Estágio de vida', comportamento: 'Comportamento',
+  };
+
+  async function handleSuggestAI() {
+    setSuggesting(true); setSuggestMsg('');
+    try {
+      const res = await fetch(`/api/admin/master/segments/${segment.id}/interests/suggest`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao sugerir');
+      if (data.tokenConfigured === false) {
+        setSuggestMsg('Token Meta não configurado — a IA propôs termos, mas não foi possível resolver IDs reais. Configure em Configurações → Redes.');
+        setAiSuggestions([]);
+      } else {
+        setAiSuggestions(Array.isArray(data.interests) ? data.interests : []);
+        if ((data.interests ?? []).length === 0) {
+          setSuggestMsg('Nenhum interesse correspondente encontrado na Meta API para os termos sugeridos.');
+        }
+      }
+    } catch (e: any) {
+      setSuggestMsg(e.message ?? 'Erro ao sugerir interesses');
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   /* ── Load current interests ── */
   useEffect(() => {
@@ -257,6 +292,51 @@ export function SegmentInterestsModal({ segment, network = 'meta', onClose }: Pr
                     </button>
                   </span>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* AI suggestion (FASE 18.4) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                Sugestão por IA
+              </p>
+              <button onClick={handleSuggestAI} disabled={suggesting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 text-white text-xs font-black uppercase tracking-wide hover:bg-violet-700 transition-all disabled:opacity-60">
+                {suggesting
+                  ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sugerindo...</>
+                  : <><SparklesIcon className="h-3.5 w-3.5" /> Sugerir com IA</>}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">
+              A IA propõe interesses do nicho deste segmento e resolve os IDs reais na Meta API.
+              Clique para adicionar os que fizerem sentido.
+            </p>
+
+            {suggestMsg && <p className="text-xs text-amber-600 font-medium">⚠️ {suggestMsg}</p>}
+
+            {aiSuggestions.filter(s => !saved.some(sv => sv.id === s.id)).length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {aiSuggestions.filter(s => !saved.some(sv => sv.id === s.id)).map(item => {
+                  const aud = formatAudienceSize(item.audienceLower, item.audienceUpper);
+                  return (
+                    <button key={item.id} onClick={() => addInterest(item)}
+                      className="group flex items-center gap-2 text-xs px-3 py-2 rounded-xl border border-violet-200 bg-violet-50/50 text-violet-800 hover:border-violet-400 hover:bg-violet-100 transition-all">
+                      <span className="font-semibold">+ {item.name}</span>
+                      {item.layer && LAYER_LABEL[item.layer] && (
+                        <span className="text-[9px] font-bold text-violet-400 bg-white rounded-full px-1.5 py-0.5">
+                          {LAYER_LABEL[item.layer]}
+                        </span>
+                      )}
+                      {aud && (
+                        <span className="text-[9px] font-bold text-gray-400 bg-white rounded-full px-1.5 py-0.5">
+                          {aud}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
