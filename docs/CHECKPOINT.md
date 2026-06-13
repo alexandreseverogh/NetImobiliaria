@@ -1,12 +1,43 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-11 (FASE 18.2 — Dashboard por segmento)
+> **Atualizado em:** 2026-06-13 (Dashboard multi-segmento — UI/fixes + commit c39b583)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-06-13 — Dashboard multi-segmento: UI, fixes e commit ✅
+
+Trabalho consolidado no commit **`c39b583`** (push na `main`), que também versionou a
+feature multi-segmento (FASE 18.2) que estava sem commit. Itens da sessão:
+
+1. **fix** — `AnimatePresence` ausente no import de `dashboard/page.tsx` (ReferenceError em runtime).
+2. **ClientSelector — default inteligente:** `useClientSelector(storageKey, segmentId, isOwnSegment)`.
+   Ao trocar de segmento, default = `'own'` só no segmento do tenant (`isOwn`); senão `'segment'`
+   (Todos os Clientes). Motivo: campanhas sem cliente herdam o segmento do tenant, então
+   "Minha Empresa" é estruturalmente vazia em outros segmentos. `isOwn` vem de `GET /segments`.
+3. **Funil por Estágio no modo "Todos os Clientes"** (`SegmentDashboard`): busca
+   `GET /dashboard/funnel?segmentId=...` (já isola por segmento) e renderiza `StageFunnelWidget`.
+   `SegmentDashboard` agora recebe props `startDate`/`endDate`. Distribuição por Campanha foi
+   deliberadamente deixada de fora do modo segmento (ruído com N campanhas).
+4. **fix — `funnel_stage`:** o sistema usa `TOF`/`MOF`/`BOF`. O seed usava AWARENESS/CONSIDERATION/
+   CONVERSION → funil vazio. Corrigido no banco (UPDATE) e no `seed-multisegmento-teste.sql`.
+5. **fix — CPL por ângulo inflado (fan-out de JOIN)** em `segmentIntelligenceService.ts`:
+   `LEFT JOIN Insight` + `LEFT JOIN Lead` juntos faziam produto cartesiano (spend × nº leads).
+   Corrigido com subqueries pré-agregadas por campanha. CPL voltou a valores reais (~R$ 35–56).
+6. **UI — linhas de benchmark/mediana:** estavam com alpha baixíssimo (quase invisíveis).
+   Trocadas por tom neutro forte `#cbd5e1` (dark) / `#475569` (light), `strokeWidth 2`,
+   em `MultiClientMetricChart` e `MultiClientCplChart`.
+7. **UI — máscara de moeda pt-BR** (`formatCurrency` → `R$ 9.999,99`) aplicada em CPLs que
+   estavam crus: `SegmentNarrative`, `ClientRankingTable`, `MultiClientCplChart`, `WinningAngleChip`.
+
+**Pendências conhecidas:** CPL ainda cru (`toFixed`) em `/portfolio/cross-insights` (linhas 280/296)
+e `CplTimelineChart` — não padronizados nesta sessão. Lixo de debug não versionado permanece no
+working tree (cron_debug.txt, scripts/*.mjs, .claude/launch.json) — fora do commit de propósito.
+
+---
 
 ### Seed multi-segmento p/ testes do Dashboard — CONCLUÍDO 2026-06-12 ✅
 
