@@ -126,9 +126,24 @@ export interface LeadData {
 // Filtro comum por contexto de cliente
 export type ClientFilter = string | 'own' | undefined;
 
+// ─── Segmentos ───────────────────────────────────────────────────────────────
+export interface SegmentOption {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  colorTheme: string | null;
+  clientCount: number;
+  campaignCount: number;
+  isOwn: boolean;
+}
+
+export const getSegments = () =>
+  api.get<SegmentOption[]>('/segments').then(r => r.data);
+
 // ─── Clientes ────────────────────────────────────────────────────────────────
-export const getClients = (search?: string) =>
-  api.get<ClientData[]>('/clients', { params: { search } }).then(r => r.data);
+export const getClients = (params?: { search?: string; segmentId?: string }) =>
+  api.get<ClientData[]>('/clients', { params }).then(r => r.data);
 
 // ─── Criativos ────────────────────────────────────────────────────────────────
 export const getCreatives = () =>
@@ -155,7 +170,7 @@ export const syncInsights = () =>
   api.post('/insights/sync').then(r => r.data);
 
 export const getAiInsights = (params?: {
-  campaignId?: string; clientId?: ClientFilter;
+  campaignId?: string; clientId?: ClientFilter; segmentId?: string;
   objectiveFilter?: string; statusFilter?: string; adSetId?: string;
   startDate?: string; endDate?: string;
 }) => api.get('/insights/ai', { params }).then(r => r.data);
@@ -296,15 +311,14 @@ export interface StrategicBriefingData {
   createdAt: string;
 }
 
-export const getBriefings = (params?: { limit?: number; type?: string; clientId?: ClientFilter }) =>
+export const getBriefings = (params?: { limit?: number; type?: string; clientId?: ClientFilter; segmentId?: string }) =>
   api.get<StrategicBriefingData[]>('/briefings', { params }).then(r => r.data);
 
-// FASE 18.2 — retorna um briefing por segmento no escopo
-export const getLatestBriefing = (params?: { type?: string; clientId?: ClientFilter }) =>
+export const getLatestBriefing = (params?: { type?: string; clientId?: ClientFilter; segmentId?: string }) =>
   api.get<StrategicBriefingData[]>('/briefings/latest', { params }).then(r => r.data);
 
-export const generateBriefing = (type: string, clientId?: string, periodDays?: number) =>
-  api.post<StrategicBriefingData[]>('/briefings/generate', { type, clientId, periodDays }).then(r => r.data);
+export const generateBriefing = (type: string, clientId?: string, periodDays?: number, segmentId?: string) =>
+  api.post<StrategicBriefingData[]>('/briefings/generate', { type, clientId, periodDays, segmentId }).then(r => r.data);
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 export interface DeltaData {
@@ -408,7 +422,7 @@ export interface FunnelData7 {
 }
 
 export const getFunnelData = (params?: {
-  startDate?: string; endDate?: string; clientId?: ClientFilter;
+  startDate?: string; endDate?: string; clientId?: ClientFilter; segmentId?: string;
   campaignId?: string; objectiveFilter?: string; statusFilter?: string; adSetId?: string;
 }) => api.get<FunnelData7>('/dashboard/funnel', { params }).then(r => r.data);
 
@@ -428,13 +442,14 @@ export const getDashboardFull = (params?: {
   endDate?: string;
   campaignId?: string;
   clientId?: ClientFilter;
+  segmentId?: string;
   objectiveFilter?: string;
   statusFilter?: string;
   adSetId?: string;
 }) => api.get<DashboardFullData>('/dashboard/full', { params }).then(r => r.data);
 
 export const getDashboardPredictions = (params?: {
-  campaignId?: string; clientId?: ClientFilter; days?: number;
+  campaignId?: string; clientId?: ClientFilter; segmentId?: string; days?: number;
   objectiveFilter?: string; statusFilter?: string; adSetId?: string;
   startDate?: string; endDate?: string;
 }) => api.get<PredictionData>('/dashboard/predictions', { params }).then(r => r.data);
@@ -532,6 +547,7 @@ export interface AnticipationResult {
 
 export const getAnticipation = (params?: {
   clientId?: ClientFilter;
+  segmentId?: string;
   campaignId?: string;
 }) => api.get<AnticipationResult[]>('/dashboard/anticipation', { params }).then(r => r.data);
 

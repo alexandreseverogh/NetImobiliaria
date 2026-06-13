@@ -9,6 +9,18 @@ export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
+/**
+ * Versão compacta para cards KPI — evita truncamento em espaços reduzidos.
+ * Mantém precisão para valores pequenos; abrevia a partir de R$ 10.000.
+ * Use `formatCurrency` no tooltip/hover para exibir o valor completo.
+ */
+export function formatCurrencyCompact(value: number): string {
+  if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 100_000)   return `R$ ${(value / 1_000).toFixed(0)}K`;
+  if (value >= 1_000)     return `R$ ${(value / 1_000).toFixed(1)}K`;
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
 export function formatNumber(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;

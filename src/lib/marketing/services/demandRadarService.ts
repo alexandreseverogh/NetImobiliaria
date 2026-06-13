@@ -190,12 +190,19 @@ export async function computeDemandRadarBySegment(
   periodDays = 30,
   tenantId?: string,
   clientId?: string | null,
+  segmentId?: string | null,   // quando fornecido, retorna APENAS este segmento
 ): Promise<DemandRadarBySegment> {
   if (!tenantId) {
     return { segments: [], generatedAt: new Date().toISOString(), periodDays };
   }
 
-  const segments = await getActiveSegmentsForScope(tenantId, clientId);
+  let segments = await getActiveSegmentsForScope(tenantId, clientId);
+
+  // Isolamento: se segmentId foi informado, restringir a esse segmento apenas
+  if (segmentId) {
+    segments = segments.filter(s => s.id === segmentId);
+  }
+
   const radars = await Promise.all(
     segments.map(seg => computeOneSegmentRadar(seg, tenantId, periodDays, clientId)),
   );

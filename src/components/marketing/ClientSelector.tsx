@@ -27,7 +27,10 @@ import { cn } from '@/lib/marketing-utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ClientFilterValue = 'all' | 'own' | string; // string = uuid do cliente
+export type ClientFilterValue = 'segment' | 'own' | string;
+// 'segment'  → Todos os clientes do segmento ativo (inteligência de segmento)
+// 'own'      → Apenas campanhas do próprio tenant (sem client_id)
+// uuid       → Campanhas de um cliente específico
 
 export interface ClientOption {
   id: string;
@@ -57,6 +60,8 @@ export interface ClientSelectorProps {
    * 'toggle'            — pills Minha Empresa / Para um Cliente (estilo nova campanha)
    */
   variant?: 'dropdown' | 'toggle';
+  /** Nome do segmento ativo — usado no label de "Todos os Clientes" */
+  activeSegmentName?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -97,6 +102,7 @@ export default function ClientSelector({
   className,
   storageKey,
   variant = 'dropdown',
+  activeSegmentName,
 }: ClientSelectorProps) {
   const [open,   setOpen]   = useState(false);
   const [search, setSearch] = useState('');
@@ -135,26 +141,16 @@ export default function ClientSelector({
 
   // ── Toggle variant ──────────────────────────────────────────────────────────
   if (variant === 'toggle') {
-    const isClientSelected = value !== 'all' && value !== 'own';
+    const isClientSelected = value !== 'segment' && value !== 'own';
     const selectedClient   = isClientSelected ? clients.find(c => c.id === value) : null;
+    const segmentLabel     = activeSegmentName
+      ? `Todos · ${activeSegmentName}`
+      : 'Todos os Clientes';
 
     return (
-      <div ref={dropdownRef} className={cn('relative flex items-center gap-1', className)}>
+      <div ref={dropdownRef} className={cn('relative flex items-center gap-1 flex-wrap', className)}>
 
-        {/* Pill: Todas */}
-        <button
-          onClick={() => { persistValue('all'); setOpen(false); }}
-          className={cn(
-            'h-9 px-3 rounded-xl text-xs font-bold transition-all border whitespace-nowrap',
-            value === 'all'
-              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-              : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-200 hover:text-gray-800 shadow-sm',
-          )}
-        >
-          Todas
-        </button>
-
-        {/* Pill: Minha Empresa */}
+        {/* 1. Pill: Minha Empresa */}
         <button
           onClick={() => { persistValue('own'); setOpen(false); }}
           className={cn(
@@ -269,6 +265,32 @@ export default function ClientSelector({
             </div>
           </div>
         )}
+
+        {/* 3. Pill: Todos os Clientes do Segmento — só aparece quando há clientes */}
+        {clients.length > 0 && (
+          <button
+            onClick={() => { persistValue('segment'); setOpen(false); }}
+            title={`Inteligência do segmento ${activeSegmentName ?? ''} com ${clients.length} cliente${clients.length !== 1 ? 's' : ''} externo${clients.length !== 1 ? 's' : ''} + Minha Empresa`}
+            className={cn(
+              'h-9 flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold transition-all border whitespace-nowrap',
+              value === 'segment'
+                ? 'bg-violet-600 text-white border-violet-600 shadow-sm shadow-violet-500/25'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-violet-300 hover:text-violet-700 shadow-sm',
+            )}
+          >
+            <UserGroupIcon className="h-3.5 w-3.5" />
+            {segmentLabel}
+            <span className={cn(
+              'text-[9px] font-black px-1.5 py-0.5 rounded-full',
+              value === 'segment'
+                ? 'bg-white/20 text-white'
+                : 'bg-violet-50 text-violet-600',
+            )}>
+              {clients.length}
+            </span>
+          </button>
+        )}
+
       </div>
     );
   }
@@ -463,19 +485,35 @@ function DropdownOption({
 
 // ─── Hook: carrega clientes e gerencia estado do seletor ──────────────────────
 
-export function useClientSelector(storageKey?: string) {
+/**
+ * Hook para carregar e gerenciar o filtro de clientes.
+ *
+ * @param segmentId — quando fornecido, busca apenas clientes desse segmento.
+ * @param isOwnSegment — true quando o segmento ativo é o do próprio tenant.
+ *   Default inteligente ao trocar de segmento:
+ *     - segmento do tenant (isOwnSegment) → 'own' (Minha Empresa tem campanhas próprias)
+ *     - outro segmento                    → 'segment' (Todos os Clientes); "Minha Empresa"
+ *       seria estruturalmente vazia, pois campanhas sem cliente herdam o segmento do tenant.
+ */
+export function useClientSelector(storageKey?: string, segmentId?: string | null, isOwnSegment?: boolean) {
   const [clients,      setClients]      = useState<ClientOption[]>([]);
   const [loading,      setLoading]      = useState(true);
-  // Padrão = 'own' (Minha Empresa). A convenção do módulo é nunca misturar
-  // dados do tenant com dados dos clientes sem seleção explícita do usuário.
+  // Padrão = 'own' (Minha Empresa). Nunca misturar dados de segmentos distintos.
   const [clientFilter, setClientFilter] = useState<ClientFilterValue>('own');
 
   useEffect(() => {
-    // Padrão é sempre 'own' ao carregar — não restaura do sessionStorage.
-    fetch('/api/admin/campanhas/clients', { credentials: 'include' })
+    // Default inteligente: 'own' só no segmento do tenant; senão 'segment' (Todos)
+    setClientFilter(isOwnSegment ? 'own' : 'segment');
+    setLoading(true);
+
+    const params = new URLSearchParams();
+    if (segmentId) params.set('segmentId', segmentId);
+
+    const url = `/api/admin/campanhas/clients${params.size ? `?${params}` : ''}`;
+
+    fetch(url, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(data => {
-        // API retorna array direto OU { clients: [] } — suporta ambos
         const list: any[] = Array.isArray(data) ? data : (data.clients || []);
         setClients(list.map((c: any) => ({
           id:            c.id   || c.uuid,
@@ -489,7 +527,8 @@ export function useClientSelector(storageKey?: string) {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [storageKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentId, isOwnSegment]);
 
   return { clients, loading, clientFilter, setClientFilter };
 }

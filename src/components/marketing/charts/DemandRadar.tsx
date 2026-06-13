@@ -53,6 +53,7 @@ interface DemandRadarData {
 interface Props {
   isDark?:     boolean;
   clientId?:   string | null;
+  segmentId?:  string | null;   // restringe a exatamente um segmento — obrigatório para isolar
   periodDays?: number;
 }
 
@@ -258,7 +259,8 @@ function QuadrantPanel({ seg, isDark }: { seg: SegmentRadar; isDark: boolean }) 
 function SegmentRadarBlock({ seg, isDark }: { seg: SegmentRadar; isDark: boolean }) {
   const textPrimary = isDark ? '#e2e8f0' : '#1e293b';
   const textMuted   = isDark ? '#64748b' : '#94a3b8';
-  const gridColor   = isDark ? 'rgba(255,255,255,0.07)' : '#cbd5e1';
+  // Grid: linhas de referência nítidas em ambos os modos
+  const gridColor   = isDark ? 'rgba(255,255,255,0.22)' : '#a0b0c8';
   const axisColor   = isDark ? '#334155' : '#64748b';
 
   const chartData = seg.angles.map(a => ({
@@ -305,8 +307,18 @@ function SegmentRadarBlock({ seg, isDark }: { seg: SegmentRadar; isDark: boolean
       <div className="grid lg:grid-cols-[1fr_272px] gap-6">
         <div>
           <ResponsiveContainer width="100%" height={300}>
-            <RadarChart data={chartData} margin={{ top: 10, right: 16, bottom: 10, left: 16 }}>
-              <PolarGrid stroke={gridColor} strokeDasharray="3 3" />
+            <RadarChart
+              data={chartData}
+              margin={{ top: 10, right: 16, bottom: 10, left: 16 }}
+              style={{
+                background: isDark
+                  ? 'rgba(255,255,255,0.03)'   // dark: fundo sutilmente distinto do card
+                  : 'rgba(248,250,252,0.8)',    // light: cinza muito claro (não branco puro)
+                borderRadius: 12,
+              }}
+            >
+              {/* Grid: traços mais visíveis (sem dashes para as linhas de referência) */}
+              <PolarGrid stroke={gridColor} strokeWidth={1.2} />
               <PolarAngleAxis
                 dataKey="label"
                 tick={({ x, y, textAnchor, payload }: any) => {
@@ -322,13 +334,22 @@ function SegmentRadarBlock({ seg, isDark }: { seg: SegmentRadar; isDark: boolean
                 }}
               />
               <PolarRadiusAxis angle={90} domain={[0, 100]} tickCount={4} stroke={gridColor} tick={false} axisLine={false} />
+              {/* Endógeno — linha grossa e bem definida */}
               <Radar name="Suas campanhas" dataKey="endogenous"
-                stroke="#818cf8" strokeWidth={2} fill="rgba(129,140,248,0.22)"
-                dot={{ r: 3, fill: '#818cf8', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#818cf8' }} />
+                stroke="#818cf8"
+                strokeWidth={3}
+                fill={isDark ? 'rgba(129,140,248,0.35)' : 'rgba(99,102,241,0.20)'}
+                dot={{ r: 4, fill: '#818cf8', strokeWidth: 0 }}
+                activeDot={{ r: 6, fill: '#818cf8' }} />
               {hasExo && (
+                // Exógeno — tracejado mais espesso, bem visível
                 <Radar name="Demanda (Trends)" dataKey="exogenousPlot"
-                  stroke="#22d3ee" strokeWidth={2} strokeDasharray="5 2" fill="transparent"
-                  dot={{ r: 3, fill: '#22d3ee', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#22d3ee' }} />
+                  stroke="#22d3ee"
+                  strokeWidth={2.5}
+                  strokeDasharray="7 3"
+                  fill={isDark ? 'rgba(34,211,238,0.10)' : 'rgba(6,182,212,0.08)'}
+                  dot={{ r: 3.5, fill: '#22d3ee', strokeWidth: 0 }}
+                  activeDot={{ r: 5.5, fill: '#22d3ee' }} />
               )}
               <Tooltip content={<CustomTooltip isDark={isDark} />} cursor={false} />
             </RadarChart>
@@ -343,7 +364,7 @@ function SegmentRadarBlock({ seg, isDark }: { seg: SegmentRadar; isDark: boolean
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
-export function DemandRadar({ isDark = true, clientId, periodDays = 30 }: Props) {
+export function DemandRadar({ isDark = true, clientId, segmentId, periodDays = 30 }: Props) {
   const [data, setData]       = useState<DemandRadarData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
@@ -353,7 +374,8 @@ export function DemandRadar({ isDark = true, clientId, periodDays = 30 }: Props)
     setError(null);
     try {
       const params = new URLSearchParams({ periodDays: String(periodDays) });
-      if (clientId) params.set('clientId', String(clientId));
+      if (clientId)  params.set('clientId',  String(clientId));
+      if (segmentId) params.set('segmentId', String(segmentId));
       const token = typeof window !== 'undefined' ? (localStorage.getItem('admin_auth_token') ?? '') : '';
       const res = await fetch(`/api/admin/campanhas/dashboard/demand-radar?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -365,7 +387,7 @@ export function DemandRadar({ isDark = true, clientId, periodDays = 30 }: Props)
     } finally {
       setLoading(false);
     }
-  }, [clientId, periodDays]);
+  }, [clientId, segmentId, periodDays]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

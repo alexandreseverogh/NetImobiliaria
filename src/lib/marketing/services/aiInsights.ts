@@ -2,6 +2,7 @@ import prisma from '../prisma';
 import pool from '@/lib/database/connection';
 import { resolveBenchmarks, BenchmarkMap } from '../../intelligence/benchmarkResolver';
 import { computeSignalsForCampaign, type NormalizedSignals } from './signalEngine';
+import { resolveCampaignIdsBySegment } from '../segmentUtils';
 
 const S = 'campanhasmarketingdigital';
 
@@ -237,6 +238,7 @@ interface AiInsightFilters {
   adSetId?: string;
   startDate?: string;
   endDate?: string;
+  segmentId?: string;
 }
 
 export async function generateAiInsights(
@@ -248,14 +250,23 @@ export async function generateAiInsights(
   const where: any = {};
   if (campaignId) where.id = campaignId;
   if (tenantId)   where.tenantId = tenantId;
-  if (clientId === 'own') {
+  if (filters?.objectiveFilter) where.objective = filters.objectiveFilter;
+  if (filters?.statusFilter)    where.status    = filters.statusFilter;
+  if (filters?.adSetId)         where.adSets    = { some: { id: filters.adSetId } };
+
+  // Isolamento de segmento — tem precedência sobre clientId
+  if (filters?.segmentId && tenantId) {
+    const segmentCampaignIds = await resolveCampaignIdsBySegment(
+      tenantId,
+      filters.segmentId,
+      clientId,
+    );
+    where.id = { in: segmentCampaignIds };
+  } else if (clientId === 'own') {
     where.clientId = null;
   } else if (clientId) {
     where.clientId = clientId;
   }
-  if (filters?.objectiveFilter) where.objective = filters.objectiveFilter;
-  if (filters?.statusFilter)    where.status    = filters.statusFilter;
-  if (filters?.adSetId)         where.adSets    = { some: { id: filters.adSetId } };
 
   const campaigns = await prisma.campaign.findMany({ where });
 

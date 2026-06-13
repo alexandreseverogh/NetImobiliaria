@@ -393,7 +393,22 @@ export async function generateBriefingsForScope(
 }
 
 /** Último briefing POR SEGMENTO no escopo. */
-export async function getLatestBriefingsForScope(type?: string, tenantId?: string, clientId?: string) {
+export async function getLatestBriefingsForScope(
+  type?: string,
+  tenantId?: string,
+  clientId?: string,
+  segmentId?: string,
+) {
+  // Se um segmento específico foi solicitado, retornar apenas o último desse segmento
+  if (segmentId && tenantId) {
+    const where: any = { tenantId, segmentId };
+    if (type) where.type = type;
+    if (clientId === 'own')  where.clientId = null;
+    else if (clientId)       where.clientId = clientId;
+    const b = await prisma.strategicBriefing.findFirst({ where, orderBy: { createdAt: 'desc' } });
+    return b ? [b] : [];
+  }
+
   if (!tenantId) {
     const b = await getLatestBriefing(type, tenantId, clientId);
     return b ? [b] : [];
@@ -428,10 +443,17 @@ export async function getLatestBriefing(type?: string, tenantId?: string, client
   });
 }
 
-export async function getBriefingHistory(limit = 10, type?: string, tenantId?: string, clientId?: string) {
+export async function getBriefingHistory(
+  limit = 10,
+  type?: string,
+  tenantId?: string,
+  clientId?: string,
+  segmentId?: string,
+) {
   const where: any = {};
-  if (type)     where.type     = type;
-  if (tenantId) where.tenantId = tenantId;
+  if (type)      where.type      = type;
+  if (tenantId)  where.tenantId  = tenantId;
+  if (segmentId) where.segmentId = segmentId;
   if (clientId === 'own') {
     where.clientId = null;
   } else if (clientId) {

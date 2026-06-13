@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const campaignId      = searchParams.get('campaignId')      || undefined;
     const clientId        = searchParams.get('clientId')        || undefined;
+    const segmentId       = searchParams.get('segmentId')       || undefined;
     const objectiveFilter = searchParams.get('objectiveFilter') || undefined;
     const statusFilter    = searchParams.get('statusFilter')    || undefined;
     const adSetId         = searchParams.get('adSetId')         || undefined;
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const result = await generateAiInsights(
       campaignId, payload.tenantId, clientId,
-      { objectiveFilter, statusFilter, adSetId, startDate, endDate },
+      { objectiveFilter, statusFilter, adSetId, startDate, endDate, segmentId },
     );
 
     // Retrocompatibilidade: result.insights é o array original

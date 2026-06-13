@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import pool from '@/lib/database/connection';
+import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +16,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startStr       = searchParams.get('startDate');
     const endStr         = searchParams.get('endDate');
-    const clientId       = searchParams.get('clientId');
-    const campaignId     = searchParams.get('campaignId');
+    const clientId        = searchParams.get('clientId');
+    const segmentId       = searchParams.get('segmentId');
+    const campaignId      = searchParams.get('campaignId');
     const objectiveFilter = searchParams.get('objectiveFilter');
     const statusFilter   = searchParams.get('statusFilter');
     const adSetId        = searchParams.get('adSetId');
@@ -29,7 +31,31 @@ export async function GET(request: NextRequest) {
     const extraWhere: string[] = [];
     let pi = 4;
 
-    if (clientId && clientId !== 'own') {
+    if (segmentId) {
+      // Isolamento de segmento: restringir ao conjunto de IDs cujo segmento efetivo = segmentId
+      const segmentCampaignIds = await resolveCampaignIdsBySegment(
+        payload.tenantId,
+        segmentId,
+        clientId ?? undefined,
+      );
+      if (segmentCampaignIds.length === 0) {
+        // Nenhuma campanha neste segmento — retornar estrutura vazia
+        const empty = ['TOF', 'MOF', 'BOF'].map(code => ({
+          code, label: { TOF: 'Topo do Funil', MOF: 'Meio do Funil', BOF: 'Fundo do Funil' }[code],
+          icon: { TOF: '📢', MOF: '🎯', BOF: '💰' }[code],
+          campaigns_count: 0, spend: 0, impressions: 0, clicks: 0, leads: 0, conversions: 0,
+        }));
+        return NextResponse.json({
+          stages: empty,
+          conversionRates: { tof_ctr: 0, mof_ltr: 0, bof_cvr: 0, overall_ctr: 0, overall_ltr: 0, overall_cpl: 0 },
+          totals: { spend: 0, impressions: 0, clicks: 0, leads: 0, conversions: 0, cpl: 0 },
+          bottleneck: null,
+          period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+        });
+      }
+      extraWhere.push(`AND c.id = ANY($${pi++}::text[])`);
+      qParams.push(segmentCampaignIds);
+    } else if (clientId && clientId !== 'own') {
       extraWhere.push(`AND c."client_id" = $${pi++}::uuid`);
       qParams.push(clientId);
     } else if (clientId === 'own') {

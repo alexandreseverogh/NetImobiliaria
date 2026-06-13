@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
+import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const campaignId      = searchParams.get('campaignId');
     const clientId        = searchParams.get('clientId');
+    const segmentId       = searchParams.get('segmentId');
     const objectiveFilter = searchParams.get('objectiveFilter');
     const statusFilter    = searchParams.get('statusFilter');
     const adSetId         = searchParams.get('adSetId');
@@ -61,6 +63,16 @@ export async function GET(request: NextRequest) {
     if (objectiveFilter) campaignWhere.objective = objectiveFilter;
     if (statusFilter)    campaignWhere.status    = statusFilter;
     if (adSetId)         campaignWhere.adSets    = { some: { id: adSetId } };
+
+    if (segmentId) {
+      const segmentCampaignIds = await resolveCampaignIdsBySegment(
+        payload.tenantId,
+        segmentId,
+        clientId ?? undefined,
+      );
+      campaignWhere.id = { in: segmentCampaignIds };
+      delete campaignWhere.clientId;
+    }
 
     const campaigns = await prisma.campaign.findMany({ where: campaignWhere });
     const campaignIds = campaigns.map(c => c.id);
@@ -92,14 +104,14 @@ export async function GET(request: NextRequest) {
       dailyMap.set(key, existing);
     }
 
-    const sortedDays = [...dailyMap.keys()].sort();
+    const sortedDays = Array.from(dailyMap.keys()).sort();
     const today = new Date();
 
     // Multiplicador de sigma para o intervalo de confiança da banda de projeção.
     // ±1.5σ ≈ 86.6 % de confiança (distribuição normal).
     const SIGMA_MULT = 1.5;
 
-    function predict(values: number[]) {
+    const predict = (values: number[]) => {
       const points = values.map((y, x) => ({ x, y }));
       const { slope, intercept } = linearRegression(points);
 

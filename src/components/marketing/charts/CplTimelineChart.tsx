@@ -126,22 +126,108 @@ export function CplTimelineChart({ data, isDark }: Props) {
     );
   }
 
-  // ── Custom layer: lead bubbles (halos) ────────────────────────────────────
-  function LeadBubblesLayer({ series, xScale, yScale }: any) {
-    const pts = (series[0]?.data ?? []) as any[];
+  // ── Custom layer: lead bars (eixo Y direito, escala própria) ────────────────
+  function LeadBarsLayer({ series, xScale, innerHeight }: any) {
+    const pts        = (series[0]?.data ?? []) as any[];
+    const pointCount = pts.length;
+    if (pointCount === 0) return null;
+
+    // Largura de cada barra: ocupa ~55% do espaço entre pontos
+    const totalWidth = xScale.range ? xScale.range()[1] - xScale.range()[0] : 0;
+    const barWidth   = pointCount > 1 ? Math.max(4, (totalWidth / pointCount) * 0.55) : 20;
+
     return (
       <g>
         {pts.map((p: any, i: number) => {
           const leads = p.data.leads ?? 0;
-          if (!leads || p.data.y == null) return null;
-          const r  = 6 + (leads / maxLeads) * 18;
-          const cx = xScale(p.data.x);
-          const cy = yScale(p.data.y);
+          if (!leads) return null;
+
+          const barH  = Math.max(2, (leads / maxLeads) * innerHeight * 0.42); // max 42% da altura
+          const cx    = xScale(p.data.x);
+          const barX  = cx - barWidth / 2;
+          const barY  = innerHeight - barH;
+
           return (
-            <circle key={i} cx={cx} cy={cy} r={r}
-              fill={leadColor} opacity={0.14} />
+            <g key={i}>
+              {/* Barra preenchida */}
+              <rect
+                x={barX} y={barY}
+                width={barWidth} height={barH}
+                fill={leadColor}
+                opacity={0.22}
+                rx={2}
+              />
+              {/* Contorno sutil */}
+              <rect
+                x={barX} y={barY}
+                width={barWidth} height={barH}
+                fill="none"
+                stroke={leadColor}
+                strokeWidth={1}
+                opacity={0.45}
+                rx={2}
+              />
+              {/* Label de leads no topo da barra (só se cabe) */}
+              {barH > 16 && (
+                <text
+                  x={cx} y={barY - 4}
+                  textAnchor="middle"
+                  fill={leadColor}
+                  fontSize={9}
+                  fontWeight={800}
+                  opacity={0.85}
+                >
+                  {leads}
+                </text>
+              )}
+            </g>
           );
         })}
+      </g>
+    );
+  }
+
+  // ── Custom layer: eixo Y direito para leads ───────────────────────────────
+  function LeadAxisRightLayer({ innerHeight, innerWidth }: any) {
+    if (maxLeads <= 1) return null;
+    // Ticks: 0, metade, máximo
+    const ticks = [0, Math.round(maxLeads / 2), maxLeads];
+    return (
+      <g>
+        {ticks.map((val, i) => {
+          const y = innerHeight - (val / maxLeads) * innerHeight * 0.42;
+          return (
+            <g key={i}>
+              <line
+                x1={innerWidth + 4} y1={y}
+                x2={innerWidth + 8} y2={y}
+                stroke={leadColor} strokeWidth={1} opacity={0.4}
+              />
+              <text
+                x={innerWidth + 12} y={y + 4}
+                fill={leadColor}
+                fontSize={9}
+                fontWeight={600}
+                opacity={0.7}
+              >
+                {val}
+              </text>
+            </g>
+          );
+        })}
+        {/* Label do eixo */}
+        <text
+          x={innerWidth + 28} y={innerHeight * 0.78}
+          fill={leadColor}
+          fontSize={8}
+          fontWeight={800}
+          opacity={0.5}
+          textAnchor="middle"
+          transform={`rotate(90, ${innerWidth + 28}, ${innerHeight * 0.78})`}
+          style={{ letterSpacing: '0.08em', textTransform: 'uppercase' } as React.CSSProperties}
+        >
+          leads
+        </text>
       </g>
     );
   }
@@ -239,7 +325,12 @@ export function CplTimelineChart({ data, isDark }: Props) {
         )}
         {totalLeads > 0 && (
           <div style={pill}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: leadColor, flexShrink: 0 }} />
+            {/* Ícone de barra para representar a série de leads no gráfico */}
+            <span style={{
+              width: 8, height: 10, borderRadius: 2,
+              backgroundColor: leadColor, opacity: 0.7, flexShrink: 0,
+              display: 'inline-block',
+            }} />
             <span>Leads</span>
             <span style={{ fontWeight: 900, color: leadColor, fontVariantNumeric: 'tabular-nums' }}>{totalLeads}</span>
           </div>
@@ -251,7 +342,7 @@ export function CplTimelineChart({ data, isDark }: Props) {
         <ResponsiveLine
           data={lineData}
           theme={nivoTheme}
-          margin={{ top: 24, right: 52, bottom: 42, left: 56 }}
+          margin={{ top: 24, right: 72, bottom: 42, left: 56 }}
           xScale={{ type: 'point' }}
           yScale={{ type: 'linear', min: 0, max: 'auto' }}
           curve="monotoneX"
@@ -297,13 +388,14 @@ export function CplTimelineChart({ data, isDark }: Props) {
             'markers',
             'axes',
             'areas',
+            LeadBarsLayer,
             AvgCplLayer,
-            LeadBubblesLayer,
             BestDayLayer,
             'lines',
             'slices',
             'points',
             'mesh',
+            LeadAxisRightLayer,
           ]}
           animate
           motionConfig="gentle"

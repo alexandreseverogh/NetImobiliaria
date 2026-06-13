@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
+import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,13 +18,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const startStr       = searchParams.get('startDate');
-    const endStr         = searchParams.get('endDate');
-    const campaignId     = searchParams.get('campaignId');
-    const clientId       = searchParams.get('clientId');
+    const startStr        = searchParams.get('startDate');
+    const endStr          = searchParams.get('endDate');
+    const campaignId      = searchParams.get('campaignId');
+    const clientId        = searchParams.get('clientId');
+    const segmentId       = searchParams.get('segmentId');
     const objectiveFilter = searchParams.get('objectiveFilter');
-    const statusFilter   = searchParams.get('statusFilter');
-    const adSetId        = searchParams.get('adSetId');
+    const statusFilter    = searchParams.get('statusFilter');
+    const adSetId         = searchParams.get('adSetId');
 
     const endDate = endStr ? new Date(endStr) : new Date();
     const startDate = startStr
@@ -41,6 +43,19 @@ export async function GET(request: NextRequest) {
       campaignWhere.clientId = null;
     } else if (clientId) {
       campaignWhere.clientId = clientId;
+    }
+
+    // Isolamento por segmento — nunca misturar segmentos distintos
+    if (segmentId) {
+      const segmentCampaignIds = await resolveCampaignIdsBySegment(
+        payload.tenantId,
+        segmentId,
+        clientId ?? undefined,
+      );
+      campaignWhere.id = { in: segmentCampaignIds };
+      // clientId já foi aplicado dentro de resolveCampaignIdsBySegment; remover do where Prisma
+      // para evitar dupla filtragem (o IN já garante o isolamento)
+      delete campaignWhere.clientId;
     }
 
     let campaigns = await prisma.campaign.findMany({
@@ -80,7 +95,7 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    function calcTotals(insights: any[]) {
+    const calcTotals = (insights: any[]) => {
       const spend = insights.reduce((s, i) => s + i.spend, 0);
       const clicks = insights.reduce((s, i) => s + i.clicks, 0);
       const impressions = insights.reduce((s, i) => s + i.impressions, 0);

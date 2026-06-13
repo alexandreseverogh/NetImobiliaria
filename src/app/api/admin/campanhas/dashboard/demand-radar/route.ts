@@ -20,14 +20,15 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl;
   const periodDays = Math.min(90, Math.max(7, parseInt(searchParams.get('periodDays') ?? '30')));
-  const tenantId   = (payload.tenantId as string);
-  const clientId   = searchParams.get('clientId') || undefined; // uuid | 'own' | undefined
+  const tenantId   = payload.tenantId as string;
+  const clientId   = searchParams.get('clientId')  || undefined;
+  const segmentId  = searchParams.get('segmentId') || undefined; // filtro de segmento obrigatório
 
   try {
     const { computeDemandRadarBySegment } = await import(
       '@/lib/marketing/services/demandRadarService'
     );
-    const result = await computeDemandRadarBySegment(periodDays, tenantId, clientId);
+    const result = await computeDemandRadarBySegment(periodDays, tenantId, clientId, segmentId);
     return NextResponse.json(result);
   } catch (err: any) {
     console.error('[demand-radar] Erro:', err?.message ?? err);

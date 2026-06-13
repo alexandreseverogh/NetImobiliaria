@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   getDashboardFull, getDashboardPredictions, getLatestBriefing, generateBriefing, getBriefings, syncInsights,
@@ -9,7 +9,8 @@ import {
   type FunnelData7, type AnticipationResult, type TimeToEvent, type Trajectory,
   getAiInsights,
 } from '@/lib/marketing-api';
-import { formatCurrency, formatNumber, formatPercent, cn, OBJECTIVES } from '@/lib/marketing-utils';
+import type { SegmentDashboardResponse } from '@/app/api/admin/campanhas/dashboard/segment/route';
+import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, OBJECTIVES } from '@/lib/marketing-utils';
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
 import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelChart';
@@ -24,6 +25,11 @@ import type { LifecycleStatus } from '@/lib/marketing/services/campaignLifecycle
 import { ExecuteGuard } from '@/components/admin/PermissionGuard';
 import { angleLabel } from '@/lib/marketing/angles';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import SegmentSelector, { useSegmentSelector } from '@/components/marketing/SegmentSelector';
+import { ClientRankingTable } from '@/components/marketing/ClientRankingTable';
+import { SegmentNarrative } from '@/components/marketing/SegmentNarrative';
+import { MultiClientMetricChart } from '@/components/marketing/charts/MultiClientMetricChart';
+import { MultiClientCplChart } from '@/components/marketing/charts/MultiClientCplChart';
 import { TrackingHealthWidget } from '@/components/marketing/TrackingHealthWidget';
 import { TimeToEventBar }      from '@/components/marketing/charts/TimeToEventBar';
 import { SignalTrajectory }    from '@/components/marketing/charts/SignalTrajectory';
@@ -59,7 +65,37 @@ export function DashboardPage() {
   const [statusFilter, setStatusFilter]         = useState('');
   const [adSetFilter, setAdSetFilter]           = useState('');
 
-  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('dashboard');
+  // Período calculado para passar ao hook de segmentos (filtra por atividade real)
+  const segmentPeriodStart = startDate || new Date(Date.now() - parseInt(dateRange || '30') * 86400000).toISOString().split('T')[0];
+  const segmentPeriodEnd   = endDate   || new Date().toISOString().split('T')[0];
+
+  const {
+    segments, loading: segmentsLoading,
+    segmentFilter, activeSegment,
+    toggleSegment, activateSegment, clearSegments,
+  } = useSegmentSelector({ startDate: segmentPeriodStart, endDate: segmentPeriodEnd });
+
+  // clientFilter é sempre relativo ao segmento ativo.
+  // isOwnSegment define o default: 'own' só no segmento do tenant; senão 'segment'.
+  const isOwnSegment = segments.find(s => s.id === activeSegment)?.isOwn ?? false;
+  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('dashboard', activeSegment, isOwnSegment);
+
+  // Dados do modo "Todos os Clientes"
+  const [segmentDashData, setSegmentDashData]     = useState<SegmentDashboardResponse | null>(null);
+  const [segmentDashLoading, setSegmentDashLoading] = useState(false);
+
+  const isSegmentMode = clientFilter === 'segment';
+
+  // Ao trocar cliente ou segmento:
+  //  1. Limpa campanha/adset selecionados — IDs do contexto anterior são inválidos aqui
+  //  2. Zera a lista de campanhas/adsets no data para o dropdown aparecer vazio imediatamente,
+  //     sem exibir campanhas de outro cliente enquanto o reload carrega
+  useEffect(() => {
+    setSelectedCampaign('');
+    setAdSetFilter('');
+    setData(prev => prev ? { ...prev, campaigns: [], adSets: [] } : null);
+    if (clientFilter !== 'segment') setSegmentDashData(null);
+  }, [clientFilter, activeSegment]);
 
   // Persist theme preference
   useEffect(() => {
@@ -74,9 +110,35 @@ export function DashboardPage() {
       return next;
     });
 
-  useEffect(() => { loadData(); },
+  // Carregar dados do segmento (modo "Todos os Clientes")
+  useEffect(() => {
+    if (!activeSegment || clientFilter !== 'segment') return;
+    setSegmentDashLoading(true);
+    const params = new URLSearchParams({ segmentId: activeSegment });
+    if (startDate && endDate) {
+      params.set('startDate', startDate);
+      params.set('endDate', endDate);
+    } else {
+      params.set('startDate', new Date(Date.now() - parseInt(dateRange) * 86400000).toISOString().split('T')[0]);
+      params.set('endDate', new Date().toISOString().split('T')[0]);
+    }
+    adminFetch(`/api/admin/campanhas/dashboard/segment?${params}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setSegmentDashData(d))
+      .catch(() => {})
+      .finally(() => setSegmentDashLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSegment, clientFilter, dateRange, startDate, endDate]);
+
+  useEffect(() => {
+    // Não carregar nada enquanto nenhum segmento estiver selecionado
+    if (!activeSegment) return;
+    // No modo segmento os dados são carregados pelo useEffect acima
+    if (clientFilter === 'segment') return;
+    loadData();
+  },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dateRange, startDate, endDate, selectedCampaign, objectiveFilter, statusFilter, adSetFilter, clientFilter]);
+    [dateRange, startDate, endDate, selectedCampaign, objectiveFilter, statusFilter, adSetFilter, clientFilter, activeSegment]);
 
   async function loadData() {
     setLoading(true);
@@ -88,21 +150,24 @@ export function DashboardPage() {
         params.startDate = new Date(Date.now() - parseInt(dateRange) * 86400000).toISOString().split('T')[0];
         params.endDate   = new Date().toISOString().split('T')[0];
       }
-      if (selectedCampaign)                    params.campaignId      = selectedCampaign;
-      if (objectiveFilter)                     params.objectiveFilter = objectiveFilter;
-      if (statusFilter)                        params.statusFilter    = statusFilter;
-      if (adSetFilter)                         params.adSetId         = adSetFilter;
-      if (clientFilter && clientFilter !== 'all') params.clientId     = clientFilter;
+      if (selectedCampaign)  params.campaignId      = selectedCampaign;
+      if (objectiveFilter)   params.objectiveFilter = objectiveFilter;
+      if (statusFilter)      params.statusFilter    = statusFilter;
+      if (adSetFilter)       params.adSetId         = adSetFilter;
+      if (clientFilter)      params.clientId        = clientFilter;
+      // Segmento sempre presente — garante isolamento
+      if (activeSegment)     params.segmentId       = activeSegment;
 
       // Parâmetros compartilhados por todos os endpoints
       const sharedFilters: any = {
-        startDate:       params.startDate,
-        endDate:         params.endDate,
-        ...(selectedCampaign                             && { campaignId:      selectedCampaign }),
-        ...(objectiveFilter                              && { objectiveFilter }),
-        ...(statusFilter                                 && { statusFilter }),
-        ...(adSetFilter                                  && { adSetId:         adSetFilter }),
-        ...(clientFilter && clientFilter !== 'all'       && { clientId:        clientFilter }),
+        startDate:   params.startDate,
+        endDate:     params.endDate,
+        segmentId:   activeSegment ?? undefined,
+        ...(selectedCampaign && { campaignId:      selectedCampaign }),
+        ...(objectiveFilter  && { objectiveFilter }),
+        ...(statusFilter     && { statusFilter }),
+        ...(adSetFilter      && { adSetId:         adSetFilter }),
+        ...(clientFilter     && { clientId:        clientFilter }),
       };
 
       const [dashData, predData, funData] = await Promise.all([
@@ -115,10 +180,13 @@ export function DashboardPage() {
       if (funData)  setFunnelData7(funData);
 
       Promise.all([
-        getLatestBriefing().catch(() => null),
-        getBriefings({ limit: 5 }).catch(() => []),
+        getLatestBriefing({ segmentId: activeSegment ?? undefined }).catch(() => null),
+        getBriefings({ limit: 5, segmentId: activeSegment ?? undefined }).catch(() => []),
         getAiInsights(sharedFilters).catch(() => ({ insights: [], calibrationActions: [] })),
-        getAnticipation(clientFilter && clientFilter !== 'all' ? { clientId: clientFilter as string } : {}).catch(() => []),
+        getAnticipation({
+          ...(clientFilter && { clientId: clientFilter as string }),
+          ...(activeSegment && { segmentId: activeSegment }),
+        }).catch(() => []),
       ]).then(([latestBriefing, history, aiData, anticipation]) => {
         setBriefings(Array.isArray(latestBriefing) ? latestBriefing : (latestBriefing ? [latestBriefing as any] : []));
         setBriefingHistory(history as StrategicBriefingData[]);
@@ -175,7 +243,7 @@ export function DashboardPage() {
   async function handleGenerateBriefing() {
     setGeneratingBriefing(true);
     try {
-      const bs = await generateBriefing('manual', undefined, effectivePeriodDays);
+      const bs = await generateBriefing('manual', clientFilter || undefined, effectivePeriodDays, activeSegment ?? undefined);
       const arr = Array.isArray(bs) ? bs : (bs ? [bs as any] : []);
       setBriefings(arr);
       setBriefingHistory(prev => [...arr, ...prev].slice(0, 5));
@@ -290,14 +358,29 @@ export function DashboardPage() {
             <p className={`mt-1 text-sm font-medium ${txMuted}`}>{periodLabel}</p>
           </div>
           <div className="flex items-start gap-3 flex-wrap">
-            <ClientSelector
-              value={clientFilter}
-              onChange={setClientFilter}
-              clients={clients}
-              loading={clientsLoading}
-              storageKey="dashboard"
-              variant="toggle"
-            />
+            <div className="flex flex-col gap-2">
+              <SegmentSelector
+                selected={segmentFilter}
+                activeSegment={activeSegment}
+                onToggle={toggleSegment}
+                onActivate={activateSegment}
+                onClear={clearSegments}
+                segments={segments}
+                loading={segmentsLoading}
+                isDark={isDark}
+              />
+              {activeSegment && (
+                <ClientSelector
+                  value={clientFilter}
+                  onChange={setClientFilter}
+                  clients={clients}
+                  loading={clientsLoading}
+                  storageKey="dashboard"
+                  variant="toggle"
+                  activeSegmentName={segments.find(s => s.id === activeSegment)?.name}
+                />
+              )}
+            </div>
             {/* Dark / Light toggle */}
             <button
               onClick={toggleTheme}
@@ -397,19 +480,74 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* ── KPI Grid ──────────────────────────────────────────────────────── */}
+        {/* ── Estado: nenhum segmento selecionado ───────────────────────────── */}
+        {!activeSegment && (
+          <div className={cn(
+            'rounded-2xl p-16 text-center flex flex-col items-center gap-4',
+            isDark
+              ? 'bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)]'
+              : 'bg-white border border-slate-200 shadow-sm',
+          )}>
+            <div className={cn(
+              'w-14 h-14 rounded-2xl flex items-center justify-center text-2xl',
+              isDark ? 'bg-indigo-500/10' : 'bg-indigo-50',
+            )}>
+              🏷️
+            </div>
+            <div>
+              <p className={cn('text-base font-black mb-1', isDark ? 'text-slate-300' : 'text-slate-800')}>
+                Selecione um segmento para visualizar os dados
+              </p>
+              <p className={cn('text-sm', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                Os dados são sempre isolados por segmento de negócio — métricas de segmentos
+                distintos nunca são somadas ou comparadas entre si.
+              </p>
+            </div>
+            {segments.length > 0 && (
+              <p className={cn('text-xs mt-2', isDark ? 'text-slate-600' : 'text-slate-400')}>
+                {segments.length} segmento{segments.length > 1 ? 's' : ''} disponível{segments.length > 1 ? 'eis' : ''} acima ↑
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            MODO "TODOS OS CLIENTES" — Inteligência de Segmento
+        ══════════════════════════════════════════════════════════════════ */}
+        {activeSegment && isSegmentMode && (
+          <SegmentDashboard
+            segmentData={segmentDashData}
+            loading={segmentDashLoading}
+            isDark={isDark}
+            cardBase={cardBase}
+            tx={tx}
+            txMuted={txMuted}
+            txFaint={txFaint}
+            divider={divider}
+            periodLabel={periodLabel}
+            periodBadgeLabel={periodBadgeLabel}
+            predColors={predColors}
+            tooltipCss={tooltipCss}
+            periodDays={effectivePeriodDays}
+            startDate={segmentPeriodStart}
+            endDate={segmentPeriodEnd}
+          />
+        )}
+
+        {/* ── Conteúdo — só exibe quando há segmento ativo e NÃO é modo segmento ── */}
+        {activeSegment && !isSegmentMode && <>
         <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8 ${hookRate !== null ? 'xl:grid-cols-12' : 'xl:grid-cols-11'}`}>
-          <KpiCard isDark={isDark} label="Gasto"      value={formatCurrency(t?.spend || 0)}                    delta={d?.spend}       color={isDark ? 'text-red-400'     : 'text-red-600'}     invertDelta />
+          <KpiCard isDark={isDark} label="Gasto"      value={formatCurrencyCompact(t?.spend || 0)}             fullValue={formatCurrency(t?.spend || 0)}                    delta={d?.spend}       color={isDark ? 'text-red-400'     : 'text-red-600'}     invertDelta />
           <KpiCard isDark={isDark} label="Impressões" value={formatNumber(t?.impressions || 0)}                 delta={d?.impressions} color={isDark ? 'text-blue-400'    : 'text-blue-600'} />
           <KpiCard isDark={isDark} label="Alcance"    value={formatNumber(t?.reach || 0)}                       delta={d?.reach}       color={isDark ? 'text-cyan-400'    : 'text-cyan-600'} />
           <KpiCard isDark={isDark} label="Cliques"    value={formatNumber(t?.clicks || 0)}                      delta={d?.clicks}      color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
           <KpiCard isDark={isDark} label="CTR"        value={formatPercent(t?.ctr || 0)}                        delta={d?.ctr}         color={isDark ? 'text-amber-400'   : 'text-amber-600'} />
-          <KpiCard isDark={isDark} label="CPC"        value={formatCurrency(t?.cpc || 0)}                       delta={d?.cpc}         color={isDark ? 'text-orange-400'  : 'text-orange-600'} invertDelta />
-          <KpiCard isDark={isDark} label="CPM"        value={formatCurrency(t?.cpm || 0)}                       delta={d?.cpm}         color={isDark ? 'text-violet-400'  : 'text-violet-600'} invertDelta />
+          <KpiCard isDark={isDark} label="CPC"        value={formatCurrencyCompact(t?.cpc || 0)}                fullValue={formatCurrency(t?.cpc || 0)}                      delta={d?.cpc}         color={isDark ? 'text-orange-400'  : 'text-orange-600'} invertDelta />
+          <KpiCard isDark={isDark} label="CPM"        value={formatCurrencyCompact(t?.cpm || 0)}                fullValue={formatCurrency(t?.cpm || 0)}                      delta={d?.cpm}         color={isDark ? 'text-violet-400'  : 'text-violet-600'} invertDelta />
           <KpiCard isDark={isDark} label="Conversões" value={formatNumber(t?.conversions || 0)}                 delta={d?.conversions} color={isDark ? 'text-pink-400'    : 'text-pink-600'} />
           <KpiCard isDark={isDark} label="Leads"      value={formatNumber(data?.currentPeriod.leadCount || 0)}  delta={d?.leads}       color={isDark ? 'text-indigo-400'  : 'text-indigo-600'} />
-          <KpiCard isDark={isDark} label="CPL"        value={formatCurrency(cpl)}                               color={isDark ? 'text-teal-400'    : 'text-teal-600'} />
-          <KpiCard isDark={isDark} label="Budget/dia" value={formatCurrency(campaignSpendData.reduce((s, c) => s + c.value, 0))} color={isDark ? 'text-slate-300' : 'text-slate-800'} />
+          <KpiCard isDark={isDark} label="CPL"        value={formatCurrencyCompact(cpl)}                        fullValue={formatCurrency(cpl)}                              color={isDark ? 'text-teal-400'    : 'text-teal-600'} />
+          <KpiCard isDark={isDark} label="Budget/dia" value={formatCurrencyCompact(campaignSpendData.reduce((s, c) => s + c.value, 0))} fullValue={formatCurrency(campaignSpendData.reduce((s, c) => s + c.value, 0))} color={isDark ? 'text-slate-300' : 'text-slate-800'} />
           {hookRate !== null && (
             <KpiCard isDark={isDark} label="Hook Rate" value={`${hookRate.toFixed(1)}%`}
               color={hookRateColor} tooltip="Vídeos: views 3s / impressões × 100" />
@@ -460,7 +598,7 @@ export function DashboardPage() {
                     <StageFunnelWidget
                       data={funnelData7}
                       isDark={isDark}
-                      clientId={clientFilter !== 'all' ? clientFilter as any : undefined}
+                      clientId={(clientFilter && clientFilter !== 'own') ? clientFilter as any : undefined}
                     />
                   ) : (
                     <FunnelChart data={data.funnelData} isDark={isDark} />
@@ -596,11 +734,12 @@ export function DashboardPage() {
                 </details>
               )}
 
-              {/* ── Radar de Demanda por segmento (FASE 18.2) ────────────── */}
+              {/* ── Radar de Demanda — isolado ao segmento ativo ─────────── */}
               <div className="mt-6">
                 <DemandRadar
                   isDark={isDark}
-                  clientId={clientFilter && clientFilter !== 'all' ? clientFilter : undefined}
+                  clientId={(clientFilter && clientFilter !== 'own') ? clientFilter as string : undefined}
+                  segmentId={activeSegment ?? undefined}
                   periodDays={parseInt(dateRange) || 30}
                 />
               </div>
@@ -622,32 +761,10 @@ export function DashboardPage() {
                 </div>
                 <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
               </div>
-              {/* FASE 18.2 — breakdown por cliente no modo agregado */}
-              {clientFilter === 'all' && clients.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Campanhas próprias do tenant */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                      <h3 className={`text-xs font-black uppercase tracking-widest ${txMuted}`}>Minha Empresa</h3>
-                    </div>
-                    <TrackingHealthWidget clientId={null} compact />
-                  </div>
-                  {clients.map(c => (
-                    <div key={c.id}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                        <h3 className={`text-xs font-black uppercase tracking-widest ${txMuted} truncate`} title={c.name}>{c.name}</h3>
-                      </div>
-                      <TrackingHealthWidget clientId={c.id} compact />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <TrackingHealthWidget
-                  clientId={(clientFilter && clientFilter !== 'all' && clientFilter !== 'own') ? clientFilter as string : null}
-                />
-              )}
+              {/* Tracking isolado pelo clientFilter atual (segmento já garantido acima) */}
+              <TrackingHealthWidget
+                clientId={(clientFilter && clientFilter !== 'own') ? clientFilter as string : null}
+              />
             </div>
 
             {/* ── Briefing Estratégico AI ──────────────────────────────────── */}
@@ -723,7 +840,7 @@ export function DashboardPage() {
             <WinningAngleChip
               isDark={isDark}
               period={parseInt(dateRange) || 30}
-              clientId={clientFilter}
+              clientId={(clientFilter && clientFilter !== 'own') ? clientFilter : undefined}
             />
 
             {/* ── AI Insights (por segmento — FASE 18.2) ──────────────────── */}
@@ -857,11 +974,636 @@ export function DashboardPage() {
             </div>
           </>
         )}
+        {/* Fecha {activeSegment && <> ... </>} */}
+        </>}
       </div>
     </div>
   );
 }
 
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  SEGMENT DASHBOARD — Modo "Todos os Clientes"
+// ═════════════════════════════════════════════════════════════════════════════
+
+interface SegmentDashboardProps {
+  segmentData: SegmentDashboardResponse | null;
+  loading: boolean;
+  isDark: boolean;
+  cardBase: string;
+  tx: string;
+  txMuted: string;
+  txFaint: string;
+  divider: string;
+  periodLabel: string;
+  periodBadgeLabel: string;
+  predColors: string[];
+  tooltipCss: any;
+  periodDays: number;
+  startDate: string;
+  endDate: string;
+}
+
+function SegmentDashboard({
+  segmentData, loading, isDark,
+  cardBase, tx, txMuted, txFaint, divider,
+  periodLabel, periodBadgeLabel, periodDays,
+  startDate, endDate,
+}: SegmentDashboardProps) {
+
+  const bench     = segmentData?.benchmark;
+  const seg       = segmentData?.segment;
+  const clients   = segmentData?.clients ?? [];
+  const tenantOwn = segmentData?.tenantOwn ?? null;
+  // allCount = clientes externos apenas (para o badge do ClientSelector ser consistente)
+  const clientCount = clients.length;
+  const allCount    = clientCount + (tenantOwn ? 1 : 0);
+
+  // ── Anticipation data para Farol de Milha ────────────────────────────────
+  const [anticipation, setAnticipation]         = useState<AnticipationResult[]>([]);
+  const [_anticipationLoading, setAnticLoading] = useState(false);
+
+  // Funil por estágio — agregado do segmento (TOF/MOF/BOF). Mesmo segmento = comparável.
+  const [segFunnel, setSegFunnel] = useState<FunnelData7 | null>(null);
+
+  useEffect(() => {
+    if (!segmentData?.segment?.id) return;
+    setAnticLoading(true);
+    adminFetch(`/api/admin/campanhas/dashboard/anticipation?segmentId=${segmentData.segment.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((d: any) => setAnticipation(Array.isArray(d) ? d : []))
+      .catch(() => {})
+      .finally(() => setAnticLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentData?.segment?.id]);
+
+  useEffect(() => {
+    if (!segmentData?.segment?.id) return;
+    const params = new URLSearchParams({ segmentId: segmentData.segment.id });
+    if (startDate && endDate) { params.set('startDate', startDate); params.set('endDate', endDate); }
+    adminFetch(`/api/admin/campanhas/dashboard/funnel?${params}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: any) => setSegFunnel(d))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentData?.segment?.id, startDate, endDate]);
+
+  // ── Modal "Visualizar Clientes" ──────────────────────────────────────────
+  const [showClientsModal, setShowClientsModal] = useState(false);
+
+  // ── AI Insights agrupados por cliente — para o modo "Todos os Clientes" ──
+  // Complementa o SegmentNarrative: insights = granular/automático; narrativa = holístico/LLM
+  const [segInsights, setSegInsights]         = useState<{ insights: AiInsightData[]; bySegment: any[] } | null>(null);
+
+  useEffect(() => {
+    if (!segmentData?.segment?.id) return;
+    adminFetch(`/api/admin/campanhas/insights/ai?segmentId=${segmentData.segment.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: any) => setSegInsights(d ?? null))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentData?.segment?.id]);
+
+  // Skeleton de loading
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className={cn(
+            'rounded-2xl h-48 animate-pulse',
+            isDark ? 'bg-white/[0.03] border border-white/5' : 'bg-slate-100 border border-slate-200',
+          )} />
+        ))}
+      </div>
+    );
+  }
+
+  if (!segmentData) {
+    return (
+      <div className={cn('rounded-2xl p-16 text-center', cardBase)}>
+        <p className={cn('text-sm font-black mb-1', tx)}>Sem dados para este segmento no período.</p>
+        <p className={cn('text-xs', txMuted)}>Verifique se há clientes com campanhas ativas neste segmento.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+
+      {/* ── BANNER: Contexto do segmento ──────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={cn(
+          'rounded-2xl px-6 py-4 flex items-center justify-between gap-4 flex-wrap',
+          isDark
+            ? 'bg-violet-500/8 border border-violet-500/20'
+            : 'bg-violet-50 border border-violet-200/60',
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <div className={cn('p-2 rounded-xl', isDark ? 'bg-violet-500/15' : 'bg-violet-100')}>
+            <span className="text-lg leading-none">🏢</span>
+          </div>
+          <div>
+            <p className={cn('text-xs font-black uppercase tracking-widest', isDark ? 'text-violet-500' : 'text-violet-600')}>
+              Inteligência de Segmento
+            </p>
+            <h2 className={cn('text-base font-black', tx)}>
+              {seg?.name}
+              {clientCount > 0 && ` · ${clientCount} cliente${clientCount !== 1 ? 's' : ''}`}
+              {tenantOwn && clientCount === 0 && ' · Minha Empresa'}
+              {tenantOwn && clientCount > 0 && ' + Minha Empresa'}
+            </h2>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {clientCount > 0 && (
+            <button
+              onClick={() => setShowClientsModal(true)}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all',
+                isDark
+                  ? 'bg-violet-500/15 text-violet-300 border border-violet-500/25 hover:bg-violet-500/25 hover:text-violet-200'
+                  : 'bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100',
+              )}
+            >
+              <span className="text-sm leading-none">👥</span>
+              Visualizar Clientes
+            </button>
+          )}
+          <div className="text-right">
+            <p className={cn('text-[9px] font-black uppercase tracking-widest', txFaint)}>Período</p>
+            <p className={cn('text-xs font-bold', txMuted)}>{periodLabel}</p>
+          </div>
+          <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
+        </div>
+      </motion.div>
+
+      {/* ── MODAL: Visualizar Clientes ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {showClientsModal && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowClientsModal(false)}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              className={cn(
+                'fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+                'w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden',
+                isDark
+                  ? 'bg-[#0d1421] border border-white/10 shadow-[0_32px_64px_rgba(0,0,0,0.7)]'
+                  : 'bg-white border border-slate-200 shadow-[0_32px_64px_rgba(0,0,0,0.15)]',
+              )}
+            >
+              {/* Header do modal */}
+              <div className={cn(
+                'px-6 py-5 border-b flex items-center justify-between',
+                isDark ? 'border-white/8' : 'border-slate-100',
+              )}>
+                <div>
+                  <p className={cn('text-[9px] font-black uppercase tracking-[0.3em] mb-1', isDark ? 'text-violet-500' : 'text-violet-600')}>
+                    {seg?.name}
+                  </p>
+                  <h3 className={cn('text-lg font-black', isDark ? 'text-slate-100' : 'text-slate-900')}>
+                    Clientes do Segmento
+                  </h3>
+                  <p className={cn('text-xs mt-0.5', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                    {clientCount} cliente{clientCount !== 1 ? 's' : ''} associado{clientCount !== 1 ? 's' : ''} a este segmento
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowClientsModal(false)}
+                  className={cn(
+                    'p-2 rounded-xl transition-colors',
+                    isDark ? 'text-slate-500 hover:text-slate-300 hover:bg-white/8' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100',
+                  )}
+                  aria-label="Fechar"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Lista de clientes */}
+              <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+                <div className="p-4 space-y-2">
+                  {clients.map((c, i) => {
+                    const initials = c.name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
+                    const avatarColors = [
+                      ['#818cf8', '#1e1b4b'], ['#34d399', '#022c22'], ['#fbbf24', '#451a03'],
+                      ['#f87171', '#450a0a'], ['#60a5fa', '#172554'], ['#e879f9', '#2e1065'],
+                    ];
+                    const [fg, bg] = avatarColors[i % avatarColors.length];
+
+                    return (
+                      <motion.div
+                        key={c.id}
+                        initial={{ opacity: 0, x: -12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.06 }}
+                        className={cn(
+                          'flex items-center gap-4 p-3.5 rounded-2xl transition-colors',
+                          isDark ? 'hover:bg-white/[0.04] bg-white/[0.02]' : 'hover:bg-slate-50 bg-slate-50/50',
+                        )}
+                      >
+                        {/* Logo ou Avatar */}
+                        {c.logoUrl ? (
+                          <img
+                            src={c.logoUrl}
+                            alt={c.name}
+                            className="w-12 h-12 rounded-xl object-cover shrink-0"
+                            style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}` }}
+                          />
+                        ) : (
+                          <span style={{
+                            width: 48, height: 48, borderRadius: 12,
+                            backgroundColor: bg, color: fg,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 16, fontWeight: 900, flexShrink: 0,
+                          }}>
+                            {initials}
+                          </span>
+                        )}
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className={cn('text-sm font-black truncate', isDark ? 'text-slate-100' : 'text-slate-900')}>
+                            {c.name}
+                          </p>
+                          <p className={cn('text-[11px] mt-0.5', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                            {c.campaignCount} campanha{c.campaignCount !== 1 ? 's' : ''}
+                            {c.activeCampaignCount > 0 && ` · ${c.activeCampaignCount} ativa${c.activeCampaignCount !== 1 ? 's' : ''}`}
+                          </p>
+                        </div>
+
+                        {/* Status badge */}
+                        <span className={cn(
+                          'text-[10px] font-black px-2.5 py-1 rounded-lg border uppercase tracking-wide shrink-0',
+                          c.metrics.status === 'ok'
+                            ? (isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border-emerald-100')
+                            : c.metrics.status === 'warn'
+                            ? (isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-700 border-amber-100')
+                            : c.metrics.status === 'critical'
+                            ? (isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-700 border-red-100')
+                            : (isDark ? 'bg-slate-500/10 text-slate-500 border-slate-500/20' : 'bg-slate-50 text-slate-400 border-slate-200'),
+                        )}>
+                          {c.metrics.status === 'ok' ? 'Saudável' : c.metrics.status === 'warn' ? 'Atenção' : c.metrics.status === 'critical' ? 'Crítico' : 'Sem dados'}
+                        </span>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Footer com botão Fechar */}
+              <div className={cn(
+                'px-6 py-4 border-t flex justify-end',
+                isDark ? 'border-white/8 bg-white/[0.015]' : 'border-slate-100 bg-slate-50/50',
+              )}>
+                <button
+                  onClick={() => setShowClientsModal(false)}
+                  className={cn(
+                    'px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-all',
+                    isDark
+                      ? 'bg-violet-600 text-white hover:bg-violet-700 active:scale-95 shadow-lg shadow-violet-500/20'
+                      : 'bg-violet-600 text-white hover:bg-violet-700 active:scale-95',
+                  )}
+                >
+                  Fechar
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── BENCHMARK CARDS ────────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <p className={cn('text-[9px] font-black uppercase tracking-[0.3em]', isDark ? 'text-violet-600' : 'text-violet-500')}>
+            Benchmark do Segmento · Medianas Reais do Período
+          </p>
+          <div className={cn('flex-1 h-px', isDark ? 'bg-white/5' : 'bg-slate-200')} />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'CPL Mediano',  value: bench?.cplMedian != null  ? `R$ ${bench.cplMedian.toFixed(2)}`  : '—', color: isDark ? 'text-indigo-400' : 'text-indigo-600', hint: `Meta: R$ ${seg?.cplIdeal?.toFixed(2) ?? '—'}` },
+            { label: 'CTR Mediano',  value: bench?.ctrMedian != null  ? `${bench.ctrMedian.toFixed(2)}%`    : '—', color: isDark ? 'text-emerald-400' : 'text-emerald-600', hint: `Mín: ${seg?.ctrMin?.toFixed(2) ?? '—'}%` },
+            { label: 'CPM Mediano',  value: bench?.cpmMedian != null  ? `R$ ${bench.cpmMedian.toFixed(2)}`  : '—', color: isDark ? 'text-amber-400' : 'text-amber-600', hint: null },
+            { label: `Total ${seg?.vocabulary?.lead_term ?? 'Leads'}`, value: String(bench?.leadsTotal ?? 0), color: isDark ? 'text-teal-400' : 'text-teal-600', hint: `R$ ${bench?.spendTotal.toFixed(0) ?? '0'} investido` },
+          ].map((kpi, i) => (
+            <motion.div
+              key={kpi.label}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.07 }}
+              className={cn(
+                'rounded-2xl p-4 flex flex-col gap-1.5 border relative overflow-hidden',
+                isDark
+                  ? 'bg-[rgba(255,255,255,0.025)] border-white/6'
+                  : 'bg-white border-slate-100 shadow-sm',
+              )}
+            >
+              <span className={cn('text-[9px] font-black uppercase tracking-widest', txFaint)}>{kpi.label}</span>
+              <span className={cn('text-xl font-black font-mono', kpi.color)}>{kpi.value}</span>
+              {kpi.hint && <span className={cn('text-[10px]', txFaint)}>{kpi.hint}</span>}
+              {/* Indicador visual de "benchmark" */}
+              <span className={cn(
+                'absolute top-2 right-2 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest',
+                isDark ? 'bg-violet-500/10 text-violet-600' : 'bg-violet-50 text-violet-400',
+              )}>
+                benchmark
+              </span>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── RETROVISOR — Charts multi-série ────────────────────────────────── */}
+      <div className={cn('rounded-3xl p-6 border',
+        isDark
+          ? 'border-amber-500/13 bg-[rgba(13,11,8,0.55)] backdrop-blur-sm shadow-[0_0_60px_rgba(251,191,36,0.03)]'
+          : 'border-amber-200/50 bg-gradient-to-br from-amber-50/50 to-white shadow-[0_4px_24px_rgba(245,158,11,0.05)]',
+      )}>
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div className="flex items-center gap-4">
+            <img src="/retrovisor.png" alt="Retrovisor" width={52} height={52} className="object-contain shrink-0 opacity-90" />
+            <div>
+              <p className={cn('text-[9px] font-black uppercase tracking-[0.35em] mb-0.5', isDark ? 'text-amber-700' : 'text-amber-500')}>Retrovisor</p>
+              <h3 className={cn('text-base font-black', tx)}>Performance por Cliente</h3>
+              <p className={cn('text-[11px]', txFaint)}>Comparativo — uma linha por cliente</p>
+            </div>
+          </div>
+          <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Performance Multi-Métrica */}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className={cn('rounded-2xl p-5', cardBase)}>
+            <p className={cn('text-xs font-black mb-4 uppercase tracking-widest', txFaint)}>Gasto Diário · R$</p>
+            <MultiClientMetricChart
+              clients={clients} tenantOwn={tenantOwn}
+              benchmarkMedian={bench?.cplMedian ?? null}
+              metric="spend" isDark={isDark}
+            />
+          </motion.div>
+
+          {/* CPL Timeline multi-série */}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={cn('rounded-2xl p-5', cardBase)}>
+            <p className={cn('text-xs font-black mb-4 uppercase tracking-widest', txFaint)}>CPL · Comparativo por Cliente</p>
+            <MultiClientCplChart
+              clients={clients} tenantOwn={tenantOwn}
+              cplMedian={bench?.cplMedian ?? null}
+              isDark={isDark}
+            />
+          </motion.div>
+
+          {/* CTR comparativo */}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className={cn('rounded-2xl p-5', cardBase)}>
+            <p className={cn('text-xs font-black mb-4 uppercase tracking-widest', txFaint)}>CTR % · Comparativo</p>
+            <MultiClientMetricChart
+              clients={clients} tenantOwn={tenantOwn}
+              benchmarkMedian={bench?.ctrMedian ?? null}
+              metric="ctr" isDark={isDark}
+            />
+          </motion.div>
+
+          {/* Leads comparativo */}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className={cn('rounded-2xl p-5', cardBase)}>
+            <p className={cn('text-xs font-black mb-4 uppercase tracking-widest', txFaint)}>{seg?.vocabulary?.lead_term ?? 'Leads'} · Volume por Cliente</p>
+            <MultiClientMetricChart
+              clients={clients} tenantOwn={tenantOwn}
+              benchmarkMedian={null}
+              metric="leads" isDark={isDark}
+            />
+          </motion.div>
+        </div>
+      </div>
+
+      {/* ── FUNIL POR ESTÁGIO — agregado do segmento (TOF/MOF/BOF) ──────────── */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <p className={cn('text-[9px] font-black uppercase tracking-[0.3em]', isDark ? 'text-indigo-600' : 'text-indigo-500')}>
+            Funil por Estágio · {seg?.name} agregado
+          </p>
+          <div className={cn('flex-1 h-px', isDark ? 'bg-white/5' : 'bg-slate-200')} />
+          <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
+        </div>
+        <div className={cn('rounded-2xl p-6', cardBase)}>
+          {segFunnel ? (
+            <StageFunnelWidget data={segFunnel} isDark={isDark} />
+          ) : (
+            <div className={cn('h-40 rounded-xl animate-pulse', isDark ? 'bg-white/[0.03]' : 'bg-slate-100')} />
+          )}
+        </div>
+      </div>
+
+      {/* ── RANKING DE POSICIONAMENTO ───────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <p className={cn('text-[9px] font-black uppercase tracking-[0.3em]', isDark ? 'text-indigo-600' : 'text-indigo-500')}>Ranking · Posicionamento vs Benchmark</p>
+          </div>
+          <div className={cn('flex-1 h-px', isDark ? 'bg-white/5' : 'bg-slate-200')} />
+          <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
+        </div>
+        <ClientRankingTable data={segmentData} isDark={isDark} />
+      </div>
+
+      {/* ── FAROL DE MILHA — preservado no modo segmento, mais rico ──────────── */}
+      <FarolSection isDark={isDark} periodLabel={periodBadgeLabel}>
+        {anticipation.length > 0 ? (
+          <div className="space-y-6">
+            {/* Contagem regressiva — agrupada por cliente */}
+            {(() => {
+              const allEvents = anticipation.flatMap(r =>
+                r.events.map(e => ({ ...e, campaignId: r.campaignId }))
+              );
+              if (allEvents.length === 0) return null;
+
+              // Mapear campaignId → nome do cliente (melhor que apenas ID)
+              const campaignClientMap = new Map<string, string>();
+              [...clients, ...(tenantOwn ? [tenantOwn] : [])].forEach(c => {
+                // Não temos campaign names aqui — usar nome do cliente como contexto
+                anticipation.forEach(a => { campaignClientMap.set(a.campaignId, c.name); });
+              });
+
+              return (
+                <div>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-cyan-700' : 'text-sky-500'}`}>
+                    Contagem Regressiva de Eventos · Todos os Clientes
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {allEvents.map((e, i) => (
+                      <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+                        <TimeToEventBar
+                          event={e as TimeToEvent}
+                          campaignName={campaignClientMap.get(e.campaignId) ?? e.campaignId.slice(0, 8)}
+                        />
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Trajetórias de sinais */}
+            {(() => {
+              const allTraj = anticipation.flatMap(r => r.trajectories);
+              if (allTraj.length === 0) return null;
+              return (
+                <div>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-cyan-700' : 'text-sky-500'}`}>
+                    Trajetória dos Sinais Leading · Segmento {seg?.name}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {allTraj.map((traj, i) => (
+                      <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
+                        <SignalTrajectory trajectory={traj as Trajectory} />
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        ) : (
+          <p className={cn('text-sm', isDark ? 'text-slate-600' : 'text-slate-400')}>
+            Nenhum sinal de antecipação detectado nas campanhas ativas do segmento.
+          </p>
+        )}
+
+        {/* Radar de Demanda — restrito ao segmento selecionado */}
+        <div className="mt-6">
+          <DemandRadar
+            isDark={isDark}
+            clientId={undefined}
+            segmentId={segmentData?.segment?.id}
+            periodDays={periodDays}
+          />
+        </div>
+      </FarolSection>
+
+      {/* ── TRACKING HEALTH — por cliente ──────────────────────────────────── */}
+      <div>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <div className={cn('p-2.5 rounded-xl', isDark ? 'bg-rose-500/10' : 'bg-rose-50')}>
+              <span className="text-base leading-none">🩺</span>
+            </div>
+            <div>
+              <h3 className={cn('text-base font-black', tx)}>Tracking Health</h3>
+              <p className={cn('text-xs', txMuted)}>Score de rastreamento por cliente</p>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {tenantOwn && (
+            <div>
+              <p className={cn('text-[10px] font-black uppercase tracking-widest mb-2', txFaint)}>Minha Empresa</p>
+              <TrackingHealthWidget clientId={null} compact />
+            </div>
+          )}
+          {clients.map(c => (
+            <div key={c.id}>
+              <p className={cn('text-[10px] font-black uppercase tracking-widest mb-2 truncate', txFaint)} title={c.name}>{c.name}</p>
+              <TrackingHealthWidget clientId={c.id} compact />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── AI INSIGHTS — regras automáticas agrupadas por cliente ───────────── */}
+      {segInsights && segInsights.insights.length > 0 && (() => {
+        // Agrupar insights por clientId/campaignId → mapear para nome do cliente
+        const clientMap = new Map<string, string>();
+        [...clients, ...(tenantOwn ? [tenantOwn] : [])].forEach(c => {
+          clientMap.set(c.id, c.name);
+        });
+
+        // Agrupar insights por nome de cliente (aproximação via campaignId → clientMap)
+        // Como não temos clientId por insight, usamos bySegment com fallback à lista flat
+        const groups = segInsights.bySegment?.length > 0
+          ? segInsights.bySegment.filter((g: any) => g.insights.length > 0)
+          : [{ segmentId: null, segmentName: '', insights: segInsights.insights }];
+
+        type IS = { border: string; badge: string; dot: string };
+        const styles: Record<string, IS> = {
+          PAUSE:    { border: 'border-l-red-500',    badge: isDark ? 'bg-red-500/10 text-red-400 border border-red-500/20'       : 'bg-red-50 text-red-700 border border-red-100',       dot: 'bg-red-500'    },
+          SCALE:    { border: 'border-l-emerald-500',badge: isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-100', dot: 'bg-emerald-500' },
+          OPTIMIZE: { border: 'border-l-amber-500',  badge: isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'   : 'bg-amber-50 text-amber-700 border border-amber-100',   dot: 'bg-amber-500'  },
+          ALERT:    { border: 'border-l-orange-500', badge: isDark ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-orange-50 text-orange-700 border border-orange-100', dot: 'bg-orange-500' },
+        };
+
+        return (
+          <div>
+            <div className="flex items-start justify-between gap-3 mb-5">
+              <div>
+                <h2 className={cn('text-lg font-black', tx)}>Insights da IA</h2>
+                <p className={cn('text-xs mt-0.5', txMuted)}>
+                  Alertas automáticos por campanha — {segInsights.insights.length} insight{segInsights.insights.length !== 1 ? 's' : ''} detectado{segInsights.insights.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
+            </div>
+            <div className="space-y-6">
+              {groups.map((g: any, gi: number) => (
+                <div key={g.segmentId ?? gi}>
+                  {g.segmentName && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                      <h3 className={cn('text-sm font-black', tx)}>{g.segmentName}</h3>
+                      <span className={cn('text-[10px]', txFaint)}>· {g.insights.length} insight{g.insights.length !== 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {g.insights.map((insight: AiInsightData, i: number) => {
+                      const s = styles[insight.type] ?? styles.ALERT;
+                      return (
+                        <motion.div key={i}
+                          initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                          className={cn(`rounded-2xl p-4 border-l-4 ${cardBase} ${s.border}`)}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={cn('inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide', s.badge)}>
+                              <span className={cn('w-1.5 h-1.5 rounded-full', s.dot)} />
+                              {insight.type}
+                            </span>
+                            <span className={cn('text-[10px] font-bold', txFaint)}>
+                              Confiança: {(insight.confidence * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <h4 className={cn('text-sm font-black mb-1', tx)}>{insight.title}</h4>
+                          <p className={cn('text-xs', txMuted)}>{insight.description}</p>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── NARRATIVA DE INTELIGÊNCIA LLM ──────────────────────────────────── */}
+      <SegmentNarrative segmentData={segmentData} isDark={isDark} />
+
+    </div>
+  );
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  SECTION WRAPPERS — Retrovisão & Farol de Milha
@@ -1142,7 +1884,7 @@ function WinningAngleChip({ isDark, period, clientId }: {
               <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
                 isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
               }`}>
-                R$ {data!.topAngle!.cpl.toFixed(2)} CPL
+                {formatCurrency(data!.topAngle!.cpl)} CPL
               </span>
             )}
           </span>
@@ -1158,7 +1900,7 @@ function WinningAngleChip({ isDark, period, clientId }: {
                   <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
                     isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-500'
                   }`}>
-                    R$ {data.worstAngle.cpl.toFixed(2)} CPL
+                    {formatCurrency(data.worstAngle.cpl)} CPL
                   </span>
                 )}
               </span>
@@ -1207,40 +1949,80 @@ function WinningAngleChip({ isDark, period, clientId }: {
 //  KPI CARD
 // ═════════════════════════════════════════════════════════════════════════════
 
-function KpiCard({ isDark, label, value, color, delta, invertDelta, tooltip }: {
-  isDark: boolean; label: string; value: string; color: string;
+function KpiCard({ isDark, label, value, fullValue, color, delta, invertDelta, tooltip }: {
+  isDark: boolean; label: string; value: string; fullValue?: string; color: string;
   delta?: number; invertDelta?: boolean; tooltip?: string;
 }) {
   let deltaColor = isDark ? 'text-slate-600' : 'text-gray-400';
   let deltaIcon  = '';
   let deltaBg    = '';
+  let deltaTitle = '';
+
   if (delta !== undefined && Math.abs(delta) > 0.5) {
     const isPositive = delta > 0;
     const isGood     = invertDelta ? !isPositive : isPositive;
-    deltaColor = isGood ? (isDark ? 'text-emerald-400' : 'text-emerald-700') : (isDark ? 'text-red-400' : 'text-red-600');
-    deltaBg    = isGood ? (isDark ? 'bg-emerald-500/10' : 'bg-emerald-50') : (isDark ? 'bg-red-500/10' : 'bg-red-50');
-    deltaIcon  = isPositive ? '↑' : '↓';
+
+    // Cores: verde = bom, vermelho = ruim
+    deltaColor = isGood
+      ? (isDark ? 'text-emerald-400' : 'text-emerald-700')
+      : (isDark ? 'text-red-400'     : 'text-red-600');
+    deltaBg = isGood
+      ? (isDark ? 'bg-emerald-500/10' : 'bg-emerald-50')
+      : (isDark ? 'bg-red-500/10'     : 'bg-red-50');
+
+    // Seta: sempre ↑ quando bom, ↓ quando ruim — direção semântica, não matemática
+    // (ex: CPC caiu 58% → performance melhorou → seta verde ↑)
+    deltaIcon = isGood ? '↑' : '↓';
+
+    // Tooltip: mostra o que realmente aconteceu + interpretação
+    const realDir  = isPositive ? 'subiu'  : 'caiu';
+    const goodText = isGood ? 'performance melhorou ✓' : 'requer atenção ⚠';
+    deltaTitle = `${label} ${realDir} ${Math.abs(delta).toFixed(1)}% vs período anterior — ${goodText}`;
   }
+
+  // Tooltip do card: usa o tooltip explícito ou o tooltip do delta
+  const cardTitle = tooltip || (fullValue ? `${label}: ${fullValue}` : undefined);
+
   return (
-    <div title={tooltip} className={cn(
-      'group rounded-2xl border p-3.5 flex flex-col gap-1.5 min-w-0 overflow-hidden transition-all duration-200 cursor-default',
-      isDark
-        ? 'bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(99,102,241,0.4)] hover:shadow-[0_0_24px_rgba(99,102,241,0.12)] hover:-translate-y-0.5'
-        : 'bg-white border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.09)] hover:-translate-y-0.5'
-    )}>
+    <div
+      title={cardTitle}
+      className={cn(
+        'group rounded-2xl border p-3.5 flex flex-col gap-1.5 min-w-0 overflow-hidden transition-all duration-200 cursor-default',
+        isDark
+          ? 'bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(99,102,241,0.4)] hover:shadow-[0_0_24px_rgba(99,102,241,0.12)] hover:-translate-y-0.5'
+          : 'bg-white border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.09)] hover:-translate-y-0.5',
+      )}
+    >
+      {/* Label */}
       <span className={`text-[9px] font-black uppercase tracking-widest leading-none truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
         {label}
       </span>
-      <span className={cn('text-sm font-black font-mono leading-tight truncate', color)}>
+
+      {/* Valor — versão compacta para caber no card */}
+      <span
+        className={cn('text-sm font-black font-mono leading-tight', color)}
+        style={{ wordBreak: 'keep-all', overflowWrap: 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+        title={fullValue ?? value}
+      >
         {value}
       </span>
-      {delta !== undefined && (
-        <span className={cn(
-          'self-start text-[9px] font-black px-1.5 py-0.5 rounded-md leading-none',
-          deltaColor,
-          deltaBg || (isDark ? 'bg-[rgba(255,255,255,0.06)] text-slate-500' : 'bg-slate-100 text-slate-400'),
-        )}>
-          {deltaIcon}{deltaIcon ? ' ' : ''}{Math.abs(delta).toFixed(1)}%
+
+      {/* Delta — seta semântica: ↑ verde = melhorou, ↓ vermelho = piorou */}
+      {delta !== undefined && deltaIcon && (
+        <span
+          title={deltaTitle}
+          className={cn(
+            'self-start text-[9px] font-black px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap cursor-help',
+            deltaColor, deltaBg,
+          )}
+        >
+          {deltaIcon} {Math.abs(delta).toFixed(1)}%
+        </span>
+      )}
+      {/* Variação insignificante */}
+      {delta !== undefined && Math.abs(delta) <= 0.5 && (
+        <span className={cn('text-[8px] font-bold', isDark ? 'text-slate-700' : 'text-slate-300')}>
+          = estável
         </span>
       )}
     </div>

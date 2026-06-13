@@ -13,11 +13,12 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const type     = searchParams.get('type')     || undefined;
-    const clientId = searchParams.get('clientId') || undefined;
+    const type      = searchParams.get('type')      || undefined;
+    const clientId  = searchParams.get('clientId')  || undefined;
+    const segmentId = searchParams.get('segmentId') || undefined;
 
-    // FASE 18.2 — último briefing por segmento no escopo
-    const briefings = await getLatestBriefingsForScope(type, payload.tenantId, clientId);
+    // Passa segmentId para restringir ao escopo do segmento selecionado
+    const briefings = await getLatestBriefingsForScope(type, payload.tenantId, clientId, segmentId);
 
     return NextResponse.json(briefings);
   } catch (error: any) {

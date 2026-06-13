@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload }           from '@/lib/auth/jwt-node';
 import { prisma }                    from '@/lib/marketing/prisma';
 import { computeAnticipation }       from '@/lib/marketing/services/anticipationEngine';
+import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const campaignId = searchParams.get('campaignId') || undefined;
     const clientId   = searchParams.get('clientId')   || undefined;
+    const segmentId  = searchParams.get('segmentId')  || undefined;
 
     // Filtro de campanhas
     const campaignFilter: any = {
@@ -31,7 +33,15 @@ export async function GET(request: NextRequest) {
     if (campaignId) {
       campaignFilter.id = campaignId;
     }
-    if (clientId === 'own') {
+
+    if (segmentId) {
+      const segmentCampaignIds = await resolveCampaignIdsBySegment(
+        payload.tenantId,
+        segmentId,
+        clientId,
+      );
+      campaignFilter.id = { in: segmentCampaignIds };
+    } else if (clientId === 'own') {
       campaignFilter.clientId = null;
     } else if (clientId) {
       campaignFilter.clientId = clientId;

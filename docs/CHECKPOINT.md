@@ -8,6 +8,26 @@
 
 ## Última tarefa concluída
 
+### Seed multi-segmento p/ testes do Dashboard — CONCLUÍDO 2026-06-12 ✅
+
+Arquivo `prisma/seed-multisegmento-teste.sql` — dataset de teste do tenant Marketing Digital
+cobrindo **4 segmentos** (Imobiliário, Saúde, Carros, Geral) com **6 clientes + campanhas próprias**.
+Idempotente e aditivo: identifica seus registros por `metaCampaignId LIKE 'seed_ms_%'` —
+re-executar apaga só o que ele criou, nunca toca em Alexandre/Gisele reais.
+
+- **21 campanhas · 924 insights (44 dias) · 5.469 leads.**
+- Perfis calibrados por benchmark de cada segmento: `scale` (ok), `alert`/`optimize` (warn),
+  `pause` (CTR<1%, 0 leads). Vídeo (Hook Rate) nas campanhas scale. `declared_angle` válido
+  por segmento (alimenta Radar + WinningAngle).
+- Clientes novos: Imobiliária Premium, Clínica OdontoVida, AutoMax Veículos, RodaBoa
+  Concessionária, Loja Mix Geral (uuids fixos `a5ed000X-...`).
+- Aplicar: `docker exec -i netimobiliaria-db psql -U postgres -d net_imobiliaria < prisma/seed-multisegmento-teste.sql`
+- **Nuance:** no ranking do modo "Todos os Clientes" os clientes ficam ok/warn (CPL agregado
+  dilui as campanhas pause). Nenhum cliente fica `critical` no agregado — adicionar cliente
+  uniformemente caro se quiser testar o badge vermelho do ranking.
+
+---
+
 ### FASE 18.2 — Dashboard dirigido por Segmento — CONCLUÍDO 2026-06-11 ✅
 
 No modo agregado (vários clientes de segmentos distintos), 4 seções do dashboard misturavam segmentos

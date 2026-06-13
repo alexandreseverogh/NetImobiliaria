@@ -14,15 +14,21 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search') || '';
-    const limit  = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
+    const search    = searchParams.get('search')    || '';
+    const segmentId = searchParams.get('segmentId') || '';
+    const limit     = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
 
     const params: any[] = [payload.tenantId];
-    let searchClause = '';
+    const extraClauses: string[] = [];
 
     if (search.trim()) {
       params.push(`%${search.trim()}%`);
-      searchClause = `AND (c.nome ILIKE $2 OR c.email ILIKE $2 OR c.telefone ILIKE $2)`;
+      extraClauses.push(`AND (c.nome ILIKE $${params.length} OR c.email ILIKE $${params.length} OR c.telefone ILIKE $${params.length})`);
+    }
+
+    if (segmentId.trim()) {
+      params.push(segmentId.trim());
+      extraClauses.push(`AND c.segment_id = $${params.length}::uuid`);
     }
 
     params.push(limit);
@@ -45,7 +51,7 @@ export async function GET(request: NextRequest) {
        FROM public.clientes c
        LEFT JOIN public.system_segments ss ON ss.id = c.segment_id
        WHERE c.tenant_id = $1::uuid
-       ${searchClause}
+       ${extraClauses.join(' ')}
        ORDER BY c.nome ASC
        LIMIT ${limitParam}`,
       params

@@ -13,11 +13,12 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit    = parseInt(searchParams.get('limit') || '10');
-    const type     = searchParams.get('type')     || undefined;
-    const clientId = searchParams.get('clientId') || undefined;
+    const limit     = parseInt(searchParams.get('limit') || '10');
+    const type      = searchParams.get('type')      || undefined;
+    const clientId  = searchParams.get('clientId')  || undefined;
+    const segmentId = searchParams.get('segmentId') || undefined;
 
-    const briefings = await getBriefingHistory(limit, type, payload.tenantId, clientId);
+    const briefings = await getBriefingHistory(limit, type, payload.tenantId, clientId, segmentId);
 
     return NextResponse.json(briefings);
   } catch (error: any) {
