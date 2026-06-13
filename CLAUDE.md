@@ -24,6 +24,7 @@ ao fim de cada sessão — mas depende de Claude ter atualizado o arquivo durant
 
 @docs/CHECKPOINT.md — Estado atual do projeto: última tarefa, em andamento, próximos passos.
 @docs/ACCESS_CONTROL.md — Lógica completa de controle de acesso, provisionamento de features e sidebar dinâmica.
+@docs/claude-memory/MEMORY.md — Índice da memória de contexto (perfil do dev, preferências de trabalho, decisões e regras de negócio acumuladas). Snapshot versionado da auto-memory do Claude — portável entre máquinas via git. Os arquivos detalhados ficam em `docs/claude-memory/`; leia sob demanda quando precisar do histórico/raciocínio por trás de uma decisão.
 
 ---
 
