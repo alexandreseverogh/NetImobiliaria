@@ -1,12 +1,65 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-13 (Dashboard multi-segmento — UI/fixes + commit c39b583)
+> **Atualizado em:** 2026-06-14 (Sessão de setup nova máquina + fixes dashboard)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-06-14 — Setup nova máquina + fixes dashboard ✅
+
+#### 1. Setup ambiente nova máquina
+
+- **Fix login** — `DB_PASSWORD` estava errado; `docker inspect netimobiliaria-db` revelou `POSTGRES_PASSWORD=postgres`. Atualizado `.env.local`.
+- **Fix `MARKETING_DATABASE_URL`** — porta estava `5432` em vez de `15432`. Corrigido para `postgresql://postgres:postgres@127.0.0.1:15432/net_imobiliaria`.
+- **Restore banco** — backup de outra máquina restaurado via `docker cp` + `pg_restore`. Senha do usuário `admmd` redefinida para `Admin@2024` (bcrypt).
+- **Sync GitHub** — projeto local estava 23 commits atrás. Feito `git pull origin main` para 100% atualizado.
+- **npm install** — rodado com `--legacy-peer-deps` (react-leaflet@5 requer React 19; projeto usa React 18).
+
+#### 2. Fix radar de demanda — "Dados de mercado externo ainda não disponíveis"
+
+- Cron `POST /api/cron/campanhas/exogenous-signals` executado para popular `exogenous_signals`.
+- **Fix constraint `ON CONFLICT`** — índice original era `(segment_id, angle, signal_date, geo)` mas o cron inseria sem `segment_id`. Criado índice sem `segment_id`: `CREATE UNIQUE INDEX exogenous_signals_angle_date_geo_key ON campanhasmarketingdigital.exogenous_signals (angle, signal_date, geo)`.
+- **Fix `segment_id NOT NULL`** — `ALTER TABLE campanhasmarketingdigital.exogenous_signals ALTER COLUMN segment_id DROP NOT NULL`.
+
+#### 3. Fix "Erro ao gerar briefing"
+
+- **Causa 1:** Prisma singleton stale (`globalForPrisma.prismaMarketing` criado antes de `npx prisma generate --schema=prisma/schema.marketing.prisma`). Resolvido com generate + restart do servidor.
+- **Causa 2 (principal):** `clientId: 'own'` sendo passado para `prisma.strategicBriefing.create()` como UUID — violação de FK. Corrigido em:
+  - `src/app/api/admin/campanhas/briefings/generate/route.ts` — sanitiza `rawClientId === 'own'` → `undefined` antes de qualquer chamada.
+  - `src/lib/marketing/services/strategicBriefing.ts` — proteção dupla nos 3 blocos `create()`: `(!clientId || clientId === 'own') ? null : clientId`.
+
+#### 4. Gráfico "Distribuição por Campanha" — melhorias
+
+- **Dado real:** trocado de `dailyBudget` (frequentemente 0) para gasto real agregado dos `currentPeriod.insights` por `campaignId`.
+- **Labels dentro do donut:** `label` customizado no `<Pie>` com `R$Xk` / `R$X` em branco dentro de cada fatia (fatias < 5% omitidas).
+- **Legenda com valor:** legenda abaixo do gráfico agora mostra nome completo (sem truncamento) + percentual + valor R$.
+- **Ordenação decrescente:** lista e gráfico ordenados do maior para o menor gasto.
+- **Tooltip:** atualizado para formato `R$ X.XXX,XX` (pt-BR).
+
+#### 5. Filtro por segmento — Tracking Health, Insights da IA, Briefing
+
+- **Insights da IA:** já filtrava por `segmentId` na API (`generateAiInsights` com `resolveCampaignIdsBySegment`); `bySegment` retorna apenas o segmento ativo. ✅
+- **Briefing Estratégico:** `getLatestBriefing({ segmentId: activeSegment })` e `generateBriefing(..., activeSegment)` já isolam por segmento. ✅
+- **Tracking Health:**
+  - `TrackingHealthWidget` — adicionada prop `segmentId?: string | null`; repassa para `getTrackingHealth` e `runTrackingHealth`.
+  - `marketing-api.ts` — `getTrackingHealth` e `runTrackingHealth` aceitam `segmentId` opcional.
+  - `tracking/health/route.ts` — GET lê `segmentId` de searchParams; POST lê do body; ambos repassam para o serviço.
+  - `trackingHealthService.ts` — `runTrackingHealthCheck` e `getTrackingHealthHistory` aceitam `_segmentId` (reservado; tabela não tem coluna segment_id ainda).
+  - Dashboard: `<TrackingHealthWidget segmentId={activeSegment ?? null} />`.
+
+**Arquivos modificados nesta sessão:**
+- `src/app/api/admin/campanhas/briefings/generate/route.ts`
+- `src/lib/marketing/services/strategicBriefing.ts`
+- `src/lib/marketing/services/trackingHealthService.ts`
+- `src/app/api/admin/campanhas/tracking/health/route.ts`
+- `src/components/marketing/TrackingHealthWidget.tsx`
+- `src/lib/marketing-api.ts`
+- `src/app/admin/campanhas/dashboard/page.tsx`
+
+---
 
 ### Sessão 2026-06-13 — Dashboard multi-segmento: UI, fixes e commit ✅
 
