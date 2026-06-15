@@ -17,19 +17,21 @@ interface WastedReport {
   totalWasted: number;
   period: { start: string; end: string };
   byCategory: {
-    ZERO_LEADS_SPEND:  WastedCategory;
-    HIGH_CPL_SPEND:    WastedCategory;
-    FATIGUED_CONTINUE: WastedCategory;
-    LEARNING_LIMITED:  WastedCategory;
+    ZERO_LEADS_SPEND:   WastedCategory;
+    HIGH_CPL_SPEND:     WastedCategory;
+    ELEVATED_CPL_SPEND: WastedCategory;
+    FATIGUED_CONTINUE:  WastedCategory;
+    LEARNING_LIMITED:   WastedCategory;
   };
   recoveryPlan: string[];
 }
 
 const CATEGORY_META: Record<string, { label: string; icon: string; accent: string; bg: string; border: string }> = {
-  ZERO_LEADS_SPEND:  { label: 'Sem Leads',           icon: '💸', accent: 'text-red-600',    bg: 'bg-red-50',    border: 'border-red-100' },
-  HIGH_CPL_SPEND:    { label: 'CPL Crítico',          icon: '📉', accent: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100' },
-  FATIGUED_CONTINUE: { label: 'Fadiga de Audiência',  icon: '😴', accent: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-100' },
-  LEARNING_LIMITED:  { label: 'Aprendizado Limitado', icon: '🔄', accent: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-100' },
+  ZERO_LEADS_SPEND:   { label: 'Sem Leads',           icon: '💸', accent: 'text-red-600',    bg: 'bg-red-50',    border: 'border-red-100' },
+  HIGH_CPL_SPEND:     { label: 'CPL Crítico',          icon: '📉', accent: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100' },
+  ELEVATED_CPL_SPEND: { label: 'CPL Acima do Ideal',   icon: '⚠️', accent: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-100' },
+  FATIGUED_CONTINUE:  { label: 'Fadiga de Audiência',  icon: '😴', accent: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-100' },
+  LEARNING_LIMITED:   { label: 'Aprendizado Limitado', icon: '🔄', accent: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-100' },
 };
 
 const PERIOD_OPTIONS = [

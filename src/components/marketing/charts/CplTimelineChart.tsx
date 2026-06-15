@@ -240,9 +240,13 @@ export function CplTimelineChart({ data, isDark }: Props) {
       <g>
         <line x1={0} y1={y} x2={innerWidth} y2={y}
           stroke={avgColor} strokeWidth={1} strokeDasharray="5 4" />
-        <text x={innerWidth + 5} y={y + 4}
-          fill={textFaint} fontSize={9} fontWeight={700}>
+        <text x={innerWidth + 5} y={y - 3}
+          fill={textFaint} fontSize={8} fontWeight={700}>
           Média
+        </text>
+        <text x={innerWidth + 5} y={y + 9}
+          fill={cplColor} fontSize={9} fontWeight={900}>
+          R$ {avgCpl.toFixed(2)}
         </text>
       </g>
     );
@@ -265,7 +269,7 @@ export function CplTimelineChart({ data, isDark }: Props) {
         {/* Label above */}
         <text x={cx} y={cy - 24} textAnchor="middle"
           fill={bestColor} fontSize={8.5} fontWeight={900} letterSpacing="0.07em">
-          BEST
+          Melhor
         </text>
       </g>
     );
@@ -307,7 +311,7 @@ export function CplTimelineChart({ data, isDark }: Props) {
 
   return (
     <div>
-      {/* ── Stat pills ── */}
+      {/* ── Stat pills — Média removida (já visível como linha de referência no gráfico) ── */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
         {avgCpl != null && (
           <div style={pill}>
@@ -325,7 +329,6 @@ export function CplTimelineChart({ data, isDark }: Props) {
         )}
         {totalLeads > 0 && (
           <div style={pill}>
-            {/* Ícone de barra para representar a série de leads no gráfico */}
             <span style={{
               width: 8, height: 10, borderRadius: 2,
               backgroundColor: leadColor, opacity: 0.7, flexShrink: 0,
@@ -401,6 +404,63 @@ export function CplTimelineChart({ data, isDark }: Props) {
           motionConfig="gentle"
         />
       </div>
+
+      {/* ── Melhor Dia em destaque ── */}
+      {bestDay && (
+        <div style={{ marginTop: 16 }}>
+          {/* Label do melhor dia */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: bestColor, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              🏆 Melhor Dia do Período
+            </span>
+            <span style={{
+              fontSize: 9, fontWeight: 700,
+              color: isDark ? '#475569' : '#94a3b8',
+              background: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
+              borderRadius: 6, padding: '1px 7px',
+            }}>
+              {bestDay.date}
+            </span>
+          </div>
+
+          {/* Cards CPL / Leads / Gasto */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <div style={{
+              background: isDark ? 'rgba(251,191,36,0.07)' : '#fffbeb',
+              border: `1px solid ${isDark ? 'rgba(251,191,36,0.2)' : '#fde68a'}`,
+              borderRadius: 12, padding: '10px 14px',
+            }}>
+              <p style={{ fontSize: 9, fontWeight: 700, color: isDark ? '#78716c' : '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>CPL</p>
+              <p style={{ fontSize: 18, fontWeight: 900, color: bestColor, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                R$ {bestDay.cpl.toFixed(2)}
+              </p>
+            </div>
+
+            <div style={{
+              background: isDark ? 'rgba(52,211,153,0.06)' : '#f0fdf4',
+              border: `1px solid ${isDark ? 'rgba(52,211,153,0.15)' : '#bbf7d0'}`,
+              borderRadius: 12, padding: '10px 14px',
+            }}>
+              <p style={{ fontSize: 9, fontWeight: 700, color: isDark ? '#4a7c59' : '#166534', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Leads</p>
+              <p style={{ fontSize: 18, fontWeight: 900, color: leadColor, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                {bestDay.leads}
+              </p>
+            </div>
+
+            <div style={{
+              background: isDark ? 'rgba(255,255,255,0.025)' : '#f8fafc',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
+              borderRadius: 12, padding: '10px 14px',
+            }}>
+              <p style={{ fontSize: 9, fontWeight: 700, color: isDark ? '#475569' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Gasto</p>
+              <p style={{ fontSize: 18, fontWeight: 900, color: isDark ? '#94a3b8' : '#475569', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                R$ {bestDay.spend.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

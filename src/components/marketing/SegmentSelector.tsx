@@ -450,14 +450,9 @@ export function useSegmentSelector(params?: { startDate?: string; endDate?: stri
 
   function toggleSegment(segmentId: string) {
     setSegmentFilter(prev => {
-      const next = prev.includes(segmentId)
-        ? prev.filter(id => id !== segmentId)
-        : [...prev, segmentId];
-      setActiveSegment(cur => {
-        if (next.length === 0) return null;
-        if (cur && next.includes(cur)) return cur;
-        return next[0];
-      });
+      // Exclusive selection: clicking the active segment deselects it; clicking another replaces
+      const next = prev.includes(segmentId) ? [] : [segmentId];
+      setActiveSegment(next.length > 0 ? next[0] : null);
       return next;
     });
   }

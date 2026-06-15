@@ -30,11 +30,12 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const rawClientId = searchParams.get('clientId');
+  const segmentId   = searchParams.get('segmentId') || null;
   // 'own' significa "Minha Empresa" (sem clientId); não é um UUID válido
   const clientId = (rawClientId && rawClientId !== 'own') ? rawClientId : null;
 
   try {
-    const history = await getTrackingHealthHistory(payload.tenantId, 30, clientId);
+    const history = await getTrackingHealthHistory(payload.tenantId, 30, clientId, segmentId);
     const latest  = history[0] ?? null;
 
     return NextResponse.json({
@@ -64,11 +65,13 @@ export async function POST(request: NextRequest) {
   }
 
   let clientId: string | null = null;
+  let segmentId: string | null = null;
   try {
     const body = await request.json().catch(() => ({}));
     const raw = body.clientId ?? null;
     // 'own' significa "Minha Empresa" (sem clientId); não é um UUID válido
     clientId = (raw && raw !== 'own') ? raw : null;
+    segmentId = body.segmentId ?? null;
   } catch { /* ignore */ }
 
   // URL base para o check do endpoint (usa PUBLIC_URL ou o host da request)
@@ -77,7 +80,7 @@ export async function POST(request: NextRequest) {
   const baseUrl = process.env.PUBLIC_URL ?? `${proto}://${host}`;
 
   try {
-    const result = await runTrackingHealthCheck(payload.tenantId, clientId, baseUrl);
+    const result = await runTrackingHealthCheck(payload.tenantId, clientId, baseUrl, segmentId);
     const id     = await saveTrackingHealthCheck(payload.tenantId, result, clientId);
 
     return NextResponse.json({ id, ...result });

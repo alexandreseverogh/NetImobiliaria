@@ -120,11 +120,12 @@ function CheckRow({ check }: { check: TrackingCheckResult }) {
 
 interface Props {
   clientId?: string | null;
+  segmentId?: string | null;
   /** Se true, mostra apenas o card compacto (para encaixar no dashboard grid) */
   compact?: boolean;
 }
 
-export function TrackingHealthWidget({ clientId, compact = false }: Props) {
+export function TrackingHealthWidget({ clientId, segmentId, compact = false }: Props) {
   const [data, setData]       = useState<TrackingHealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
@@ -134,21 +135,21 @@ export function TrackingHealthWidget({ clientId, compact = false }: Props) {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const d = await getTrackingHealth(clientId);
+      const d = await getTrackingHealth(clientId, segmentId);
       setData(d);
     } catch (e: any) {
       setError(e.message ?? 'Erro ao carregar');
     } finally {
       setLoading(false);
     }
-  }, [clientId]);
+  }, [clientId, segmentId]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleRun = async () => {
     setRunning(true);
     try {
-      const result = await runTrackingHealth(clientId);
+      const result = await runTrackingHealth(clientId, segmentId);
       // Refresh history
       await load();
       setExpanded(true);

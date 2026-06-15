@@ -317,8 +317,15 @@ export const getBriefings = (params?: { limit?: number; type?: string; clientId?
 export const getLatestBriefing = (params?: { type?: string; clientId?: ClientFilter; segmentId?: string }) =>
   api.get<StrategicBriefingData[]>('/briefings/latest', { params }).then(r => r.data);
 
-export const generateBriefing = (type: string, clientId?: string, periodDays?: number, segmentId?: string) =>
-  api.post<StrategicBriefingData[]>('/briefings/generate', { type, clientId, periodDays, segmentId }).then(r => r.data);
+export const generateBriefing = (
+  type: string,
+  clientId?: string,
+  periodDays?: number,
+  segmentId?: string,
+  startDate?: string,
+  endDate?: string,
+) =>
+  api.post<StrategicBriefingData[]>('/briefings/generate', { type, clientId, periodDays, segmentId, startDate, endDate }).then(r => r.data);
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 export interface DeltaData {
@@ -494,13 +501,35 @@ export interface TrackingHealthData {
   history: TrackingHealthHistoryEntry[];
 }
 
-export const getTrackingHealth = (clientId?: string | null) =>
+export const getTrackingHealth = (clientId?: string | null, segmentId?: string | null) =>
   api.get<TrackingHealthData>('/tracking/health', {
-    params: clientId ? { clientId } : undefined,
+    params: { ...(clientId ? { clientId } : {}), ...(segmentId ? { segmentId } : {}) },
   }).then(r => r.data);
 
-export const runTrackingHealth = (clientId?: string | null) =>
-  api.post<TrackingHealthResult>('/tracking/health', clientId ? { clientId } : {}).then(r => r.data);
+export const runTrackingHealth = (clientId?: string | null, segmentId?: string | null) =>
+  api.post<TrackingHealthResult>('/tracking/health', {
+    ...(clientId ? { clientId } : {}),
+    ...(segmentId ? { segmentId } : {}),
+  }).then(r => r.data);
+
+/* ──────────────────────────────────────────────────────────────
+   BENCHMARKS — resolução dinâmica por tenant/segmento/cliente
+────────────────────────────────────────────────────────────── */
+
+export interface HookRateBenchmarks {
+  hook_rate_critical: number;
+  hook_rate_min:      number;
+  hook_rate_good:     number;
+}
+
+export const getHookRateBenchmarks = (clientId?: string | null, segmentId?: string | null): Promise<HookRateBenchmarks> =>
+  api.get<HookRateBenchmarks>('/benchmarks', {
+    params: {
+      keys: 'hook_rate_critical,hook_rate_min,hook_rate_good',
+      ...(clientId  ? { clientId }  : {}),
+      ...(segmentId ? { segmentId } : {}),
+    },
+  }).then(r => r.data);
 
 /* ──────────────────────────────────────────────────────────────
    FASE 8.5 — Signal-Driven Anticipation

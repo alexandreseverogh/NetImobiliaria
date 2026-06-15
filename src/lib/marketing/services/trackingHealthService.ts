@@ -78,6 +78,7 @@ export async function runTrackingHealthCheck(
   tenantId: string,
   clientId?: string | null,
   baseUrl?: string,         // para check do endpoint; opcional
+  _segmentId?: string | null,  // reservado — contexto de segmento
 ): Promise<TrackingHealthResult> {
 
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -480,6 +481,7 @@ export async function getTrackingHealthHistory(
   tenantId: string,
   limit = 30,
   clientId?: string | null,
+  _segmentId?: string | null,   // reservado — TrackingHealthCheck não tem segment_id; filtro futuro
 ) {
   const where: any = { tenantId };
   if (clientId) where.clientId = clientId;

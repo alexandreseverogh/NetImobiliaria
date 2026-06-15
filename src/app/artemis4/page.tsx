@@ -84,21 +84,11 @@ export default function Artemis4LandingPage() {
       }
     }, 15000)
 
-    // Injeta script do YouTube API de forma segura
+    // Injeta script do YouTube API de forma 100% assíncrona — nunca bloqueia o thread principal
     const loadYoutubeAPI = () => {
       if (typeof window === 'undefined') return
 
       const w = window as any
-      if (!w.YT) {
-        const tag = document.createElement('script')
-        tag.src = 'https://www.youtube.com/iframe_api'
-        const firstScriptTag = document.getElementsByTagName('script')[0]
-        if (firstScriptTag && firstScriptTag.parentNode) {
-          firstScriptTag.parentNode.insertBefore(tag, firstScriptTag)
-        } else {
-          document.head.appendChild(tag)
-        }
-      }
 
       const initPlayer = () => {
         if (!w.YT || !w.YT.Player) return
@@ -134,7 +124,14 @@ export default function Artemis4LandingPage() {
               onReady: (event: any) => {
                 event.target.mute()
                 event.target.playVideo()
-                
+
+                // Garante que o iframe não captura nenhum evento de ponteiro
+                const iframe = playerContainerRef.current?.querySelector('iframe')
+                if (iframe) {
+                  iframe.style.pointerEvents = 'none'
+                  iframe.setAttribute('tabindex', '-1')
+                }
+
                 // Aguarda 1s para confirmar reprodução e define pronto
                 setTimeout(() => {
                   setPlayerReady(true)
@@ -154,20 +151,40 @@ export default function Artemis4LandingPage() {
         }
       }
 
-      if (w.YT && w.YT.Player) {
-        initPlayer()
-      } else {
+      const injectScriptAndInit = () => {
+        if (w.YT && w.YT.Player) {
+          initPlayer()
+          return
+        }
+
+        // Encadeia com callbacks já registrados (múltiplos useEffects possíveis)
         const prevCallback = w.onYouTubeIframeAPIReady
         w.onYouTubeIframeAPIReady = () => {
           if (prevCallback) prevCallback()
           initPlayer()
         }
+
+        if (!w.YT) {
+          const tag = document.createElement('script')
+          tag.src = 'https://www.youtube.com/iframe_api'
+          tag.async = true   // não bloqueia o parser HTML
+          tag.defer = true   // executa após o documento ser parseado
+          document.head.appendChild(tag)
+        }
+      }
+
+      // Usa requestIdleCallback quando disponível — o browser escolhe o momento
+      // em que o thread principal está ocioso para iniciar o player.
+      // Fallback: setTimeout de 2500ms (garante UI 100% interativa antes do vídeo).
+      if (typeof (window as any).requestIdleCallback === 'function') {
+        ;(window as any).requestIdleCallback(injectScriptAndInit, { timeout: 3000 })
+      } else {
+        setTimeout(injectScriptAndInit, 2500)
       }
     }
 
-    // Atrasa 700ms para não competir com a hidratação do React e o setup
-    // de event listeners — garante que o botão "Entrar" responda imediatamente.
-    const initTimer = setTimeout(loadYoutubeAPI, 700)
+    // Delay inicial: aguarda hidratação + first paint antes de qualquer ação
+    const initTimer = setTimeout(loadYoutubeAPI, 500)
 
     return () => {
       clearTimeout(timeoutId)
@@ -719,14 +736,14 @@ export default function Artemis4LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             
-            {/* Logo Artemis4 (Exatamente como especificado, sem Net Imobiliaria abaixo) */}
-            <div className="flex-shrink-0 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <RocketLaunchIcon className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xl font-black tracking-tighter text-white uppercase italic">
-                Artemis<span className="text-blue-500 font-extrabold">4</span>
-              </span>
+            {/* Logo Artemis4 — imagem da pasta public */}
+            <div className="flex-shrink-0 flex items-center">
+              <img
+                src="/Artemis4.jpg"
+                alt="Artemis4"
+                className="h-12 w-auto object-contain"
+                draggable={false}
+              />
             </div>
 
             {/* Menu Horizontal Superior - IDÊNTICO ao Landpaging */}
@@ -783,10 +800,10 @@ export default function Artemis4LandingPage() {
           
           {/* CINEMATIC BG VIDEO (YouTube ou Fallback Canvas) - FIXED TO THE VIEWPORT */}
           {useVideo ? (
-            <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none opacity-90 select-none">
+            <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-90 select-none" style={{ zIndex: -1 }} inert={'' as any}>
               {/* O player do YouTube é redimensionado e escalado para 1.35x para remover barras, títulos e logos do YT */}
               <div className="absolute top-1/2 left-1/2 w-[100vw] h-[56.25vw] min-h-screen min-w-[177.77vh] transform -translate-x-1/2 -translate-y-1/2 scale-[1.35] pointer-events-none">
-                <div ref={playerContainerRef} className="w-full h-full" />
+                <div ref={playerContainerRef} className="w-full h-full pointer-events-none" />
               </div>
               {/* Overlays de vinheta futurista e cores para mesclagem premium com o tema dark */}
               <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-[#020617]/50" />

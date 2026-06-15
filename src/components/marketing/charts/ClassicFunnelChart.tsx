@@ -8,6 +8,7 @@ interface Props {
   leadCount: number;
   isDark: boolean;
   periodLabel?: string;
+  className?: string;
 }
 
 const STAGES = [
@@ -78,7 +79,7 @@ function segMidW(i: number): number {
   return ((SEGS[i].xr - SEGS[i].xl) + (SEGS[i + 1].xr - SEGS[i + 1].xl)) / 2;
 }
 
-export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel }: Props) {
+export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel, className }: Props) {
   const values = [funnelData.impressions, funnelData.clicks, leadCount, funnelData.conversions];
   const top    = values[0] || 1;
 
@@ -102,7 +103,7 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel 
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.35 }}
-      className={`mt-5 rounded-2xl p-6 ${cardCls}`}
+      className={`${className ?? 'mt-5'} rounded-2xl p-6 ${cardCls}`}
     >
       {/* ── Cabeçalho ── */}
       <div className="flex items-start justify-between gap-3 mb-6">

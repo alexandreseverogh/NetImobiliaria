@@ -44,6 +44,10 @@ export interface CrossPerformer {
   segmentName:  string | null;
   status:       'ok' | 'warn' | 'critical' | 'nodata';
   cplCritical:  number | null;   // limite crítico do segmento (usado no POST p/ LLM)
+  // Índice de eficiência = cpl / cplCritical. Normaliza por benchmark do PRÓPRIO segmento,
+  // tornando o ranking comparável entre segmentos distintos (< 1 = abaixo do crítico).
+  // null quando não há CPL ou o segmento não tem cplCritical configurado.
+  efficiencyIndex: number | null;
 }
 
 export interface CrossSegment {
@@ -431,18 +435,30 @@ export async function GET(request: NextRequest) {
       : clientList;
     const insights = buildRuleBasedInsights(insightClients);
 
-    // Ranqueamento: todos os clientes (filtrados) por CPL, nulls ao final
-    const sorted: CrossPerformer[] = [
-      ...realClients.filter(c => c.cpl !== null).sort((a, b) => a.cpl! - b.cpl!),
-      ...realClients.filter(c => c.cpl === null),
-    ].map(c => ({
-      clientName:   c.clientName,
-      cpl:          c.cpl,
-      spend:        c.spend,
-      leads:        c.leads,
-      segmentName:  c.segment_name,
-      status:       c.status,
-      cplCritical:  c.cplCritical,
+    // Índice de eficiência: cpl ÷ cplCritical do próprio segmento.
+    // É a única métrica comparável entre segmentos (banana vs abacaxi) — mede
+    // quão eficiente cada cliente está RELATIVO ao benchmark do seu mercado.
+    const effIndex = (c: ClientEntry): number | null =>
+      (c.cpl !== null && c.cplCritical !== null && c.cplCritical > 0)
+        ? c.cpl / c.cplCritical
+        : null;
+
+    // Ranqueamento em 3 baldes:
+    //   1. com índice de eficiência → ordenado por eficiência asc (medalhas vão aqui)
+    //   2. com CPL mas sem benchmark crítico → ordenado por CPL asc (não normalizável)
+    //   3. sem CPL → ao final
+    const withEff       = realClients.filter(c => effIndex(c) !== null).sort((a, b) => effIndex(a)! - effIndex(b)!);
+    const withCplNoEff  = realClients.filter(c => effIndex(c) === null && c.cpl !== null).sort((a, b) => a.cpl! - b.cpl!);
+    const noCpl         = realClients.filter(c => c.cpl === null);
+    const sorted: CrossPerformer[] = [...withEff, ...withCplNoEff, ...noCpl].map(c => ({
+      clientName:      c.clientName,
+      cpl:             c.cpl,
+      spend:           c.spend,
+      leads:           c.leads,
+      segmentName:     c.segment_name,
+      status:          c.status,
+      cplCritical:     c.cplCritical,
+      efficiencyIndex: effIndex(c),
     }));
 
     const underperformers = realClients
@@ -592,49 +608,81 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Gera narrativa completa (apenas quando usuário clica em "Análise IA") ──
+    // REGRA: nunca misturar segmentos numa única narrativa. Sem filtro de segmento
+    // e com ≥2 segmentos no portfólio, gera-se UMA narrativa por segmento.
     try {
       const clientDetails  = data.clientDetails ?? [];
       const managedClients = clientDetails.filter(c => !c.isTenant);
       const tenantDetail   = clientDetails.find(c => c.isTenant);
 
-      const clientContextLines: string[] = [];
-      if (tenantDetail) {
-        const seg    = tenantDetail.segmentName ?? 'sem segmento';
-        const cplStr = tenantDetail.cpl != null ? `CPL R$${tenantDetail.cpl.toFixed(2)}` : 'sem CPL';
-        clientContextLines.push(
-          `[TENANT — empresa gestora] ${data.tenantName} (${seg}): ${cplStr}, status=${tenantDetail.status}`
-        );
-      }
+      /** Gera a narrativa LLM para um subconjunto de clientes (de um único segmento, ou todos). */
+      const narrateSubset = async (
+        clients: CrossClientDetail[],
+        segLabel: string | null,
+      ): Promise<string | null> => {
+        const lines: string[] = [];
+        // Inclui o tenant como contexto apenas quando o segmento dele bate (ou narrativa global)
+        if (tenantDetail && (segLabel === null || tenantDetail.segmentName === segLabel)) {
+          const seg    = tenantDetail.segmentName ?? 'sem segmento';
+          const cplStr = tenantDetail.cpl != null ? `CPL R$${tenantDetail.cpl.toFixed(2)}` : 'sem CPL';
+          lines.push(`[TENANT — empresa gestora] ${data.tenantName} (${seg}): ${cplStr}, status=${tenantDetail.status}`);
+        }
+        for (const c of clients) {
+          const seg    = c.segmentName ?? 'sem segmento';
+          const cplStr = c.cpl != null ? `CPL R$${c.cpl.toFixed(2)}` : 'sem CPL';
+          lines.push(`[CLIENTE] ${c.clientName} (${seg}): ${cplStr}, investimento R$${c.spend.toFixed(2)}, status=${c.status}`);
+        }
+
+        const names = new Set(clients.map(c => c.clientName));
+        const subUnder = data.underperformers.filter(u => names.has(u.clientName));
+        const subPats  = data.insights.filter(i => segLabel === null || i.segmentName === segLabel);
+
+        const clientContextText  = lines.length > 0 ? lines.join('\n') : '- Sem dados de clientes no período';
+        const criticalAlertsText = subUnder.length > 0
+          ? subUnder.map(c => `- ${c.clientName}: ${c.reason}`).join('\n')
+          : '- Nenhum cliente em estado crítico';
+        const patternsText       = subPats.length > 0
+          ? subPats.map(i => `- [${i.type.toUpperCase()}] ${i.title}`).join('\n')
+          : '- Nenhum padrão identificado no período';
+
+        return invokeForContext({
+          templateKey: 'cross_pollination_insights',
+          tenantId:    payload.tenantId!,
+          clientId:    null,
+          variables: {
+            tenant_name:     data.tenantName,
+            total_clients:   String(clients.length),
+            period:          String(period),
+            client_context:  clientContextText,
+            critical_alerts: criticalAlertsText,
+            patterns:        patternsText,
+          },
+          maxTokens: 400,
+        });
+      };
+
+      // Agrupa clientes gerenciados por segmento
+      const bySeg = new Map<string, CrossClientDetail[]>();
       for (const c of managedClients) {
-        const seg    = c.segmentName ?? 'sem segmento';
-        const cplStr = c.cpl != null ? `CPL R$${c.cpl.toFixed(2)}` : 'sem CPL';
-        clientContextLines.push(
-          `[CLIENTE] ${c.clientName} (${seg}): ${cplStr}, investimento R$${c.spend.toFixed(2)}, status=${c.status}`
-        );
+        const key = c.segmentName ?? 'Sem segmento';
+        if (!bySeg.has(key)) bySeg.set(key, []);
+        bySeg.get(key)!.push(c);
       }
 
-      const clientContextText  = clientContextLines.length > 0 ? clientContextLines.join('\n') : '- Sem dados de clientes no período';
-      const criticalAlertsText = data.underperformers.length > 0
-        ? data.underperformers.map(c => `- ${c.clientName}: ${c.reason}`).join('\n')
-        : '- Nenhum cliente em estado crítico';
-      const patternsText       = data.insights.length > 0
-        ? data.insights.map(i => `- [${i.type.toUpperCase()}] ${i.title}`).join('\n')
-        : '- Nenhum padrão identificado no período';
-
-      data.narrative = await invokeForContext({
-        templateKey: 'cross_pollination_insights',
-        tenantId:    payload.tenantId,
-        clientId:    null,
-        variables: {
-          tenant_name:     data.tenantName,
-          total_clients:   String(managedClients.length),
-          period:          String(period),
-          client_context:  clientContextText,
-          critical_alerts: criticalAlertsText,
-          patterns:        patternsText,
-        },
-        maxTokens: 400,
-      });
+      // Decide modo: filtro ativo OU ≤1 segmento → narrativa única; senão → por segmento
+      if (segmentId || bySeg.size <= 1) {
+        data.narrative = await narrateSubset(managedClients, null);
+      } else {
+        const segEntries = Array.from(bySeg.entries());
+        const parts = await Promise.all(
+          segEntries.map(async ([segName, clients]) => {
+            const text = await narrateSubset(clients, segName).catch(() => null);
+            return text ? `▸ ${segName.toUpperCase()}\n${text}` : null;
+          }),
+        );
+        const valid = parts.filter((p): p is string => !!p);
+        data.narrative = valid.length > 0 ? valid.join('\n\n') : null;
+      }
     } catch (llmErr: any) {
       console.warn('[cross-insights] LLM não disponível:', llmErr.message);
     }

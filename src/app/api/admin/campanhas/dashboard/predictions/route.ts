@@ -48,7 +48,9 @@ export async function GET(request: NextRequest) {
     const projectionDays  = parseInt(searchParams.get('days') || '30');
 
     // Janela histórica: usa o período selecionado (mínimo 14 dias para regressão)
-    const histEnd   = endDateStr   ? new Date(endDateStr)   : new Date();
+    const histEnd   = endDateStr
+      ? (endDateStr.length === 10 ? new Date(endDateStr + 'T23:59:59.999Z') : new Date(endDateStr))
+      : new Date();
     const histStart = startDateStr
       ? new Date(startDateStr)
       : new Date(histEnd.getTime() - 60 * 86400000);

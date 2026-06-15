@@ -2,6 +2,10 @@ import prisma from '../prisma';
 import { resolveSegment } from '../../intelligence/segmentResolver';
 import { resolveBenchmarks } from '../../intelligence/benchmarkResolver';
 
+// Máscara monetária pt-BR (R$ 99.999,99) para as strings descritivas do relatório
+const fmtBRL = (v: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
 export interface WastedCampaign {
   id: string;
   name: string;
@@ -21,10 +25,11 @@ export interface WastedSpendReport {
   period: { start: Date; end: Date };
   totalWasted: number;
   byCategory: {
-    ZERO_LEADS_SPEND:  WastedCategory;
-    HIGH_CPL_SPEND:    WastedCategory;
-    FATIGUED_CONTINUE: WastedCategory;
-    LEARNING_LIMITED:  WastedCategory;
+    ZERO_LEADS_SPEND:   WastedCategory;
+    HIGH_CPL_SPEND:     WastedCategory;
+    ELEVATED_CPL_SPEND: WastedCategory;
+    FATIGUED_CONTINUE:  WastedCategory;
+    LEARNING_LIMITED:   WastedCategory;
   };
   recoveryPlan: string[];
 }
@@ -37,17 +42,21 @@ export async function calculateWastedSpend(
   const since  = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
   const period = { start: since, end: new Date() };
 
-  const segment = await resolveSegment(tenantId, clientId ?? undefined);
+  // 'own' e 'segment' são sentinelas de UI — só UUID real é cliente
+  const realClientId = (clientId && clientId !== 'own' && clientId !== 'segment') ? clientId : null;
+
+  const segment = await resolveSegment(tenantId, realClientId ?? undefined);
   const b = await resolveBenchmarks(
     ['cpl_ideal', 'cpl_critical', 'ctr_min', 'frequency_max', 'spend_no_lead', 'min_leads_scale', 'min_days_running'],
     tenantId,
     segment?.id ?? null,
-    clientId,
+    realClientId,
   );
 
   const campWhere: any = { tenantId };
-  if (clientId === 'own') campWhere.clientId = null;
-  else if (clientId)     campWhere.clientId = clientId;
+  if (clientId === 'own')   campWhere.clientId = null;        // Minha Empresa → campanhas próprias
+  else if (realClientId)    campWhere.clientId = realClientId; // cliente específico
+  // 'segment' ou ausente → sem filtro de cliente (todas as campanhas do tenant)
 
   const campaigns = await prisma.campaign.findMany({
     where: campWhere,
@@ -103,6 +112,7 @@ export async function calculateWastedSpend(
 
   const zeroLeads:      WastedCampaign[] = [];
   const highCpl:        WastedCampaign[] = [];
+  const elevatedCpl:    WastedCampaign[] = [];
   const fatigued:       WastedCampaign[] = [];
   const learningLimited: WastedCampaign[] = [];
   const classified = new Set<string>();
@@ -117,7 +127,7 @@ export async function calculateWastedSpend(
       zeroLeads.push({
         id: s.id, name: s.name,
         wasted: s.totalSpend,
-        details: `R$${s.totalSpend.toFixed(2)} gastos sem nenhum lead em ${s.daysRunning} dia(s)`,
+        details: `${fmtBRL(s.totalSpend)} gastos sem nenhum lead em ${s.daysRunning} dia(s)`,
       });
       classified.add(s.id);
       continue;
@@ -129,10 +139,24 @@ export async function calculateWastedSpend(
       highCpl.push({
         id: s.id, name: s.name,
         wasted,
-        details: `CPL R$${s.cpl.toFixed(2)} vs ideal R$${b.cpl_ideal.toFixed(2)} — ${s.leads} lead(s)`,
+        details: `CPL ${fmtBRL(s.cpl)} vs ideal ${fmtBRL(b.cpl_ideal)} — ${s.leads} lead(s)`,
       });
       classified.add(s.id);
       continue;
+    }
+
+    // ELEVATED_CPL_SPEND — CPL acima do ideal mas abaixo do crítico (desperdício "leve")
+    if (!classified.has(s.id) && s.leads > 0 && s.cpl > b.cpl_ideal && s.cpl <= b.cpl_critical) {
+      const wasted = Math.max(0, s.totalSpend - s.leads * b.cpl_ideal);
+      if (wasted > 0) {
+        elevatedCpl.push({
+          id: s.id, name: s.name,
+          wasted,
+          details: `CPL ${fmtBRL(s.cpl)} acima do ideal ${fmtBRL(b.cpl_ideal)} (crítico ${fmtBRL(b.cpl_critical)}) — ${s.leads} lead(s)`,
+        });
+        classified.add(s.id);
+        continue;
+      }
     }
 
     // FATIGUED_CONTINUE — audience frequency above max
@@ -167,15 +191,18 @@ export async function calculateWastedSpend(
   const sum = (arr: WastedCampaign[]) => arr.reduce((t, c) => t + c.wasted, 0);
   const zeroTotal     = sum(zeroLeads);
   const highTotal     = sum(highCpl);
+  const elevatedTotal = sum(elevatedCpl);
   const fatiguedTotal = sum(fatigued);
   const learningTotal = sum(learningLimited);
-  const totalWasted   = zeroTotal + highTotal + fatiguedTotal + learningTotal;
+  const totalWasted   = zeroTotal + highTotal + elevatedTotal + fatiguedTotal + learningTotal;
 
   const recoveryPlan: string[] = [];
   if (zeroLeads.length > 0)
     recoveryPlan.push(`Pausar ${zeroLeads.length} campanha(s) com gasto sem leads e revisar segmentação e criativos`);
   if (highCpl.length > 0)
     recoveryPlan.push(`Otimizar ${highCpl.length} campanha(s) com CPL crítico — testar novos públicos e formatos de anúncio`);
+  if (elevatedCpl.length > 0)
+    recoveryPlan.push(`Ajustar ${elevatedCpl.length} campanha(s) com CPL acima do ideal — refinar público e criativos antes que vire crítico`);
   if (fatigued.length > 0)
     recoveryPlan.push(`Renovar criativos ou expandir audiência em ${fatigued.length} campanha(s) com fadiga detectada`);
   if (learningLimited.length > 0)
@@ -195,7 +222,11 @@ export async function calculateWastedSpend(
       },
       HIGH_CPL_SPEND: {
         amount: highTotal, campaigns: highCpl,
-        explanation: `Excesso gasto acima do CPL ideal (R$${b.cpl_ideal.toFixed(2)}) em campanhas com custo por lead crítico (>R$${b.cpl_critical.toFixed(2)})`,
+        explanation: `Excesso gasto acima do CPL ideal (${fmtBRL(b.cpl_ideal)}) em campanhas com custo por lead crítico (>${fmtBRL(b.cpl_critical)})`,
+      },
+      ELEVATED_CPL_SPEND: {
+        amount: elevatedTotal, campaigns: elevatedCpl,
+        explanation: `Excesso gasto acima do CPL ideal (${fmtBRL(b.cpl_ideal)}) em campanhas com CPL ainda abaixo do crítico (${fmtBRL(b.cpl_critical)}) — desperdício leve, evitável`,
       },
       FATIGUED_CONTINUE: {
         amount: fatiguedTotal, campaigns: fatigued,
@@ -222,10 +253,11 @@ function emptyReport(
     period,
     totalWasted: 0,
     byCategory: {
-      ZERO_LEADS_SPEND:  { amount: 0, campaigns: [], explanation: 'Campanhas que consumiram verba sem gerar nenhum lead no período' },
-      HIGH_CPL_SPEND:    { amount: 0, campaigns: [], explanation: `Excesso gasto acima do CPL ideal (R$${b.cpl_ideal?.toFixed(2) ?? '30.00'})` },
-      FATIGUED_CONTINUE: { amount: 0, campaigns: [], explanation: 'Verba gasta com público saturado' },
-      LEARNING_LIMITED:  { amount: 0, campaigns: [], explanation: 'Campanhas presas na fase de aprendizado' },
+      ZERO_LEADS_SPEND:   { amount: 0, campaigns: [], explanation: 'Campanhas que consumiram verba sem gerar nenhum lead no período' },
+      HIGH_CPL_SPEND:     { amount: 0, campaigns: [], explanation: `Excesso gasto acima do CPL ideal (${fmtBRL(b.cpl_ideal ?? 30)}) em campanhas com custo por lead crítico` },
+      ELEVATED_CPL_SPEND: { amount: 0, campaigns: [], explanation: `Excesso gasto acima do CPL ideal (${fmtBRL(b.cpl_ideal ?? 30)}), ainda abaixo do crítico — desperdício leve` },
+      FATIGUED_CONTINUE:  { amount: 0, campaigns: [], explanation: 'Verba gasta com público saturado' },
+      LEARNING_LIMITED:   { amount: 0, campaigns: [], explanation: 'Campanhas presas na fase de aprendizado' },
     },
     recoveryPlan: ['Nenhum desperdício crítico detectado — continue monitorando'],
   };

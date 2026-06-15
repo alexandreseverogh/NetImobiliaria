@@ -32,7 +32,10 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const clientId = searchParams.get('clientId') || null;
+  const rawClientId = searchParams.get('clientId') || null;
+  // 'segment' (= Todos os Clientes) é sentinela de UI → sem filtro de cliente.
+  // 'own' é preservado (campanhas próprias = client_id IS NULL, tratado no service).
+  const clientId = rawClientId === 'segment' ? null : rawClientId;
   const limit    = parseInt(searchParams.get('limit') ?? '12');
 
   try {
@@ -58,7 +61,9 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const periodDays    = Number(body.periodDays ?? 30);
   const withNarrative = Boolean(body.withNarrative ?? false);
-  const clientId      = body.clientId ?? null;
+  // 'segment' (Todos os Clientes) → sem filtro de cliente; 'own' preservado p/ o service
+  const rawClientId   = body.clientId ?? null;
+  const clientId      = rawClientId === 'segment' ? null : rawClientId;
   const campaignId    = body.campaignId ?? null;
 
   if (![7, 14, 30, 60, 90].includes(periodDays)) {

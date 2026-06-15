@@ -88,6 +88,9 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   const [step, setStep]             = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
+  // Iniciativas disponíveis para vincular (PLANNED/ACTIVE do cliente/own)
+  const [initiatives, setInitiatives] = useState<{ id: string; name: string; status: string }[]>([]);
+
   const [autoFields, setAutoFields] = useState({
     pixelId:            '',
     specialAdCategory:  'NONE',
@@ -130,6 +133,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     pixelId:           '',
     customEventType:   '',
     declaredAngle:     '',   // FASE 14 — vazio = deixa o Vision inferir
+    initiativeId:      '',   // vínculo opcional a uma Iniciativa de Marketing
   });
 
   /* pre-fill from identity + segment + whatsapp */
@@ -189,6 +193,22 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
       } catch { /* graceful fallback */ }
     }
     loadAutoFields();
+
+    // Carregar iniciativas vinculáveis (mesmo escopo de cliente da campanha)
+    async function loadInitiatives() {
+      try {
+        const scope = clientId ? clientId : 'own';
+        const res   = await fetch(`/api/admin/campanhas/iniciativas?clientId=${scope}&limit=100`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data  = await res.json();
+        // Só faz sentido vincular a iniciativas em andamento (planejada ou ativa)
+        const linkable = (data.items ?? []).filter(
+          (i: { status: string }) => i.status === 'PLANNED' || i.status === 'ACTIVE',
+        );
+        setInitiatives(linkable);
+      } catch { /* silencioso — vínculo é opcional */ }
+    }
+    loadInitiatives();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
@@ -263,6 +283,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
         pixelId:           form.pixelId           || autoFields.pixelId           || undefined,
         customEventType:   form.customEventType   || autoFields.customEventType   || 'LEAD',
         declaredAngle:     form.declaredAngle || undefined,   // FASE 14
+        initiativeId:      form.initiativeId || undefined,    // vínculo opcional à iniciativa
         clientId:          clientId || undefined,
         assetIds:          assetIds.length > 0 ? assetIds : undefined,
       });
@@ -372,8 +393,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
-              {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} />}
-              {step === 6 && <StepReview    form={form} selectedImages={selectedImages} autoFields={autoFields} />}
+              {step === 5 && <StepObjective form={form} updateForm={updateForm} autoFields={autoFields} initiatives={initiatives} />}
+              {step === 6 && <StepReview    form={form} selectedImages={selectedImages} autoFields={autoFields} initiatives={initiatives} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -1320,7 +1341,7 @@ function StepBudget({ form, updateForm }: any) {
    STEP 5 — OBJETIVO & CONVERSÃO
 ══════════════════════════════════════════════════════════ */
 
-function StepObjective({ form, updateForm, autoFields }: any) {
+function StepObjective({ form, updateForm, autoFields, initiatives = [] }: any) {
   const effectiveSpecial = form.specialAdCategory || autoFields.specialAdCategory || 'NONE';
   const effectivePixel   = form.pixelId           || autoFields.pixelId           || '';
   const effectiveEvent   = form.customEventType   || autoFields.customEventType   || 'LEAD';
@@ -1440,6 +1461,28 @@ function StepObjective({ form, updateForm, autoFields }: any) {
           ))}
         </select>
       </Section>
+
+      {/* Vínculo opcional a uma Iniciativa de Marketing — agrupa a campanha sob um objetivo/budget comuns */}
+      {initiatives.length > 0 && (
+        <Section title="Iniciativa de Marketing">
+          <p className="text-sm text-gray-500 -mt-2 mb-2">
+            Opcional — vincule esta campanha a uma <span className="font-semibold text-gray-700">iniciativa</span> para
+            consolidar métricas, orçamento planejado e KPI sob um objetivo comum.
+          </p>
+          <select
+            value={form.initiativeId || ''}
+            onChange={e => updateForm({ initiativeId: e.target.value })}
+            className={cn(inputCls, 'w-full max-w-sm')}
+          >
+            <option value="">Sem iniciativa</option>
+            {initiatives.map((i: { id: string; name: string; status: string }) => (
+              <option key={i.id} value={i.id}>
+                {i.name}{i.status === 'PLANNED' ? ' (planejada)' : ''}
+              </option>
+            ))}
+          </select>
+        </Section>
+      )}
     </div>
   );
 }
@@ -1448,10 +1491,13 @@ function StepObjective({ form, updateForm, autoFields }: any) {
    STEP 6 — REVISÃO
 ══════════════════════════════════════════════════════════ */
 
-function StepReview({ form, selectedImages, autoFields }: any) {
+function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any) {
   const resolveAngleLabel = (slug: string) =>
     autoFields?.allowedAngles?.find((a: { slug: string; label: string }) => a.slug === slug)?.label
       ?? angleLabel(slug);
+  const initiativeName = form.initiativeId
+    ? (initiatives.find((i: { id: string; name: string }) => i.id === form.initiativeId)?.name ?? '(vinculada)')
+    : 'Sem iniciativa';
   return (
     <div className="space-y-8">
       <Section title="Resumo da Campanha">
@@ -1469,6 +1515,7 @@ function StepReview({ form, selectedImages, autoFields }: any) {
           <Row label="Horários"    value={form.scheduleTimeSlots.map((s: any) => `${s.start}h — ${s.end}h`).join(', ')} />
           <Row label="Objetivo"    value={OBJECTIVES.find(o => o.value === form.objective)?.label || form.objective} />
           <Row label="Ângulo"      value={form.declaredAngle ? resolveAngleLabel(form.declaredAngle) : 'IA infere'} />
+          <Row label="Iniciativa"  value={initiativeName} />
         </div>
       </Section>
       <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex items-center gap-3">

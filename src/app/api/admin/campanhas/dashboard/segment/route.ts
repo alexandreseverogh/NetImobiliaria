@@ -120,7 +120,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'segmentId obrigatório' }, { status: 400 });
     }
 
-    const endDate   = endStr   ? new Date(endStr)   : new Date();
+    const endDate   = endStr
+      ? (endStr.length === 10 ? new Date(endStr + 'T23:59:59.999Z') : new Date(endStr))
+      : new Date();
     const startDate = startStr ? new Date(startStr) : new Date(endDate.getTime() - 30 * 86400000);
     const periodDays = Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000);
 

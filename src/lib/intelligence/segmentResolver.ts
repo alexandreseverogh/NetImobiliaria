@@ -40,7 +40,8 @@ export async function resolveSegment(
 ): Promise<Segment | null> {
   const pool = getPool();
 
-  if (clientId && clientId !== 'own') {
+  // 'own' e 'segment' são sentinelas de UI — nunca são UUID de cliente
+  if (clientId && clientId !== 'own' && clientId !== 'segment') {
     const res = await pool.query<Segment>(
       `SELECT ss.*
        FROM public.system_segments ss

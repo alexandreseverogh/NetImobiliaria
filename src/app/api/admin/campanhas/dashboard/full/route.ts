@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
     const statusFilter    = searchParams.get('statusFilter');
     const adSetId         = searchParams.get('adSetId');
 
-    const endDate = endStr ? new Date(endStr) : new Date();
+    // Se vier só YYYY-MM-DD (sem horário), expande para 23:59:59.999 UTC para cobrir o dia inteiro.
+    const endDate = endStr
+      ? (endStr.length === 10 ? new Date(endStr + 'T23:59:59.999Z') : new Date(endStr))
+      : new Date();
     const startDate = startStr
       ? new Date(startStr)
       : new Date(endDate.getTime() - 30 * 86400000);

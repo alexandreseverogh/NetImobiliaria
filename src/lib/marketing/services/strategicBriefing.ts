@@ -98,11 +98,19 @@ export async function gatherBriefingContext(
   periodDays: number,
   tenantId?: string,
   clientId?: string,
-  opts?: { segmentId?: string; precomputedRuleInsights?: any[] },
+  opts?: { segmentId?: string; precomputedRuleInsights?: any[]; startDate?: string; endDate?: string },
 ): Promise<BriefingContext> {
   const now = new Date();
-  const startDate = new Date(now.getTime() - periodDays * 86400000);
-  const prevStartDate = new Date(startDate.getTime() - periodDays * 86400000);
+  // Se datas explícitas forem passadas, usa-as (alinha com o filtro do dashboard).
+  // Caso contrário, calcula a janela a partir de agora.
+  const startDate = opts?.startDate
+    ? new Date(opts.startDate)
+    : new Date(now.getTime() - periodDays * 86400000);
+  const endDateObj = opts?.endDate ? new Date(opts.endDate) : now;
+  const effectivePeriodDays = Math.max(1,
+    Math.ceil((endDateObj.getTime() - startDate.getTime()) / 86400000) + 1,
+  );
+  const prevStartDate = new Date(startDate.getTime() - effectivePeriodDays * 86400000);
   const segmentId = opts?.segmentId;
 
   const campaignFilter: any = tenantId ? { tenantId } : {};
@@ -127,7 +135,7 @@ export async function gatherBriefingContext(
 
   for (const campaign of allCampaigns) {
     const insights = await prisma.insight.findMany({
-      where: { campaignId: campaign.id, date: { gte: startDate } },
+      where: { campaignId: campaign.id, date: { gte: startDate, lte: endDateObj } },
       orderBy: { date: 'desc' },
     });
 
@@ -136,7 +144,7 @@ export async function gatherBriefingContext(
     });
 
     const leads = await prisma.lead.count({
-      where: { tenantId: tenantId || undefined, campaignId: campaign.id, clickedAt: { gte: startDate } },
+      where: { tenantId: tenantId || undefined, campaignId: campaign.id, clickedAt: { gte: startDate, lte: endDateObj } },
     });
 
     const prevLeadCount = await prisma.lead.count({
@@ -262,10 +270,13 @@ export async function generateStrategicBriefing(
   periodDaysOverride?: number,
   segment?: { id: string; name: string },
   precomputedRuleInsights?: any[],
+  dateRange?: { startDate?: string; endDate?: string },
 ) {
   const periodDays = periodDaysOverride ?? (type === 'closing' ? 1 : 7);
   const context = await gatherBriefingContext(periodDays, tenantId, clientId, {
     segmentId: segment?.id,
+    startDate: dateRange?.startDate,
+    endDate:   dateRange?.endDate,
     precomputedRuleInsights,
   });
   const segFields = { segmentId: segment?.id ?? null, segmentName: segment?.name ?? null };
@@ -284,7 +295,7 @@ export async function generateStrategicBriefing(
       data: {
         type,
         tenantId:   tenantId || null,
-        clientId:   clientId  || null,
+        clientId:   (!clientId || clientId === 'own') ? null : clientId,
         ...segFields,
         periodDays: periodDays,
         content:    empty as any,
@@ -321,7 +332,7 @@ export async function generateStrategicBriefing(
       data: {
         type,
         tenantId:   tenantId || null,
-        clientId:   clientId  || null,
+        clientId:   (!clientId || clientId === 'own') ? null : clientId,
         ...segFields,
         periodDays: periodDays,
         content:    briefingContent as any,
@@ -347,7 +358,7 @@ export async function generateStrategicBriefing(
       data: {
         type,
         tenantId:   tenantId || null,
-        clientId:   clientId  || null,
+        clientId:   (!clientId || clientId === 'own') ? null : clientId,
         ...segFields,
         periodDays: periodDays,
         content:    fallback as any,
@@ -370,24 +381,23 @@ export async function generateBriefingsForScope(
   tenantId?: string,
   clientId?: string,
   periodDaysOverride?: number,
+  dateRange?: { startDate?: string; endDate?: string },
 ) {
   const periodDays = periodDaysOverride ?? (type === 'closing' ? 1 : 7);
-  if (!tenantId) return [await generateStrategicBriefing(type, tenantId, clientId, periodDays)];
+  if (!tenantId) return [await generateStrategicBriefing(type, tenantId, clientId, periodDays, undefined, undefined, dateRange)];
 
   const segments = await getActiveSegmentsForScope(tenantId, clientId);
   if (segments.length === 0) {
-    // Sem segmentos no escopo → comporta como antes (1 briefing geral)
-    return [await generateStrategicBriefing(type, tenantId, clientId, periodDays)];
+    return [await generateStrategicBriefing(type, tenantId, clientId, periodDays, undefined, undefined, dateRange)];
   }
 
-  // Insights por segmento computados uma vez (benchmark correto por segmento)
   const aiResult: any = await generateAiInsights(undefined, tenantId, clientId);
   const bySeg = new Map<string, any[]>((aiResult.bySegment ?? []).map((g: any) => [g.segmentId, g.insights]));
 
   const out = [];
   for (const seg of segments) {
     const ruleInsights = bySeg.get(seg.id) ?? [];
-    out.push(await generateStrategicBriefing(type, tenantId, clientId, periodDays, { id: seg.id, name: seg.name }, ruleInsights));
+    out.push(await generateStrategicBriefing(type, tenantId, clientId, periodDays, { id: seg.id, name: seg.name }, ruleInsights, dateRange));
   }
   return out;
 }

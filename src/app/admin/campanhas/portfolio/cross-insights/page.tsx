@@ -205,17 +205,34 @@ function RankedTable({ performers }: { performers: CrossPerformer[] }) {
   const withCpl = performers.filter(p => p.cpl !== null);
   const maxCpl  = withCpl.length > 0 ? Math.max(...withCpl.map(p => p.cpl!)) : 1;
 
+  // Cor do índice de eficiência (cpl ÷ cplCritical): < 0,6 ótimo · < 1 atenção · ≥ 1 crítico
+  function effColor(eff: number): string {
+    if (eff < 0.6) return 'text-emerald-600';
+    if (eff < 1)   return 'text-amber-600';
+    return 'text-red-500';
+  }
+
   function rowStyle(p: CrossPerformer, rank: number): string {
-    if (rank <= 3 && p.cpl !== null) return 'bg-emerald-50/60 hover:bg-emerald-50';
-    if (p.status === 'critical')     return 'bg-red-50/50    hover:bg-red-50';
-    if (p.status === 'warn')         return 'bg-amber-50/40  hover:bg-amber-50';
+    if (rank <= 3 && p.efficiencyIndex !== null) return 'bg-emerald-50/60 hover:bg-emerald-50';
+    if (p.status === 'critical')                 return 'bg-red-50/50    hover:bg-red-50';
+    if (p.status === 'warn')                     return 'bg-amber-50/40  hover:bg-amber-50';
     return 'hover:bg-gray-50';
   }
 
-  function barColor(p: CrossPerformer, rank: number): string {
-    if (rank <= 3 && p.cpl !== null) return 'bg-emerald-500';
-    if (p.status === 'critical')     return 'bg-red-400';
-    if (p.status === 'warn')         return 'bg-amber-400';
+  // Barra normalizada pelo índice de eficiência (comparável entre segmentos).
+  // Fallback: clientes sem benchmark crítico usam CPL absoluto vs maxCpl do conjunto.
+  function barWidth(p: CrossPerformer): number {
+    if (p.efficiencyIndex !== null) return Math.min((p.efficiencyIndex / 1.5) * 100, 100);
+    if (p.cpl !== null)             return Math.min((p.cpl / maxCpl) * 100, 100);
+    return 0;
+  }
+
+  function barColor(p: CrossPerformer): string {
+    if (p.efficiencyIndex !== null) {
+      if (p.efficiencyIndex < 0.6) return 'bg-emerald-500';
+      if (p.efficiencyIndex < 1)   return 'bg-amber-400';
+      return 'bg-red-400';
+    }
     return 'bg-indigo-400';
   }
 
@@ -246,7 +263,7 @@ function RankedTable({ performers }: { performers: CrossPerformer[] }) {
             >
               {/* Rank / medal */}
               <span className="text-base font-black text-center leading-none">
-                {rank <= 3 && p.cpl !== null ? MEDALS[rank - 1] : (
+                {rank <= 3 && p.efficiencyIndex !== null ? MEDALS[rank - 1] : (
                   <span className="text-xs font-bold text-gray-400">{rank}</span>
                 )}
               </span>
@@ -255,8 +272,13 @@ function RankedTable({ performers }: { performers: CrossPerformer[] }) {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{p.clientName}</p>
                 <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                  {rank <= 3 && p.cpl !== null && (
+                  {rank <= 3 && p.efficiencyIndex !== null && (
                     <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wide">✅ top {rank}</span>
+                  )}
+                  {p.efficiencyIndex !== null && (
+                    <span className={`text-[9px] font-black uppercase tracking-wide ${effColor(p.efficiencyIndex)}`}>
+                      {Math.round(p.efficiencyIndex * 100)}% do CPL crítico
+                    </span>
                   )}
                   {p.status === 'critical' && (
                     <span className="text-[9px] font-black text-red-500 uppercase tracking-wide">⚠️ crítico</span>
@@ -295,10 +317,10 @@ function RankedTable({ performers }: { performers: CrossPerformer[] }) {
                   <span className="text-xs font-bold text-gray-800 w-[68px] text-right shrink-0 tabular-nums">
                     R$ {p.cpl.toFixed(2)}
                   </span>
-                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden" title={p.efficiencyIndex !== null ? `${Math.round(p.efficiencyIndex * 100)}% do CPL crítico do segmento` : 'CPL absoluto (sem benchmark crítico)'}>
                     <div
-                      className={`h-full rounded-full transition-all duration-500 ${barColor(p, rank)}`}
-                      style={{ width: `${Math.min((p.cpl / maxCpl) * 100, 100)}%` }}
+                      className={`h-full rounded-full transition-all duration-500 ${barColor(p)}`}
+                      style={{ width: `${barWidth(p)}%` }}
                     />
                   </div>
                 </div>
@@ -357,22 +379,24 @@ function AngleCplBar({ cpl, maxCpl }: { cpl: number | null; maxCpl: number }) {
   );
 }
 
-function AngleWidget({ period }: { period: string }) {
+function AngleWidget({ period, segmentId, segmentName }: { period: string; segmentId?: string; segmentName?: string | null }) {
   const [data,       setData]       = useState<AngleApiResult | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [generating, setGenerating] = useState(false);
 
+  const segParam = segmentId ? `&segmentId=${segmentId}` : '';
+
   useEffect(() => {
     setLoading(true);
-    adminFetch(`/api/admin/campanhas/portfolio/angle-insights?period=${period}`)
+    adminFetch(`/api/admin/campanhas/portfolio/angle-insights?period=${period}${segParam}`)
       .then(r => r.json()).then(setData).catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [period]);
+  }, [period, segParam]);
 
   const generateNarrative = async () => {
     setGenerating(true);
     try {
-      const r = await adminFetch(`/api/admin/campanhas/portfolio/angle-insights?period=${period}&narrative=true`);
+      const r = await adminFetch(`/api/admin/campanhas/portfolio/angle-insights?period=${period}${segParam}&narrative=true`);
       setData(await r.json());
     } finally { setGenerating(false); }
   };
@@ -383,9 +407,14 @@ function AngleWidget({ period }: { period: string }) {
   return (
     <section>
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <h2 className="font-bold text-gray-900 flex items-center gap-2">
+        <h2 className="font-bold text-gray-900 flex items-center gap-2 flex-wrap">
           <ChatBubbleLeftRightIcon className="h-5 w-5 text-violet-500" />
           Performance por Ângulo
+          {segmentName && (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${segColor(segmentName)}`}>
+              {segmentName}
+            </span>
+          )}
         </h2>
         <button
           onClick={generateNarrative}
@@ -757,7 +786,7 @@ export default function CrossInsightsPage() {
                     {new Date(data.generatedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700 leading-relaxed">{data.narrative}</p>
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{data.narrative}</p>
               </motion.div>
             )}
 
@@ -792,12 +821,15 @@ export default function CrossInsightsPage() {
                     </div>
                     <RankedTable performers={data.allPerformers} />
 
-                    {/* Nota informativa sobre comparação cross-segment */}
+                    {/* Nota: ranking normalizado por benchmark do próprio segmento */}
                     {!activeSegmentName && segments.length >= 2 && (
-                      <p className="mt-2 text-xs text-gray-400 flex items-center gap-1">
+                      <p className="mt-2 text-xs text-gray-400 flex items-start gap-1">
                         <span>ℹ️</span>
-                        CPL absoluto não é comparável entre segmentos diferentes.
-                        Use o filtro de segmento para comparações válidas.
+                        <span>
+                          Ranking ordenado pelo <strong>índice de eficiência</strong> (CPL ÷ CPL crítico do
+                          próprio segmento) — comparável entre segmentos distintos. O valor de CPL absoluto
+                          ao lado é apenas referência e <strong>não</strong> deve ser comparado entre nichos.
+                        </span>
                       </p>
                     )}
                   </section>
@@ -865,8 +897,22 @@ export default function CrossInsightsPage() {
                   </div>
                 )}
 
-                {/* ── Performance por Ângulo ────────────────────────── */}
-                <AngleWidget period={period} />
+                {/* ── Performance por Ângulo — isolada por segmento ─── */}
+                {segment ? (
+                  /* Filtro de segmento ativo → um único widget do segmento */
+                  <AngleWidget period={period} segmentId={segment} segmentName={activeSegmentName} />
+                ) : segments.length >= 2 ? (
+                  /* Sem filtro + múltiplos segmentos → um widget por segmento
+                     (CPL por ângulo só é comparável dentro do mesmo nicho) */
+                  <div className="space-y-8">
+                    {segments.map(s => (
+                      <AngleWidget key={s.id} period={period} segmentId={s.id} segmentName={s.name} />
+                    ))}
+                  </div>
+                ) : (
+                  /* Um único segmento (ou nenhum) → widget agregado */
+                  <AngleWidget period={period} segmentName={segments[0]?.name ?? null} />
+                )}
 
               </div>
             )}

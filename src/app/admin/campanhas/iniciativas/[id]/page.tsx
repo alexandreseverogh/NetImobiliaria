@@ -179,6 +179,38 @@ export default function IniciativaDetailPage() {
   const cpl       = m.totalLeads > 0 ? m.totalSpend / m.totalLeads : null;
   const nextStatus = STATUS_NEXT[data.status];
 
+  // ── Pacing — valor exclusivo da iniciativa: ritmo de gasto vs orçamento planejado ──
+  const DAY    = 86400000;
+  const startMs = data.startDate ? new Date(data.startDate).getTime() : null;
+  const endMs   = data.endDate   ? new Date(data.endDate).getTime()   : null;
+  let pacing: {
+    daysTotal: number; daysElapsed: number; daysRemaining: number; timePct: number;
+    spendRate: number; projectedSpend: number; runwayDays: number | null; overBudget: boolean;
+  } | null = null;
+  if (budget !== null && startMs && endMs && endMs > startMs) {
+    const daysTotal     = Math.max(1, Math.round((endMs - startMs) / DAY));
+    const daysElapsed   = Math.max(0, Math.min(daysTotal, Math.round((Date.now() - startMs) / DAY)));
+    const daysRemaining = Math.max(0, daysTotal - daysElapsed);
+    const timePct       = Math.min(100, (daysElapsed / daysTotal) * 100);
+    const spendRate     = daysElapsed > 0 ? m.totalSpend / daysElapsed : 0;
+    const projectedSpend = spendRate * daysTotal;
+    const runwayDays    = spendRate > 0 ? Math.max(0, (budget - m.totalSpend) / spendRate) : null;
+    pacing = { daysTotal, daysElapsed, daysRemaining, timePct, spendRate, projectedSpend, runwayDays, overBudget: projectedSpend > budget };
+  }
+
+  // KPI pacing — apenas para KPIs de volume (mapeáveis às métricas consolidadas)
+  const KPI_VALUE_MAP: Record<string, number> = {
+    Leads:       m.totalLeads,
+    Conversões:  m.totalConversions,
+    Impressões:  m.totalImpressions,
+    Cliques:     m.totalClicks,
+  };
+  const kpiTarget   = data.primaryKpiTarget ? Number(data.primaryKpiTarget) : null;
+  const kpiCurrent  = data.primaryKpi ? KPI_VALUE_MAP[data.primaryKpi] : undefined;
+  const kpiProgress = (kpiTarget && kpiTarget > 0 && kpiCurrent !== undefined)
+    ? Math.min(100, (kpiCurrent / kpiTarget) * 100)
+    : null;
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="max-w-5xl mx-auto space-y-5">
@@ -275,6 +307,90 @@ export default function IniciativaDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Ritmo (pacing) — projeção de orçamento e meta de KPI */}
+        {(pacing || kpiProgress !== null) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {/* Pacing de orçamento */}
+            {pacing && (
+              <div className={`bg-white rounded-2xl border shadow-sm p-5 ${pacing.overBudget ? 'border-red-100' : 'border-emerald-100'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ritmo de Orçamento</p>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wide ${
+                    pacing.overBudget ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                  }`}>
+                    {pacing.overBudget ? '⚠️ acima do ritmo' : '✓ no ritmo'}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  No ritmo atual de <strong className="text-gray-900">{formatCurrency(pacing.spendRate)}/dia</strong>,
+                  a projeção de gasto ao fim é <strong className={pacing.overBudget ? 'text-red-600' : 'text-emerald-700'}>
+                    {formatCurrency(pacing.projectedSpend)}
+                  </strong> vs. orçamento de <strong className="text-gray-900">{formatCurrency(budget!)}</strong>.
+                </p>
+                <div className="grid grid-cols-3 gap-3 mt-4">
+                  <div>
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Decorrido</p>
+                    <p className="text-sm font-black text-gray-900">{pacing.daysElapsed}/{pacing.daysTotal}d</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Restante</p>
+                    <p className="text-sm font-black text-gray-900">{pacing.daysRemaining}d</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Verba dura</p>
+                    <p className={`text-sm font-black ${
+                      pacing.runwayDays !== null && pacing.runwayDays < pacing.daysRemaining ? 'text-red-600' : 'text-gray-900'
+                    }`}>
+                      {pacing.runwayDays === null ? '—' : `${Math.round(pacing.runwayDays)}d`}
+                    </p>
+                  </div>
+                </div>
+                {pacing.runwayDays !== null && pacing.runwayDays < pacing.daysRemaining && (
+                  <p className="text-[11px] text-red-600 font-medium mt-2">
+                    A verba acaba ~{Math.round(pacing.daysRemaining - pacing.runwayDays)} dia(s) antes do fim do período.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Pacing de KPI */}
+            {kpiProgress !== null && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Meta de {data.primaryKpi}</p>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wide bg-indigo-50 text-indigo-600 border border-indigo-100">
+                    {kpiProgress.toFixed(0)}% da meta
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  <strong className="text-gray-900">{formatNumber(kpiCurrent!)}</strong> de
+                  <strong className="text-gray-900"> {formatNumber(kpiTarget!)}</strong> {data.primaryKpi?.toLowerCase()}
+                  {pacing && (
+                    <span className="text-gray-400">
+                      {' '}· tempo decorrido {pacing.timePct.toFixed(0)}%
+                    </span>
+                  )}
+                </p>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden mt-3 relative">
+                  <div
+                    className={`h-full rounded-full transition-all ${kpiProgress >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                    style={{ width: `${kpiProgress}%` }}
+                  />
+                  {/* Marcador de tempo decorrido — referência de ritmo esperado */}
+                  {pacing && (
+                    <div className="absolute top-0 bottom-0 w-0.5 bg-gray-400" style={{ left: `${pacing.timePct}%` }} title="Tempo decorrido" />
+                  )}
+                </div>
+                {pacing && kpiProgress < pacing.timePct && (
+                  <p className="text-[11px] text-amber-600 font-medium mt-2">
+                    Abaixo do ritmo: meta {pacing.timePct.toFixed(0)}% esperada, atingido {kpiProgress.toFixed(0)}%.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Metrics grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

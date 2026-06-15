@@ -131,6 +131,8 @@ export async function POST(request: NextRequest) {
       assetIds,
       // FASE 14: ângulo de comunicação declarado (opcional; vazio = deixa o Vision inferir)
       declaredAngle,
+      // Vínculo opcional a uma Iniciativa de Marketing (agrupa a campanha sob um objetivo/budget)
+      initiativeId,
     } = body;
 
     // Valida clientId (deve pertencer ao tenant)
@@ -144,6 +146,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Valida initiativeId (deve pertencer ao tenant)
+    let validInitiativeId: string | null = null;
+    if (initiativeId) {
+      const initCheck = await prisma.marketingInitiative.findFirst({
+        where: { id: initiativeId, tenantId: payload.tenantId },
+        select: { id: true },
+      });
+      if (!initCheck) {
+        return NextResponse.json({ error: 'Iniciativa não encontrada ou não pertence ao tenant' }, { status: 400 });
+      }
+      validInitiativeId = initiativeId;
+    }
+
     // 1. Criar campanha
     const campaign = await prisma.campaign.create({
       data: {
@@ -154,6 +169,7 @@ export async function POST(request: NextRequest) {
         specialAdCategory,
         status: 'PAUSED',
         declaredAngle: normalizeAngle(declaredAngle),  // FASE 14
+        initiativeId: validInitiativeId,               // vínculo opcional à iniciativa
       },
     });
 

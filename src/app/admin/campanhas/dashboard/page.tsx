@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   getDashboardFull, getDashboardPredictions, getLatestBriefing, generateBriefing, getBriefings, syncInsights,
-  getFunnelData, getAnticipation,
+  getFunnelData, getAnticipation, getHookRateBenchmarks,
   type DashboardFullData, type PredictionData, type StrategicBriefingData, type AiInsightData,
   type FunnelData7, type AnticipationResult, type TimeToEvent, type Trajectory,
+  type HookRateBenchmarks,
   getAiInsights,
 } from '@/lib/marketing-api';
 import type { SegmentDashboardResponse } from '@/app/api/admin/campanhas/dashboard/segment/route';
@@ -17,7 +18,7 @@ import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelC
 import { CplTimelineChart }  from '@/components/marketing/charts/CplTimelineChart';
 import { StageFunnelWidget } from '@/components/marketing/StageFunnelWidget';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
-import { ArrowPathIcon, SparklesIcon, ClockIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, SparklesIcon, ClockIcon, SunIcon, MoonIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { DashboardHelpButton } from '@/components/marketing/DashboardHelpModal';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { CampaignLifecycleBadge } from '@/components/marketing/CampaignLifecycleBadge';
@@ -34,6 +35,7 @@ import { TrackingHealthWidget } from '@/components/marketing/TrackingHealthWidge
 import { TimeToEventBar }      from '@/components/marketing/charts/TimeToEventBar';
 import { SignalTrajectory }    from '@/components/marketing/charts/SignalTrajectory';
 import { DemandRadar }         from '@/components/marketing/charts/DemandRadar';
+import { CampaignMapWidget }   from '@/components/marketing/CampaignMapWidget';
 
 // ─── Palettes ─────────────────────────────────────────────────────────────────
 const PALETTE_DARK  = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#60a5fa', '#e879f9'];
@@ -51,6 +53,11 @@ export function DashboardPage() {
   const [aiInsights, setAiInsights]         = useState<AiInsightData[]>([]);
   const [aiInsightsBySegment, setAiInsightsBySegment] = useState<{ segmentId: string | null; segmentName: string; insights: any[] }[]>([]);
   const [anticipationData, setAnticipationData] = useState<AnticipationResult[]>([]);
+  const [hookRateBenchmarks, setHookRateBenchmarks] = useState<HookRateBenchmarks>({
+    hook_rate_critical: 8,
+    hook_rate_min: 12,
+    hook_rate_good: 22,
+  });
   const [loading, setLoading]               = useState(true);
   const [syncing, setSyncing]               = useState(false);
   const [generatingBriefing, setGeneratingBriefing] = useState(false);
@@ -170,18 +177,26 @@ export function DashboardPage() {
         ...(clientFilter     && { clientId:        clientFilter }),
       };
 
-      const [dashData, predData, funData] = await Promise.all([
+      const [dashData, predData, funData, hrbData] = await Promise.all([
         getDashboardFull(params).catch((e) => { console.error('[Dashboard] getDashboardFull:', e); return null; }),
         getDashboardPredictions(sharedFilters).catch(() => null),
         getFunnelData(sharedFilters).catch(() => null),
+        getHookRateBenchmarks(
+          clientFilter && clientFilter !== 'segment' ? clientFilter : null,
+          activeSegment ?? null,
+        ).catch(() => null),
       ]);
       if (dashData) setData(dashData);
       if (predData) setPredictions(predData);
       if (funData)  setFunnelData7(funData);
+      if (hrbData)  setHookRateBenchmarks(hrbData);
 
+      // Para briefing/histórico: filtrar pelo mesmo escopo de cliente ativo.
+      // 'segment' é UI-only — sem clientId para buscar o briefing do segmento todo.
+      const briefClientId = (clientFilter && clientFilter !== 'segment') ? clientFilter : undefined;
       Promise.all([
-        getLatestBriefing({ segmentId: activeSegment ?? undefined }).catch(() => null),
-        getBriefings({ limit: 5, segmentId: activeSegment ?? undefined }).catch(() => []),
+        getLatestBriefing({ segmentId: activeSegment ?? undefined, clientId: briefClientId }).catch(() => null),
+        getBriefings({ limit: 5, segmentId: activeSegment ?? undefined, clientId: briefClientId }).catch(() => []),
         getAiInsights(sharedFilters).catch(() => ({ insights: [], calibrationActions: [] })),
         getAnticipation({
           ...(clientFilter && { clientId: clientFilter as string }),
@@ -243,7 +258,11 @@ export function DashboardPage() {
   async function handleGenerateBriefing() {
     setGeneratingBriefing(true);
     try {
-      const bs = await generateBriefing('manual', clientFilter || undefined, effectivePeriodDays, activeSegment ?? undefined);
+      const genClientId = (clientFilter && clientFilter !== 'segment') ? clientFilter : undefined;
+      // Calcula as datas exatas do filtro atual para alinhar com os KPIs
+      const genStart = startDate || new Date(Date.now() - parseInt(dateRange || '7') * 86400000).toISOString().split('T')[0];
+      const genEnd   = endDate   || new Date().toISOString().split('T')[0];
+      const bs = await generateBriefing('manual', genClientId, effectivePeriodDays, activeSegment ?? undefined, genStart, genEnd);
       const arr = Array.isArray(bs) ? bs : (bs ? [bs as any] : []);
       setBriefings(arr);
       setBriefingHistory(prev => [...arr, ...prev].slice(0, 5));
@@ -264,13 +283,13 @@ export function DashboardPage() {
   const chartData = data?.currentPeriod.insights
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .map(i => ({
-      date: new Date(i.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      date: utcDateLabel(i.date),
       spend: i.spend, clicks: i.clicks, impressions: i.impressions,
       ctr: i.ctr, cpc: i.cpc, cpm: i.cpm, conversions: i.conversions,
     })) || [];
 
   const dailyLeadsMap = new Map((data?.dailyLeads || []).map(dl => [
-    new Date(dl.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), dl.count,
+    utcDateLabel(dl.date), dl.count,
   ]));
   const cplData = chartData.map(cd => ({
     date: cd.date, spend: cd.spend,
@@ -286,31 +305,49 @@ export function DashboardPage() {
   const hookRateRaw       = totalVideoViews3s > 0 && totalImpressionsN > 0
     ? (totalVideoViews3s / totalImpressionsN) * 100 : null;
   const hookRate          = hookRateRaw !== null && isFinite(hookRateRaw) ? hookRateRaw : null;
+  const { hook_rate_critical: hrCritical, hook_rate_min: hrMin } = hookRateBenchmarks;
   const hookRateColor     = hookRate === null
     ? (isDark ? 'text-slate-600' : 'text-slate-400')
-    : hookRate < 8 ? 'text-red-500' : hookRate < 12 ? 'text-amber-500' : 'text-emerald-500';
+    : hookRate < hrCritical ? 'text-red-500' : hookRate < hrMin ? 'text-amber-500' : 'text-emerald-500';
 
   const COLORS = isDark ? PALETTE_DARK : PALETTE_LIGHT;
-  const campaignSpendData = campaigns
-    .filter(c => c.adSets.length > 0)
-    .map((c, i) => ({
-      name: c.name.slice(0, 20),
-      value: c.adSets.reduce((s, as_) => s + as_.dailyBudget, 0) / 100,
-      color: COLORS[i % COLORS.length],
-    }));
+  // Agrega gasto real (insights) por campanha, em ordem decrescente
+  const campaignSpendData = (() => {
+    const insights = data?.currentPeriod.insights || [];
+    const spendMap = new Map<string, number>();
+    for (const ins of insights) {
+      const id = (ins as any).campaignId as string;
+      spendMap.set(id, (spendMap.get(id) || 0) + Number((ins as any).spend || 0));
+    }
+    const campaignMap = new Map(campaigns.map(c => [c.id, c.name]));
+    return Array.from(spendMap.entries())
+      .filter(([, v]) => v > 0)
+      .sort(([, a], [, b]) => b - a)
+      .map(([id, spend], i) => ({
+        name: campaignMap.get(id) || id.slice(0, 8),
+        value: spend,
+        color: COLORS[i % COLORS.length],
+      }));
+  })();
 
   // Dias efetivos para APIs (usado também no briefing)
   const effectivePeriodDays = startDate && endDate
     ? Math.max(1, Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1)
     : parseInt(dateRange) || 1;
 
+  // Helper para exibir datas do filtro (strings YYYY-MM-DD) sem deslocamento de timezone
+  const fmtFilterDate = (iso: string, full = false) => {
+    const [y, m, d] = iso.split('-');
+    return full ? `${d}/${m}/${y}` : `${d}/${m}`;
+  };
+
   const periodBadgeLabel = startDate && endDate
-    ? `${new Date(startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} – ${new Date(endDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`
+    ? `${fmtFilterDate(startDate)} – ${fmtFilterDate(endDate)}`
     : dateRange === '1' ? 'Hoje'
     : `${dateRange}d`;
 
   const periodLabel = startDate && endDate
-    ? `${new Date(startDate).toLocaleDateString('pt-BR')} — ${new Date(endDate).toLocaleDateString('pt-BR')}`
+    ? `${fmtFilterDate(startDate, true)} — ${fmtFilterDate(endDate, true)}`
     : dateRange === '1' ? 'Hoje'
     : `Últimos ${dateRange} dias`;
 
@@ -328,7 +365,7 @@ export function DashboardPage() {
     ? 'border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all'
     : 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all';
   const selectStyle = isDark
-    ? { colorScheme: 'dark' as const, backgroundColor: 'rgba(255,255,255,0.04)' }
+    ? { colorScheme: 'dark' as const, backgroundColor: '#1e2a3a', color: '#cbd5e1' }
     : undefined;
 
   const predColors = isDark
@@ -536,7 +573,8 @@ export function DashboardPage() {
 
         {/* ── Conteúdo — só exibe quando há segmento ativo e NÃO é modo segmento ── */}
         {activeSegment && !isSegmentMode && <>
-        <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8 ${hookRate !== null ? 'xl:grid-cols-12' : 'xl:grid-cols-11'}`}>
+        <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8 ${hookRate !== null ? 'xl:[grid-template-columns:repeat(13,minmax(0,1fr))] xl:gap-1.5' : 'xl:grid-cols-12 xl:gap-2'}`}>
+          <KpiCard isDark={isDark} label="Campanhas Ativas" value={String(campaigns.filter(c => c.status === 'ACTIVE').length)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} tooltip={`${campaigns.length} campanha${campaigns.length !== 1 ? 's' : ''} no total`} />
           <KpiCard isDark={isDark} label="Gasto"      value={formatCurrencyCompact(t?.spend || 0)}             fullValue={formatCurrency(t?.spend || 0)}                    delta={d?.spend}       color={isDark ? 'text-red-400'     : 'text-red-600'}     invertDelta />
           <KpiCard isDark={isDark} label="Impressões" value={formatNumber(t?.impressions || 0)}                 delta={d?.impressions} color={isDark ? 'text-blue-400'    : 'text-blue-600'} />
           <KpiCard isDark={isDark} label="Alcance"    value={formatNumber(t?.reach || 0)}                       delta={d?.reach}       color={isDark ? 'text-cyan-400'    : 'text-cyan-600'} />
@@ -549,8 +587,7 @@ export function DashboardPage() {
           <KpiCard isDark={isDark} label="CPL"        value={formatCurrencyCompact(cpl)}                        fullValue={formatCurrency(cpl)}                              color={isDark ? 'text-teal-400'    : 'text-teal-600'} />
           <KpiCard isDark={isDark} label="Budget/dia" value={formatCurrencyCompact(campaignSpendData.reduce((s, c) => s + c.value, 0))} fullValue={formatCurrency(campaignSpendData.reduce((s, c) => s + c.value, 0))} color={isDark ? 'text-slate-300' : 'text-slate-800'} />
           {hookRate !== null && (
-            <KpiCard isDark={isDark} label="Hook Rate" value={`${hookRate.toFixed(1)}%`}
-              color={hookRateColor} tooltip="Vídeos: views 3s / impressões × 100" />
+            <HookRateKpiCard isDark={isDark} value={hookRate} color={hookRateColor} benchmarks={hookRateBenchmarks} />
           )}
         </div>
 
@@ -574,17 +611,28 @@ export function DashboardPage() {
             ══════════════════════════════════════════════════════════════ */}
             <RetrovisorSection isDark={isDark} periodLabel={periodBadgeLabel}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Volume: spend (R$) vs cliques — mesma ordem de grandeza */}
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                   className={`rounded-2xl p-6 ${cardBase}`}>
-                  <MultiMetricChart isDark={isDark} data={chartData} title="Performance Multi-Métrica"
+                  <MultiMetricChart isDark={isDark} data={chartData} title="Volume — Gasto × Cliques"
+                    yLeftLabel="Gasto (R$)" yRightLabel="Cliques"
                     metrics={[
                       { key: 'spend',  label: 'Gasto (R$)', color: predColors[0], type: 'area' },
                       { key: 'clicks', label: 'Cliques',    color: predColors[1], type: 'line', yAxisId: 'right' },
-                      { key: 'ctr',    label: 'CTR %',      color: predColors[2], type: 'line', yAxisId: 'right' },
-                      { key: 'cpc',    label: 'CPC (R$)',   color: predColors[3], type: 'line', yAxisId: 'right' },
+                    ]} />
+                </motion.div>
+                {/* Eficiência: CTR % vs CPC — ambos são valores pequenos, escalas compatíveis */}
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+                  className={`rounded-2xl p-6 ${cardBase}`}>
+                  <MultiMetricChart isDark={isDark} data={chartData} title="Eficiência — CTR % × CPC (R$)"
+                    yLeftLabel="CTR %" yRightLabel="CPC (R$)"
+                    metrics={[
+                      { key: 'ctr', label: 'CTR %',    color: predColors[2], type: 'area' },
+                      { key: 'cpc', label: 'CPC (R$)', color: predColors[3], type: 'line', yAxisId: 'right' },
                     ]} />
                 </motion.div>
 
+                {/* CPL Timeline + Distribuição por Campanha — lado a lado */}
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                   className={`rounded-2xl p-6 ${cardBase}`}>
                   <h3 className={`text-sm font-black mb-2 ${tx}`}>CPL Timeline</h3>
@@ -592,6 +640,87 @@ export function DashboardPage() {
                 </motion.div>
 
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+                  className={`rounded-2xl p-6 ${cardBase}`}>
+                  <h3 className={`text-sm font-black mb-4 ${tx}`}>Distribuição por Campanha</h3>
+                  {campaignSpendData.length > 0 ? (
+                    <>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <PieChart>
+                          <Pie data={campaignSpendData} dataKey="value" nameKey="name"
+                            cx="50%" cy="50%" outerRadius={90} innerRadius={38}
+                            paddingAngle={3}
+                            labelLine={false}
+                            label={({ cx, cy, midAngle, innerRadius, outerRadius, value, percent }: any) => {
+                              if (percent < 0.05) return null;
+                              const RADIAN = Math.PI / 180;
+                              const r = innerRadius + (outerRadius - innerRadius) * 0.55;
+                              const x = cx + r * Math.cos(-midAngle * RADIAN);
+                              const y = cy + r * Math.sin(-midAngle * RADIAN);
+                              const formatted = value >= 1000
+                                ? `R$${(value / 1000).toFixed(1)}k`
+                                : `R$${value.toFixed(0)}`;
+                              return (
+                                <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central"
+                                  style={{ fontSize: 11, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.4)' }}>
+                                  {formatted}
+                                </text>
+                              );
+                            }}>
+                            {campaignSpendData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                          </Pie>
+                          <Tooltip {...tooltipCss} formatter={(v: any) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="flex flex-col gap-1.5 mt-3 px-1">
+                        {(() => {
+                          const total = campaignSpendData.reduce((s, c) => s + c.value, 0);
+                          return (
+                            <>
+                              {campaignSpendData.map((d, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                                  <span className={`text-[10px] flex-1 leading-tight ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{d.name}</span>
+                                  <span className={`text-[10px] font-semibold shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    {total > 0 ? ((d.value / total) * 100).toFixed(0) : 0}%
+                                  </span>
+                                  <span className={`text-[10px] font-bold shrink-0 min-w-[64px] text-right ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                    R$ {d.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              ))}
+                              {campaignSpendData.length > 1 && (
+                                <div className={`flex items-center gap-2 mt-1 pt-2 border-t ${isDark ? 'border-white/8' : 'border-slate-100'}`}>
+                                  <span className="w-2.5 h-2.5 shrink-0" />
+                                  <span className={`text-[10px] flex-1 font-black uppercase tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total</span>
+                                  <span className={`text-[10px] font-black shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>100%</span>
+                                  <span className={`text-[10px] font-black shrink-0 min-w-[64px] text-right ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </>
+                  ) : (
+                    <p className={`text-sm text-center py-12 ${txMuted}`}>Sem dados de campanhas</p>
+                  )}
+                </motion.div>
+              </div>
+
+              {/* ── Funil Clássico + Funil por Estágio — lado a lado ── */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5 items-start">
+                {data.funnelData && (
+                  <ClassicFunnelChart
+                    funnelData={data.funnelData}
+                    leadCount={data.currentPeriod.leadCount}
+                    isDark={isDark}
+                    periodLabel={periodBadgeLabel}
+                    className="mt-0"
+                  />
+                )}
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
                   className={`rounded-2xl p-6 ${cardBase}`}>
                   <h3 className={`text-sm font-black mb-4 ${tx}`}>Funil por Estágio</h3>
                   {funnelData7 ? (
@@ -604,52 +733,7 @@ export function DashboardPage() {
                     <FunnelChart data={data.funnelData} isDark={isDark} />
                   )}
                 </motion.div>
-
-                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-                  className={`rounded-2xl p-6 ${cardBase}`}>
-                  <h3 className={`text-sm font-black mb-4 ${tx}`}>Distribuição por Campanha</h3>
-                  {campaignSpendData.length > 0 ? (
-                    <>
-                      <ResponsiveContainer width="100%" height={200}>
-                        <PieChart>
-                          <Pie data={campaignSpendData} dataKey="value" nameKey="name"
-                            cx="50%" cy="50%" outerRadius={84} innerRadius={34}
-                            paddingAngle={3}>
-                            {campaignSpendData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                          </Pie>
-                          <Tooltip {...tooltipCss} formatter={(v: any) => `R$${Number(v).toFixed(2)}/dia`} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      {/* ── Legenda externa — evita truncamento ── */}
-                      <div className="flex flex-wrap gap-x-3 gap-y-1.5 justify-center mt-2 px-2">
-                        {(() => {
-                          const total = campaignSpendData.reduce((s, c) => s + c.value, 0);
-                          return campaignSpendData.map((d, i) => (
-                            <div key={i} className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                              <span className={`text-[10px] truncate max-w-[120px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`} title={d.name}>{d.name}</span>
-                              <span className={`text-[10px] font-bold shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
-                                {total > 0 ? ((d.value / total) * 100).toFixed(0) : 0}%
-                              </span>
-                            </div>
-                          ));
-                        })()}
-                      </div>
-                    </>
-                  ) : (
-                    <p className={`text-sm text-center py-12 ${txMuted}`}>Sem dados de campanhas</p>
-                  )}
-                </motion.div>
               </div>
-              {/* ── Funil Clássico (largura total) ── */}
-              {data.funnelData && (
-                <ClassicFunnelChart
-                  funnelData={data.funnelData}
-                  leadCount={data.currentPeriod.leadCount}
-                  isDark={isDark}
-                  periodLabel={periodBadgeLabel}
-                />
-              )}
             </RetrovisorSection>
 
             {/* ══════════════════════════════════════════════════════════════
@@ -734,13 +818,20 @@ export function DashboardPage() {
                 </details>
               )}
 
-              {/* ── Radar de Demanda — isolado ao segmento ativo ─────────── */}
-              <div className="mt-6">
+              {/* ── Radar de Demanda + Geolocalização ─────────────────── */}
+              <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
                 <DemandRadar
                   isDark={isDark}
                   clientId={(clientFilter && clientFilter !== 'own') ? clientFilter as string : undefined}
                   segmentId={activeSegment ?? undefined}
                   periodDays={parseInt(dateRange) || 30}
+                />
+                <CampaignMapWidget
+                  isDark={isDark}
+                  clientId={clientFilter ?? null}
+                  segmentId={activeSegment ?? null}
+                  startDate={segmentPeriodStart}
+                  endDate={segmentPeriodEnd}
                 />
               </div>
             </FarolSection>
@@ -761,9 +852,10 @@ export function DashboardPage() {
                 </div>
                 <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
               </div>
-              {/* Tracking isolado pelo clientFilter atual (segmento já garantido acima) */}
+              {/* Tracking isolado pelo clientFilter + segmento ativo */}
               <TrackingHealthWidget
-                clientId={(clientFilter && clientFilter !== 'own') ? clientFilter as string : null}
+                clientId={(clientFilter && clientFilter !== 'own' && clientFilter !== 'segment') ? clientFilter as string : null}
+                segmentId={activeSegment ?? null}
               />
             </div>
 
@@ -777,7 +869,7 @@ export function DashboardPage() {
                       <SparklesIcon className={`h-5 w-5 ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
                     </div>
                     <div>
-                      <h2 className={`text-lg font-black ${tx}`}>Briefing Estratégico AI</h2>
+                      <h2 className={`text-lg font-black ${tx}`}>Resumo Estratégico provido pela Inteligência Artificial</h2>
                       <p className={`text-xs ${txMuted}`}>Documento autônomo — período registrado na geração</p>
                     </div>
                   </div>
@@ -1486,13 +1578,20 @@ function SegmentDashboard({
           </p>
         )}
 
-        {/* Radar de Demanda — restrito ao segmento selecionado */}
-        <div className="mt-6">
+        {/* Radar de Demanda + Geolocalização — restrito ao segmento selecionado */}
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
           <DemandRadar
             isDark={isDark}
             clientId={undefined}
             segmentId={segmentData?.segment?.id}
             periodDays={periodDays}
+          />
+          <CampaignMapWidget
+            isDark={isDark}
+            clientId={segmentData?.segment?.id ? undefined : null}
+            segmentId={segmentData?.segment?.id}
+            startDate={startDate}
+            endDate={endDate}
           />
         </div>
       </FarolSection>
@@ -1719,6 +1818,15 @@ function FarolIcon({ isDark }: { isDark: boolean }) {
 //  DATE INPUT PT-BR  (máscara dd/mm/aaaa → ISO internamente)
 // ═════════════════════════════════════════════════════════════════════════════
 
+// Formata qualquer valor de data (ISO string ou Date) para "dd/mm" usando UTC,
+// evitando o deslocamento de timezone (UTC-3 deslocaria meia-noite UTC para o dia anterior).
+function utcDateLabel(dateVal: string | Date): string {
+  const d = typeof dateVal === 'string' ? new Date(dateVal) : dateVal;
+  const day   = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${day}/${month}`;
+}
+
 function ptBrToIso(v: string): string {
   const [d, m, y] = v.split('/');
   if (!d || !m || !y || y.length < 4) return '';
@@ -1740,20 +1848,17 @@ function DateInputPtBR({
   className?: string;
 }) {
   const [display, setDisplay] = React.useState(isoToPtBr(value));
+  const hiddenRef = React.useRef<HTMLInputElement>(null);
 
-  // Sync when external value changes (ex: limpar ao clicar nos pills de período)
   React.useEffect(() => {
     setDisplay(isoToPtBr(value));
   }, [value]);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    // Strip non-digits
     let raw = e.target.value.replace(/\D/g, '').slice(0, 8);
-    // Auto-insert slashes: dd/mm/aaaa
     if (raw.length > 4) raw = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4);
     else if (raw.length > 2) raw = raw.slice(0, 2) + '/' + raw.slice(2);
     setDisplay(raw);
-    // Notify parent only when complete (10 chars = dd/mm/aaaa)
     if (raw.length === 10) {
       const iso = ptBrToIso(raw);
       if (iso) onChange(iso);
@@ -1762,17 +1867,46 @@ function DateInputPtBR({
     }
   }
 
+  function handleCalendarPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const iso = e.target.value; // YYYY-MM-DD
+    if (iso) {
+      onChange(iso);
+      setDisplay(isoToPtBr(iso));
+    }
+  }
+
   return (
-    <input
-      type="text"
-      inputMode="numeric"
-      maxLength={10}
-      placeholder="dd/mm/aaaa"
-      value={display}
-      onChange={handleChange}
-      style={style}
-      className={className}
-    />
+    <div className="relative flex items-center">
+      <input
+        type="text"
+        inputMode="numeric"
+        maxLength={10}
+        placeholder="dd/mm/aaaa"
+        value={display}
+        onChange={handleChange}
+        style={style}
+        className={cn(className, 'pr-9')}
+      />
+      {/* Hidden native date picker — opened by clicking the calendar icon */}
+      <input
+        ref={hiddenRef}
+        type="date"
+        tabIndex={-1}
+        value={value}
+        onChange={handleCalendarPick}
+        className="absolute inset-0 opacity-0 w-full cursor-pointer pointer-events-none"
+        style={{ colorScheme: 'dark' }}
+      />
+      <button
+        type="button"
+        onClick={() => hiddenRef.current?.showPicker?.()}
+        className="absolute right-2.5 text-slate-400 hover:text-indigo-400 transition-colors"
+        tabIndex={-1}
+        title="Selecionar data"
+      >
+        <CalendarDaysIcon className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
 
@@ -2029,6 +2163,97 @@ function KpiCard({ isDark, label, value, fullValue, color, delta, invertDelta, t
   );
 }
 
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  HOOK RATE KPI CARD — com tabela de referência de benchmarks no canto
+// ═════════════════════════════════════════════════════════════════════════════
+
+function HookRateKpiCard({ isDark, value, color, benchmarks: bm }: {
+  isDark: boolean; value: number; color: string;
+  benchmarks: { hook_rate_critical: number; hook_rate_min: number; hook_rate_good: number };
+}) {
+  const [showRef, setShowRef] = React.useState(false);
+  const { hook_rate_critical: crit, hook_rate_min: min, hook_rate_good: good } = bm;
+
+  // Tabela de referência construída dinamicamente a partir dos benchmarks do banco
+  const benchmarks = [
+    { range: `≥ ${good}%`,           label: 'Excelente', cls: 'text-emerald-400' },
+    { range: `${min}–${good - 1}%`,  label: 'Bom',       cls: 'text-emerald-500' },
+    { range: `${crit}–${min - 1}%`,  label: 'Atenção',   cls: 'text-amber-400' },
+    { range: `< ${crit}%`,           label: 'Crítico',   cls: 'text-red-400' },
+  ];
+
+  return (
+    <div className={cn(
+      'group relative rounded-2xl border p-3.5 flex flex-col gap-1.5 min-w-0 overflow-visible transition-all duration-200',
+      isDark
+        ? 'bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(99,102,241,0.4)] hover:shadow-[0_0_24px_rgba(99,102,241,0.12)] hover:-translate-y-0.5'
+        : 'bg-white border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.09)] hover:-translate-y-0.5',
+    )}>
+      {/* Label + ícone de referência */}
+      <div className="flex items-center justify-between gap-1">
+        <span className={`text-[9px] font-black uppercase tracking-widest leading-none ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+          Hook Rate
+        </span>
+        <button
+          type="button"
+          onClick={() => setShowRef(v => !v)}
+          title="Ver referência de benchmarks"
+          className={cn(
+            'flex-shrink-0 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-black leading-none transition-colors',
+            showRef
+              ? 'bg-indigo-500 text-white'
+              : isDark ? 'bg-slate-700 text-slate-400 hover:bg-indigo-500/30 hover:text-indigo-300' : 'bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600',
+          )}
+        >
+          i
+        </button>
+      </div>
+
+      {/* Valor */}
+      <span
+        className={cn('text-sm font-black font-mono leading-tight', color)}
+        style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+        title={`Hook Rate: ${value.toFixed(2)}% — views 3s / impressões × 100`}
+      >
+        {value.toFixed(1)}%
+      </span>
+
+      {/* Tabela de referência — aparece ao clicar no ⓘ, anchorada no canto direito do card */}
+      {showRef && (
+        <div className={cn(
+          'absolute top-full right-0 mt-1.5 z-50 rounded-xl border shadow-xl p-3 min-w-[160px]',
+          isDark
+            ? 'bg-[#0d1421] border-[rgba(255,255,255,0.1)]'
+            : 'bg-white border-slate-200',
+        )}>
+          <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+            Referência Hook Rate
+          </p>
+          <p className={`text-[9px] mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+            views 3s ÷ impressões × 100
+          </p>
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className={isDark ? 'text-slate-600' : 'text-slate-400'}>
+                <th className="text-left font-black pb-1">Faixa</th>
+                <th className="text-right font-black pb-1">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[rgba(255,255,255,0.04)]">
+              {benchmarks.map(b => (
+                <tr key={b.range}>
+                  <td className={`py-1 font-mono font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{b.range}</td>
+                  <td className={`py-1 text-right font-black ${b.cls}`}>{b.label}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  BRIEFING CARD

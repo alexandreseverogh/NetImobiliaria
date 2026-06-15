@@ -24,9 +24,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const period    = Math.min(Math.max(parseInt(searchParams.get('period') || '30'), 1), 365);
     const clientId  = searchParams.get('clientId') || undefined;
+    const segmentId = searchParams.get('segmentId') || undefined;
     const wantNarr  = searchParams.get('narrative') === 'true';
 
-    const result = await getAngleInsights(period, payload.tenantId, clientId);
+    // segmentId isola os ângulos a um único segmento — CPL por ângulo só é
+    // comparável dentro do mesmo nicho (a taxonomia de ângulos é por-segmento).
+    const result = await getAngleInsights(period, payload.tenantId, clientId, segmentId);
 
     let narrative: string | null = null;
     if (wantNarr && result.angleStats.length > 0) {

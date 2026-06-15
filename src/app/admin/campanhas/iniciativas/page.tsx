@@ -90,7 +90,7 @@ export default function IniciativasPage() {
           <div>
             <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-2">Campanhas</p>
             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Iniciativas de Marketing</h1>
-            <p className="text-gray-500 mt-1 text-sm font-medium">Agrupe campanhas de diferentes redes sob um objetivo comum</p>
+            <p className="text-gray-500 mt-1 text-sm font-medium">Agrupe campanhas sob um objetivo e orçamento comuns</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <ClientSelector
