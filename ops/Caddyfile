@@ -6,9 +6,15 @@
 {$PROD_DOMAIN} {
   encode zstd gzip
 
-  # Ajuste se houver uploads grandes (ex.: imagens)
   request_body {
     max_size 50MB
+  }
+
+  # Object Storage público — /storage/* → MinIO (bucket prod)
+  # URLs de imagens ficam: https://{PROD_DOMAIN}/storage/net-imobiliaria-prod/<key>
+  handle /storage/* {
+    uri strip_prefix /storage
+    reverse_proxy minio:9000
   }
 
   reverse_proxy prod_app:3000 {
@@ -30,6 +36,12 @@
 
   request_body {
     max_size 50MB
+  }
+
+  # Object Storage público — /storage/* → MinIO (bucket staging)
+  handle /storage/* {
+    uri strip_prefix /storage
+    reverse_proxy minio:9000
   }
 
   reverse_proxy staging_app:3000 {

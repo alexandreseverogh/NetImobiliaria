@@ -97,6 +97,8 @@ services:
       S3_BUCKET: ${S3_BUCKET_PROD:-netimobiliaria-prod}
       S3_REGION: us-east-1
       S3_FORCE_PATH_STYLE: "true"
+      # URL pública das mídias (roteado pelo Caddy em /storage)
+      CDN_URL: https://${PROD_DOMAIN}/storage/${S3_BUCKET_PROD:-netimobiliaria-prod}
       # Cron & Campanhas Marketing
       CRON_SECRET: ${PROD_CRON_SECRET}
       MARKETING_DATABASE_URL: "postgresql://${DB_USER:-postgres}:${PROD_DB_PASSWORD}@prod_db:5432/${PROD_DB_NAME:-net_imobiliaria}"
@@ -203,6 +205,8 @@ services:
       S3_BUCKET: ${S3_BUCKET_STAGING:-netimobiliaria-staging}
       S3_REGION: us-east-1
       S3_FORCE_PATH_STYLE: "true"
+      # URL pública das mídias (roteado pelo Caddy em /storage)
+      CDN_URL: https://${STAGING_DOMAIN}/storage/${S3_BUCKET_STAGING:-netimobiliaria-staging}
       # Cron & Campanhas Marketing
       CRON_SECRET: ${STAGING_CRON_SECRET}
       MARKETING_DATABASE_URL: "postgresql://${DB_USER:-postgres}:${STAGING_DB_PASSWORD}@staging_db:5432/${STAGING_DB_NAME:-net_imobiliaria_staging}"
