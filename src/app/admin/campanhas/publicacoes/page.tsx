@@ -29,6 +29,8 @@ interface OrganicTarget {
   pageName?: string | null;
   instagramActorId?: string | null;
   instagramUsername?: string | null;
+  accessible?: boolean;
+  availablePages?: { id: string; name: string; instagramUsername: string | null }[];
   reason?: string;
 }
 
@@ -279,6 +281,40 @@ function TargetBanner({ target, loading }: { target: OrganicTarget | null; loadi
             Defina o <strong>Facebook Page ID</strong> em Configurações → Identidade Meta
             {target.pageSource === 'client' ? ' (do cliente ou do tenant).' : ' do tenant.'} Sem isso, a publicação falhará.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ID configurado mas o token não gerencia essa página → bloqueia e orienta
+  if (target.accessible === false) {
+    const pages = target.availablePages ?? [];
+    return (
+      <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+        <ExclamationTriangleIcon className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+        <div className="text-sm flex-1 min-w-0">
+          <p className="font-black text-red-800">
+            A Página <code className="font-mono">{target.pageId}</code> não é acessível por este token Meta
+          </p>
+          <p className="text-xs text-red-700 mt-0.5">
+            O token configurado não gerencia essa página — a publicação falharia. Ajuste o
+            <strong> Facebook Page ID</strong> em Configurações → Identidade Meta
+            {target.pageSource === 'tenant' ? ' do tenant.' : ' do cliente.'}
+          </p>
+          {pages.length > 0 && (
+            <div className="mt-2">
+              <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">Páginas disponíveis neste token:</p>
+              <ul className="space-y-0.5">
+                {pages.map(p => (
+                  <li key={p.id} className="text-xs text-red-800 flex items-center gap-1.5">
+                    <span>📘 <strong>{p.name}</strong></span>
+                    <code className="font-mono text-[10px] text-red-500 bg-red-100 px-1 py-0.5 rounded">{p.id}</code>
+                    {p.instagramUsername && <span className="text-red-600">· 📸 @{p.instagramUsername}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     );

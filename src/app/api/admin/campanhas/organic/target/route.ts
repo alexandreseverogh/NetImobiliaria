@@ -60,6 +60,8 @@ export async function GET(request: NextRequest) {
         pageName:          info.pageName,
         instagramActorId:  info.instagramActorId,
         instagramUsername: info.instagramUsername,
+        accessible:        info.accessible,
+        availablePages:    info.availablePages,
       });
     } catch (e: any) {
       // Sem credenciais Meta → destino não configurado (mensagem acionável)

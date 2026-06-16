@@ -148,24 +148,45 @@ export class MetaAdsAdapter implements AdNetworkService {
     pageName: string | null;
     instagramActorId: string | null;
     instagramUsername: string | null;
+    accessible: boolean;
+    availablePages: { id: string; name: string; instagramUsername: string | null }[];
   }> {
     const out = {
       pageId: this.pageId,
       pageName: null as string | null,
       instagramActorId: this.instagramActorId ?? null,
       instagramUsername: null as string | null,
+      accessible: false,
+      availablePages: [] as { id: string; name: string; instagramUsername: string | null }[],
     };
     if (!this.pageId) return out;
 
+    // 1. Páginas geridas pelo token — fonte confiável de nome + acesso
     try {
-      const token = await this.resolvePageAccessToken().catch(() => this.token);
-      const res = await axios.get(this.url(this.pageId), {
-        params: { access_token: token, fields: 'name,instagram_business_account{username}' },
+      const res = await axios.get(this.url('me/accounts'), {
+        params: { ...this.auth, fields: 'id,name,instagram_business_account{username}', limit: 100 },
       });
-      out.pageName = res.data?.name ?? null;
-      const ig = res.data?.instagram_business_account;
-      if (ig?.username) out.instagramUsername = ig.username;
-    } catch { /* best-effort — mantém só os IDs */ }
+      const pages = (res.data?.data || []) as any[];
+      out.availablePages = pages.map(p => ({
+        id: p.id,
+        name: p.name,
+        instagramUsername: p.instagram_business_account?.username ?? null,
+      }));
+      const match = pages.find(p => p.id === this.pageId);
+      if (match) {
+        out.accessible = true;
+        out.pageName = match.name ?? null;
+        if (match.instagram_business_account?.username) out.instagramUsername = match.instagram_business_account.username;
+      }
+    } catch { /* ignora — tenta GET direto abaixo */ }
+
+    // 2. GET direto (cobre páginas de Business fora de /me/accounts)
+    if (!out.pageName) {
+      try {
+        const res = await axios.get(this.url(this.pageId), { params: { ...this.auth, fields: 'name' } });
+        if (res.data?.name) { out.pageName = res.data.name; out.accessible = true; }
+      } catch { /* best-effort — destino não acessível */ }
+    }
 
     return out;
   }
