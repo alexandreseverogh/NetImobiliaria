@@ -1,6 +1,6 @@
 /**
  * POST /api/admin/campanhas/criativos/upload
- * FASE 6 — Upload de criativo para biblioteca persistente.
+ * FASE 6 — Upload de criativo para biblioteca persistente via MinIO/S3.
  *
  * Recebe multipart/form-data com:
  *   - file: File (imagem)
@@ -9,7 +9,7 @@
  *   - clientId?: string
  *   - analyzeNow?: "true"  (aciona análise síncrona – usar apenas em dev/testes)
  *
- * Salva em public/uploads/criativos/<tenantId>/<hash>.<ext>
+ * Salva em MinIO: criativos/<tenantId>/<hash>.<ext>
  * Cria registro em CreativeAsset + CreativeAnalysis(status=pending).
  * Dispara análise assíncrona (fire-and-forget).
  */
@@ -17,9 +17,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import pool from '@/lib/database/connection';
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
+import path from 'path';
+import { uploadToS3, getS3Url } from '@/lib/storage/s3-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
     const { tenantId } = payload;
 
-    const formData = await request.formData();
+    const formData   = await request.formData();
     const file       = formData.get('file') as File | null;
     const campaignId = formData.get('campaignId') as string | null;
     const adId       = formData.get('adId')       as string | null;
@@ -50,11 +50,10 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Ler bytes e calcular hash ──────────────────────────────────────────────
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer      = Buffer.from(arrayBuffer);
-    const hash        = crypto.createHash('sha256').update(buffer).digest('hex');
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const hash   = crypto.createHash('sha256').update(buffer).digest('hex');
 
-    // ── Deduplicação: mesma hash para o mesmo tenant → retornar asset existente ──
+    // ── Deduplicação: mesma hash para o mesmo tenant → retornar asset existente ─
     const existing = await pool.query(
       `SELECT id, storage_url FROM campanhasmarketingdigital."CreativeAsset"
        WHERE tenant_id = $1::uuid AND hash = $2 AND is_active = true LIMIT 1`,
@@ -64,18 +63,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ asset: existing.rows[0], duplicate: true });
     }
 
-    // ── Determinar extensão e nome de arquivo ──────────────────────────────────
-    const ext       = path.extname(file.name).toLowerCase() || '.jpg';
-    const filename  = `${hash.slice(0, 16)}${ext}`;
-    const subdir    = `criativos/${tenantId}`;
-    const relPath   = `uploads/${subdir}/${filename}`;         // relativo a /public
-    const absPath   = path.join(process.cwd(), 'public', relPath);
+    // ── Upload para MinIO/S3 ───────────────────────────────────────────────────
+    const ext      = path.extname(file.name).toLowerCase().replace('.', '') || 'jpg';
+    const s3Key    = `criativos/${tenantId}/${hash.slice(0, 16)}.${ext}`;
 
-    // ── Criar diretório se não existir ─────────────────────────────────────────
-    fs.mkdirSync(path.dirname(absPath), { recursive: true });
-    fs.writeFileSync(absPath, buffer);
+    const result = await uploadToS3(s3Key, buffer, file.type);
 
-    const storageUrl = `/${relPath}`;
+    let storageUrl: string;
+    let storagePath: string;
+
+    if (result) {
+      // MinIO disponível — URL pública persistente
+      storageUrl  = getS3Url(s3Key) ?? result.url;
+      storagePath = s3Key;
+    } else {
+      // Fallback: disco local (apenas para desenvolvimento sem MinIO)
+      const { default: fs }   = await import('fs');
+      const { default: nodePath } = await import('path');
+      const subdir   = `criativos/${tenantId}`;
+      const filename = `${hash.slice(0, 16)}.${ext}`;
+      const relPath  = `uploads/${subdir}/${filename}`;
+      const absPath  = nodePath.join(process.cwd(), 'public', relPath);
+      fs.mkdirSync(nodePath.dirname(absPath), { recursive: true });
+      fs.writeFileSync(absPath, buffer);
+      storageUrl  = `/${relPath}`;
+      storagePath = relPath;
+      console.warn('[criativos/upload] MinIO não configurado — usando disco local (não persistente em produção!)');
+    }
 
     // ── Inserir CreativeAsset ──────────────────────────────────────────────────
     const insertRes = await pool.query(
@@ -83,7 +97,8 @@ export async function POST(request: NextRequest) {
          (tenant_id, client_id, original_name, storage_path, storage_url, file_size, mime_type, hash, campaign_id, ad_id)
        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id, storage_url, original_name, uploaded_at`,
-      [tenantId, clientId || null, file.name, relPath, storageUrl, file.size, file.type, hash, campaignId || null, adId || null]
+      [tenantId, clientId || null, file.name, storagePath, storageUrl,
+       file.size, file.type, hash, campaignId || null, adId || null]
     );
     const asset = insertRes.rows[0];
 
@@ -97,11 +112,9 @@ export async function POST(request: NextRequest) {
 
     // ── Disparar análise (assíncrona, não bloqueia a resposta) ─────────────────
     if (analyzeNow) {
-      // Modo síncrono (dev/teste)
       const { analyzeCreativeAsset } = await import('@/lib/marketing/services/creativeAnalysisService');
       await analyzeCreativeAsset(asset.id);
     } else {
-      // Fire-and-forget
       import('@/lib/marketing/services/creativeAnalysisService')
         .then(m => m.analyzeCreativeAsset(asset.id))
         .catch(e => console.error('[upload] análise async falhou:', e.message));

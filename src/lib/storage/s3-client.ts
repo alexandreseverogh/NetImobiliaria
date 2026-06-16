@@ -22,7 +22,7 @@
  */
 
 import { createHash } from 'crypto'
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadBucketCommand, CreateBucketCommand, PutBucketPolicyCommand } from '@aws-sdk/client-s3'
 
 interface UploadResult {
   s3Key: string
@@ -58,6 +58,30 @@ function getS3Client(): S3Client | null {
   });
 
   return s3ClientInstance;
+}
+
+// Garante que o bucket existe com política pública de leitura (MinIO/S3 compatível)
+let bucketEnsured = false;
+async function ensureBucket(client: S3Client, bucket: string): Promise<void> {
+  if (bucketEnsured) return;
+  try {
+    await client.send(new HeadBucketCommand({ Bucket: bucket }));
+  } catch {
+    try {
+      await client.send(new CreateBucketCommand({ Bucket: bucket }));
+      await client.send(new PutBucketPolicyCommand({
+        Bucket: bucket,
+        Policy: JSON.stringify({
+          Version: '2012-10-17',
+          Statement: [{ Effect: 'Allow', Principal: '*', Action: 's3:GetObject', Resource: `arn:aws:s3:::${bucket}/*` }],
+        }),
+      }));
+      console.log(`✅ [S3] Bucket "${bucket}" criado com política pública.`);
+    } catch (err) {
+      console.warn('[S3] Não foi possível criar/verificar bucket:', err);
+    }
+  }
+  bucketEnsured = true;
 }
 
 /**
@@ -103,6 +127,8 @@ export async function uploadToS3(
   }
 
   try {
+    await ensureBucket(client, s3Bucket);
+
     const command = new PutObjectCommand({
       Bucket: s3Bucket,
       Key: s3Key,
