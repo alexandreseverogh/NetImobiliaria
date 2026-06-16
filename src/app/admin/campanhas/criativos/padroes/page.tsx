@@ -41,7 +41,9 @@ interface Concept {
 // ── Label maps ─────────────────────────────────────────────────────────────────
 const HOOK_LABELS: Record<string, string> = {
   urgency: 'Urgência', curiosity: 'Curiosidade', social_proof: 'Prova Social',
-  benefit: 'Benefício', story: 'História', problem: 'Problema', other: 'Outro',
+  benefit: 'Benefício', story: 'História', problem: 'Problema',
+  price: 'Preço', investment: 'Investimento', lifestyle: 'Lifestyle',
+  family: 'Família', social: 'Social', luxury: 'Luxo', other: 'Outro',
 };
 const ANGLE_LABELS: Record<string, string> = {
   investment: 'Investimento', lifestyle: 'Lifestyle', family: 'Família',
@@ -63,6 +65,10 @@ function patternLabel(p: Pattern): string {
   if (p.hook_type && HOOK_LABELS[p.hook_type]) parts.push(`Hook ${HOOK_LABELS[p.hook_type]}`);
   if (p.angle && ANGLE_LABELS[p.angle]) parts.push(`Ângulo ${ANGLE_LABELS[p.angle]}`);
   return parts.join(' + ') || 'Padrão Geral';
+}
+
+function fmtBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function rank(i: number) {
@@ -111,7 +117,7 @@ function ConceptModal({ concepts, pattern, onClose }: {
           <p className="text-xs text-slate-500 mb-4">
             Baseado no padrão: <strong>{patternLabel(pattern)}</strong>
             {pattern.avg_ctr && ` · CTR médio ${pattern.avg_ctr}%`}
-            {pattern.avg_cpl && ` · CPL médio R$ ${pattern.avg_cpl}`}
+            {pattern.avg_cpl && ` · CPL médio ${fmtBRL(pattern.avg_cpl)}`}
           </p>
 
           <div className="space-y-4">
@@ -250,9 +256,9 @@ function HookHealthCard({ data }: { data: HookSaturationResult }) {
               />
             </div>
             <span className="text-[10px] font-black text-slate-700 w-10 text-right">{h.share}%</span>
-            {h.avgCpl != null && (
+            {h.avgCtr != null && (
               <span className="text-[9px] text-slate-400 w-20 hidden md:block">
-                CPL R${h.avgCpl.toFixed(0)}
+                CTR {h.avgCtr.toFixed(1)}%
               </span>
             )}
           </div>
@@ -334,9 +340,9 @@ function PatternCard({ pattern, index, onGenerateConcepts }: {
       <div className="grid grid-cols-4 gap-3 mb-4">
         {[
           { label: 'CTR', value: pattern.avg_ctr != null ? `${pattern.avg_ctr}%` : '—' },
-          { label: 'CPC', value: pattern.avg_cpc != null ? `R$ ${pattern.avg_cpc}` : '—' },
-          { label: 'CPL', value: pattern.avg_cpl != null ? `R$ ${pattern.avg_cpl}` : '—' },
-          { label: 'Investido', value: pattern.total_spend != null ? `R$ ${pattern.total_spend}` : '—' },
+          { label: 'CPC', value: pattern.avg_cpc != null ? fmtBRL(pattern.avg_cpc) : '—' },
+          { label: 'CPL', value: pattern.avg_cpl != null ? fmtBRL(pattern.avg_cpl) : '—' },
+          { label: 'Investido', value: pattern.total_spend != null ? fmtBRL(pattern.total_spend) : '—' },
         ].map(m => (
           <div key={m.label} className="text-center">
             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{m.label}</p>

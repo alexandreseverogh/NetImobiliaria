@@ -5,7 +5,6 @@ export interface HookStat {
   label: string;
   count: number;
   share: number;       // 0-100
-  avgCpl: number | null;
   avgCtr: number | null;
 }
 
@@ -26,6 +25,12 @@ export const HOOK_LABELS: Record<string, string> = {
   benefit:      'Benefício',
   story:        'História',
   problem:      'Problema',
+  price:        'Preço',
+  investment:   'Investimento',
+  lifestyle:    'Lifestyle',
+  family:       'Família',
+  social:       'Social',
+  luxury:       'Luxo',
   other:        'Outro',
 };
 
@@ -62,12 +67,8 @@ export async function getHookSaturation(
       COALESCE(an.hook_type, 'other') AS hook_type,
       COUNT(DISTINCT ca.id)::int AS creative_count,
       ROUND(AVG(
-        CASE WHEN agg.leads > 0 AND agg.spend > 0
-             THEN agg.spend / agg.leads ELSE NULL END
-      )::numeric, 2) AS avg_cpl,
-      ROUND(AVG(
-        CASE WHEN agg.impressions > 0
-             THEN agg.clicks * 100.0 / agg.impressions ELSE NULL END
+        CASE WHEN ins.impressions > 0
+             THEN ins.clicks * 100.0 / ins.impressions ELSE NULL END
       )::numeric, 2) AS avg_ctr
     FROM campanhasmarketingdigital."CreativeAsset" ca
     JOIN campanhasmarketingdigital."CreativeAnalysis" an
@@ -76,14 +77,12 @@ export async function getHookSaturation(
       ON cam.id = ca.campaign_id
     LEFT JOIN (
       SELECT "campaignId",
-             SUM(spend)::float       AS spend,
-             SUM(leads)::int         AS leads,
-             SUM(impressions)::int   AS impressions,
-             SUM(clicks)::int        AS clicks
+             SUM(impressions)::int AS impressions,
+             SUM(clicks)::int      AS clicks
       FROM campanhasmarketingdigital."Insight"
       WHERE tenant_id = $1::uuid
       GROUP BY "campaignId"
-    ) agg ON agg."campaignId" = cam.id
+    ) ins ON ins."campaignId" = cam.id
     WHERE ca.tenant_id = $1::uuid
       AND an.hook_type IS NOT NULL
       ${clientWhere.replace('cam.client_id', 'ca.client_id')}
@@ -105,7 +104,6 @@ export async function getHookSaturation(
     label: HOOK_LABELS[r.hook_type] ?? r.hook_type,
     count: r.creative_count,
     share: Math.round((r.creative_count / total) * 100),
-    avgCpl: r.avg_cpl != null ? Number(r.avg_cpl) : null,
     avgCtr: r.avg_ctr != null ? Number(r.avg_ctr) : null,
   }));
 
