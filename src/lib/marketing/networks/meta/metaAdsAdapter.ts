@@ -135,6 +135,41 @@ export class MetaAdsAdapter implements AdNetworkService {
     );
   }
 
+  /** ID da Página configurado nas credenciais (vazio se não configurado). */
+  get configuredPageId(): string { return this.pageId; }
+
+  /**
+   * Informações da Página/Instagram de destino — best-effort.
+   * Retorna nomes resolvidos via Graph API; em caso de falha (token/permissão),
+   * devolve apenas os IDs configurados, sem lançar erro.
+   */
+  async getPageInfo(): Promise<{
+    pageId: string;
+    pageName: string | null;
+    instagramActorId: string | null;
+    instagramUsername: string | null;
+  }> {
+    const out = {
+      pageId: this.pageId,
+      pageName: null as string | null,
+      instagramActorId: this.instagramActorId ?? null,
+      instagramUsername: null as string | null,
+    };
+    if (!this.pageId) return out;
+
+    try {
+      const token = await this.resolvePageAccessToken().catch(() => this.token);
+      const res = await axios.get(this.url(this.pageId), {
+        params: { access_token: token, fields: 'name,instagram_business_account{username}' },
+      });
+      out.pageName = res.data?.name ?? null;
+      const ig = res.data?.instagram_business_account;
+      if (ig?.username) out.instagramUsername = ig.username;
+    } catch { /* best-effort — mantém só os IDs */ }
+
+    return out;
+  }
+
   /** Métricas orgânicas básicas de um post publicado (best-effort). */
   async getOrganicInsights(platform: 'facebook' | 'instagram', objectId: string): Promise<Record<string, number>> {
     const token = await this.resolvePageAccessToken();

@@ -62,6 +62,12 @@ export interface ClientSelectorProps {
   variant?: 'dropdown' | 'toggle';
   /** Nome do segmento ativo — usado no label de "Todos os Clientes" */
   activeSegmentName?: string;
+  /**
+   * Exibe o pill "Todos os Clientes" (valor 'segment'). Default true.
+   * Páginas onde só faz sentido um destino único (ex: publicações orgânicas)
+   * devem passar false — restando apenas "Minha Empresa" / "Para um Cliente".
+   */
+  allowSegment?: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -103,6 +109,7 @@ export default function ClientSelector({
   storageKey,
   variant = 'dropdown',
   activeSegmentName,
+  allowSegment = true,
 }: ClientSelectorProps) {
   const [open,   setOpen]   = useState(false);
   const [search, setSearch] = useState('');
@@ -267,7 +274,7 @@ export default function ClientSelector({
         )}
 
         {/* 3. Pill: Todos os Clientes do Segmento — só aparece quando há clientes */}
-        {clients.length > 0 && (
+        {allowSegment && clients.length > 0 && (
           <button
             onClick={() => { persistValue('segment'); setOpen(false); }}
             title={`Inteligência do segmento ${activeSegmentName ?? ''} com ${clients.length} cliente${clients.length !== 1 ? 's' : ''} externo${clients.length !== 1 ? 's' : ''} + Minha Empresa`}

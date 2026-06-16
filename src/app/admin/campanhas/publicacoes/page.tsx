@@ -21,6 +21,17 @@ interface OrganicPost {
   createdAt?: string;
 }
 
+interface OrganicTarget {
+  configured: boolean;
+  contextName: string;
+  pageSource: 'client' | 'tenant';
+  pageId?: string;
+  pageName?: string | null;
+  instagramActorId?: string | null;
+  instagramUsername?: string | null;
+  reason?: string;
+}
+
 const IG_DAILY_LIMIT = 100;
 
 const STATUS_META: Record<string, { label: string; cls: string; dot: string }> = {
@@ -40,7 +51,26 @@ export default function PublicacoesPage() {
   const [view, setView]       = useState<'list' | 'calendar'>('list');
   const [insights, setInsights] = useState<Record<string, Record<string, number> | 'loading' | 'error'>>({});
 
-  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('publicacoes');
+  // isOwnSegment=true → default 'own' (Minha Empresa); não há modo "Todos" aqui.
+  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('publicacoes', null, true);
+
+  // Destino Meta resolvido (página do FB / conta IG) para o contexto selecionado
+  const [target, setTarget] = useState<OrganicTarget | null>(null);
+  const [targetLoading, setTargetLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setTargetLoading(true);
+    setTarget(null);
+    const params = new URLSearchParams();
+    if (clientFilter && clientFilter !== 'all') params.set('clientId', clientFilter);
+    fetch(`/api/admin/campanhas/organic/target?${params}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (alive) setTarget(d); })
+      .catch(() => {})
+      .finally(() => { if (alive) setTargetLoading(false); });
+    return () => { alive = false; };
+  }, [clientFilter]);
 
   async function cancelPost(id: string) {
     if (!confirm('Cancelar/remover esta publicação?')) return;
@@ -98,6 +128,7 @@ export default function PublicacoesPage() {
               loading={clientsLoading}
               storageKey="publicacoes"
               variant="toggle"
+              allowSegment={false}
             />
             <div className="flex items-center gap-1 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
               {(['list', 'calendar'] as const).map(v => (
@@ -117,6 +148,9 @@ export default function PublicacoesPage() {
             </CreateGuard>
           </div>
         </div>
+
+        {/* Destino Meta — onde a publicação será feita */}
+        <TargetBanner target={target} loading={targetLoading} />
 
         {/* List */}
         {loading ? (
@@ -213,10 +247,65 @@ export default function PublicacoesPage() {
         <Composer
           clientId={clientFilter}
           igLast24h={igLast24h}
+          target={target}
           onClose={() => setShowComposer(false)}
           onPublished={() => { setShowComposer(false); load(); }}
         />
       )}
+    </div>
+  );
+}
+
+/* ── Banner de destino Meta ─────────────────────────────────────────── */
+
+function TargetBanner({ target, loading }: { target: OrganicTarget | null; loading: boolean }) {
+  if (loading) {
+    return <div className="mb-5 h-12 rounded-2xl bg-white border border-gray-100 animate-pulse" />;
+  }
+  if (!target) return null;
+
+  const ctx = target.contextName;
+
+  // Destino não configurado → aviso acionável
+  if (!target.configured) {
+    return (
+      <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+        <ExclamationTriangleIcon className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <p className="font-black text-amber-800">
+            Destino Meta não configurado para <span className="underline decoration-amber-400">{ctx}</span>
+          </p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            Defina o <strong>Facebook Page ID</strong> em Configurações → Identidade Meta
+            {target.pageSource === 'client' ? ' (do cliente ou do tenant).' : ' do tenant.'} Sem isso, a publicação falhará.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const pageLabel = target.pageName || `Página ${target.pageId}`;
+  const igLabel   = target.instagramUsername
+    ? `@${target.instagramUsername}`
+    : target.instagramActorId ? `conta IG ${target.instagramActorId}` : null;
+
+  return (
+    <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-3 flex-wrap">
+      <CheckCircleIcon className="h-5 w-5 text-emerald-500 shrink-0" />
+      <div className="text-sm flex-1 min-w-0">
+        <p className="font-black text-emerald-900">
+          Publicando como <span className="text-emerald-700">{ctx}</span>
+        </p>
+        <p className="text-xs text-emerald-700 mt-0.5 flex items-center gap-2 flex-wrap">
+          <span>📘 {pageLabel}</span>
+          {igLabel && <span>· 📸 {igLabel}</span>}
+          {target.pageSource === 'tenant' && (
+            <span className="text-[10px] font-bold text-emerald-600/70 bg-emerald-100 px-1.5 py-0.5 rounded">
+              herdado do tenant
+            </span>
+          )}
+        </p>
+      </div>
     </div>
   );
 }
@@ -316,7 +405,7 @@ function MediaThumb({ url, isVideo, className, rounded }: { url?: string; isVide
   return <img src={url} alt="" onError={() => setErrored(true)} className={`object-cover ${rounded ?? ''} ${className ?? ''}`} />;
 }
 
-function Composer({ clientId, igLast24h, onClose, onPublished }: { clientId: string; igLast24h: number; onClose: () => void; onPublished: () => void }) {
+function Composer({ clientId, igLast24h, target, onClose, onPublished }: { clientId: string; igLast24h: number; target: OrganicTarget | null; onClose: () => void; onPublished: () => void }) {
   const [platform, setPlatform]   = useState<'facebook' | 'instagram'>('facebook');
   const [postType, setPostType]   = useState<'feed' | 'video' | 'reel' | 'story'>('feed');
   const [storyKind, setStoryKind] = useState<'image' | 'video'>('image');
@@ -340,6 +429,10 @@ function Composer({ clientId, igLast24h, onClose, onPublished }: { clientId: str
   const mediaIsVideo = postType === 'video' || postType === 'reel' || (postType === 'story' && storyKind === 'video');
   const isVertical   = postType === 'reel' || postType === 'story';
   const platformLabel = platform === 'facebook' ? 'Página do Facebook' : 'Instagram';
+  // Nome concreto do destino quando resolvido (page name / @ig); fallback genérico.
+  const destLabel = platform === 'facebook'
+    ? (target?.pageName ? `"${target.pageName}"` : 'sua Página do Facebook')
+    : (target?.instagramUsername ? `@${target.instagramUsername}` : 'seu Instagram');
   const hashtags = countHashtags(caption);
 
   const POST_TYPES = [
@@ -669,15 +762,15 @@ function Composer({ clientId, igLast24h, onClose, onPublished }: { clientId: str
           {!confirming ? (
             <button onClick={() => setConfirming(true)} disabled={!canPublish}
               className="w-full py-3 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 active:scale-95 disabled:opacity-40 transition-all">
-              {isScheduling ? 'Agendar publicação' : `Publicar em ${platformLabel}`}
+              {isScheduling ? 'Agendar publicação' : `Publicar em ${destLabel}`}
             </button>
           ) : (
             <div className="space-y-2">
               <p className="text-xs text-center text-gray-600 font-medium flex items-center justify-center gap-1.5">
                 <ExclamationTriangleIcon className="h-4 w-4 text-amber-500" />
                 {isScheduling
-                  ? <>Agendar publicação pública em <strong>{platformLabel}</strong> para <strong>{new Date(scheduledAt!).toLocaleString('pt-BR')}</strong>?</>
-                  : <>Isto publicará conteúdo <strong>público</strong> em <strong>{platformLabel}</strong>. Confirmar?</>}
+                  ? <>Agendar publicação pública em <strong>{destLabel}</strong> para <strong>{new Date(scheduledAt!).toLocaleString('pt-BR')}</strong>?</>
+                  : <>Isto publicará conteúdo <strong>público</strong> em <strong>{destLabel}</strong>. Confirmar?</>}
               </p>
               <div className="flex gap-2">
                 <button onClick={() => setConfirming(false)} disabled={publishing}
