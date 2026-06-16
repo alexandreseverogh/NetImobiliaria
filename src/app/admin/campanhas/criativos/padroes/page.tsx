@@ -7,9 +7,11 @@ import { useRouter } from 'next/navigation';
 import {
   ChartBarIcon, SparklesIcon, ArrowLeftIcon, ArrowPathIcon,
   TrophyIcon, XMarkIcon, LightBulbIcon, CheckIcon, RocketLaunchIcon,
+  ExclamationTriangleIcon, ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Pattern {
@@ -188,6 +190,100 @@ function ConceptModal({ concepts, pattern, onClose }: {
   );
 }
 
+// ── Hook Health Card ───────────────────────────────────────────────────────────
+const HOOK_COLORS: Record<string, string> = {
+  urgency:      'bg-red-500',
+  curiosity:    'bg-violet-500',
+  social_proof: 'bg-emerald-500',
+  benefit:      'bg-blue-500',
+  story:        'bg-amber-500',
+  problem:      'bg-orange-500',
+  other:        'bg-slate-400',
+};
+
+function HookHealthCard({ data }: { data: HookSaturationResult }) {
+  const { hookStats, diversityIndex, dominantHook, dominantShare, saturationAlert, suggestion, totalCreatives } = data;
+
+  const scoreColor = diversityIndex >= 70
+    ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+    : diversityIndex >= 40
+    ? 'text-amber-600 bg-amber-50 border-amber-200'
+    : 'text-red-600 bg-red-50 border-red-200';
+  const scoreLabel = diversityIndex >= 70 ? 'Alta' : diversityIndex >= 40 ? 'Média' : 'Baixa';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="border-2 rounded-2xl p-5 mb-6 bg-white border-slate-200"
+    >
+      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
+        <div className="flex items-center gap-2.5">
+          <ShieldCheckIcon className="h-5 w-5 text-slate-500 flex-shrink-0" />
+          <div>
+            <h2 className="text-sm font-black text-slate-900">Saúde Criativa</h2>
+            <p className="text-[10px] text-slate-500">
+              Distribuição de hooks · {totalCreatives} criativo{totalCreatives !== 1 ? 's' : ''} analisado{totalCreatives !== 1 ? 's' : ''}
+            </p>
+          </div>
+        </div>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-black ${scoreColor}`}>
+          {diversityIndex}/100 · Diversidade {scoreLabel}
+        </div>
+      </div>
+
+      {/* Bars */}
+      <div className="space-y-2 mb-4">
+        {hookStats.map(h => (
+          <div key={h.hookType} className="flex items-center gap-3">
+            <span className="text-[10px] font-bold text-slate-600 w-24 flex-shrink-0 text-right">
+              {h.label}
+            </span>
+            <div className="flex-1 h-4 bg-slate-100 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${h.share}%` }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+                className={`h-full rounded-full ${HOOK_COLORS[h.hookType] ?? 'bg-slate-400'} ${
+                  h.hookType === dominantHook && saturationAlert ? 'opacity-90' : 'opacity-70'
+                }`}
+              />
+            </div>
+            <span className="text-[10px] font-black text-slate-700 w-10 text-right">{h.share}%</span>
+            {h.avgCpl != null && (
+              <span className="text-[9px] text-slate-400 w-20 hidden md:block">
+                CPL R${h.avgCpl.toFixed(0)}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Alert / OK */}
+      {saturationAlert ? (
+        <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <ExclamationTriangleIcon className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-black text-amber-800">
+              Saturação detectada — {dominantShare}% dos criativos usam o hook "{data.hookStats.find(h => h.hookType === dominantHook)?.label}"
+            </p>
+            {suggestion && (
+              <p className="text-[10px] text-amber-600 mt-0.5">{suggestion}</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl">
+          <ShieldCheckIcon className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+          <p className="text-[10px] font-bold text-emerald-700">
+            Portfólio criativo diversificado — ótimo para evitar fadiga de público
+          </p>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 // ── Pattern card ───────────────────────────────────────────────────────────────
 function PatternCard({ pattern, index, onGenerateConcepts }: {
   pattern: Pattern;
@@ -302,6 +398,7 @@ export default function PadroesPage() {
   const [generating, setGenerating] = useState(false);
   const [concepts, setConcepts]     = useState<Concept[]>([]);
   const [activePattern, setActivePattern] = useState<Pattern | null>(null);
+  const [hookHealth, setHookHealth] = useState<HookSaturationResult | null>(null);
 
   // ClientSelector — ALTA PRIORIDADE (CLAUDE.md)
   const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('padroes');
@@ -310,9 +407,17 @@ export default function PadroesPage() {
     setLoading(true);
     const params = new URLSearchParams();
     if (clientFilter && clientFilter !== 'all') params.set('clientId', clientFilter);
-    adminFetch(`/api/admin/campanhas/criativos/patterns?${params}`)
-      .then(r => r.ok ? r.json() : { patterns: [] })
-      .then(d => setPatterns(d.patterns || []))
+    const qs = params.toString();
+    Promise.all([
+      adminFetch(`/api/admin/campanhas/criativos/patterns?${qs}`)
+        .then(r => r.ok ? r.json() : { patterns: [] }),
+      adminFetch(`/api/admin/campanhas/criativos/hook-saturation?${qs}`)
+        .then(r => r.ok ? r.json() : null),
+    ])
+      .then(([pData, hData]) => {
+        setPatterns(pData.patterns || []);
+        setHookHealth(hData && hData.totalCreatives > 0 ? hData : null);
+      })
       .finally(() => setLoading(false));
   }, [clientFilter]);
 
@@ -406,6 +511,9 @@ export default function PadroesPage() {
           </Link>
         </div>
       )}
+
+      {/* Hook Health */}
+      {!loading && hookHealth && <HookHealthCard data={hookHealth} />}
 
       {/* Patterns grid */}
       {!loading && patterns.length > 0 && (

@@ -91,6 +91,10 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   // Iniciativas disponíveis para vincular (PLANNED/ACTIVE do cliente/own)
   const [initiatives, setInitiatives] = useState<{ id: string; name: string; status: string }[]>([]);
 
+  const [hookAlert, setHookAlert] = useState<{
+    dominantLabel: string; dominantShare: number; suggestion: string | null;
+  } | null>(null);
+
   const [autoFields, setAutoFields] = useState({
     pixelId:            '',
     specialAdCategory:  'NONE',
@@ -141,7 +145,8 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
     async function loadAutoFields() {
       try {
         // Carregar em paralelo: identidade Meta, WhatsApp config e segment defaults
-        const [identity, whatsapp, clientSettings, segDefaultsRaw] = await Promise.all([
+        const hookSatQs = clientId ? `?clientId=${clientId}` : '';
+        const [identity, whatsapp, clientSettings, segDefaultsRaw, hookSat] = await Promise.all([
           getMetaIdentity().catch(() => null),
           getWhatsAppConfig().catch(() => null),
           clientId
@@ -154,7 +159,16 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               : `/api/admin/campanhas/segment-defaults?network=meta`,
             { credentials: 'include' },
           ).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch(`/api/admin/campanhas/criativos/hook-saturation${hookSatQs}`, { credentials: 'include' })
+            .then(r => r.ok ? r.json() : null).catch(() => null),
         ]);
+        if (hookSat?.saturationAlert) {
+          setHookAlert({
+            dominantLabel: hookSat.hookStats?.[0]?.label ?? hookSat.dominantHook,
+            dominantShare: hookSat.dominantShare,
+            suggestion: hookSat.suggestion,
+          });
+        }
 
         const segDefaults = segDefaultsRaw;
 
@@ -389,7 +403,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               className="max-w-4xl"
             >
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} />}
-              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} />}
+              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} />}
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
@@ -544,11 +558,24 @@ function StepNetwork({ form, updateForm }: any) {
    STEP 1 — TIPO
 ══════════════════════════════════════════════════════════ */
 
-function StepType({ form, updateForm, selectedImages }: any) {
+function StepType({ form, updateForm, selectedImages, hookAlert }: any) {
   /* Single image: show preview + name field */
   if (selectedImages.length === 1) {
     return (
       <div className="space-y-8">
+        {hookAlert && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+            <span className="text-lg shrink-0">⚠️</span>
+            <div>
+              <p className="text-sm font-black text-amber-800">
+                Portfólio saturado com hook "{hookAlert.dominantLabel}" ({hookAlert.dominantShare}%)
+              </p>
+              {hookAlert.suggestion && (
+                <p className="text-xs text-amber-700 mt-0.5">{hookAlert.suggestion} para maior alcance.</p>
+              )}
+            </div>
+          </div>
+        )}
         <Section title="Criativo Selecionado">
           <div className="flex items-start gap-8">
             <div className="w-56 h-56 rounded-2xl overflow-hidden border border-gray-200 shrink-0">

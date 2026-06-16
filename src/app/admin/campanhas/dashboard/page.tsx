@@ -10,6 +10,7 @@ import {
   type HookRateBenchmarks,
   getAiInsights,
 } from '@/lib/marketing-api';
+import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 import type { SegmentDashboardResponse } from '@/app/api/admin/campanhas/dashboard/segment/route';
 import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, OBJECTIVES } from '@/lib/marketing-utils';
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
@@ -53,6 +54,7 @@ export function DashboardPage() {
   const [aiInsights, setAiInsights]         = useState<AiInsightData[]>([]);
   const [aiInsightsBySegment, setAiInsightsBySegment] = useState<{ segmentId: string | null; segmentName: string; insights: any[] }[]>([]);
   const [anticipationData, setAnticipationData] = useState<AnticipationResult[]>([]);
+  const [hookSaturation, setHookSaturation]   = useState<HookSaturationResult | null>(null);
   const [hookRateBenchmarks, setHookRateBenchmarks] = useState<HookRateBenchmarks>({
     hook_rate_critical: 8,
     hook_rate_min: 12,
@@ -194,6 +196,8 @@ export function DashboardPage() {
       // Para briefing/histórico: filtrar pelo mesmo escopo de cliente ativo.
       // 'segment' é UI-only — sem clientId para buscar o briefing do segmento todo.
       const briefClientId = (clientFilter && clientFilter !== 'segment') ? clientFilter : undefined;
+      const hookSatQs = new URLSearchParams();
+      if (clientFilter && clientFilter !== 'segment') hookSatQs.set('clientId', clientFilter);
       Promise.all([
         getLatestBriefing({ segmentId: activeSegment ?? undefined, clientId: briefClientId }).catch(() => null),
         getBriefings({ limit: 5, segmentId: activeSegment ?? undefined, clientId: briefClientId }).catch(() => []),
@@ -202,13 +206,16 @@ export function DashboardPage() {
           ...(clientFilter && { clientId: clientFilter as string }),
           ...(activeSegment && { segmentId: activeSegment }),
         }).catch(() => []),
-      ]).then(([latestBriefing, history, aiData, anticipation]) => {
+        adminFetch(`/api/admin/campanhas/criativos/hook-saturation?${hookSatQs}`)
+          .then(r => r.ok ? r.json() : null).catch(() => null),
+      ]).then(([latestBriefing, history, aiData, anticipation, hookSat]) => {
         setBriefings(Array.isArray(latestBriefing) ? latestBriefing : (latestBriefing ? [latestBriefing as any] : []));
         setBriefingHistory(history as StrategicBriefingData[]);
         const aiResult = aiData as any;
         setAiInsights(Array.isArray(aiResult) ? aiResult : (aiResult?.insights ?? []));
         setAiInsightsBySegment(aiResult?.bySegment ?? []);
         setAnticipationData(anticipation as AnticipationResult[]);
+        setHookSaturation(hookSat?.totalCreatives > 0 ? hookSat : null);
       });
     } catch (err) { console.error('[Dashboard] Erro ao carregar dados:', err); }
     finally { setLoading(false); }
@@ -939,16 +946,18 @@ export function DashboardPage() {
             {aiInsights.length > 0 && (() => {
               type IS = { border: string; badge: string; dot: string; glow: string };
               const ds: Record<string, IS> = {
-                PAUSE:    { border: 'border-l-red-500',    badge: 'bg-red-500/10 text-red-400 border border-red-500/20',        dot: 'bg-red-500',    glow: 'shadow-[0_0_24px_rgba(239,68,68,0.07)]'    },
-                SCALE:    { border: 'border-l-emerald-500',badge: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',dot:'bg-emerald-500',glow:'shadow-[0_0_24px_rgba(16,185,129,0.07)]' },
-                OPTIMIZE: { border: 'border-l-amber-500',  badge: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',   dot: 'bg-amber-500',  glow: 'shadow-[0_0_24px_rgba(245,158,11,0.07)]'  },
-                ALERT:    { border: 'border-l-orange-500', badge: 'bg-orange-500/10 text-orange-400 border border-orange-500/20', dot: 'bg-orange-500', glow: 'shadow-[0_0_24px_rgba(249,115,22,0.07)]'  },
+                PAUSE:            { border: 'border-l-red-500',    badge: 'bg-red-500/10 text-red-400 border border-red-500/20',        dot: 'bg-red-500',    glow: 'shadow-[0_0_24px_rgba(239,68,68,0.07)]'    },
+                SCALE:            { border: 'border-l-emerald-500',badge: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',dot:'bg-emerald-500',glow:'shadow-[0_0_24px_rgba(16,185,129,0.07)]' },
+                OPTIMIZE:         { border: 'border-l-amber-500',  badge: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',   dot: 'bg-amber-500',  glow: 'shadow-[0_0_24px_rgba(245,158,11,0.07)]'  },
+                ALERT:            { border: 'border-l-orange-500', badge: 'bg-orange-500/10 text-orange-400 border border-orange-500/20', dot: 'bg-orange-500', glow: 'shadow-[0_0_24px_rgba(249,115,22,0.07)]'  },
+                CREATIVE_FATIGUE: { border: 'border-l-violet-500', badge: 'bg-violet-500/10 text-violet-400 border border-violet-500/20', dot: 'bg-violet-500', glow: 'shadow-[0_0_24px_rgba(139,92,246,0.07)]'  },
               };
               const ls: Record<string, IS> = {
-                PAUSE:    { border: 'border-l-red-500',    badge: 'bg-red-50 text-red-600 border border-red-100',             dot: 'bg-red-500',    glow: '' },
-                SCALE:    { border: 'border-l-emerald-500',badge: 'bg-emerald-50 text-emerald-700 border border-emerald-100', dot: 'bg-emerald-500',glow: '' },
-                OPTIMIZE: { border: 'border-l-amber-500',  badge: 'bg-amber-50 text-amber-700 border border-amber-100',       dot: 'bg-amber-500',  glow: '' },
-                ALERT:    { border: 'border-l-orange-500', badge: 'bg-orange-50 text-orange-700 border border-orange-100',    dot: 'bg-orange-500', glow: '' },
+                PAUSE:            { border: 'border-l-red-500',    badge: 'bg-red-50 text-red-600 border border-red-100',             dot: 'bg-red-500',    glow: '' },
+                SCALE:            { border: 'border-l-emerald-500',badge: 'bg-emerald-50 text-emerald-700 border border-emerald-100', dot: 'bg-emerald-500',glow: '' },
+                OPTIMIZE:         { border: 'border-l-amber-500',  badge: 'bg-amber-50 text-amber-700 border border-amber-100',       dot: 'bg-amber-500',  glow: '' },
+                ALERT:            { border: 'border-l-orange-500', badge: 'bg-orange-50 text-orange-700 border border-orange-100',    dot: 'bg-orange-500', glow: '' },
+                CREATIVE_FATIGUE: { border: 'border-l-violet-500', badge: 'bg-violet-50 text-violet-700 border border-violet-100',    dot: 'bg-violet-500', glow: '' },
               };
               const styles = isDark ? ds : ls;
               // Se o serviço não trouxe bySegment, cai num grupo único.
@@ -985,6 +994,32 @@ export function DashboardPage() {
                     <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
                   </div>
                   <div className="space-y-6">
+                    {/* Card CREATIVE_FATIGUE — nível de portfólio */}
+                    {hookSaturation?.saturationAlert && (() => {
+                      const hk = hookSaturation;
+                      const s = styles.CREATIVE_FATIGUE;
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
+                          className={cn(`rounded-2xl p-4 border-l-4 ${cardBase} ${s.border} ${s.glow}`)}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide ${s.badge}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />CREATIVE_FATIGUE
+                            </span>
+                            <a href="/admin/campanhas/criativos/padroes"
+                              className={`text-[10px] font-bold text-violet-500 hover:underline`}>
+                              Ver análise →
+                            </a>
+                          </div>
+                          <h4 className={`text-sm font-black mb-1 ${tx}`}>Saturação de Hook Criativo</h4>
+                          <p className={`text-xs ${txMuted}`}>
+                            {hk.dominantShare}% dos criativos ativos usam o hook "{hk.hookStats[0]?.label}" — risco de fadiga de público.
+                            {hk.suggestion && ` ${hk.suggestion}.`}
+                            {' '}Diversidade criativa: {hk.diversityIndex}/100.
+                          </p>
+                        </motion.div>
+                      );
+                    })()}
                     {groups.map((g, gi) => (
                       <div key={g.segmentId ?? gi}>
                         {g.segmentName && (
