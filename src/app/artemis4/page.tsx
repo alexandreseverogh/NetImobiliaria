@@ -556,7 +556,8 @@ export default function Artemis4LandingPage() {
 
   // 5. Loop do LERP de Seek e atualização da Telemetria HUD no DOM (Alta Performance)
   useEffect(() => {
-    let animFrameId: number
+    let intervalId: ReturnType<typeof setInterval> | undefined
+    let lastSeek = 0
 
     const updateTelemetryDOM = () => {
       const p = scrollPercentRef.current
@@ -636,37 +637,40 @@ export default function Artemis4LandingPage() {
       }
     }
 
-    const seekLoop = () => {
+    const tick = () => {
       const player = playerRef.current
       if (player && playerReady && useVideo) {
         try {
-          // Força o loop contínuo do trecho 3:56 até 4:10
+          // Mantém o loop do trecho 3:56–4:10 com DEBOUNCE: no máximo 1 seekTo/seg.
+          // Sem isso, durante o buffering inicial o seekTo era chamado a 60fps,
+          // inundando o iframe do YouTube com postMessage e travando a main thread
+          // "até o vídeo adiantar" (clique em 'Entrar' ficava na fila por segundos).
           const currentTime = player.getCurrentTime();
-          if (currentTime >= 249.5) {
+          const now = Date.now();
+          if (now - lastSeek > 1000 && (currentTime >= 249.5 || (currentTime > 0 && currentTime < 235))) {
             player.seekTo(236, true);
-          } else if (currentTime > 0 && currentTime < 235) {
-            player.seekTo(236, true);
+            lastSeek = now;
           }
         } catch (e) {
           console.error('Erro no monitoramento do YouTube Player:', e)
         }
       }
 
-      // Executa a atualização de DOM de forma limpa a 60hz
+      // Telemetria é texto/HUD — ~7fps é imperceptível e libera a main thread
+      // para responder a cliques imediatamente.
       updateTelemetryDOM()
-
-      animFrameId = requestAnimationFrame(seekLoop)
     }
 
     // Atrasa 700ms — sincronizado com o delay do YouTube para não competir
     // com a hidratação inicial do React e o carregamento da página.
     const telemetryStartTimer = setTimeout(() => {
-      animFrameId = requestAnimationFrame(seekLoop)
+      tick()
+      intervalId = setInterval(tick, 150)
     }, 700)
 
     return () => {
       clearTimeout(telemetryStartTimer)
-      cancelAnimationFrame(animFrameId)
+      if (intervalId) clearInterval(intervalId)
     }
   }, [playerReady, useVideo])
 
