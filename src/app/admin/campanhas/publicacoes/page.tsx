@@ -323,6 +323,7 @@ function Composer({ clientId, igLast24h, onClose, onPublished }: { clientId: str
   const [caption, setCaption]     = useState('');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [urlInput, setUrlInput]   = useState('');
+  const [uploading, setUploading] = useState(false);
   const [scheduleOn, setScheduleOn] = useState(false);
   const [schedDate, setSchedDate] = useState('');   // ISO YYYY-MM-DD
   const [schedTime, setSchedTime] = useState('09:00');
@@ -373,6 +374,28 @@ function Composer({ clientId, igLast24h, onClose, onPublished }: { clientId: str
   function addUrl() {
     const u = urlInput.trim();
     if (u && !mediaUrls.includes(u)) { setMediaUrls([...mediaUrls, u]); setUrlInput(''); }
+  }
+
+  async function handleFileUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setError('');
+    try {
+      const uploaded: string[] = [];
+      for (const file of Array.from(files)) {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/api/admin/campanhas/organic/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erro no upload');
+        uploaded.push(data.url);
+      }
+      setMediaUrls(prev => [...prev, ...uploaded.filter(u => !prev.includes(u))]);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setUploading(false);
+    }
   }
   function addHashtag() {
     const tag = '#';
@@ -485,23 +508,61 @@ function Composer({ clientId, igLast24h, onClose, onPublished }: { clientId: str
                 maxLength={CAPTION_MAX} placeholder="Escreva a legenda do post..." className={inputCls} />
             </div>
 
-            {/* Mídia por URL */}
+            {/* Mídia — upload local OU URL */}
             <div>
               <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
-                {mediaIsVideo ? 'Vídeo (URL pública)' : 'Imagens (URL pública)'}{postType === 'feed' && ' — opcional'}
+                {mediaIsVideo ? 'Vídeo' : 'Imagens'}{postType === 'feed' && ' — opcional'}
               </label>
+
+              {/* Drop zone */}
+              <label
+                className={`flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed cursor-pointer transition-all px-4 py-5 mb-3 ${
+                  uploading
+                    ? 'border-indigo-300 bg-indigo-50'
+                    : 'border-gray-200 bg-gray-50 hover:border-indigo-300 hover:bg-indigo-50/40'
+                }`}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); handleFileUpload(e.dataTransfer.files); }}
+              >
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
+                  multiple={!mediaIsVideo}
+                  className="sr-only"
+                  onChange={e => handleFileUpload(e.target.files)}
+                />
+                {uploading ? (
+                  <div className="flex items-center gap-2 text-indigo-600">
+                    <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                    <span className="text-xs font-black">Enviando para MinIO...</span>
+                  </div>
+                ) : (
+                  <>
+                    <PhotoIcon className="h-8 w-8 text-gray-300 mb-2" />
+                    <p className="text-xs font-black text-gray-600">Arraste ou clique para enviar</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      {mediaIsVideo ? 'MP4, MOV, WebM' : 'JPEG, PNG, WebP, GIF'} · até 50 MB por arquivo
+                    </p>
+                  </>
+                )}
+              </label>
+
+              {/* URL manual */}
               <div className="flex gap-2">
                 <input value={urlInput} onChange={e => setUrlInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addUrl(); } }}
-                  placeholder="https://..." className={inputCls} />
+                  placeholder="Ou cole uma URL pública (https://...)" className={inputCls} />
                 <button onClick={addUrl} className="px-4 py-2.5 bg-gray-900 text-white text-xs font-black uppercase rounded-xl hover:bg-gray-700 shrink-0">Add</button>
               </div>
+
               {mediaUrls.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {mediaUrls.map((u, i) => (
                     <div key={i} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg pl-2 pr-1 py-1">
-                      <PhotoIcon className="h-3.5 w-3.5 text-gray-400" />
-                      <span className="text-[11px] text-gray-600 max-w-[160px] truncate">{u}</span>
+                      <PhotoIcon className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                      <span className="text-[11px] text-gray-600 max-w-[160px] truncate" title={u}>
+                        {u.startsWith('http://localhost:9000') ? `📦 ${u.split('/').pop()}` : u}
+                      </span>
                       <button onClick={() => setMediaUrls(mediaUrls.filter(x => x !== u))} className="text-gray-400 hover:text-red-500">
                         <TrashIcon className="h-3.5 w-3.5" />
                       </button>
