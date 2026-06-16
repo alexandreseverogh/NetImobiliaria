@@ -132,16 +132,54 @@ export class MetaAdsAdapter implements AdNetworkService {
     );
   }
 
-  /** Busca o permalink de um post/foto (best-effort; null se indisponível). */
-  private async fetchPermalink(objectId: string, pageToken: string): Promise<string | null> {
+  /** Busca o permalink de um post/foto (best-effort; null se indisponível).
+   *  FB usa o campo `permalink_url`; Instagram usa `permalink`. */
+  private async fetchPermalink(objectId: string, pageToken: string, field: 'permalink_url' | 'permalink' = 'permalink_url'): Promise<string | null> {
     try {
       const res = await axios.get(this.url(objectId), {
-        params: { access_token: pageToken, fields: 'permalink_url' },
+        params: { access_token: pageToken, fields: field },
       });
-      return res.data?.permalink_url ?? null;
+      return res.data?.[field] ?? null;
     } catch {
       return null;
     }
+  }
+
+  /** Resolve o Instagram Business Account ID ligado à Página.
+   *  Usa instagram_actor_id das credenciais; senão deriva da Página. */
+  private async resolveInstagramUserId(pageToken: string): Promise<string> {
+    if (this.instagramActorId) return this.instagramActorId;
+    if (!this.pageId) {
+      throw new Error('Instagram: page_id não configurado — não é possível derivar a conta do Instagram.');
+    }
+    try {
+      const res = await axios.get(this.url(this.pageId), {
+        params: { access_token: pageToken, fields: 'instagram_business_account' },
+      });
+      const igId = res.data?.instagram_business_account?.id;
+      if (igId) return igId;
+    } catch { /* cai no erro abaixo */ }
+    throw new Error(
+      'Instagram: nenhuma conta do Instagram Business vinculada à Página. ' +
+      'Vincule a conta no Meta Business ou configure o Instagram Actor ID.',
+    );
+  }
+
+  /** Aguarda um container de mídia do Instagram ficar FINISHED (poll com backoff). */
+  private async waitForContainer(containerId: string, token: string, maxTries = 8): Promise<void> {
+    for (let i = 0; i < maxTries; i++) {
+      const res = await axios.get(this.url(containerId), {
+        params: { access_token: token, fields: 'status_code' },
+      });
+      const code = res.data?.status_code;
+      if (code === 'FINISHED') return;
+      if (code === 'ERROR' || code === 'EXPIRED') {
+        throw new Error(`Instagram: processamento da mídia falhou (status ${code}).`);
+      }
+      // IN_PROGRESS → aguarda com backoff (1s, 2s, 3s...)
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
+    throw new Error('Instagram: tempo esgotado aguardando o processamento da mídia.');
   }
 
   /**
@@ -200,6 +238,66 @@ export class MetaAdsAdapter implements AdNetworkService {
     });
     const postId = res.data?.id;
     return { platform: 'facebook', postId, permalink: await this.fetchPermalink(postId, pageToken), status: 'PUBLISHED' };
+  }
+
+  /**
+   * Publica um post ORGÂNICO no Instagram (FASE 16.C) — feed: imagem única ou carrossel.
+   * Requer URLs de mídia PÚBLICAS (o Instagram baixa server-side).
+   * Fluxo: cria container(es) → aguarda FINISHED → media_publish.
+   */
+  async publishToInstagram(input: OrganicPublishInput): Promise<OrganicPublishResult> {
+    const token = await this.resolvePageAccessToken();
+    const igId  = await this.resolveInstagramUserId(token);
+    const media = (input.mediaUrls || []).filter(Boolean);
+
+    if (media.length === 0) {
+      throw new Error('Instagram: é obrigatório ao menos uma imagem (não há post somente texto).');
+    }
+
+    let creationId: string;
+
+    if (media.length === 1) {
+      // Imagem única
+      const c = await axios.post(this.url(`${igId}/media`), null, {
+        params: { access_token: token, image_url: media[0], caption: input.caption || undefined },
+      });
+      creationId = c.data?.id;
+      await this.waitForContainer(creationId, token);
+    } else {
+      // Carrossel: containers filhos → container pai CAROUSEL
+      if (media.length > 10) throw new Error('Instagram: carrossel aceita no máximo 10 itens.');
+      const children: string[] = [];
+      for (const url of media) {
+        const ch = await axios.post(this.url(`${igId}/media`), null, {
+          params: { access_token: token, image_url: url, is_carousel_item: true },
+        });
+        if (ch.data?.id) children.push(ch.data.id);
+      }
+      for (const id of children) await this.waitForContainer(id, token);
+
+      const parent = await axios.post(this.url(`${igId}/media`), null, {
+        params: {
+          access_token: token,
+          media_type:   'CAROUSEL',
+          children:     children.join(','),
+          caption:      input.caption || undefined,
+        },
+      });
+      creationId = parent.data?.id;
+      await this.waitForContainer(creationId, token);
+    }
+
+    // Publica o container
+    const pub = await axios.post(this.url(`${igId}/media_publish`), null, {
+      params: { access_token: token, creation_id: creationId },
+    });
+    const postId = pub.data?.id;
+    return {
+      platform:  'instagram',
+      postId,
+      permalink: await this.fetchPermalink(postId, token, 'permalink'),
+      status:    'PUBLISHED',
+    };
   }
 
   async uploadCreative(imagePath: string): Promise<UploadResult> {

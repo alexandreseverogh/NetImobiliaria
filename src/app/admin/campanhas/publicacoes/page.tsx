@@ -148,6 +148,7 @@ export default function PublicacoesPage() {
 /* ── Composer ───────────────────────────────────────────────────────── */
 
 function Composer({ clientId, onClose, onPublished }: { clientId: string; onClose: () => void; onPublished: () => void }) {
+  const [platform, setPlatform]   = useState<'facebook' | 'instagram'>('facebook');
   const [caption, setCaption]     = useState('');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [urlInput, setUrlInput]   = useState('');
@@ -156,7 +157,11 @@ function Composer({ clientId, onClose, onPublished }: { clientId: string; onClos
   const [error, setError]         = useState('');
 
   const format = mediaUrls.length > 1 ? 'carousel' : mediaUrls.length === 1 ? 'image' : 'text';
-  const canPublish = caption.trim().length > 0 || mediaUrls.length > 0;
+  // Instagram exige ao menos uma imagem; Facebook aceita texto puro
+  const canPublish = platform === 'instagram'
+    ? mediaUrls.length > 0
+    : (caption.trim().length > 0 || mediaUrls.length > 0);
+  const platformLabel = platform === 'facebook' ? 'Página do Facebook' : 'Instagram';
 
   function addUrl() {
     const u = urlInput.trim();
@@ -172,7 +177,7 @@ function Composer({ clientId, onClose, onPublished }: { clientId: string; onClos
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId: clientId !== 'all' ? clientId : null,
-          platform: 'facebook',
+          platform,
           format,
           caption: caption.trim() || undefined,
           mediaUrls,
@@ -204,17 +209,28 @@ function Composer({ clientId, onClose, onPublished }: { clientId: string; onClos
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Destino — FB fixo na 16.B */}
+          {/* Destino — Facebook ou Instagram */}
           <div>
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Destino</label>
             <div className="flex gap-2">
-              <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <button type="button" onClick={() => setPlatform('facebook')}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                  platform === 'facebook' ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-200' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                }`}>
                 📘 Página do Facebook
-              </span>
-              <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-gray-50 text-gray-400 border border-gray-200" title="Disponível na sub-fase 16.C">
-                📸 Instagram <span className="text-[9px] font-black uppercase">em breve</span>
-              </span>
+              </button>
+              <button type="button" onClick={() => setPlatform('instagram')}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                  platform === 'instagram' ? 'bg-pink-50 text-pink-700 border-pink-300 ring-2 ring-pink-200' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                }`}>
+                📸 Instagram
+              </button>
             </div>
+            {platform === 'instagram' && (
+              <p className="text-[11px] text-pink-600 mt-1.5 font-medium">
+                O Instagram exige ao menos uma imagem (URL pública) — não há post somente texto.
+              </p>
+            )}
           </div>
 
           {/* Legenda */}
@@ -272,13 +288,13 @@ function Composer({ clientId, onClose, onPublished }: { clientId: string; onClos
           {!confirming ? (
             <button onClick={() => setConfirming(true)} disabled={!canPublish}
               className="w-full py-3 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 active:scale-95 disabled:opacity-40 transition-all">
-              Publicar na página
+              Publicar em {platformLabel}
             </button>
           ) : (
             <div className="space-y-2">
               <p className="text-xs text-center text-gray-600 font-medium flex items-center justify-center gap-1.5">
                 <ExclamationTriangleIcon className="h-4 w-4 text-amber-500" />
-                Isto publicará conteúdo <strong>público</strong> na Página do Facebook. Confirmar?
+                Isto publicará conteúdo <strong>público</strong> em <strong>{platformLabel}</strong>. Confirmar?
               </p>
               <div className="flex gap-2">
                 <button onClick={() => setConfirming(false)} disabled={publishing}

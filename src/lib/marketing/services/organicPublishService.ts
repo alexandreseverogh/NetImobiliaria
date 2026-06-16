@@ -41,9 +41,9 @@ export interface OrganicPostRecord {
 export async function publishOrganic(params: PublishOrganicParams): Promise<OrganicPostRecord> {
   const { tenantId, clientId, platform, format, caption, mediaUrls = [], assetIds = [], link, createdBy } = params;
 
-  // 16.B cobre apenas Facebook — Instagram depende de object storage (16.C)
-  if (platform === 'instagram') {
-    throw new Error('Publicação no Instagram chega na sub-fase 16.C (requer object storage para image_url pública).');
+  // Instagram (16.C) exige ao menos uma mídia via URL pública
+  if (platform === 'instagram' && mediaUrls.length === 0) {
+    throw new Error('Instagram exige ao menos uma imagem (URL pública). Não há post somente texto.');
   }
 
   // 1. Cria o registro em estado PUBLISHING (rastreável mesmo se a API falhar)
@@ -67,7 +67,9 @@ export async function publishOrganic(params: PublishOrganicParams): Promise<Orga
     const meta    = service as unknown as MetaAdsAdapter;
 
     const input: OrganicPublishInput = { format, caption, mediaUrls, link };
-    const result = await meta.publishToFacebookPage(input);
+    const result = platform === 'instagram'
+      ? await meta.publishToInstagram(input)
+      : await meta.publishToFacebookPage(input);
 
     // 3. Atualiza para PUBLISHED
     const updated = await prisma.organicPost.update({
