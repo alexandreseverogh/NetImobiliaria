@@ -1,12 +1,49 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-14 (Sessão de setup nova máquina + fixes dashboard)
+> **Atualizado em:** 2026-06-16 (FASE 16 orgânico + unificação MinIO + deploy automatizado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-06-16 — FASE 16 + MinIO unificado + Deploy automatizado ✅
+
+#### 1. FASE 16 — Postagem Orgânica no Meta (16.A–16.F) — COMPLETA
+
+Ver detalhes em `docs/claude-memory/project_fase16_organico.md`.
+Commits: `bae5fe5` (FASE 16 concluída) + `64b374c` (upload MinIO orgânico) + `56b8945` (dedup s3-client).
+
+**Migrações aplicadas LOCALMENTE, PENDENTES na VPS:**
+- `prisma/migration-2026-06-15-fase16-organic.sql`
+- `prisma/migration-2026-06-15-fase16f-schedule.sql`
+
+#### 2. Unificação de Object Storage — s3-client.ts
+
+- **Problema:** 3 implementações separadas de storage (disco local em criativos, MinIO em imóveis, novo minio.ts criado para orgânico).
+- **Solução:** tudo usa `src/lib/storage/s3-client.ts`. Arquivo `minio.ts` duplicado removido.
+- `criativos/upload`: migrado de `public/uploads/` (disco) para MinIO (`criativos/<tenantId>/...`).
+- `organic/upload`: usa `s3-client.ts` diretamente.
+- `s3-client.ts`: adicionado `ensureBucket()` com auto-criação + política pública.
+- Commits: `03dc3b8` + `56b8945`.
+
+#### 3. Deploy VPS — totalmente automatizado
+
+- `scripts/deploy.sh`: coleta domínio + email, gera todas as senhas com `openssl rand`, escreve `.env`, sobe containers, aguarda healthcheck, inicializa buckets MinIO.
+- `docker-compose.vps.yml`: `CDN_URL` derivado automaticamente de `PROD_DOMAIN`.
+- `ops/Caddyfile`: rota `/storage/*` → `minio:9000` (imagens acessíveis via HTTPS sem expor porta).
+- `.env.example`: template completo documentado.
+- Commits: `07ebe43` + `5a83880`.
+
+**Para fazer o deploy:**
+```bash
+git clone https://github.com/alexandreseverogh/NetImobiliaria .
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh   # pergunta apenas domínio + email
+```
+
+---
 
 ### Sessão 2026-06-14 — Setup nova máquina + fixes dashboard ✅
 
