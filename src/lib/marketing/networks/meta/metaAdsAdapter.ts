@@ -14,11 +14,14 @@ import type {
 const META_API_BASE = 'https://graph.facebook.com/v21.0';
 
 // ── FASE 16 — Postagem orgânica ──────────────────────────────────────────────
+export type OrganicFormat = 'text' | 'image' | 'carousel' | 'video' | 'reel' | 'story';
+
 export interface OrganicPublishInput {
-  format:    'text' | 'image' | 'carousel';   // 16.B: FB texto + foto(s)
-  caption?:  string;
-  mediaUrls?: string[];   // URLs públicas das imagens (FB Page aceita url direto)
-  link?:     string;
+  format:     OrganicFormat;
+  caption?:   string;
+  mediaUrls?: string[];   // URLs públicas (imagem ou vídeo conforme o formato)
+  link?:      string;
+  mediaKind?: 'image' | 'video';   // desambigua Stories (Reels = sempre vídeo)
 }
 
 export interface OrganicPublishResult {
@@ -191,6 +194,15 @@ export class MetaAdsAdapter implements AdNetworkService {
     const pageToken = await this.resolvePageAccessToken();
     const media     = (input.mediaUrls || []).filter(Boolean);
 
+    // Formatos de vídeo/efêmeros (16.D) — tratados antes do feed estático
+    if (input.format === 'video') return this.publishFacebookVideo(media[0], input.caption, pageToken);
+    if (input.format === 'reel')  return this.publishFacebookHostedVideo('video_reels',  media[0], input.caption, pageToken);
+    if (input.format === 'story') {
+      return (input.mediaKind === 'video')
+        ? this.publishFacebookHostedVideo('video_stories', media[0], input.caption, pageToken)
+        : this.publishFacebookPhotoStory(media[0], pageToken);
+    }
+
     // 1. Apenas texto / link
     if (media.length === 0) {
       if (!input.caption?.trim() && !input.link) {
@@ -240,6 +252,67 @@ export class MetaAdsAdapter implements AdNetworkService {
     return { platform: 'facebook', postId, permalink: await this.fetchPermalink(postId, pageToken), status: 'PUBLISHED' };
   }
 
+  // ── FASE 16.D — Vídeo / Reels / Stories no Facebook ───────────────────────
+
+  /** Vídeo de feed: POST /{page}/videos com file_url hospedado. */
+  private async publishFacebookVideo(videoUrl: string, caption: string | undefined, pageToken: string): Promise<OrganicPublishResult> {
+    if (!videoUrl) throw new Error('Vídeo: informe a URL pública do vídeo.');
+    const res = await axios.post(this.url(`${this.pageId}/videos`), null, {
+      params: { access_token: pageToken, file_url: videoUrl, description: caption || undefined },
+    });
+    const postId = res.data?.id;
+    return { platform: 'facebook', postId, permalink: await this.fetchPermalink(postId, pageToken), status: 'PUBLISHED' };
+  }
+
+  /** Foto de Story: upload não publicado → POST /{page}/photo_stories. */
+  private async publishFacebookPhotoStory(imageUrl: string, pageToken: string): Promise<OrganicPublishResult> {
+    if (!imageUrl) throw new Error('Story: informe a URL pública da imagem.');
+    const up = await axios.post(this.url(`${this.pageId}/photos`), null, {
+      params: { access_token: pageToken, url: imageUrl, published: false },
+    });
+    const photoId = up.data?.id;
+    const res = await axios.post(this.url(`${this.pageId}/photo_stories`), null, {
+      params: { access_token: pageToken, photo_id: photoId },
+    });
+    const postId = res.data?.post_id || res.data?.id || photoId;
+    return { platform: 'facebook', postId, permalink: null, status: 'PUBLISHED' };
+  }
+
+  /** Reels / Video Stories: fluxo hospedado em 3 passos (start → upload por file_url → finish). */
+  private async publishFacebookHostedVideo(
+    endpoint: 'video_reels' | 'video_stories',
+    videoUrl: string,
+    caption: string | undefined,
+    pageToken: string,
+  ): Promise<OrganicPublishResult> {
+    if (!videoUrl) throw new Error(`${endpoint === 'video_reels' ? 'Reels' : 'Story em vídeo'}: informe a URL pública do vídeo (9:16).`);
+
+    // 1. start
+    const start = await axios.post(this.url(`${this.pageId}/${endpoint}`), null, {
+      params: { access_token: pageToken, upload_phase: 'start' },
+    });
+    const videoId   = start.data?.video_id;
+    const uploadUrl = start.data?.upload_url;
+    if (!videoId || !uploadUrl) throw new Error('Meta: falha ao iniciar o upload do vídeo.');
+
+    // 2. upload hospedado (Meta baixa do file_url via header)
+    await axios.post(uploadUrl, null, {
+      headers: { Authorization: `OAuth ${pageToken}`, file_url: videoUrl },
+    });
+
+    // 3. finish (publica)
+    const finishParams: any = {
+      access_token: pageToken,
+      upload_phase: 'finish',
+      video_id:     videoId,
+      video_state:  'PUBLISHED',
+    };
+    if (endpoint === 'video_reels' && caption) finishParams.description = caption;
+    const fin = await axios.post(this.url(`${this.pageId}/${endpoint}`), null, { params: finishParams });
+    const postId = fin.data?.post_id || videoId;
+    return { platform: 'facebook', postId, permalink: null, status: 'PUBLISHED' };
+  }
+
   /**
    * Publica um post ORGÂNICO no Instagram (FASE 16.C) — feed: imagem única ou carrossel.
    * Requer URLs de mídia PÚBLICAS (o Instagram baixa server-side).
@@ -251,7 +324,29 @@ export class MetaAdsAdapter implements AdNetworkService {
     const media = (input.mediaUrls || []).filter(Boolean);
 
     if (media.length === 0) {
-      throw new Error('Instagram: é obrigatório ao menos uma imagem (não há post somente texto).');
+      throw new Error('Instagram: é obrigatório ao menos uma mídia.');
+    }
+
+    // 16.D — Vídeo / Reels / Stories: container único com media_type
+    if (input.format === 'video' || input.format === 'reel' || input.format === 'story') {
+      const mediaType = input.format === 'reel' ? 'REELS' : input.format === 'story' ? 'STORIES' : 'VIDEO';
+      const params: any = { access_token: token, media_type: mediaType };
+      // Story pode ser imagem ou vídeo; Reels/Video são sempre vídeo
+      if (input.format === 'story' && input.mediaKind === 'image') {
+        params.image_url = media[0];
+      } else {
+        params.video_url = media[0];
+      }
+      if (input.format !== 'story' && input.caption) params.caption = input.caption;
+
+      const c = await axios.post(this.url(`${igId}/media`), null, { params });
+      const creationId = c.data?.id;
+      await this.waitForContainer(creationId, token, 12);   // vídeo demora mais
+      const pub = await axios.post(this.url(`${igId}/media_publish`), null, {
+        params: { access_token: token, creation_id: creationId },
+      });
+      const postId = pub.data?.id;
+      return { platform: 'instagram', postId, permalink: await this.fetchPermalink(postId, token, 'permalink'), status: 'PUBLISHED' };
     }
 
     let creationId: string;

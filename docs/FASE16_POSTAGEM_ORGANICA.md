@@ -1,6 +1,6 @@
 # FASE 16 — Postagem Orgânica no Meta
 
-> **Status:** EM DESENVOLVIMENTO — 16.A ✅, 16.B ✅ (Facebook), 16.C ✅ (Instagram feed via URL pública). 16.D/E/F pendentes.
+> **Status:** EM DESENVOLVIMENTO — 16.A ✅, 16.B ✅ (FB feed), 16.C ✅ (IG feed), 16.D ✅ (vídeo/Reels/Stories FB+IG). 16.E/F pendentes.
 > **Pré-requisito:** FASE 1 (credenciais Meta de 3 camadas — entregue).
 > **Nota de escopo:** 16.C foi entregue para mídia via **URL pública** (IG aceita direto). O **object storage (S3/R2)** passou a ser pré-requisito apenas do fluxo futuro "publicar a partir da biblioteca" (upload de assets locais), não da publicação por URL.
 > **Prioridade:** 4 · **Duração estimada:** ~3–4 dias úteis distribuídos nas sub-fases.
@@ -102,7 +102,7 @@ POST   /api/cron/campanhas/organic-publish    → dispara agendados (x-cron-secr
 | **16.A** ✅ Fundação | Migração `OrganicPost` + `resolvePageAccessToken` + sidebar/permissões | token de página resolvido sem hardcode |
 | **16.B** ✅ FB foto/texto | `publishToFacebookPage` + rota publish + composer mínimo | publica foto/texto, retorna `post_id` + permalink |
 | **16.C** ✅ IG feed | `publishToInstagram` (container→poll→publish) imagem/carrossel via URL pública | publica imagem/carrossel no IG |
-| **16.D** Vídeo/Reels/Stories | endpoints de vídeo (FB+IG) com polling | reel publicado após `FINISHED` |
+| **16.D** ✅ Vídeo/Reels/Stories | FB: /videos, video_reels e video_stories (upload hospedado 3 passos), photo_stories · IG: container REELS/STORIES/VIDEO com poll | reel publicado após `FINISHED` |
 | **16.E** UX premium | previews device-frame, validação por destino, rate-limit, hashtags | badges corretos por formato |
 | **16.F** Agendamento + página | `SCHEDULED` + cron + `/publicacoes` | agendado publica no horário; insights exibidos |
 

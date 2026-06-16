@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       mediaUrls = [],
       assetIds = [],
       link,
+      mediaKind,
     } = body;
 
     // Sentinelas de UI → null (sem cliente); UUID real preservado
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
       mediaUrls,
       assetIds,
       link,
+      mediaKind,
       createdBy: payload.userId || null,
     });
 

@@ -16,11 +16,12 @@ export interface PublishOrganicParams {
   tenantId:    string;
   clientId?:   string | null;   // UUID real ou null (sentinelas 'own'/'segment' já sanitizados no route)
   platform:    'facebook' | 'instagram';
-  format:      'text' | 'image' | 'carousel';
+  format:      'text' | 'image' | 'carousel' | 'video' | 'reel' | 'story';
   caption?:    string;
   mediaUrls?:  string[];
   assetIds?:   string[];
   link?:       string;
+  mediaKind?:  'image' | 'video';   // desambigua Stories
   createdBy?:  string | null;
 }
 
@@ -39,11 +40,11 @@ export interface OrganicPostRecord {
  * Retorna o registro com status final (PUBLISHED ou FAILED).
  */
 export async function publishOrganic(params: PublishOrganicParams): Promise<OrganicPostRecord> {
-  const { tenantId, clientId, platform, format, caption, mediaUrls = [], assetIds = [], link, createdBy } = params;
+  const { tenantId, clientId, platform, format, caption, mediaUrls = [], assetIds = [], link, mediaKind, createdBy } = params;
 
-  // Instagram (16.C) exige ao menos uma mídia via URL pública
+  // Instagram exige ao menos uma mídia via URL pública (não há post somente texto)
   if (platform === 'instagram' && mediaUrls.length === 0) {
-    throw new Error('Instagram exige ao menos uma imagem (URL pública). Não há post somente texto.');
+    throw new Error('Instagram exige ao menos uma mídia (URL pública).');
   }
 
   // 1. Cria o registro em estado PUBLISHING (rastreável mesmo se a API falhar)
@@ -66,7 +67,7 @@ export async function publishOrganic(params: PublishOrganicParams): Promise<Orga
     const service = await getNetworkServiceForTenant(tenantId, 'meta', clientId ?? null);
     const meta    = service as unknown as MetaAdsAdapter;
 
-    const input: OrganicPublishInput = { format, caption, mediaUrls, link };
+    const input: OrganicPublishInput = { format, caption, mediaUrls, link, mediaKind };
     const result = platform === 'instagram'
       ? await meta.publishToInstagram(input)
       : await meta.publishToFacebookPage(input);

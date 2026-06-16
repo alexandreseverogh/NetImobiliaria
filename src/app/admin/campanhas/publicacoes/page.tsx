@@ -149,6 +149,8 @@ export default function PublicacoesPage() {
 
 function Composer({ clientId, onClose, onPublished }: { clientId: string; onClose: () => void; onPublished: () => void }) {
   const [platform, setPlatform]   = useState<'facebook' | 'instagram'>('facebook');
+  const [postType, setPostType]   = useState<'feed' | 'video' | 'reel' | 'story'>('feed');
+  const [storyKind, setStoryKind] = useState<'image' | 'video'>('image');
   const [caption, setCaption]     = useState('');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [urlInput, setUrlInput]   = useState('');
@@ -156,12 +158,24 @@ function Composer({ clientId, onClose, onPublished }: { clientId: string; onClos
   const [publishing, setPublishing] = useState(false);
   const [error, setError]         = useState('');
 
-  const format = mediaUrls.length > 1 ? 'carousel' : mediaUrls.length === 1 ? 'image' : 'text';
-  // Instagram exige ao menos uma imagem; Facebook aceita texto puro
-  const canPublish = platform === 'instagram'
-    ? mediaUrls.length > 0
-    : (caption.trim().length > 0 || mediaUrls.length > 0);
+  const format = postType === 'feed'
+    ? (mediaUrls.length > 1 ? 'carousel' : mediaUrls.length === 1 ? 'image' : 'text')
+    : postType;
+  const mediaIsVideo = postType === 'video' || postType === 'reel' || (postType === 'story' && storyKind === 'video');
+
+  const canPublish = (() => {
+    if (postType === 'video' || postType === 'reel' || postType === 'story') return mediaUrls.length >= 1;
+    // feed: Instagram exige mídia; Facebook aceita texto puro
+    return platform === 'instagram' ? mediaUrls.length > 0 : (caption.trim().length > 0 || mediaUrls.length > 0);
+  })();
   const platformLabel = platform === 'facebook' ? 'Página do Facebook' : 'Instagram';
+
+  const POST_TYPES = [
+    { value: 'feed',  label: 'Feed' },
+    { value: 'video', label: 'Vídeo' },
+    { value: 'reel',  label: 'Reels' },
+    { value: 'story', label: 'Stories' },
+  ] as const;
 
   function addUrl() {
     const u = urlInput.trim();
@@ -181,6 +195,7 @@ function Composer({ clientId, onClose, onPublished }: { clientId: string; onClos
           format,
           caption: caption.trim() || undefined,
           mediaUrls,
+          mediaKind: postType === 'story' ? storyKind : undefined,
         }),
       });
       const data = await res.json();
@@ -228,7 +243,40 @@ function Composer({ clientId, onClose, onPublished }: { clientId: string; onClos
             </div>
             {platform === 'instagram' && (
               <p className="text-[11px] text-pink-600 mt-1.5 font-medium">
-                O Instagram exige ao menos uma imagem (URL pública) — não há post somente texto.
+                O Instagram exige ao menos uma mídia (URL pública) — não há post somente texto.
+              </p>
+            )}
+          </div>
+
+          {/* Formato */}
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Formato</label>
+            <div className="flex gap-1.5 bg-gray-50 border border-gray-200 rounded-xl p-1 w-fit">
+              {POST_TYPES.map(t => (
+                <button key={t.value} type="button" onClick={() => setPostType(t.value)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-wide transition-all ${
+                    postType === t.value ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            {postType === 'story' && (
+              <div className="flex items-center gap-2 mt-2.5">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mídia do story:</span>
+                {(['image', 'video'] as const).map(k => (
+                  <button key={k} type="button" onClick={() => setStoryKind(k)}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                      storyKind === k ? 'bg-indigo-50 text-indigo-700 border-indigo-300' : 'bg-white text-gray-500 border-gray-200'
+                    }`}>
+                    {k === 'image' ? 'Imagem' : 'Vídeo'}
+                  </button>
+                ))}
+              </div>
+            )}
+            {(postType === 'reel' || postType === 'video') && (
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                {postType === 'reel' ? 'Reels: vídeo vertical 9:16.' : 'Vídeo de feed.'} Informe a URL pública do vídeo abaixo.
               </p>
             )}
           </div>
@@ -248,7 +296,8 @@ function Composer({ clientId, onClose, onPublished }: { clientId: string; onClos
           {/* Imagens por URL */}
           <div>
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
-              Imagens (URL pública) — opcional
+              {mediaIsVideo ? 'Vídeo (URL pública)' : 'Imagens (URL pública)'}
+              {postType === 'feed' && ' — opcional'}
             </label>
             <div className="flex gap-2">
               <input value={urlInput} onChange={e => setUrlInput(e.target.value)}
@@ -271,9 +320,11 @@ function Composer({ clientId, onClose, onPublished }: { clientId: string; onClos
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-gray-400 mt-1.5">
-              Formato detectado: <strong>{format === 'text' ? 'Texto' : format === 'image' ? 'Foto única' : 'Carrossel'}</strong>
-            </p>
+            {postType === 'feed' && (
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                Formato detectado: <strong>{format === 'text' ? 'Texto' : format === 'image' ? 'Foto única' : 'Carrossel'}</strong>
+              </p>
+            )}
           </div>
 
           {error && (
