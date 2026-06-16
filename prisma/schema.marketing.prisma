@@ -34,6 +34,30 @@ model MarketingInitiative {
   @@map("MarketingInitiative")
 }
 
+// FASE 16 — Postagem orgânica (separada do fluxo pago de Campaign/Ad)
+model OrganicPost {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id") @db.Uuid
+  clientId        String?   @map("client_id") @db.Uuid
+  platform        String    @db.VarChar(20)   // facebook | instagram
+  format          String    @db.VarChar(20)   // image|carousel|video|reel|story|text
+  caption         String?
+  mediaUrls       Json      @default("[]") @map("media_urls")
+  assetIds        Json?     @map("asset_ids")
+  status          String    @default("DRAFT") @db.VarChar(20)
+  externalPostId  String?   @map("external_post_id") @db.VarChar(100)
+  permalinkUrl    String?   @map("permalink_url")
+  scheduledAt     DateTime? @map("scheduled_at")
+  publishedAt     DateTime? @map("published_at")
+  errorMessage    String?   @map("error_message")
+  createdBy       String?   @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, status])
+  @@index([clientId])
+  @@map("OrganicPost")
+}
+
 model Campaign {
   id                  String    @id @default(uuid())
   tenantId            String?   @map("tenant_id") @db.Uuid

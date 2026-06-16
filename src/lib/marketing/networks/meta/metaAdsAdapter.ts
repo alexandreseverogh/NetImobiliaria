@@ -61,6 +61,62 @@ export class MetaAdsAdapter implements AdNetworkService {
     }
   }
 
+  // ── FASE 16 — Postagem orgânica ───────────────────────────────────────────
+  // Cache em memória do Page Access Token (escopo da instância do adapter).
+  private _pageTokenCache?: string;
+
+  /**
+   * Resolve o Page Access Token a partir das credenciais do tenant.
+   *
+   * O token armazenado costuma ser de Usuário/Sistema; publicar na Página exige
+   * um Page Access Token. Estratégia (sem hardcode):
+   *   1. GET /{page-id}?fields=access_token  (caminho direto se o user token tem acesso)
+   *   2. fallback GET /me/accounts e localizar a página por id
+   * Lança erro acionável se page_id não configurado ou sem permissão.
+   */
+  async resolvePageAccessToken(): Promise<string> {
+    if (this._pageTokenCache) return this._pageTokenCache;
+
+    if (!this.pageId) {
+      throw new Error(
+        'Postagem orgânica: page_id não configurado. Configure a Identidade Meta do tenant/cliente.',
+      );
+    }
+
+    // 1. Caminho direto
+    try {
+      const res = await axios.get(this.url(this.pageId), {
+        params: { ...this.auth, fields: 'access_token' },
+      });
+      const token = res.data?.access_token;
+      if (token) {
+        this._pageTokenCache = token;
+        return token;
+      }
+    } catch { /* tenta o fallback abaixo */ }
+
+    // 2. Fallback: lista de páginas do usuário
+    try {
+      const res = await axios.get(this.url('me/accounts'), {
+        params: { ...this.auth, fields: 'id,access_token' },
+      });
+      const page = (res.data?.data || []).find((p: any) => p.id === this.pageId);
+      if (page?.access_token) {
+        this._pageTokenCache = page.access_token;
+        return page.access_token;
+      }
+    } catch (err: any) {
+      throw new Error(
+        `Postagem orgânica: falha ao resolver Page Access Token — ${err?.response?.data?.error?.message || err.message}`,
+      );
+    }
+
+    throw new Error(
+      'Postagem orgânica: o token configurado não tem acesso a esta Página. ' +
+      'Verifique a permissão pages_manage_posts e se a Página pertence à conta.',
+    );
+  }
+
   async uploadCreative(imagePath: string): Promise<UploadResult> {
     const form = new FormData();
     form.append('filename', fs.createReadStream(imagePath));
