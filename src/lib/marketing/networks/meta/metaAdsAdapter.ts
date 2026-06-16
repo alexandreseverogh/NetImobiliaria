@@ -13,6 +13,21 @@ import type {
 
 const META_API_BASE = 'https://graph.facebook.com/v21.0';
 
+// ── FASE 16 — Postagem orgânica ──────────────────────────────────────────────
+export interface OrganicPublishInput {
+  format:    'text' | 'image' | 'carousel';   // 16.B: FB texto + foto(s)
+  caption?:  string;
+  mediaUrls?: string[];   // URLs públicas das imagens (FB Page aceita url direto)
+  link?:     string;
+}
+
+export interface OrganicPublishResult {
+  platform: 'facebook' | 'instagram';
+  postId:   string;
+  permalink: string | null;
+  status:   'PUBLISHED';
+}
+
 export interface MetaCredentials {
   access_token: string;
   app_id?: string;
@@ -115,6 +130,76 @@ export class MetaAdsAdapter implements AdNetworkService {
       'Postagem orgânica: o token configurado não tem acesso a esta Página. ' +
       'Verifique a permissão pages_manage_posts e se a Página pertence à conta.',
     );
+  }
+
+  /** Busca o permalink de um post/foto (best-effort; null se indisponível). */
+  private async fetchPermalink(objectId: string, pageToken: string): Promise<string | null> {
+    try {
+      const res = await axios.get(this.url(objectId), {
+        params: { access_token: pageToken, fields: 'permalink_url' },
+      });
+      return res.data?.permalink_url ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Publica um post ORGÂNICO na Página do Facebook (FASE 16.B).
+   * Suporta: texto/link (/feed), foto única (/photos) e multi-foto (attached_media).
+   * NÃO usa adset/targeting/budget — é publicação orgânica pura.
+   */
+  async publishToFacebookPage(input: OrganicPublishInput): Promise<OrganicPublishResult> {
+    const pageToken = await this.resolvePageAccessToken();
+    const media     = (input.mediaUrls || []).filter(Boolean);
+
+    // 1. Apenas texto / link
+    if (media.length === 0) {
+      if (!input.caption?.trim() && !input.link) {
+        throw new Error('Postagem orgânica: informe um texto, link ou imagem.');
+      }
+      const res = await axios.post(this.url(`${this.pageId}/feed`), null, {
+        params: {
+          access_token: pageToken,
+          message:      input.caption || undefined,
+          link:         input.link || undefined,
+        },
+      });
+      const postId = res.data?.id;
+      return { platform: 'facebook', postId, permalink: await this.fetchPermalink(postId, pageToken), status: 'PUBLISHED' };
+    }
+
+    // 2. Foto única
+    if (media.length === 1) {
+      const res = await axios.post(this.url(`${this.pageId}/photos`), null, {
+        params: {
+          access_token: pageToken,
+          url:          media[0],
+          caption:      input.caption || undefined,
+          published:    true,
+        },
+      });
+      const postId = res.data?.post_id || res.data?.id;
+      return { platform: 'facebook', postId, permalink: await this.fetchPermalink(postId, pageToken), status: 'PUBLISHED' };
+    }
+
+    // 3. Multi-foto: upload sem publicar → /feed com attached_media
+    const mediaFbids: { media_fbid: string }[] = [];
+    for (const url of media) {
+      const up = await axios.post(this.url(`${this.pageId}/photos`), null, {
+        params: { access_token: pageToken, url, published: false },
+      });
+      if (up.data?.id) mediaFbids.push({ media_fbid: up.data.id });
+    }
+    const res = await axios.post(this.url(`${this.pageId}/feed`), null, {
+      params: {
+        access_token:   pageToken,
+        message:        input.caption || undefined,
+        attached_media: JSON.stringify(mediaFbids),
+      },
+    });
+    const postId = res.data?.id;
+    return { platform: 'facebook', postId, permalink: await this.fetchPermalink(postId, pageToken), status: 'PUBLISHED' };
   }
 
   async uploadCreative(imagePath: string): Promise<UploadResult> {
