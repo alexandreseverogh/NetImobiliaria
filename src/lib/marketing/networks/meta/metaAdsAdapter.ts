@@ -135,6 +135,30 @@ export class MetaAdsAdapter implements AdNetworkService {
     );
   }
 
+  /** Métricas orgânicas básicas de um post publicado (best-effort). */
+  async getOrganicInsights(platform: 'facebook' | 'instagram', objectId: string): Promise<Record<string, number>> {
+    const token = await this.resolvePageAccessToken();
+    if (platform === 'facebook') {
+      const res = await axios.get(this.url(objectId), {
+        params: { access_token: token, fields: 'likes.summary(true),comments.summary(true),shares' },
+      });
+      return {
+        curtidas:    res.data?.likes?.summary?.total_count ?? 0,
+        comentarios: res.data?.comments?.summary?.total_count ?? 0,
+        compartilh:  res.data?.shares?.count ?? 0,
+      };
+    }
+    // Instagram media insights
+    const res = await axios.get(this.url(`${objectId}/insights`), {
+      params: { access_token: token, metric: 'impressions,reach,likes,comments' },
+    });
+    const out: Record<string, number> = {};
+    for (const m of (res.data?.data || [])) {
+      out[m.name] = m.values?.[0]?.value ?? 0;
+    }
+    return out;
+  }
+
   /** Busca o permalink de um post/foto (best-effort; null se indisponível).
    *  FB usa o campo `permalink_url`; Instagram usa `permalink`. */
   private async fetchPermalink(objectId: string, pageToken: string, field: 'permalink_url' | 'permalink' = 'permalink_url'): Promise<string | null> {

@@ -247,11 +247,35 @@ cron.schedule('0 18 * * 0', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
+// FASE 16.F — Publicação orgânica agendada: a cada 5 minutos
+cron.schedule('*/5 * * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/organic-publish`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [organic-publish] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    if (data.due > 0) {
+      console.log(`✅ [organic-publish] due=${data.due} published=${data.published} failed=${data.failed} ${data.elapsedMs}ms`);
+    }
+  } catch (error) {
+    console.error('❌ [organic-publish] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
 console.log('✅ Agendador configurado:');
 console.log('   • Feed sync diário        → 03:00 (America/Sao_Paulo)');
 console.log('   • Transbordo de leads     → a cada 5 min');
 console.log('   • Audit report mensal     → 1º dia do mês às 09:00');
 console.log('   • Audit report semanal    → domingos às 18:00');
+console.log('   • Publicação orgânica     → a cada 5 min (agendadas)');
 console.log('\n🚀 Agendador rodando... (Ctrl+C para parar)\n');
 
 // Removido o boot sync imediato para respeitar a janela das 03:00h conforme solicitado pelo usuário.

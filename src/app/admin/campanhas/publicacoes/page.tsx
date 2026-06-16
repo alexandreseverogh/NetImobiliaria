@@ -6,6 +6,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { CreateGuard } from '@/components/admin/PermissionGuard';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import DateInputPtBR from '@/components/ui/DateInputPtBR';
 
 interface OrganicPost {
   id: string;
@@ -16,6 +17,7 @@ interface OrganicPost {
   permalinkUrl: string | null;
   errorMessage: string | null;
   caption?: string | null;
+  scheduledAt?: string | null;
   createdAt?: string;
 }
 
@@ -35,8 +37,27 @@ export default function PublicacoesPage() {
   const [posts, setPosts]     = useState<OrganicPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [showComposer, setShowComposer] = useState(false);
+  const [view, setView]       = useState<'list' | 'calendar'>('list');
+  const [insights, setInsights] = useState<Record<string, Record<string, number> | 'loading' | 'error'>>({});
 
   const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('publicacoes');
+
+  async function cancelPost(id: string) {
+    if (!confirm('Cancelar/remover esta publicação?')) return;
+    const res = await fetch(`/api/admin/campanhas/organic/${id}`, { method: 'DELETE' });
+    if (res.ok) setPosts(p => p.filter(x => x.id !== id));
+  }
+
+  async function loadInsights(id: string) {
+    setInsights(s => ({ ...s, [id]: 'loading' }));
+    try {
+      const res = await fetch(`/api/admin/campanhas/organic/${id}/insights`);
+      const data = await res.json();
+      setInsights(s => ({ ...s, [id]: res.ok ? data.insights : 'error' }));
+    } catch {
+      setInsights(s => ({ ...s, [id]: 'error' }));
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,6 +99,16 @@ export default function PublicacoesPage() {
               storageKey="publicacoes"
               variant="toggle"
             />
+            <div className="flex items-center gap-1 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
+              {(['list', 'calendar'] as const).map(v => (
+                <button key={v} onClick={() => setView(v)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wide transition-all ${
+                    view === v ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}>
+                  {v === 'list' ? 'Lista' : 'Calendário'}
+                </button>
+              ))}
+            </div>
             <CreateGuard resource="publicacoes-organicas">
               <button onClick={() => setShowComposer(true)}
                 className="flex items-center gap-2 px-5 py-3 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-lg shadow-emerald-500/20">
@@ -106,10 +137,14 @@ export default function PublicacoesPage() {
               </button>
             </CreateGuard>
           </div>
+        ) : view === 'calendar' ? (
+          <CalendarView posts={posts} />
         ) : (
           <div className="space-y-3">
             {posts.map(p => {
               const sm = STATUS_META[p.status] ?? STATUS_META.DRAFT;
+              const ins = insights[p.id];
+              const canCancel = ['DRAFT', 'SCHEDULED', 'FAILED'].includes(p.status);
               return (
                 <div key={p.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                   <div className="flex items-start justify-between gap-4">
@@ -121,6 +156,11 @@ export default function PublicacoesPage() {
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-wide bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100">
                           {p.platform === 'facebook' ? '📘 Facebook' : '📸 Instagram'} · {p.format}
                         </span>
+                        {p.status === 'SCHEDULED' && p.scheduledAt && (
+                          <span className="text-[10px] font-black text-blue-600 uppercase tracking-wide bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                            🗓 {new Date(p.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                          </span>
+                        )}
                       </div>
                       {p.caption && <p className="text-sm text-gray-700 line-clamp-2">{p.caption}</p>}
                       {p.status === 'FAILED' && p.errorMessage && (
@@ -128,13 +168,39 @@ export default function PublicacoesPage() {
                           <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />{p.errorMessage}
                         </p>
                       )}
+                      {/* Insights */}
+                      {ins && ins !== 'loading' && ins !== 'error' && (
+                        <div className="flex gap-4 mt-2.5">
+                          {Object.entries(ins).map(([k, v]) => (
+                            <div key={k}>
+                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{k}</p>
+                              <p className="text-sm font-black text-gray-800">{v}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {ins === 'error' && <p className="text-[11px] text-amber-600 mt-1.5">Métricas indisponíveis (requer credenciais/permissões).</p>}
                     </div>
-                    {p.permalinkUrl && (
-                      <a href={p.permalinkUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1 shrink-0">
-                        Ver post <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                      </a>
-                    )}
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      {p.permalinkUrl && (
+                        <a href={p.permalinkUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                          Ver post <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                      {p.status === 'PUBLISHED' && (
+                        <button onClick={() => loadInsights(p.id)} disabled={ins === 'loading'}
+                          className="text-[11px] font-black text-gray-500 hover:text-gray-800 flex items-center gap-1 disabled:opacity-50">
+                          {ins === 'loading' ? <ArrowPathIcon className="h-3 w-3 animate-spin" /> : '📊'} Métricas
+                        </button>
+                      )}
+                      {canCancel && (
+                        <button onClick={() => cancelPost(p.id)}
+                          className="text-[11px] font-bold text-red-500 hover:text-red-700 flex items-center gap-1">
+                          <TrashIcon className="h-3 w-3" /> {p.status === 'SCHEDULED' ? 'Cancelar' : 'Remover'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -151,6 +217,73 @@ export default function PublicacoesPage() {
           onPublished={() => { setShowComposer(false); load(); }}
         />
       )}
+    </div>
+  );
+}
+
+/* ── Calendário ─────────────────────────────────────────────────────── */
+
+function CalendarView({ posts }: { posts: OrganicPost[] }) {
+  const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+
+  const year = month.getFullYear(), mon = month.getMonth();
+  const firstWeekday = new Date(year, mon, 1).getDay();
+  const daysInMonth  = new Date(year, mon + 1, 0).getDate();
+  const monthLabel   = month.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  // Agrupa posts (agendados pela data agendada; demais pela criação) por dia do mês exibido
+  const byDay = new Map<number, OrganicPost[]>();
+  for (const p of posts) {
+    const ref = p.scheduledAt || p.createdAt;
+    if (!ref) continue;
+    const d = new Date(ref);
+    if (d.getFullYear() !== year || d.getMonth() !== mon) continue;
+    const day = d.getDate();
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day)!.push(p);
+  }
+
+  const cells: (number | null)[] = [
+    ...Array(firstWeekday).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  const todayN = (new Date().getFullYear() === year && new Date().getMonth() === mon) ? new Date().getDate() : -1;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => setMonth(new Date(year, mon - 1, 1))} className="px-3 py-1.5 rounded-lg text-sm font-black text-gray-500 hover:bg-gray-100">←</button>
+        <h2 className="text-sm font-black text-gray-900 capitalize">{monthLabel}</h2>
+        <button onClick={() => setMonth(new Date(year, mon + 1, 1))} className="px-3 py-1.5 rounded-lg text-sm font-black text-gray-500 hover:bg-gray-100">→</button>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => (
+          <div key={d} className="text-center text-[10px] font-black text-gray-400 uppercase tracking-widest py-1">{d}</div>
+        ))}
+        {cells.map((day, i) => (
+          <div key={i} className={`min-h-[72px] rounded-lg border p-1.5 ${day === null ? 'border-transparent' : day === todayN ? 'border-indigo-300 bg-indigo-50/40' : 'border-gray-100'}`}>
+            {day !== null && (
+              <>
+                <span className={`text-[11px] font-bold ${day === todayN ? 'text-indigo-600' : 'text-gray-400'}`}>{day}</span>
+                <div className="mt-1 space-y-1">
+                  {(byDay.get(day) ?? []).slice(0, 3).map(p => {
+                    const sm = STATUS_META[p.status] ?? STATUS_META.DRAFT;
+                    return (
+                      <div key={p.id} className={`text-[9px] font-bold px-1 py-0.5 rounded truncate border ${sm.cls}`}
+                        title={`${p.platform} · ${p.status}${p.caption ? ' — ' + p.caption : ''}`}>
+                        {p.platform === 'facebook' ? '📘' : '📸'} {p.caption?.slice(0, 14) || p.format}
+                      </div>
+                    );
+                  })}
+                  {(byDay.get(day)?.length ?? 0) > 3 && (
+                    <p className="text-[9px] text-gray-400 font-bold">+{byDay.get(day)!.length - 3}</p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -190,9 +323,15 @@ function Composer({ clientId, igLast24h, onClose, onPublished }: { clientId: str
   const [caption, setCaption]     = useState('');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [urlInput, setUrlInput]   = useState('');
+  const [scheduleOn, setScheduleOn] = useState(false);
+  const [schedDate, setSchedDate] = useState('');   // ISO YYYY-MM-DD
+  const [schedTime, setSchedTime] = useState('09:00');
   const [confirming, setConfirming] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError]         = useState('');
+
+  const scheduledAt = scheduleOn && schedDate ? new Date(`${schedDate}T${schedTime || '09:00'}:00`).toISOString() : null;
+  const isScheduling = !!scheduledAt && new Date(scheduledAt).getTime() > Date.now();
 
   const format = postType === 'feed'
     ? (mediaUrls.length > 1 ? 'carousel' : mediaUrls.length === 1 ? 'image' : 'text')
@@ -253,6 +392,7 @@ function Composer({ clientId, igLast24h, onClose, onPublished }: { clientId: str
           caption: caption.trim() || undefined,
           mediaUrls,
           mediaKind: postType === 'story' ? storyKind : undefined,
+          scheduledAt,
         }),
       });
       const data = await res.json();
@@ -384,6 +524,28 @@ function Composer({ clientId, igLast24h, onClose, onPublished }: { clientId: str
               ))}
             </div>
 
+            {/* Agendamento */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={scheduleOn} onChange={e => setScheduleOn(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Agendar publicação</span>
+              </label>
+              {scheduleOn && (
+                <div className="flex items-end gap-2 mt-2.5">
+                  <div className="flex-1">
+                    <span className="block text-[10px] font-bold text-gray-400 mb-1">Data</span>
+                    <DateInputPtBR value={schedDate} onChange={setSchedDate} className={inputCls} />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400 mb-1">Hora</span>
+                    <input type="time" value={schedTime} onChange={e => setSchedTime(e.target.value)}
+                      className={`${inputCls} w-28`} />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
                 <ExclamationTriangleIcon className="h-4 w-4 shrink-0 mt-0.5" />{error}
@@ -446,13 +608,15 @@ function Composer({ clientId, igLast24h, onClose, onPublished }: { clientId: str
           {!confirming ? (
             <button onClick={() => setConfirming(true)} disabled={!canPublish}
               className="w-full py-3 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 active:scale-95 disabled:opacity-40 transition-all">
-              Publicar em {platformLabel}
+              {isScheduling ? 'Agendar publicação' : `Publicar em ${platformLabel}`}
             </button>
           ) : (
             <div className="space-y-2">
               <p className="text-xs text-center text-gray-600 font-medium flex items-center justify-center gap-1.5">
                 <ExclamationTriangleIcon className="h-4 w-4 text-amber-500" />
-                Isto publicará conteúdo <strong>público</strong> em <strong>{platformLabel}</strong>. Confirmar?
+                {isScheduling
+                  ? <>Agendar publicação pública em <strong>{platformLabel}</strong> para <strong>{new Date(scheduledAt!).toLocaleString('pt-BR')}</strong>?</>
+                  : <>Isto publicará conteúdo <strong>público</strong> em <strong>{platformLabel}</strong>. Confirmar?</>}
               </p>
               <div className="flex gap-2">
                 <button onClick={() => setConfirming(false)} disabled={publishing}

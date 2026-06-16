@@ -3515,7 +3515,7 @@ Regras:
 ## FASE 16 — Postagem Orgânica no Meta
 
 **Duração estimada: ~3–4 dias | Pré-requisito: FASE 1 (credenciais Meta) | Prioridade: 4**
-**Status: EM DESENVOLVIMENTO — sub-fase 16.A iniciada 2026-06-15. Plano detalhado: `docs/FASE16_POSTAGEM_ORGANICA.md`.**
+**Status: ✅ CONCLUÍDA (2026-06-15) — sub-fases 16.A–16.F. Plano detalhado: `docs/FASE16_POSTAGEM_ORGANICA.md`. Pendente: object storage p/ "publicar da biblioteca" e App Review da Meta p/ produção.**
 
 ### 16.1. Objetivo
 

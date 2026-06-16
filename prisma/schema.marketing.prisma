@@ -44,6 +44,7 @@ model OrganicPost {
   caption         String?
   mediaUrls       Json      @default("[]") @map("media_urls")
   assetIds        Json?     @map("asset_ids")
+  mediaKind       String?   @map("media_kind") @db.VarChar(10)
   status          String    @default("DRAFT") @db.VarChar(20)
   externalPostId  String?   @map("external_post_id") @db.VarChar(100)
   permalinkUrl    String?   @map("permalink_url")

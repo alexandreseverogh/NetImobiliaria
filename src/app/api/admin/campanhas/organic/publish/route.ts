@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
       assetIds = [],
       link,
       mediaKind,
+      scheduledAt,
     } = body;
 
     // Sentinelas de UI → null (sem cliente); UUID real preservado
@@ -53,10 +54,11 @@ export async function POST(request: NextRequest) {
       assetIds,
       link,
       mediaKind,
+      scheduledAt: scheduledAt || null,
       createdBy: payload.userId || null,
     });
 
-    // FAILED retorna 502 com o erro acionável; PUBLISHED retorna 201
+    // FAILED retorna 502 com o erro acionável; PUBLISHED/SCHEDULED retorna 201
     if (record.status === 'FAILED') {
       return NextResponse.json({ ...record, error: record.errorMessage }, { status: 502 });
     }
