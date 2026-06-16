@@ -23,3 +23,4 @@
 - [Deploy VPS](project_deploy_vps.md) — Script deploy.sh automatizado: 3 comandos, .env gerado com openssl, CDN_URL via Caddy/MinIO, --update para redeploys
 - [Storage MinIO](project_storage_minio.md) — Cliente único s3-client.ts; prefixos: tenants/ imoveis/, criativos/, organic/; ensureBucket automático
 - [FASE 16 Orgânico](project_fase16_organico.md) — Postagem orgânica FB+IG concluída; upload MinIO; agendamento cron 5min; migrações pendentes na VPS
+- [Nav Landing](feedback_landing_nav.md) — CTAs de landing para /admin/login usam <a> nativo, não Next <Link> (trava navegação na main thread)
