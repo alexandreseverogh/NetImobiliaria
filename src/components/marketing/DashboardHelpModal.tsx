@@ -516,6 +516,59 @@ Por que é autônomo do filtro de datas? Porque o filtro serve para exploração
   },
 ];
 
+// ─── Anchors & deep-link bus ────────────────────────────────────────────────────
+
+const HELP_EVENT = 'dashboard-help:open';
+
+/** Converte o título do item numa âncora estável (sem acento, kebab-case). */
+function slug(s: string): string {
+  return s
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+const TAB_ITEMS: Record<TabId, HelpItem[]> = {
+  metricas: METRICAS,
+  paineis: PAINEIS,
+  inteligencia: INTELIGENCIA,
+};
+
+/** Descobre em qual aba está a âncora informada. */
+function tabForAnchor(anchor: string): TabId | null {
+  for (const [t, items] of Object.entries(TAB_ITEMS) as [TabId, HelpItem[]][]) {
+    if (items.some(it => slug(it.term) === anchor)) return t;
+  }
+  return null;
+}
+
+/**
+ * Dispara a abertura do Guia já posicionado num item específico.
+ * Use via o componente <HelpHint term="..." /> ou diretamente openHelp('CPL').
+ */
+export function openHelp(term: string) {
+  window.dispatchEvent(new CustomEvent(HELP_EVENT, { detail: { anchor: slug(term) } }));
+}
+
+/** Ícone "?" contextual: ao clicar, abre o Guia rolado no item `term`. */
+export function HelpHint({ term, isDark, className }: { term: string; isDark?: boolean; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); openHelp(term); }}
+      title={`O que significa? — abrir guia em "${term}"`}
+      className={cn(
+        'inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black leading-none transition-colors align-middle',
+        isDark
+          ? 'bg-[rgba(99,102,241,0.18)] text-indigo-300 hover:bg-indigo-500/30'
+          : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200',
+        className
+      )}
+    >
+      ?
+    </button>
+  );
+}
+
 // ─── Modal Component ──────────────────────────────────────────────────────────
 
 type TabId = 'metricas' | 'paineis' | 'inteligencia';
@@ -526,11 +579,21 @@ interface Props {
 
 export function DashboardHelpButton({ isDark }: Props) {
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<string | null>(null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false); }
+    function onOpen(e: Event) {
+      const detail = (e as CustomEvent).detail as { anchor?: string } | undefined;
+      setAnchor(detail?.anchor ?? null);
+      setOpen(true);
+    }
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    window.addEventListener(HELP_EVENT, onOpen);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener(HELP_EVENT, onOpen);
+    };
   }, []);
 
   return (
@@ -553,15 +616,41 @@ export function DashboardHelpButton({ isDark }: Props) {
       {/* ── Modal ── */}
       <AnimatePresence>
         {open && (
-          <DashboardHelpModal isDark={isDark} onClose={() => setOpen(false)} />
+          <DashboardHelpModal
+            isDark={isDark}
+            initialAnchor={anchor}
+            onClose={() => { setOpen(false); setAnchor(null); }}
+          />
         )}
       </AnimatePresence>
     </>
   );
 }
 
-function DashboardHelpModal({ isDark, onClose }: { isDark: boolean; onClose: () => void }) {
-  const [tab, setTab] = useState<TabId>('metricas');
+function DashboardHelpModal({ isDark, initialAnchor, onClose }: {
+  isDark: boolean;
+  initialAnchor?: string | null;
+  onClose: () => void;
+}) {
+  const initialTab = (initialAnchor && tabForAnchor(initialAnchor)) || 'metricas';
+  const [tab, setTab] = useState<TabId>(initialTab);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
+
+  // Deep-link: ao abrir via "?", rola até o item e o destaca brevemente.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!initialAnchor) return;
+    const t = setTimeout(() => {
+      const el = bodyRef.current?.querySelector<HTMLElement>(`#help-${initialAnchor}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const ring = isDark ? ['ring-2', 'ring-indigo-400/60'] : ['ring-2', 'ring-indigo-400'];
+        el.classList.add(...ring);
+        setTimeout(() => el.classList.remove(...ring), 1800);
+      }
+    }, 120);
+    return () => clearTimeout(t);
+  }, [initialAnchor, tab]);
 
   const overlay = isDark ? 'bg-black/70' : 'bg-slate-900/40';
   const panel = isDark
@@ -657,7 +746,7 @@ function DashboardHelpModal({ isDark, onClose }: { isDark: boolean; onClose: () 
         </div>
 
         {/* ── Body ── */}
-        <div className="overflow-y-auto flex-1 px-7 py-6 space-y-4">
+        <div ref={bodyRef} className="overflow-y-auto flex-1 px-7 py-6 space-y-4">
           <AnimatePresence mode="wait">
             <motion.div
               key={tab}
@@ -717,7 +806,10 @@ function HelpCard({ item, isDark }: { item: HelpItem; isDark: boolean }) {
   const hasMore = !!(item.tip || item.benchmark);
 
   return (
-    <div className={cn('rounded-2xl border p-4 transition-all duration-200', card)}>
+    <div
+      id={`help-${slug(item.term)}`}
+      className={cn('rounded-2xl border p-4 transition-all duration-300 scroll-mt-2', card)}
+    >
       {/* ── Top row ── */}
       <div className="flex items-start gap-3">
         <span className="text-2xl leading-none shrink-0 mt-0.5">{item.emoji}</span>

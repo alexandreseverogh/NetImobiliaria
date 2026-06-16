@@ -20,7 +20,7 @@ import { CplTimelineChart }  from '@/components/marketing/charts/CplTimelineChar
 import { StageFunnelWidget } from '@/components/marketing/StageFunnelWidget';
 import { PredictionChart } from '@/components/marketing/charts/PredictionChart';
 import { ArrowPathIcon, SparklesIcon, ClockIcon, SunIcon, MoonIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
-import { DashboardHelpButton } from '@/components/marketing/DashboardHelpModal';
+import { DashboardHelpButton, HelpHint } from '@/components/marketing/DashboardHelpModal';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { CampaignLifecycleBadge } from '@/components/marketing/CampaignLifecycleBadge';
 import type { LifecycleStatus } from '@/lib/marketing/services/campaignLifecycleTypes';
@@ -988,7 +988,10 @@ export function DashboardPage() {
                 <div className="mb-8">
                   <div className="flex items-start justify-between gap-3 mb-5">
                     <div>
-                      <h2 className={`text-lg font-black ${tx}`}>Insights da IA</h2>
+                      <h2 className={`text-lg font-black ${tx} flex items-center gap-2`}>
+                        Insights da IA
+                        <HelpHint term="Insights de IA" isDark={isDark} />
+                      </h2>
                       <p className={`text-xs mt-0.5 ${txMuted}`}>Análise automática por segmento — benchmark próprio de cada segmento</p>
                     </div>
                     <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
@@ -1011,7 +1014,10 @@ export function DashboardPage() {
                               Ver análise →
                             </a>
                           </div>
-                          <h4 className={`text-sm font-black mb-1 ${tx}`}>Saturação de Hook Criativo</h4>
+                          <h4 className={`text-sm font-black mb-1 ${tx} flex items-center gap-2`}>
+                            Saturação de Hook Criativo
+                            <HelpHint term="Saúde Criativa & Saturação de Hook" isDark={isDark} />
+                          </h4>
                           <p className={`text-xs ${txMuted}`}>
                             {hk.dominantShare}% dos criativos ativos usam o hook "{hk.hookStats[0]?.label}" — risco de fadiga de público.
                             {hk.suggestion && ` ${hk.suggestion}.`}

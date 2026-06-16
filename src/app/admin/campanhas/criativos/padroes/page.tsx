@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import { DashboardHelpButton, HelpHint } from '@/components/marketing/DashboardHelpModal';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -227,7 +228,10 @@ function HookHealthCard({ data }: { data: HookSaturationResult }) {
         <div className="flex items-center gap-2.5">
           <ShieldCheckIcon className="h-5 w-5 text-slate-500 flex-shrink-0" />
           <div>
-            <h2 className="text-sm font-black text-slate-900">Saúde Criativa</h2>
+            <h2 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+              Saúde Criativa
+              <HelpHint term="Saúde Criativa & Saturação de Hook" />
+            </h2>
             <p className="text-[10px] text-slate-500">
               Distribuição de hooks · {totalCreatives} criativo{totalCreatives !== 1 ? 's' : ''} analisado{totalCreatives !== 1 ? 's' : ''}
             </p>
@@ -481,14 +485,17 @@ export default function PadroesPage() {
           </p>
         </div>
         {/* Seletor de cliente — Minha Empresa / Para um Cliente */}
-        <ClientSelector
-          value={clientFilter}
-          onChange={setClientFilter}
-          clients={clients}
-          loading={clientsLoading}
-          storageKey="padroes"
-          variant="toggle"
-        />
+        <div className="flex items-center gap-2">
+          <ClientSelector
+            value={clientFilter}
+            onChange={setClientFilter}
+            clients={clients}
+            loading={clientsLoading}
+            storageKey="padroes"
+            variant="toggle"
+          />
+          <DashboardHelpButton isDark={false} />
+        </div>
       </div>
 
       {/* Loading */}
