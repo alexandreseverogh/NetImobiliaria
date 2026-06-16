@@ -33,6 +33,8 @@ export interface OrganicPostRecord {
   externalPostId: string | null;
   permalinkUrl:   string | null;
   errorMessage:   string | null;
+  caption:        string | null;
+  createdAt:      string;
 }
 
 /**
@@ -123,5 +125,7 @@ function toRecord(p: any): OrganicPostRecord {
     externalPostId: p.externalPostId ?? null,
     permalinkUrl:   p.permalinkUrl ?? null,
     errorMessage:   p.errorMessage ?? null,
+    caption:        p.caption ?? null,
+    createdAt:      (p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt) ?? new Date().toISOString(),
   };
 }
