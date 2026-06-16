@@ -8,6 +8,13 @@ import Link from 'next/link'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 import ModulesListModal from '@/components/admin/master/modules/ModulesListModal'
 
+// Máscara para CEP: XXXXX-XXX (remove caracteres inválidos, limita a 9)
+function formatCep(value: string): string {
+  const clean = value.replace(/\D/g, '').slice(0, 8)
+  if (clean.length <= 5) return clean
+  return `${clean.slice(0, 5)}-${clean.slice(5)}`
+}
+
 interface Tenant {
   id: string
   name: string
@@ -691,7 +698,7 @@ export default function MasterTenantsPage() {
                           className="col-span-2 w-full px-4 py-3 rounded-xl bg-gray-50 font-bold text-[10px] text-center" />
                         <input type="text" placeholder="Bairro" value={newTenant.bairro || ''} onChange={e => setNewTenant({...newTenant, bairro: e.target.value})}
                           className="col-span-3 w-full px-4 py-3 rounded-xl bg-gray-50 font-bold text-[10px]" />
-                        <input type="text" placeholder="CEP" value={newTenant.cep || ''} onChange={e => setNewTenant({...newTenant, cep: e.target.value})}
+                        <input type="text" placeholder="CEP (XXXXX-XXX)" maxLength={9} value={newTenant.cep || ''} onChange={e => setNewTenant({...newTenant, cep: formatCep(e.target.value)})}
                           className="col-span-3 w-full px-4 py-3 rounded-xl bg-gray-50 font-mono text-[10px] text-center" />
                         <input type="text" placeholder="Cidade" value={newTenant.cidade || ''} onChange={e => setNewTenant({...newTenant, cidade: e.target.value})}
                           className="col-span-4 w-full px-4 py-3 rounded-xl bg-gray-50 font-bold text-[10px]" />
@@ -971,7 +978,7 @@ export default function MasterTenantsPage() {
                         </div>
                         <div className="col-span-3">
                           <label className="text-[9px] font-black text-gray-400 uppercase">CEP</label>
-                          <input type="text" value={editingTenant.cep || ''} onChange={e => setEditingTenant({...editingTenant, cep: e.target.value})}
+                          <input type="text" maxLength={9} value={editingTenant.cep || ''} onChange={e => setEditingTenant({...editingTenant, cep: formatCep(e.target.value)})}
                             className="w-full px-4 py-3 rounded-xl bg-gray-50 font-mono text-[10px] text-center" placeholder="00000-000" />
                         </div>
                         <div className="col-span-4">
