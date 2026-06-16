@@ -59,7 +59,7 @@ export async function getHookSaturation(
 
   const { rows } = await pool.query(`
     SELECT
-      COALESCE(ca.hook_type, 'other') AS hook_type,
+      COALESCE(an.hook_type, 'other') AS hook_type,
       COUNT(DISTINCT ca.id)::int AS creative_count,
       ROUND(AVG(
         CASE WHEN agg.leads > 0 AND agg.spend > 0
@@ -70,7 +70,9 @@ export async function getHookSaturation(
              THEN agg.clicks * 100.0 / agg.impressions ELSE NULL END
       )::numeric, 2) AS avg_ctr
     FROM campanhasmarketingdigital."CreativeAsset" ca
-    JOIN campanhasmarketingdigital."Campaign" cam
+    JOIN campanhasmarketingdigital."CreativeAnalysis" an
+      ON an.asset_id = ca.id
+    LEFT JOIN campanhasmarketingdigital."Campaign" cam
       ON cam.id = ca.campaign_id
     LEFT JOIN (
       SELECT "campaignId",
@@ -82,10 +84,10 @@ export async function getHookSaturation(
       WHERE tenant_id = $1::uuid
       GROUP BY "campaignId"
     ) agg ON agg."campaignId" = cam.id
-    WHERE cam.tenant_id = $1::uuid
-      AND cam.status IN ('ACTIVE', 'PAUSED')
-      ${clientWhere}
-    GROUP BY COALESCE(ca.hook_type, 'other')
+    WHERE ca.tenant_id = $1::uuid
+      AND an.hook_type IS NOT NULL
+      ${clientWhere.replace('cam.client_id', 'ca.client_id')}
+    GROUP BY COALESCE(an.hook_type, 'other')
     ORDER BY creative_count DESC
   `, params);
 
@@ -109,7 +111,8 @@ export async function getHookSaturation(
 
   const diversityIndex = shannonDiversityIndex(rows.map((r: any) => r.creative_count));
   const dominant = hookStats[0];
-  const saturationAlert = dominant.share >= 70;
+  // alerta em ≥50%: amarelo (50-69%), vermelho (≥70%)
+  const saturationAlert = dominant.share >= 50;
 
   const missing = Object.keys(HOOK_LABELS)
     .filter(k => k !== dominant.hookType && !hookStats.find(h => h.hookType === k));

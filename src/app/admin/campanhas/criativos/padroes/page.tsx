@@ -260,19 +260,27 @@ function HookHealthCard({ data }: { data: HookSaturationResult }) {
       </div>
 
       {/* Alert / OK */}
-      {saturationAlert ? (
-        <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-          <ExclamationTriangleIcon className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-black text-amber-800">
-              Saturação detectada — {dominantShare}% dos criativos usam o hook "{data.hookStats.find(h => h.hookType === dominantHook)?.label}"
-            </p>
-            {suggestion && (
-              <p className="text-[10px] text-amber-600 mt-0.5">{suggestion}</p>
-            )}
+      {saturationAlert ? (() => {
+        const isCritical = dominantShare >= 70;
+        const bg    = isCritical ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200';
+        const icon  = isCritical ? 'text-red-500' : 'text-amber-500';
+        const title = isCritical ? 'text-red-800' : 'text-amber-800';
+        const sub   = isCritical ? 'text-red-600' : 'text-amber-600';
+        const label = data.hookStats.find(h => h.hookType === dominantHook)?.label;
+        return (
+          <div className={`flex items-start gap-2.5 p-3 border rounded-xl ${bg}`}>
+            <ExclamationTriangleIcon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${icon}`} />
+            <div>
+              <p className={`text-xs font-black ${title}`}>
+                {isCritical ? 'Saturação crítica' : 'Atenção: concentração de hook'} — {dominantShare}% usam "{label}"
+              </p>
+              {suggestion && (
+                <p className={`text-[10px] mt-0.5 ${sub}`}>{suggestion}</p>
+              )}
+            </div>
           </div>
-        </div>
-      ) : (
+        );
+      })() : (
         <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl">
           <ShieldCheckIcon className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
           <p className="text-[10px] font-bold text-emerald-700">

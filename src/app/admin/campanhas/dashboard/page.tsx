@@ -943,7 +943,7 @@ export function DashboardPage() {
             />
 
             {/* ── AI Insights (por segmento — FASE 18.2) ──────────────────── */}
-            {aiInsights.length > 0 && (() => {
+            {(aiInsights.length > 0 || hookSaturation?.saturationAlert) && (() => {
               type IS = { border: string; badge: string; dot: string; glow: string };
               const ds: Record<string, IS> = {
                 PAUSE:            { border: 'border-l-red-500',    badge: 'bg-red-500/10 text-red-400 border border-red-500/20',        dot: 'bg-red-500',    glow: 'shadow-[0_0_24px_rgba(239,68,68,0.07)]'    },
