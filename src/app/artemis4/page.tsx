@@ -781,13 +781,13 @@ export default function Artemis4LandingPage() {
                 </div>
               </div>
 
-              <Link 
-                href="/admin/login" 
+              <a
+                href="/admin/login"
                 className="relative overflow-hidden group px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-wider italic transition-all shadow-lg shadow-blue-500/20 active:scale-95"
               >
                 <span className="relative z-10">Entrar</span>
                 <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-blue-500 to-indigo-500 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-300 z-0" />
-              </Link>
+              </a>
             </div>
           </div>
         </div>
@@ -852,12 +852,12 @@ export default function Artemis4LandingPage() {
               >
                 Ver Módulos <ChevronRightIcon className="w-4 h-4 mt-0.5" />
               </a>
-              <Link 
-                href="/admin/login" 
+              <a
+                href="/admin/login"
                 className="px-8 py-4.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black uppercase tracking-wider italic text-xs border border-white/10 transition-all"
               >
                 Área de Testes
-              </Link>
+              </a>
             </div>
             
             {/* Scroll Down mouse hint */}
@@ -1033,12 +1033,12 @@ export default function Artemis4LandingPage() {
 
                     {/* CTA direcionando ao Login / Admin */}
                     <div>
-                      <Link 
+                      <a
                         href="/admin/login"
                         className="w-full py-3.5 rounded-2xl bg-white/5 group-hover:bg-blue-600/10 border border-white/10 group-hover:border-blue-500/20 text-white group-hover:text-blue-400 text-xs font-black uppercase tracking-wider italic transition-all flex items-center justify-center gap-2"
                       >
                         Acessar Módulo <ArrowRightIcon className="w-3.5 h-3.5 mt-0.5 transition-transform group-hover:translate-x-1" />
-                      </Link>
+                      </a>
                     </div>
                   </div>
                 )
@@ -1065,18 +1065,18 @@ export default function Artemis4LandingPage() {
                 Nossos microsserviços integrados operam com latência ultrabaixa e bancos redundantes para gerenciar carteiras de ativos digitais, agendas corporativas e otimização de funis publicitários em múltiplos nichos.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link 
-                  href="/admin/login" 
+                <a
+                  href="/admin/login"
                   className="w-full sm:w-auto px-8 py-4.5 rounded-2xl bg-orange-500 hover:bg-orange-400 text-white font-black uppercase tracking-wider italic text-xs shadow-xl shadow-orange-500/15 transition-all flex items-center justify-center gap-2"
                 >
                   Registrar Corporação
-                </Link>
-                <Link 
-                  href="/admin/login" 
+                </a>
+                <a
+                  href="/admin/login"
                   className="w-full sm:w-auto px-8 py-4.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-black uppercase tracking-wider italic text-xs transition-all flex items-center justify-center gap-2"
                 >
                   Área Administrativa <ArrowRightIcon className="w-3.5 h-3.5 mt-0.5" />
-                </Link>
+                </a>
               </div>
             </div>
           </div>
