@@ -97,16 +97,36 @@ export default function MasterTenantsPage() {
     secondary_color: '#F1F1F1',
     calendario: false,
     google_email: '',
-    duracao_visita: 60
+    duracao_visita: 60,
+    anthropic_api_key: '',
+    slack_webhook_url: '',
+    evolution_api_url: '',
+    evolution_api_key: '',
+    evolution_instance: '',
+    agent_confidence_threshold: '0.85',
   })
 
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingTenant, setEditingTenant] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<'geral' | 'modulos' | 'google_calendar' | 'meta'>('geral')
-  const [editingMeta, setEditingMeta] = useState({ pageId: '', pixelId: '', instagramActorId: '', website: '' })
+  const [activeTab, setActiveTab] = useState<'geral' | 'modulos' | 'google_calendar' | 'meta' | 'comunicacao_ia'>('geral')
+  const [editingMeta, setEditingMeta] = useState({
+    pageId: '',
+    pixelId: '',
+    instagramActorId: '',
+    website: '',
+    metaAppId: '',
+    metaAppSecret: '',
+    metaToken: '',
+    adAccountId: '',
+    accessToken: '',
+  })
   const [metaSavingModal, setMetaSavingModal] = useState(false)
   const [metaSavedModal, setMetaSavedModal] = useState(false)
-  const [newTab, setNewTab] = useState<'geral' | 'modulos' | 'google_calendar'>('geral')
+  const [showMetaAppSecret, setShowMetaAppSecret] = useState(false)
+  const [showMetaToken, setShowMetaToken] = useState(false)
+  const [showEvolutionApiKey, setShowEvolutionApiKey] = useState(false)
+  const [showAnthropicApiKey, setShowAnthropicApiKey] = useState(false)
+  const [newTab, setNewTab] = useState<'geral' | 'modulos' | 'google_calendar' | 'comunicacao_ia'>('geral')
   const [availableModules, setAvailableModules] = useState<any[]>([])
   const [tenantModules, setTenantModules] = useState<string[]>([]) // Array de IDs de módulos ativos
   const [showModulesModal, setShowModulesModal] = useState(false)
@@ -230,7 +250,16 @@ export default function MasterTenantsPage() {
           selected_modules: [],
           ai_config: { groq_key: '', gemini_key: '', preferred_model: '' },
           primary_color: '#1A2B3C',
-          secondary_color: '#F1F1F1'
+          secondary_color: '#F1F1F1',
+          calendario: false,
+          google_email: '',
+          duracao_visita: 60,
+          anthropic_api_key: '',
+          slack_webhook_url: '',
+          evolution_api_url: '',
+          evolution_api_key: '',
+          evolution_instance: '',
+          agent_confidence_threshold: '0.85',
         })
         fetchData()
         alert('Empresa provisionada com sucesso!')
@@ -348,12 +377,25 @@ export default function MasterTenantsPage() {
   }
 
   const fetchTenantMeta = async (tenantId: string) => {
-    setEditingMeta({ pageId: '', pixelId: '', instagramActorId: '', website: '' })
+    setEditingMeta({
+      pageId: '', pixelId: '', instagramActorId: '', website: '',
+      metaAppId: '', metaAppSecret: '', metaToken: '', adAccountId: '', accessToken: ''
+    })
     try {
       const res = await get(`/api/admin/master/tenants/${tenantId}/meta-identity`)
       if (res.ok) {
         const d = await res.json()
-        setEditingMeta({ pageId: d.pageId || '', pixelId: d.pixelId || '', instagramActorId: d.instagramActorId || '', website: d.website || '' })
+        setEditingMeta({
+          pageId: d.pageId || '',
+          pixelId: d.pixelId || '',
+          instagramActorId: d.instagramActorId || '',
+          website: d.website || '',
+          metaAppId: d.appId || '',
+          metaAppSecret: d.metaAppSecret || '',
+          metaToken: d.accessToken || '',
+          adAccountId: d.adAccountId || '',
+          accessToken: d.accessToken || '',
+        })
       }
     } catch { /* silent */ }
   }
@@ -366,10 +408,20 @@ export default function MasterTenantsPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(editingMeta),
+        body: JSON.stringify({
+          pageId:           editingMeta.pageId,
+          pixelId:          editingMeta.pixelId,
+          instagramActorId: editingMeta.instagramActorId,
+          website:          editingMeta.website,
+          metaAppId:        editingMeta.metaAppId,
+          metaAppSecret:    editingMeta.metaAppSecret,
+          metaToken:        editingMeta.metaToken,
+          adAccountId:      editingMeta.adAccountId,
+        }),
       })
       if (res.ok) {
         setMetaSavedModal(true)
+        fetchTenantMeta(editingTenant.id)
         setTimeout(() => setMetaSavedModal(false), 3000)
       } else {
         alert('Erro ao salvar configurações Meta')
@@ -435,7 +487,13 @@ export default function MasterTenantsPage() {
                     secondary_color: '#F1F1F1',
                     calendario: false,
                     google_email: '',
-                    duracao_visita: 60
+                    duracao_visita: 60,
+                    anthropic_api_key: '',
+                    slack_webhook_url: '',
+                    evolution_api_url: '',
+                    evolution_api_key: '',
+                    evolution_instance: '',
+                    agent_confidence_threshold: '0.85',
                   });
                   setUserFound(false);
                   setNewTab('geral');
@@ -625,6 +683,11 @@ export default function MasterTenantsPage() {
                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${newTab === 'google_calendar' ? 'bg-white text-blue-700 shadow-md' : 'text-blue-100/70 hover:text-white hover:bg-white/10'}`}>
                      <CalendarDaysIcon className="h-3 w-3" />
                      3. Google Calendar
+                   </button>
+                   <button type="button" onClick={() => setNewTab('comunicacao_ia')} 
+                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${newTab === 'comunicacao_ia' ? 'bg-white text-blue-700 shadow-md' : 'text-blue-100/70 hover:text-white hover:bg-white/10'}`}>
+                     <Cog6ToothIcon className="h-3.5 w-3.5" />
+                     4. Comunicação e IA
                    </button>
                 </div>
               </div>
@@ -818,31 +881,77 @@ export default function MasterTenantsPage() {
                     </div>
                   )}
                 </div>
-              ) : (
+              ) : newTab === 'modulos' ? (
                 <div className="animate-fade-in space-y-6">
-                  <div className="bg-indigo-50 p-6 rounded-[2rem] border border-indigo-100 mb-6">
-                     <p className="text-xs font-black text-indigo-900 uppercase tracking-widest mb-2">Seletor de Entitlements (Motores)</p>
-                     <p className="text-[10px] text-indigo-600 font-medium leading-relaxed">Selecione quais grandes motores estarão ativos.</p>
+                   <div className="bg-indigo-50 p-6 rounded-[2rem] border border-indigo-100 mb-6">
+                      <p className="text-xs font-black text-indigo-900 uppercase tracking-widest mb-2">Seletor de Entitlements (Motores)</p>
+                      <p className="text-[10px] text-indigo-600 font-medium leading-relaxed">Selecione quais grandes motores estarão ativos.</p>
+                   </div>
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                     {availableModules.map((mod: any) => (
+                       <label key={mod.id} className={`flex items-center p-4 rounded-2xl border-2 transition-all cursor-pointer group ${newTenant.selected_modules.includes(mod.id) ? 'border-indigo-600 bg-indigo-50/50' : 'border-gray-50 bg-gray-50/30 hover:border-gray-200'}`}>
+                         <input type="checkbox" className="hidden" checked={newTenant.selected_modules.includes(mod.id)}
+                           onChange={() => {
+                             const current = newTenant.selected_modules;
+                             if (current.includes(mod.id)) setNewTenant({...newTenant, selected_modules: current.filter(id => id !== mod.id)});
+                             else setNewTenant({...newTenant, selected_modules: [...current, mod.id]});
+                           }}
+                         />
+                         <div className={`h-8 w-8 rounded-lg flex items-center justify-center mr-3 transition-colors ${newTenant.selected_modules.includes(mod.id) ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                           <CheckCircleIcon className="h-5 w-5" />
+                         </div>
+                         <div className="flex flex-col">
+                           <span className={`text-[10px] font-black uppercase tracking-tight ${newTenant.selected_modules.includes(mod.id) ? 'text-indigo-900' : 'text-gray-500'}`}>{mod.name}</span>
+                           <span className="text-[8px] text-gray-400 font-medium">{mod.slug}</span>
+                         </div>
+                       </label>
+                     ))}
+                   </div>
+                </div>
+              ) : (
+                <div className="animate-fade-in space-y-6 max-w-xl">
+                  <div className="rounded-2xl p-5 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Comunicação e Agentes</p>
+                    <h3 className="text-base font-black">Slack · WhatsApp · Agentes · IA</h3>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {availableModules.map((mod: any) => (
-                      <label key={mod.id} className={`flex items-center p-4 rounded-2xl border-2 transition-all cursor-pointer group ${newTenant.selected_modules.includes(mod.id) ? 'border-indigo-600 bg-indigo-50/50' : 'border-gray-50 bg-gray-50/30 hover:border-gray-200'}`}>
-                        <input type="checkbox" className="hidden" checked={newTenant.selected_modules.includes(mod.id)}
-                          onChange={() => {
-                            const current = newTenant.selected_modules;
-                            if (current.includes(mod.id)) setNewTenant({...newTenant, selected_modules: current.filter(id => id !== mod.id)});
-                            else setNewTenant({...newTenant, selected_modules: [...current, mod.id]});
-                          }}
-                        />
-                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center mr-3 transition-colors ${newTenant.selected_modules.includes(mod.id) ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                          <CheckCircleIcon className="h-5 w-5" />
-                        </div>
-                        <div className="flex flex-col">
-                          <span className={`text-[10px] font-black uppercase tracking-tight ${newTenant.selected_modules.includes(mod.id) ? 'text-indigo-900' : 'text-gray-500'}`}>{mod.name}</span>
-                          <span className="text-[8px] text-gray-400 font-medium">{mod.slug}</span>
-                        </div>
-                      </label>
-                    ))}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Slack Webhook URL</label>
+                      <input type="text" value={newTenant.slack_webhook_url || ''} onChange={e => setNewTenant({ ...newTenant, slack_webhook_url: e.target.value })}
+                        placeholder="https://hooks.slack.com/services/..."
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Evolution API URL</label>
+                      <input type="text" value={newTenant.evolution_api_url || ''} onChange={e => setNewTenant({ ...newTenant, evolution_api_url: e.target.value })}
+                        placeholder="http://localhost:8080"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Evolution API Key</label>
+                      <input type="password" value={newTenant.evolution_api_key || ''} onChange={e => setNewTenant({ ...newTenant, evolution_api_key: e.target.value })}
+                        placeholder="Chave da API Evolution"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Evolution Instance</label>
+                      <input type="text" value={newTenant.evolution_instance || ''} onChange={e => setNewTenant({ ...newTenant, evolution_instance: e.target.value })}
+                        placeholder="Nome da Instância"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Anthropic API Key (IA do Tenant)</label>
+                      <input type="password" value={newTenant.anthropic_api_key || ''} onChange={e => setNewTenant({ ...newTenant, anthropic_api_key: e.target.value })}
+                        placeholder="Chave Anthropic do Tenant"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Threshold de Confiança do Agente</label>
+                      <input type="number" step="0.01" min="0" max="1" value={newTenant.agent_confidence_threshold} onChange={e => setNewTenant({ ...newTenant, agent_confidence_threshold: e.target.value })}
+                        placeholder="0.85"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
                   </div>
                 </div>
               )}
@@ -884,6 +993,11 @@ export default function MasterTenantsPage() {
                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'meta' ? 'bg-white text-indigo-700 shadow-md' : 'text-blue-200/70 hover:text-white hover:bg-white/10'}`}>
                      <IdentificationIcon className="h-3 w-3" />
                      4. Config. Meta
+                   </button>
+                   <button type="button" onClick={() => setActiveTab('comunicacao_ia')}
+                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'comunicacao_ia' ? 'bg-white text-indigo-700 shadow-md' : 'text-blue-200/70 hover:text-white hover:bg-white/10'}`}>
+                     <Cog6ToothIcon className="h-3.5 w-3.5" />
+                     5. Comunicação e IA
                    </button>
                 </div>
               </div>
@@ -1260,10 +1374,51 @@ export default function MasterTenantsPage() {
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
                       <p className="text-[11px] text-gray-400 mt-1">Pré-preenche o Link da campanha no wizard.</p>
                     </div>
+                    {/* Meta App ID */}
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Meta App ID</label>
+                      <input type="text" value={editingMeta.metaAppId} onChange={e => setEditingMeta(m => ({ ...m, metaAppId: e.target.value }))}
+                        placeholder="Ex: 972196948862111"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    {/* Meta App Secret */}
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Meta App Secret</label>
+                      <div className="relative">
+                        <input type={showMetaAppSecret ? "text" : "password"} value={editingMeta.metaAppSecret} onChange={e => setEditingMeta(m => ({ ...m, metaAppSecret: e.target.value }))}
+                          placeholder="••••••••"
+                          className="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                        <button type="button" onClick={() => setShowMetaAppSecret(!showMetaAppSecret)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                          {showMetaAppSecret ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                        </button>
+                      </div>
+                    </div>
+                    {/* Meta Access Token */}
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Meta Access Token (Token do administrador)</label>
+                      <div className="relative">
+                        <input type={showMetaToken ? "text" : "password"} value={editingMeta.metaToken} onChange={e => setEditingMeta(m => ({ ...m, metaToken: e.target.value }))}
+                          placeholder={editingMeta.accessToken ? "••••••••" : "Cole seu novo token de acesso"}
+                          className="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                        <button type="button" onClick={() => setShowMetaToken(!showMetaToken)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                          {showMetaToken ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Deixe em branco para manter o token atual.
+                      </p>
+                    </div>
+                    {/* Meta Ad Account ID */}
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Meta Ad Account ID</label>
+                      <input type="text" value={editingMeta.adAccountId} onChange={e => setEditingMeta(m => ({ ...m, adAccountId: e.target.value }))}
+                        placeholder="Ex: 10150461381441874 (sem 'act_')"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
                   </div>
                 </div>
 
-              ) : (
+              ) : activeTab === 'modulos' ? (
 
                 <div className="animate-fade-in space-y-6">
                   <div className="bg-indigo-50 p-6 rounded-[2rem] border border-indigo-100 mb-6">
@@ -1290,6 +1445,62 @@ export default function MasterTenantsPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="animate-fade-in space-y-6 max-w-xl">
+                  <div className="rounded-2xl p-5 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Comunicação e Agentes</p>
+                    <h3 className="text-base font-black">Slack · WhatsApp · Agentes · IA</h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Slack Webhook URL</label>
+                      <input type="text" value={editingTenant.slack_webhook_url || ''} onChange={e => setEditingTenant({ ...editingTenant, slack_webhook_url: e.target.value })}
+                        placeholder="https://hooks.slack.com/services/..."
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Evolution API URL</label>
+                      <input type="text" value={editingTenant.evolution_api_url || ''} onChange={e => setEditingTenant({ ...editingTenant, evolution_api_url: e.target.value })}
+                        placeholder="http://localhost:8080"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Evolution API Key</label>
+                      <div className="relative">
+                        <input type={showEvolutionApiKey ? "text" : "password"} value={editingTenant.evolution_api_key || ''} onChange={e => setEditingTenant({ ...editingTenant, evolution_api_key: e.target.value })}
+                          placeholder="Chave da API Evolution"
+                          className="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                        <button type="button" onClick={() => setShowEvolutionApiKey(!showEvolutionApiKey)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                          {showEvolutionApiKey ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Evolution Instance</label>
+                      <input type="text" value={editingTenant.evolution_instance || ''} onChange={e => setEditingTenant({ ...editingTenant, evolution_instance: e.target.value })}
+                        placeholder="Nome da Instância"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Anthropic API Key (IA do Tenant)</label>
+                      <div className="relative">
+                        <input type={showAnthropicApiKey ? "text" : "password"} value={editingTenant.anthropic_api_key || ''} onChange={e => setEditingTenant({ ...editingTenant, anthropic_api_key: e.target.value })}
+                          placeholder="Chave Anthropic do Tenant"
+                          className="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                        <button type="button" onClick={() => setShowAnthropicApiKey(!showAnthropicApiKey)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                          {showAnthropicApiKey ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Threshold de Confiança do Agente</label>
+                      <input type="number" step="0.01" min="0" max="1" value={editingTenant.agent_confidence_threshold || ''} onChange={e => setEditingTenant({ ...editingTenant, agent_confidence_threshold: e.target.value })}
+                        placeholder="0.85"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                    </div>
                   </div>
                 </div>
               )}

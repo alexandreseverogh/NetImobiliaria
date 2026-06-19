@@ -51,6 +51,21 @@ export async function GET(request: NextRequest) {
       if (!svc.configuredPageId) {
         return NextResponse.json({ configured: false, contextName, pageSource });
       }
+
+      // Validar token/credenciais da Meta antes de buscar informações
+      const credVal = await svc.validateCredentials();
+      if (!credVal.valid) {
+        return NextResponse.json({
+          configured: true,
+          accessible: false,
+          tokenError: credVal.error || 'Token inválido ou expirado',
+          contextName,
+          pageSource,
+          pageId: svc.configuredPageId,
+          availablePages: [],
+        });
+      }
+
       const info = await svc.getPageInfo();
       return NextResponse.json({
         configured: true,

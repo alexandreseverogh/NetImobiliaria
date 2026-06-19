@@ -8,17 +8,46 @@ const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || '';
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '';
 const EVOLUTION_INSTANCE = process.env.EVOLUTION_INSTANCE || 'trafegopago';
 
-export async function notifySlack(message: string) {
-  if (!SLACK_WEBHOOK) return;
+export async function notifySlack(message: string, tenantId?: string | null) {
+  let webhook = SLACK_WEBHOOK;
+  if (tenantId) {
+    const config = await prisma.$queryRaw<{ slack_webhook_url: string | null }[]>`
+      SELECT slack_webhook_url FROM public.tenants WHERE id = ${tenantId}::uuid LIMIT 1
+    `;
+    if (config[0]?.slack_webhook_url) {
+      webhook = config[0].slack_webhook_url;
+    }
+  }
+
+  if (!webhook) return;
   try {
-    await axios.post(SLACK_WEBHOOK, { text: message });
+    await axios.post(webhook, { text: message });
   } catch (err) {
     console.error('Slack notify error:', err);
   }
 }
 
-export async function notifyWhatsApp(message: string, tenantId?: string) {
-  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) return;
+export async function notifyWhatsApp(message: string, tenantId?: string | null) {
+  let apiUrl = EVOLUTION_API_URL;
+  let apiKey = EVOLUTION_API_KEY;
+  let instance = EVOLUTION_INSTANCE;
+
+  if (tenantId) {
+    const config = await prisma.$queryRaw<{ 
+      evolution_api_url: string | null;
+      evolution_api_key: string | null;
+      evolution_instance: string | null;
+    }[]>`
+      SELECT evolution_api_url, evolution_api_key, evolution_instance 
+      FROM public.tenants WHERE id = ${tenantId}::uuid LIMIT 1
+    `;
+    const cfg = config[0];
+    if (cfg?.evolution_api_url)  apiUrl = cfg.evolution_api_url;
+    if (cfg?.evolution_api_key)  apiKey = cfg.evolution_api_key;
+    if (cfg?.evolution_instance) instance = cfg.evolution_instance;
+  }
+
+  if (!apiUrl || !apiKey) return;
 
   // Busca config do tenant específico, ou a default global
   const config = await prisma.whatsAppConfig.findFirst({
@@ -34,7 +63,7 @@ export async function notifyWhatsApp(message: string, tenantId?: string) {
 
   try {
     await axios.post(
-      `${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`,
+      `${apiUrl}/message/sendText/${instance}`,
       {
         number: phone,
         text: message,
@@ -42,7 +71,7 @@ export async function notifyWhatsApp(message: string, tenantId?: string) {
       {
         headers: {
           'Content-Type': 'application/json',
-          apikey: EVOLUTION_API_KEY,
+          apikey: apiKey,
         },
       }
     );
@@ -51,30 +80,49 @@ export async function notifyWhatsApp(message: string, tenantId?: string) {
   }
 }
 
-export async function getEvolutionStatus(): Promise<{
+export async function getEvolutionStatus(tenantId?: string | null): Promise<{
   connected: boolean;
   instance: string;
   error?: string;
 }> {
-  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-    return { connected: false, instance: EVOLUTION_INSTANCE, error: 'Evolution API nao configurada (EVOLUTION_API_URL / EVOLUTION_API_KEY)' };
+  let apiUrl = EVOLUTION_API_URL;
+  let apiKey = EVOLUTION_API_KEY;
+  let instance = EVOLUTION_INSTANCE;
+
+  if (tenantId) {
+    const config = await prisma.$queryRaw<{ 
+      evolution_api_url: string | null;
+      evolution_api_key: string | null;
+      evolution_instance: string | null;
+    }[]>`
+      SELECT evolution_api_url, evolution_api_key, evolution_instance 
+      FROM public.tenants WHERE id = ${tenantId}::uuid LIMIT 1
+    `;
+    const cfg = config[0];
+    if (cfg?.evolution_api_url)  apiUrl = cfg.evolution_api_url;
+    if (cfg?.evolution_api_key)  apiKey = cfg.evolution_api_key;
+    if (cfg?.evolution_instance) instance = cfg.evolution_instance;
+  }
+
+  if (!apiUrl || !apiKey) {
+    return { connected: false, instance, error: 'Evolution API nao configurada' };
   }
 
   try {
     const res = await axios.get(
-      `${EVOLUTION_API_URL}/instance/connectionState/${EVOLUTION_INSTANCE}`,
-      { headers: { apikey: EVOLUTION_API_KEY } }
+      `${apiUrl}/instance/connectionState/${instance}`,
+      { headers: { apikey: apiKey } }
     );
     const state = res.data?.instance?.state || res.data?.state;
     return {
       connected: state === 'open',
-      instance: EVOLUTION_INSTANCE,
+      instance,
       error: state !== 'open' ? `Estado: ${state}` : undefined,
     };
   } catch (err: any) {
     return {
       connected: false,
-      instance: EVOLUTION_INSTANCE,
+      instance,
       error: err.response?.data?.message || err.message,
     };
   }
@@ -86,6 +134,7 @@ export async function notifyApprovalRequired(action: {
   title: string;
   description: string;
   confidence: number;
+  tenantId?: string | null;
 }) {
   const approveUrl = `${PUBLIC_DOMAIN}/api/agent/approve/${action.id}`;
   const rejectUrl = `${PUBLIC_DOMAIN}/api/agent/reject/${action.id}`;
@@ -100,8 +149,8 @@ export async function notifyApprovalRequired(action: {
     `❌ Rejeitar: ${rejectUrl}`;
 
   await Promise.allSettled([
-    notifySlack(message),
-    notifyWhatsApp(message),
+    notifySlack(message, action.tenantId),
+    notifyWhatsApp(message, action.tenantId),
   ]);
 }
 
@@ -109,6 +158,7 @@ export async function notifyExecuted(action: {
   campaignName: string;
   title: string;
   type: string;
+  tenantId?: string | null;
 }) {
   const emoji = action.type === 'PAUSE' ? '⏸️' : '⚡';
   const message =
@@ -117,8 +167,8 @@ export async function notifyExecuted(action: {
     `✅ Ação: ${action.title}`;
 
   await Promise.allSettled([
-    notifySlack(message),
-    notifyWhatsApp(message),
+    notifySlack(message, action.tenantId),
+    notifyWhatsApp(message, action.tenantId),
   ]);
 }
 
@@ -127,6 +177,7 @@ export async function notifyAlert(action: {
   title: string;
   description: string;
   confidence: number;
+  tenantId?: string | null;
 }) {
   const message =
     `⚠️ *Alerta de Campanha*\n\n` +
@@ -136,7 +187,7 @@ export async function notifyAlert(action: {
     `🎯 Confiança: ${(action.confidence * 100).toFixed(0)}%`;
 
   await Promise.allSettled([
-    notifySlack(message),
-    notifyWhatsApp(message),
+    notifySlack(message, action.tenantId),
+    notifyWhatsApp(message, action.tenantId),
   ]);
 }

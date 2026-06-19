@@ -86,9 +86,10 @@ export class MetaAdsAdapter implements AdNetworkService {
   /**
    * Resolve o Page Access Token a partir das credenciais do tenant.
    *
-   * O token armazenado costuma ser de Usuário/Sistema; publicar na Página exige
-   * um Page Access Token. Estratégia (sem hardcode):
-   *   1. GET /{page-id}?fields=access_token  (caminho direto se o user token tem acesso)
+   * Estratégia:
+   *   0. Se o token armazenado já é um Page Token (verificação via /me?fields=id),
+   *      usa diretamente — elimina a necessidade de troca.
+   *   1. GET /{page-id}?fields=access_token (troca User Token → Page Token)
    *   2. fallback GET /me/accounts e localizar a página por id
    * Lança erro acionável se page_id não configurado ou sem permissão.
    */
@@ -101,7 +102,19 @@ export class MetaAdsAdapter implements AdNetworkService {
       );
     }
 
-    // 1. Caminho direto
+    // 0. Verifica se o token armazenado já é um Page Token (GET /me retorna o id da Página)
+    try {
+      const me = await axios.get(this.url('me'), {
+        params: { ...this.auth, fields: 'id' },
+      });
+      if (me.data?.id === this.pageId) {
+        // Token já é o Page Access Token — usa diretamente, sem troca
+        this._pageTokenCache = this.token;
+        return this.token;
+      }
+    } catch { /* não é page token, segue para troca */ }
+
+    // 1. Caminho direto — troca User Token por Page Token
     try {
       const res = await axios.get(this.url(this.pageId), {
         params: { ...this.auth, fields: 'access_token' },
@@ -266,6 +279,73 @@ export class MetaAdsAdapter implements AdNetworkService {
   }
 
   /**
+   * Detecta se uma URL é interna/localhost (inacessível pelo Meta).
+   * Quando verdadeiro, o upload é feito via binário em vez de URL.
+   */
+  private isInternalUrl(url: string): boolean {
+    try {
+      const { hostname } = new URL(url);
+      return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
+    } catch { return false; }
+  }
+
+  /**
+   * Faz upload de uma foto para /{pageId}/photos.
+   * - URL interna (localhost/MinIO local): baixa os bytes e envia como binário (`source`).
+   * - URL pública: passa `url` para o Meta baixar diretamente.
+   * access_token sempre vai como query param (mais confiável na API do Meta).
+   */
+  private async postPhotoToMeta(
+    mediaUrl: string,
+    pageToken: string,
+    published: boolean,
+    caption?: string,
+  ): Promise<{ id: string; post_id?: string }> {
+    if (this.isInternalUrl(mediaUrl)) {
+      // Baixa localmente e envia como binário — Meta não precisa acessar o MinIO
+      const imgResp = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
+      const buf     = Buffer.from(imgResp.data);
+
+      // Detecta content-type a partir do header; fallback pela extensão da URL
+      let ct = (imgResp.headers['content-type'] as string) || '';
+      if (!ct || ct === 'application/octet-stream') {
+        const urlExt = mediaUrl.split('.').pop()?.toLowerCase() ?? '';
+        ct = urlExt === 'png' ? 'image/png'
+           : urlExt === 'gif' ? 'image/gif'
+           : urlExt === 'webp' ? 'image/webp'
+           : 'image/jpeg';
+      }
+      const ext = ct.split('/')[1]?.split(';')[0]?.replace('jpeg', 'jpg') || 'jpg';
+
+      const form = new FormData();
+      if (caption) form.append('caption', caption);
+      form.append('published', String(published));
+      form.append('source', buf, { filename: `photo.${ext}`, contentType: ct });
+
+      const res = await axios.post(
+        this.url(`${this.pageId}/photos`),
+        form,
+        {
+          params:  { access_token: pageToken },
+          headers: form.getHeaders(),
+        },
+      );
+      return res.data;
+    }
+
+    // URL pública — Meta baixa diretamente
+    const res = await axios.post(this.url(`${this.pageId}/photos`), null, {
+      params: {
+        access_token: pageToken,
+        url:          mediaUrl,
+        caption:      caption || undefined,
+        published,
+      },
+    });
+    return res.data;
+  }
+
+  /**
    * Publica um post ORGÂNICO na Página do Facebook (FASE 16.B).
    * Suporta: texto/link (/feed), foto única (/photos) e multi-foto (attached_media).
    * NÃO usa adset/targeting/budget — é publicação orgânica pura.
@@ -301,25 +381,16 @@ export class MetaAdsAdapter implements AdNetworkService {
 
     // 2. Foto única
     if (media.length === 1) {
-      const res = await axios.post(this.url(`${this.pageId}/photos`), null, {
-        params: {
-          access_token: pageToken,
-          url:          media[0],
-          caption:      input.caption || undefined,
-          published:    true,
-        },
-      });
-      const postId = res.data?.post_id || res.data?.id;
+      const data   = await this.postPhotoToMeta(media[0], pageToken, true, input.caption);
+      const postId = data.post_id || data.id;
       return { platform: 'facebook', postId, permalink: await this.fetchPermalink(postId, pageToken), status: 'PUBLISHED' };
     }
 
     // 3. Multi-foto: upload sem publicar → /feed com attached_media
     const mediaFbids: { media_fbid: string }[] = [];
     for (const url of media) {
-      const up = await axios.post(this.url(`${this.pageId}/photos`), null, {
-        params: { access_token: pageToken, url, published: false },
-      });
-      if (up.data?.id) mediaFbids.push({ media_fbid: up.data.id });
+      const up = await this.postPhotoToMeta(url, pageToken, false);
+      if (up.id) mediaFbids.push({ media_fbid: up.id });
     }
     const res = await axios.post(this.url(`${this.pageId}/feed`), null, {
       params: {

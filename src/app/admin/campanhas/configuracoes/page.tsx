@@ -30,6 +30,8 @@ import {
   LinkIcon,
   ExclamationTriangleIcon,
   ShieldCheckIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
 import { UpdateGuard } from '@/components/admin/PermissionGuard';
@@ -58,16 +60,29 @@ function Field({
   label: string; value: string; onChange: (v: string) => void;
   placeholder?: string; type?: string; hint?: string;
 }) {
+  const [show, setShow] = useState(false);
+  const isPassword = type === 'password';
+
   return (
     <div>
       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-      />
+      <div className="relative">
+        <input
+          type={isPassword ? (show ? 'text' : 'password') : type}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={cn(
+            "w-full bg-gray-50 border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all pl-4",
+            isPassword ? "pr-12" : "pr-4"
+          )}
+        />
+        {isPassword && (
+          <button type="button" onClick={() => setShow(!show)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            {show ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+          </button>
+        )}
+      </div>
       {hint && <p className="text-xs text-gray-400 mt-1.5">{hint}</p>}
     </div>
   );
@@ -372,6 +387,12 @@ function MasterSettingsView() {
   const [settings, setSettings] = useState({
     metaAppId: '', metaAppSecret: '', metaToken: '', adAccountId: '',
     creativesPath: '', publicDomain: '',
+    anthropicApiKey: '',
+    slackWebhookUrl: '',
+    evolutionApiUrl: '',
+    evolutionApiKey: '',
+    evolutionInstance: '',
+    agentConfidenceThreshold: 0.85,
   });
   const [whatsapp, setWhatsapp] = useState({
     phoneNumber: '', defaultMessage: '', businessName: '',
@@ -405,10 +426,16 @@ function MasterSettingsView() {
       setSettings({
         metaAppId:     s.metaAppId     || '',
         metaAppSecret: s.metaAppSecret || '',
-        metaToken:     '',
+        metaToken:     s.metaToken     || '',
         adAccountId:   s.adAccountId   || '',
         creativesPath: s.creativesPath || '',
         publicDomain:  s.publicDomain  || '',
+        anthropicApiKey: s.anthropicApiKey || '',
+        slackWebhookUrl: s.slackWebhookUrl || '',
+        evolutionApiUrl: s.evolutionApiUrl || '',
+        evolutionApiKey: s.evolutionApiKey || '',
+        evolutionInstance: s.evolutionInstance || '',
+        agentConfidenceThreshold: s.agentConfidenceThreshold !== undefined ? s.agentConfidenceThreshold : 0.85,
       });
       setWhatsapp({
         phoneNumber:    w.phoneNumber    || '',
@@ -473,7 +500,7 @@ function MasterSettingsView() {
   }
 
   const providerList = llmModels
-    ? Object.entries(llmModels.providers).map(([key, val]) => ({ key, label: val.label }))
+    ? Object.entries(llmModels.providers).map(([key, val]: [string, any]) => ({ key, label: val.label }))
     : [{ key: 'anthropic', label: 'Anthropic' }];
 
   const selectCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all";
@@ -507,7 +534,7 @@ function MasterSettingsView() {
         <Field label="App Secret" value={settings.metaAppSecret}
           onChange={v => setSettings(s => ({ ...s, metaAppSecret: v }))}
           placeholder="abc123def456..." type="password" />
-        <Field label="Access Token" value={settings.metaToken}
+        <Field label="Access Token (Token do administrador)" value={settings.metaToken}
           onChange={v => setSettings(s => ({ ...s, metaToken: v }))}
           placeholder="Token de longa duração" type="password"
           hint="Deixe em branco para manter o token atual" />
@@ -655,6 +682,28 @@ function MasterSettingsView() {
           placeholder="https://seudominio.com" />
       </SectionCard>
 
+      {/* ── Configurações de Comunicação e Agentes (Slack, Evolution, IA) ─── */}
+      <SectionCard icon={Cog6ToothIcon} title="Configurações de Comunicação e Agentes" description="WhatsApp, Slack, IA e Threshold do Agente">
+        <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
+          onChange={v => setSettings(s => ({ ...s, slackWebhookUrl: v }))}
+          placeholder="https://hooks.slack.com/services/..." />
+        <Field label="Evolution API URL" value={settings.evolutionApiUrl}
+          onChange={v => setSettings(s => ({ ...s, evolutionApiUrl: v }))}
+          placeholder="http://localhost:8080" />
+        <Field label="Evolution API Key" value={settings.evolutionApiKey}
+          onChange={v => setSettings(s => ({ ...s, evolutionApiKey: v }))}
+          placeholder="Chave da API Evolution" type="password" />
+        <Field label="Evolution Instance" value={settings.evolutionInstance}
+          onChange={v => setSettings(s => ({ ...s, evolutionInstance: v }))}
+          placeholder="Nome da Instância" />
+        <Field label="Anthropic API Key (IA do Tenant)" value={settings.anthropicApiKey}
+          onChange={v => setSettings(s => ({ ...s, anthropicApiKey: v }))}
+          placeholder="Cole a chave Anthropic do Tenant" type="password" />
+        <Field label="Threshold de Confiança do Agente" value={settings.agentConfidenceThreshold.toString()}
+          onChange={v => setSettings(s => ({ ...s, agentConfidenceThreshold: parseFloat(v) || 0 }))}
+          placeholder="0.85" type="number" hint="Confiança mínima para execução/notificação automática do Agente Decisor" />
+      </SectionCard>
+
       {/* ── Save ─── */}
       <div className="flex items-center gap-4 pb-8">
         <UpdateGuard resource="configuracoes-campanhas">
@@ -697,6 +746,22 @@ function TenantSettingsView() {
   const [saveError, setSaveError]           = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
+  const [settings, setSettings] = useState({
+    anthropicApiKey: '',
+    slackWebhookUrl: '',
+    evolutionApiUrl: '',
+    evolutionApiKey: '',
+    evolutionInstance: '',
+    agentConfidenceThreshold: 0.85,
+    metaAppId: '',
+    metaAppSecret: '',
+    metaToken: '',
+    adAccountId: '',
+  });
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+
   useEffect(() => {
     Promise.all([
       getSettings(),
@@ -704,8 +769,47 @@ function TenantSettingsView() {
     ]).then(([s, d]) => {
       setOwnPath(s.creativesPath || '');
       setClients(d.clients || []);
+      setSettings({
+        anthropicApiKey: s.anthropicApiKey || '',
+        slackWebhookUrl: s.slackWebhookUrl || '',
+        evolutionApiUrl: s.evolutionApiUrl || '',
+        evolutionApiKey: s.evolutionApiKey || '',
+        evolutionInstance: s.evolutionInstance || '',
+        agentConfidenceThreshold: s.agentConfidenceThreshold !== undefined ? s.agentConfidenceThreshold : 0.85,
+        metaAppId: s.metaAppId || '',
+        metaAppSecret: s.metaAppSecret || '',
+        metaToken: s.metaToken || '',
+        adAccountId: s.adAccountId || '',
+      });
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  async function handleSaveSettings() {
+    setSettingsSaving(true);
+    setSettingsSaved(false);
+    setSettingsError('');
+    try {
+      const payload: any = {
+        anthropicApiKey: settings.anthropicApiKey,
+        slackWebhookUrl: settings.slackWebhookUrl,
+        evolutionApiUrl: settings.evolutionApiUrl,
+        evolutionApiKey: settings.evolutionApiKey,
+        evolutionInstance: settings.evolutionInstance,
+        agentConfidenceThreshold: settings.agentConfidenceThreshold,
+        metaAppId: settings.metaAppId,
+        metaAppSecret: settings.metaAppSecret,
+        adAccountId: settings.adAccountId,
+      };
+      if (settings.metaToken) {
+        payload.metaToken = settings.metaToken;
+      }
+      await updateSettings(payload);
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 3000);
+    } catch (err: any) {
+      setSettingsError(err?.response?.data?.error || err?.message || 'Erro ao salvar');
+    } finally { setSettingsSaving(false); }
+  }
 
   // ── Minha Empresa: salvar ────────────────────────────────────────────────────
   async function handleSaveOwn() {
@@ -1011,6 +1115,70 @@ function TenantSettingsView() {
           </div>
         </div>
       )}
+
+      {/* ── Meta Marketing API (Credenciais do Tenant) ── */}
+      <SectionCard icon={Cog6ToothIcon} title="Meta Marketing API" description="App ID, credenciais e conta de anúncios da sua empresa">
+        <Field label="App ID" value={settings.metaAppId}
+          onChange={v => setSettings(s => ({ ...s, metaAppId: v }))}
+          placeholder="Ex: 972196948862111" />
+        <Field label="App Secret" value={settings.metaAppSecret}
+          onChange={v => setSettings(s => ({ ...s, metaAppSecret: v }))}
+          placeholder="abc123def456..." type="password" />
+        <Field label="Access Token (Token do administrador)" value={settings.metaToken}
+          onChange={v => setSettings(s => ({ ...s, metaToken: v }))}
+          placeholder="Token de longa duração" type="password"
+          hint="Deixe em branco para manter o token atual" />
+        <Field label="Ad Account ID" value={settings.adAccountId}
+          onChange={v => setSettings(s => ({ ...s, adAccountId: v }))}
+          placeholder="Ex: 10150461381441874 (sem 'act_')" />
+      </SectionCard>
+
+      {/* ── Identidade Meta ── */}
+      <MetaIdentitySection />
+
+      {/* ── Comunicação e Inteligência ── */}
+      <SectionCard icon={Cog6ToothIcon} title="Agentes, Alertas e IA" description="Configurações de notificações do WhatsApp, Slack e chaves de IA do Tenant">
+        <Field label="Slack Webhook URL" value={settings.slackWebhookUrl}
+          onChange={v => setSettings(s => ({ ...s, slackWebhookUrl: v }))}
+          placeholder="https://hooks.slack.com/services/..." />
+        <Field label="Evolution API URL" value={settings.evolutionApiUrl}
+          onChange={v => setSettings(s => ({ ...s, evolutionApiUrl: v }))}
+          placeholder="http://localhost:8080" />
+        <Field label="Evolution API Key" value={settings.evolutionApiKey}
+          onChange={v => setSettings(s => ({ ...s, evolutionApiKey: v }))}
+          placeholder="Chave da API Evolution" type="password" />
+        <Field label="Evolution Instance" value={settings.evolutionInstance}
+          onChange={v => setSettings(s => ({ ...s, evolutionInstance: v }))}
+          placeholder="Nome da Instância" />
+        <Field label="Anthropic API Key (IA do Tenant)" value={settings.anthropicApiKey}
+          onChange={v => setSettings(s => ({ ...s, anthropicApiKey: v }))}
+          placeholder="Chave Anthropic do Tenant" type="password" />
+        <Field label="Threshold de Confiança do Agente" value={settings.agentConfidenceThreshold.toString()}
+          onChange={v => setSettings(s => ({ ...s, agentConfidenceThreshold: parseFloat(v) || 0 }))}
+          placeholder="0.85" type="number" hint="Confiança mínima para execução/notificação automática do Agente Decisor" />
+        
+        <div className="flex items-center gap-3 pt-2">
+          <UpdateGuard resource="configuracoes-campanhas">
+            <button
+              onClick={handleSaveSettings}
+              disabled={settingsSaving}
+              className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+            >
+              {settingsSaving ? 'Salvando...' : 'Salvar Configurações adicionais'}
+            </button>
+          </UpdateGuard>
+          {settingsSaved && (
+            <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
+              <CheckCircleIcon className="h-4 w-4" /> Salvo com sucesso
+            </span>
+          )}
+          {settingsError && (
+            <span className="flex items-center gap-1.5 text-xs font-black text-red-500">
+              <XCircleIcon className="h-4 w-4" /> {settingsError}
+            </span>
+          )}
+        </div>
+      </SectionCard>
 
     </div>
   );

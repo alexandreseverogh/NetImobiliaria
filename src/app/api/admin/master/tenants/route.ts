@@ -68,7 +68,8 @@ export async function POST(request: NextRequest) {
       logradouro, numero, bairro, cidade, estado, cep, telefone, email_contato,
       admin_nome, admin_username, admin_email, admin_password,
       selected_modules, ai_config, primary_color, secondary_color,
-      calendario, google_email, duracao_visita
+      calendario, google_email, duracao_visita,
+      anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold
     } = body;
 
     await client.query('BEGIN');
@@ -78,8 +79,9 @@ export async function POST(request: NextRequest) {
       INSERT INTO tenants (
         name, slug, segment_id, logo_url, cnpj_cpf, 
         logradouro, numero, bairro, cidade, estado, cep, telefone, email_contato, status, ai_config,
-        primary_color, secondary_color, calendario, google_email, duracao_visita
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16, $17, $18, $19)
+        primary_color, secondary_color, calendario, google_email, duracao_visita,
+        anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
       RETURNING id
     `, [
       name, slug, segment_id, logo || null, cnpj_cpf || null,
@@ -90,7 +92,13 @@ export async function POST(request: NextRequest) {
       secondary_color || '#F1F1F1',
       calendario || false,
       google_email || null,
-      duracao_visita || 60
+      duracao_visita || 60,
+      anthropic_api_key || null,
+      slack_webhook_url || null,
+      evolution_api_url || null,
+      evolution_api_key || null,
+      evolution_instance || null,
+      agent_confidence_threshold !== undefined && agent_confidence_threshold !== null ? parseFloat(agent_confidence_threshold) : 0.85
     ]);
     const tenantId = tenantResult.rows[0].id;
 

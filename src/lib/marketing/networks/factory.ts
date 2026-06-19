@@ -57,38 +57,56 @@ export async function getNetworkServiceForTenant(
 ): Promise<AdNetworkService> {
   const pool = getPool();
 
-  // 1. Tenant credentials (base)
-  const res = await pool.query(
-    `SELECT tnc.credentials, tnc.account_id, n.code
-     FROM public.tenant_network_credentials tnc
-     JOIN public.ad_networks n ON n.id = tnc.network_id
-     WHERE tnc.tenant_id = $1::uuid
-       AND n.code = $2
-       AND tnc.is_active = true
-     LIMIT 1`,
-    [tenantId, networkCode],
-  );
-
   let baseCredentials: NetworkCredentials | null = null;
 
-  if (res.rows[0]) {
-    const { credentials, account_id } = res.rows[0];
-    baseCredentials = { ...credentials, ad_account_id: account_id };
-  } else if (networkCode === 'meta') {
-    // Legacy fallback
-    const legacy = await pool.query(
-      `SELECT meta_token, meta_ad_account_id, meta_app_id, meta_app_secret
-       FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
-      [tenantId],
-    );
-    const t = legacy.rows[0];
-    if (t?.meta_token && t?.meta_ad_account_id) {
+  if (networkCode === 'meta') {
+    const [tenantRes, credsRes] = await Promise.all([
+      pool.query(
+        `SELECT meta_token, meta_ad_account_id, meta_app_id, meta_app_secret, meta_page_id, meta_pixel_id, meta_instagram_actor_id
+         FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
+        [tenantId],
+      ),
+      pool.query(
+        `SELECT tnc.credentials, tnc.account_id
+         FROM public.tenant_network_credentials tnc
+         JOIN public.ad_networks n ON n.id = tnc.network_id
+         WHERE tnc.tenant_id = $1::uuid AND n.code = 'meta' AND tnc.is_active = true
+         LIMIT 1`,
+        [tenantId],
+      ),
+    ]);
+
+    const t = tenantRes.rows[0];
+    const credsRow = credsRes.rows[0];
+    const creds = credsRow?.credentials || {};
+    const credsAccountId = credsRow?.account_id || '';
+
+    const token = t?.meta_token || creds.access_token || '';
+    if (token) {
       baseCredentials = {
-        access_token:  t.meta_token,
-        ad_account_id: t.meta_ad_account_id,
-        app_id:        t.meta_app_id,
-        app_secret:    t.meta_app_secret,
+        access_token:       token,
+        ad_account_id:      t?.meta_ad_account_id || credsAccountId || creds.ad_account_id || '',
+        app_id:             t?.meta_app_id || creds.app_id || '',
+        app_secret:         t?.meta_app_secret || creds.app_secret || '',
+        page_id:            t?.meta_page_id || creds.page_id || '',
+        pixel_id:           t?.meta_pixel_id || creds.pixel_id || '',
+        instagram_actor_id: t?.meta_instagram_actor_id || creds.instagram_actor_id || '',
       };
+    }
+  } else {
+    const res = await pool.query(
+      `SELECT tnc.credentials, tnc.account_id, n.code
+       FROM public.tenant_network_credentials tnc
+       JOIN public.ad_networks n ON n.id = tnc.network_id
+       WHERE tnc.tenant_id = $1::uuid
+         AND n.code = $2
+         AND tnc.is_active = true
+       LIMIT 1`,
+      [tenantId, networkCode],
+    );
+    if (res.rows[0]) {
+      const { credentials, account_id } = res.rows[0];
+      baseCredentials = { ...credentials, ad_account_id: account_id };
     }
   }
 

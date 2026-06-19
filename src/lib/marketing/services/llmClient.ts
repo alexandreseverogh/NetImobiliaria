@@ -102,7 +102,7 @@ async function makeOpenAICompatibleClient(
 export async function getLlmClientForCampaigns(): Promise<LlmClient> {
   let provider = 'anthropic';
   let model    = 'claude-sonnet-4-6';
-  let apiKey   = process.env.ANTHROPIC_API_KEY || '';
+  let apiKey   = '';
 
   try {
     const res = await getPool().query(
@@ -115,7 +115,18 @@ export async function getLlmClientForCampaigns(): Promise<LlmClient> {
     if (cfg?.llmModel)    model    = cfg.llmModel;
     if (cfg?.llmApiKey)   apiKey   = cfg.llmApiKey;
   } catch {
-    // fallback to env
+    // fallback
+  }
+
+  if (provider === 'anthropic' && !apiKey) {
+    try {
+      const res = await getPool().query(
+        `SELECT anthropic_api_key FROM public.tenants ORDER BY slug = 'master' DESC, id LIMIT 1`
+      );
+      if (res.rows[0]?.anthropic_api_key) {
+        apiKey = res.rows[0].anthropic_api_key;
+      }
+    } catch {}
   }
 
   if (!apiKey) {
@@ -136,18 +147,40 @@ export async function getLlmClientForCampaigns(): Promise<LlmClient> {
 
 /**
  * Retorna um LlmClient configurado para o tenant.
- * Fallback: ANTHROPIC_API_KEY do .env se tenant não tiver configuração.
  */
 export async function getLlmClient(tenantId?: string | null): Promise<LlmClient> {
   let provider = 'anthropic';
   let model    = 'claude-sonnet-4-5';
-  let apiKey   = process.env.ANTHROPIC_API_KEY || '';
+  let apiKey   = '';
+
+  if (tenantId) {
+    try {
+      const tenantRes = await getPool().query(
+        `SELECT anthropic_api_key FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
+        [tenantId]
+      );
+      if (tenantRes.rows[0]?.anthropic_api_key) {
+        apiKey = tenantRes.rows[0].anthropic_api_key;
+      }
+    } catch {}
+  }
 
   if (tenantId) {
     const cfg = await getTenantLlmConfig(tenantId);
     if (cfg?.llmProvider) provider = cfg.llmProvider;
     if (cfg?.llmModel)    model    = cfg.llmModel;
-    if (cfg?.llmApiKey)   apiKey   = cfg.llmApiKey;
+    if (cfg?.llmApiKey && !apiKey)   apiKey = cfg.llmApiKey;
+  }
+
+  if (provider === 'anthropic' && !apiKey) {
+    try {
+      const res = await getPool().query(
+        `SELECT anthropic_api_key FROM public.tenants ORDER BY slug = 'master' DESC, id LIMIT 1`
+      );
+      if (res.rows[0]?.anthropic_api_key) {
+        apiKey = res.rows[0].anthropic_api_key;
+      }
+    } catch {}
   }
 
   if (!apiKey) {

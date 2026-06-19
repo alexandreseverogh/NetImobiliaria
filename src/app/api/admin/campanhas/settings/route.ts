@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
 
     // Buscar tenant principal
     const tenantRes = await pool.query(
-      `SELECT id, name, trafego_tier, meta_app_id, meta_app_secret, meta_ad_account_id, meta_token_expires_at, meta_token
+      `SELECT id, name, trafego_tier, meta_app_id, meta_app_secret, meta_ad_account_id, meta_token_expires_at, meta_token,
+              anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold
        FROM public.tenants
        WHERE id = $1::uuid LIMIT 1`,
       [payload.tenantId]
@@ -50,10 +51,17 @@ export async function GET(request: NextRequest) {
       adAccountId:        tenant.meta_ad_account_id,
       metaTokenExpiresAt: tenant.meta_token_expires_at,
       metaTokenSet:       !!tenant.meta_token,
+      metaToken:          tenant.meta_token || '',
       llmProvider:        settings?.llmProvider || 'anthropic',
       llmModel:           settings?.llmModel    || 'claude-sonnet-4-6',
       creativesPath:      settings?.creativesPath,
       publicDomain:       settings?.publicDomain,
+      anthropicApiKey:    tenant.anthropic_api_key,
+      slackWebhookUrl:    tenant.slack_webhook_url,
+      evolutionApiUrl:    tenant.evolution_api_url,
+      evolutionApiKey:    tenant.evolution_api_key,
+      evolutionInstance:  tenant.evolution_instance,
+      agentConfidenceThreshold: tenant.agent_confidence_threshold !== null ? parseFloat(tenant.agent_confidence_threshold) : 0.85,
     });
   } catch (error: any) {
     console.error('Erro no GET /settings:', error);
@@ -69,7 +77,10 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { metaAppId, metaAppSecret, metaToken, adAccountId, creativesPath, publicDomain } = body;
+    const { 
+      metaAppId, metaAppSecret, metaToken, adAccountId, creativesPath, publicDomain,
+      anthropicApiKey, slackWebhookUrl, evolutionApiUrl, evolutionApiKey, evolutionInstance, agentConfidenceThreshold 
+    } = body;
 
     // Campos Meta API exigem permissão UPDATE; creativesPath/publicDomain são do próprio tenant
     const hasMeta = metaAppId !== undefined || metaAppSecret !== undefined
@@ -79,18 +90,27 @@ export async function PUT(request: NextRequest) {
       if (denied) return denied;
     }
 
-    // Atualiza campos Meta no tenant (schema public)
+    // Atualiza campos no tenant (schema public)
     const sets: string[] = [];
     const vals: any[] = [];
     let idx = 1;
 
-    if (metaAppId !== undefined)     { sets.push(`meta_app_id = $${idx++}`);      vals.push(metaAppId); }
-    if (metaAppSecret !== undefined)  { sets.push(`meta_app_secret = $${idx++}`);  vals.push(metaAppSecret); }
+    if (metaAppId !== undefined)            { sets.push(`meta_app_id = $${idx++}`);              vals.push(metaAppId); }
+    if (metaAppSecret !== undefined)        { sets.push(`meta_app_secret = $${idx++}`);          vals.push(metaAppSecret); }
     if (metaToken !== undefined) {
       sets.push(`meta_token = $${idx++}`);           vals.push(metaToken);
       sets.push(`meta_token_expires_at = $${idx++}`); vals.push(new Date(Date.now() + 60 * 86400 * 1000));
     }
-    if (adAccountId !== undefined)    { sets.push(`meta_ad_account_id = $${idx++}`); vals.push(adAccountId); }
+    if (adAccountId !== undefined)           { sets.push(`meta_ad_account_id = $${idx++}`);        vals.push(adAccountId); }
+    if (anthropicApiKey !== undefined)       { sets.push(`anthropic_api_key = $${idx++}`);        vals.push(anthropicApiKey); }
+    if (slackWebhookUrl !== undefined)       { sets.push(`slack_webhook_url = $${idx++}`);        vals.push(slackWebhookUrl); }
+    if (evolutionApiUrl !== undefined)       { sets.push(`evolution_api_url = $${idx++}`);        vals.push(evolutionApiUrl); }
+    if (evolutionApiKey !== undefined)       { sets.push(`evolution_api_key = $${idx++}`);        vals.push(evolutionApiKey); }
+    if (evolutionInstance !== undefined)     { sets.push(`evolution_instance = $${idx++}`);       vals.push(evolutionInstance); }
+    if (agentConfidenceThreshold !== undefined) {
+      sets.push(`agent_confidence_threshold = $${idx++}`);
+      vals.push(agentConfidenceThreshold !== null ? parseFloat(agentConfidenceThreshold) : null);
+    }
 
     if (sets.length > 0) {
       vals.push(payload.tenantId);

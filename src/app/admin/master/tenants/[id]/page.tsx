@@ -14,6 +14,8 @@ import {
   CogIcon,
   MegaphoneIcon,
   ExclamationTriangleIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from '@heroicons/react/24/outline'
 
 /* ─── Types ──────────────────────────────────────────────── */
@@ -26,12 +28,16 @@ interface MetaIdentity {
   credentialsActive: boolean
   website: string
   tenantName: string
+  metaAppId: string
+  metaAppSecret: string
+  metaToken: string
 }
 
 const EMPTY_META: MetaIdentity = {
   pageId: '', pixelId: '', instagramActorId: '',
   accessToken: '', adAccountId: '', credentialsActive: false,
   website: '', tenantName: '',
+  metaAppId: '', metaAppSecret: '', metaToken: '',
 }
 
 /* ─── Field component ────────────────────────────────────── */
@@ -46,6 +52,9 @@ function Field({
   badge?: { text: string; color: string }
   type?: string
 }) {
+  const [show, setShow] = useState(false)
+  const isPassword = type === 'password'
+
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
@@ -58,13 +67,20 @@ function Field({
           </span>
         )}
       </div>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"
-      />
+      <div className="relative">
+        <input
+          type={isPassword ? (show ? 'text' : 'password') : type}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={`w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all ${isPassword ? 'pr-12' : ''}`}
+        />
+        {isPassword && (
+          <button type="button" onClick={() => setShow(!show)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            {show ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+          </button>
+        )}
+      </div>
       {hint && <p className="text-[11px] text-gray-400 mt-1">{hint}</p>}
     </div>
   )
@@ -122,7 +138,20 @@ export default function TenantDetailPage() {
         setFeatures(d.features ?? [])
       }
       if (metaRes.status === 'fulfilled' && metaRes.value.ok) {
-        setMeta(await metaRes.value.json())
+        const d = await metaRes.value.json()
+        setMeta({
+          pageId: d.pageId || '',
+          pixelId: d.pixelId || '',
+          instagramActorId: d.instagramActorId || '',
+          accessToken: d.accessToken || '',
+          adAccountId: d.adAccountId || '',
+          credentialsActive: d.credentialsActive ?? false,
+          website: d.website || '',
+          tenantName: d.tenantName || '',
+          metaAppId: d.appId || '',
+          metaAppSecret: d.metaAppSecret || '',
+          metaToken: d.accessToken || '',
+        })
       }
     } catch (err) {
       console.error('[tenant/detail] fetchData error:', err)
@@ -160,10 +189,15 @@ export default function TenantDetailPage() {
           pixelId:          meta.pixelId,
           instagramActorId: meta.instagramActorId,
           website:          meta.website,
+          metaAppId:        meta.metaAppId,
+          metaAppSecret:    meta.metaAppSecret,
+          metaToken:        meta.metaToken,
+          adAccountId:      meta.adAccountId,
         }),
       })
       if (res.ok) {
         setMetaSaved(true)
+        fetchData()
         setTimeout(() => setMetaSaved(false), 3000)
       } else {
         alert('Erro ao salvar configurações Meta')
@@ -329,6 +363,33 @@ export default function TenantDetailPage() {
                 onChange={v => setMeta(m => ({ ...m, website: v }))}
                 placeholder="Ex: www.imobiliaria.com.br"
                 hint="Pré-preenche o Link da campanha no wizard."
+              />
+              <Field
+                label="Meta App ID"
+                value={meta.metaAppId}
+                onChange={v => setMeta(m => ({ ...m, metaAppId: v }))}
+                placeholder="Ex: 972196948862111"
+              />
+              <Field
+                label="Meta App Secret"
+                value={meta.metaAppSecret}
+                onChange={v => setMeta(m => ({ ...m, metaAppSecret: v }))}
+                placeholder="••••••••"
+                type="password"
+              />
+              <Field
+                label="Meta Access Token (Token do administrador)"
+                value={meta.metaToken}
+                onChange={v => setMeta(m => ({ ...m, metaToken: v }))}
+                placeholder={meta.accessToken ? "••••••••" : "Cole seu novo token de acesso"}
+                type="password"
+                hint="Deixe em branco para manter o token atual."
+              />
+              <Field
+                label="Meta Ad Account ID"
+                value={meta.adAccountId}
+                onChange={v => setMeta(m => ({ ...m, adAccountId: v }))}
+                placeholder="Ex: 10150461381441874 (sem 'act_')"
               />
 
               <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">

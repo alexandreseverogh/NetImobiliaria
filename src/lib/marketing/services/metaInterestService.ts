@@ -15,23 +15,24 @@ export interface MetaInterest {
   path?:         string[];
 }
 
-/** access_token do tenant (tenant_network_credentials → fallback legado). */
+/** access_token do tenant (lido da tabela public.tenants). */
 export async function resolveMetaAccessToken(tenantId: string): Promise<string | null> {
-  const credRes = await pool.query(
-    `SELECT tnc.credentials
-     FROM public.tenant_network_credentials tnc
-     JOIN public.ad_networks n ON n.id = tnc.network_id
-     WHERE tnc.tenant_id = $1::uuid AND n.code = 'meta' AND tnc.is_active = true
-     LIMIT 1`,
-    [tenantId],
-  );
-  if (credRes.rows[0]?.credentials?.access_token) return credRes.rows[0].credentials.access_token;
-
-  const legacy = await pool.query(
-    `SELECT meta_token FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
-    [tenantId],
-  );
-  return legacy.rows[0]?.meta_token || null;
+  const [tenantRes, credsRes] = await Promise.all([
+    pool.query(
+      `SELECT meta_token FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
+      [tenantId],
+    ),
+    pool.query(
+      `SELECT tnc.credentials
+       FROM public.tenant_network_credentials tnc
+       JOIN public.ad_networks n ON n.id = tnc.network_id
+       WHERE tnc.tenant_id = $1::uuid AND n.code = 'meta' AND tnc.is_active = true
+       LIMIT 1`,
+      [tenantId],
+    ),
+  ]);
+  const token = tenantRes.rows[0]?.meta_token || credsRes.rows[0]?.credentials?.access_token || null;
+  return token || null;
 }
 
 /** Busca interesses reais na Meta Targeting Search API (chamada direta, sem cache). */

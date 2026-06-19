@@ -32,6 +32,7 @@ interface OrganicTarget {
   accessible?: boolean;
   availablePages?: { id: string; name: string; instagramUsername: string | null }[];
   reason?: string;
+  tokenError?: string;
 }
 
 const IG_DAILY_LIMIT = 100;
@@ -269,6 +270,25 @@ function TargetBanner({ target, loading }: { target: OrganicTarget | null; loadi
   const ctx = target.contextName;
 
   // Destino não configurado → aviso acionável
+  if (target.tokenError) {
+    return (
+      <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+        <ExclamationTriangleIcon className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+        <div className="text-sm flex-1 min-w-0">
+          <p className="font-black text-red-800">
+            Erro de autenticação com a Meta para <span className="underline decoration-red-400">{ctx}</span>
+          </p>
+          <p className="text-xs text-red-700 mt-0.5">
+            O token de acesso configurado no tenant é inválido ou expirou. Por favor, atualize o <strong>Meta Access Token (Token do administrador)</strong> em Configurações.
+          </p>
+          <p className="text-xs font-mono text-red-600 bg-red-100 px-2.5 py-1.5 rounded-xl mt-2 break-all border border-red-200">
+            {target.tokenError}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!target.configured) {
     return (
       <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
@@ -423,17 +443,30 @@ function countHashtags(text: string): number {
 /* Moldura de mídia para o preview — imagem renderiza; vídeo mostra placeholder com play. */
 function MediaThumb({ url, isVideo, className, rounded }: { url?: string; isVideo: boolean; className?: string; rounded?: string }) {
   const [errored, setErrored] = useState(false);
+
+  useEffect(() => {
+    setErrored(false);
+  }, [url]);
+
   const base = `bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center ${rounded ?? ''} ${className ?? ''}`;
   if (!url) {
     return <div className={base}><PhotoIcon className="h-8 w-8 text-gray-400" /></div>;
   }
-  if (isVideo || errored) {
+  if (isVideo) {
     return (
       <div className={`relative bg-gray-900 flex items-center justify-center ${rounded ?? ''} ${className ?? ''}`}>
         <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
           <span className="text-gray-900 text-lg">▶</span>
         </div>
-        <span className="absolute bottom-1.5 right-2 text-[9px] font-bold text-white/80 uppercase">{isVideo ? 'Vídeo' : 'Prévia'}</span>
+        <span className="absolute bottom-1.5 right-2 text-[9px] font-bold text-white/80 uppercase">Vídeo</span>
+      </div>
+    );
+  }
+  if (errored) {
+    return (
+      <div className={`bg-gray-100 flex flex-col items-center justify-center border border-dashed border-gray-300 p-4 text-center ${rounded ?? ''} ${className ?? ''}`}>
+        <PhotoIcon className="h-8 w-8 text-gray-400 mb-1" />
+        <span className="text-[10px] font-medium text-gray-500">Erro ao carregar prévia</span>
       </div>
     );
   }

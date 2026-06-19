@@ -13,7 +13,21 @@ const OFFENSIVE_TYPES = ['SCALE'];
 export async function runDecisor(tenantId?: string) {
   const result = await generateAiInsights(undefined, tenantId);
   const insights = result.insights;
-  const highConfidence = insights.filter(i => i.confidence >= CONFIDENCE_THRESHOLD);
+
+  let threshold = CONFIDENCE_THRESHOLD;
+  if (tenantId) {
+    const config = await prisma.$queryRaw<{ agent_confidence_threshold: any }[]>`
+      SELECT agent_confidence_threshold FROM public.tenants WHERE id = ${tenantId}::uuid LIMIT 1
+    `;
+    const val = config[0]?.agent_confidence_threshold;
+    if (val !== null && val !== undefined) {
+      threshold = typeof val === 'object' && typeof val.toNumber === 'function' 
+        ? val.toNumber() 
+        : parseFloat(val.toString());
+    }
+  }
+
+  const highConfidence = insights.filter(i => i.confidence >= threshold);
 
   // FASE 14b — contexto de ângulo para enriquecer recomendações do agente
   const angleCtx = await getAngleInsights(7, tenantId).catch(() => null);

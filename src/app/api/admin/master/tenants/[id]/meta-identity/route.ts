@@ -35,7 +35,10 @@ export async function GET(
         [tenantId],
       ),
       pool.query(
-        `SELECT website, name, telefone FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
+        `SELECT website, name, telefone,
+                meta_app_id, meta_app_secret, meta_ad_account_id, meta_token, meta_token_expires_at,
+                meta_page_id, meta_pixel_id, meta_instagram_actor_id
+         FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
         [tenantId],
       ),
     ]);
@@ -44,11 +47,13 @@ export async function GET(
     const tenant = tenantRes.rows[0] || {};
 
     return NextResponse.json({
-      pageId:           creds.page_id            || '',
-      pixelId:          creds.pixel_id            || '',
-      instagramActorId: creds.instagram_actor_id  || '',
-      accessToken:      creds.access_token        ? '••••••••' : '',
-      adAccountId:      credsRes.rows[0]?.account_id || '',
+      pageId:           tenant.meta_page_id      || creds.page_id            || '',
+      pixelId:          tenant.meta_pixel_id     || creds.pixel_id           || '',
+      instagramActorId: tenant.meta_instagram_actor_id || creds.instagram_actor_id  || '',
+      accessToken:      tenant.meta_token || creds.access_token || '',
+      appId:             tenant.meta_app_id       || creds.app_id             || '',
+      metaAppSecret:     tenant.meta_app_secret   || creds.app_secret         || '',
+      adAccountId:       tenant.meta_ad_account_id || credsRes.rows[0]?.account_id || '',
       credentialsActive: credsRes.rows[0]?.is_active ?? false,
       website:          tenant.website  || '',
       tenantName:       tenant.name     || '',
@@ -70,10 +75,57 @@ export async function PUT(
     }
 
     const tenantId = params.id;
-    const { pageId, pixelId, instagramActorId, website } = await request.json();
+    const body = await request.json();
+    const {
+      pageId,
+      pixelId,
+      instagramActorId,
+      website,
+      metaAppId,
+      metaAppSecret,
+      metaToken,
+      adAccountId,
+    } = body;
 
-    // 1. Atualizar page_id / pixel_id / instagram_actor_id nas credentials do tenant
-    if (pageId !== undefined || pixelId !== undefined || instagramActorId !== undefined) {
+    // 1. Atualizar public.tenants com os novos campos e campos de identidade
+    const tenantSets: string[] = [];
+    const tenantVals: any[] = [];
+    let tIdx = 1;
+
+    if (pageId !== undefined)           { tenantSets.push(`meta_page_id = $${tIdx++}`);           tenantVals.push(pageId); }
+    if (pixelId !== undefined)          { tenantSets.push(`meta_pixel_id = $${tIdx++}`);          tenantVals.push(pixelId); }
+    if (instagramActorId !== undefined) { tenantSets.push(`meta_instagram_actor_id = $${tIdx++}`); tenantVals.push(instagramActorId); }
+    if (metaAppId !== undefined)        { tenantSets.push(`meta_app_id = $${tIdx++}`);            tenantVals.push(metaAppId); }
+    if (metaAppSecret !== undefined)    { tenantSets.push(`meta_app_secret = $${tIdx++}`);        tenantVals.push(metaAppSecret); }
+    if (metaToken !== undefined && metaToken !== '') {
+      tenantSets.push(`meta_token = $${tIdx++}`);             tenantVals.push(metaToken);
+      tenantSets.push(`meta_token_expires_at = $${tIdx++}`);  tenantVals.push(new Date(Date.now() + 60 * 86400 * 1000));
+    }
+    if (adAccountId !== undefined)      { tenantSets.push(`meta_ad_account_id = $${tIdx++}`);     tenantVals.push(adAccountId); }
+    if (website !== undefined)          { tenantSets.push(`website = $${tIdx++}`);                tenantVals.push(website || null); }
+
+    if (tenantSets.length > 0) {
+      tenantVals.push(tenantId);
+      await pool.query(
+        `UPDATE public.tenants SET ${tenantSets.join(', ')}, updated_at = NOW() WHERE id = $${tIdx}::uuid`,
+        tenantVals
+      );
+    }
+
+    // 2. Atualizar tenant_network_credentials para retrocompatibilidade
+    const patch: Record<string, any> = {};
+    if (pageId !== undefined)           patch.page_id            = pageId;
+    if (pixelId !== undefined)          patch.pixel_id           = pixelId;
+    if (instagramActorId !== undefined) patch.instagram_actor_id = instagramActorId;
+    if (metaAppId !== undefined)        patch.app_id             = metaAppId;
+    if (metaAppSecret !== undefined)    patch.app_secret         = metaAppSecret;
+    if (metaToken !== undefined && metaToken !== '') {
+      patch.access_token = metaToken;
+    }
+
+    const hasCredsUpdate = Object.keys(patch).length > 0 || adAccountId !== undefined;
+
+    if (hasCredsUpdate) {
       const existingRes = await pool.query(
         `SELECT tnc.id FROM public.tenant_network_credentials tnc
          JOIN public.ad_networks n ON n.id = tnc.network_id
@@ -81,35 +133,54 @@ export async function PUT(
         [tenantId],
       );
 
-      const patch: Record<string, string> = {};
-      if (pageId !== undefined)           patch.page_id            = pageId;
-      if (pixelId !== undefined)          patch.pixel_id           = pixelId;
-      if (instagramActorId !== undefined) patch.instagram_actor_id = instagramActorId;
+      const updates: string[] = [];
+      const vals: any[] = [];
+      let idx = 1;
+
+      if (Object.keys(patch).length > 0) {
+        updates.push(`credentials = credentials || $${idx++}::jsonb`);
+        vals.push(JSON.stringify(patch));
+      }
+      if (adAccountId !== undefined) {
+        updates.push(`account_id = $${idx++}`);
+        vals.push(adAccountId);
+      }
+      if (metaToken !== undefined && metaToken !== '') {
+        updates.push(`expires_at = $${idx++}`);
+        vals.push(new Date(Date.now() + 60 * 86400 * 1000));
+      }
 
       if (existingRes.rows[0]) {
+        vals.push(existingRes.rows[0].id);
         await pool.query(
           `UPDATE public.tenant_network_credentials
-           SET credentials = credentials || $1::jsonb, updated_at = NOW()
-           WHERE id = $2`,
-          [JSON.stringify(patch), existingRes.rows[0].id],
+           SET ${updates.join(', ')}, updated_at = NOW()
+           WHERE id = $${idx}`,
+          vals
         );
       } else {
+        const insertCreds: Record<string, any> = {
+          page_id:            pageId || '',
+          pixel_id:           pixelId || '',
+          instagram_actor_id: instagramActorId || '',
+          app_id:             metaAppId || '',
+          app_secret:         metaAppSecret || '',
+          access_token:       metaToken || '',
+        };
+
         await pool.query(
           `INSERT INTO public.tenant_network_credentials
-             (tenant_id, network_id, credentials, display_name, is_active)
-           SELECT $1::uuid, n.id, $2::jsonb, 'Meta Ads', true
+             (tenant_id, network_id, credentials, account_id, display_name, is_active, expires_at)
+           SELECT $1::uuid, n.id, $2::jsonb, $3, 'Meta Ads', true, $4
            FROM public.ad_networks n WHERE n.code = 'meta'`,
-          [tenantId, JSON.stringify(patch)],
+          [
+            tenantId,
+            JSON.stringify(insertCreds),
+            adAccountId || null,
+            metaToken ? new Date(Date.now() + 60 * 86400 * 1000) : null
+          ]
         );
       }
-    }
-
-    // 2. Atualizar website no tenant
-    if (website !== undefined) {
-      await pool.query(
-        `UPDATE public.tenants SET website = $1, updated_at = NOW() WHERE id = $2::uuid`,
-        [website || null, tenantId],
-      );
     }
 
     return NextResponse.json({ success: true });

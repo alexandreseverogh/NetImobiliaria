@@ -55,26 +55,61 @@ function applyVariables(template: string, vars: Record<string, string>): string 
 
 // ── Get LLM config (lê a linha global do Master) ──────────────────────────────
 
-async function getLlmConfig(): Promise<{ apiKey: string; model: string; provider: string; baseUrl?: string }> {
+async function getLlmConfig(tenantId?: string | null): Promise<{ apiKey: string; model: string; provider: string; baseUrl?: string }> {
   let provider = 'anthropic';
   let model    = 'claude-opus-4-5';
-  let apiKey   = process.env.ANTHROPIC_API_KEY || '';
+  let apiKey   = '';
   let baseUrl: string | undefined;
 
+  if (tenantId) {
+    try {
+      const res = await getPool().query(
+        `SELECT anthropic_api_key FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
+        [tenantId]
+      );
+      if (res.rows[0]?.anthropic_api_key) {
+        apiKey = res.rows[0].anthropic_api_key;
+      }
+    } catch (err) {
+      console.error('Erro ao ler anthropic_api_key de public.tenants:', err);
+    }
+  }
+
   try {
-    const res = await getPool().query(
-      `SELECT "llmProvider", "llmModel", "llmApiKey"
-       FROM campanhasmarketingdigital."Settings"
-       WHERE tenant_id IS NULL
-       ORDER BY id LIMIT 1`
-    );
+    const query = tenantId 
+      ? [`SELECT "llmProvider", "llmModel", "llmApiKey" FROM campanhasmarketingdigital."Settings" WHERE tenant_id = $1::uuid LIMIT 1`, [tenantId]]
+      : [`SELECT "llmProvider", "llmModel", "llmApiKey" FROM campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL ORDER BY id LIMIT 1`, []];
+    
+    const res = await getPool().query(query[0] as string, query[1] as any[]);
     const cfg = res.rows[0];
     if (cfg?.llmProvider) provider = cfg.llmProvider;
     if (cfg?.llmModel)    model    = cfg.llmModel;
-    if (cfg?.llmApiKey)   apiKey   = cfg.llmApiKey;
-  } catch { /* fallback to env */ }
+    if (cfg?.llmApiKey && !apiKey) apiKey = cfg.llmApiKey;
+  } catch {
+    if (tenantId) {
+      try {
+        const res = await getPool().query(
+          `SELECT "llmProvider", "llmModel", "llmApiKey" FROM campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL ORDER BY id LIMIT 1`
+        );
+        const cfg = res.rows[0];
+        if (cfg?.llmProvider) provider = cfg.llmProvider;
+        if (cfg?.llmModel)    model    = cfg.llmModel;
+        if (cfg?.llmApiKey && !apiKey) apiKey = cfg.llmApiKey;
+      } catch {}
+    }
+  }
 
-  // Para providers OpenAI-compatible: buscar baseUrl na tabela LlmModel
+  if (provider === 'anthropic' && !apiKey) {
+    try {
+      const res = await getPool().query(
+        `SELECT anthropic_api_key FROM public.tenants ORDER BY slug = 'master' DESC, id LIMIT 1`
+      );
+      if (res.rows[0]?.anthropic_api_key) {
+        apiKey = res.rows[0].anthropic_api_key;
+      }
+    } catch {}
+  }
+
   if (provider !== 'anthropic') {
     try {
       const res = await getPool().query(
@@ -175,7 +210,7 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
     const mimeType = asset.mime_type || 'image/jpeg';
 
     // 4. Obter config LLM, prompt do banco e chamar Vision
-    const llmCfg = await getLlmConfig();
+    const llmCfg = await getLlmConfig(asset.tenant_id);
     if (!llmCfg.apiKey) throw new Error('API Key não configurada. Configure em Master → IA da Plataforma.');
 
     const visionPrompt = await resolvePromptTemplate('creative_vision_analysis', null);
@@ -275,8 +310,9 @@ export async function generateCreativeConcepts(params: {
   avg_ctr: string;
   avg_cpl: string;
   ads_count: string;
+  tenantId?: string | null;
 }): Promise<CreativeConcept[]> {
-  const llmCfg = await getLlmConfig();
+  const llmCfg = await getLlmConfig(params.tenantId);
   if (!llmCfg.apiKey) throw new Error('API Key não configurada.');
 
   const conceptTemplate = await resolvePromptTemplate('creative_concept_generation', null);

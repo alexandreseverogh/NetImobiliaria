@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
 
     // Buscar website e nome do tenant
     const tenantRes = await pool.query(
-      `SELECT website, name, meta_ad_account_id, meta_token_expires_at
+      `SELECT website, name, meta_ad_account_id, meta_token_expires_at,
+              meta_page_id, meta_pixel_id, meta_instagram_actor_id
        FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
       [tenantId],
     );
@@ -44,11 +45,11 @@ export async function GET(request: NextRequest) {
     const tenant = tenantRes.rows[0] || {};
 
     return NextResponse.json({
-      // Campos que vêm de tenant_network_credentials.credentials
-      pageId:            creds.page_id            || '',
-      pixelId:           creds.pixel_id            || '',
-      instagramActorId:  creds.instagram_actor_id  || '',
-      accessToken:       creds.access_token        ? '••••••••' : '',
+      // Campos que vêm de public.tenants com fallback para tenant_network_credentials.credentials
+      pageId:            tenant.meta_page_id      || creds.page_id            || '',
+      pixelId:           tenant.meta_pixel_id     || creds.pixel_id           || '',
+      instagramActorId:  tenant.meta_instagram_actor_id || creds.instagram_actor_id || '',
+      accessToken:       tenant.meta_token || creds.access_token        || '',
       appId:             creds.app_id              || '',
       // account_id fica em tnc.account_id (coluna separada)
       adAccountId:       credsRes.rows[0]?.account_id || tenant.meta_ad_account_id || '',
@@ -90,7 +91,23 @@ export async function PUT(request: NextRequest) {
       website?:          string;
     };
 
-    // 1. Atualizar page_id / pixel_id / instagram_actor_id em tenant_network_credentials
+    // 1. Atualizar meta_page_id / meta_pixel_id / meta_instagram_actor_id em public.tenants
+    if (pageId !== undefined || pixelId !== undefined || instagramActorId !== undefined) {
+      const sets: string[] = [];
+      const vals: any[] = [];
+      let idx = 1;
+      if (pageId !== undefined)           { sets.push(`meta_page_id = $${idx++}`);           vals.push(pageId); }
+      if (pixelId !== undefined)          { sets.push(`meta_pixel_id = $${idx++}`);          vals.push(pixelId); }
+      if (instagramActorId !== undefined) { sets.push(`meta_instagram_actor_id = $${idx++}`); vals.push(instagramActorId); }
+      
+      vals.push(tenantId);
+      await pool.query(
+        `UPDATE public.tenants SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${idx}::uuid`,
+        vals
+      );
+    }
+
+    // 2. Atualizar page_id / pixel_id / instagram_actor_id em tenant_network_credentials (retrocompatibilidade)
     //    Usa JSONB merge para não sobreescrever access_token/app_id/app_secret existentes
     if (pageId !== undefined || pixelId !== undefined || instagramActorId !== undefined) {
       // Verifica se já existe registro de credenciais Meta para o tenant
@@ -127,7 +144,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // 2. Atualizar website no tenant
+    // 3. Atualizar website no tenant
     if (website !== undefined) {
       await pool.query(
         `UPDATE public.tenants SET website = $1, updated_at = NOW() WHERE id = $2::uuid`,

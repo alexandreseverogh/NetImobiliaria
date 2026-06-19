@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
       avg_ctr: avgCtr?.toString() || '0',
       avg_cpl: avgCpl?.toString() || '0',
       ads_count: adsCount?.toString() || '1',
+      tenantId: payload.tenantId,
     });
 
     return NextResponse.json({ concepts });

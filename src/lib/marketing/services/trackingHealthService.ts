@@ -284,12 +284,15 @@ async function checkPixelConfigured(
     }
   }
 
-  // Tenta credentials do tenant
+  // Tenta credentials do tenant (tabela public.tenants ou tenant_network_credentials)
   const rows = await prisma.$queryRaw<{ pixel_id: string | null }[]>`
-    SELECT credentials->>'pixel_id' AS pixel_id
-    FROM public.tenant_network_credentials
-    WHERE tenant_id = ${tenantId}::uuid
-      AND network_id = (SELECT id FROM public.ad_networks WHERE code = 'meta' LIMIT 1)
+    SELECT COALESCE(
+      t.meta_pixel_id,
+      tnc.credentials->>'pixel_id'
+    ) AS pixel_id
+    FROM public.tenants t
+    LEFT JOIN public.tenant_network_credentials tnc ON tnc.tenant_id = t.id AND tnc.network_id = (SELECT id FROM public.ad_networks WHERE code = 'meta' LIMIT 1)
+    WHERE t.id = ${tenantId}::uuid
     LIMIT 1
   `;
 
@@ -319,12 +322,14 @@ async function checkAccessToken(
 ): Promise<CheckResult> {
   const rows = await prisma.$queryRaw<{ has_token: boolean; expires_at: string | null }[]>`
     SELECT
-      (credentials->>'access_token') IS NOT NULL AND
-      (credentials->>'access_token') <> ''        AS has_token,
-      tnc.expires_at::text                         AS expires_at
-    FROM public.tenant_network_credentials tnc
-    WHERE tnc.tenant_id = ${tenantId}::uuid
-      AND tnc.network_id = (SELECT id FROM public.ad_networks WHERE code = 'meta' LIMIT 1)
+      (
+        (t.meta_token IS NOT NULL AND t.meta_token <> '') OR
+        (tnc.id IS NOT NULL AND tnc.credentials->>'access_token' IS NOT NULL AND tnc.credentials->>'access_token' <> '')
+      ) AS has_token,
+      COALESCE(t.meta_token_expires_at, tnc.expires_at)::text AS expires_at
+    FROM public.tenants t
+    LEFT JOIN public.tenant_network_credentials tnc ON tnc.tenant_id = t.id AND tnc.network_id = (SELECT id FROM public.ad_networks WHERE code = 'meta' LIMIT 1)
+    WHERE t.id = ${tenantId}::uuid
     LIMIT 1
   `;
 

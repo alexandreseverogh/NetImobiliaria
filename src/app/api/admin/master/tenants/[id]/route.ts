@@ -70,7 +70,8 @@ export async function PATCH(
       logradouro, numero, bairro, cidade, estado, cep, telefone, email_contato,
       status, calendario, google_email, duracao_visita, ai_config,
       admin_nome, admin_username, admin_email, admin_password,
-      primary_color, secondary_color
+      primary_color, secondary_color,
+      anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold
     } = body;
 
     await client.query('BEGIN');
@@ -134,8 +135,14 @@ export async function PATCH(
         ai_config = COALESCE($18, ai_config),
         primary_color = COALESCE($19, primary_color),
         secondary_color = COALESCE($20, secondary_color),
+        anthropic_api_key = COALESCE($21, anthropic_api_key),
+        slack_webhook_url = COALESCE($22, slack_webhook_url),
+        evolution_api_url = COALESCE($23, evolution_api_url),
+        evolution_api_key = COALESCE($24, evolution_api_key),
+        evolution_instance = COALESCE($25, evolution_instance),
+        agent_confidence_threshold = COALESCE($26, agent_confidence_threshold),
         updated_at = NOW()
-      WHERE id = $21
+      WHERE id = $27
       RETURNING *
     `;
 
@@ -150,6 +157,12 @@ export async function PATCH(
       ai_config ? JSON.stringify(ai_config) : null,
       primary_color || null,
       secondary_color || null,
+      anthropic_api_key !== undefined ? anthropic_api_key : null,
+      slack_webhook_url !== undefined ? slack_webhook_url : null,
+      evolution_api_url !== undefined ? evolution_api_url : null,
+      evolution_api_key !== undefined ? evolution_api_key : null,
+      evolution_instance !== undefined ? evolution_instance : null,
+      agent_confidence_threshold !== undefined ? (agent_confidence_threshold !== null ? parseFloat(agent_confidence_threshold) : null) : null,
       id
     ];
 

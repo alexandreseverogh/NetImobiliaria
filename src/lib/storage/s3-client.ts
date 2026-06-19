@@ -66,6 +66,19 @@ async function ensureBucket(client: S3Client, bucket: string): Promise<void> {
   if (bucketEnsured) return;
   try {
     await client.send(new HeadBucketCommand({ Bucket: bucket }));
+    // Se o bucket já existe, garante a política de leitura pública
+    try {
+      await client.send(new PutBucketPolicyCommand({
+        Bucket: bucket,
+        Policy: JSON.stringify({
+          Version: '2012-10-17',
+          Statement: [{ Effect: 'Allow', Principal: '*', Action: 's3:GetObject', Resource: `arn:aws:s3:::${bucket}/*` }],
+        }),
+      }));
+      console.log(`✅ [S3] Política pública atualizada/confirmada para o bucket existente "${bucket}".`);
+    } catch (policyErr) {
+      console.warn('[S3] Não foi possível aplicar/atualizar política pública no bucket existente:', policyErr);
+    }
   } catch {
     try {
       await client.send(new CreateBucketCommand({ Bucket: bucket }));
