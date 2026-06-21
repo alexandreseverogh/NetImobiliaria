@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   PhotoIcon, SparklesIcon, ArrowPathIcon,
   FunnelIcon, ChartBarIcon, ExclamationTriangleIcon,
-  CheckCircleIcon, ClockIcon, XMarkIcon,
+  CheckCircleIcon, ClockIcon, XMarkIcon, PaintBrushIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
@@ -65,6 +65,330 @@ const STATUS_ICON = {
   failed:  <ExclamationTriangleIcon className="h-3.5 w-3.5 text-red-500" />,
 };
 
+// ── FASE 6.5 types ─────────────────────────────────────────────────────────────
+interface CreativeTemplate { id: string; name: string; style: string; formats: string[]; }
+interface GenerationJob {
+  id: string; status: string; outputUrls: string[];
+  formats: string[]; errorMessage: string | null;
+}
+
+const FORMAT_LABELS: Record<string, string> = { '1:1': '1:1 — Feed', '4:5': '4:5 — Feed vertical', '9:16': '9:16 — Story/Reel' };
+
+// ── GenerateModal ───────────────────────────────────────────────────────────────
+function GenerateModal({
+  asset, onClose, onApproved,
+}: {
+  asset: CreativeAsset;
+  onClose: () => void;
+  onApproved: () => void;
+}) {
+  const [templates, setTemplates] = useState<CreativeTemplate[]>([]);
+  const [templateId, setTemplateId] = useState('');
+  const [formats, setFormats]       = useState<string[]>(['1:1']);
+  const [headline, setHeadline]     = useState('');
+  const [cta, setCta]               = useState('Quero Saber Mais');
+  const [job, setJob]               = useState<GenerationJob | null>(null);
+  const [screen, setScreen]         = useState<'config' | 'generating' | 'review'>('config');
+  const [busy, setBusy]             = useState(false);
+  const [selected, setSelected]     = useState<string[]>([]);
+  const [approveErr, setApproveErr] = useState('');
+
+  // Carrega templates ao abrir
+  useEffect(() => {
+    adminFetch(`/api/admin/campanhas/criativos/generate?sourceAssetId=${asset.id}`)
+      .then(r => r.json())
+      .then(d => {
+        setTemplates(d.templates ?? []);
+        if (d.templates?.length) setTemplateId(d.templates[0].id);
+      })
+      .catch(() => {});
+  }, [asset.id]);
+
+  // Polling enquanto gerando
+  useEffect(() => {
+    if (screen !== 'generating' || !job) return;
+    const iv = setInterval(async () => {
+      const r = await adminFetch(`/api/admin/campanhas/criativos/generate/${job.id}`);
+      const d = await r.json();
+      const j: GenerationJob = d.job;
+      if (j.status === 'NEEDS_REVIEW') {
+        setJob(j);
+        setSelected(j.outputUrls);
+        setScreen('review');
+        clearInterval(iv);
+      } else if (j.status === 'FAILED') {
+        setJob(j);
+        setScreen('review');
+        clearInterval(iv);
+      }
+    }, 2500);
+    return () => clearInterval(iv);
+  }, [screen, job]);
+
+  async function handleGenerate() {
+    setBusy(true);
+    try {
+      const r = await adminFetch('/api/admin/campanhas/criativos/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceAssetId: asset.id,
+          sourceUrl:     asset.storage_url,
+          templateId:    templateId || null,
+          concept:       { headline: headline.trim() || undefined, cta: cta.trim() || undefined },
+          formats,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? 'Erro ao iniciar geração');
+      setJob(d.job);
+      setScreen('generating');
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleApprove() {
+    if (!job) return;
+    setBusy(true);
+    setApproveErr('');
+    try {
+      const r = await adminFetch(`/api/admin/campanhas/criativos/generate/${job.id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedUrls: selected }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? 'Erro ao aprovar');
+      onApproved();
+      onClose();
+    } catch (e: any) {
+      setApproveErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReject() {
+    if (!job) return;
+    setBusy(true);
+    try {
+      await adminFetch(`/api/admin/campanhas/criativos/generate/${job.id}/reject`, { method: 'POST' });
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleFormat(f: string) {
+    setFormats(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
+  }
+  function toggleSelected(url: string) {
+    setSelected(prev => prev.includes(url) ? prev.filter(x => x !== url) : [...prev, url]);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <PaintBrushIcon className="h-5 w-5 text-indigo-600" />
+            <h2 className="text-base font-black text-slate-900">Gerar variações</h2>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+            <XMarkIcon className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-5">
+          {/* ── SCREEN: CONFIG ── */}
+          {screen === 'config' && (
+            <div className="space-y-5">
+              <div className="flex gap-4">
+                {/* Preview da imagem fonte */}
+                <div className="w-28 h-28 flex-shrink-0 rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={asset.storage_url} alt={asset.original_name} className="w-full h-full object-cover" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-700 mb-0.5">Imagem fonte</p>
+                  <p className="text-[11px] text-slate-500 mb-2 truncate max-w-xs">{asset.original_name}</p>
+                  <p className="text-[11px] text-slate-400">
+                    O agente fará smart-crop para cada formato e aplicará headline + CTA em overlay.
+                  </p>
+                </div>
+              </div>
+
+              {/* Formatos */}
+              <div>
+                <p className="text-xs font-bold text-slate-700 mb-2">Formatos a gerar</p>
+                <div className="flex gap-2 flex-wrap">
+                  {Object.entries(FORMAT_LABELS).map(([f, label]) => (
+                    <button key={f} onClick={() => toggleFormat(f)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
+                        formats.includes(f)
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300',
+                      )}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Template */}
+              {templates.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-slate-700 mb-2">Template visual</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {templates.map(t => (
+                      <button key={t.id} onClick={() => setTemplateId(t.id)}
+                        className={cn(
+                          'p-2.5 rounded-xl border text-left transition-all',
+                          templateId === t.id
+                            ? 'border-indigo-500 bg-indigo-50'
+                            : 'border-slate-100 bg-white hover:border-indigo-200',
+                        )}>
+                        <p className="text-[11px] font-bold text-slate-800">{t.name}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{t.formats.join(' · ')}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Conceito */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Headline (opcional)</label>
+                  <input
+                    value={headline} onChange={e => setHeadline(e.target.value)}
+                    placeholder="Ex: Apartamento dos seus sonhos..."
+                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder:text-slate-300"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">CTA (opcional)</label>
+                  <input
+                    value={cta} onChange={e => setCta(e.target.value)}
+                    placeholder="Ex: Quero Saber Mais"
+                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder:text-slate-300"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleGenerate}
+                disabled={busy || formats.length === 0}
+                className={cn(
+                  'w-full py-2.5 rounded-xl text-sm font-bold text-white transition-all',
+                  busy || formats.length === 0
+                    ? 'bg-slate-300 cursor-not-allowed'
+                    : 'bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-200',
+                )}>
+                {busy ? 'Iniciando...' : `Gerar ${formats.length} variação(ões)`}
+              </button>
+            </div>
+          )}
+
+          {/* ── SCREEN: GENERATING ── */}
+          {screen === 'generating' && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-4 border-indigo-100" />
+                <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold text-slate-800">Gerando variações...</p>
+                <p className="text-xs text-slate-400 mt-1">Smart-crop + overlay de texto em andamento</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── SCREEN: REVIEW ── */}
+          {screen === 'review' && job && (
+            <div className="space-y-4">
+              {job.status === 'FAILED' ? (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                  <p className="font-bold mb-1">Geração falhou</p>
+                  <p className="text-xs">{job.errorMessage ?? 'Erro desconhecido'}</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs font-bold text-slate-700">
+                    Selecione as variações para adicionar à biblioteca ({selected.length}/{job.outputUrls.length} selecionadas):
+                  </p>
+                  <div className={cn(
+                    'grid gap-3',
+                    job.outputUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3',
+                  )}>
+                    {job.outputUrls.map((url, i) => {
+                      const isSel = selected.includes(url);
+                      const fmt   = job.formats[i] ?? '?';
+                      return (
+                        <button key={url} onClick={() => toggleSelected(url)}
+                          className={cn(
+                            'relative rounded-xl overflow-hidden border-2 transition-all group',
+                            isSel ? 'border-indigo-500 shadow-md shadow-indigo-100' : 'border-slate-200 opacity-60 hover:opacity-90',
+                          )}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt={`Variação ${fmt}`} className="w-full object-cover max-h-48" />
+                          <div className={cn(
+                            'absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase text-white',
+                            isSel ? 'bg-indigo-600' : 'bg-slate-500',
+                          )}>
+                            {fmt}
+                          </div>
+                          {isSel && (
+                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center shadow">
+                              <CheckCircleIcon className="h-4 w-4 text-white" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {approveErr && (
+                    <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{approveErr}</p>
+                  )}
+
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      onClick={handleReject} disabled={busy}
+                      className="flex-1 py-2 rounded-xl text-sm font-bold text-slate-600 border border-slate-200 hover:border-red-300 hover:text-red-600 transition-all disabled:opacity-50">
+                      Rejeitar todas
+                    </button>
+                    <button
+                      onClick={handleApprove} disabled={busy || selected.length === 0}
+                      className={cn(
+                        'flex-1 py-2 rounded-xl text-sm font-bold text-white transition-all',
+                        busy || selected.length === 0
+                          ? 'bg-slate-300 cursor-not-allowed'
+                          : 'bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-200',
+                      )}>
+                      {busy ? 'Salvando...' : `Aprovar ${selected.length} variação(ões)`}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ── Tag chip ───────────────────────────────────────────────────────────────────
 function Tag({ label, color = 'bg-slate-100 text-slate-600' }: { label: string; color?: string }) {
   return (
@@ -75,7 +399,13 @@ function Tag({ label, color = 'bg-slate-100 text-slate-600' }: { label: string; 
 }
 
 // ── Asset card ─────────────────────────────────────────────────────────────────
-function AssetCard({ asset, onReanalyze }: { asset: CreativeAsset; onReanalyze: (id: string) => void }) {
+function AssetCard({
+  asset, onReanalyze, onGenerate,
+}: {
+  asset: CreativeAsset;
+  onReanalyze: (id: string) => void;
+  onGenerate:  (asset: CreativeAsset) => void;
+}) {
   const [imgErr, setImgErr] = useState(false);
   const status = asset.analysis_status ?? 'pending';
 
@@ -196,6 +526,17 @@ function AssetCard({ asset, onReanalyze }: { asset: CreativeAsset; onReanalyze: 
             </div>
           )}
         </div>
+
+        {/* Gerar variações — visível para imagens (mime type image/*) */}
+        {asset.mime_type?.startsWith('image/') && (
+          <button
+            onClick={() => onGenerate(asset)}
+            className="w-full mt-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 border border-dashed border-indigo-200 hover:border-indigo-400 transition-all"
+          >
+            <PaintBrushIcon className="h-3 w-3" />
+            Gerar variações
+          </button>
+        )}
       </div>
     </motion.div>
   );
@@ -222,6 +563,9 @@ export default function GaleriaCreativosPage() {
   // Upload
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
+
+  // FASE 6.5 — modal de geração de variações
+  const [genAsset, setGenAsset] = useState<CreativeAsset | null>(null);
 
   const loadAssets = useCallback(async () => {
     setLoading(true);
@@ -473,7 +817,7 @@ export default function GaleriaCreativosPage() {
       ) : (
         <motion.div layout className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {assets.map(asset => (
-            <AssetCard key={asset.id} asset={asset} onReanalyze={handleReanalyze} />
+            <AssetCard key={asset.id} asset={asset} onReanalyze={handleReanalyze} onGenerate={setGenAsset} />
           ))}
         </motion.div>
       )}
@@ -488,6 +832,17 @@ export default function GaleriaCreativosPage() {
           </button>
         </div>
       )}
+
+      {/* FASE 6.5 — Modal de geração de variações */}
+      <AnimatePresence>
+        {genAsset && (
+          <GenerateModal
+            asset={genAsset}
+            onClose={() => setGenAsset(null)}
+            onApproved={() => { setGenAsset(null); loadAssets(); }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -154,17 +154,27 @@ export async function notifyApprovalRequired(action: {
   ]);
 }
 
+const ACTION_EMOJI: Record<string, string> = {
+  PAUSE:             '⏸️',
+  DOWNSCALE:         '📉',
+  SCALE:             '📈',
+  REFRESH_CREATIVE:  '🎨',
+  ADJUST_AUDIENCE:   '🎯',
+  REALLOCATE_BUDGET: '💰',
+};
+
 export async function notifyExecuted(action: {
   campaignName: string;
   title: string;
   type: string;
   tenantId?: string | null;
 }) {
-  const emoji = action.type === 'PAUSE' ? '⏸️' : '⚡';
+  const emoji = ACTION_EMOJI[action.type] ?? '⚡';
+  const label = action.type === 'DOWNSCALE' ? 'Budget reduzido automaticamente' : 'Ação executada automaticamente';
   const message =
-    `${emoji} *Agente executou ação automaticamente*\n\n` +
+    `${emoji} *Agente — ${label}*\n\n` +
     `📊 Campanha: ${action.campaignName}\n` +
-    `✅ Ação: ${action.title}`;
+    `✅ ${action.title}`;
 
   await Promise.allSettled([
     notifySlack(message, action.tenantId),

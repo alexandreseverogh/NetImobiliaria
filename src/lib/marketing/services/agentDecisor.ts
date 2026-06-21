@@ -7,10 +7,13 @@ import { transitionCampaign } from './campaignStateMachine';
 import { getAngleInsights } from './angleInsightsService';
 
 const CONFIDENCE_THRESHOLD = parseFloat(process.env.AGENT_CONFIDENCE_THRESHOLD || '0.85');
-const DEFENSIVE_TYPES = ['PAUSE'];
-const OFFENSIVE_TYPES = ['SCALE'];
 
-export async function runDecisor(tenantId?: string) {
+// Ações defensivas: executam automaticamente sem aprovação humana
+const DEFENSIVE_TYPES = ['PAUSE', 'DOWNSCALE'];
+// Ações ofensivas: exigem aprovação via WhatsApp/Slack
+const OFFENSIVE_TYPES = ['SCALE', 'REFRESH_CREATIVE', 'ADJUST_AUDIENCE', 'REALLOCATE_BUDGET'];
+
+export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: number }> {
   const result = await generateAiInsights(undefined, tenantId);
   const insights = result.insights;
 
@@ -21,16 +24,18 @@ export async function runDecisor(tenantId?: string) {
     `;
     const val = config[0]?.agent_confidence_threshold;
     if (val !== null && val !== undefined) {
-      threshold = typeof val === 'object' && typeof val.toNumber === 'function' 
-        ? val.toNumber() 
+      threshold = typeof val === 'object' && typeof val.toNumber === 'function'
+        ? val.toNumber()
         : parseFloat(val.toString());
     }
   }
 
   const highConfidence = insights.filter(i => i.confidence >= threshold);
 
-  // FASE 14b — contexto de ângulo para enriquecer recomendações do agente
+  // FASE 14b — contexto de ângulo para enriquecer recomendações
   const angleCtx = await getAngleInsights(7, tenantId).catch(() => null);
+
+  let actionsCreated = 0;
 
   for (const insight of highConfidence) {
     // Evitar ações duplicadas nas últimas 24h para a mesma campanha+tipo
@@ -45,19 +50,18 @@ export async function runDecisor(tenantId?: string) {
 
     const enriched = await enrichWithClaude(insight, tenantId, angleCtx);
 
-    // Busca tenantId da campanha se não recebido
     const campaign = await prisma.campaign.findUnique({ where: { id: insight.campaignId } });
     const resolvedTenantId = tenantId ?? campaign?.tenantId ?? null;
 
     const action = await prisma.agentAction.create({
       data: {
-        campaignId: insight.campaignId,
+        campaignId:   insight.campaignId,
         campaignName: insight.campaignName,
-        tenantId: resolvedTenantId,
-        type: insight.type,
-        title: insight.title,
-        description: enriched.description || insight.description,
-        confidence: insight.confidence,
+        tenantId:     resolvedTenantId,
+        type:         insight.type,
+        title:        insight.title,
+        description:  enriched.description || insight.description,
+        confidence:   insight.confidence,
         status: DEFENSIVE_TYPES.includes(insight.type)
           ? 'PENDING_EXECUTION'
           : OFFENSIVE_TYPES.includes(insight.type)
@@ -65,6 +69,8 @@ export async function runDecisor(tenantId?: string) {
           : 'NOTIFIED',
       },
     });
+
+    actionsCreated++;
 
     if (DEFENSIVE_TYPES.includes(insight.type)) {
       await executeAction(action, resolvedTenantId);
@@ -74,10 +80,12 @@ export async function runDecisor(tenantId?: string) {
       await notifyAlert(action);
       await prisma.agentAction.update({
         where: { id: action.id },
-        data: { status: 'NOTIFIED' },
+        data:  { status: 'NOTIFIED' },
       });
     }
   }
+
+  return { actionsCreated };
 }
 
 async function enrichWithClaude(
@@ -94,7 +102,6 @@ async function enrichWithClaude(
         insight_title:       insight.title,
         insight_description: insight.description,
         confidence:          (insight.confidence * 100).toFixed(0),
-        // FASE 14b — contexto de ângulo (disponível para templates que declarem {{winning_angle}})
         winning_angle:       angleCtx?.topAngle?.label   ?? 'não identificado',
         worst_angle:         angleCtx?.worstAngle?.label ?? 'não identificado',
       },
@@ -111,50 +118,71 @@ async function enrichWithClaude(
 export async function executeAction(action: any, tenantId: string | null) {
   try {
     const campaign = await prisma.campaign.findUnique({ where: { id: action.campaignId } }) as any;
-    // Use external_id (FASE 1) with fallback to legacy metaCampaignId
     const externalId = campaign?.external_id || campaign?.metaCampaignId;
-    if (!externalId || !tenantId) {
-      await prisma.agentAction.update({ where: { id: action.id }, data: { status: 'FAILED' } });
-      return;
-    }
-
-    // Determine network code (default meta for legacy campaigns)
     const networkCode = (campaign?.networkCode as any) || 'meta';
 
     if (action.type === 'PAUSE') {
-      try {
-        const networkService = await getNetworkServiceForTenant(tenantId, networkCode);
-        await networkService.updateCampaignStatus(externalId, 'PAUSED');
-      } catch {
-        // Network call failed — still update local status
+      if (externalId && tenantId) {
+        try {
+          const networkService = await getNetworkServiceForTenant(tenantId, networkCode);
+          await networkService.updateCampaignStatus(externalId, 'PAUSED');
+        } catch {
+          // falha de rede não bloqueia transição local
+        }
       }
       await prisma.campaign.update({
         where: { id: action.campaignId },
-        data: { status: 'PAUSED' },
+        data:  { status: 'PAUSED' },
       });
-      // FASE 4 — atualiza lifecycle
       await transitionCampaign(action.campaignId, 'PAUSED', 'AGENT', action.description);
+
+    } else if (action.type === 'DOWNSCALE') {
+      // Reduz budget de todos os adsets em 30% (defensivo — não exige aprovação)
+      const adSets = await prisma.adSet.findMany({ where: { campaignId: action.campaignId } });
+      for (const adSet of adSets) {
+        const newBudget = Math.max(1, Math.round(adSet.dailyBudget * 0.7));
+        await prisma.adSet.update({
+          where: { id: adSet.id },
+          data:  { dailyBudget: newBudget },
+        });
+        // Espelha no Meta se possível
+        if (externalId && tenantId) {
+          try {
+            const networkService = await getNetworkServiceForTenant(tenantId, networkCode);
+            if (typeof (networkService as any).updateAdSetBudget === 'function') {
+              await (networkService as any).updateAdSetBudget(
+                (adSet as any).external_id || (adSet as any).metaAdSetId,
+                newBudget,
+              );
+            }
+          } catch {
+            // falha de rede não bloqueia
+          }
+        }
+      }
+      await transitionCampaign(action.campaignId, 'FATIGUED', 'AGENT', action.description);
+
     } else if (action.type === 'SCALE') {
+      // SCALE aprovado: aumenta budget em 30%
       const adSet = await prisma.adSet.findFirst({ where: { campaignId: action.campaignId } });
       if (adSet) {
         const newBudget = Math.round(adSet.dailyBudget * 1.3);
-        await prisma.adSet.update({
-          where: { id: adSet.id },
-          data: { dailyBudget: newBudget },
-        });
+        await prisma.adSet.update({ where: { id: adSet.id }, data: { dailyBudget: newBudget } });
       }
     }
+    // REFRESH_CREATIVE, ADJUST_AUDIENCE, REALLOCATE_BUDGET:
+    // apenas notificados via WhatsApp/Slack — execução humana
 
     await prisma.agentAction.update({
       where: { id: action.id },
-      data: { status: 'EXECUTED', executedAt: new Date() },
+      data:  { status: 'EXECUTED', executedAt: new Date() },
     });
 
     await notifyExecuted(action);
   } catch {
     await prisma.agentAction.update({
       where: { id: action.id },
-      data: { status: 'FAILED' },
+      data:  { status: 'FAILED' },
     });
   }
 }

@@ -36,27 +36,57 @@ model MarketingInitiative {
 
 // FASE 16 — Postagem orgânica (separada do fluxo pago de Campaign/Ad)
 model OrganicPost {
-  id              String    @id @default(uuid())
-  tenantId        String    @map("tenant_id") @db.Uuid
-  clientId        String?   @map("client_id") @db.Uuid
-  platform        String    @db.VarChar(20)   // facebook | instagram
-  format          String    @db.VarChar(20)   // image|carousel|video|reel|story|text
+  id              String                     @id @default(uuid())
+  tenantId        String                     @map("tenant_id") @db.Uuid
+  clientId        String?                    @map("client_id") @db.Uuid
+  platform        String                     @db.VarChar(20)
+  format          String                     @db.VarChar(20)
   caption         String?
-  mediaUrls       Json      @default("[]") @map("media_urls")
-  assetIds        Json?     @map("asset_ids")
-  mediaKind       String?   @map("media_kind") @db.VarChar(10)
-  status          String    @default("DRAFT") @db.VarChar(20)
-  externalPostId  String?   @map("external_post_id") @db.VarChar(100)
-  permalinkUrl    String?   @map("permalink_url")
-  scheduledAt     DateTime? @map("scheduled_at")
-  publishedAt     DateTime? @map("published_at")
-  errorMessage    String?   @map("error_message")
-  createdBy       String?   @map("created_by") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at")
+  mediaUrls       Json                       @default("[]") @map("media_urls")
+  assetIds        Json?                      @map("asset_ids")
+  mediaKind       String?                    @map("media_kind") @db.VarChar(10)
+  status          String                     @default("DRAFT") @db.VarChar(20)
+  externalPostId  String?                    @map("external_post_id") @db.VarChar(100)
+  permalinkUrl    String?                    @map("permalink_url")
+  scheduledAt     DateTime?                  @map("scheduled_at")
+  publishedAt     DateTime?                  @map("published_at")
+  errorMessage    String?                    @map("error_message")
+  createdBy       String?                    @map("created_by") @db.Uuid
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  recurrenceId    String?                    @map("recurrence_id") @db.Uuid
+
+  recurrence      OrganicRecurrenceSchedule? @relation(fields: [recurrenceId], references: [id])
 
   @@index([tenantId, status])
   @@index([clientId])
+  @@index([recurrenceId])
   @@map("OrganicPost")
+}
+
+// FASE 16.G — Agendamento recorrente de publicações orgânicas
+model OrganicRecurrenceSchedule {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  clientId       String?  @map("client_id") @db.Uuid
+  platform       String   @db.VarChar(20)
+  format         String   @db.VarChar(20)
+  caption        String?
+  mediaUrls      Json     @default("[]") @map("media_urls")
+  mediaKind      String?  @map("media_kind") @db.VarChar(10)
+  startDate      DateTime @map("start_date") @db.Date
+  endDate        DateTime? @map("end_date") @db.Date
+  daysOfWeek     Json     @default("[]") @map("days_of_week")  // [0-6], 0=Dom
+  timeslots      Json     @default("[]")                        // ['09:00','14:00']
+  status         String   @default("ACTIVE") @db.VarChar(20)   // ACTIVE|PAUSED|CANCELLED|COMPLETED
+  generatedUntil DateTime? @map("generated_until")
+  createdBy      String?  @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+
+  posts          OrganicPost[]
+
+  @@index([tenantId, status])
+  @@map("OrganicRecurrenceSchedule")
 }
 
 model Campaign {
@@ -334,8 +364,12 @@ model CreativeAsset {
   hash          String?
   campaignId    String?   @map("campaign_id")
   adId          String?   @map("ad_id")
-  isActive      Boolean   @default(true) @map("is_active")
-  uploadedAt    DateTime  @default(now()) @map("uploaded_at")
+  isActive           Boolean   @default(true) @map("is_active")
+  uploadedAt         DateTime  @default(now()) @map("uploaded_at")
+
+  // FASE 6.5 — rastreabilidade de variações geradas por IA
+  aiGenerated        Boolean   @default(false) @map("ai_generated")
+  derivedFromAssetId String?   @map("derived_from_asset_id")
 
   analysis      CreativeAnalysis?
 
@@ -397,6 +431,23 @@ model TrackingHealthCheck {
   @@map("TrackingHealthCheck")
 }
 
+// FASE 15 — Agentes: Garantia de Execução
+model AgentHeartbeat {
+  id              String    @id @default(uuid())
+  tenantId        String?   @map("tenant_id") @db.Uuid
+  triggeredBy     String    @default("cron") @map("triggered_by")  // 'cron' | 'manual' | 'api'
+  cycleAt         DateTime  @default(now()) @map("cycle_at")
+  durationMs      Int?      @map("duration_ms")
+  campaignsSynced Int       @default(0) @map("campaigns_synced")
+  actionsCreated  Int       @default(0) @map("actions_created")
+  success         Boolean   @default(true)
+  errorMessage    String?   @map("error_message")
+
+  @@index([cycleAt(sort: Desc)])
+  @@index([tenantId, cycleAt(sort: Desc)])
+  @@map("AgentHeartbeat")
+}
+
 // FASE 9 — Audit Report Estruturado
 model AuditReport {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -416,4 +467,44 @@ model AuditReport {
   @@unique([tenantId, clientId, periodStart, periodEnd], name: "uq_audit_report")
   @@index([tenantId, periodStart(sort: Desc)])
   @@map("AuditReport")
+}
+
+// FASE 6.5 — Produção de Criativos por Reaproveitamento (Estágio A)
+model CreativeTemplate {
+  id        String   @id @default(uuid())
+  tenantId  String?  @map("tenant_id") @db.Uuid   // NULL = template global
+  name      String
+  style     String   @default("corporate")         // 'ugc' | 'corporate'
+  layout    Json                                   // zonas: headline, body, cta, logo + tipografia/cores
+  formats   String[] @default([])                  // ['1:1','9:16','4:5']
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  jobs      CreativeGenerationJob[]
+
+  @@index([tenantId])
+  @@map("CreativeTemplate")
+}
+
+model CreativeGenerationJob {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id") @db.Uuid
+  sourceAssetId String    @map("source_asset_id")   // CreativeAsset.id (TEXT)
+  templateId    String?   @map("template_id")
+  concept       Json?                               // { headline, body, cta } opcional
+  formats       String[]  @default([])              // formatos solicitados
+  status        String    @default("PENDING")        // PENDING | RUNNING | NEEDS_REVIEW | APPROVED | REJECTED | FAILED
+  outputUrls    String[]  @default([]) @map("output_urls")  // URLs das variações no S3
+  costCents     Int       @default(0) @map("cost_cents")
+  errorMessage  String?   @map("error_message")
+  createdBy     String?   @map("created_by") @db.Uuid
+  reviewedBy    String?   @map("reviewed_by") @db.Uuid
+  reviewedAt    DateTime? @map("reviewed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  template      CreativeTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([sourceAssetId])
+  @@map("CreativeGenerationJob")
 }

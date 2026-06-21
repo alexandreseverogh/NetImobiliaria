@@ -143,6 +143,56 @@ const RULES: InsightRule[] = [
       return Math.min(0.95, 0.6 + gap * 0.03);
     },
   },
+  // FASE 15 — DOWNSCALE: CPL crítico (>2.5× o ideal) com gasto relevante → defensivo, auto-executa
+  {
+    check: (d, b) =>
+      d.leads > 0 &&
+      d.totalSpend > 0 &&
+      (d.totalSpend / d.leads) > b.cpl_ideal * 2.5 &&
+      d.totalSpend > b.spend_no_lead * 0.4 &&
+      d.daysRunning >= b.min_days_running,
+    type: 'DOWNSCALE',
+    title: 'CPL crítico — reduzir orçamento',
+    description: (d, b) => {
+      const cpl = d.totalSpend / d.leads;
+      return `CPL R$${cpl.toFixed(2)} (${(cpl / b.cpl_ideal).toFixed(1)}× o ideal de R$${b.cpl_ideal}) na campanha "${d.campaignName}". Budget reduzido 30% para conter sangria enquanto o criativo é revisado.`;
+    },
+    confidence: (d, b) => {
+      const cpl = d.totalSpend / d.leads;
+      const ratio = cpl / (b.cpl_ideal * 2.5);
+      return Math.min(0.93, 0.72 + (ratio - 1) * 0.08);
+    },
+  },
+  // FASE 15 — REFRESH_CREATIVE: fadiga crítica (>1.3× o máximo de frequência) → exige aprovação
+  {
+    check: (d, b) =>
+      d.avgFrequency > b.frequency_max * 1.3 &&
+      d.totalSpend > b.spend_no_lead * 0.3 &&
+      d.daysRunning >= b.min_days_running,
+    type: 'REFRESH_CREATIVE',
+    title: 'Fadiga crítica — trocar criativo urgente',
+    description: (d, b) => {
+      const ratio = (d.avgFrequency / b.frequency_max).toFixed(1);
+      return `Frequência ${d.avgFrequency.toFixed(1)}× (${ratio}× o máximo de ${b.frequency_max}×) na campanha "${d.campaignName}". CTR em queda por saturação — troque o criativo imediatamente para recuperar engajamento.`;
+    },
+    confidence: (d, b) => Math.min(0.93, 0.68 + (d.avgFrequency - b.frequency_max * 1.3) * 0.06),
+  },
+  // FASE 15 — ADJUST_AUDIENCE: CTR muito baixo + poucos leads + gasto relevante → exige aprovação
+  {
+    check: (d, b) =>
+      d.avgCtr < b.ctr_min * 0.6 &&
+      d.totalSpend > b.spend_no_lead * 0.35 &&
+      d.leads < 3 &&
+      d.daysRunning >= b.min_days_running,
+    type: 'ADJUST_AUDIENCE',
+    title: 'Público desalinhado — rever segmentação',
+    description: (d, b) =>
+      `CTR ${d.avgCtr.toFixed(2)}% (abaixo de ${b.ctr_min}%) com ${d.leads} lead(s) em R$${d.totalSpend.toFixed(0)} na campanha "${d.campaignName}". O público pode não corresponder ao criativo — ajuste a segmentação ou expanda a audiência.`,
+    confidence: (d, b) => {
+      const gap = b.ctr_min - d.avgCtr;
+      return Math.min(0.88, 0.62 + gap * 0.08);
+    },
+  },
 ];
 
 /* ──────────────────────────────────────────────────────────────
