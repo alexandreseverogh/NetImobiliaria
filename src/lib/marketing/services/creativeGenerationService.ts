@@ -161,8 +161,15 @@ function buildSvgOverlay(
 /* ── Download de imagem ────────────────────────────────────────────────────── */
 
 async function fetchImageBuffer(url: string): Promise<Buffer> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`Falha ao baixar imagem: HTTP ${res.status}`);
+  // Caminhos relativos (/uploads/...) precisam de base absoluta para o fetch do Node.js
+  let absoluteUrl = url;
+  if (url.startsWith('/')) {
+    const base = (process.env.PUBLIC_DOMAIN || 'http://localhost:3001').replace(/\/$/, '');
+    absoluteUrl = `${base}${url}`;
+  }
+
+  const res = await fetch(absoluteUrl, { signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new Error(`Falha ao baixar imagem: HTTP ${res.status} — ${absoluteUrl}`);
   const ab = await res.arrayBuffer();
   return Buffer.from(ab);
 }

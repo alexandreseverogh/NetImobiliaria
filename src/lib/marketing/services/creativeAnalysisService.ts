@@ -55,59 +55,26 @@ function applyVariables(template: string, vars: Record<string, string>): string 
 
 // ── Get LLM config (lê a linha global do Master) ──────────────────────────────
 
-async function getLlmConfig(tenantId?: string | null): Promise<{ apiKey: string; model: string; provider: string; baseUrl?: string }> {
+async function getLlmConfig(): Promise<{ apiKey: string; model: string; provider: string; baseUrl?: string }> {
   let provider = 'anthropic';
-  let model    = 'claude-opus-4-5';
+  let model    = 'claude-sonnet-4-6';
   let apiKey   = '';
   let baseUrl: string | undefined;
 
-  if (tenantId) {
-    try {
-      const res = await getPool().query(
-        `SELECT anthropic_api_key FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
-        [tenantId]
-      );
-      if (res.rows[0]?.anthropic_api_key) {
-        apiKey = res.rows[0].anthropic_api_key;
-      }
-    } catch (err) {
-      console.error('Erro ao ler anthropic_api_key de public.tenants:', err);
-    }
-  }
-
+  // Sempre usa a linha global (tenant_id IS NULL) — configurada em Master → IA da Plataforma
   try {
-    const query = tenantId 
-      ? [`SELECT "llmProvider", "llmModel", "llmApiKey" FROM campanhasmarketingdigital."Settings" WHERE tenant_id = $1::uuid LIMIT 1`, [tenantId]]
-      : [`SELECT "llmProvider", "llmModel", "llmApiKey" FROM campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL ORDER BY id LIMIT 1`, []];
-    
-    const res = await getPool().query(query[0] as string, query[1] as any[]);
+    const res = await getPool().query(
+      `SELECT "llmProvider", "llmModel", "llmApiKey"
+       FROM campanhasmarketingdigital."Settings"
+       WHERE tenant_id IS NULL
+       ORDER BY id LIMIT 1`
+    );
     const cfg = res.rows[0];
     if (cfg?.llmProvider) provider = cfg.llmProvider;
     if (cfg?.llmModel)    model    = cfg.llmModel;
-    if (cfg?.llmApiKey && !apiKey) apiKey = cfg.llmApiKey;
-  } catch {
-    if (tenantId) {
-      try {
-        const res = await getPool().query(
-          `SELECT "llmProvider", "llmModel", "llmApiKey" FROM campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL ORDER BY id LIMIT 1`
-        );
-        const cfg = res.rows[0];
-        if (cfg?.llmProvider) provider = cfg.llmProvider;
-        if (cfg?.llmModel)    model    = cfg.llmModel;
-        if (cfg?.llmApiKey && !apiKey) apiKey = cfg.llmApiKey;
-      } catch {}
-    }
-  }
-
-  if (provider === 'anthropic' && !apiKey) {
-    try {
-      const res = await getPool().query(
-        `SELECT anthropic_api_key FROM public.tenants ORDER BY slug = 'master' DESC, id LIMIT 1`
-      );
-      if (res.rows[0]?.anthropic_api_key) {
-        apiKey = res.rows[0].anthropic_api_key;
-      }
-    } catch {}
+    if (cfg?.llmApiKey)   apiKey   = cfg.llmApiKey;
+  } catch (err) {
+    console.error('[getLlmConfig] Erro ao ler Settings global:', err);
   }
 
   if (provider !== 'anthropic') {
@@ -201,16 +168,31 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
   );
 
   try {
-    // 3. Ler imagem do disco
+    // 3. Ler imagem — tenta disco local primeiro, cai para URL (MinIO/S3) se não encontrar
     const absolutePath = path.join(process.cwd(), 'public', asset.storage_path);
-    if (!fs.existsSync(absolutePath)) throw new Error(`Arquivo não encontrado: ${absolutePath}`);
+    let buffer: Buffer;
 
-    const buffer = fs.readFileSync(absolutePath);
+    if (fs.existsSync(absolutePath)) {
+      buffer = fs.readFileSync(absolutePath);
+    } else if (asset.storage_url) {
+      // Variações geradas por IA ficam no MinIO — busca via HTTP
+      let fetchUrl: string = asset.storage_url;
+      if (fetchUrl.startsWith('/')) {
+        const base = (process.env.PUBLIC_DOMAIN || 'http://localhost:3001').replace(/\/$/, '');
+        fetchUrl = `${base}${fetchUrl}`;
+      }
+      const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(15_000) });
+      if (!res.ok) throw new Error(`Falha ao buscar imagem via URL (${res.status}): ${fetchUrl}`);
+      buffer = Buffer.from(await res.arrayBuffer());
+    } else {
+      throw new Error(`Arquivo não encontrado em disco nem URL: ${absolutePath}`);
+    }
+
     const imageBase64 = buffer.toString('base64');
     const mimeType = asset.mime_type || 'image/jpeg';
 
     // 4. Obter config LLM, prompt do banco e chamar Vision
-    const llmCfg = await getLlmConfig(asset.tenant_id);
+    const llmCfg = await getLlmConfig();
     if (!llmCfg.apiKey) throw new Error('API Key não configurada. Configure em Master → IA da Plataforma.');
 
     const visionPrompt = await resolvePromptTemplate('creative_vision_analysis', null);
@@ -312,7 +294,7 @@ export async function generateCreativeConcepts(params: {
   ads_count: string;
   tenantId?: string | null;
 }): Promise<CreativeConcept[]> {
-  const llmCfg = await getLlmConfig(params.tenantId);
+  const llmCfg = await getLlmConfig();
   if (!llmCfg.apiKey) throw new Error('API Key não configurada.');
 
   const conceptTemplate = await resolvePromptTemplate('creative_concept_generation', null);

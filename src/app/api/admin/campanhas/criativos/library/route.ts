@@ -41,9 +41,10 @@ export async function GET(request: NextRequest) {
     if (hasProp === 'true')  { conditions.push(`an.has_property = true`); }
     if (hasProp === 'false') { conditions.push(`an.has_property = false`); }
     if (status)             { conditions.push(`an.analysis_status = $${idx++}`);  values.push(status); }
-    // 'own' = criativos vinculados ao próprio tenant (client_id IS NULL)
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (clientId === 'own') { conditions.push(`a.client_id IS NULL`); }
-    else if (clientId)      { conditions.push(`a.client_id = $${idx++}::uuid`);  values.push(clientId); }
+    else if (clientId && UUID_RE.test(clientId)) { conditions.push(`a.client_id = $${idx++}::uuid`); values.push(clientId); }
+    // clientId não-UUID (ex: 'segment') é ignorado — sem filtro por client_id
 
     const where = conditions.join(' AND ');
 
