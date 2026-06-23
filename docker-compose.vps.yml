@@ -102,6 +102,15 @@ services:
       # Cron & Campanhas Marketing
       CRON_SECRET: ${PROD_CRON_SECRET}
       MARKETING_DATABASE_URL: "postgresql://${DB_USER:-postgres}:${PROD_DB_PASSWORD}@prod_db:5432/${PROD_DB_NAME:-net_imobiliaria}"
+      # LLM
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Agente / Notificações
+      PUBLIC_DOMAIN: "https://${PROD_DOMAIN}"
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-trafegopago}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     expose:
       - "3000"
     healthcheck:
@@ -210,6 +219,15 @@ services:
       # Cron & Campanhas Marketing
       CRON_SECRET: ${STAGING_CRON_SECRET}
       MARKETING_DATABASE_URL: "postgresql://${DB_USER:-postgres}:${STAGING_DB_PASSWORD}@staging_db:5432/${STAGING_DB_NAME:-net_imobiliaria_staging}"
+      # LLM
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Agente / Notificações
+      PUBLIC_DOMAIN: "https://${STAGING_DOMAIN}"
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-trafegopago}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     expose:
       - "3000"
     healthcheck:
