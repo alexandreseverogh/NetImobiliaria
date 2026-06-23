@@ -7,6 +7,7 @@ import {
   PhotoIcon, SparklesIcon, ArrowPathIcon,
   FunnelIcon, ChartBarIcon, ExclamationTriangleIcon,
   CheckCircleIcon, ClockIcon, XMarkIcon, PaintBrushIcon,
+  CpuChipIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
@@ -36,6 +37,7 @@ interface CreativeAsset {
   key_visual_elements: string[] | null;
   llm_confidence: number | null;
   error_message: string | null;
+  ai_generated: boolean | null;
 }
 
 // ── Label maps ─────────────────────────────────────────────────────────────────
@@ -73,6 +75,483 @@ interface GenerationJob {
 }
 
 const FORMAT_LABELS: Record<string, string> = { '1:1': '1:1 — Feed', '4:5': '4:5 — Feed vertical', '9:16': '9:16 — Story/Reel' };
+
+const AI_FORMAT_OPTIONS = [
+  { value: 'feed',   label: 'Feed',   dims: '1024×1024', ratio: '1:1'  },
+  { value: 'story',  label: 'Story',  dims: '768×1344',  ratio: '9:16' },
+  { value: 'banner', label: 'Banner', dims: '1344×768',  ratio: '16:9' },
+] as const;
+
+// ── GenerateAIModal ─────────────────────────────────────────────────────────────
+
+interface AIConcept {
+  scene: string;
+  headline: string;
+  hook_text: string;
+  cta: string;
+  why_it_works: string;
+  format?: string;
+}
+
+const HOOK_LABELS_PT: Record<string, string> = {
+  urgency: 'Urgência', curiosity: 'Curiosidade', social_proof: 'Prova Social',
+  benefit: 'Benefício', story: 'História', problem: 'Problema',
+  price: 'Preço', investment: 'Investimento', lifestyle: 'Lifestyle',
+  family: 'Família', luxury: 'Luxo', social: 'Social', other: 'Outro',
+};
+
+const HOOK_COLORS_MODAL: Record<string, string> = {
+  urgency: 'bg-red-100 text-red-700 border-red-200',
+  curiosity: 'bg-purple-100 text-purple-700 border-purple-200',
+  social_proof: 'bg-blue-100 text-blue-700 border-blue-200',
+  benefit: 'bg-green-100 text-green-700 border-green-200',
+  story: 'bg-amber-100 text-amber-700 border-amber-200',
+  problem: 'bg-orange-100 text-orange-700 border-orange-200',
+  price: 'bg-teal-100 text-teal-700 border-teal-200',
+  investment: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  lifestyle: 'bg-pink-100 text-pink-700 border-pink-200',
+  family: 'bg-rose-100 text-rose-700 border-rose-200',
+  luxury: 'bg-slate-100 text-slate-700 border-slate-200',
+  other: 'bg-gray-100 text-gray-600 border-gray-200',
+};
+
+type AIModalStep = 'analyzing' | 'concepts' | 'format' | 'generating' | 'done' | 'error';
+
+function GenerateAIModal({
+  onClose, onGenerated, clientFilter,
+}: {
+  onClose: () => void;
+  onGenerated: () => void;
+  clientFilter: string;
+}) {
+  const [step, setStep]                   = useState<AIModalStep>('analyzing');
+  const [concepts, setConcepts]           = useState<AIConcept[]>([]);
+  const [suggestedHook, setSuggestedHook] = useState('benefit');
+  const [suggestedAngle, setSuggestedAngle] = useState('lifestyle');
+  const [saturationMsg, setSaturationMsg] = useState('');
+  const [selectedConcept, setSelectedConcept] = useState<AIConcept | null>(null);
+  const [format, setFormat]               = useState<'feed' | 'story' | 'banner'>('feed');
+  const [result, setResult]               = useState<{ url: string; provider: string; model: string; durationMs: number; hookType: string | null } | null>(null);
+  const [errorMsg, setErrorMsg]           = useState('');
+  const [elapsed, setElapsed]             = useState(0);
+
+  // Timer durante geração
+  useEffect(() => {
+    if (step !== 'generating') { setElapsed(0); return; }
+    const iv = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(iv);
+  }, [step]);
+
+  // Auto-analisar ao abrir
+  useEffect(() => {
+    analyzeAndSuggest();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function analyzeAndSuggest() {
+    setStep('analyzing');
+    try {
+      // 1. Verificar saturação de hooks na biblioteca
+      const cId = clientFilter !== 'all' && clientFilter !== 'own' ? `?clientId=${clientFilter}` : '';
+      const satRes = await adminFetch(`/api/admin/campanhas/criativos/hook-saturation${cId}`);
+      const satData = satRes.ok ? await satRes.json() : null;
+
+      // Determinar hook a sugerir (priorizar diversificação)
+      let hookToUse = 'benefit';
+      let angleToUse = 'lifestyle';
+      let satMsg = '';
+
+      if (satData?.hookStats?.length > 0) {
+        // Encontrar hook menos usado ou não usado
+        const usedHooks = new Set<string>(satData.hookStats.map((h: any) => h.hookType));
+        const allHooks = ['curiosity', 'social_proof', 'benefit', 'story', 'problem', 'lifestyle', 'family'];
+        const unusedHook = allHooks.find(h => !usedHooks.has(h));
+        hookToUse = unusedHook || satData.dominantHook || 'benefit';
+
+        if (satData.saturationAlert) {
+          satMsg = `Seu portfólio tem ${Math.round(satData.dominantShare * 100)}% de "${HOOK_LABELS_PT[satData.dominantHook] || satData.dominantHook}". Sugerindo diversificar com "${HOOK_LABELS_PT[hookToUse] || hookToUse}".`;
+        } else if (unusedHook) {
+          satMsg = `Hook "${HOOK_LABELS_PT[hookToUse]}" ainda não explorado na sua biblioteca.`;
+        }
+      }
+
+      setSuggestedHook(hookToUse);
+      setSuggestedAngle(angleToUse);
+      setSaturationMsg(satMsg);
+
+      // 2. Gerar conceitos com esse hook
+      const conceptRes = await adminFetch('/api/admin/campanhas/criativos/concepts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hookType: hookToUse,
+          angle: angleToUse,
+          emotionalTone: 'aspirational',
+          isUgc: false,
+          avgCtr: 0,
+          avgCpl: 0,
+          adsCount: 1,
+        }),
+      });
+      const conceptData = conceptRes.ok ? await conceptRes.json() : null;
+      const rawConcepts: AIConcept[] = conceptData?.concepts?.slice(0, 3) || [];
+
+      if (rawConcepts.length === 0) throw new Error('Não foi possível gerar conceitos. Tente novamente.');
+
+      setConcepts(rawConcepts);
+      setStep('concepts');
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Erro ao analisar biblioteca');
+      setStep('error');
+    }
+  }
+
+  function handleSelectConcept(c: AIConcept) {
+    setSelectedConcept(c);
+    setStep('format');
+  }
+
+  async function handleGenerate() {
+    if (!selectedConcept) return;
+    setStep('generating');
+    try {
+      const res = await adminFetch('/api/admin/campanhas/criativos/generate/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scene:    selectedConcept.scene,
+          hookType: suggestedHook,
+          angle:    suggestedAngle,
+          format,
+          clientId: clientFilter !== 'all' && clientFilter !== 'own' ? clientFilter : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Erro ao gerar imagem');
+      setResult({
+        url:       data.asset.storage_url,
+        provider:  data.generation.provider,
+        model:     data.generation.model,
+        durationMs: data.generation.durationMs,
+        hookType:  data.generation.hookType,
+      });
+      onGenerated();
+      setStep('done');
+    } catch (e: any) {
+      setErrorMsg(e.message);
+      setStep('error');
+    }
+  }
+
+  const isCloseable = step !== 'generating';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 12 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
+      >
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-violet-50 to-white">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-xl bg-violet-600 flex items-center justify-center shadow-sm shadow-violet-300">
+              <CpuChipIcon className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-slate-900">Criar novo criativo com IA</h2>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                {step === 'analyzing'  && 'Analisando sua biblioteca...'}
+                {step === 'concepts'   && 'Passo 1 de 3 — Escolha um conceito'}
+                {step === 'format'     && 'Passo 2 de 3 — Escolha o formato'}
+                {step === 'generating' && 'Passo 3 de 3 — Gerando imagem...'}
+                {step === 'done'       && 'Imagem criada com sucesso!'}
+                {step === 'error'      && 'Algo deu errado'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={!isCloseable}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-30"
+          >
+            <XMarkIcon className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-5">
+
+          {/* ── STEP: ANALYZING ── */}
+          {step === 'analyzing' && (
+            <div className="flex flex-col items-center justify-center py-14 gap-4">
+              <div className="relative">
+                <div className="w-14 h-14 rounded-full border-4 border-violet-100" />
+                <div className="absolute inset-0 w-14 h-14 rounded-full border-4 border-violet-500 border-t-transparent animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <SparklesIcon className="h-5 w-5 text-violet-500" />
+                </div>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold text-slate-800">Analisando sua biblioteca criativa...</p>
+                <p className="text-xs text-slate-400 mt-1">Identificando hooks sub-representados e gerando conceitos</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP: CONCEPTS ── */}
+          {step === 'concepts' && (
+            <div className="space-y-3">
+              {/* Insight de saturação */}
+              {saturationMsg && (
+                <div className="flex items-start gap-2 bg-violet-50 border border-violet-100 rounded-xl px-3.5 py-2.5">
+                  <SparklesIcon className="h-3.5 w-3.5 text-violet-500 mt-0.5 shrink-0" />
+                  <p className="text-xs text-violet-700 font-medium">{saturationMsg}</p>
+                </div>
+              )}
+
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                A IA analisou seu portfólio e criou 3 conceitos prontos para usar. O <span className="text-emerald-600 font-bold">Recomendado</span> é o que melhor equilibra diversificação e tendência. Escolha o que mais conecta com sua audiência.
+              </p>
+
+              <div className="space-y-2.5">
+                {concepts.map((c, i) => {
+                  const isRec = i === 0;
+                  // Detectar estilo visual a partir da cena
+                  const sceneLC = c.scene.toLowerCase();
+                  const visualStyle =
+                    sceneLC.includes('animaç') || sceneLC.includes('vídeo') || sceneLC.includes('video') ? '🎬 Vídeo/animação'
+                    : sceneLC.includes('alternân') || sceneLC.includes('slideshow') || sceneLC.includes('carrossel') || sceneLC.includes('sequência') ? '🖼️ Carrossel'
+                    : '📷 Foto estática';
+
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => handleSelectConcept(c)}
+                      className={cn(
+                        'w-full text-left p-4 rounded-xl border-2 transition-all group',
+                        isRec
+                          ? 'border-emerald-300 bg-emerald-50 hover:border-emerald-400 hover:bg-emerald-50/80'
+                          : 'border-slate-200 bg-white hover:border-violet-300 hover:bg-violet-50/40',
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        {/* Recomendado badge */}
+                        {isRec && (
+                          <span className="text-[9px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            ★ Recomendado
+                          </span>
+                        )}
+                        {!isRec && (
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                            Opção {i + 1}
+                          </span>
+                        )}
+                        {/* Hook badge */}
+                        <span className={cn(
+                          'text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full border',
+                          HOOK_COLORS_MODAL[suggestedHook] || HOOK_COLORS_MODAL.other
+                        )}>
+                          {HOOK_LABELS_PT[suggestedHook] || suggestedHook}
+                        </span>
+                        {/* Estilo visual */}
+                        <span className="text-[9px] text-slate-400 ml-auto">{visualStyle}</span>
+                      </div>
+
+                      {/* Cena visual — texto completo */}
+                      <p className={cn(
+                        'text-xs font-bold leading-snug mb-1.5',
+                        isRec ? 'text-emerald-900' : 'text-slate-800',
+                      )}>
+                        {c.scene}
+                      </p>
+
+                      {/* Headline */}
+                      {c.headline && (
+                        <p className="text-[10px] text-slate-500 italic mb-2">
+                          "{c.headline}"
+                        </p>
+                      )}
+
+                      {/* Por que funciona */}
+                      {c.why_it_works && (
+                        <p className="text-[10px] text-slate-400 border-t border-slate-100 pt-2">
+                          💡 {c.why_it_works}
+                        </p>
+                      )}
+
+                      <div className={cn(
+                        'mt-2.5 text-[10px] font-black uppercase tracking-widest',
+                        isRec ? 'text-emerald-600 group-hover:text-emerald-700' : 'text-violet-500 group-hover:text-violet-700',
+                      )}>
+                        {isRec ? '★ Usar este conceito →' : 'Usar este →'}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={analyzeAndSuggest}
+                className="w-full py-2 text-xs font-bold text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <ArrowPathIcon className="h-3.5 w-3.5" />
+                Gerar outros conceitos
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP: FORMAT ── */}
+          {step === 'format' && selectedConcept && (
+            <div className="space-y-5">
+              {/* Conceito selecionado (resumo) */}
+              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={cn(
+                    'text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full border',
+                    HOOK_COLORS_MODAL[suggestedHook] || HOOK_COLORS_MODAL.other
+                  )}>
+                    {HOOK_LABELS_PT[suggestedHook] || suggestedHook}
+                  </span>
+                  <button onClick={() => setStep('concepts')} className="text-[9px] text-slate-400 hover:text-slate-600 ml-auto">
+                    ← Trocar conceito
+                  </button>
+                </div>
+                <p className="text-xs text-slate-700 font-medium leading-snug line-clamp-2">{selectedConcept.scene}</p>
+              </div>
+
+              {/* Seletor de formato */}
+              <div>
+                <p className="text-xs font-black text-slate-700 uppercase tracking-widest mb-3">Formato da imagem</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {AI_FORMAT_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setFormat(opt.value)}
+                      className={cn(
+                        'flex flex-col items-center py-4 rounded-xl border-2 transition-all',
+                        format === opt.value
+                          ? 'border-violet-500 bg-violet-50'
+                          : 'border-slate-200 hover:border-violet-200',
+                      )}
+                    >
+                      {/* Aspect ratio visual */}
+                      <div className={cn(
+                        'bg-slate-200 rounded mb-2',
+                        opt.value === 'feed'   && 'w-8 h-8',
+                        opt.value === 'story'  && 'w-5 h-9',
+                        opt.value === 'banner' && 'w-10 h-5',
+                      )} />
+                      <span className="text-xs font-black text-slate-800">{opt.label}</span>
+                      <span className="text-[10px] text-slate-400">{opt.ratio}</span>
+                      <span className="text-[9px] text-slate-300">{opt.dims}px</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={handleGenerate}
+                className="w-full py-3 bg-violet-600 text-white rounded-xl text-sm font-black uppercase tracking-widest shadow-lg shadow-violet-200 hover:bg-violet-700 transition-all flex items-center justify-center gap-2"
+              >
+                <CpuChipIcon className="h-4 w-4" />
+                Gerar imagem agora
+              </button>
+
+              <p className="text-[10px] text-center text-slate-400">
+                A IA converterá o conceito em imagem automaticamente — sem precisar escrever nada em inglês.
+              </p>
+            </div>
+          )}
+
+          {/* ── STEP: GENERATING ── */}
+          {step === 'generating' && (
+            <div className="flex flex-col items-center justify-center py-14 gap-5">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-4 border-violet-100" />
+                <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-violet-500 border-t-transparent animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <CpuChipIcon className="h-6 w-6 text-violet-400" />
+                </div>
+              </div>
+              <div className="text-center space-y-1">
+                <p className="text-sm font-bold text-slate-800">Criando sua imagem...</p>
+                <p className="text-xs text-slate-400">
+                  Hook: <span className="font-semibold text-violet-600">{HOOK_LABELS_PT[suggestedHook] || suggestedHook}</span>
+                  {' · '}Formato: <span className="font-semibold">{AI_FORMAT_OPTIONS.find(o => o.value === format)?.label}</span>
+                </p>
+                <p className="text-xs text-slate-400 mt-2">{elapsed}s decorridos</p>
+              </div>
+              <div className="w-full max-w-xs bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="h-full bg-violet-500 transition-all duration-1000 rounded-full"
+                  style={{ width: `${Math.min((elapsed / 60) * 100, 95)}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-slate-300">Flux Schnell · pode levar até 60s no plano gratuito</p>
+            </div>
+          )}
+
+          {/* ── STEP: DONE ── */}
+          {step === 'done' && result && (
+            <div className="space-y-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={result.url} alt="Imagem gerada" className="w-full rounded-xl object-contain max-h-72 border border-slate-100" />
+
+              <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                <CheckCircleIcon className="h-5 w-5 text-emerald-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-black text-emerald-800">Adicionada à biblioteca automaticamente</p>
+                  <p className="text-[10px] text-emerald-600 mt-0.5">
+                    Hook: {HOOK_LABELS_PT[result.hookType || ''] || result.hookType || '—'}
+                    {' · '}{result.provider}/{result.model}
+                    {' · '}{(result.durationMs / 1000).toFixed(1)}s
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setStep('concepts'); setResult(null); setSelectedConcept(null); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold text-violet-600 border border-violet-200 hover:bg-violet-50 transition-all"
+                >
+                  Gerar outro conceito
+                </button>
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-black text-white bg-violet-600 hover:bg-violet-700 transition-all"
+                >
+                  Ver na galeria
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP: ERROR ── */}
+          {step === 'error' && (
+            <div className="space-y-4 py-4">
+              <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                <ExclamationTriangleIcon className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-red-800">Algo deu errado</p>
+                  <p className="text-xs text-red-600 mt-1">{errorMsg}</p>
+                </div>
+              </div>
+              <button
+                onClick={analyzeAndSuggest}
+                className="w-full py-2.5 rounded-xl text-sm font-bold text-violet-600 border border-violet-200 hover:bg-violet-50 transition-all flex items-center justify-center gap-2"
+              >
+                <ArrowPathIcon className="h-4 w-4" />
+                Tentar novamente
+              </button>
+            </div>
+          )}
+
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 // ── GenerateModal ───────────────────────────────────────────────────────────────
 function GenerateModal({
@@ -440,8 +919,13 @@ function AssetCard({
           </span>
         </div>
 
-        {/* UGC badge */}
-        {asset.is_ugc_style && (
+        {/* AI / UGC badge */}
+        {asset.ai_generated ? (
+          <div className="absolute top-2 left-2 bg-violet-600 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow flex items-center gap-0.5">
+            <CpuChipIcon className="h-2.5 w-2.5" />
+            IA
+          </div>
+        ) : asset.is_ugc_style && (
           <div className="absolute top-2 left-2 bg-violet-600 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow">
             UGC
           </div>
@@ -567,6 +1051,17 @@ export default function GaleriaCreativosPage() {
   // FASE 6.5 — modal de geração de variações
   const [genAsset, setGenAsset] = useState<CreativeAsset | null>(null);
 
+  // FASE 17-A — modal de geração AI (texto → imagem)
+  const [showAIModal, setShowAIModal]         = useState(false);
+  const [allowAiImages, setAllowAiImages]     = useState<boolean | null>(null);
+
+  useEffect(() => {
+    adminFetch('/api/admin/campanhas/segment-config')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setAllowAiImages(d?.segment?.imagens_por_ia ?? false))
+      .catch(() => setAllowAiImages(false));
+  }, []);
+
   const loadAssets = useCallback(async () => {
     setLoading(true);
     try {
@@ -691,6 +1186,17 @@ export default function GaleriaCreativosPage() {
             >
               <SparklesIcon className="h-4 w-4" />
               Re-analisar todos
+            </button>
+          )}
+
+          {/* FASE 17-A — Geração AI */}
+          {allowAiImages === true && (
+            <button
+              onClick={() => setShowAIModal(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100 hover:border-violet-400 transition-all"
+            >
+              <CpuChipIcon className="h-4 w-4" />
+              Gerar com IA
             </button>
           )}
 
@@ -832,6 +1338,17 @@ export default function GaleriaCreativosPage() {
           </button>
         </div>
       )}
+
+      {/* FASE 17-A — Modal de geração AI */}
+      <AnimatePresence>
+        {showAIModal && (
+          <GenerateAIModal
+            onClose={() => { setShowAIModal(false); loadAssets(); }}
+            onGenerated={() => {}}
+            clientFilter={clientFilter}
+          />
+        )}
+      </AnimatePresence>
 
       {/* FASE 6.5 — Modal de geração de variações */}
       <AnimatePresence>

@@ -379,10 +379,17 @@ export class MetaAdsAdapter implements AdNetworkService {
       return { platform: 'facebook', postId, permalink: await this.fetchPermalink(postId, pageToken), status: 'PUBLISHED' };
     }
 
-    // 2. Foto única
+    // 2. Foto única — upload sem publicar + /feed com attached_media (aparece em Posts, não em Fotos)
     if (media.length === 1) {
-      const data   = await this.postPhotoToMeta(media[0], pageToken, true, input.caption);
-      const postId = data.post_id || data.id;
+      const up = await this.postPhotoToMeta(media[0], pageToken, false);
+      const res = await axios.post(this.url(`${this.pageId}/feed`), null, {
+        params: {
+          access_token:   pageToken,
+          message:        input.caption || undefined,
+          attached_media: JSON.stringify([{ media_fbid: up.id }]),
+        },
+      });
+      const postId = res.data?.id;
       return { platform: 'facebook', postId, permalink: await this.fetchPermalink(postId, pageToken), status: 'PUBLISHED' };
     }
 

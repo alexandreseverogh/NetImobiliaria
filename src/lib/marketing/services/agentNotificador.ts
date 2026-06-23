@@ -135,9 +135,14 @@ export async function notifyApprovalRequired(action: {
   description: string;
   confidence: number;
   tenantId?: string | null;
+  approvalPin?: string | null;
 }) {
   const approveUrl = `${PUBLIC_DOMAIN}/api/agent/approve/${action.id}`;
-  const rejectUrl = `${PUBLIC_DOMAIN}/api/agent/reject/${action.id}`;
+  const rejectUrl  = `${PUBLIC_DOMAIN}/api/agent/reject/${action.id}`;
+
+  const pinLine = action.approvalPin
+    ? `🔐 PIN de confirmação: *${action.approvalPin}*\n   (válido por 24h — não compartilhe)\n\n`
+    : '';
 
   const message =
     `🤖 *Agente Trafego Pago — Aprovação Necessária*\n\n` +
@@ -145,6 +150,7 @@ export async function notifyApprovalRequired(action: {
     `💡 ${action.title}\n` +
     `📝 ${action.description}\n` +
     `🎯 Confiança: ${(action.confidence * 100).toFixed(0)}%\n\n` +
+    pinLine +
     `✅ Aprovar: ${approveUrl}\n` +
     `❌ Rejeitar: ${rejectUrl}`;
 

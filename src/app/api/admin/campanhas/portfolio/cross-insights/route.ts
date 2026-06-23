@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import pool from '@/lib/database/connection';
-import { invokeForContext } from '@/lib/intelligence/llmInvoker';
+import { invokeWithTemplate } from '@/lib/intelligence/llmInvoker';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +60,7 @@ export interface CrossClientDetail {
   clientName:  string;
   isTenant:    boolean;
   segmentName: string | null;
+  segmentId:   string | null;
   cpl:         number | null;
   spend:       number;
   status:      string;
@@ -476,6 +477,7 @@ export async function GET(request: NextRequest) {
       clientName:  c.clientName,
       isTenant:    c.isTenant,
       segmentName: c.segment_name,
+      segmentId:   c.segmentId ?? null,
       cpl:         c.cpl,
       spend:       c.spend,
       status:      c.status,
@@ -552,12 +554,13 @@ export async function POST(request: NextRequest) {
         const excessPct = Math.round((excessBrl / performer.cplCritical) * 100);
 
         try {
+          const clientSegmentId = detail?.segmentId ?? null;
           console.log('[cross-insights] Invocando LLM para', clientName,
-            '— template: cross_critical_actions, segmento:', detail?.segmentName ?? performer.segmentName);
-          const raw = await invokeForContext({
+            '— template: cross_critical_actions, segmentId:', clientSegmentId);
+          const raw = await invokeWithTemplate({
             templateKey: 'cross_critical_actions',
+            segmentId:   clientSegmentId,
             tenantId:    payload.tenantId!,
-            clientId:    null,
             variables: {
               client_name:  clientName,
               segment_name: detail?.segmentName ?? performer.segmentName ?? 'geral',
@@ -619,6 +622,7 @@ export async function POST(request: NextRequest) {
       const narrateSubset = async (
         clients: CrossClientDetail[],
         segLabel: string | null,
+        segId: string | null,
       ): Promise<string | null> => {
         const lines: string[] = [];
         // Inclui o tenant como contexto apenas quando o segmento dele bate (ou narrativa global)
@@ -645,10 +649,10 @@ export async function POST(request: NextRequest) {
           ? subPats.map(i => `- [${i.type.toUpperCase()}] ${i.title}`).join('\n')
           : '- Nenhum padrão identificado no período';
 
-        return invokeForContext({
+        return invokeWithTemplate({
           templateKey: 'cross_pollination_insights',
+          segmentId:   segId,
           tenantId:    payload.tenantId!,
-          clientId:    null,
           variables: {
             tenant_name:     data.tenantName,
             total_clients:   String(clients.length),
@@ -671,12 +675,16 @@ export async function POST(request: NextRequest) {
 
       // Decide modo: filtro ativo OU ≤1 segmento → narrativa única; senão → por segmento
       if (segmentId || bySeg.size <= 1) {
-        data.narrative = await narrateSubset(managedClients, null);
+        // segId: filtro ativo usa o segmentId da URL; único segmento deriva do próprio cliente
+        const singleSegId = segmentId
+          ?? (bySeg.size === 1 ? (data.segments.find(s => s.name === Array.from(bySeg.keys())[0])?.id ?? null) : null);
+        data.narrative = await narrateSubset(managedClients, null, singleSegId);
       } else {
         const segEntries = Array.from(bySeg.entries());
         const parts = await Promise.all(
           segEntries.map(async ([segName, clients]) => {
-            const text = await narrateSubset(clients, segName).catch(() => null);
+            const segId = data.segments.find(s => s.name === segName)?.id ?? null;
+            const text  = await narrateSubset(clients, segName, segId).catch(() => null);
             return text ? `▸ ${segName.toUpperCase()}\n${text}` : null;
           }),
         );

@@ -16,6 +16,7 @@ export interface Segment {
   funnel_stages: any[];
   creative_taxonomy: Record<string, any>;
   primary_kpis: any[];
+  imagens_por_ia: boolean;
 }
 
 export interface SegmentOption {

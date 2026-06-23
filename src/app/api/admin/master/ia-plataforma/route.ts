@@ -19,20 +19,25 @@ export async function GET(request: NextRequest) {
 
   try {
     const res = await pool.query(
-      `SELECT "llmProvider", "llmModel", "llmApiKey"
+      `SELECT "llmProvider", "llmModel", "llmApiKey", "imageProvider", "imageModel", "imageApiKey"
        FROM campanhasmarketingdigital."Settings"
        WHERE tenant_id IS NULL
        ORDER BY id
        LIMIT 1`
     );
     const s = res.rows[0];
-    const apiKey = s?.llmApiKey || '';
+    const llmKey   = s?.llmApiKey   || '';
+    const imageKey = s?.imageApiKey || '';
 
     return NextResponse.json({
-      llmProvider:     s?.llmProvider || 'anthropic',
-      llmModel:        s?.llmModel    || 'claude-sonnet-4-6',
-      llmApiKeySet:    !!apiKey,
-      llmApiKeyMasked: apiKey ? `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}` : '',
+      llmProvider:        s?.llmProvider    || 'anthropic',
+      llmModel:           s?.llmModel       || 'claude-sonnet-4-6',
+      llmApiKeySet:       !!llmKey,
+      llmApiKeyMasked:    llmKey   ? `${llmKey.slice(0, 8)}...${llmKey.slice(-4)}`   : '',
+      imageProvider:      s?.imageProvider  || '',
+      imageModel:         s?.imageModel     || '',
+      imageApiKeySet:     !!imageKey,
+      imageApiKeyMasked:  imageKey ? `${imageKey.slice(0, 8)}...${imageKey.slice(-4)}` : '',
     });
   } catch (error: any) {
     console.error('GET /master/ia-plataforma error:', error);
@@ -48,42 +53,39 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { llmProvider, llmModel, llmApiKey } = body;
+    const { llmProvider, llmModel, llmApiKey, imageProvider, imageModel, imageApiKey } = body;
 
-    if (!llmProvider && !llmModel && llmApiKey === undefined) {
-      return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
-    }
-
-    // Upsert da linha global: UPDATE se já existe, INSERT se não existe
     const existing = await pool.query(
       `SELECT id FROM campanhasmarketingdigital."Settings" WHERE tenant_id IS NULL ORDER BY id LIMIT 1`
     );
 
     if (existing.rows.length > 0) {
-      const setClauses: string[] = [
-        `"llmProvider" = $1`,
-        `"llmModel"    = $2`,
-      ];
-      const params: any[] = [llmProvider || 'anthropic', llmModel || 'claude-sonnet-4-6'];
+      const setClauses: string[] = [];
+      const params: any[] = [];
 
-      if (llmApiKey) {
-        setClauses.push(`"llmApiKey" = $${params.length + 1}`);
-        params.push(llmApiKey);
-      }
+      if (llmProvider !== undefined) { setClauses.push(`"llmProvider" = $${params.length + 1}`);   params.push(llmProvider); }
+      if (llmModel    !== undefined) { setClauses.push(`"llmModel"    = $${params.length + 1}`);   params.push(llmModel); }
+      if (llmApiKey)                 { setClauses.push(`"llmApiKey"   = $${params.length + 1}`);   params.push(llmApiKey); }
+      if (imageProvider !== undefined) { setClauses.push(`"imageProvider" = $${params.length + 1}`); params.push(imageProvider); }
+      if (imageModel    !== undefined) { setClauses.push(`"imageModel"    = $${params.length + 1}`); params.push(imageModel); }
+      if (imageApiKey)                 { setClauses.push(`"imageApiKey"   = $${params.length + 1}`); params.push(imageApiKey); }
+
+      if (!setClauses.length) return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
+
       params.push(existing.rows[0].id);
-
       await pool.query(
-        `UPDATE campanhasmarketingdigital."Settings"
-         SET ${setClauses.join(', ')}
-         WHERE id = $${params.length}`,
+        `UPDATE campanhasmarketingdigital."Settings" SET ${setClauses.join(', ')} WHERE id = $${params.length}`,
         params
       );
     } else {
       await pool.query(
         `INSERT INTO campanhasmarketingdigital."Settings"
-           (id, tenant_id, "llmProvider", "llmModel", "llmApiKey")
-         VALUES (gen_random_uuid(), NULL, $1, $2, $3)`,
-        [llmProvider || 'anthropic', llmModel || 'claude-sonnet-4-6', llmApiKey || '']
+           (id, tenant_id, "llmProvider", "llmModel", "llmApiKey", "imageProvider", "imageModel", "imageApiKey")
+         VALUES (gen_random_uuid(), NULL, $1, $2, $3, $4, $5, $6)`,
+        [
+          llmProvider || 'anthropic', llmModel || 'claude-sonnet-4-6', llmApiKey || '',
+          imageProvider || '', imageModel || '', imageApiKey || '',
+        ]
       );
     }
 

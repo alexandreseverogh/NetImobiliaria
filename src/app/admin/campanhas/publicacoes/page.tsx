@@ -3,10 +3,26 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   MegaphoneIcon, PlusIcon, XMarkIcon, ArrowTopRightOnSquareIcon,
   PhotoIcon, ArrowPathIcon, ExclamationTriangleIcon, CheckCircleIcon, TrashIcon,
+  ClockIcon, CalendarDaysIcon, PauseCircleIcon, PlayCircleIcon,
 } from '@heroicons/react/24/outline';
 import { CreateGuard } from '@/components/admin/PermissionGuard';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 import DateInputPtBR from '@/components/ui/DateInputPtBR';
+
+interface RecurrenceSchedule {
+  id:         string;
+  platform:   string;
+  format:     string;
+  caption:    string | null;
+  mediaUrls:  string[];
+  startDate:  string;
+  endDate:    string | null;
+  daysOfWeek: number[];
+  timeslots:  string[];
+  status:     string;
+  createdAt:  string;
+  postsCount?: number;
+}
 
 interface OrganicPost {
   id: string;
@@ -51,8 +67,11 @@ export default function PublicacoesPage() {
   const [posts, setPosts]     = useState<OrganicPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [showComposer, setShowComposer] = useState(false);
+  const [composerMode, setComposerMode] = useState<'once' | 'recurrence'>('once');
   const [view, setView]       = useState<'list' | 'calendar'>('list');
   const [insights, setInsights] = useState<Record<string, Record<string, number> | 'loading' | 'error'>>({});
+  const [recurrences, setRecurrences]   = useState<RecurrenceSchedule[]>([]);
+  const [recurrencesLoading, setRecurrencesLoading] = useState(false);
 
   // isOwnSegment=true → default 'own' (Minha Empresa); não há modo "Todos" aqui.
   const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('publicacoes', null, true);
@@ -74,6 +93,30 @@ export default function PublicacoesPage() {
       .finally(() => { if (alive) setTargetLoading(false); });
     return () => { alive = false; };
   }, [clientFilter]);
+
+  const loadRecurrences = useCallback(async () => {
+    setRecurrencesLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (clientFilter !== 'all') params.set('clientId', clientFilter);
+      const res  = await fetch(`/api/admin/campanhas/organic/recurrence?${params}`);
+      const data = await res.json();
+      if (res.ok) setRecurrences(data.recurrences ?? []);
+    } catch { }
+    finally { setRecurrencesLoading(false); }
+  }, [clientFilter]);
+
+  useEffect(() => { loadRecurrences(); }, [loadRecurrences]);
+
+  async function updateRecurrenceStatus(id: string, status: 'ACTIVE' | 'PAUSED' | 'CANCELLED') {
+    await fetch(`/api/admin/campanhas/organic/recurrence/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    loadRecurrences();
+    if (status === 'CANCELLED') load();
+  }
 
   async function cancelPost(id: string) {
     if (!confirm('Cancelar/remover esta publicação?')) return;
@@ -144,16 +187,29 @@ export default function PublicacoesPage() {
               ))}
             </div>
             <CreateGuard resource="publicacoes-organicas">
-              <button onClick={() => setShowComposer(true)}
-                className="flex items-center gap-2 px-5 py-3 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-lg shadow-emerald-500/20">
-                <MegaphoneIcon className="h-4 w-4" /> Nova Publicação
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setComposerMode('once'); setShowComposer(true); }}
+                  className="flex items-center gap-2 px-4 py-3 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 active:scale-95 transition-all shadow-lg shadow-emerald-500/20">
+                  <MegaphoneIcon className="h-4 w-4" /> Publicar
+                </button>
+                <button onClick={() => { setComposerMode('recurrence'); setShowComposer(true); }}
+                  className="flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20">
+                  <ClockIcon className="h-4 w-4" /> Recorrência
+                </button>
+              </div>
             </CreateGuard>
           </div>
         </div>
 
         {/* Destino Meta — onde a publicação será feita */}
         <TargetBanner target={target} loading={targetLoading} />
+
+        {/* Recorrências ativas */}
+        <RecurrencePanel
+          recurrences={recurrences}
+          loading={recurrencesLoading}
+          onStatusChange={updateRecurrenceStatus}
+        />
 
         {/* List */}
         {loading ? (
@@ -246,13 +302,21 @@ export default function PublicacoesPage() {
         )}
       </div>
 
-      {showComposer && (
+      {showComposer && composerMode === 'once' && (
         <Composer
           clientId={clientFilter}
           igLast24h={igLast24h}
           target={target}
           onClose={() => setShowComposer(false)}
           onPublished={() => { setShowComposer(false); load(); }}
+        />
+      )}
+      {showComposer && composerMode === 'recurrence' && (
+        <RecurrenceComposer
+          clientId={clientFilter}
+          target={target}
+          onClose={() => setShowComposer(false)}
+          onSaved={() => { setShowComposer(false); loadRecurrences(); load(); }}
         />
       )}
     </div>
@@ -366,6 +430,347 @@ function TargetBanner({ target, loading }: { target: OrganicTarget | null; loadi
   );
 }
 
+/* ── Painel de Recorrências ─────────────────────────────────────────── */
+
+const DAYS_LABEL = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+function RecurrencePanel({
+  recurrences, loading, onStatusChange,
+}: {
+  recurrences: RecurrenceSchedule[];
+  loading: boolean;
+  onStatusChange: (id: string, status: 'ACTIVE' | 'PAUSED' | 'CANCELLED') => void;
+}) {
+  if (loading) return <div className="mb-5 h-10 rounded-2xl bg-white border border-gray-100 animate-pulse" />;
+  if (recurrences.length === 0) return null;
+
+  return (
+    <div className="mb-5">
+      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+        <ClockIcon className="h-3.5 w-3.5" /> Recorrências ativas
+      </p>
+      <div className="space-y-2">
+        {recurrences.map(r => {
+          const isPaused    = r.status === 'PAUSED';
+          const isCancelled = r.status === 'CANCELLED';
+          return (
+            <div key={r.id} className={`bg-white rounded-2xl border shadow-sm px-4 py-3 flex items-start gap-3 ${
+              isCancelled ? 'opacity-50 border-gray-100' : isPaused ? 'border-amber-200 bg-amber-50/30' : 'border-indigo-100'
+            }`}>
+              <CalendarDaysIcon className={`h-4 w-4 mt-0.5 shrink-0 ${isPaused ? 'text-amber-500' : isCancelled ? 'text-gray-400' : 'text-indigo-500'}`} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-lg border ${
+                    isCancelled ? 'bg-gray-100 text-gray-500 border-gray-200' :
+                    isPaused    ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                  'bg-indigo-50 text-indigo-700 border-indigo-200'
+                  }`}>{isCancelled ? 'Cancelado' : isPaused ? 'Pausado' : 'Ativo'}</span>
+                  <span className="text-[10px] text-gray-400 font-bold">
+                    {r.platform === 'facebook' ? '📘' : '📸'} {r.format}
+                  </span>
+                  <span className="text-[10px] text-gray-400">
+                    {r.daysOfWeek.map(d => DAYS_LABEL[d]).join(', ')} · {r.timeslots.join(', ')}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">
+                  {new Date(r.startDate).toLocaleDateString('pt-BR')}
+                  {r.endDate ? ` → ${new Date(r.endDate).toLocaleDateString('pt-BR')}` : ' → sem fim'}
+                  {r.postsCount !== undefined && <span className="ml-2 text-gray-400">· {r.postsCount} posts gerados</span>}
+                </p>
+                {r.caption && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{r.caption}</p>}
+              </div>
+              {!isCancelled && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button onClick={() => onStatusChange(r.id, isPaused ? 'ACTIVE' : 'PAUSED')}
+                    className="text-[11px] font-black text-gray-500 hover:text-gray-800 flex items-center gap-1">
+                    {isPaused
+                      ? <><PlayCircleIcon className="h-3.5 w-3.5" /> Retomar</>
+                      : <><PauseCircleIcon className="h-3.5 w-3.5" /> Pausar</>}
+                  </button>
+                  <button onClick={() => { if (confirm('Cancelar esta recorrência e remover os posts futuros?')) onStatusChange(r.id, 'CANCELLED'); }}
+                    className="text-[11px] font-black text-red-400 hover:text-red-600 flex items-center gap-1 ml-1">
+                    <XMarkIcon className="h-3.5 w-3.5" /> Cancelar
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Composer de Recorrência ─────────────────────────────────────────── */
+
+function RecurrenceComposer({ clientId, target, onClose, onSaved }: {
+  clientId: string;
+  target: OrganicTarget | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [platform, setPlatform] = useState<'facebook' | 'instagram'>('facebook');
+  const [format, setFormat]     = useState<'feed' | 'video' | 'reel' | 'story'>('feed');
+  const [caption, setCaption]   = useState('');
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [urlInput, setUrlInput]   = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate]     = useState('');
+  const [hasEndDate, setHasEndDate] = useState(false);
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([1, 3, 5]); // Seg, Qua, Sex
+  const [timeslots, setTimeslots]   = useState<string[]>([]);
+  const [newTime, setNewTime]       = useState('09:00');
+  const [storyKind, setStoryKind]   = useState<'image' | 'video'>('image');
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState('');
+
+  const resolvedFormat = format === 'feed'
+    ? (mediaUrls.length > 1 ? 'carousel' : mediaUrls.length === 1 ? 'image' : 'text')
+    : format;
+
+  const canSave =
+    !!startDate &&
+    daysOfWeek.length > 0 &&
+    timeslots.length > 0 &&
+    (caption.trim().length > 0 || mediaUrls.length > 0);
+
+  function toggleDay(d: number) {
+    setDaysOfWeek(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
+  }
+
+  function addTime() {
+    const t = newTime.trim();
+    if (t && !timeslots.includes(t)) {
+      setTimeslots(prev => [...prev, t].sort());
+    }
+  }
+
+  async function handleFileUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/api/admin/campanhas/organic/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erro no upload');
+        setMediaUrls(prev => prev.includes(data.url) ? prev : [...prev, data.url]);
+      }
+    } catch (e: any) { setError(e.message); }
+    finally { setUploading(false); }
+  }
+
+  async function handleSave() {
+    if (!startDate) { setError('Informe a data de início'); return; }
+    if (daysOfWeek.length === 0) { setError('Selecione ao menos um dia da semana'); return; }
+    if (timeslots.length === 0) { setError('Informe ao menos um horário'); return; }
+
+    setSaving(true); setError('');
+    try {
+      const body = {
+        clientId: clientId !== 'all' ? clientId : null,
+        platform,
+        format: resolvedFormat,
+        caption: caption.trim() || undefined,
+        mediaUrls,
+        startDate,
+        endDate: hasEndDate && endDate ? endDate : undefined,
+        daysOfWeek,
+        timeslots,
+      };
+      const res  = await fetch('/api/admin/campanhas/organic/recurrence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar');
+      onSaved();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-indigo-50 rounded-xl"><ClockIcon className="h-4 w-4 text-indigo-600" /></div>
+            <h2 className="text-sm font-black text-gray-900">Nova Recorrência</h2>
+          </div>
+          <button onClick={onClose}><XMarkIcon className="h-5 w-5 text-gray-400 hover:text-gray-700" /></button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-0 overflow-y-auto flex-1">
+        <div className="p-6 space-y-6">
+          {/* Destino */}
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Destino</label>
+            <div className="flex gap-2">
+              {(['facebook', 'instagram'] as const).map(p => (
+                <button key={p} type="button" onClick={() => setPlatform(p)}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                    platform === p
+                      ? p === 'facebook' ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-200' : 'bg-pink-50 text-pink-700 border-pink-300 ring-2 ring-pink-200'
+                      : 'bg-gray-50 text-gray-500 border-gray-200'
+                  }`}>{p === 'facebook' ? '📘 Facebook' : '📸 Instagram'}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Formato */}
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Formato</label>
+            <div className="flex gap-1.5 bg-gray-50 border border-gray-200 rounded-xl p-1 w-fit">
+              {(['feed', 'video', 'reel', 'story'] as const).map(f => (
+                <button key={f} type="button" onClick={() => setFormat(f)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-wide transition-all ${
+                    format === f ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}>{f === 'feed' ? 'Feed' : f === 'video' ? 'Vídeo' : f === 'reel' ? 'Reels' : 'Stories'}</button>
+              ))}
+            </div>
+            {format === 'story' && (
+              <div className="flex items-center gap-2 mt-2.5">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mídia do story:</span>
+                {(['image', 'video'] as const).map(k => (
+                  <button key={k} type="button" onClick={() => setStoryKind(k)}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                      storyKind === k ? 'bg-indigo-50 text-indigo-700 border-indigo-300' : 'bg-white text-gray-500 border-gray-200'
+                    }`}>{k === 'image' ? 'Imagem' : 'Vídeo'}</button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Legenda */}
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Texto da publicação</label>
+            <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={3}
+              placeholder="Legenda (será igual em todas as ocorrências)" className={inputCls} />
+          </div>
+
+          {/* Mídia */}
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Mídia (mesma em todas as ocorrências)</label>
+            <label className={`flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed cursor-pointer transition-all px-4 py-4 mb-3 ${
+              uploading ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-gray-50 hover:border-indigo-300'
+            }`}>
+              <input type="file" accept="image/*,video/mp4" multiple className="sr-only"
+                onChange={e => handleFileUpload(e.target.files)} />
+              {uploading
+                ? <div className="flex items-center gap-2 text-indigo-600"><ArrowPathIcon className="h-5 w-5 animate-spin" /><span className="text-xs font-black">Enviando...</span></div>
+                : <><PhotoIcon className="h-7 w-7 text-gray-300 mb-1" /><p className="text-xs font-black text-gray-600">Arrastar ou clicar para enviar</p></>}
+            </label>
+            <div className="flex gap-2 mb-2">
+              <input value={urlInput} onChange={e => setUrlInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const u = urlInput.trim(); if (u && !mediaUrls.includes(u)) { setMediaUrls(p => [...p, u]); setUrlInput(''); } } }}
+                placeholder="Ou cole uma URL pública" className={inputCls} />
+              <button onClick={() => { const u = urlInput.trim(); if (u && !mediaUrls.includes(u)) { setMediaUrls(p => [...p, u]); setUrlInput(''); } }}
+                className="px-4 py-2.5 bg-gray-900 text-white text-xs font-black uppercase rounded-xl hover:bg-gray-700 shrink-0">Add</button>
+            </div>
+            {mediaUrls.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {mediaUrls.map((u, i) => (
+                  <div key={i} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg pl-2 pr-1 py-1">
+                    <span className="text-[11px] text-gray-600 max-w-[160px] truncate">{u.split('/').pop()}</span>
+                    <button onClick={() => setMediaUrls(mediaUrls.filter(x => x !== u))}><TrashIcon className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Período */}
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Período</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="block text-[10px] font-bold text-gray-400 mb-1">Início *</span>
+                <DateInputPtBR value={startDate} onChange={setStartDate} className={inputCls} />
+              </div>
+              <div>
+                <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 mb-1 cursor-pointer">
+                  <input type="checkbox" checked={hasEndDate} onChange={e => setHasEndDate(e.target.checked)} className="rounded" />
+                  Fim (opcional)
+                </label>
+                {hasEndDate && <DateInputPtBR value={endDate} onChange={setEndDate} className={inputCls} />}
+              </div>
+            </div>
+          </div>
+
+          {/* Dias da semana */}
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Dias da semana</label>
+            <div className="flex gap-2 flex-wrap">
+              {DAYS_LABEL.map((label, d) => (
+                <button key={d} type="button" onClick={() => toggleDay(d)}
+                  className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${
+                    daysOfWeek.includes(d)
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-indigo-300'
+                  }`}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Horários */}
+          <div>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Horários de publicação</label>
+            <div className="flex gap-2 mb-2">
+              <input type="time" step="60" value={newTime} onChange={e => setNewTime(e.target.value)}
+                className={`${inputCls} w-36`} />
+              <button onClick={addTime} className="px-4 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase rounded-xl hover:bg-indigo-700 shrink-0">
+                + Adicionar
+              </button>
+            </div>
+            {timeslots.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {timeslots.map(t => (
+                  <div key={t} className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1">
+                    <span className="text-xs font-black text-indigo-700">{t}</span>
+                    <button onClick={() => setTimeslots(timeslots.filter(x => x !== t))}>
+                      <XMarkIcon className="h-3 w-3 text-indigo-400 hover:text-red-500" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {timeslots.length > 0 && daysOfWeek.length > 0 && (
+              <p className="text-[11px] text-indigo-600 mt-2 font-medium">
+                → {timeslots.length * daysOfWeek.length} publicação(ões) por semana
+              </p>
+            )}
+          </div>
+
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
+              <ExclamationTriangleIcon className="h-4 w-4 shrink-0 mt-0.5" />{error}
+            </div>
+          )}
+        </div>
+          <PostPreview platform={platform} postType={format} storyKind={storyKind} caption={caption} mediaUrls={mediaUrls} />
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-white">
+          <button onClick={handleSave} disabled={saving || !canSave}
+            className="w-full py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all">
+            {saving ? <><ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Criando recorrência...</> : <><CheckCircleIcon className="h-3.5 w-3.5" /> Criar Recorrência</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Calendário ─────────────────────────────────────────────────────── */
 
 function CalendarView({ posts }: { posts: OrganicPost[] }) {
@@ -429,6 +834,68 @@ function CalendarView({ posts }: { posts: OrganicPost[] }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ── PostPreview compartilhado ─────────────────────────────────────── */
+
+function PostPreview({ platform, postType, storyKind = 'image', caption, mediaUrls }: {
+  platform:  'facebook' | 'instagram';
+  postType:  'feed' | 'video' | 'reel' | 'story';
+  storyKind?: 'image' | 'video';
+  caption:   string;
+  mediaUrls: string[];
+}) {
+  const firstMedia   = mediaUrls[0];
+  const mediaIsVideo = postType === 'video' || postType === 'reel' || (postType === 'story' && storyKind === 'video');
+  const isVertical   = postType === 'reel' || postType === 'story';
+
+  return (
+    <div className="border-l border-gray-100 bg-gray-50 p-5 flex flex-col items-center">
+      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 self-start">Pré-visualização</p>
+
+      {platform === 'facebook' ? (
+        <div className="w-full max-w-[280px] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 p-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shrink-0" />
+            <div><p className="text-xs font-bold text-gray-900 leading-tight">Sua Página</p><p className="text-[10px] text-gray-400">agora · 🌎</p></div>
+          </div>
+          {caption && <p className="px-3 pb-2 text-xs text-gray-800 whitespace-pre-wrap break-words line-clamp-4">{caption}</p>}
+          {(firstMedia || postType !== 'feed') && (
+            <MediaThumb url={firstMedia} isVideo={mediaIsVideo}
+              className={isVertical ? 'w-full aspect-[9/16]' : 'w-full aspect-square'} />
+          )}
+          <div className="flex justify-around py-2 text-[10px] font-bold text-gray-400 border-t border-gray-100 mt-0">
+            <span>👍 Curtir</span><span>💬 Comentar</span><span>↪ Compartilhar</span>
+          </div>
+        </div>
+      ) : isVertical ? (
+        <div className="relative w-full max-w-[200px] aspect-[9/16] rounded-2xl overflow-hidden bg-black shadow-lg">
+          <MediaThumb url={firstMedia} isVideo={mediaIsVideo} className="w-full h-full" />
+          <div className="absolute top-2 left-2 right-2 flex items-center gap-1.5">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-500 to-amber-500 ring-2 ring-white shrink-0" />
+            <span className="text-[10px] font-bold text-white drop-shadow">sua_conta</span>
+          </div>
+          {postType === 'reel' && caption && (
+            <p className="absolute bottom-3 left-3 right-8 text-[10px] text-white drop-shadow whitespace-pre-wrap line-clamp-3">{caption}</p>
+          )}
+        </div>
+      ) : (
+        <div className="w-full max-w-[280px] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 p-2.5">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-pink-500 to-amber-500 shrink-0" />
+            <span className="text-xs font-bold text-gray-900">sua_conta</span>
+          </div>
+          <MediaThumb url={firstMedia} isVideo={mediaIsVideo} className="w-full aspect-square" />
+          <div className="px-3 py-2 flex gap-3 text-base">♡ 💬 ➤</div>
+          {caption && <p className="px-3 pb-3 text-xs text-gray-800 whitespace-pre-wrap break-words line-clamp-3"><strong>sua_conta</strong> {caption}</p>}
+        </div>
+      )}
+
+      {mediaUrls.length > 1 && (
+        <p className="text-[10px] text-gray-400 mt-2">+{mediaUrls.length - 1} mídia(s) no carrossel</p>
+      )}
     </div>
   );
 }
@@ -776,54 +1243,7 @@ function Composer({ clientId, igLast24h, target, onClose, onPublished }: { clien
             )}
           </div>
 
-          {/* ── Preview ao vivo ── */}
-          <div className="border-l border-gray-100 bg-gray-50 p-5 flex flex-col items-center">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 self-start">Pré-visualização</p>
-
-            {platform === 'facebook' ? (
-              <div className="w-full max-w-[280px] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="flex items-center gap-2 p-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shrink-0" />
-                  <div><p className="text-xs font-bold text-gray-900 leading-tight">Sua Página</p><p className="text-[10px] text-gray-400">agora · 🌎</p></div>
-                </div>
-                {caption && <p className="px-3 pb-2 text-xs text-gray-800 whitespace-pre-wrap break-words line-clamp-4">{caption}</p>}
-                {(firstMedia || postType !== 'feed') && (
-                  <MediaThumb url={firstMedia} isVideo={mediaIsVideo}
-                    className={isVertical ? 'w-full aspect-[9/16]' : 'w-full aspect-square'} />
-                )}
-                <div className="flex justify-around py-2 text-[10px] font-bold text-gray-400 border-t border-gray-100 mt-0">
-                  <span>👍 Curtir</span><span>💬 Comentar</span><span>↪ Compartilhar</span>
-                </div>
-              </div>
-            ) : isVertical ? (
-              /* IG Stories / Reels — moldura 9:16 */
-              <div className="relative w-full max-w-[200px] aspect-[9/16] rounded-2xl overflow-hidden bg-black shadow-lg">
-                <MediaThumb url={firstMedia} isVideo={mediaIsVideo} className="w-full h-full" />
-                <div className="absolute top-2 left-2 right-2 flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-500 to-amber-500 ring-2 ring-white shrink-0" />
-                  <span className="text-[10px] font-bold text-white drop-shadow">sua_conta</span>
-                </div>
-                {postType === 'reel' && caption && (
-                  <p className="absolute bottom-3 left-3 right-8 text-[10px] text-white drop-shadow whitespace-pre-wrap line-clamp-3">{caption}</p>
-                )}
-              </div>
-            ) : (
-              /* IG Feed */
-              <div className="w-full max-w-[280px] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="flex items-center gap-2 p-2.5">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-pink-500 to-amber-500 shrink-0" />
-                  <span className="text-xs font-bold text-gray-900">sua_conta</span>
-                </div>
-                <MediaThumb url={firstMedia} isVideo={mediaIsVideo} className="w-full aspect-square" />
-                <div className="px-3 py-2 flex gap-3 text-base">♡ 💬 ➤</div>
-                {caption && <p className="px-3 pb-3 text-xs text-gray-800 whitespace-pre-wrap break-words line-clamp-3"><strong>sua_conta</strong> {caption}</p>}
-              </div>
-            )}
-
-            {mediaUrls.length > 1 && (
-              <p className="text-[10px] text-gray-400 mt-2">+{mediaUrls.length - 1} mídia(s) no carrossel</p>
-            )}
-          </div>
+          <PostPreview platform={platform} postType={postType} storyKind={storyKind} caption={caption} mediaUrls={mediaUrls} />
         </div>
 
         {/* Footer — confirmação dupla */}

@@ -285,30 +285,35 @@ model AiInsight {
 }
 
 model AgentAction {
-  id           String    @id @default(uuid())
-  tenantId     String?   @map("tenant_id") @db.Uuid
-  campaignId   String
-  campaignName String
-  type         String
-  title        String
-  description  String
-  confidence   Float
-  status       String    @default("PENDING_APPROVAL")
-  executedAt   DateTime?
-  createdAt    DateTime  @default(now())
+  id              String    @id @default(uuid())
+  tenantId        String?   @map("tenant_id") @db.Uuid
+  campaignId      String
+  campaignName    String
+  type            String
+  title           String
+  description     String
+  confidence      Float
+  status          String    @default("PENDING_APPROVAL")
+  executedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  approvalPin     String?   @map("approval_pin") @db.VarChar(6)
+  approvalPinExp  DateTime? @map("approval_pin_exp")
 
   @@index([campaignId, createdAt])
   @@index([tenantId])
 }
 
 model Settings {
-  id            String  @id @default(uuid())
-  tenantId      String? @unique @map("tenant_id") @db.Uuid
-  creativesPath String?
-  publicDomain  String?
-  llmProvider   String  @default("anthropic")
-  llmModel      String  @default("claude-sonnet-4-6")
-  llmApiKey     String?
+  id              String  @id @default(uuid())
+  tenantId        String? @unique @map("tenant_id") @db.Uuid
+  creativesPath   String?
+  publicDomain    String?
+  llmProvider     String  @default("anthropic")
+  llmModel        String  @default("claude-sonnet-4-6")
+  llmApiKey       String?
+  imageProvider   String? @map("imageProvider")
+  imageModel      String? @map("imageModel")
+  imageApiKey     String? @map("imageApiKey")
 }
 
 model LlmModel {

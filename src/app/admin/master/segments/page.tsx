@@ -5,7 +5,6 @@ import { useApi } from '@/hooks/useApi'
 import {
   PlusIcon,
   Squares2X2Icon,
-  SwatchIcon,
   HashtagIcon,
   PencilSquareIcon,
   CheckCircleIcon,
@@ -28,9 +27,11 @@ interface Segment {
   created_at: string
   module_ids: string[]
   module_names: string
-  cpl_ideal:    number | null
-  cpl_critical: number | null
-  ctr_min:      number | null
+  cpl_ideal:      number | null
+  cpl_critical:   number | null
+  ctr_min:        number | null
+  imagens_por_ia: boolean
+  tenant_count:   number
 }
 
 interface Module {
@@ -57,9 +58,10 @@ export default function MasterSegmentsPage() {
     color_theme: '#2563eb',
     is_active: true,
     module_ids: [] as string[],
-    cpl_ideal:    '',
-    cpl_critical: '',
-    ctr_min:      '',
+    cpl_ideal:      '',
+    cpl_critical:   '',
+    ctr_min:        '',
+    imagens_por_ia: false,
   })
 
   const fetchSegments = async () => {
@@ -93,7 +95,7 @@ export default function MasterSegmentsPage() {
       if (response.ok) {
         setShowModal(false)
         setEditingSegment(null)
-        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], cpl_ideal: '', cpl_critical: '', ctr_min: '' })
+        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], cpl_ideal: '', cpl_critical: '', ctr_min: '', imagens_por_ia: false })
         fetchSegments()
       } else {
         const err = await response.json()
@@ -107,16 +109,17 @@ export default function MasterSegmentsPage() {
   const handleEdit = (segment: Segment) => {
     setEditingSegment(segment)
     setFormData({
-      name:         segment.name,
-      slug:         segment.slug,
-      description:  segment.description || '',
-      icon:         segment.icon || 'box',
-      color_theme:  segment.color_theme || '#2563eb',
-      is_active:    segment.is_active,
-      module_ids:   segment.module_ids || [],
-      cpl_ideal:    segment.cpl_ideal    != null ? String(segment.cpl_ideal)    : '',
-      cpl_critical: segment.cpl_critical != null ? String(segment.cpl_critical) : '',
-      ctr_min:      segment.ctr_min      != null ? String(segment.ctr_min)      : '',
+      name:           segment.name,
+      slug:           segment.slug,
+      description:    segment.description || '',
+      icon:           segment.icon || 'box',
+      color_theme:    segment.color_theme || '#2563eb',
+      is_active:      segment.is_active,
+      module_ids:     (segment.module_ids || []).filter(Boolean),
+      cpl_ideal:      segment.cpl_ideal    != null ? String(segment.cpl_ideal)    : '',
+      cpl_critical:   segment.cpl_critical != null ? String(segment.cpl_critical) : '',
+      ctr_min:        segment.ctr_min      != null ? String(segment.ctr_min)      : '',
+      imagens_por_ia: segment.imagens_por_ia ?? false,
     })
     setShowModal(true)
   }
@@ -132,15 +135,13 @@ export default function MasterSegmentsPage() {
 
   const stats = [
     { name: 'Total de Segmentos', value: segments.length, icon: Squares2X2Icon, color: 'text-blue-600' },
-    { name: 'Nomes de Grife', value: segments.filter(s => s.is_active).length, icon: CheckCircleIcon, color: 'text-green-600' },
-    { name: 'Temas Ativos', value: new Set(segments.map(s => s.color_theme)).size, icon: SwatchIcon, color: 'text-purple-600' },
   ]
 
   if (loading) return <div className="p-8 text-center bg-gray-50 min-h-screen">Sincronizando universos de negócio...</div>
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="w-full">
         {/* Header */}
         <div className="flex justify-between items-end mb-8">
           <div>
@@ -154,7 +155,7 @@ export default function MasterSegmentsPage() {
             <button
               onClick={() => {
                 setEditingSegment(null)
-                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], cpl_ideal: '', cpl_critical: '', ctr_min: '' })
+                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], cpl_ideal: '', cpl_critical: '', ctr_min: '', imagens_por_ia: false })
                 setShowModal(true)
               }}
               className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95"
@@ -166,7 +167,7 @@ export default function MasterSegmentsPage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {stats.map((stat) => (
             <div key={stat.name} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center">
               <div className={`p-4 rounded-xl bg-gray-50 mr-5`}>
@@ -181,93 +182,123 @@ export default function MasterSegmentsPage() {
         </div>
 
         {/* Segments Table */}
-        <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+        <div className="bg-white rounded-3xl shadow-xl overflow-x-auto border border-gray-100">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-8 py-5 text-sm font-bold text-gray-600 uppercase">Segmento / Identidade</th>
-                <th className="px-8 py-5 text-sm font-bold text-gray-600 uppercase">Slug</th>
-                <th className="px-8 py-5 text-sm font-bold text-gray-600 uppercase">Ecossistema (Motores)</th>
-                <th className="px-8 py-5 text-sm font-bold text-gray-600 uppercase text-center">Cor do Tema</th>
-                <th className="px-8 py-5 text-sm font-bold text-gray-600 uppercase text-center">Status</th>
-                <th className="px-8 py-5 text-sm font-bold text-gray-600 uppercase text-right">Ações</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Segmento / Identidade</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Slug</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">Módulos</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Tema</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Status</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA Imagens</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Empresas</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-right whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {segments.map((segment) => (
                 <tr key={segment.id} className="hover:bg-indigo-50/30 transition-colors">
-                  <td className="px-8 py-6">
-                    <div className="flex items-center">
-                      <div 
-                        className="h-12 w-12 rounded-xl flex items-center justify-center mr-4 border shadow-sm"
+                  {/* Segmento / Identidade */}
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center border shadow-sm"
                         style={{ backgroundColor: `${segment.color_theme}15`, borderColor: `${segment.color_theme}40` }}
                       >
-                        <Squares2X2Icon className="h-6 w-6" style={{ color: segment.color_theme }} />
+                        <Squares2X2Icon className="h-5 w-5" style={{ color: segment.color_theme }} />
                       </div>
-                      <div>
-                        <p className="font-black text-gray-900">{segment.name}</p>
-                        <p className="text-xs text-gray-500 font-medium truncate max-w-[200px]">{segment.description || 'Sem descrição'}</p>
+                      <div className="min-w-0">
+                        <p className="font-black text-gray-900 whitespace-nowrap">{segment.name}</p>
+                        <p className="text-xs text-gray-500 font-medium truncate max-w-[220px]" title={segment.description || ''}>
+                          {segment.description || 'Sem descrição'}
+                        </p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-8 py-6">
+                  {/* Slug */}
+                  <td className="px-5 py-4 whitespace-nowrap">
                     <span className="px-3 py-1 bg-gray-100 rounded-lg text-sm font-mono font-bold text-gray-700">
                       /{segment.slug}
                     </span>
                   </td>
-                   <td className="px-8 py-6">
-                    <div className="flex flex-wrap gap-2 max-w-[250px]">
+                  {/* Módulos */}
+                  <td className="px-5 py-4">
+                    <div className="flex flex-wrap gap-1.5">
                       {(segment.module_names || '').split(', ').filter(Boolean).map((mname, idx) => (
-                        <span key={idx} className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-[9px] font-black uppercase tracking-wider border border-indigo-100 italic">
+                        <span key={idx} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold uppercase tracking-wide border border-indigo-100">
                           {mname}
                         </span>
                       ))}
                     </div>
                   </td>
-                  <td className="px-8 py-6">
+                  {/* Tema */}
+                  <td className="px-5 py-4">
                     <div className="flex flex-col items-center gap-1">
-                      <div 
-                        className="h-6 w-12 rounded-full border border-gray-200 shadow-inner"
+                      <div
+                        className="h-5 w-10 rounded-full border border-gray-200 shadow-inner"
                         style={{ backgroundColor: segment.color_theme }}
                       />
                       <span className="text-[10px] font-mono text-gray-400 font-bold uppercase">{segment.color_theme}</span>
                     </div>
                   </td>
-                  <td className="px-8 py-6 text-center">
-                    <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest inline-flex items-center ${
+                  {/* Status */}
+                  <td className="px-5 py-4 text-center whitespace-nowrap">
+                    <span className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wide inline-flex items-center gap-1 ${
                       segment.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                     }`}>
                       {segment.is_active ? (
-                        <><CheckCircleIcon className="h-3 w-3 mr-1" /> Ativo</>
+                        <><CheckCircleIcon className="h-3 w-3" /> Ativo</>
                       ) : (
-                        <><XCircleIcon className="h-3 w-3 mr-1" /> Inativo</>
+                        <><XCircleIcon className="h-3 w-3" /> Inativo</>
                       )}
                     </span>
                   </td>
-                  <td className="px-8 py-6 text-right">
-                    <div className="flex items-center justify-end gap-3">
+                  {/* IA Imagens */}
+                  <td className="px-5 py-4 text-center whitespace-nowrap">
+                    {segment.imagens_por_ia ? (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black bg-violet-100 text-violet-700 border border-violet-200">
+                        <SparklesIcon className="h-3 w-3" />
+                        Permitido
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black bg-gray-100 text-gray-400 border border-gray-200">
+                        <XCircleIcon className="h-3 w-3" />
+                        Bloqueado
+                      </span>
+                    )}
+                  </td>
+                  {/* Empresas */}
+                  <td className="px-5 py-4 text-center whitespace-nowrap">
+                    <span className="inline-flex items-center justify-center h-7 min-w-[1.75rem] px-2 rounded-full text-sm font-black bg-gray-100 text-gray-700">
+                      {segment.tenant_count ?? 0}
+                    </span>
+                  </td>
+                  {/* Ações */}
+                  <td className="px-5 py-4 text-right whitespace-nowrap">
+                    <div className="inline-flex items-center gap-2">
                       <button
                         onClick={() => setAnglesSegment(segment)}
-                        className="text-violet-500 hover:text-violet-700 transition-colors inline-flex items-center gap-1 text-sm font-semibold"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 transition-colors"
                         title="Gerenciar ângulos e termos de demanda (IA)"
                       >
-                        <SparklesIcon className="h-4 w-4" />
-                        Ângulos & Demanda
+                        <SparklesIcon className="h-3.5 w-3.5" />
+                        Ângulos
                       </button>
                       <button
                         onClick={() => setInterestsSegment(segment)}
-                        className="text-indigo-500 hover:text-indigo-700 transition-colors inline-flex items-center gap-1 text-sm font-semibold"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors"
                         title="Gerenciar interesses Meta para este segmento"
                       >
-                        <SparklesIcon className="h-4 w-4" />
-                        Interesses Meta
+                        <HashtagIcon className="h-3.5 w-3.5" />
+                        Interesses
                       </button>
                       <UpdateGuard resource="master-segments">
                         <button
                           onClick={() => handleEdit(segment)}
-                          className="text-gray-500 font-semibold hover:text-gray-800 transition-colors inline-flex items-center text-sm"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
                         >
-                          <PencilSquareIcon className="h-4 w-4 mr-1" />
+                          <PencilSquareIcon className="h-3.5 w-3.5" />
                           Editar
                         </button>
                       </UpdateGuard>
@@ -404,6 +435,27 @@ export default function MasterSegmentsPage() {
                       className="h-4 w-4 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
                     />
                     <label htmlFor="is_active" className="text-sm font-bold text-gray-700 cursor-pointer">Segmento Ativo</label>
+                  </div>
+
+                  {/* Imagens por IA */}
+                  <div className="p-3.5 rounded-xl border border-dashed border-violet-200 bg-violet-50/50">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox" id="imagens_por_ia"
+                        checked={formData.imagens_por_ia}
+                        onChange={e => setFormData({...formData, imagens_por_ia: e.target.checked})}
+                        className="h-4 w-4 mt-0.5 text-violet-600 rounded focus:ring-violet-500 border-gray-300"
+                      />
+                      <div>
+                        <label htmlFor="imagens_por_ia" className="text-sm font-black text-violet-800 cursor-pointer flex items-center gap-1.5">
+                          <SparklesIcon className="h-3.5 w-3.5" />
+                          Permitir geração de imagens por IA
+                        </label>
+                        <p className="text-[10px] text-violet-600 mt-0.5 leading-relaxed">
+                          Habilita o botão "Gerar com IA" na galeria de criativos. <strong>Não ativar</strong> para segmentos com produto físico real (imóveis, carros, etc.) onde imagens fictícias induzem o comprador em erro.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 {/* ╚══════════════ FIM COLUNA ESQUERDA ══════════════╝ */}

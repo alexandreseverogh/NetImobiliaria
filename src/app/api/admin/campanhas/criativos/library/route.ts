@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     const sql = `
       SELECT
         a.id, a.original_name, a.storage_url, a.file_size, a.mime_type,
-        a.campaign_id, a.ad_id, a.uploaded_at,
+        a.campaign_id, a.ad_id, a.uploaded_at, a.ai_generated,
         an.analysis_status,
         an.hook_type, an.angle, an.emotional_tone, an.cta_style,
         an.has_people, an.has_property, an.has_text_overlay,

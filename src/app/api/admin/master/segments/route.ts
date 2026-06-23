@@ -21,8 +21,9 @@ export async function GET(request: NextRequest) {
     const result = await pool.query(`
       SELECT
         s.*,
-        string_agg(m.name, ', ') AS module_names,
-        array_agg(m.id)          AS module_ids
+        string_agg(m.name, ', ' ORDER BY m.name)              AS module_names,
+        array_agg(m.id) FILTER (WHERE m.id IS NOT NULL)       AS module_ids,
+        (SELECT COUNT(*)::int FROM public.clientes c WHERE c.segment_id = s.id) AS tenant_count
       FROM public.system_segments s
       LEFT JOIN public.system_segment_modules sm ON sm.segment_id = s.id
       LEFT JOIN public.system_modules         m  ON m.id = sm.module_id
@@ -56,9 +57,10 @@ export async function POST(request: NextRequest) {
       name, slug, description = '', icon = 'box',
       color_theme = '#2563eb', is_active = true,
       module_ids = [] as string[],
-      cpl_ideal    = null as number | null,
-      cpl_critical = null as number | null,
-      ctr_min      = null as number | null,
+      cpl_ideal      = null as number | null,
+      cpl_critical   = null as number | null,
+      ctr_min        = null as number | null,
+      imagens_por_ia = false as boolean,
     } = body;
 
     if (!name || !slug) {
@@ -67,14 +69,16 @@ export async function POST(request: NextRequest) {
 
     const { rows } = await pool.query(`
       INSERT INTO public.system_segments
-        (name, slug, description, icon, color_theme, is_active, cpl_ideal, cpl_critical, ctr_min)
+        (name, slug, description, icon, color_theme, is_active,
+         cpl_ideal, cpl_critical, ctr_min, imagens_por_ia)
       VALUES ($1, $2, $3, $4, $5, $6,
-        $7::NUMERIC, $8::NUMERIC, $9::NUMERIC)
+        $7::NUMERIC, $8::NUMERIC, $9::NUMERIC, $10::BOOLEAN)
       RETURNING id
     `, [name, slug, description, icon, color_theme, is_active,
         cpl_ideal   != null && cpl_ideal   !== '' ? cpl_ideal   : null,
         cpl_critical != null && cpl_critical !== '' ? cpl_critical : null,
-        ctr_min     != null && ctr_min     !== '' ? ctr_min     : null]);
+        ctr_min     != null && ctr_min     !== '' ? ctr_min     : null,
+        imagens_por_ia ?? false]);
 
     const newId = rows[0].id;
 
@@ -111,9 +115,10 @@ export async function PUT(request: NextRequest) {
       id, name, description = '', icon = 'box',
       color_theme = '#2563eb', is_active = true,
       module_ids = [] as string[],
-      cpl_ideal    = null as number | null,
-      cpl_critical = null as number | null,
-      ctr_min      = null as number | null,
+      cpl_ideal      = null as number | null,
+      cpl_critical   = null as number | null,
+      ctr_min        = null as number | null,
+      imagens_por_ia = false as boolean,
     } = body;
 
     if (!id || !name) {
@@ -122,19 +127,21 @@ export async function PUT(request: NextRequest) {
 
     await pool.query(`
       UPDATE public.system_segments SET
-        name         = $2,
-        description  = $3,
-        icon         = $4,
-        color_theme  = $5,
-        is_active    = $6,
-        cpl_ideal    = $7::NUMERIC,
-        cpl_critical = $8::NUMERIC,
-        ctr_min      = $9::NUMERIC
+        name           = $2,
+        description    = $3,
+        icon           = $4,
+        color_theme    = $5,
+        is_active      = $6,
+        cpl_ideal      = $7::NUMERIC,
+        cpl_critical   = $8::NUMERIC,
+        ctr_min        = $9::NUMERIC,
+        imagens_por_ia = $10::BOOLEAN
       WHERE id = $1::uuid
     `, [id, name, description, icon, color_theme, is_active,
         cpl_ideal   != null && cpl_ideal   !== '' ? cpl_ideal   : null,
         cpl_critical != null && cpl_critical !== '' ? cpl_critical : null,
-        ctr_min     != null && ctr_min     !== '' ? ctr_min     : null]);
+        ctr_min     != null && ctr_min     !== '' ? ctr_min     : null,
+        imagens_por_ia ?? false]);
 
     // Re-sincronizar módulos: remove todos e reinsere
     await pool.query(

@@ -48,25 +48,35 @@
    - 1.5 [Centralização do modelo LLM de Campanhas](#15-decisão-arquitetural-rev-2026-05-28--centralização-do-modelo-llm-de-campanhas)
    - 1.6 [Camada Operacional de Lançamento de Campanhas](#16-camada-operacional-de-lançamento-de-campanhas-rev-2026-05-29) *(revisão 2026-05-29)*
 2. [Arquitetura de Dados Consolidada](#2-arquitetura-de-dados-consolidada)
-3. [Mapa das 11 Fases de Execução](#3-mapa-das-11-fases-de-execução)
-4. [FASE 0 — Fundação Multi-Segment](#fase-0--fundação-multi-segment-e-prompt-management)
-5. [FASE 1 — Multi-Network Foundation](#fase-1--multi-network-foundation)
-6. [FASE 2 — Marketing Initiatives](#fase-2--marketing-initiatives)
-7. [FASE 3 — Wasted Spend Quantification](#fase-3--wasted-spend-quantification)
-8. [FASE 4 — Campaign State Machine](#fase-4--campaign-state-machine)
-9. [FASE 5 — Video Metrics + Hook Rate](#fase-5--video-metrics--hook-rate)
-10. [FASE 6 — Creative Intelligence Layer](#fase-6--creative-intelligence-layer)
-    - [FASE 6.5 — Produção de Criativos por Reaproveitamento (Estágio A: imagens / Estágio B: vídeos)](#fase-65--produção-de-criativos-por-reaproveitamento-pendente--2026-05-31)
-11. [FASE 7 — Funnel Stage Classification](#fase-7--funnel-stage-classification)
-12. [FASE 8 — Tracking Health Monitor](#fase-8--tracking-health-monitor)
-    - [FASE 8.5 — Signal-Driven Calibration (Escuta da Voz do Meta)](#fase-85--signal-driven-calibration-escuta-da-voz-do-meta) *(revisão 2026-06-01)*
-13. [FASE 9 — Audit Report Estruturado](#fase-9--audit-report-estruturado)
-14. [FASE 10 — Portfolio Dashboard + Cross-Pollination](#fase-10--portfolio-dashboard--cross-pollination)
-15. [FASE 11 — Implementações de Outras Redes](#fase-11--implementações-de-outras-redes)
-16. [Fluxos End-to-End](#16-fluxos-end-to-end)
-17. [Catálogo Completo de UIs](#17-catálogo-completo-de-uis)
-18. [Riscos Transversais e Mitigações](#18-riscos-transversais-e-mitigações)
-19. [Critérios Globais de Aceite](#19-critérios-globais-de-aceite)
+3. [Estado Atual do Projeto — Mapa de Fases](#3-estado-atual-do-projeto--mapa-de-fases)
+4. [FASE 0 — Fundação Multi-Segment](#fase-0--fundação-multi-segment-e-prompt-management) ✅
+5. [FASE 1 — Multi-Network Foundation](#fase-1--multi-network-foundation) ✅
+6. [FASE 2 — Marketing Initiatives](#fase-2--marketing-initiatives) ✅
+7. [FASE 3 — Wasted Spend Quantification](#fase-3--wasted-spend-quantification) ✅
+8. [FASE 4 — Campaign State Machine](#fase-4--campaign-state-machine) ✅
+9. [FASE 5 — Video Metrics + Hook Rate](#fase-5--video-metrics--hook-rate) ✅
+10. [FASE 6 — Creative Intelligence Layer](#fase-6--creative-intelligence-layer) ✅
+    - [FASE 6.5 — Produção de Criativos por Reaproveitamento](#fase-65--produção-de-criativos-por-reaproveitamento-pendente--2026-05-31) ✅
+11. [FASE 7 — Funnel Stage Classification](#fase-7--funnel-stage-classification) ✅
+12. [FASE 8 — Tracking Health Monitor](#fase-8--tracking-health-monitor) ✅
+    - [FASE 8.5 — Signal-Driven Calibration](#fase-85--signal-driven-calibration-escuta-da-voz-do-meta) ✅ *(2026-06-01)*
+13. [FASE 9 — Audit Report Estruturado](#fase-9--audit-report-estruturado) ✅
+14. [FASE 10 — Portfolio Dashboard + Cross-Pollination](#fase-10--portfolio-dashboard--cross-pollination) ✅
+15. [FASE 11 — Implementações de Outras Redes](#fase-11--implementações-de-outras-redes) ⏳ Pendente
+16. [FASE 13 — Top N Configurável](#fase-13--top-n-configurável) ✅
+17. [FASE 14 — Ângulo Estratégico no Ciclo Completo](#fase-14--ângulo-estratégico-no-ciclo-completo) ✅
+18. [FASE 15 — Agentes de IA: Expansão de Ações e Garantia](#fase-15--agentes-de-ia-expansão-de-ações-e-garantia-de-execução) ✅ (core) / ⏳ (aprovação UI)
+19. [FASE 16 — Postagem Orgânica no Meta](#fase-16--postagem-orgânica-no-meta) ✅
+20. [FASE 17 — Google Ads + Google AI Max](#fase-17--google-ads--google-ai-max-aprofundamento) ⏳ Pendente
+21. [FASE 18 — Inteligência Multi-Segmento](#fase-18--inteligência-multi-segmento) ✅
+22. [FASE 19 — Creative AI Loop (Geração de Imagens por IA)](#fase-19--creative-ai-loop--geração-de-imagens-por-ia) 🔄 Parcial
+23. [FASE 20 — Editor de Prompts (UI Master)](#fase-20--editor-de-prompts-ui-master) ⏳ Pendente
+24. [FASE 21 — UI de Aprovação de Ações do Agente](#fase-21--ui-de-aprovação-de-ações-do-agente) ⏳ Pendente
+25. [FASE 22 — Catálogo de Modelos LLM com UI](#fase-22--catálogo-de-modelos-llm-com-ui) ⏳ Pendente
+26. [Fluxos End-to-End](#16-fluxos-end-to-end)
+27. [Catálogo Completo de UIs](#17-catálogo-completo-de-uis)
+28. [Riscos Transversais e Mitigações](#18-riscos-transversais-e-mitigações)
+29. [Critérios Globais de Aceite](#19-critérios-globais-de-aceite)
 
 ---
 
@@ -1057,75 +1067,67 @@ Para uma métrica M e contexto (tenant_id, client_id, segment_id):
 
 ---
 
-## 3. Mapa das 11 Fases de Execução
+## 3. Estado Atual do Projeto — Mapa de Fases
+
+> **Atualizado em 2026-06-22.** Este mapa reflete o estado real de implementação.
+> Fases marcadas ✅ estão em produção/local e testadas. 🔄 = implementação parcial. ⏳ = planejada/pendente.
 
 ```
-╔══════════════════════════════════════════════════════════════════════╗
-║ FASE  TÍTULO                                  DURAÇÃO   PRÉ-REQ      ║
-╠══════════════════════════════════════════════════════════════════════╣
-║   0   Fundação Multi-Segment + Prompts        3 sem     —            ║
-║   1   Multi-Network Foundation                2 sem     0            ║
-║   2   Marketing Initiatives                   2 sem     1            ║
-║   3   Wasted Spend Quantification             1-2 sem   0            ║
-║   4   Campaign State Machine                  2 sem     0            ║
-║   5   Video Metrics + Hook Rate               1 sem     0            ║
-║   6   Creative Intelligence Layer             4-5 sem   0,5           ║
-║   7   Funnel Stage Classification             1 sem     0            ║
-║   8   Tracking Health Monitor                 1-2 sem   0            ║
-║   9   Audit Report Estruturado                2 sem     3,7          ║
-║  10   Portfolio Dashboard + Cross-Pollination 3 sem     0,3,6        ║
-║  11   Implementação de Outras Redes           varia     1            ║
-║       ├── TikTok (mais similar ao Meta)      2-3 sem                 ║
-║       ├── Google Ads (mais complexo)          3-6 sem                 ║
-║       └── LinkedIn (B2B, validar demanda)    2-4 sem                 ║
-╠══════════════════════════════════════════════════════════════════════╣
-║  TOTAL (fases 0-10, sem rede adicional):      22-26 semanas          ║
-║  TOTAL com 1 rede adicional (TikTok):         24-29 semanas          ║
-║  TOTAL com Google Ads também:                 27-35 semanas          ║
-╚══════════════════════════════════════════════════════════════════════╝
+╔══════════╦═══════════════════════════════════════════════════════╦══════════════╦══════════╗
+║ FASE     ║ TÍTULO                                                ║ STATUS       ║ DATA     ║
+╠══════════╬═══════════════════════════════════════════════════════╬══════════════╬══════════╣
+║  0       ║ Fundação Multi-Segment + Prompt Management            ║ ✅ Concluída ║ 2026-05  ║
+║  1       ║ Multi-Network Foundation + Launch Layer               ║ ✅ Concluída ║ 2026-05  ║
+║  2       ║ Marketing Initiatives                                 ║ ✅ Concluída ║ 2026-05  ║
+║  3       ║ Wasted Spend Quantification                           ║ ✅ Concluída ║ 2026-05  ║
+║  4       ║ Campaign State Machine (8 estados)                    ║ ✅ Concluída ║ 2026-05  ║
+║  5       ║ Video Metrics + Hook Rate                             ║ ✅ Concluída ║ 2026-05  ║
+║  6       ║ Creative Intelligence Layer (Vision LLM)              ║ ✅ Concluída ║ 2026-05  ║
+║  6.5     ║ Produção de Criativos (Sharp + variações)             ║ ✅ Concluída ║ 2026-06  ║
+║  7       ║ Funnel Stage Classification (TOF/MOF/BOF)             ║ ✅ Concluída ║ 2026-05  ║
+║  8       ║ Tracking Health Monitor                               ║ ✅ Concluída ║ 2026-06  ║
+║  8.5     ║ Signal-Driven Calibration (motor de sinais Meta)      ║ ✅ Concluída ║ 2026-06  ║
+║  9       ║ Audit Report Estruturado (mensal/semanal)             ║ ✅ Concluída ║ 2026-06  ║
+║  10      ║ Portfolio Dashboard + Cross-Pollination               ║ ✅ Concluída ║ 2026-06  ║
+║  11      ║ Implementação de Outras Redes (Google/TikTok/LinkedIn) ║ ⏳ Pendente  ║ —        ║
+║  13      ║ Top N Configurável (cross-insights)                   ║ ✅ Concluída ║ 2026-06  ║
+║  14a–d   ║ Ângulo Estratégico no Ciclo Completo                  ║ ✅ Concluída ║ 2026-06  ║
+║  15      ║ Agentes IA: garantia de execução + novas ações        ║ ✅ Concluída ║ 2026-06  ║
+║  15-B    ║ UI de Aprovação de Ações Ofensivas do Agente          ║ ⏳ Pendente  ║ —        ║
+║  16      ║ Postagem Orgânica no Meta                             ║ ✅ Concluída ║ 2026-06  ║
+║  17      ║ Google Ads + Google AI Max (fase própria)             ║ ⏳ Pendente  ║ —        ║
+║  18.1–5  ║ Inteligência Multi-Segmento (Radar, Dashboard, etc.)  ║ ✅ Concluída ║ 2026-06  ║
+║  19.1–2  ║ Creative AI Loop — Geração por IA (Flux Schnell)     ║ ✅ Concluída ║ 2026-06  ║
+║  19.3–5  ║ Creative AI Loop — Smart Selection + Meta Swap        ║ ⏳ Pendente  ║ —        ║
+║  20      ║ Editor de Prompts (UI para system_prompt_templates)   ║ ⏳ Pendente  ║ —        ║
+║  21      ║ UI de Aprovação de Ações do Agente (SCALE/REFRESH)    ║ ⏳ Pendente  ║ —        ║
+║  22      ║ Catálogo de Modelos LLM com UI (CRUD LlmModel)        ║ ⏳ Pendente  ║ —        ║
+╠══════════╩═══════════════════════════════════════════════════════╩══════════════╩══════════╣
+║  PENDÊNCIAS OPERACIONAIS (não são fases, são fixes)                                        ║
+║  • VPS: batch de migrations local→VPS (várias de 2026-06-03 a 2026-06-22)                 ║
+║  • CPL formatting: toFixed → formatCurrency em /portfolio/cross-insights L280/296          ║
+║  • Hook Rate KPI card: thresholds 8%/12% hardcoded → benchmarkResolver (seção 1.8)        ║
+║  • State Machine thresholds: LEARNING_DAYS/FATIGUE_* → ENV (seção 1.7)                    ║
+╚════════════════════════════════════════════════════════════════════════════════════════════╝
 ```
 
-### 3.1. Grafo de Dependências
+### 3.1. Grafo de Dependências (atualizado)
 
 ```
-                      ┌────────────────────────────────┐
-                      │  FASE 0 — Fundação              │
-                      │  (multi-segment + prompts)      │
-                      └──┬─────────────────────────────┘
-                         │
-       ┌─────────────────┼─────────────────────┬───────────────────┐
-       │                 │                     │                   │
-       ▼                 ▼                     ▼                   ▼
-┌──────────────┐  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│ FASE 1       │  │ FASE 3       │    │ FASE 4       │    │ FASE 5       │
-│ Multi-Network│  │ Wasted Spend │    │ State Machine│    │ Video Metrics│
-└──────┬───────┘  └──────────────┘    └──────────────┘    └──────────────┘
-       │                                                          │
-       ▼                                                          │
-┌──────────────┐                                                  │
-│ FASE 2       │                                                  │
-│ Initiatives  │                                                  │
-└──────────────┘                                                  │
-                                                                  │
-┌──────────────┐  ┌──────────────┐    ┌──────────────┐            │
-│ FASE 7       │  │ FASE 8       │    │ FASE 6       │◄───────────┘
-│ Funnel       │  │ Tracking H.  │    │ Creative IL  │
-└──────────────┘  └──────────────┘    └──────────────┘
-       │                                      │
-       └──────┬───────────────────────────────┘
-              ▼
-       ┌──────────────┐
-       │ FASE 9       │
-       │ Audit Report │
-       └──────────────┘
-              │
-              ▼
-       ┌──────────────┐
-       │ FASE 10      │
-       │ Portfolio    │
-       └──────────────┘
+FASES CONCLUÍDAS (✅):
+  0 → 1 → 2 → 3 → 4 → 5 → 6 → 6.5 → 7 → 8 → 8.5 → 9 → 10
+  → 13 → 14a-d → 15 → 16 → 18.1-5 → 19.1-2
 
-FASE 11 (outras redes) — após FASE 1 completa
+PRÓXIMO PASSO RECOMENDADO (prioridade decrescente):
+  1. FASE 20 — Editor de Prompts [maior gap operacional]
+  2. FASE 21 — UI de Aprovação do Agente [fecha loop FASE 15]
+  3. FASE 19.3-5 — Smart Selection + Meta Swap [fecha loop Creative AI]
+  4. FASE 22 — Catálogo LLM UI [operacional]
+  5. FASE 17 — Google Ads [expansão de rede]
+
+PENDÊNCIAS TÉCNICAS:
+  • FASE 15-B é subconjunto de FASE 21
+  • FASE 11 engloba FASE 17 (Google Ads é a prioridade dentro de 11)
 ```
 
 ---
@@ -3437,6 +3439,7 @@ VALUES (
 
 ## FASE 15 — Agentes de IA: Expansão de Ações e Garantia de Execução
 
+**Status: ✅ CONCLUÍDA (core) — ⏳ PENDENTE: UI de aprovação (ver FASE 21)**
 **Duração estimada: ~2,5–4 dias | Pré-requisito: FASES 4, 8.5 | Prioridade: 3**
 
 ### 15.1. Objetivo
@@ -3445,23 +3448,27 @@ A base dos agentes já está construída e funcional. Esta fase **endurece a
 execução** (garantir que o cron realmente roda em produção) e **amplia o
 repertório de ações** além de PAUSE/SCALE.
 
-### 15.2. Diagnóstico do Estado Atual
+### 15.2. Estado Atual (pós-implementação)
 
 ```
-PRONTO E FUNCIONAL:
-• agentDecisor.ts — runDecisor: gera insights, filtra confidence >= 0.85,
-  dedupe 24h, enriquece (template agent_enrichment). PAUSE auto-executa
-  (defensivo); SCALE exige aprovação humana (1.3x budget); demais só notificam.
-• agentMonitor.ts — cron sync 6h (0 */6 * * *) + briefings 8h/18h (WhatsApp+Slack).
-• agentNotificador.ts — WhatsApp + Slack.
-• Integrado à state machine / lifecycle.
+✅ CONCLUÍDO:
+• agentDecisor.ts — runDecisor: gera insights, filtra confidence >= threshold,
+  dedupe 24h, enriquece (template agent_enrich), cria AgentAction.
+  - PAUSE: auto-executa (pausar no Meta API + transitionCampaign)
+  - DOWNSCALE: auto-executa (reduz budget 30% em todos adsets + Meta API)
+  - SCALE: cria AgentAction PENDING_APPROVAL + notifica (executa ao aprovar)
+  - REFRESH_CREATIVE / ADJUST_AUDIENCE / REALLOCATE_BUDGET: notifica apenas
+• agentMonitor.ts — cron sync 6h + briefings 8h/18h (WhatsApp+Slack).
+• agentNotificador.ts — WhatsApp + Slack (notifyApprovalRequired / notifyExecuted).
+• Integrado à state machine: PAUSE → transitionCampaign('PAUSED'), DOWNSCALE → 'FATIGUED'.
+• Threshold de confiança configurável por tenant (agent_confidence_threshold).
+• agent_heartbeat: registra último ciclo (last_run_at, ok, error).
+• Endpoint /api/agent/tick (secret-protected) para cron externo disparar.
 
-LACUNAS:
-• Só 2 ações: PAUSE e SCALE. Faltam: trocar criativo, ajustar público,
-  realocar budget entre adsets, reduzir budget (de-scale defensivo).
-• startAgentMonitor() depende de processo Node persistente. Em Next/serverless,
-  node-cron NÃO sobrevive — precisa de worker dedicado ou cron externo.
-• Threshold 0.85 fixo por env — considerar configurável por tenant.
+⏳ PENDENTE (separado em FASE 21):
+• UI de aprovação de ações PENDING_APPROVAL (SCALE, REFRESH_CREATIVE, etc.)
+• Link de aprovação na notificação WhatsApp/Slack
+• Badge de pendências no sidebar
 ```
 
 ### 15.3. Garantia de Execução (crítico)
@@ -3664,6 +3671,491 @@ VALUES ('google_assetgroup_review', NULL, 1, ...);
 ✅ Insights Google sincronizam com métricas próprias (cost, conversions, ROAS)
 ✅ Benchmarks Google diferenciados por rede em system_benchmarks
 ✅ UI educa sobre a natureza automatizada (expectativa de controle correta)
+```
+
+---
+
+## FASE 18 — Inteligência Multi-Segmento
+
+**Status: ✅ CONCLUÍDA (2026-06-11) — sub-fases 18.1–18.5**
+
+### 18.1. Objetivo
+
+Tornar toda a maquinaria de inteligência (Radar, Insights, Briefing, Wizard, Ângulos) 100%
+dirigida por segmento, sem hardcode de ângulos, termos de busca ou interesses por nicho.
+
+### 18.2. Sub-fases Concluídas
+
+```
+FASE 18.1 — Radar de Demanda (Google Trends × Ângulos) ✅
+  • Tabelas: exogenous_signals, demand_radar_cache, angle_search_terms
+  • exogenousTrendsService + demandRadarService (fusão endógeno × exógeno)
+  • Cron: POST /api/cron/campanhas/exogenous-signals (diário, x-cron-secret)
+  • UI: DemandRadar (RadarChart violeta + linha ciana tracejada + quadrantes)
+
+FASE 18.2 — Dashboard Multi-Segmento ✅
+  • No modo agregado (vários clientes), cada bloco isola por segmento
+  • Radar, Insights IA e Briefing: um bloco por segmento
+  • Tracking Health: um widget por cliente
+  • ClientSelector default inteligente: 'own' só no segmento próprio do tenant
+  • SegmentDashboard com funil por estágio
+  • Fix CPL fan-out JOIN em segmentIntelligenceService.ts
+
+FASE 18.3 — Cadastro Dinâmico de Ângulos por IA ✅
+  • Prompt: segment_angles_suggestion (global, system_prompt_templates)
+  • segmentAngleSuggestionService + rotas master/segments/[id]/angles
+  • SegmentAnglesModal no master: LLM propõe ângulos + termos PT-BR → admin revisa → salva
+  • Resultado: segmento novo fica 100% dinâmico sem tocar código
+
+FASE 18.4 — Sugerir Interesses Meta por IA (híbrido) ✅
+  • Padrão: LLM propõe NOMES → sistema resolve IDs reais via Meta Targeting API
+  • Prompt: segment_interests_suggestion
+  • metaInterestService + segmentInterestSuggestionService
+  • Modal Interesses: botão "Sugerir com IA" + "Ajuda" (guia multi-segmento)
+
+FASE 18.5 — Cache de Interesses Meta ✅
+  • meta_interest_cache (TTL 30d por termo; IDs globais e estáveis)
+  • searchMetaInterestsCached: hit fresco não chama Meta; erro → serve stale
+  • Elimina rate-limit OAuthException code 1 em rajadas
+```
+
+### 18.3. Migrations (locais, pendentes VPS)
+
+```
+migration-2026-06-11-segment-driven.sql
+migration-2026-06-11-briefing-segment.sql
+migration-2026-06-11-segment-angles-prompt.sql
+migration-2026-06-11-segment-interests-prompt.sql
+migration-2026-06-11-meta-interest-cache.sql
+```
+
+---
+
+## FASE 19 — Creative AI Loop — Geração de Imagens por IA
+
+**Status: 🔄 PARCIALMENTE CONCLUÍDA (19.1–19.2 em 2026-06-22; 19.3–19.5 pendentes)**
+
+### 19.1. Objetivo
+
+Fechar o loop criativo com geração de imagens fictícias por IA onde o segmento de negócio
+permite (saúde, educação, serviços — NÃO imóveis, NÃO carros). A IA sugere conceitos com
+base na análise de saturação de hooks, o usuário escolhe, e o sistema gera a imagem.
+
+### 19.2. Sub-fase 19.1 — Geração de Imagens com Modal Inteligente ✅ (2026-06-22)
+
+```
+FLUXO DO USUÁRIO:
+  1. Página /admin/campanhas/criativos → botão "Gerar com IA" (oculto se imagens_por_ia=false)
+  2. Modal abre → sistema analisa saturação de hooks automaticamente
+     (GET /api/admin/campanhas/criativos/hook-saturation)
+  3. Hook menos usado → POST /api/admin/campanhas/criativos/concepts → 3 conceitos PT
+  4. Usuário escolhe o conceito (cards: ★ Recomendado + Opção 2 + Opção 3)
+  5. Escolhe formato (Feed 1:1 / Story 9:16 / Banner 4:5)
+  6. Sistema converte cena PT → prompt EN via LLM (buildImagePromptFromConcept)
+  7. Gera imagem via Flux Schnell (HuggingFace free) / Replicate / OpenAI DALL-E 3
+  8. Resultado aparece no modal → aprovação → vai para galeria com badge AI
+
+ARQUIVOS IMPLEMENTADOS:
+  src/lib/marketing/services/aiImageGenerationService.ts
+    • getGlobalLlmConfig() — lê Settings global (tenant_id IS NULL)
+    • buildImagePromptFromConcept(scene, hookType, angle, segment) — PT→EN via LLM
+    • generateViaHuggingFace/Replicate/OpenAI — providers com fallback em cascata
+    • generateHookImage(prompt, format) — dispatcher principal
+
+  src/app/api/admin/campanhas/criativos/generate/ai/route.ts
+    • Aceita {scene, hookType, angle, format, clientId} (via concept) OU {prompt, format}
+    • resolveSegment → buildImagePromptFromConcept → generateHookImage
+    • Persiste CreativeAsset com ai_generated=true
+    • Fire-and-forget analyzeCreativeAsset
+
+  src/app/admin/campanhas/criativos/page.tsx (GenerateAIModal)
+    • 6 estados: analyzing → concepts → format → generating → done → error
+    • 3 cards de conceito diferenciados (★ Recomendado + estilo visual + texto completo)
+    • Integrado com hookSaturationService para sugestão automática de hook
+```
+
+### 19.3. Sub-fase 19.2 — Flag `imagens_por_ia` por Segmento ✅ (2026-06-22)
+
+```
+PROBLEMA RESOLVIDO:
+  Segmentos imobiliários/carros NUNCA devem exibir imagens fictícias sem ser
+  a imagem real do objeto. O botão "Gerar com IA" fica oculto nesses segmentos.
+
+IMPLEMENTAÇÃO:
+  • public.system_segments.imagens_por_ia BOOLEAN NOT NULL DEFAULT false
+  • Seguro por padrão: todos os segmentos começam com false
+  • Admin Master ativa per-segmento via toggle na UI de segmentos
+  • GET /api/admin/campanhas/segment-config retorna imagens_por_ia do segmento ativo
+  • Botão "Gerar com IA" só aparece quando allowAiImages === true
+
+ARQUIVOS:
+  prisma/migration-2026-06-22-imagens-por-ia.sql
+  src/lib/intelligence/segmentResolver.ts (Segment interface + campo)
+  src/app/api/admin/master/segments/route.ts (POST+PUT com imagens_por_ia)
+  src/app/admin/master/segments/page.tsx (toggle + coluna "IA Imagens")
+  src/app/api/admin/campanhas/segment-config/route.ts (novo endpoint)
+  src/app/admin/campanhas/criativos/page.tsx (allowAiImages state + useEffect)
+```
+
+### 19.4. Sub-fase 19.3 — Smart Library Selection ⏳ PENDENTE
+
+```
+OBJETIVO: a IA seleciona qual criativo existente na biblioteca deve ser
+substituído numa campanha com base em performance (CTR baixo, hook fraco, fadiga).
+
+QUANDO USAR: após a imagem ser gerada (19.1), o sistema sugere:
+  "Este criativo substituiria X (FATIGUED, freq=4.2×) na campanha Y"
+
+IMPLEMENTAÇÃO PLANEJADA:
+  • Serviço: smartLibrarySelector.ts
+    - Busca criativos de campanhas FATIGUED/ALERT no tenant
+    - Calcula "fadiga score": freq / freq_max + (1 - hookRate/hook_rate_min)
+    - Ordena: mais fatigados primeiro
+    - Retorna: { campaignId, adSetId, currentCreativeId, fatigueScore, reason }
+
+  • API: GET /api/admin/campanhas/criativos/replacement-candidates
+    - Param: ?assetId=X (o novo criativo gerado)
+    - Retorna lista rankeada de candidatos a substituição
+
+  • UI: após step "done" do GenerateAIModal
+    - "Onde usar este criativo?" → lista de candidatos
+    - Card com: nome campanha, motivo (freq alta / hook baixo / CTR ruim), score
+    - Botão "Preparar substituição" → vai para 19.4
+
+CRITÉRIOS DE ACEITE:
+  ✅ Candidatos ordenados por fadiga score (maior = mais urgente substituir)
+  ✅ Apenas campanhas ACTIVE/FATIGUED do tenant, no segmento do criativo
+  ✅ Retorna vazio se não há candidatos (sem erro)
+```
+
+### 19.5. Sub-fase 19.4 — Substituição de Criativo via Meta API ⏳ PENDENTE
+
+```
+OBJETIVO: executar a troca do ad criativo diretamente na Meta API,
+sem sair da plataforma. Requer aprovação humana (ação ofensiva).
+
+IMPLEMENTAÇÃO PLANEJADA:
+  • Endpoint: POST /api/admin/campanhas/criativos/swap-creative
+    Body: { newAssetId, campaignId, adSetId, oldAdId }
+    - Faz upload do novo asset para Meta (POST /{ad-account}/adimages)
+    - Cria novo Ad com o criativo novo (POST /{ad-account}/ads)
+    - Pausa o Ad antigo (POST /{adId} status=PAUSED)
+    - Registra swap em nova tabela creative_swaps (swap_date, old_ad_id, new_asset_id, campaign_id, reason)
+
+  • Tabela: campanhasmarketingdigital."CreativeSwap"
+    id, tenant_id, campaign_id, ad_set_id, old_ad_id TEXT,
+    new_asset_id UUID, new_ad_id TEXT,
+    swapped_at TIMESTAMP, swapped_by VARCHAR(20) -- 'MANUAL'|'AGENT'
+    reason TEXT, status VARCHAR(20) -- 'PENDING'|'EXECUTED'|'FAILED'|'REVERTED'
+
+  • UI: modal de confirmação antes do swap
+    "Você está prestes a substituir o ad X pela imagem gerada Y.
+    O ad antigo será pausado (não excluído). Confirmar?"
+    [Confirmar] [Cancelar]
+
+  • Integração com agente (futura):
+    O agente pode sugerir swaps (ação REFRESH_CREATIVE) e o usuário
+    aprova pela UI de aprovação (FASE 21).
+
+CRITÉRIOS DE ACEITE:
+  ✅ Upload de imagem no Meta retorna image_hash
+  ✅ Novo Ad criado com status ACTIVE; Ad antigo PAUSED (não excluído)
+  ✅ Swap registrado em creative_swaps com all fields
+  ✅ Rollback disponível (re-ativa ad antigo, pausa ad novo)
+  ✅ Confirmação dupla na UI antes de executar
+```
+
+### 19.6. Sub-fase 19.5 — Tracking de Performance dos Criativos Gerados ⏳ PENDENTE
+
+```
+OBJETIVO: comparar métricas do criativo AI com o criativo anterior,
+fechando o loop de feedback da inteligência criativa.
+
+IMPLEMENTAÇÃO PLANEJADA:
+  • Campo: CreativeAsset.ai_generated BOOLEAN (já existe) + ai_swap_date TIMESTAMP
+  • Serviço: aiCreativePerformanceTracker.ts
+    - Para cada CreativeAsset com ai_generated=true que foi usado num Ad:
+      busca Insights dos últimos 7 dias do Ad novo vs 7 dias pré-swap do Ad antigo
+    - Calcula delta: CTR, CPL, hookRate, frequency
+    - Classifica: 'winning' | 'underperforming' | 'neutral'
+
+  • API: GET /api/admin/campanhas/criativos/ai-performance
+    Retorna lista de criativos AI com: asset_id, swapped_at,
+    metrics_before (7d), metrics_after (7d), delta, classification
+
+  • UI: painel "Resultados dos Criativos IA" na página /criativos
+    - Cards: foto do criativo, campanha, delta CTR/CPL (↑ verde, ↓ vermelho)
+    - Badge "🏆 Vencedor" quando CTR > +15% ou CPL < -15%
+    - Feed de evidências para o agente (FASE 8.5)
+
+CRITÉRIOS DE ACEITE:
+  ✅ Apenas criativos AI com ≥7 dias pós-swap aparecem (maturidade mínima)
+  ✅ Comparação justa: mesmo período de dias antes vs depois
+  ✅ Delta calculado em % e R$ (CPL)
+  ✅ Sem dados suficientes → badge "Aguardando dados (X dias)"
+```
+
+---
+
+## FASE 20 — Editor de Prompts (UI Master)
+
+**Duração estimada: ~3–4 dias | Pré-requisito: FASE 0 | Prioridade: 1 (maior gap operacional)**
+
+### 20.1. Objetivo
+
+Criar interface visual para o Master ler, editar, versionar e testar TODOS os
+prompt templates armazenados em `public.system_prompt_templates`. Hoje, qualquer
+alteração de prompt exige acesso ao banco via SQL — o que vai diretamente contra
+o princípio "ZERO HARDCODE".
+
+### 20.2. Diagnóstico do Estado Atual
+
+```
+TABELA: public.system_prompt_templates
+  Colunas: id, code, segment_id (NULL = global), version, content, variables JSONB,
+           response_schema JSONB, notes, is_active, created_at, updated_at
+
+HOJE:
+  • 13+ templates ativos (briefing_morning, agent_enrich, funnel_diagnosis,
+    audit_report_monthly, angle_performance_insight, classify_campaign_angle,
+    cross_critical_actions, demand_radar_actions, segment_angles_suggestion,
+    segment_interests_suggestion, google_assetgroup_review, etc.)
+  • Nenhuma UI para ver ou editar — só SQL
+  • Versionamento existe (campo version) mas não é usado na UI
+  • Editar um prompt errado em produção exige DBeaver ou psql na VPS
+
+IMPACTO DO GAP:
+  • O Master não consegue ajustar o tom/persona dos briefings sem dev
+  • Não é possível testar um prompt novo sem deployar
+  • Histórico de versões não é consultável
+```
+
+### 20.3. Arquitetura da Solução
+
+```
+ROTA: /admin/master/prompts
+  • Lista todos os templates (agrupados por segmento: Global / Imobiliária / Saúde / ...)
+  • Filtros: por segmento, por código, por status (ativo/inativo)
+  • Botão "Novo Prompt" (criar template customizado)
+
+MODAL DE EDIÇÃO (4 abas):
+  1. Editor
+     - Campo: code (read-only na edição, editável na criação)
+     - Campo: segment_id (dropdown de segmentos; NULL = global)
+     - Campo: notes (descrição do que o prompt faz)
+     - Textarea: content (com syntax highlighting de {{variáveis}})
+     - Campo JSON: variables (lista de variáveis esperadas)
+     - Campo JSON: response_schema (schema do retorno esperado)
+     - Toggle: is_active
+
+  2. Preview de Variáveis
+     - Renderiza o template com valores de exemplo para cada variável
+     - Destaca em amarelo onde cada variável é injetada
+
+  3. Testar com LLM
+     - Formulário: preencher cada variável com valor real
+     - Botão "Executar" → chama endpoint de teste
+     - Resultado: resposta completa do LLM + tokens usados + latência
+     - Valida contra response_schema (mostra erros de schema se houver)
+
+  4. Histórico de Versões
+     - Lista de versões anteriores (version, created_at, notes)
+     - Botão "Restaurar versão X" (cria nova versão com conteúdo antigo)
+     - Diff visual entre versão atual e versão selecionada
+```
+
+### 20.4. Mudanças no Banco
+
+```sql
+-- Tabela de histórico de versões (nova)
+CREATE TABLE IF NOT EXISTS public.system_prompt_versions (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id  UUID NOT NULL REFERENCES public.system_prompt_templates(id),
+  version      INTEGER NOT NULL,
+  content      TEXT NOT NULL,
+  variables    JSONB,
+  changed_by   TEXT,            -- email/id do admin Master
+  change_note  TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_template
+  ON public.system_prompt_versions (template_id, version DESC);
+
+-- Trigger: ao salvar um template, versionar automaticamente
+-- (alternativa: fazer no service sem trigger)
+```
+
+### 20.5. Novos Endpoints
+
+```
+GET    /api/admin/master/prompts              → lista todos os templates
+GET    /api/admin/master/prompts/[code]       → detalhe + histórico de versões
+PUT    /api/admin/master/prompts/[code]       → salva nova versão
+POST   /api/admin/master/prompts              → cria novo template
+DELETE /api/admin/master/prompts/[code]       → desativa (soft delete, is_active=false)
+POST   /api/admin/master/prompts/[code]/test  → executa prompt com variáveis fornecidas
+POST   /api/admin/master/prompts/[code]/restore/[version] → restaura versão anterior
+```
+
+### 20.6. Critérios de Aceite — FASE 20
+
+```
+✅ Todos os 13+ templates visíveis na UI sem nenhum SQL
+✅ Editar um template cria nova versão (versão anterior acessível)
+✅ Testar um prompt chama o LLM real e mostra resposta + latência + tokens
+✅ Restaurar versão anterior funciona (cria versão nova com conteúdo antigo)
+✅ Template com is_active=false não é chamado pelo sistema (fallback rule-based)
+✅ Sidebar: item "Prompts" em /admin/master (categoria Master, permissão master-only)
+✅ UI protegida: apenas is_system_role=true tem acesso
+✅ Diff visual entre versões (pelo menos texto colorido linha-a-linha)
+```
+
+---
+
+## FASE 21 — UI de Aprovação de Ações do Agente
+
+**Duração estimada: ~2–3 dias | Pré-requisito: FASE 15 | Prioridade: 2**
+
+### 21.1. Objetivo
+
+As ações ofensivas do agente (SCALE, REFRESH_CREATIVE, ADJUST_AUDIENCE, REALLOCATE_BUDGET)
+ficam em `status: PENDING_APPROVAL` indefinidamente porque não há UI para aprovação.
+O agente notifica via WhatsApp/Slack, mas o operador não tem onde clicar "Aprovar".
+
+### 21.2. Diagnóstico do Estado Atual
+
+```
+HOJE:
+  • agentDecisor.ts cria AgentAction com status='PENDING_APPROVAL' para ações ofensivas
+  • notifyApprovalRequired() envia mensagem no WhatsApp/Slack com texto, mas SEM link de ação
+  • executeAction() executa SCALE quando status='APPROVED', mas nada altera o status
+  • Resultado: SCALE, REFRESH_CREATIVE, etc. nunca são executados automaticamente
+
+O QUE EXISTE:
+  • Tabela AgentAction com campos: id, campaignId, type, status, title, description, confidence
+  • executeAction() em agentDecisor.ts (executa SCALE se chamado com action aprovada)
+  • Endpoint GET /api/admin/campanhas/agents/actions (lista ações)
+
+O QUE FALTA:
+  • UI para listar ações PENDING_APPROVAL
+  • Endpoint POST /api/admin/campanhas/agents/actions/[id]/approve
+  • Endpoint POST /api/admin/campanhas/agents/actions/[id]/reject
+  • Link de aprovação na notificação WhatsApp/Slack
+  • Badge de ações pendentes no menu (notificação visual)
+```
+
+### 21.3. Mudanças Planejadas
+
+```
+NOVOS ENDPOINTS:
+  POST /api/admin/campanhas/agents/actions/[id]/approve
+    → seta status='APPROVED', chama executeAction(action, tenantId)
+    → retorna { executed: true, newBudget?, newStatus? }
+
+  POST /api/admin/campanhas/agents/actions/[id]/reject
+    → seta status='REJECTED', salva reason do corpo
+    → retorna { rejected: true }
+
+  GET /api/admin/campanhas/agents/actions?status=PENDING_APPROVAL
+    → filtro por status (já existe o endpoint geral)
+
+NOTIFICAÇÃO ATUALIZADA (agentNotificador.ts):
+  • Mensagem WhatsApp/Slack ganha deep link:
+    "Aprovar: https://{dominio}/admin/campanhas/agente?action={id}"
+  • Página /agente abre diretamente no card da ação pendente
+
+UI — /admin/campanhas/agente (já existe, expandir):
+  • Aba "Aguardando Aprovação" com cards das ações PENDING_APPROVAL
+  • Card inclui: tipo de ação, campanha, descrição enriquecida, confidence
+  • Para SCALE: mostra budget atual → budget proposto (+30%)
+  • Para REFRESH_CREATIVE: mostra a imagem do criativo + motivo (fadiga score)
+  • Para ADJUST_AUDIENCE: mostra segmentação atual + sugestão
+  • Botões: [✅ Aprovar e Executar] [❌ Rejeitar] [👁 Ver campanha]
+  • Após aprovação: feedback imediato (spinner → "Executado: budget aumentado para R$X")
+
+BADGE NO MENU (sidebar):
+  • Item "Agente IA" no sidebar ganha badge vermelho com contagem de pendências
+  • useEffect com polling 60s OU push notification via SSE
+```
+
+### 21.4. Critérios de Aceite — FASE 21
+
+```
+✅ SCALE pendente: operador clica Aprovar → budget aumentado +30% no Meta API + DB
+✅ REFRESH_CREATIVE pendente: operador clica Aprovar → cria AgentAction 'EXECUTED' + notifica
+✅ Rejeitar salva reason e status='REJECTED' (sem executar nada)
+✅ Notificação WhatsApp inclui link direto para a ação pendente
+✅ Badge no sidebar mostra contagem de pendências (atualiza sem refresh)
+✅ Ações executadas desaparecem da aba "Aguardando" automaticamente
+✅ Ação expirada (> 48h) marcada como 'EXPIRED' automaticamente (cron)
+```
+
+---
+
+## FASE 22 — Catálogo de Modelos LLM com UI
+
+**Duração estimada: ~1–2 dias | Pré-requisito: FASE 0, seção 1.9 | Prioridade: 4**
+
+### 22.1. Objetivo
+
+O Master não consegue adicionar novos providers ou modelos LLM sem SQL.
+A tabela `campanhasmarketingdigital."LlmModel"` é gerenciada apenas por seeds/scripts.
+Esta fase cria a UI CRUD na página `/admin/master/ia-plataforma`.
+
+### 22.2. Diagnóstico do Estado Atual
+
+```
+TABELA: campanhasmarketingdigital."LlmModel"
+  Colunas: id, provider (anthropic/openai/google), model_id, model_label,
+           is_active, is_free, quality_score (1-10), context_window,
+           cost_per_1k_input_tokens, cost_per_1k_output_tokens, notes
+
+HOJE:
+  • Seeded via SQL (anthropic: claude-3-5-sonnet, claude-3-haiku; openai: gpt-4o-mini)
+  • Master pode escolher modelo na aba "Configuração Ativa" da UI
+  • Mas NÃO pode adicionar novo provider (ex.: Gemini, Mistral) sem SQL
+
+PÁGINA ATUAL: /admin/master/ia-plataforma
+  • Aba única "Configuração Ativa": dropdown de modelo, chave API, teste
+  • Sem listagem do catálogo, sem CRUD
+```
+
+### 22.3. Solução
+
+```
+NOVA ABA "Catálogo de Modelos" em /admin/master/ia-plataforma:
+
+  Tabela de modelos:
+  | Provider | Modelo | Label | Qualidade | Custo/1k | Ativo | Grátis | Ações |
+  |----------|--------|-------|-----------|----------|-------|--------|-------|
+  | anthropic| claude-3-5-sonnet | Claude 3.5 | 9/10 | $0.003 | ✅ | ❌ | ✏️ 🗑️ |
+  | openai   | gpt-4o-mini | GPT-4o Mini | 7/10 | $0.00015 | ✅ | ❌ | ✏️ 🗑️ |
+
+  Botão "+ Adicionar Modelo":
+    Modal com campos: provider (select), model_id (text), model_label (text),
+    quality_score (1-10), cost_per_1k_input, cost_per_1k_output,
+    context_window, is_free (toggle), is_active (toggle), notes
+
+  Editar modelo existente: mesmos campos, preserva id.
+  Desativar: soft delete (is_active=false), não aparece no dropdown.
+
+NOVOS ENDPOINTS:
+  GET    /api/admin/master/llm-models          → lista todos
+  POST   /api/admin/master/llm-models          → cria novo
+  PUT    /api/admin/master/llm-models/[id]     → edita
+  PATCH  /api/admin/master/llm-models/[id]     → toggle is_active
+  DELETE /api/admin/master/llm-models/[id]     → soft delete (is_active=false)
+```
+
+### 22.4. Critérios de Aceite — FASE 22
+
+```
+✅ Lista todos os modelos do catálogo sem SQL
+✅ Criar novo modelo persiste em LlmModel e aparece no dropdown "Configuração Ativa"
+✅ Editar atualiza label/custo/qualidade sem afetar a linha global de Settings
+✅ Desativar remove do dropdown (mas não exclui do banco)
+✅ Apenas is_system_role=true tem acesso ao CRUD
+✅ quality_score e is_free informam o dropdown (badge "Grátis" / stars)
 ```
 
 ---
@@ -3933,31 +4425,44 @@ docs/
 
 ---
 
-## Apêndice B — Próximos Passos Imediatos
+## Apêndice B — Próximos Passos (atualizado 2026-06-22)
 
 ```
-PASSO 1: Validação deste plano com você
-  → Você lê o plano completo
-  → Sinaliza ajustes necessários
-  → Aprova a sequência das fases
+PRIORIDADE 1 — FASE 20: Editor de Prompts UI
+  → Maior gap operacional: 13+ prompts em produção sem UI de edição
+  → Migration: system_prompt_versions (tabela de histórico)
+  → Endpoints CRUD /api/admin/master/prompts/*
+  → UI /admin/master/prompts com 4 abas (Editor / Preview / Testar / Histórico)
+  → Estimativa: ~3-4 dias
 
-PASSO 2: Início da FASE 0
-  → SQL: criar arquivo prisma/migration-2026-XX-fundacao.sql
-  → Code: criar /src/lib/intelligence/
-  → Refatorar 3 pontos LLM (briefing, agent, test)
-  → UIs Master: 7 abas de segmento
-  → UIs Tenant: benchmarks por cliente
+PRIORIDADE 2 — FASE 21: UI de Aprovação do Agente
+  → Ações SCALE/REFRESH_CREATIVE nunca são executadas sem esta UI
+  → Endpoints: /approve e /reject por AgentAction
+  → UI: aba "Aguardando Aprovação" em /admin/campanhas/agente
+  → Notificação WhatsApp com deep link
+  → Estimativa: ~2-3 dias
 
-PASSO 3: Validação em ambiente real
-  → Executar SQL em DEV
-  → Testar resolução em paralelo (antigo vs novo)
-  → Migrar 1 segmento (Imobiliário)
-  → Validar com tenant real
+PRIORIDADE 3 — FASE 19.3-5: Completar Creative AI Loop
+  → Smart Library Selection (qual criativo substituir)
+  → Swap via Meta API
+  → Tracking de performance dos criativos AI
+  → Estimativa: ~4-5 dias (3 sub-fases)
 
-PASSO 4: FASE 1 (multi-network)
-  → Apenas depois que FASE 0 estiver 100% estável
+PRIORIDADE 4 — FASE 22: Catálogo de Modelos LLM
+  → Nova aba em /admin/master/ia-plataforma
+  → CRUD para tabela LlmModel
+  → Estimativa: ~1-2 dias
 
-... e assim sucessivamente.
+PRIORIDADE 5 — FASE 17 (Google Ads)
+  → Paradigma asset-based; wizard separado do Meta
+  → GoogleCampaignInput + GoogleAdsAdapter
+  → OAuth2/customer_id por tenant
+  → Estimativa: ~2-3 semanas (fase complexa)
+
+PENDÊNCIAS OPERACIONAIS (fazer a qualquer momento):
+  → VPS batch: aplicar todas as migrations locais (2026-06-03 a 2026-06-22)
+  → Fix CPL formatting: /portfolio/cross-insights L280/296 + CplTimelineChart
+  → Testar imagens_por_ia: ativar toggle em segmento "Saúde Digital" → verificar botão
 ```
 
 ---
@@ -4001,3 +4506,16 @@ PASSO 4: FASE 1 (multi-network)
  tenant, bloqueio sem meta de conversão). Todos os prompts novos em system_prompt_templates
  (ZERO HARDCODE) com fallback rule-based. Apenas planejamento — nenhuma alteração em código
  ou banco foi feita nesta revisão do plano.*
+
+*Versão 1.5 (2026-06-22) — Grande revisão de estado: FASES 0–16 + 13–16 + 18.1–18.5 marcadas
+ como CONCLUÍDAS com datas reais. Seção 3 reescrita de "Mapa das 11 Fases" para "Estado Atual
+ do Projeto" com tabela de status de todas as 22 fases (✅/🔄/⏳) e prioridades. Adicionadas
+ FASE 18 (Inteligência Multi-Segmento: Radar de Demanda, Dashboard Multi-Segmento, Ângulos
+ Dinâmicos, Interesses Meta, Cache — todas concluídas em 2026-06-11), FASE 19 (Creative AI
+ Loop: geração Flux Schnell + modal inteligente + flag imagens_por_ia concluídas em 2026-06-22;
+ Smart Selection, Meta Swap, Performance Tracking pendentes), FASE 20 (Editor de Prompts UI —
+ maior gap operacional, 13+ templates sem UI de edição), FASE 21 (UI de Aprovação de Ações do
+ Agente — fecha loop FASE 15: SCALE/REFRESH_CREATIVE nunca executadas sem esta UI), FASE 22
+ (Catálogo de Modelos LLM com UI CRUD — complementa seção 1.9). Sumário atualizado com todos
+ os itens. FASE 15 header atualizado refletindo o que está concluído vs pendente. Apêndice B
+ reescrito com prioridades concretas de implementação.*

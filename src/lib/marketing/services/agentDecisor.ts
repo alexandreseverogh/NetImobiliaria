@@ -53,18 +53,28 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
     const campaign = await prisma.campaign.findUnique({ where: { id: insight.campaignId } });
     const resolvedTenantId = tenantId ?? campaign?.tenantId ?? null;
 
+    const isOffensive = OFFENSIVE_TYPES.includes(insight.type);
+    const pin = isOffensive
+      ? Math.floor(100000 + Math.random() * 900000).toString()
+      : null;
+    const pinExp = isOffensive
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000)
+      : null;
+
     const action = await prisma.agentAction.create({
       data: {
-        campaignId:   insight.campaignId,
-        campaignName: insight.campaignName,
-        tenantId:     resolvedTenantId,
-        type:         insight.type,
-        title:        insight.title,
-        description:  enriched.description || insight.description,
-        confidence:   insight.confidence,
+        campaignId:     insight.campaignId,
+        campaignName:   insight.campaignName,
+        tenantId:       resolvedTenantId,
+        type:           insight.type,
+        title:          insight.title,
+        description:    enriched.description || insight.description,
+        confidence:     insight.confidence,
+        approvalPin:    pin,
+        approvalPinExp: pinExp,
         status: DEFENSIVE_TYPES.includes(insight.type)
           ? 'PENDING_EXECUTION'
-          : OFFENSIVE_TYPES.includes(insight.type)
+          : isOffensive
           ? 'PENDING_APPROVAL'
           : 'NOTIFIED',
       },
@@ -74,8 +84,8 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
 
     if (DEFENSIVE_TYPES.includes(insight.type)) {
       await executeAction(action, resolvedTenantId);
-    } else if (OFFENSIVE_TYPES.includes(insight.type)) {
-      await notifyApprovalRequired(action);
+    } else if (isOffensive) {
+      await notifyApprovalRequired({ ...action, approvalPin: pin });
     } else {
       await notifyAlert(action);
       await prisma.agentAction.update({

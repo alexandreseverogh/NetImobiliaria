@@ -6,8 +6,108 @@
  */
 
 import { useState, useEffect } from 'react';
-import { XMarkIcon, SparklesIcon, CheckCircleIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, SparklesIcon, CheckCircleIcon, PlusIcon, TrashIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
+
+/* ── Painel de ajuda ─────────────────────────────────────────────────── */
+function AnglesHelpPanel() {
+  return (
+    <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-4 space-y-4 text-sm text-gray-700">
+      <div>
+        <p className="font-black text-gray-900 mb-1">Para que serve esta tela</p>
+        <p className="text-xs text-gray-600">
+          Define os <span className="font-semibold">ÂNGULOS da mensagem publicitária</span> — o "por quê" que leva
+          o prospect a agir. O que você salvar aqui vira <span className="font-semibold">opção de 1 clique</span> no
+          wizard de campanha de todos os tenants deste segmento, e alimenta o{' '}
+          <span className="font-semibold">Radar de Demanda</span> via Google Trends.
+        </p>
+      </div>
+
+      <div>
+        <p className="font-black text-gray-900 mb-1">O que é um ângulo</p>
+        <p className="text-xs text-gray-600 mb-2">
+          É a razão emocional ou racional pela qual o público-alvo age. O mesmo produto pode ser
+          anunciado por ângulos diferentes — e o ângulo certo dobra a taxa de conversão sem mudar
+          o investimento.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="text-left text-gray-400">
+                <th className="py-1 pr-3 font-bold">Segmento</th>
+                <th className="py-1 pr-3 font-bold">Exemplos de ângulos</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-600">
+              <tr className="border-t border-violet-100">
+                <td className="py-1 pr-3 font-semibold">Imobiliário</td>
+                <td className="py-1">Preço Acessível · Localização Premium · Investimento · Primeira Casa</td>
+              </tr>
+              <tr className="border-t border-violet-100">
+                <td className="py-1 pr-3 font-semibold">Saúde</td>
+                <td className="py-1">Praticidade · Custo-benefício · Cobertura Ampla · Família</td>
+              </tr>
+              <tr className="border-t border-violet-100">
+                <td className="py-1 pr-3 font-semibold">Veículos</td>
+                <td className="py-1">Economia · Status · Segurança · Zero km · Financiamento</td>
+              </tr>
+              <tr className="border-t border-violet-100">
+                <td className="py-1 pr-3 font-semibold">Educação</td>
+                <td className="py-1">Empregabilidade · Renda Extra · Flexibilidade · Aprovação</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <p className="font-black text-gray-900 mb-1">Termos de Trends — o que são e como usá-los</p>
+        <p className="text-xs text-gray-600 mb-1.5">
+          Cada ângulo tem <span className="font-semibold">1 a 4 termos</span> que representam como as pessoas
+          realmente buscam no Google quando estão naquele estado mental. A plataforma consulta o Google Trends
+          com esses termos para medir se o ângulo está <span className="font-semibold text-violet-700">aquecendo ou esfriando</span>.
+        </p>
+        <ul className="text-xs text-gray-600 space-y-0.5">
+          <li>✅ Bom: específico e com intenção clara — <span className="font-mono bg-white rounded px-1">"financiamento imobiliário"</span></li>
+          <li>❌ Evitar: genérico demais — <span className="font-mono bg-white rounded px-1">"imóvel"</span> — todo mundo busca, não diferencia intenção</li>
+          <li>💡 Use variações reais de como o público fala, não jargão técnico</li>
+        </ul>
+      </div>
+
+      <div>
+        <p className="font-black text-gray-900 mb-1">Onde esses dados se propagam</p>
+        <ul className="text-xs text-gray-600 space-y-1">
+          <li>
+            <span className="font-semibold text-violet-700">Wizard de campanha</span> — o gerente escolhe
+            o ângulo principal antes de criar; a IA gera copy alinhada ao ângulo selecionado.
+          </li>
+          <li>
+            <span className="font-semibold text-violet-700">Radar de Demanda</span> — mostra qual ângulo
+            está em alta no Google Trends → sugere alocar mais budget ali e pausar os que estão caindo.
+          </li>
+          <li>
+            <span className="font-semibold text-violet-700">Agente Autônomo</span> — ao sugerir
+            REFRESH_CREATIVE ou SCALE, menciona explicitamente o ângulo vencedor e o perdedor para embasar a recomendação.
+          </li>
+          <li>
+            <span className="font-semibold text-violet-700">Insights de criativos</span> — performance
+            por ângulo (qual gerou menor CPL) para orientar próximas criações.
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <p className="font-black text-gray-900 mb-1">Boas práticas</p>
+        <ul className="text-xs text-gray-600 space-y-0.5">
+          <li>📐 <span className="font-semibold">3 a 6 ângulos</span> por segmento — mais dificulta a análise comparativa</li>
+          <li>🔒 <span className="font-semibold">Slug estável</span> — não mude após lançar campanhas; dados históricos ficam atrelados ao slug</li>
+          <li>📈 Ordene do mais <span className="font-semibold">emocional</span> (maior conversão TOFU) para o mais racional</li>
+          <li>🔄 Revise trimestralmente — ângulos que funcionavam podem saturar</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 interface Angle { slug: string; label: string; terms: string[] }
 interface Segment { id: string; name: string; slug: string }
@@ -24,6 +124,7 @@ export function SegmentAnglesModal({ segment, onClose }: Props) {
   const [saving, setSaving]   = useState(false);
   const [saveOk, setSaveOk]   = useState(false);
   const [error, setError]     = useState('');
+  const [showHelp, setShowHelp] = useState(false);
 
   /* ── carregar ângulos atuais ── */
   useEffect(() => {
@@ -104,13 +205,31 @@ export function SegmentAnglesModal({ segment, onClose }: Props) {
               no Google Trends. Use a IA para propor e ajuste como quiser.
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors ml-4 shrink-0">
-            <XMarkIcon className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2 ml-4 shrink-0">
+            <button
+              onClick={() => setShowHelp(v => !v)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all',
+                showHelp
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-violet-50 text-violet-600 hover:bg-violet-100 border border-violet-100',
+              )}
+              title="Como preencher esta tela"
+            >
+              <QuestionMarkCircleIcon className="h-4 w-4" />
+              Ajuda
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
+
+          {showHelp && <AnglesHelpPanel />}
+
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               {angles.length} ângulo(s)
