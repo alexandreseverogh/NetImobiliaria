@@ -18,7 +18,7 @@ function getPayload(req: NextRequest) {
 }
 
 // GET /api/admin/master/aprovacoes
-// Lista AgentActions pendentes (ou filtradas por status/tenant)
+// Lista AgentActions. Tenant admins veem apenas o seu próprio tenant (isolamento via JWT).
 export async function GET(req: NextRequest) {
   const payload = getPayload(req);
   if (!payload?.userId) {
@@ -27,9 +27,13 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const status  = searchParams.get('status') ?? 'PENDING_APPROVAL';
-  const tenantId = searchParams.get('tenantId') ?? null;
   const limit  = Math.min(parseInt(searchParams.get('limit') ?? '50'), 200);
   const offset = parseInt(searchParams.get('offset') ?? '0');
+
+  // Tenant do JWT tem prioridade — garante isolamento para tenant admins.
+  // Masters (sem tenantId no JWT) podem filtrar opcionalmente via query param.
+  const jwtTenantId = payload.tenantId ?? null;
+  const tenantId = jwtTenantId ?? (searchParams.get('tenantId') ?? null);
 
   try {
     const conditions: string[] = [`a.status = $1`];
