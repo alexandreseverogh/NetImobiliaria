@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { AdminUser } from '@/lib/types/admin'
@@ -50,6 +50,31 @@ export default function AdminSidebar({
 
   const isDark = activeTheme.mode === 'dark'
   const sidebarBg = isDark ? 'bg-[#020617] border-r border-white/5' : 'bg-white border-r border-gray-200'
+
+  // Auto-expandir a categoria que contém a rota ativa
+  useEffect(() => {
+    if (!menuItems?.length) return
+    const activeParents: string[] = []
+    const findActive = (items: any[]) => {
+      for (const item of items) {
+        if (item.children?.length) {
+          const childActive = item.children.some(
+            (c: any) => c.path && pathname.startsWith(c.path)
+          )
+          if (childActive) activeParents.push(String(item.id))
+          findActive(item.children)
+        }
+      }
+    }
+    findActive(menuItems)
+    if (activeParents.length) {
+      setExpandedMenus(prev => {
+        const next = [...prev]
+        activeParents.forEach(id => { if (!next.includes(id)) next.push(id) })
+        return next
+      })
+    }
+  }, [menuItems, pathname])
 
   // Verificação de segurança para evitar erros
   if (!user || !user.nome) {
