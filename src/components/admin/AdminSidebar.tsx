@@ -180,7 +180,12 @@ export default function AdminSidebar({
                 className="h-5 w-5 flex-shrink-0"
               />
             </div>
-            <span className="leading-tight">{item.name}</span>
+            <span className="leading-tight flex-1">{item.name}</span>
+            {!!item.badge_count && item.badge_count > 0 && (
+              <span className="ml-2 flex-shrink-0 min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-black leading-none">
+                {item.badge_count > 99 ? '99+' : item.badge_count}
+              </span>
+            )}
           </Link>
 
           {hasChildren && (

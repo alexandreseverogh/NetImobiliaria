@@ -62,9 +62,35 @@ export async function GET(request: NextRequest) {
       }
 
       // Extrair o array JSON da coluna retornada
-      const menuItems = result.rows[0]?.menu || [];
-      
+      let menuItems = result.rows[0]?.menu || [];
+
       console.log(`[MENU_API] Itens retornados: ${Array.isArray(menuItems) ? menuItems.length : 'N/A'}`);
+
+      // Injetar badge_count no item de aprovações do agente
+      try {
+        const countRes = await pool.query(
+          `SELECT COUNT(*) AS cnt
+           FROM campanhasmarketingdigital."AgentAction"
+           WHERE status = 'PENDING_APPROVAL'
+             AND ($1::uuid IS NULL OR tenant_id = $1::uuid)`,
+          [tenantId],
+        );
+        const pending = parseInt(countRes.rows[0]?.cnt ?? '0');
+        if (pending > 0 && Array.isArray(menuItems)) {
+          const inject = (items: any[]): any[] => items.map((item: any) => {
+            if (item.path && (item.path as string).includes('/aprovacoes')) {
+              return { ...item, badge_count: pending };
+            }
+            if (item.children?.length) {
+              return { ...item, children: inject(item.children) };
+            }
+            return item;
+          });
+          menuItems = inject(menuItems);
+        }
+      } catch {
+        // badge_count é opcional — falha silenciosa
+      }
 
       return NextResponse.json({
         success: true,
