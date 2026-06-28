@@ -1963,7 +1963,7 @@ function LandingPageContent() {
         <div className="max-w-[2496px] mx-auto px-4 sm:px-6 lg:px-8">
           {/* Cabeçalho da Seção */}
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl">
+            <h2 className="font-[family-name:var(--font-display-imo)] text-3xl font-bold text-gray-900 sm:text-4xl tracking-tight">
               Fique por Dentro do Mercado
             </h2>
             <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
@@ -2080,7 +2080,7 @@ function LandingPageContent() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <ToastViewport />
       <HeroSection
         venderButton={
@@ -3139,7 +3139,7 @@ function LandingPageContent() {
 export default function LandingPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-dvh bg-white flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     }>

@@ -82,7 +82,7 @@ export default function LandingPropertyCard({ property, onTenhoInteresseClick }:
       <div className="p-3 sm:p-4 flex flex-col flex-grow" style={{ width: '100%', boxSizing: 'border-box' }}>
         {/* Price */}
         <div className="mb-3">
-          <span className="text-2xl font-bold text-primary-600">
+          <span className="text-2xl font-bold text-primary-600 tabular-nums">
             {property.price}
           </span>
         </div>

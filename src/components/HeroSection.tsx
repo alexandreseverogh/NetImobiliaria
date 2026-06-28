@@ -40,7 +40,7 @@ export default function HeroSection({ filterPanel, venderButton, destaquesNacion
       <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12">
         <div className="flex flex-col items-center gap-6 mb-8">
           <div className="flex-1 text-center">
-            <h1 className="text-4xl md:text-5xl font-bold mb-6">
+            <h1 className="font-[family-name:var(--font-display-imo)] text-4xl md:text-6xl font-bold mb-6 tracking-tight leading-[1.05]">
               Anuncie seu imóvel ou encontre oportunidades para comprar ou alugar
             </h1>
             <p className="text-lg md:text-xl text-gray-300">

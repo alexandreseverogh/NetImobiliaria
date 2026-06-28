@@ -299,7 +299,7 @@ function RankedTable({ performers }: { performers: CrossPerformer[] }) {
               {/* CPL em mobile (à direita na grid de 3 colunas) */}
               {p.cpl !== null ? (
                 <div className="sm:hidden text-right">
-                  <p className="text-sm font-bold text-gray-800 tabular-nums">R$ {p.cpl.toFixed(2)}</p>
+                  <p className="text-sm font-bold text-gray-800 tabular-nums">{formatCurrency(p.cpl)}</p>
                   <p className="text-[10px] text-gray-400">por lead</p>
                 </div>
               ) : (
@@ -315,7 +315,7 @@ function RankedTable({ performers }: { performers: CrossPerformer[] }) {
               {p.cpl !== null ? (
                 <div className="hidden sm:flex items-center gap-2">
                   <span className="text-xs font-bold text-gray-800 w-[68px] text-right shrink-0 tabular-nums">
-                    R$ {p.cpl.toFixed(2)}
+                    {formatCurrency(p.cpl)}
                   </span>
                   <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden" title={p.efficiencyIndex !== null ? `${Math.round(p.efficiencyIndex * 100)}% do CPL crítico do segmento` : 'CPL absoluto (sem benchmark crítico)'}>
                     <div

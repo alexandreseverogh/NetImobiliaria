@@ -190,7 +190,10 @@ export default function TenhoInteresseFormModal({
 
 
   return (
-    <div 
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Tenho interesse neste imóvel"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       onClick={(e) => {
         // Não permitir fechar clicando fora quando está em modo de sucesso

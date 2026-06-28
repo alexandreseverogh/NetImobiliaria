@@ -867,7 +867,7 @@ export default function UserSuccessModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+    <div role="dialog" aria-modal="true" aria-label="Área do usuário" className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
       <div
         className={`relative w-full ${userData.userType === 'corretor' || userData.userType === 'proprietario' ? 'max-w-[90%] md:max-w-5xl' : 'max-w-lg'
           } bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 my-auto`}

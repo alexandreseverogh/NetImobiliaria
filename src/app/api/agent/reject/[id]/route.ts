@@ -3,13 +3,29 @@ import { prisma } from '@/lib/marketing/prisma';
 
 export const dynamic = 'force-dynamic';
 
+// Lê a ação via SQL raw — o Prisma client gerado pode estar desatualizado e
+// não retornar approval_pin/approval_pin_exp, quebrando a validação do PIN.
+async function getAction(id: string) {
+  const rows = await prisma.$queryRaw<any[]>`
+    SELECT id, tenant_id AS "tenantId", "campaignId", "campaignName", type, title,
+           description, confidence, status,
+           approval_pin AS "approvalPin", approval_pin_exp AS "approvalPinExp"
+    FROM campanhasmarketingdigital."AgentAction" WHERE id = ${id} LIMIT 1`;
+  return rows[0] ?? null;
+}
+
+async function setStatus(id: string, status: string) {
+  await prisma.$executeRaw`
+    UPDATE campanhasmarketingdigital."AgentAction" SET status = ${status} WHERE id = ${id}`;
+}
+
 // GET /api/agent/reject/[id]
 // Enviado via link no WhatsApp — abre formulário de PIN no browser
 export async function GET(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const action = await prisma.agentAction.findUnique({ where: { id: params.id } });
+  const action = await getAction(params.id);
 
   if (!action) {
     return htmlResponse('❌ Ação não encontrada', 'Esta ação não existe ou já foi removida.', 404);
@@ -50,7 +66,7 @@ export async function POST(
     return htmlResponse('❌ Erro', 'Não foi possível ler o formulário.', 400);
   }
 
-  const action = await prisma.agentAction.findUnique({ where: { id: params.id } });
+  const action = await getAction(params.id);
 
   if (!action) {
     return htmlResponse('❌ Ação não encontrada', 'Esta ação não existe ou já foi removida.', 404);
@@ -63,8 +79,8 @@ export async function POST(
   }
 
   // Verificar expiração
-  if (action.approvalPinExp && new Date() > action.approvalPinExp) {
-    await prisma.agentAction.update({ where: { id: params.id }, data: { status: 'EXPIRED' } });
+  if (action.approvalPinExp && new Date() > new Date(action.approvalPinExp)) {
+    await setStatus(params.id, 'EXPIRED');
     return htmlResponse('⏰ PIN expirado', 'O PIN de confirmação expirou (válido por 24h).', 400);
   }
 
@@ -80,10 +96,7 @@ export async function POST(
   }
 
   // PIN correto — rejeitar
-  await prisma.agentAction.update({
-    where: { id: params.id },
-    data: { status: 'REJECTED' },
-  });
+  await setStatus(params.id, 'REJECTED');
 
   return htmlResponse(
     '🚫 Ação rejeitada',

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp QR Code</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f0f2f5; }
+    .card { background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 20px rgba(0,0,0,.15); text-align: center; max-width: 400px; width: 100%; }
+    h2 { color: #128c7e; margin-bottom: .5rem; }
+    .sub { color: #555; font-size: .88rem; margin-bottom: 1.5rem; line-height: 1.5; }
+    #qr-wrap { position: relative; width: 280px; height: 280px; margin: 0 auto 1rem; }
+    #qr-img { width: 280px; height: 280px; border: 1px solid #eee; border-radius: 8px; display: block; }
+    #overlay { display: none; position: absolute; inset: 0; background: rgba(255,255,255,.88); border-radius: 8px; align-items: center; justify-content: center; font-size: .95rem; color: #555; flex-direction: column; gap: .5rem; }
+    #overlay.show { display: flex; }
+    .spinner { width: 28px; height: 28px; border: 3px solid #ddd; border-top-color: #128c7e; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #timer { font-size: 1rem; font-weight: 700; color: #e74c3c; margin-bottom: .75rem; }
+    #status { font-size: .85rem; color: #777; margin-top: .5rem; }
+    .connected { color: #128c7e !important; font-weight: 700; font-size: 1.1rem !important; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>📱 WhatsApp Gateway</h2>
+    <p class="sub">
+      No celular: <strong>Configurações → Aparelhos conectados → Conectar um aparelho</strong>
+    </p>
+    <div id="qr-wrap">
+      <img id="qr-img" src="" alt="QR Code" />
+      <div id="overlay"><div class="spinner"></div><span>Atualizando QR…</span></div>
+    </div>
+    <div id="timer"></div>
+    <div id="status">Carregando…</div>
+  </div>
+
+  <script>
+    const img     = document.getElementById('qr-img');
+    const overlay = document.getElementById('overlay');
+    const timerEl = document.getElementById('timer');
+    const statusEl= document.getElementById('status');
+    let countdown = 0;
+    let interval  = null;
+
+    async function fetchQR() {
+      overlay.classList.add('show');
+      timerEl.textContent = '';
+      statusEl.textContent = 'Buscando QR…';
+      try {
+        const res = await fetch('/api/wpp-qr');
+        const d   = await res.json();
+
+        if (d.state === 'open' && !d.base64) {
+          timerEl.textContent = '';
+          statusEl.innerHTML = '✅ WhatsApp conectado com sucesso!';
+          statusEl.className = 'connected';
+          img.src = '';
+          overlay.classList.remove('show');
+          clearInterval(interval);
+          return;
+        }
+
+        if (d.base64) {
+          img.src = d.base64;
+          overlay.classList.remove('show');
+          statusEl.textContent = 'Estado: ' + d.state + ' · tentativa ' + (d.count ?? '?');
+          startCountdown(35);
+        } else {
+          statusEl.textContent = 'Estado: ' + d.state + ' — sem QR (erro: ' + (d.error ?? 'desconhecido') + ')';
+          overlay.classList.remove('show');
+          scheduleRefresh(5000);
+        }
+      } catch (e) {
+        statusEl.textContent = 'Erro ao buscar QR: ' + e.message;
+        overlay.classList.remove('show');
+        scheduleRefresh(5000);
+      }
+    }
+
+    function startCountdown(secs) {
+      countdown = secs;
+      clearInterval(interval);
+      interval = setInterval(function() {
+        countdown--;
+        timerEl.textContent = countdown > 0
+          ? '⏳ QR expira em ' + countdown + 's'
+          : '🔄 Renovando QR…';
+        if (countdown <= 0) {
+          clearInterval(interval);
+          fetchQR();
+        }
+      }, 1000);
+    }
+
+    function scheduleRefresh(ms) {
+      setTimeout(fetchQR, ms);
+    }
+
+    fetchQR();
+  </script>
+</body>
+</html>

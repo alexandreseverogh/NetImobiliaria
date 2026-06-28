@@ -184,7 +184,7 @@ export default function GeolocationModal({
   const fullLocation = locationParts.join(', ') || city || 'sua região'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label="Localização" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 animate-in slide-in-from-bottom-4 duration-300">
         {/* Botão Fechar */}
         <button

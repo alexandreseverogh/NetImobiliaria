@@ -265,6 +265,8 @@ export default function Header({ selectedCidade, selectedEstado }: HeaderProps =
             <div className="md:hidden">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
+                aria-label={isMenuOpen ? 'Fechar menu' : 'Abrir menu'}
+                aria-expanded={isMenuOpen}
                 className="text-gray-700 hover:text-primary-600 p-2"
               >
                 {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}

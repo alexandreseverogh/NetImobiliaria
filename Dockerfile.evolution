@@ -1,0 +1,11 @@
+FROM atendai/evolution-api:latest
+
+# Install git so npm can pull from GitHub
+RUN apk add --no-cache git
+
+# Update Baileys to latest from EvolutionAPI fork (fixes WhatsApp noise-handler protocol change)
+WORKDIR /evolution
+RUN npm install github:EvolutionAPI/Baileys --legacy-peer-deps --no-fund --no-audit
+
+# Clean up git (reduce image size)
+RUN apk del git

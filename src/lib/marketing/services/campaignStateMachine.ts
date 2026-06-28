@@ -105,10 +105,10 @@ export async function inferLifecycleStatus(campaignId: string): Promise<void> {
   const campaignRow = await pool.query<{
     lifecycle_status: string;
     status: string;
-    created_at: Date;
+    createdAt: Date;
     tenant_id: string | null;
   }>(
-    `SELECT lifecycle_status, status, created_at, tenant_id
+    `SELECT lifecycle_status, status, "createdAt", tenant_id
        FROM campanhasmarketingdigital."Campaign"
       WHERE id = $1 LIMIT 1`,
     [campaignId],
@@ -116,7 +116,7 @@ export async function inferLifecycleStatus(campaignId: string): Promise<void> {
 
   if (!campaignRow.rows[0]) return;
 
-  const { lifecycle_status, status, created_at } = campaignRow.rows[0];
+  const { lifecycle_status, status, createdAt: created_at } = campaignRow.rows[0];
   const current = lifecycle_status as LifecycleStatus;
 
   // Campanhas KILLED nunca mudam

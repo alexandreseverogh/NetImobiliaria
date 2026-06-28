@@ -314,8 +314,8 @@ export async function POST(request: NextRequest) {
         // --- 🚀 NOVO: ENTRADA NO KANBAN (REGRA: PRIMEIRA COLUNA) ---
         if (leadUuid) {
            await pool.query(
-             'INSERT INTO leads_kanban (lead_uuid, coluna_id) VALUES ($1, (SELECT id FROM kanban_colunas WHERE nome = $2 LIMIT 1)) ON CONFLICT (lead_uuid) DO NOTHING',
-             [leadUuid, 'lead_captado']
+             'INSERT INTO leads_kanban (lead_uuid, coluna_id, tenant_id) VALUES ($1, (SELECT id FROM kanban_colunas WHERE nome = $2 AND tenant_id = $3 LIMIT 1), $3) ON CONFLICT (lead_uuid) DO NOTHING',
+             [leadUuid, 'lead_captado', row.tenant_id]
            );
         }
 

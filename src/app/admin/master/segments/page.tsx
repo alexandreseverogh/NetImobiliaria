@@ -11,10 +11,12 @@ import {
   XCircleIcon,
   CommandLineIcon,
   SparklesIcon,
+  AdjustmentsHorizontalIcon,
 } from '@heroicons/react/24/outline'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 import { SegmentInterestsModal } from '@/components/admin/master/SegmentInterestsModal'
 import { SegmentAnglesModal } from '@/components/admin/master/SegmentAnglesModal'
+import { SegmentBenchmarksModal } from '@/components/admin/master/SegmentBenchmarksModal'
 
 interface Segment {
   id: string
@@ -27,9 +29,6 @@ interface Segment {
   created_at: string
   module_ids: string[]
   module_names: string
-  cpl_ideal:      number | null
-  cpl_critical:   number | null
-  ctr_min:        number | null
   imagens_por_ia: boolean
   tenant_count:   number
 }
@@ -49,6 +48,7 @@ export default function MasterSegmentsPage() {
   const [editingSegment, setEditingSegment] = useState<Segment | null>(null)
   const [interestsSegment, setInterestsSegment] = useState<Segment | null>(null)
   const [anglesSegment, setAnglesSegment] = useState<Segment | null>(null)
+  const [benchmarksSegment, setBenchmarksSegment] = useState<Segment | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -58,9 +58,6 @@ export default function MasterSegmentsPage() {
     color_theme: '#2563eb',
     is_active: true,
     module_ids: [] as string[],
-    cpl_ideal:      '',
-    cpl_critical:   '',
-    ctr_min:        '',
     imagens_por_ia: false,
   })
 
@@ -95,7 +92,7 @@ export default function MasterSegmentsPage() {
       if (response.ok) {
         setShowModal(false)
         setEditingSegment(null)
-        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], cpl_ideal: '', cpl_critical: '', ctr_min: '', imagens_por_ia: false })
+        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false })
         fetchSegments()
       } else {
         const err = await response.json()
@@ -116,9 +113,6 @@ export default function MasterSegmentsPage() {
       color_theme:    segment.color_theme || '#2563eb',
       is_active:      segment.is_active,
       module_ids:     (segment.module_ids || []).filter(Boolean),
-      cpl_ideal:      segment.cpl_ideal    != null ? String(segment.cpl_ideal)    : '',
-      cpl_critical:   segment.cpl_critical != null ? String(segment.cpl_critical) : '',
-      ctr_min:        segment.ctr_min      != null ? String(segment.ctr_min)      : '',
       imagens_por_ia: segment.imagens_por_ia ?? false,
     })
     setShowModal(true)
@@ -155,7 +149,7 @@ export default function MasterSegmentsPage() {
             <button
               onClick={() => {
                 setEditingSegment(null)
-                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], cpl_ideal: '', cpl_critical: '', ctr_min: '', imagens_por_ia: false })
+                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false })
                 setShowModal(true)
               }}
               className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95"
@@ -275,31 +269,36 @@ export default function MasterSegmentsPage() {
                     </span>
                   </td>
                   {/* Ações */}
-                  <td className="px-5 py-4 text-right whitespace-nowrap">
-                    <div className="inline-flex items-center gap-2">
+                  <td className="px-4 py-4 text-right whitespace-nowrap">
+                    <div className="inline-flex items-center gap-1.5">
                       <button
                         onClick={() => setAnglesSegment(segment)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 transition-colors"
-                        title="Gerenciar ângulos e termos de demanda (IA)"
+                        className="p-2 rounded-lg text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 transition-colors"
+                        title="Ângulos & Demanda (IA)"
                       >
-                        <SparklesIcon className="h-3.5 w-3.5" />
-                        Ângulos
+                        <SparklesIcon className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => setInterestsSegment(segment)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors"
-                        title="Gerenciar interesses Meta para este segmento"
+                        className="p-2 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                        title="Interesses Meta"
                       >
-                        <HashtagIcon className="h-3.5 w-3.5" />
-                        Interesses
+                        <HashtagIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setBenchmarksSegment(segment)}
+                        className="p-2 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+                        title="Parâmetros do Agente (detecção + execução)"
+                      >
+                        <AdjustmentsHorizontalIcon className="h-4 w-4" />
                       </button>
                       <UpdateGuard resource="master-segments">
                         <button
                           onClick={() => handleEdit(segment)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
+                          className="p-2 rounded-lg text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
+                          title="Editar segmento"
                         >
-                          <PencilSquareIcon className="h-3.5 w-3.5" />
-                          Editar
+                          <PencilSquareIcon className="h-4 w-4" />
                         </button>
                       </UpdateGuard>
                     </div>
@@ -391,39 +390,6 @@ export default function MasterSegmentsPage() {
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-sm h-20 resize-none"
                       placeholder="Descreva o propósito deste segmento..."
                     />
-                  </div>
-
-                  {/* Benchmarks */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1.5">Benchmarks de Performance</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">CPL Ideal R$</label>
-                        <input type="number" min="0" step="0.01" value={formData.cpl_ideal}
-                          onChange={e => setFormData({ ...formData, cpl_ideal: e.target.value })}
-                          placeholder="35"
-                          className="w-full px-2.5 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm font-medium" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">CPL Crítico R$</label>
-                        <input type="number" min="0" step="0.01" value={formData.cpl_critical}
-                          onChange={e => setFormData({ ...formData, cpl_critical: e.target.value })}
-                          placeholder="80"
-                          className="w-full px-2.5 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-400 focus:border-transparent outline-none text-sm font-medium" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">CTR Mín %</label>
-                        <input type="number" min="0" step="0.1" value={formData.ctr_min}
-                          onChange={e => setFormData({ ...formData, ctr_min: e.target.value })}
-                          placeholder="0.8"
-                          className="w-full px-2.5 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm font-medium" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-[9px] font-semibold">
-                      <span className="flex items-center gap-1 text-green-600"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />ok</span>
-                      <span className="flex items-center gap-1 text-amber-600"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />atenção</span>
-                      <span className="flex items-center gap-1 text-red-600"><span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />crítico</span>
-                    </div>
                   </div>
 
                   {/* Ativo */}
@@ -554,6 +520,14 @@ export default function MasterSegmentsPage() {
         <SegmentAnglesModal
           segment={anglesSegment}
           onClose={() => setAnglesSegment(null)}
+        />
+      )}
+
+      {/* Parâmetros de Execução do Agente (FASE 16) */}
+      {benchmarksSegment && (
+        <SegmentBenchmarksModal
+          segment={benchmarksSegment}
+          onClose={() => setBenchmarksSegment(null)}
         />
       )}
     </div>

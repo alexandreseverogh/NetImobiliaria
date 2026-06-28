@@ -71,7 +71,8 @@ export async function PATCH(
       status, calendario, google_email, duracao_visita, ai_config,
       admin_nome, admin_username, admin_email, admin_password,
       primary_color, secondary_color,
-      anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold
+      anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
+      numero_whatsapp
     } = body;
 
     await client.query('BEGIN');
@@ -141,16 +142,17 @@ export async function PATCH(
         evolution_api_key = COALESCE($24, evolution_api_key),
         evolution_instance = COALESCE($25, evolution_instance),
         agent_confidence_threshold = COALESCE($26, agent_confidence_threshold),
+        numero_whatsapp = COALESCE($27, numero_whatsapp),
         updated_at = NOW()
-      WHERE id = $27
+      WHERE id = $28
       RETURNING *
     `;
 
     const values = [
       name || null, slug || null, segment_id || null, finalLogo || null, cnpj_cpf || null,
-      logradouro || null, numero || null, bairro || null, cidade || null, 
+      logradouro || null, numero || null, bairro || null, cidade || null,
       estado || null, cep || null, telefone || null, email_contato || null,
-      status || null, 
+      status || null,
       calendario !== undefined ? calendario : null,
       google_email || null,
       duracao_visita || null,
@@ -163,6 +165,7 @@ export async function PATCH(
       evolution_api_key !== undefined ? evolution_api_key : null,
       evolution_instance !== undefined ? evolution_instance : null,
       agent_confidence_threshold !== undefined ? (agent_confidence_threshold !== null ? parseFloat(agent_confidence_threshold) : null) : null,
+      numero_whatsapp !== undefined ? (numero_whatsapp || null) : null,
       id
     ];
 

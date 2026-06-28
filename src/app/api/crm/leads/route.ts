@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
     let inheritedEstado = data.estado_fk || null
     let inheritedCidade = data.cidade_fk || null
     let leadTenantId = data.tenant_id || '00000000-0000-0000-0000-000000000001'
+    const leadClientId = data.client_id || null  // segmento/cliente (multi-tenant); null = "own"
 
     if (imovel_id) {
       const propertyRes = await pool.query(
@@ -107,29 +108,30 @@ export async function POST(request: NextRequest) {
     } else {
       // Lead NOVO -> INSERT
       const insertQuery = `
-        INSERT INTO leads_staging (nome, email, telefone, tag_sonho, raw_json, imovel_id, estado_fk, cidade_fk, utm_campaign, valor_venda, tenant_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO leads_staging (nome, email, telefone, tag_sonho, raw_json, imovel_id, estado_fk, cidade_fk, utm_campaign, valor_venda, tenant_id, client_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING lead_uuid
       `
       const { rows: insertRows } = await pool.query(insertQuery, [
-        nome, 
-        strEmail, 
-        strTelefone, 
-        tag_sonho || 'A Definir', 
+        nome,
+        strEmail,
+        strTelefone,
+        tag_sonho || 'A Definir',
         JSON.stringify(raw_json || {}),
         imovel_id,
         inheritedEstado,
         inheritedCidade,
         data.utm_campaign || null,
         data.valor_venda || 0,
-        leadTenantId
+        leadTenantId,
+        leadClientId
       ])
       leadUuid = insertRows[0].lead_uuid
 
       // Criar entrada inicial no Kanban (Agnóstico à nomenclatura de colunas, mas específico do tenant)
       await pool.query(
-        'INSERT INTO leads_kanban (lead_uuid, coluna_id, tenant_id) VALUES ($1, (SELECT id FROM kanban_colunas WHERE ativa = true AND tenant_id = $2 ORDER BY ordem ASC LIMIT 1), $2)',
-        [leadUuid, leadTenantId]
+        'INSERT INTO leads_kanban (lead_uuid, coluna_id, tenant_id, client_id) VALUES ($1, (SELECT id FROM kanban_colunas WHERE ativa = true AND tenant_id = $2 ORDER BY ordem ASC LIMIT 1), $2, $3)',
+        [leadUuid, leadTenantId, leadClientId]
       )
     }
 
@@ -137,9 +139,9 @@ export async function POST(request: NextRequest) {
     if (utm_params) {
       const marketingQuery = `
         INSERT INTO marketing_eventos (
-          lead_uuid, utm_source, utm_medium, utm_campaign, utm_content, 
-          fbclid, gclid, plataforma, tenant_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          lead_uuid, utm_source, utm_medium, utm_campaign, utm_content,
+          fbclid, gclid, plataforma, tenant_id, client_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       `
       await pool.query(marketingQuery, [
         leadUuid,
@@ -150,7 +152,8 @@ export async function POST(request: NextRequest) {
         utm_params.fbclid,
         utm_params.gclid,
         utm_params.platform || 'api',
-        leadTenantId
+        leadTenantId,
+        leadClientId
       ])
     }
 

@@ -14,7 +14,13 @@ import {
   PhoneIcon,
   MapPinIcon,
   EnvelopeIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  Bars3Icon,
+  XMarkIcon,
+  ShieldCheckIcon,
+  BoltIcon,
+  ServerStackIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline'
 
 // Interface para os módulos retornados da API
@@ -31,6 +37,7 @@ export default function Artemis4LandingPage() {
   const [loading, setLoading] = useState(true)
   const [playerReady, setPlayerReady] = useState(false)
   const [useVideo, setUseVideo] = useState(true) // Fallback caso YouTube falhe ou sem conexão
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false) // Drawer de navegação no mobile (< lg)
 
   // Referências para controle de scroll e seeking
   const playerContainerRef = useRef<HTMLDivElement>(null)
@@ -227,6 +234,11 @@ export default function Artemis4LandingPage() {
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+
+    // Respeita prefers-reduced-motion: suprime as faíscas decorativas (núcleo da simulação permanece)
+    const prefersReduced = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     let animationFrameId: number
     const rect = canvas.getBoundingClientRect()
@@ -514,7 +526,7 @@ export default function Artemis4LandingPage() {
       const capVirtualY = height * 0.4 + (mouseRef.current.y * 0.3)
       
       // Gera faíscas dinâmicas se o scroll estiver na fase de reentrada ativa - Apenas no Fallback Offline
-      if (!useVideo && p > 0.02) {
+      if (!useVideo && p > 0.02 && !prefersReduced) {
         const spawnCount = Math.round(p * 5 + 1) // Quanto mais profundo, mais faíscas
         for (let i = 0; i < spawnCount; i++) {
           // As partículas viajam de volta (direção oposta à reentrada: aprox. 45 graus)
@@ -731,76 +743,131 @@ export default function Artemis4LandingPage() {
   }
 
   return (
-    <div className="min-h-screen relative flex flex-col justify-between">
-      
+    <div className="artemis4-page min-h-screen relative flex flex-col justify-between">
+
+      {/* Acessibilidade: respeita prefers-reduced-motion desativando animações decorativas do DOM */}
+      <style>{`
+        @media (prefers-reduced-motion: reduce) {
+          .artemis4-page .animate-ping,
+          .artemis4-page .animate-pulse,
+          .artemis4-page .animate-bounce { animation: none !important; }
+          .artemis4-page * { scroll-behavior: auto !important; }
+        }
+      `}</style>
+
       {/* ==========================================
           HEADER SECTION (Horizontal - Landpaging Copy)
           ========================================== */}
-      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#020617]/70 border-b border-white/5 w-full">
+      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#020617]/70 border-b border-amber-300/10 w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             
             {/* Logo Artemis4 — imagem da pasta public */}
-            <div className="flex-shrink-0 flex items-center">
-              <img
-                src="/Artemis4.jpg"
-                alt="Artemis4"
-                className="h-12 w-auto object-contain"
-                draggable={false}
-              />
+            <div className="flex-shrink-0 flex items-center gap-3">
+              <div className="relative rounded-xl ring-1 ring-amber-300/20 shadow-[0_0_25px_-8px_rgba(212,175,55,0.45)] overflow-hidden">
+                <img
+                  src="/Artemis4.jpg"
+                  alt="Artemis4"
+                  className="h-12 w-auto object-contain"
+                  draggable={false}
+                />
+              </div>
+              <div className="hidden md:flex flex-col leading-none border-l border-amber-300/15 pl-3">
+                <span className="text-[8px] font-black uppercase tracking-[0.35em] text-amber-300/80">Atmosfera</span>
+                <span className="text-[8px] font-black uppercase tracking-[0.35em] text-gray-400">de Negócios</span>
+              </div>
             </div>
 
             {/* Menu Horizontal Superior - IDÊNTICO ao Landpaging */}
             <nav className="hidden lg:flex space-x-1 items-center justify-center flex-1 px-8">
-              <Link href="/" className="text-gray-300 hover:text-white px-4 py-2 text-xs font-black uppercase tracking-wider italic transition-all">
+              <Link href="/" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
                 Início
               </Link>
-              <Link href="/tokenizacao" className="text-gray-300 hover:text-white px-4 py-2 text-xs font-black uppercase tracking-wider italic transition-all">
+              <Link href="/tokenizacao" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
                 Tokenização
               </Link>
-              <Link href="/imoveis" className="text-gray-300 hover:text-white px-4 py-2 text-xs font-black uppercase tracking-wider italic transition-all">
+              <Link href="/imoveis" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
                 Imóveis
               </Link>
-              <Link href="/investidor" className="text-gray-300 hover:text-white px-4 py-2 text-xs font-black uppercase tracking-wider italic transition-all">
+              <Link href="/investidor" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
                 Investidor
               </Link>
-              <Link href="/sobre" className="text-gray-300 hover:text-white px-4 py-2 text-xs font-black uppercase tracking-wider italic transition-all">
+              <Link href="/sobre" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
                 Sobre
               </Link>
-              <Link href="/contato" className="text-gray-300 hover:text-white px-4 py-2 text-xs font-black uppercase tracking-wider italic transition-all">
+              <Link href="/contato" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
                 Contato
               </Link>
             </nav>
 
             {/* Contatos / Login (Aponta para /admin/login) */}
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 sm:gap-6">
               <div className="hidden xl:flex items-center gap-5 text-xs text-gray-400 border-r border-white/10 pr-6">
                 <div className="flex items-center gap-2">
-                  <PhoneIcon className="w-4 h-4 text-blue-500" />
+                  <PhoneIcon className="w-4 h-4 text-amber-400/80" />
                   <span className="font-semibold">(81) 99800-0047</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <MapPinIcon className="w-4 h-4 text-blue-500" />
+                  <MapPinIcon className="w-4 h-4 text-amber-400/80" />
                   <span className="font-semibold">Recife, PE</span>
                 </div>
               </div>
 
               <a
                 href="/admin/login"
-                className="relative overflow-hidden group px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-wider italic transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                className="relative overflow-hidden group px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-300 to-amber-500 text-slate-950 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation shadow-lg shadow-amber-500/25 ring-1 ring-amber-200/40 hover:shadow-amber-400/40 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]"
               >
                 <span className="relative z-10">Entrar</span>
-                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-blue-500 to-indigo-500 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-300 z-0" />
+                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-amber-200 to-amber-400 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-300 z-0" />
               </a>
+
+              {/* Botão hambúrguer — navegação mobile (< lg) */}
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((v) => !v)}
+                aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
+                aria-expanded={mobileMenuOpen}
+                className="lg:hidden inline-flex items-center justify-center w-11 h-11 rounded-xl border border-white/10 bg-white/[0.04] text-white hover:text-amber-100 hover:border-amber-300/30 transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]"
+              >
+                {mobileMenuOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* ==========================================
+            DRAWER DE NAVEGAÇÃO MOBILE (< lg)
+            ========================================== */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-amber-300/10 bg-[#020617]/95 backdrop-blur-xl">
+            <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col gap-1">
+              {[
+                { href: '/', label: 'Início' },
+                { href: '/tokenizacao', label: 'Tokenização' },
+                { href: '/imoveis', label: 'Imóveis' },
+                { href: '/investidor', label: 'Investidor' },
+                { href: '/sobre', label: 'Sobre' },
+                { href: '/contato', label: 'Contato' },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-black uppercase tracking-wider italic text-gray-300 hover:text-amber-100 hover:bg-amber-300/5 transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]"
+                >
+                  {item.label}
+                  <ChevronRightIcon className="w-4 h-4 opacity-50" />
+                </Link>
+              ))}
+            </nav>
+          </div>
+        )}
       </header>
 
       {/* ==========================================
           🚀 INTERACTIVE REENTRY SIMULATOR STAGE (Natural Scroll View)
           ========================================== */}
-      <div className="relative w-full h-screen overflow-hidden bg-transparent flex flex-col justify-between pt-20 z-10">
+      <div className="relative w-full h-[100dvh] overflow-hidden bg-transparent flex flex-col justify-between pt-20 z-10">
           
           {/* CINEMATIC BG VIDEO (YouTube ou Fallback Canvas) - FIXED TO THE VIEWPORT */}
           {useVideo ? (
@@ -831,34 +898,34 @@ export default function Artemis4LandingPage() {
             style={{ opacity: heroOpacity, transform: heroTranslate, transition: 'transform 0.1s ease-out' }}
             className="relative z-20 flex-1 flex flex-col items-center justify-center text-center px-4 max-w-5xl mx-auto pointer-events-auto"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/25 bg-blue-950/45 backdrop-blur-md mb-8 animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
-              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-300">
+            <div className="inline-flex items-center gap-2.5 px-5 py-2 rounded-full border border-amber-300/25 bg-gradient-to-r from-amber-950/30 via-slate-950/50 to-amber-950/30 backdrop-blur-md mb-8 shadow-[0_0_30px_-10px_rgba(212,175,55,0.4)]">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-200/90">
                 Pressione Scroll para Iniciar Reentrada
               </span>
             </div>
 
-            <h1 className="text-4xl md:text-7xl font-black uppercase tracking-tighter text-white mb-6 italic leading-[0.95]">
+            <h1 className="font-[family-name:var(--font-display)] text-4xl md:text-7xl font-bold uppercase tracking-tight text-white mb-6 italic leading-[0.95]">
               TECNOLOGIA DE ALTA PERFORMANCE <br />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-200 to-orange-400">
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-[#f5e6b8] to-amber-400 drop-shadow-[0_2px_20px_rgba(212,175,55,0.25)]">
                 PLATAFORMA ARTEMIS 4
               </span>
             </h1>
 
             <p className="max-w-3xl text-sm md:text-lg text-gray-300 font-medium mb-10 leading-relaxed drop-shadow-md">
-              Entre em órbita com o ecossistema de gestão multissegmentada mais revolucionário do mercado. Role para explorar a reentrada atmosférica em tempo real e descubra nossos módulos de alta performance.
+              A <span className="text-amber-200 font-bold">atmosfera de negócios</span> onde sua operação entra em órbita: um ecossistema de gestão multissegmentada de alta performance. Role para explorar a reentrada atmosférica em tempo real e descubra nossos módulos.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center gap-4">
-              <a 
-                href="#modulos" 
-                className="px-8 py-4.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-500 text-white font-black uppercase tracking-wider italic text-xs shadow-xl shadow-blue-500/20 hover:scale-[1.03] transition-all flex items-center gap-2"
+              <a
+                href="#modulos"
+                className="px-8 py-4.5 rounded-2xl bg-gradient-to-r from-amber-300 to-amber-500 text-slate-950 font-black uppercase tracking-wider italic text-xs shadow-xl shadow-amber-500/25 ring-1 ring-amber-200/40 hover:scale-[1.03] hover:shadow-amber-400/40 transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] flex items-center gap-2"
               >
                 Ver Módulos <ChevronRightIcon className="w-4 h-4 mt-0.5" />
               </a>
               <a
                 href="/admin/login"
-                className="px-8 py-4.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black uppercase tracking-wider italic text-xs border border-white/10 transition-all"
+                className="px-8 py-4.5 rounded-2xl bg-white/[0.04] hover:bg-amber-300/5 text-white hover:text-amber-100 font-black uppercase tracking-wider italic text-xs border border-white/10 hover:border-amber-300/30 transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]"
               >
                 Área de Testes
               </a>
@@ -882,9 +949,9 @@ export default function Artemis4LandingPage() {
           >
             
             {/* HUD: TOPO (Status & Relógio) */}
-            <div className="flex justify-between items-start w-full">
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start w-full">
               {/* Painel Esquerdo: Missão e Alerta */}
-              <div className="bg-slate-950/80 border border-white/10 rounded-2xl p-4 backdrop-blur-xl min-w-[240px] shadow-lg shadow-black/40">
+              <div className="relative bg-gradient-to-b from-slate-900/70 to-slate-950/85 border border-white/10 rounded-2xl p-4 backdrop-blur-2xl ring-1 ring-inset ring-white/[0.06] before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-amber-300/30 before:to-transparent w-full sm:w-auto sm:min-w-[240px] shadow-[0_10px_40px_-12px_rgba(0,0,0,0.7)]">
                 <div className="flex items-center gap-2 mb-1.5">
                   <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
                   <span className="text-[10px] font-black tracking-widest text-red-400 uppercase italic">TELEMETRIA ATIVA</span>
@@ -893,7 +960,7 @@ export default function Artemis4LandingPage() {
                   ARTEMIS-IV / REENTRY
                 </div>
                 <div className="text-[9px] font-bold text-gray-400 tracking-wider">
-                  SEQ: <span ref={missionTimeRef} className="text-white font-black">E.I. + 0s</span>
+                  SEQ: <span ref={missionTimeRef} className="text-white font-black tabular-nums">E.I. + 0s</span>
                 </div>
                 <div className="mt-3 pt-2.5 border-t border-white/5">
                   <div ref={phaseRef} className="text-xs font-black uppercase text-blue-400 tracking-tighter italic">
@@ -903,21 +970,21 @@ export default function Artemis4LandingPage() {
               </div>
 
               {/* Painel Direito: Velocidade e Mach */}
-              <div className="bg-slate-950/80 border border-white/10 rounded-2xl p-4 backdrop-blur-xl min-w-[240px] text-right shadow-lg shadow-black/40">
+              <div className="relative bg-gradient-to-b from-slate-900/70 to-slate-950/85 border border-white/10 rounded-2xl p-4 backdrop-blur-2xl ring-1 ring-inset ring-white/[0.06] before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-amber-300/30 before:to-transparent w-full sm:w-auto sm:min-w-[240px] text-right shadow-[0_10px_40px_-12px_rgba(0,0,0,0.7)]">
                 <span className="text-[9px] font-bold tracking-widest text-gray-400 uppercase block mb-1">VELOCIDADE ORBITAL</span>
-                <span ref={velocityRef} className="text-2xl font-black italic tracking-tighter text-white block leading-none">
+                <span ref={velocityRef} className="text-2xl font-black italic tracking-tighter text-white block leading-none tabular-nums">
                   27.850 km/h
                 </span>
                 <div className="flex justify-between items-center mt-2.5 pt-2 border-t border-white/5">
-                  <span ref={machRef} className="text-[10px] font-extrabold text-blue-400 tracking-wider italic">Mach 22.7</span>
-                  <span ref={altitudeRef} className="text-xs font-black text-white italic">122.4 km</span>
+                  <span ref={machRef} className="text-[10px] font-extrabold text-blue-400 tracking-wider italic tabular-nums">Mach 22.7</span>
+                  <span ref={altitudeRef} className="text-xs font-black text-white italic tabular-nums">122.4 km</span>
                 </div>
               </div>
             </div>
 
             {/* HUD: CENTRO-INFERIOR (Prompt de Controle) */}
-            <div className="text-center w-full max-w-sm mx-auto mb-4 bg-slate-950/75 border border-white/10 rounded-2xl p-3 backdrop-blur-md shadow-md">
-              <span className="text-[9px] font-black tracking-widest text-blue-400 uppercase block mb-1.5">CONTROLES DE ATITUDE</span>
+            <div className="relative text-center w-full max-w-sm mx-auto mb-4 bg-gradient-to-b from-slate-900/65 to-slate-950/80 border border-white/10 rounded-2xl p-3 backdrop-blur-xl ring-1 ring-inset ring-white/[0.06] shadow-[0_8px_30px_-12px_rgba(0,0,0,0.6)] before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-amber-300/25 before:to-transparent">
+              <span className="text-[9px] font-black tracking-widest text-amber-300/90 uppercase block mb-1.5">CONTROLES DE ATITUDE</span>
               <div className="flex items-center justify-between text-[10px] font-bold text-gray-300">
                 <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> AERO-RUDDER: AUT</span>
                 <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> RCS-JET: STBY</span>
@@ -929,25 +996,25 @@ export default function Artemis4LandingPage() {
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-end gap-4 w-full">
               
               {/* Esquerdo: Temperatura do Escudo com barra */}
-              <div className="bg-slate-950/80 border border-white/10 rounded-2xl p-4 backdrop-blur-xl flex-1 max-w-md shadow-lg shadow-black/40">
+              <div className="relative bg-gradient-to-b from-slate-900/70 to-slate-950/85 border border-white/10 rounded-2xl p-4 backdrop-blur-2xl ring-1 ring-inset ring-white/[0.06] before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-amber-300/30 before:to-transparent flex-1 max-w-md shadow-[0_10px_40px_-12px_rgba(0,0,0,0.7)]">
                 <div className="flex justify-between items-baseline mb-2">
                   <span className="text-[9px] font-bold tracking-widest text-gray-400 uppercase">TEMPERATURA DO ESCUDO DE CARBONO</span>
-                  <span ref={tempRef} className="text-lg font-black text-orange-400 italic">420°C</span>
+                  <span ref={tempRef} className="text-lg font-black text-orange-400 italic tabular-nums">420°C</span>
                 </div>
                 
                 {/* Barra Térmica Dinâmica */}
-                <div className="w-full h-2.5 rounded-full bg-white/10 overflow-hidden mb-2">
+                <div className="w-full h-2.5 rounded-full bg-black/40 ring-1 ring-inset ring-white/5 overflow-hidden mb-2">
                   <div ref={thermalBarRef} className="h-full rounded-full transition-all duration-75" style={{ width: '18%', background: 'linear-gradient(to right, #3b82f6, #f97316)' }} />
                 </div>
                 
                 <div className="flex justify-between items-center text-[10px] font-bold text-gray-400">
-                  <span>DESGASTE ABLATIVO: <span ref={shieldWearRef} className="text-white">100%</span></span>
-                  <span>CARGA G: <span ref={gForceRef} className="text-white">1.0 G</span></span>
+                  <span>DESGASTE ABLATIVO: <span ref={shieldWearRef} className="text-white tabular-nums">100%</span></span>
+                  <span>CARGA G: <span ref={gForceRef} className="text-white tabular-nums">1.0 G</span></span>
                 </div>
               </div>
 
               {/* Direito: Link de Comunicação */}
-              <div className="bg-slate-950/80 border border-white/10 rounded-2xl p-4 backdrop-blur-xl min-w-[260px] text-right flex flex-col justify-center shadow-lg shadow-black/40">
+              <div className="relative bg-gradient-to-b from-slate-900/70 to-slate-950/85 border border-white/10 rounded-2xl p-4 backdrop-blur-2xl ring-1 ring-inset ring-white/[0.06] before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-amber-300/30 before:to-transparent w-full sm:w-auto sm:min-w-[260px] text-right flex flex-col justify-center shadow-[0_10px_40px_-12px_rgba(0,0,0,0.7)]">
                 <span ref={signalRef} className="text-blue-400 font-extrabold text-[10px] tracking-widest block uppercase mb-1">
                   LINK DE TELEMETRIA: 100%
                 </span>
@@ -974,11 +1041,11 @@ export default function Artemis4LandingPage() {
           
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-16">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blue-500/20 bg-blue-950/30 mb-3">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                <span className="text-[9px] font-black uppercase tracking-[0.25em] text-blue-300">Alta Performance Multissegmento</span>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-amber-300/20 bg-amber-950/20 mb-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <span className="text-[9px] font-black uppercase tracking-[0.25em] text-amber-200/90">Alta Performance Multissegmento</span>
               </div>
-              <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white italic">
+              <h2 className="font-[family-name:var(--font-display)] text-3xl md:text-5xl font-bold uppercase tracking-tight text-white italic">
                 Nossos Módulos de Operação
               </h2>
             </div>
@@ -1001,14 +1068,16 @@ export default function Artemis4LandingPage() {
                 return (
                   <div 
                     key={mod.id}
-                    className={`group relative overflow-hidden rounded-[32px] border border-white/5 bg-slate-950/50 backdrop-blur-xl p-6 transition-all duration-500 hover:-translate-y-2.5 flex flex-col justify-between ${theme.border} ${theme.shadow}`}
+                    className={`group relative overflow-hidden rounded-[28px] border border-white/[0.06] bg-gradient-to-b from-slate-900/60 to-slate-950/60 backdrop-blur-xl p-6 transition-all duration-500 hover:-translate-y-2.5 hover:shadow-2xl flex flex-col justify-between ${theme.border} ${theme.shadow}`}
                   >
                     <div>
                       {/* Imagem conceitual abstract 3D (gerada por IA) */}
                       <div className="relative w-full h-44 rounded-2xl overflow-hidden mb-6 bg-slate-900 border border-white/5 group-hover:border-white/10 transition-colors">
-                        <img 
+                        <img
                           src={`/assets/artemis/${mod.slug}.png`}
                           alt={mod.name}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                           onError={(e) => {
                             // Oculta e permite que o fallback visual trabalhe
@@ -1025,7 +1094,7 @@ export default function Artemis4LandingPage() {
                       </div>
 
                       {/* Nome do Módulo */}
-                      <h3 className="text-xl font-black uppercase tracking-tighter italic text-white mb-3 group-hover:text-blue-400 transition-colors flex items-center gap-2">
+                      <h3 className="font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-tight italic text-white mb-3 group-hover:text-blue-400 transition-colors flex items-center gap-2">
                         {mod.name}
                       </h3>
 
@@ -1039,7 +1108,7 @@ export default function Artemis4LandingPage() {
                     <div>
                       <a
                         href="/admin/login"
-                        className="w-full py-3.5 rounded-2xl bg-white/5 group-hover:bg-blue-600/10 border border-white/10 group-hover:border-blue-500/20 text-white group-hover:text-blue-400 text-xs font-black uppercase tracking-wider italic transition-all flex items-center justify-center gap-2"
+                        className="w-full py-3.5 rounded-2xl bg-white/5 group-hover:bg-blue-600/10 border border-white/10 group-hover:border-blue-500/20 text-white group-hover:text-blue-400 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] flex items-center justify-center gap-2"
                       >
                         Acessar Módulo <ArrowRightIcon className="w-3.5 h-3.5 mt-0.5 transition-transform group-hover:translate-x-1" />
                       </a>
@@ -1052,16 +1121,51 @@ export default function Artemis4LandingPage() {
         </section>
 
         {/* ==========================================
+            TRUST / PROVA SOCIAL (antes do CTA — padrão Trust & Authority)
+            ========================================== */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 relative z-20">
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-amber-300/20 bg-amber-950/20 mb-3">
+              <ShieldCheckIcon className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[9px] font-black uppercase tracking-[0.25em] text-amber-200/90">Engenharia de Confiança</span>
+            </div>
+            <h2 className="font-[family-name:var(--font-display)] text-2xl md:text-4xl font-bold uppercase tracking-tight text-white italic">
+              Infraestrutura de Nível Orbital
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { Icon: BoltIcon, title: 'Latência Ultrabaixa', desc: 'Resposta em tempo real nos painéis de operação' },
+              { Icon: ServerStackIcon, title: 'Bancos Redundantes', desc: 'Persistência segura com múltiplas réplicas' },
+              { Icon: ClockIcon, title: 'Tempo Real', desc: 'Controle de processos com telemetria contínua' },
+              { Icon: ShieldCheckIcon, title: 'Multissegmento', desc: 'Isolamento por cliente em cada segmento' },
+            ].map(({ Icon, title, desc }) => (
+              <div
+                key={title}
+                className="relative rounded-2xl border border-white/[0.06] bg-gradient-to-b from-slate-900/50 to-slate-950/60 backdrop-blur-xl p-5 ring-1 ring-inset ring-white/[0.05] before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-amber-300/25 before:to-transparent transition-all hover:border-amber-300/20 hover:-translate-y-1"
+              >
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-amber-400/10 ring-1 ring-amber-300/20 mb-3">
+                  <Icon className="w-5 h-5 text-amber-300" />
+                </div>
+                <div className="text-sm font-black uppercase tracking-tight italic text-white mb-1">{title}</div>
+                <div className="text-[11px] text-gray-400 leading-relaxed font-medium">{desc}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ==========================================
             MULTIPLE BUSINESS SEGMENTS / CTA AREA
             ========================================== */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-20">
-          <div className="relative rounded-[40px] overflow-hidden border border-white/5 bg-gradient-to-br from-slate-950/80 to-blue-950/40 backdrop-blur-2xl p-8 md:p-16 text-center">
-            
+          <div className="relative rounded-[40px] overflow-hidden border border-amber-300/10 bg-gradient-to-br from-slate-950/80 via-slate-950/70 to-amber-950/20 backdrop-blur-2xl p-8 md:p-16 text-center shadow-[0_0_80px_-30px_rgba(212,175,55,0.3)]">
+
             {/* Glow decorativo de calor */}
-            <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-orange-600/10 blur-[90px]" />
-            
+            <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-amber-500/10 blur-[90px]" />
+
             <div className="relative z-10 max-w-3xl mx-auto">
-              <span className="text-[9px] font-black uppercase tracking-[0.25em] text-orange-400 mb-4 inline-block">Área de Lançamento Comercial</span>
+              <span className="text-[9px] font-black uppercase tracking-[0.25em] text-amber-300 mb-4 inline-block">Área de Lançamento Comercial</span>
               <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white italic mb-6">
                 Impulsione sua Empresa à Artemis 4
               </h2>
@@ -1071,13 +1175,13 @@ export default function Artemis4LandingPage() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a
                   href="/admin/login"
-                  className="w-full sm:w-auto px-8 py-4.5 rounded-2xl bg-orange-500 hover:bg-orange-400 text-white font-black uppercase tracking-wider italic text-xs shadow-xl shadow-orange-500/15 transition-all flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-8 py-4.5 rounded-2xl bg-gradient-to-r from-amber-300 to-amber-500 hover:from-amber-200 hover:to-amber-400 text-slate-950 font-black uppercase tracking-wider italic text-xs shadow-xl shadow-amber-500/25 ring-1 ring-amber-200/40 transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] flex items-center justify-center gap-2"
                 >
                   Registrar Corporação
                 </a>
                 <a
                   href="/admin/login"
-                  className="w-full sm:w-auto px-8 py-4.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-black uppercase tracking-wider italic text-xs transition-all flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-8 py-4.5 rounded-2xl bg-white/[0.04] hover:bg-amber-300/5 border border-white/10 hover:border-amber-300/30 text-white hover:text-amber-100 font-black uppercase tracking-wider italic text-xs transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] flex items-center justify-center gap-2"
                 >
                   Área Administrativa <ArrowRightIcon className="w-3.5 h-3.5 mt-0.5" />
                 </a>
@@ -1094,25 +1198,25 @@ export default function Artemis4LandingPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
               <div className="md:col-span-2">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-                    <RocketLaunchIcon className="w-5 h-5 text-white" />
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center ring-1 ring-amber-200/40 shadow-lg shadow-amber-500/20">
+                    <RocketLaunchIcon className="w-5 h-5 text-slate-950" />
                   </div>
-                  <span className="text-base font-black tracking-tight text-white uppercase italic">
-                    Artemis<span className="text-blue-500">4</span>
+                  <span className="font-[family-name:var(--font-display)] text-base font-bold tracking-tight text-white uppercase italic">
+                    Artemis<span className="text-amber-400">4</span>
                   </span>
                 </div>
                 <p className="text-xs text-gray-400 leading-relaxed max-w-sm font-medium">
-                  A tecnologia espacial de reentrada de dados e multissegmentação da Net Imobiliária. Projetada cirurgicamente para atração e conversão corporativa em larga escala.
+                  A <span className="text-amber-200/80 font-semibold">atmosfera de negócios</span> da Net Imobiliária: tecnologia espacial de reentrada de dados e multissegmentação, projetada cirurgicamente para atração e conversão corporativa em larga escala.
                 </p>
               </div>
               
               <div>
                 <h4 className="text-xs font-black uppercase tracking-widest text-white mb-4 italic">Navegação</h4>
                 <ul className="space-y-2.5 text-xs text-gray-400 font-bold uppercase tracking-wider">
-                  <li><Link href="/" className="hover:text-white transition-colors">Início</Link></li>
-                  <li><Link href="/tokenizacao" className="hover:text-white transition-colors">Tokenização</Link></li>
-                  <li><Link href="/imoveis" className="hover:text-white transition-colors">Imóveis</Link></li>
-                  <li><Link href="/sobre" className="hover:text-white transition-colors">Sobre Nós</Link></li>
+                  <li><Link href="/" className="inline-block py-1 hover:text-white focus-visible:outline-none focus-visible:text-amber-200 transition-colors">Início</Link></li>
+                  <li><Link href="/tokenizacao" className="inline-block py-1 hover:text-white focus-visible:outline-none focus-visible:text-amber-200 transition-colors">Tokenização</Link></li>
+                  <li><Link href="/imoveis" className="inline-block py-1 hover:text-white focus-visible:outline-none focus-visible:text-amber-200 transition-colors">Imóveis</Link></li>
+                  <li><Link href="/sobre" className="inline-block py-1 hover:text-white focus-visible:outline-none focus-visible:text-amber-200 transition-colors">Sobre Nós</Link></li>
                 </ul>
               </div>
 
@@ -1120,15 +1224,15 @@ export default function Artemis4LandingPage() {
                 <h4 className="text-xs font-black uppercase tracking-widest text-white mb-4 italic">Contato Corporativo</h4>
                 <ul className="space-y-3 text-xs text-gray-400 font-medium">
                   <li className="flex items-center gap-2">
-                    <PhoneIcon className="w-4 h-4 text-blue-400" />
+                    <PhoneIcon className="w-4 h-4 text-amber-400/80" />
                     <span>(81) 99800-0047</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <EnvelopeIcon className="w-4 h-4 text-blue-400" />
+                    <EnvelopeIcon className="w-4 h-4 text-amber-400/80" />
                     <span>suporte@netimobiliaria.com</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <MapPinIcon className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                    <MapPinIcon className="w-4 h-4 text-amber-400/80 flex-shrink-0" />
                     <span>Recife, PE</span>
                   </li>
                 </ul>
@@ -1140,8 +1244,8 @@ export default function Artemis4LandingPage() {
                 © 2026 Artemis4. Todos os direitos reservados.
               </p>
               <div className="flex gap-6 text-[9px] text-gray-500 font-black uppercase tracking-widest">
-                <Link href="/privacidade" className="hover:text-white transition-colors">Privacidade</Link>
-                <Link href="/termos" className="hover:text-white transition-colors">Termos de Uso</Link>
+                <Link href="/privacidade" className="inline-block py-1 hover:text-white focus-visible:outline-none focus-visible:text-amber-200 transition-colors">Privacidade</Link>
+                <Link href="/termos" className="inline-block py-1 hover:text-white focus-visible:outline-none focus-visible:text-amber-200 transition-colors">Termos de Uso</Link>
               </div>
             </div>
           </div>

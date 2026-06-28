@@ -683,6 +683,15 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }
   const isAutoWhatsapp = !!autoFields?.whatsappNumber && form.whatsappNumber === autoFields.whatsappNumber;
   const isAutoMessage  = !!autoFields?.whatsappMessage && form.whatsappMessage === autoFields.whatsappMessage;
 
+  /* Destinos cadastrados (formulários hospedados / links) para o seletor de CTA */
+  const [destinos, setDestinos] = useState<any[]>([]);
+  useEffect(() => {
+    fetch('/api/admin/campanhas/destinos', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setDestinos(Array.isArray(d?.destinos) ? d.destinos.filter((x: any) => x.is_active) : []))
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="space-y-8">
 
@@ -776,18 +785,46 @@ function StepTextCta({ form, updateForm, autoFields, hookTextHint, isPrefilled }
             </div>
           </div>
         ) : (
-          <div className="max-w-lg">
-            <Label>URL de Destino</Label>
-            <input
-              type="url"
-              value={form.linkUrl}
-              onChange={e => updateForm({ linkUrl: e.target.value })}
-              placeholder="https://seusite.com.br"
-              className={cn(inputCls, 'w-full')}
-            />
-            <p className="text-[11px] text-gray-400 mt-1.5">
-              Pré-preenchido com o site configurado na conta. Edite para usar uma landing page específica.
-            </p>
+          <div className="max-w-lg space-y-3">
+            {destinos.length > 0 && (
+              <div>
+                <Label>Destino cadastrado</Label>
+                <select
+                  className={cn(inputCls, 'w-full')}
+                  value=""
+                  onChange={e => {
+                    const d = destinos.find((x: any) => x.id === e.target.value);
+                    if (d) updateForm({ linkUrl: `${window.location.origin}/l/${d.slug}` });
+                  }}
+                >
+                  <option value="">— selecionar formulário/landing hospedado —</option>
+                  {destinos.map((d: any) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} {d.type === 'APP_FORM' ? '(Formulário)' : d.type === 'EXTERNAL_URL' ? '(Link)' : '(WhatsApp)'}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1.5">
+                  Destinos hospedados capturam os dados e geram leads no CRM automaticamente.{' '}
+                  <a href="/admin/campanhas/destinos" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    Gerenciar destinos
+                  </a>
+                </p>
+              </div>
+            )}
+            <div>
+              <Label>URL de Destino</Label>
+              <input
+                type="url"
+                value={form.linkUrl}
+                onChange={e => updateForm({ linkUrl: e.target.value })}
+                placeholder="https://seusite.com.br"
+                className={cn(inputCls, 'w-full')}
+              />
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                Pré-preenchido com o site da conta. Selecione um destino acima ou edite manualmente.
+              </p>
+            </div>
           </div>
         )}
       </Section>

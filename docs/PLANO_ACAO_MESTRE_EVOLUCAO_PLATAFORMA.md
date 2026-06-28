@@ -65,14 +65,14 @@
 15. [FASE 11 — Implementações de Outras Redes](#fase-11--implementações-de-outras-redes) ⏳ Pendente
 16. [FASE 13 — Top N Configurável](#fase-13--top-n-configurável) ✅
 17. [FASE 14 — Ângulo Estratégico no Ciclo Completo](#fase-14--ângulo-estratégico-no-ciclo-completo) ✅
-18. [FASE 15 — Agentes de IA: Expansão de Ações e Garantia](#fase-15--agentes-de-ia-expansão-de-ações-e-garantia-de-execução) ✅ (core) / ⏳ (aprovação UI)
+18. [FASE 15 — Agentes de IA: Expansão de Ações e Garantia](#fase-15--agentes-de-ia-expansão-de-ações-e-garantia-de-execução) ✅
 19. [FASE 16 — Postagem Orgânica no Meta](#fase-16--postagem-orgânica-no-meta) ✅
 20. [FASE 17 — Google Ads + Google AI Max](#fase-17--google-ads--google-ai-max-aprofundamento) ⏳ Pendente
 21. [FASE 18 — Inteligência Multi-Segmento](#fase-18--inteligência-multi-segmento) ✅
 22. [FASE 19 — Creative AI Loop (Geração de Imagens por IA)](#fase-19--creative-ai-loop--geração-de-imagens-por-ia) 🔄 Parcial
-23. [FASE 20 — Editor de Prompts (UI Master)](#fase-20--editor-de-prompts-ui-master) ⏳ Pendente
-24. [FASE 21 — UI de Aprovação de Ações do Agente](#fase-21--ui-de-aprovação-de-ações-do-agente) ⏳ Pendente
-25. [FASE 22 — Catálogo de Modelos LLM com UI](#fase-22--catálogo-de-modelos-llm-com-ui) ⏳ Pendente
+23. [FASE 20 — Editor de Prompts (UI Master)](#fase-20--editor-de-prompts-ui-master) ✅
+24. [FASE 21 — UI de Aprovação de Ações do Agente](#fase-21--ui-de-aprovação-de-ações-do-agente) ✅
+25. [FASE 22 — Catálogo de Modelos LLM com UI](#fase-22--catálogo-de-modelos-llm-com-ui) ✅
 26. [Fluxos End-to-End](#16-fluxos-end-to-end)
 27. [Catálogo Completo de UIs](#17-catálogo-completo-de-uis)
 28. [Riscos Transversais e Mitigações](#18-riscos-transversais-e-mitigações)
@@ -1069,7 +1069,7 @@ Para uma métrica M e contexto (tenant_id, client_id, segment_id):
 
 ## 3. Estado Atual do Projeto — Mapa de Fases
 
-> **Atualizado em 2026-06-22.** Este mapa reflete o estado real de implementação.
+> **Atualizado em 2026-06-27.** Este mapa reflete o estado real de implementação.
 > Fases marcadas ✅ estão em produção/local e testadas. 🔄 = implementação parcial. ⏳ = planejada/pendente.
 
 ```
@@ -1093,20 +1093,20 @@ Para uma métrica M e contexto (tenant_id, client_id, segment_id):
 ║  13      ║ Top N Configurável (cross-insights)                   ║ ✅ Concluída ║ 2026-06  ║
 ║  14a–d   ║ Ângulo Estratégico no Ciclo Completo                  ║ ✅ Concluída ║ 2026-06  ║
 ║  15      ║ Agentes IA: garantia de execução + novas ações        ║ ✅ Concluída ║ 2026-06  ║
-║  15-B    ║ UI de Aprovação de Ações Ofensivas do Agente          ║ ⏳ Pendente  ║ —        ║
+║  15-B    ║ UI de Aprovação de Ações Ofensivas do Agente          ║ ✅ Concluída ║ 2026-06  ║
 ║  16      ║ Postagem Orgânica no Meta                             ║ ✅ Concluída ║ 2026-06  ║
 ║  17      ║ Google Ads + Google AI Max (fase própria)             ║ ⏳ Pendente  ║ —        ║
 ║  18.1–5  ║ Inteligência Multi-Segmento (Radar, Dashboard, etc.)  ║ ✅ Concluída ║ 2026-06  ║
 ║  19.1–2  ║ Creative AI Loop — Geração por IA (Flux Schnell)     ║ ✅ Concluída ║ 2026-06  ║
 ║  19.3–5  ║ Creative AI Loop — Smart Selection + Meta Swap        ║ ⏳ Pendente  ║ —        ║
-║  20      ║ Editor de Prompts (UI para system_prompt_templates)   ║ ⏳ Pendente  ║ —        ║
-║  21      ║ UI de Aprovação de Ações do Agente (SCALE/REFRESH)    ║ ⏳ Pendente  ║ —        ║
-║  22      ║ Catálogo de Modelos LLM com UI (CRUD LlmModel)        ║ ⏳ Pendente  ║ —        ║
+║  20      ║ Editor de Prompts (UI para system_prompt_templates)   ║ ✅ Concluída ║ 2026-06  ║
+║  21      ║ UI de Aprovação de Ações do Agente (SCALE/REFRESH)    ║ ✅ Concluída ║ 2026-06  ║
+║  22      ║ Catálogo de Modelos LLM com UI (CRUD LlmModel)        ║ ✅ Concluída ║ 2026-06  ║
 ╠══════════╩═══════════════════════════════════════════════════════╩══════════════╩══════════╣
 ║  PENDÊNCIAS OPERACIONAIS (não são fases, são fixes)                                        ║
 ║  • VPS: batch de migrations local→VPS (várias de 2026-06-03 a 2026-06-22)                 ║
-║  • CPL formatting: toFixed → formatCurrency em /portfolio/cross-insights L280/296          ║
-║  • Hook Rate KPI card: thresholds 8%/12% hardcoded → benchmarkResolver (seção 1.8)        ║
+║  • CPL formatting: ✅ corrigido — formatCurrency em /portfolio/cross-insights L302/318      ║
+║  • Hook Rate KPI card: ✅ corrigido — benchmarkResolver ativo (setHookRateBenchmarks L194) ║
 ║  • State Machine thresholds: LEARNING_DAYS/FATIGUE_* → ENV (seção 1.7)                    ║
 ╚════════════════════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -1119,14 +1119,13 @@ FASES CONCLUÍDAS (✅):
   → 13 → 14a-d → 15 → 16 → 18.1-5 → 19.1-2
 
 PRÓXIMO PASSO RECOMENDADO (prioridade decrescente):
-  1. FASE 20 — Editor de Prompts [maior gap operacional]
-  2. FASE 21 — UI de Aprovação do Agente [fecha loop FASE 15]
-  3. FASE 19.3-5 — Smart Selection + Meta Swap [fecha loop Creative AI]
-  4. FASE 22 — Catálogo LLM UI [operacional]
-  5. FASE 17 — Google Ads [expansão de rede]
+  1. FASE 19.3-5 — Smart Selection + Meta Swap [fecha loop Creative AI]
+  2. FASE 17 — Google Ads [expansão de rede — paradigma asset-based]
+  3. FASE 11 — TikTok / LinkedIn [expansão de redes]
 
 PENDÊNCIAS TÉCNICAS:
-  • FASE 15-B é subconjunto de FASE 21
+  • CPL formatting: toFixed → formatCurrency em /portfolio/cross-insights L302/318
+  • State Machine thresholds: LEARNING_DAYS/FATIGUE_* → ENV (seção 1.7)
   • FASE 11 engloba FASE 17 (Google Ads é a prioridade dentro de 11)
 ```
 
@@ -3899,7 +3898,7 @@ CRITÉRIOS DE ACEITE:
 
 ## FASE 20 — Editor de Prompts (UI Master)
 
-**Duração estimada: ~3–4 dias | Pré-requisito: FASE 0 | Prioridade: 1 (maior gap operacional)**
+**Status: ✅ CONCLUÍDA (2026-06) — `/admin/master/prompts` + APIs `/master/prompts/*` implementados**
 
 ### 20.1. Objetivo
 
@@ -4014,7 +4013,7 @@ POST   /api/admin/master/prompts/[code]/restore/[version] → restaura versão a
 
 ## FASE 21 — UI de Aprovação de Ações do Agente
 
-**Duração estimada: ~2–3 dias | Pré-requisito: FASE 15 | Prioridade: 2**
+**Status: ✅ CONCLUÍDA (2026-06) — `/admin/campanhas/aprovacoes` (572 linhas) com SCALE/REFRESH/DOWNSCALE, budget_proposed, scale_pct, PIN mobile**
 
 ### 21.1. Objetivo
 
@@ -4094,7 +4093,7 @@ BADGE NO MENU (sidebar):
 
 ## FASE 22 — Catálogo de Modelos LLM com UI
 
-**Duração estimada: ~1–2 dias | Pré-requisito: FASE 0, seção 1.9 | Prioridade: 4**
+**Status: ✅ CONCLUÍDA (2026-06) — CRUD de `LlmModel` em `/admin/master/ia-plataforma` (aba Catálogo) + APIs `/master/ia-plataforma/models/*`**
 
 ### 22.1. Objetivo
 
@@ -4425,44 +4424,43 @@ docs/
 
 ---
 
-## Apêndice B — Próximos Passos (atualizado 2026-06-22)
+## Apêndice B — Próximos Passos (atualizado 2026-06-27)
 
 ```
-PRIORIDADE 1 — FASE 20: Editor de Prompts UI
-  → Maior gap operacional: 13+ prompts em produção sem UI de edição
-  → Migration: system_prompt_versions (tabela de histórico)
-  → Endpoints CRUD /api/admin/master/prompts/*
-  → UI /admin/master/prompts com 4 abas (Editor / Preview / Testar / Histórico)
-  → Estimativa: ~3-4 dias
+✅ CONCLUÍDAS (verificado 2026-06-27):
+  → FASE 20: Editor de Prompts — /admin/master/prompts + APIs CRUD
+  → FASE 21: UI de Aprovação do Agente — /admin/campanhas/aprovacoes (572L)
+  → FASE 22: Catálogo LLM — aba Catálogo em /admin/master/ia-plataforma
+  → Hook Rate benchmarks — setHookRateBenchmarks via API (L194 dashboard)
 
-PRIORIDADE 2 — FASE 21: UI de Aprovação do Agente
-  → Ações SCALE/REFRESH_CREATIVE nunca são executadas sem esta UI
-  → Endpoints: /approve e /reject por AgentAction
-  → UI: aba "Aguardando Aprovação" em /admin/campanhas/agente
-  → Notificação WhatsApp com deep link
-  → Estimativa: ~2-3 dias
-
-PRIORIDADE 3 — FASE 19.3-5: Completar Creative AI Loop
-  → Smart Library Selection (qual criativo substituir)
-  → Swap via Meta API
-  → Tracking de performance dos criativos AI
+PRIORIDADE 1 — FASE 19.3-5: Completar Creative AI Loop
+  → 19.3 Smart Library Selection (qual criativo substituir — fadiga score)
+     Serviço: smartLibrarySelector.ts
+     API: GET /api/admin/campanhas/criativos/replacement-candidates
+     UI: pós-geração no GenerateAIModal — lista de candidatos
+  → 19.4 Swap via Meta API (upload + novo Ad + pausa Ad antigo)
+     Tabela: campanhasmarketingdigital."CreativeSwap"
+     API: POST /api/admin/campanhas/criativos/swap-creative
+  → 19.5 Tracking de performance dos criativos AI (delta CTR/CPL 7d)
+     API: GET /api/admin/campanhas/criativos/ai-performance
   → Estimativa: ~4-5 dias (3 sub-fases)
 
-PRIORIDADE 4 — FASE 22: Catálogo de Modelos LLM
-  → Nova aba em /admin/master/ia-plataforma
-  → CRUD para tabela LlmModel
-  → Estimativa: ~1-2 dias
-
-PRIORIDADE 5 — FASE 17 (Google Ads)
-  → Paradigma asset-based; wizard separado do Meta
+PRIORIDADE 2 — FASE 17 (Google Ads)
+  → Paradigma asset-based (PMax/AI Max) — wizard SEPARADO do Meta
   → GoogleCampaignInput + GoogleAdsAdapter
-  → OAuth2/customer_id por tenant
+  → OAuth2 + developer token + customer_id por tenant
+  → Bloqueio de lançamento sem meta de conversão configurada
   → Estimativa: ~2-3 semanas (fase complexa)
+
+PRIORIDADE 3 — FASE 11 (TikTok / LinkedIn)
+  → Adapters atualmente são placeholders vazios
+  → Cada rede: adapter + network_defaults por segmento + credenciais
+  → Estimativa: após FASE 17
 
 PENDÊNCIAS OPERACIONAIS (fazer a qualquer momento):
   → VPS batch: aplicar todas as migrations locais (2026-06-03 a 2026-06-22)
-  → Fix CPL formatting: /portfolio/cross-insights L280/296 + CplTimelineChart
-  → Testar imagens_por_ia: ativar toggle em segmento "Saúde Digital" → verificar botão
+  → Fix CPL formatting: ✅ corrigido em /portfolio/cross-insights L302/318
+  → State Machine thresholds: LEARNING_DAYS/FATIGUE_* → ENV (seção 1.7)
 ```
 
 ---

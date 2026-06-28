@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
 
     actionsCreated = results.reduce((sum, r) => {
       if (r.status === 'fulfilled') return sum + (r.value?.actionsCreated ?? 0);
+      if (r.status === 'rejected') console.error('[tick] runDecisor error:', (r as any).reason?.message ?? r);
       return sum;
     }, 0);
 

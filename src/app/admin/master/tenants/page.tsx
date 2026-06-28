@@ -103,12 +103,15 @@ export default function MasterTenantsPage() {
     evolution_api_url: '',
     evolution_api_key: '',
     evolution_instance: '',
+    numero_whatsapp: '',
     agent_confidence_threshold: '0.85',
   })
 
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingTenant, setEditingTenant] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<'geral' | 'modulos' | 'google_calendar' | 'meta' | 'comunicacao_ia'>('geral')
+  const [activeTab, setActiveTab] = useState<'geral' | 'modulos' | 'google_calendar' | 'meta' | 'comunicacao_ia' | 'whatsapp'>('geral')
+  const [wppStatus, setWppStatus]   = useState<{ connected: boolean; qrCode?: string | null; error?: string } | null>(null)
+  const [wppLoading, setWppLoading] = useState(false)
   const [editingMeta, setEditingMeta] = useState({
     pageId: '',
     pixelId: '',
@@ -259,6 +262,7 @@ export default function MasterTenantsPage() {
           evolution_api_url: '',
           evolution_api_key: '',
           evolution_instance: '',
+          numero_whatsapp: '',
           agent_confidence_threshold: '0.85',
         })
         fetchData()
@@ -438,6 +442,33 @@ export default function MasterTenantsPage() {
     setShowEditModal(true)
   }
 
+  const loadWppStatus = async (tenantId: string) => {
+    setWppLoading(true)
+    setWppStatus(null)
+    try {
+      const res = await get(`/api/admin/master/tenants/${tenantId}/whatsapp`)
+      const data = await res.json()
+      setWppStatus(data)
+    } catch {
+      setWppStatus({ connected: false, error: 'Erro ao buscar status' })
+    } finally {
+      setWppLoading(false)
+    }
+  }
+
+  const refreshQr = async (tenantId: string) => {
+    setWppLoading(true)
+    try {
+      const res = await post(`/api/admin/master/tenants/${tenantId}/whatsapp`, { action: 'refresh_qr' })
+      const data = await res.json()
+      setWppStatus(prev => ({ ...prev, connected: data.connected, qrCode: data.qrCode }))
+    } catch {
+      // silencioso
+    } finally {
+      setWppLoading(false)
+    }
+  }
+
   const openEdit = (tenant: any) => {
     setEditingTenant({ ...tenant })
     setActiveTab('geral')
@@ -493,6 +524,7 @@ export default function MasterTenantsPage() {
                     evolution_api_url: '',
                     evolution_api_key: '',
                     evolution_instance: '',
+                    numero_whatsapp: '',
                     agent_confidence_threshold: '0.85',
                   });
                   setUserFound(false);
@@ -941,6 +973,13 @@ export default function MasterTenantsPage() {
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
                     </div>
                     <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Número WhatsApp (alertas do agente)</label>
+                      <input type="text" value={newTenant.numero_whatsapp || ''} onChange={e => setNewTenant({ ...newTenant, numero_whatsapp: e.target.value })}
+                        placeholder="5581999999999 (DDI+DDD+número, sem espaços)"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                      <p className="text-[9px] text-gray-400 mt-1">Número que receberá as notificações do agente (SCALE, PAUSE, alertas). Tem prioridade sobre o WhatsAppConfig.</p>
+                    </div>
+                    <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Anthropic API Key (IA do Tenant)</label>
                       <input type="password" value={newTenant.anthropic_api_key || ''} onChange={e => setNewTenant({ ...newTenant, anthropic_api_key: e.target.value })}
                         placeholder="Chave Anthropic do Tenant"
@@ -998,6 +1037,11 @@ export default function MasterTenantsPage() {
                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'comunicacao_ia' ? 'bg-white text-indigo-700 shadow-md' : 'text-blue-200/70 hover:text-white hover:bg-white/10'}`}>
                      <Cog6ToothIcon className="h-3.5 w-3.5" />
                      5. Comunicação e IA
+                   </button>
+                   <button type="button" onClick={() => { setActiveTab('whatsapp'); loadWppStatus(editingTenant.id) }}
+                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'whatsapp' ? 'bg-white text-green-700 shadow-md' : 'text-blue-200/70 hover:text-white hover:bg-white/10'}`}>
+                     <span className="text-sm">📱</span>
+                     6. WhatsApp
                    </button>
                 </div>
               </div>
@@ -1228,7 +1272,7 @@ export default function MasterTenantsPage() {
                       <p className="text-xs font-black text-emerald-900 uppercase tracking-widest mb-1">Integração Google Calendar</p>
                       <p className="text-[10px] text-emerald-700 font-medium leading-relaxed">
                         Configure o calendário corporativo desta unidade. Quando habilitado, o botão
-                        "Agendar Visita" aparece no CRM Kanban e os corretores podem vincular
+                        &quot;Agendar Visita&quot; aparece no CRM Kanban e os corretores podem vincular
                         seus Google Calendars individuais.
                       </p>
                     </div>
@@ -1447,7 +1491,7 @@ export default function MasterTenantsPage() {
                     ))}
                   </div>
                 </div>
-              ) : (
+              ) : activeTab === 'comunicacao_ia' ? (
                 <div className="animate-fade-in space-y-6 max-w-xl">
                   <div className="rounded-2xl p-5 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Comunicação e Agentes</p>
@@ -1485,6 +1529,13 @@ export default function MasterTenantsPage() {
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
                     </div>
                     <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Número WhatsApp (alertas do agente)</label>
+                      <input type="text" value={editingTenant.numero_whatsapp || ''} onChange={e => setEditingTenant({ ...editingTenant, numero_whatsapp: e.target.value })}
+                        placeholder="5581999999999 (DDI+DDD+número, sem espaços)"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
+                      <p className="text-[9px] text-gray-400 mt-1">Número que receberá as notificações do agente (SCALE, PAUSE, alertas). Tem prioridade sobre o WhatsAppConfig.</p>
+                    </div>
+                    <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Anthropic API Key (IA do Tenant)</label>
                       <div className="relative">
                         <input type={showAnthropicApiKey ? "text" : "password"} value={editingTenant.anthropic_api_key || ''} onChange={e => setEditingTenant({ ...editingTenant, anthropic_api_key: e.target.value })}
@@ -1503,6 +1554,72 @@ export default function MasterTenantsPage() {
                     </div>
                   </div>
                 </div>
+              ) : (
+                <div className="animate-fade-in space-y-6 max-w-lg">
+                  <div className="rounded-2xl p-5 text-white bg-gradient-to-r from-green-600 to-emerald-700">
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Conexão WhatsApp</p>
+                    <h3 className="text-base font-black">QR Code · Status da Instância</h3>
+                  </div>
+
+                  {/* Status */}
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-100 bg-gray-50">
+                    {wppLoading ? (
+                      <div className="h-4 w-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                    ) : wppStatus?.connected ? (
+                      <span className="h-3 w-3 rounded-full bg-green-500 shadow-sm shadow-green-300" />
+                    ) : (
+                      <span className="h-3 w-3 rounded-full bg-red-400" />
+                    )}
+                    <span className="text-sm font-black text-gray-700">
+                      {wppLoading
+                        ? 'Verificando…'
+                        : wppStatus?.connected
+                        ? 'Conectado ao WhatsApp'
+                        : wppStatus
+                        ? `Desconectado${wppStatus.error ? ` — ${wppStatus.error}` : ''}`
+                        : 'Clique em "Gerar QR Code" para verificar'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => loadWppStatus(editingTenant.id)}
+                      disabled={wppLoading}
+                      className="ml-auto text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 disabled:opacity-40"
+                    >
+                      Atualizar
+                    </button>
+                  </div>
+
+                  {/* QR Code */}
+                  {!wppStatus?.connected && (
+                    <div className="space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => refreshQr(editingTenant.id)}
+                        disabled={wppLoading}
+                        className="w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-all"
+                      >
+                        {wppLoading ? 'Buscando QR…' : 'Gerar / Atualizar QR Code'}
+                      </button>
+
+                      {wppStatus?.qrCode && (
+                        <div className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-dashed border-green-200 bg-green-50">
+                          <p className="text-[10px] font-black text-green-700 uppercase tracking-widest">
+                            Escaneie com o WhatsApp do número configurado
+                          </p>
+                          <img
+                            src={wppStatus.qrCode}
+                            alt="QR Code WhatsApp"
+                            className="w-48 h-48 rounded-xl border border-green-100"
+                          />
+                          <p className="text-[9px] text-green-600 font-medium text-center">
+                            Abra o WhatsApp → Configurações → Aparelhos conectados → Conectar aparelho
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </div>
               )}
 
               <div className="mt-auto pt-10 border-t border-gray-100 flex justify-end gap-4">
@@ -1513,7 +1630,7 @@ export default function MasterTenantsPage() {
                     className="flex items-center gap-2 px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-indigo-600 text-white shadow-xl hover:bg-indigo-700 transition-all disabled:opacity-50">
                     {metaSavedModal ? <><CheckCircleIcon className="h-4 w-4" /> Salvo!</> : metaSavingModal ? 'Salvando...' : 'Salvar Config. Meta'}
                   </button>
-                ) : (
+                ) : activeTab === 'whatsapp' ? null : (
                   <button type="submit"
                     className="px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest bg-indigo-600 text-white shadow-xl hover:bg-indigo-700 transition-all">Efetivar Configurações Master</button>
                 )}

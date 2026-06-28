@@ -42,15 +42,35 @@ async function mapCampaignSegments(
   return result;
 }
 
-const DEFAULT_BENCHMARKS: BenchmarkMap = {
-  cpl_ideal: 30, ctr_min: 1, ctr_scale: 2, frequency_max: 3, spend_no_lead: 50,
-  min_leads_scale: 5, min_days_running: 3, hook_rate_critical: 8, hook_rate_min: 12,
-} as BenchmarkMap;
+// Sem DEFAULT_BENCHMARKS hardcoded — todos os valores vêm de system_benchmarks por segmento.
+// Se um segmento não tiver uma chave configurada, benchmarkResolver loga o erro e retorna 0.
 
 const BENCHMARK_KEYS = [
-  'cpl_ideal', 'ctr_min', 'ctr_scale', 'frequency_max', 'spend_no_lead',
+  'cpl_ideal', 'cpl_critical', 'ctr_min', 'ctr_scale', 'frequency_max', 'spend_no_lead',
   'min_leads_scale', 'min_days_running', 'hook_rate_critical', 'hook_rate_min',
+  'scale_budget_pct', 'downscale_budget_pct',
+  // Cálculo proporcional de escala (substituem scale_budget_pct quando configurados)
+  'scale_budget_base_pct', 'scale_budget_max_pct', 'scale_ratio_cap',
 ];
+
+/**
+ * Calcula o % de escala de budget proporcional à performance da campanha.
+ * Quanto mais acima do threshold de CTR, maior o %; capped em scale_budget_max_pct.
+ * Fallback: scale_budget_pct (fixo) se as novas chaves não estiverem configuradas.
+ */
+function computeScalePct(actualCtr: number, b: BenchmarkMap): number {
+  const basePct  = b.scale_budget_base_pct ?? null;
+  if (basePct == null) return b.scale_budget_pct ?? 20;   // fallback legado
+
+  const maxPct   = b.scale_budget_max_pct ?? 25;
+  const ratioCap = b.scale_ratio_cap ?? 3.0;
+  const threshold = b.ctr_scale || 1;
+
+  const ctrRatio = actualCtr / threshold;
+  // Interpola linearmente de basePct (= threshold) até maxPct (= ratioCap × threshold)
+  const t = Math.min(Math.max((ctrRatio - 1) / (ratioCap - 1), 0), 1);
+  return Math.round(basePct + (maxPct - basePct) * t);
+}
 
 interface CampaignData {
   campaignId: string;
@@ -155,7 +175,8 @@ const RULES: InsightRule[] = [
     title: 'CPL crítico — reduzir orçamento',
     description: (d, b) => {
       const cpl = d.totalSpend / d.leads;
-      return `CPL R$${cpl.toFixed(2)} (${(cpl / b.cpl_ideal).toFixed(1)}× o ideal de R$${b.cpl_ideal}) na campanha "${d.campaignName}". Budget reduzido 30% para conter sangria enquanto o criativo é revisado.`;
+      const pct = b.downscale_budget_pct ?? 30;
+      return `CPL R$${cpl.toFixed(2)} (${(cpl / b.cpl_ideal).toFixed(1)}× o ideal de R$${b.cpl_ideal}) na campanha "${d.campaignName}". Budget reduzido ${pct}% para conter sangria enquanto o criativo é revisado.`;
     },
     confidence: (d, b) => {
       const cpl = d.totalSpend / d.leads;
@@ -332,7 +353,10 @@ export async function generateAiInsights(
       new Set(Array.from(campaignSegments.values()).map(v => v.segmentId).filter(Boolean) as string[]),
     );
     await Promise.all(uniqueSegmentIds.map(async segId => {
-      const bm = await resolveBenchmarks(BENCHMARK_KEYS, tenantId, segId, clientId).catch(() => DEFAULT_BENCHMARKS);
+      const bm = await resolveBenchmarks(BENCHMARK_KEYS, tenantId, segId, clientId).catch((err) => {
+        console.error('[aiInsights] resolveBenchmarks falhou para segment', segId, err);
+        return {} as BenchmarkMap;
+      });
       benchmarksBySegment.set(segId, bm);
     }));
   }
@@ -342,7 +366,9 @@ export async function generateAiInsights(
     if (seg?.segmentId && benchmarksBySegment.has(seg.segmentId)) {
       return benchmarksBySegment.get(seg.segmentId)!;
     }
-    return DEFAULT_BENCHMARKS;
+    // Segmento não mapeado ou não configurado — retorna vazio; as regras usarão valor 0
+    // e o benchmarkResolver já logou o erro. Configure via /admin/master/segments → Parâmetros.
+    return {} as BenchmarkMap;
   }
 
   const allInsights: any[] = [];
@@ -402,7 +428,7 @@ export async function generateAiInsights(
     // Lagging rules (FASE 5 e anteriores)
     for (const rule of RULES) {
       if (rule.check(data, benchmarks)) {
-        allInsights.push({
+        const insight: any = {
           campaignId: campaign.id,
           campaignName: campaign.name,
           type: rule.type,
@@ -410,7 +436,12 @@ export async function generateAiInsights(
           description: rule.description(data, benchmarks),
           confidence: rule.confidence(data, benchmarks),
           ...segTag,
-        });
+        };
+        // Para SCALE: calcula % proporcional à performance real (não fixo)
+        if (rule.type === 'SCALE') {
+          insight.scalePct = computeScalePct(data.avgCtr, benchmarks);
+        }
+        allInsights.push(insight);
       }
     }
 

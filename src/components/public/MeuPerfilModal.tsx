@@ -618,7 +618,7 @@ export default function MeuPerfilModal({ isOpen, onClose, initialMode = 'details
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+      <div role="dialog" aria-modal="true" aria-label="Meu perfil" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
         <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl my-8 max-h-[95vh] overflow-hidden flex flex-col">
           {/* Header Compacto */}
           <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 border-b border-gray-200 flex-shrink-0">

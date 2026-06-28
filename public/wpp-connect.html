@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conectar WhatsApp · Trafegopago</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, system-ui, sans-serif;
+      background: #0b141a; color: #e9edef;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 100vh; padding: 24px; gap: 20px;
+    }
+    h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+    .card {
+      background: #fff; padding: 20px; border-radius: 16px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.5);
+      display: flex; align-items: center; justify-content: center;
+      width: 320px; height: 320px;
+    }
+    .card img { width: 280px; height: 280px; image-rendering: pixelated; }
+    .status {
+      font-size: 14px; padding: 8px 16px; border-radius: 999px;
+      font-weight: 600; display: flex; align-items: center; gap: 8px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .connecting { background: #182229; color: #ffd279; }
+    .connecting .dot { background: #ffd279; animation: pulse 1.2s infinite; }
+    .open { background: #0a3d2e; color: #25d366; }
+    .open .dot { background: #25d366; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .help { font-size: 13px; color: #8696a0; text-align: center; max-width: 320px; line-height: 1.5; }
+    .ok { font-size: 48px; }
+  </style>
+</head>
+<body>
+  <h1>📱 Conectar WhatsApp</h1>
+  <div class="card" id="card">
+    <span style="color:#888">Carregando QR…</span>
+  </div>
+  <div class="status connecting" id="status"><span class="dot"></span><span id="statusText">Aguardando leitura…</span></div>
+  <div class="help">
+    No celular <b>5581998000047</b>: WhatsApp → <b>Aparelhos conectados</b> →
+    <b>Conectar um aparelho</b> e aponte para o QR. Ele renova sozinho.
+  </div>
+
+  <script>
+    const card = document.getElementById('card');
+    const status = document.getElementById('status');
+    const statusText = document.getElementById('statusText');
+    let connected = false;
+
+    async function tick() {
+      if (connected) return;
+      try {
+        const r = await fetch('/api/wpp-qr', { cache: 'no-store' });
+        const d = await r.json();
+        if (d.state === 'open') {
+          connected = true;
+          card.innerHTML = '<div class="ok">✅</div>';
+          status.className = 'status open';
+          statusText.textContent = 'Conectado com sucesso!';
+          return;
+        }
+        if (d.base64) {
+          const src = d.base64.startsWith('data:') ? d.base64 : 'data:image/png;base64,' + d.base64;
+          card.innerHTML = '<img src="' + src + '" alt="QR Code" />';
+          statusText.textContent = 'Escaneie o QR (renova automaticamente)';
+        }
+      } catch (e) {
+        statusText.textContent = 'Erro: ' + e.message;
+      }
+    }
+
+    tick();
+    setInterval(tick, 3000);
+  </script>
+</body>
+</html>

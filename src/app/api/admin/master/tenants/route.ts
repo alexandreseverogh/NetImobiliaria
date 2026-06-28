@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
       admin_nome, admin_username, admin_email, admin_password,
       selected_modules, ai_config, primary_color, secondary_color,
       calendario, google_email, duracao_visita,
-      anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold
+      anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
+      numero_whatsapp
     } = body;
 
     await client.query('BEGIN');
@@ -77,15 +78,16 @@ export async function POST(request: NextRequest) {
     // 1. Inserir Tenant
     const tenantResult = await client.query(`
       INSERT INTO tenants (
-        name, slug, segment_id, logo_url, cnpj_cpf, 
+        name, slug, segment_id, logo_url, cnpj_cpf,
         logradouro, numero, bairro, cidade, estado, cep, telefone, email_contato, status, ai_config,
         primary_color, secondary_color, calendario, google_email, duracao_visita,
-        anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+        anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
+        numero_whatsapp
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
       RETURNING id
     `, [
       name, slug, segment_id, logo || null, cnpj_cpf || null,
-      logradouro || null, numero || null, bairro || null, cidade || null, 
+      logradouro || null, numero || null, bairro || null, cidade || null,
       estado || null, cep || null, telefone || null, email_contato || null,
       JSON.stringify(ai_config || {}),
       primary_color || '#1A2B3C',
@@ -98,7 +100,8 @@ export async function POST(request: NextRequest) {
       evolution_api_url || null,
       evolution_api_key || null,
       evolution_instance || null,
-      agent_confidence_threshold !== undefined && agent_confidence_threshold !== null ? parseFloat(agent_confidence_threshold) : 0.85
+      agent_confidence_threshold !== undefined && agent_confidence_threshold !== null ? parseFloat(agent_confidence_threshold) : 0.85,
+      numero_whatsapp || null,
     ]);
     const tenantId = tenantResult.rows[0].id;
 
@@ -139,6 +142,24 @@ export async function POST(request: NextRequest) {
       INSERT INTO user_tenant_membership (user_id, tenant_id, role_id, is_owner, is_active)
       VALUES ($1, $2, $3, true, true)
     `, [userId, tenantId, roleId]);
+
+    // 4.5 Semear colunas padrão do Kanban (pipeline de leads do CRM) para o novo tenant.
+    //     Os `nome` batem com o que o código espera (ex.: 'entendimento_dor', 'lead_captado').
+    //     Idempotente via NOT EXISTS; compatível com a UNIQUE(tenant_id, nome).
+    await client.query(`
+      INSERT INTO kanban_colunas (nome, titulo_exibicao, ordem, cor, icone, ativa, sla_hours, tenant_id)
+      SELECT c.nome, c.titulo, c.ordem, c.cor, c.icone, true, c.sla, $1
+      FROM (VALUES
+        ('lead_captado',     'Lead Captado',        1, '#94A3B8', 'InboxIcon',                       2),
+        ('Em Análise',       'Em Análise',          2, '#F59E0B', 'MagnifyingGlassIcon',             4),
+        ('entendimento_dor', 'Entendimento da Dor', 3, '#3B82F6', 'ChatBubbleBottomCenterTextIcon', 24),
+        ('visita_agendada',  'Visita Agendada',     4, '#10B981', 'CalendarIcon',                   24),
+        ('proposta_enviada', 'Proposta Enviada',    5, '#8B5CF6', 'DocumentTextIcon',               48),
+        ('fechamento',       'Fechamento',          6, '#059669', 'TrophyIcon',                     24),
+        ('perdido',          'Perdido',             7, '#EF4444', 'XCircleIcon',                     24)
+      ) AS c(nome, titulo, ordem, cor, icone, sla)
+      WHERE NOT EXISTS (SELECT 1 FROM kanban_colunas k WHERE k.tenant_id = $1)
+    `, [tenantId]);
 
     // 5. Ativar Módulos e Auto-provisionar Permissões
     if (selected_modules && Array.isArray(selected_modules)) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/jwt';
 import pool from '@/lib/database/connection';
+import { SEGMENT_SEED_DEFAULTS } from '@/lib/intelligence/benchmarkResolver';
 
 /* ── auth helper ─────────────────────────────────────────────────── */
 
@@ -57,9 +58,6 @@ export async function POST(request: NextRequest) {
       name, slug, description = '', icon = 'box',
       color_theme = '#2563eb', is_active = true,
       module_ids = [] as string[],
-      cpl_ideal      = null as number | null,
-      cpl_critical   = null as number | null,
-      ctr_min        = null as number | null,
       imagens_por_ia = false as boolean,
     } = body;
 
@@ -69,18 +67,28 @@ export async function POST(request: NextRequest) {
 
     const { rows } = await pool.query(`
       INSERT INTO public.system_segments
-        (name, slug, description, icon, color_theme, is_active,
-         cpl_ideal, cpl_critical, ctr_min, imagens_por_ia)
-      VALUES ($1, $2, $3, $4, $5, $6,
-        $7::NUMERIC, $8::NUMERIC, $9::NUMERIC, $10::BOOLEAN)
+        (name, slug, description, icon, color_theme, is_active, imagens_por_ia)
+      VALUES ($1, $2, $3, $4, $5, $6, $7::BOOLEAN)
       RETURNING id
-    `, [name, slug, description, icon, color_theme, is_active,
-        cpl_ideal   != null && cpl_ideal   !== '' ? cpl_ideal   : null,
-        cpl_critical != null && cpl_critical !== '' ? cpl_critical : null,
-        ctr_min     != null && ctr_min     !== '' ? ctr_min     : null,
-        imagens_por_ia ?? false]);
+    `, [name, slug, description, icon, color_theme, is_active, imagens_por_ia ?? false]);
 
     const newId = rows[0].id;
+
+    // Auto-semear todos os benchmarks do segmento a partir de SEGMENT_SEED_DEFAULTS.
+    // Garante que o agente funciona imediatamente e sem hardcode em runtime.
+    const seedEntries = Object.entries(SEGMENT_SEED_DEFAULTS);
+    if (seedEntries.length > 0) {
+      const vals   = seedEntries.map((_, i) => `($1::uuid, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4}, $${i * 4 + 5})`).join(', ');
+      const params: any[] = [newId];
+      for (const [key, def] of seedEntries) {
+        params.push(key, def.label, def.value, def.unit);
+      }
+      await pool.query(
+        `INSERT INTO public.system_benchmarks (segment_id, metric_key, metric_label, value, unit)
+         VALUES ${vals} ON CONFLICT (segment_id, metric_key) DO NOTHING`,
+        params,
+      );
+    }
 
     // Associar módulos
     if (module_ids.length > 0) {
@@ -115,9 +123,6 @@ export async function PUT(request: NextRequest) {
       id, name, description = '', icon = 'box',
       color_theme = '#2563eb', is_active = true,
       module_ids = [] as string[],
-      cpl_ideal      = null as number | null,
-      cpl_critical   = null as number | null,
-      ctr_min        = null as number | null,
       imagens_por_ia = false as boolean,
     } = body;
 
@@ -132,16 +137,9 @@ export async function PUT(request: NextRequest) {
         icon           = $4,
         color_theme    = $5,
         is_active      = $6,
-        cpl_ideal      = $7::NUMERIC,
-        cpl_critical   = $8::NUMERIC,
-        ctr_min        = $9::NUMERIC,
-        imagens_por_ia = $10::BOOLEAN
+        imagens_por_ia = $7::BOOLEAN
       WHERE id = $1::uuid
-    `, [id, name, description, icon, color_theme, is_active,
-        cpl_ideal   != null && cpl_ideal   !== '' ? cpl_ideal   : null,
-        cpl_critical != null && cpl_critical !== '' ? cpl_critical : null,
-        ctr_min     != null && ctr_min     !== '' ? ctr_min     : null,
-        imagens_por_ia ?? false]);
+    `, [id, name, description, icon, color_theme, is_active, imagens_por_ia ?? false]);
 
     // Re-sincronizar módulos: remove todos e reinsere
     await pool.query(
