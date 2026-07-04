@@ -30,6 +30,10 @@ docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
 echo "[*] Status:"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 
+echo "[*] Configurando Evolution API webhooks..."
+bash scripts/vps/configure-evolution-webhooks.sh \
+  || echo "[AVISO] Evolution webhook config com falha — verifique manualmente" >&2
+
 echo "[OK] Deploy concluído."
 echo "[*] Valide:"
 echo "   - https://$(grep -E '^PROD_DOMAIN=' .env.vps | cut -d= -f2)/api/health"

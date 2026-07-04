@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import {
   PlusIcon, LinkIcon, TrashIcon, PencilSquareIcon, XMarkIcon,
-  ChartBarIcon, ClipboardDocumentIcon, CheckIcon,
+  ChartBarIcon, ClipboardDocumentIcon, CheckIcon, EyeIcon, EyeSlashIcon,
+  CodeBracketIcon, ChevronDownIcon, ChevronUpIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 
@@ -37,6 +38,7 @@ const DEFAULT_FIELDS: FieldDef[] = [
 
 export default function DestinosPage() {
   const [destinos, setDestinos] = useState<Destino[]>([])
+  const [webhookKey, setWebhookKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<Destino | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -48,6 +50,7 @@ export default function DestinosPage() {
       const res = await adminFetch('/api/admin/campanhas/destinos')
       const data = await res.json()
       setDestinos(data.destinos || [])
+      setWebhookKey(data.webhook_key ?? null)
     } finally {
       setLoading(false)
     }
@@ -76,6 +79,8 @@ export default function DestinosPage() {
           <PlusIcon className="w-4 h-4" /> Novo destino
         </button>
       </div>
+
+      {webhookKey && <WebhookIntegrationPanel apiKey={webhookKey} />}
 
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -322,6 +327,117 @@ function MetricsModal({ destino, onClose }: { destino: Destino; onClose: () => v
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function WebhookIntegrationPanel({ apiKey }: { apiKey: string }) {
+  const [open, setOpen] = useState(false)
+  const [showKey, setShowKey] = useState(false)
+  const [copiedKey, setCopiedKey] = useState(false)
+  const [copiedEx, setCopiedEx] = useState(false)
+
+  const endpoint = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/public/cta/ingest`
+    : '/api/public/cta/ingest'
+
+  const examplePayload = JSON.stringify({
+    name: 'João Silva',
+    email: 'joao@email.com',
+    phone: '5581999990000',
+    utm_source: 'facebook',
+    utm_medium: 'cpc',
+    utm_campaign: 'imoveis-sp-jul',
+    destination_slug: 'meu-destino-opcional',
+  }, null, 2)
+
+  const copy = (text: string, setCopied: (v: boolean) => void) => {
+    navigator.clipboard?.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div className="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50/60">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 text-left"
+      >
+        <div className="flex items-center gap-2.5">
+          <CodeBracketIcon className="w-5 h-5 text-indigo-600" />
+          <div>
+            <span className="text-sm font-semibold text-indigo-900">Integração via Webhook (Mecanismo C)</span>
+            <p className="text-xs text-indigo-600 mt-0.5">Receba leads de formulários externos — Typeform, RD Station, n8n, Make, Zapier…</p>
+          </div>
+        </div>
+        {open
+          ? <ChevronUpIcon className="w-4 h-4 text-indigo-500 shrink-0" />
+          : <ChevronDownIcon className="w-4 h-4 text-indigo-500 shrink-0" />}
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-4">
+          {/* Endpoint */}
+          <div>
+            <span className="text-xs font-medium text-indigo-700 uppercase tracking-wide">Endpoint</span>
+            <div className="mt-1.5 flex items-center gap-2 bg-white rounded-lg border border-indigo-200 px-3 py-2 text-xs font-mono text-gray-800">
+              <span className="text-indigo-500 font-semibold">POST</span>
+              <span className="flex-1 break-all">{endpoint}</span>
+            </div>
+          </div>
+
+          {/* API Key */}
+          <div>
+            <span className="text-xs font-medium text-indigo-700 uppercase tracking-wide">Sua API Key</span>
+            <div className="mt-1.5 flex items-center gap-2 bg-white rounded-lg border border-indigo-200 px-3 py-2">
+              <span className="flex-1 font-mono text-xs text-gray-800 break-all">
+                {showKey ? apiKey : '•'.repeat(Math.min(apiKey.length, 36))}
+              </span>
+              <button onClick={() => setShowKey(v => !v)} className="text-gray-400 hover:text-gray-600 shrink-0" aria-label="Mostrar/ocultar chave">
+                {showKey ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+              </button>
+              <button onClick={() => copy(apiKey, setCopiedKey)} className="text-gray-400 hover:text-indigo-600 shrink-0" aria-label="Copiar chave">
+                {copiedKey ? <CheckIcon className="w-4 h-4 text-emerald-600" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="mt-1.5 text-xs text-indigo-600">
+              Envie no header <code className="bg-indigo-100 px-1 rounded">Authorization: Bearer {'{sua_api_key}'}</code>,
+              como query <code className="bg-indigo-100 px-1 rounded">?token={'{sua_api_key}'}</code>
+              ou no body como <code className="bg-indigo-100 px-1 rounded">"api_key"</code>.
+            </p>
+          </div>
+
+          {/* Exemplo */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-medium text-indigo-700 uppercase tracking-wide">Exemplo de payload</span>
+              <button onClick={() => copy(examplePayload, setCopiedEx)} className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800">
+                {copiedEx ? <CheckIcon className="w-3.5 h-3.5 text-emerald-600" /> : <ClipboardDocumentIcon className="w-3.5 h-3.5" />}
+                {copiedEx ? 'Copiado' : 'Copiar'}
+              </button>
+            </div>
+            <pre className="bg-gray-900 text-gray-100 text-xs rounded-xl p-4 overflow-x-auto leading-relaxed">{examplePayload}</pre>
+          </div>
+
+          {/* Dicas de integração */}
+          <div className="grid sm:grid-cols-3 gap-3">
+            {[
+              { name: 'Typeform', tip: 'Webhooks → Add webhook → cole a URL + header Authorization' },
+              { name: 'n8n / Make', tip: 'HTTP Request node → POST → Body (JSON) + Auth header' },
+              { name: 'RD Station', tip: 'Integrações → Webhook → configure campos name/email/phone' },
+            ].map(({ name, tip }) => (
+              <div key={name} className="bg-white rounded-xl border border-indigo-100 px-3 py-2.5">
+                <span className="text-xs font-semibold text-gray-800">{name}</span>
+                <p className="text-xs text-gray-500 mt-0.5">{tip}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-indigo-600">
+            O campo <code className="bg-indigo-100 px-1 rounded">destination_slug</code> é opcional — quando informado, vincula o lead ao cliente correto do destino.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

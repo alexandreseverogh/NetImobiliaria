@@ -29,14 +29,24 @@ export async function GET(request: NextRequest) {
   if (clientId === 'own') where.push('client_id IS NULL')
   else if (clientId) { args.push(clientId); where.push(`client_id = $${args.length}`) }
 
-  const { rows } = await pool.query(
-    `SELECT id, name, slug, type, cta_type, config, is_active, client_id, created_at, updated_at
-       FROM ${SCHEMA}."CtaDestination"
-      WHERE ${where.join(' AND ')}
-      ORDER BY created_at DESC`,
-    args,
-  )
-  return NextResponse.json({ success: true, destinos: rows })
+  const [destinosRes, tenantRes] = await Promise.all([
+    pool.query(
+      `SELECT id, name, slug, type, cta_type, config, is_active, client_id, created_at, updated_at
+         FROM ${SCHEMA}."CtaDestination"
+        WHERE ${where.join(' AND ')}
+        ORDER BY created_at DESC`,
+      args,
+    ),
+    pool.query(
+      `SELECT cta_webhook_key FROM public.tenants WHERE id = $1`,
+      [payload.tenantId],
+    ),
+  ])
+  return NextResponse.json({
+    success: true,
+    destinos: destinosRes.rows,
+    webhook_key: tenantRes.rows[0]?.cta_webhook_key ?? null,
+  })
 }
 
 /** POST /api/admin/campanhas/destinos — cria um destino */

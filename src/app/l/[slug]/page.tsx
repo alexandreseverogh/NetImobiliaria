@@ -1,21 +1,25 @@
 import { redirect } from 'next/navigation'
-import { getDestinationBySlug } from '@/lib/cta/service'
+import { headers } from 'next/headers'
+import { getDestinationBySlug, logInteraction } from '@/lib/cta/service'
 import CtaFormClient from './CtaFormClient'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * Página pública de destino de CTA — /l/{slug}
- *  APP_FORM     → renderiza o formulário hospedado pelo app (captura + lead)
- *  WHATSAPP     → redireciona para wa.me com a mensagem introdutória
- *  EXTERNAL_URL → redireciona para a página do cliente
+ *  APP_FORM     → renderiza formulário hospedado (Mecanismo A)
+ *  WHATSAPP     → loga WHATSAPP_CLICK e redireciona para wa.me
+ *  EXTERNAL_URL → loga REDIRECT e redireciona (Mecanismo B — link rastreado)
  */
 export default async function CtaDestinationPage({
   params,
+  searchParams,
 }: {
   params: { slug: string }
+  searchParams: Record<string, string | string[] | undefined>
 }) {
   const dest = await getDestinationBySlug(params.slug)
+  const hdr = headers()
 
   if (!dest) {
     return (
@@ -28,15 +32,57 @@ export default async function CtaDestinationPage({
     )
   }
 
+  const sp = (k: string) => {
+    const v = searchParams[k]
+    return typeof v === 'string' ? v : Array.isArray(v) ? v[0] : undefined
+  }
+  const utmCtx = {
+    source: sp('utm_source'),
+    medium: sp('utm_medium'),
+    campaign: sp('utm_campaign'),
+    content: sp('utm_content'),
+  }
+  const ip = hdr.get('x-forwarded-for')?.split(',')[0]?.trim() ?? hdr.get('x-real-ip') ?? null
+
   if (dest.type === 'WHATSAPP') {
+    await logInteraction({
+      tenantId: dest.tenant_id,
+      clientId: dest.client_id,
+      destinationId: dest.id,
+      campaignId: sp('campaign_id') ?? null,
+      adId: sp('ad_id') ?? null,
+      ctaType: dest.cta_type,
+      eventType: 'WHATSAPP_CLICK',
+      utm: utmCtx,
+      ip,
+      userAgent: hdr.get('user-agent'),
+      referrer: hdr.get('referer'),
+    }).catch(() => {})
     const phone = (dest.config?.phoneNumber || '').replace(/\D/g, '')
-    const msg = encodeURIComponent(dest.config?.introMessage || 'Olá! Vi o anúncio e quero saber mais.')
+    // [ref:slug] embutido na mensagem para o webhook da Evolution criar o lead automaticamente
+    const baseMsg = dest.config?.introMessage || 'Olá! Vi o anúncio e quero saber mais.'
+    const msg = encodeURIComponent(`${baseMsg} [ref:${dest.slug}]`)
     redirect(`https://wa.me/${phone}?text=${msg}`)
   }
 
   if (dest.type === 'EXTERNAL_URL') {
     const url = dest.config?.url
-    if (url) redirect(url)
+    if (url) {
+      await logInteraction({
+        tenantId: dest.tenant_id,
+        clientId: dest.client_id,
+        destinationId: dest.id,
+        campaignId: sp('campaign_id') ?? null,
+        adId: sp('ad_id') ?? null,
+        ctaType: dest.cta_type,
+        eventType: 'REDIRECT',
+        utm: utmCtx,
+        ip,
+        userAgent: hdr.get('user-agent'),
+        referrer: hdr.get('referer'),
+      }).catch(() => {})
+      redirect(url)
+    }
   }
 
   // APP_FORM

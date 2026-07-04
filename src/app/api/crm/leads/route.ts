@@ -34,6 +34,17 @@ export async function POST(request: NextRequest) {
     const data = await request.json()
     const { nome, email, telefone, tag_sonho, raw_json, utm_params, imovel_id } = data
 
+    // Aceita UTMs tanto como objeto aninhado (utm_params) quanto como campos flat (utm_source, etc.)
+    const resolvedUtmParams = utm_params ?? (data.utm_source ? {
+      source:   data.utm_source,
+      medium:   data.utm_medium   ?? null,
+      campaign: data.utm_campaign ?? null,
+      content:  data.utm_content  ?? null,
+      fbclid:   data.fbclid       ?? null,
+      gclid:    data.gclid        ?? null,
+      platform: data.origem       ?? data.plataforma ?? 'cta',
+    } : null)
+
     if (!email && !telefone && data.utm_source !== 'CRM Manual') {
       return NextResponse.json(
         { error: 'Email ou Telefone são obrigatórios para identificação do lead.' },
@@ -96,13 +107,12 @@ export async function POST(request: NextRequest) {
         RETURNING lead_uuid
       `
       await pool.query(updateQuery, [
-        nome, 
-        tag_sonho, 
-        imovel_id, 
-        inheritedEstado, 
-        inheritedCidade, 
-        JSON.stringify(raw_json || {}), 
-        data.valor_venda,
+        nome,
+        tag_sonho,
+        imovel_id,
+        inheritedEstado,
+        inheritedCidade,
+        JSON.stringify(raw_json || {}),
         leadUuid
       ])
     } else {
@@ -136,7 +146,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. ATRIBUIÇÃO DE MARKETING (Se houver UTMs)
-    if (utm_params) {
+    if (resolvedUtmParams) {
       const marketingQuery = `
         INSERT INTO marketing_eventos (
           lead_uuid, utm_source, utm_medium, utm_campaign, utm_content,
@@ -145,13 +155,13 @@ export async function POST(request: NextRequest) {
       `
       await pool.query(marketingQuery, [
         leadUuid,
-        utm_params.source,
-        utm_params.medium,
-        utm_params.campaign,
-        utm_params.content,
-        utm_params.fbclid,
-        utm_params.gclid,
-        utm_params.platform || 'api',
+        resolvedUtmParams.source,
+        resolvedUtmParams.medium,
+        resolvedUtmParams.campaign,
+        resolvedUtmParams.content,
+        resolvedUtmParams.fbclid,
+        resolvedUtmParams.gclid,
+        resolvedUtmParams.platform || 'cta',
         leadTenantId,
         leadClientId
       ])
