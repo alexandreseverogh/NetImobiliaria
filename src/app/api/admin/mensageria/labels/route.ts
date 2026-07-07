@@ -34,3 +34,15 @@ export async function POST(request: NextRequest) {
   )
   return NextResponse.json({ label: rows[0] })
 }
+
+/** DELETE /api/admin/mensageria/labels?id=... */
+export async function DELETE(request: NextRequest) {
+  const payload = getTokenPayload(request)
+  if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+
+  const id = new URL(request.url).searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
+
+  await pool.query(`DELETE FROM mensageria.labels WHERE id = $1 AND tenant_id = $2`, [id, payload.tenantId])
+  return NextResponse.json({ success: true })
+}

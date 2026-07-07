@@ -6,7 +6,8 @@ import AdminHeader from '@/components/admin/AdminHeader'
 import AdminSidebar from '@/components/admin/AdminSidebar'
 import LoadingSpinner from '@/components/admin/LoadingSpinner'
 import ErrorBoundary from '@/components/admin/ErrorBoundary'
-import { useSidebarMenu } from '@/hooks/useSidebarMenu'
+import { useSidebarMenu, type SidebarMenuWithChildren } from '@/hooks/useSidebarMenu'
+import { getAdminAuthHeaders } from '@/lib/auth/adminFetch'
 
 export default function MensageriaLayoutContent({
   children,
@@ -31,10 +32,38 @@ export default function MensageriaLayoutContent({
     }
   }, [])
 
-  // Governança dinâmica de menu (mesmo padrão do CRM/Admin) — system_features
-  // ainda não provisionadas para 'mensageria' (fase M6), então menuItems chega
-  // vazio por ora; a página funciona normalmente via URL direta.
+  // Governança dinâmica de menu (mesmo padrão do CRM/Admin) — via system_features
+  // (PLANO_MENSAGERIA.md seção 15). Administrador enxerga tudo que foi provisionado
+  // ao tenant pelo caminho normal (banco).
   const { menuItems, theme, loading: menuLoading, error: menuError } = useSidebarMenu('mensageria')
+
+  // Augmentação client-only (seção 17.4, Opção B confirmada) — líder de time
+  // (mensageria.team_members.role='lead') não é um conceito que o sidebar genérico
+  // da plataforma conhece, então "Painel do Gestor" é injetado aqui, só neste layout,
+  // sem a função SQL global precisar saber que Mensageria existe. Administrador
+  // (scope 'full') já vê o item pelo caminho normal — não injeta de novo.
+  const [scopeLevel, setScopeLevel] = useState<'full' | 'team' | 'own' | null>(null)
+  useEffect(() => {
+    fetch('/api/admin/mensageria/my-scope', { headers: getAdminAuthHeaders() })
+      .then((r) => r.json())
+      .then((d) => setScopeLevel(d.level ?? null))
+      .catch(() => setScopeLevel(null))
+  }, [])
+
+  const augmentedMenuItems = useMemo<SidebarMenuWithChildren[]>(() => {
+    // menuItems é tipado como SidebarMenuItem[] no hook, mas em runtime a resposta de
+    // /api/admin/sidebar/menu já vem aninhada (categoria → children) — mesmo formato
+    // que SidebarMenuWithChildren descreve. Cast local, não mexe no tipo do hook.
+    const items = menuItems as unknown as SidebarMenuWithChildren[]
+    if (scopeLevel !== 'team') return items
+    const gestaoItem = { id: 'mensageria-gestao-lead', parent_id: null, name: 'Painel do Gestor', icon: 'ChartBarIcon', path: '/mensageria/gestao', order_index: 99, system_id: 'mensageria', is_active: true, roles_required: null, permission_required: null }
+    return items.map((cat) => {
+      if (cat.name !== 'Central de Mensagens') return cat
+      const already = (cat.children || []).some((c) => c.path === '/mensageria/gestao')
+      if (already) return cat
+      return { ...cat, children: [...(cat.children || []), gestaoItem] }
+    })
+  }, [menuItems, scopeLevel])
 
   // Design system do módulo é navy/âmbar (DESIGN.md) — sempre dark, independente do tenant.
   useEffect(() => {
@@ -80,7 +109,7 @@ export default function MensageriaLayoutContent({
             onLogout={handleLogout}
             systemId="mensageria"
             theme={{ ...theme, mode: 'dark' }}
-            menuItems={menuItems}
+            menuItems={augmentedMenuItems}
             loading={menuLoading}
             error={menuError}
           />

@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-06-16 (FASE 16 orgânico + unificação MinIO + deploy automatizado)
+> **Atualizado em:** 2026-07-07 (Mensageria: config UI, controle de acesso, escala/paginação, modelo de visibilidade gerencial)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -8,7 +8,62 @@
 
 ## Última tarefa concluída
 
-### Sessão 2026-07-07 — Retomada Mensageria: Testes M0-M3 (EM PROGRESSO) 🔄
+### Sessão 2026-07-07 (continuação) — Mensageria: config UI, acesso, escala e visibilidade gerencial ✅
+
+**Status:** Testes M0-M3 aprovados na sessão anterior. Nesta sessão: telas de configuração
+construídas do zero, registro de acesso (sidebar/permissões), correções de qualidade (validação,
+layout) e a fundação de visibilidade gerencial (M5.1) implementada e validada ponta a ponta.
+
+**1. Registro de acesso (fase M6 antecipada)** — `prisma/migration-2026-07-07-mensageria-access.sql`:
+módulo `mensageria` + categoria "Central de Mensagens" (id 31) + 5 `system_features`
+(`mensageria-inbox/analytics/config/chatbot/conhecimento`) + `permissions` + `role_permissions`
+(41/42/47/48) + `tenant_feature_overrides` provisionado nos 4 tenants. Validado rodando
+`get_sidebar_menu_for_user()` com usuário admin real.
+
+**2. Página `/mensageria/config`** (não existia — só as APIs) — 5 abas: Inboxes (status + vínculo
+com time responsável), Times (criar/deletar, adicionar/remover membro, **promover a líder** ⭐),
+Etiquetas, Respostas Rápidas, SLA (com seletor de escopo Global/Inbox/Time). APIs novas:
+`inboxes`, `inboxes/[id]` (PATCH team_id), `users` (lista p/ dropdown), `clientes-search`,
+`my-scope`. Cron de SLA (`sla-check`) registrado em `scripts/feed-cron-scheduler.js` (5 em 5 min).
+
+**3. Combobox "Nome do Contato"** na Nova Conversa Manual — busca em `public.clientes`, auto-
+preenche telefone/email ao selecionar, e-mail/telefone com validação rigorosa local (DDD real +
+regra do 9º dígito, TLD de e-mail), banner "Cliente novo, seguir mesmo assim?" quando não há match.
+
+**4. Fixes de layout** — `scrollIntoView()` trocado por `scrollTop` direto (evitava pular a janela
+inteira); `AdminSidebar.tsx` corrigido (`h-screen top-0` → `h-[calc(100vh-4rem)] top-16`) — bug
+estrutural que afetava **todo o admin**, não só Mensageria (~64px de scroll fantasma).
+
+**5. Escala/volumetria** — `GET /conversations` ganhou paginação por cursor (50/página, scroll
+infinito), filtro de período (`dateFrom`/`dateTo` com `<DateInputPtBR>`), `totalCount` real via
+`COUNT(*)`, divisor de data na thread ("Hoje"/"Ontem"/data completa), tooltip com data absoluta.
+
+**6. Modelo de Visibilidade Gerencial (seção 16/17 do plano) — decisões confirmadas e
+implementadas:** atendente só vê próprias + não atribuídas do time; líder de time
+(`mensageria.team_members.role='lead'`) vê todo o time; admin vê tudo (decisão 16.3 Opção A).
+Líder de time vê "Painel do Gestor" injetado no menu via augmentação client, sem o sidebar global
+da plataforma conhecer o módulo (decisão 17.4 Opção B).
+- Novo: `src/lib/mensageria/visibilityScope.ts` (`resolveMensageriaScope`, `scopeToSql`)
+- Escopo aplicado em `GET`/`PATCH /conversations/[id]`, `POST .../messages`, `GET /conversations`
+  (defesa em profundidade — fora do escopo retorna 404, não só oculta na lista)
+- Bug real encontrado e corrigido: `UPDATE` sem alias `c.` quebrava com 500 ao aplicar o filtro de escopo
+- UI de Times ganhou seletor Agente/Líder + botão de promover/rebaixar
+- Validado ponta a ponta com usuário de teste não-admin real criado no tenant (`teste.atendente`,
+  role "Atendente" id 49) — via API **e** confirmado na UI/sidebar real do navegador
+
+**Pendente (não é bug, é trabalho ainda não iniciado):** a página `/mensageria/gestao` em si
+(Painel do Gestor: KPIs, filtros, tabela densa, drawer) — fundação de acesso pronta, tela ainda não
+construída. Ver `docs/PLANO_MENSAGERIA.md` seção 17 (17.5, itens 7-9).
+
+**Dados de teste mantidos no tenant Marketing Digital** (a pedido, para continuar testando o
+Painel do Gestor depois): role "Atendente" (id 49), usuário `teste.atendente`/`Teste@2026`, time
+"Time Teste E2E", 6 conversas, 1 política de SLA de teste.
+
+**Referências:** `docs/PLANO_MENSAGERIA.md` (seções 15, 16, 17 — as 3 mais recentes).
+
+---
+
+### Sessão 2026-07-07 — Retomada Mensageria: Testes M0-M3 ✅
 
 **Status:** Resgate completo do projeto de mensageria. Plano e script de testes criados.
 

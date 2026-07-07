@@ -21,13 +21,22 @@
 -- segment_id: imobiliaria 92e5ddd3 · saude 9389eaf1 · carros e842312b · geral 4690b2f8
 INSERT INTO public.clientes (uuid, nome, cpf, telefone, tenant_id, segment_id, website)
 VALUES
-  ('a5ed0001-0000-4000-8000-000000000001', 'Imobiliária Premium',      '11111111111', '5511990000001', 'efbf62cf-9e28-4b31-a4f6-82a037412353', '92e5ddd3-4f3b-4f93-9839-6168d09e25e8', 'https://imobiliariapremium.com.br'),
-  ('a5ed0002-0000-4000-8000-000000000002', 'Clínica OdontoVida',       '22222222222', '5511990000002', 'efbf62cf-9e28-4b31-a4f6-82a037412353', '9389eaf1-ec65-46e8-93fb-ba40c849c175', 'https://odontovida.com.br'),
-  ('a5ed0003-0000-4000-8000-000000000003', 'AutoMax Veículos',         '33333333333', '5511990000003', 'efbf62cf-9e28-4b31-a4f6-82a037412353', 'e842312b-da48-403f-afdf-5058e2435a8c', 'https://automax.com.br'),
-  ('a5ed0004-0000-4000-8000-000000000004', 'RodaBoa Concessionária',   '44444444444', '5511990000004', 'efbf62cf-9e28-4b31-a4f6-82a037412353', 'e842312b-da48-403f-afdf-5058e2435a8c', 'https://rodaboa.com.br'),
-  ('a5ed0005-0000-4000-8000-000000000005', 'Loja Mix Geral',           '55555555555', '5511990000005', 'efbf62cf-9e28-4b31-a4f6-82a037412353', '4690b2f8-0413-4c17-bcdb-9e62f7fea6a0', 'https://lojamix.com.br')
+  ('a5ed0001-0000-4000-8000-000000000001', 'Imobiliária Premium',      '11111111111', '(11) 99000-0001', 'efbf62cf-9e28-4b31-a4f6-82a037412353', '92e5ddd3-4f3b-4f93-9839-6168d09e25e8', 'https://imobiliariapremium.com.br'),
+  ('a5ed0002-0000-4000-8000-000000000002', 'Clínica OdontoVida',       '22222222222', '(11) 99000-0002', 'efbf62cf-9e28-4b31-a4f6-82a037412353', '9389eaf1-ec65-46e8-93fb-ba40c849c175', 'https://odontovida.com.br'),
+  ('a5ed0003-0000-4000-8000-000000000003', 'AutoMax Veículos',         '33333333333', '(11) 99000-0003', 'efbf62cf-9e28-4b31-a4f6-82a037412353', 'e842312b-da48-403f-afdf-5058e2435a8c', 'https://automax.com.br'),
+  ('a5ed0004-0000-4000-8000-000000000004', 'RodaBoa Concessionária',   '44444444444', '(11) 99000-0004', 'efbf62cf-9e28-4b31-a4f6-82a037412353', 'e842312b-da48-403f-afdf-5058e2435a8c', 'https://rodaboa.com.br'),
+  ('a5ed0005-0000-4000-8000-000000000005', 'Loja Mix Geral',           '55555555555', '(11) 99000-0005', 'efbf62cf-9e28-4b31-a4f6-82a037412353', '4690b2f8-0413-4c17-bcdb-9e62f7fea6a0', 'https://lojamix.com.br')
 ON CONFLICT (uuid) DO UPDATE
-  SET segment_id = EXCLUDED.segment_id, tenant_id = EXCLUDED.tenant_id;
+  SET segment_id = EXCLUDED.segment_id, tenant_id = EXCLUDED.tenant_id, telefone = EXCLUDED.telefone;
+
+-- Normaliza telefone para o formato canônico (XX) XXXXX-XXXX em qualquer linha
+-- da tabela que ainda esteja em dígitos crus com DDI 55 embutido (ex: dados
+-- legados deste seed antes da correção acima).
+UPDATE public.clientes
+SET telefone = '(' || substring(regexp_replace(telefone, '\D', '', 'g') FROM 3 FOR 2) || ') '
+             || substring(regexp_replace(telefone, '\D', '', 'g') FROM 5 FOR 5) || '-'
+             || substring(regexp_replace(telefone, '\D', '', 'g') FROM 10 FOR 4)
+WHERE telefone ~ '^55\d{11}$';
 
 -- =============================================================================
 -- Campanhas + AdSets + Ads + Insights (44 dias) + Leads

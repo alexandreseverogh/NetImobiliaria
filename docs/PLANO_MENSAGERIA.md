@@ -754,6 +754,55 @@ Sim, em três camadas com custo de token controlado:
 - Factory LLM ganha `embed()` (RAG) e `completeWithTools()` (loop de tool-use do bot)
 ```
 
+### 14.9 Gap identificado em produção — inbox de WhatsApp é por tenant, não por cliente
+
+> **Status:** gap confirmado no código em uso (não é hipótese) — encontrado ao rastrear o fluxo
+> real de "campanha lança CTA WhatsApp → mensagem cai no Mensageria" em
+> `src/app/api/public/evolution/webhook/route.ts`.
+
+**O que já funciona:** o webhook Evolution já chama `ingestMessage()` em paralelo à captação de lead
+existente (não é mais plano, está implementado). Quando a mensagem carrega `[ref:slug]` de uma
+campanha, o `client_id` do `CtaDestination` é propagado para `contacts`/`conversations` — a
+**atribuição lógica ao cliente certo dentro do Mensageria funciona**. A ponte com o CRM também:
+`lead_uuid` é gravado de volta em `mensageria.contacts` assim que o lead é criado.
+
+**O gap:** `resolveWhatsAppInbox(tenantId)` (seção 14.1, `src/lib/mensageria/inboxes.ts`) resolve
+**uma única inbox de WhatsApp por tenant**, ignorando `client_id` — mesmo a coluna existindo na
+tabela `inboxes`. Isso é correto quando todos os clientes de um tenant recebem WhatsApp pelo mesmo
+número (o cenário mais comum hoje). **Quebra** se algum cliente tiver **número de WhatsApp Business
+próprio**, separado do número principal do tenant: fisicamente essa mensagem chegaria pelo
+`evolution_instance` do número do CLIENTE (uma instância Evolution distinta), mas o webhook atual só
+sabe resolver pelo `evolution_webhook_secret`/`evolution_instance` gravados em `public.tenants`
+— não existe hoje um `evolution_webhook_secret` por cliente, nem uma tabela de credenciais
+Evolution por cliente para o webhook consultar.
+
+**Dimensão ortogonal ao 14.1:** a abstração de provider (14.1) resolve "múltiplas APIs de WhatsApp
+diferentes" (Evolution × Meta Cloud × Z-API). Este gap é sobre "múltiplos **números** da mesma API,
+um por cliente" — os dois podem coexistir na mesma correção, mas são problemas distintos.
+
+**Correção proposta (consistente com 14.1, não um mecanismo novo):**
+
+```sql
+-- inboxes já suporta client_id — falta só um índice que permita mais de 1 inbox
+-- de whatsapp por tenant (hoje resolveWhatsAppInbox() para no primeiro que acha)
+CREATE UNIQUE INDEX idx_inboxes_tenant_client_channel
+  ON mensageria.inboxes (tenant_id, COALESCE(client_id, '00000000-0000-0000-0000-000000000000'), channel_type)
+  WHERE channel_type = 'whatsapp';
+```
+
+- `resolveWhatsAppInbox(tenantId, clientId?)` passa a buscar primeiro por `(tenant_id, client_id)`
+  e cair para `(tenant_id, client_id IS NULL)` só se o cliente não tiver número próprio — mesmo
+  padrão de cascata já usado em `getNetworkServiceForTenant()` (client → tenant) no módulo de
+  campanhas.
+- O webhook precisa aceitar identificar o CLIENTE, não só o tenant, a partir do `evolution_instance`
+  recebido no payload — exige uma tabela (ou reuso de `tenant_network_credentials`, já existente
+  para outras redes) mapeando `evolution_instance` → `client_id` quando o número não é o principal
+  do tenant.
+
+**Prioridade:** baixa/sob demanda — só vira urgente se algum cliente do tenant efetivamente tiver
+WhatsApp Business próprio. Até lá, o comportamento atual (1 número, todos os clientes) é correto e
+não deve ser complicado preventivamente.
+
 ---
 
 ## 15. Registro de acesso — módulo, categoria, features e permissões (fase M6)
@@ -864,3 +913,235 @@ Cada empresa recebe o módulo via `/admin/master/provisioning` (grava `tenant_fe
 Widget público (`ChatWidget`), APIs públicas (`/api/public/mensageria/chat`,
 `/api/public/whatsapp/webhook`) e jobs (introspecção, SSE, cron de SLA/handoff) são código/rotas —
 não são funcionalidades de menu.
+
+---
+
+## 16. Modelo de Visibilidade Gerencial — atendente × líder de time × administrador (rodada 3)
+
+> **Status:** proposta para avaliação · **Motivação:** além do uso operacional/transacional de cada
+> atendente, a plataforma precisa de uma persona com visão gerencial — total e detalhada — sobre todos
+> os atendimentos (qualquer canal) dos seus subordinados, com foco em produtividade e efetividade.
+> Esta seção formaliza o modelo de acesso **dentro** do módulo (quem vê o quê), complementar ao
+> `ACCESS_CONTROL.md` (que resolve apenas "quem entra no módulo", via sidebar/`system_features`).
+
+### 16.1 Diagnóstico do estado atual
+
+Duas coisas já existem e resolvem parte do problema **sem nenhum código novo**:
+
+1. **O Administrador do tenant já é, hoje, a persona gerencial de visão total.** A pasta "Todas" da
+   Caixa de Entrada (`GET /conversations` sem filtro de `assigneeId`) não impõe nenhuma restrição por
+   atendente — retorna todas as conversas do tenant, de qualquer canal, atribuídas a qualquer pessoa.
+   Como o Administrador já bypassa o Filtro A de permissões (`ACCESS_CONTROL.md` — `role.name ILIKE
+   '%admin%'`), ele automaticamente enxerga tudo. **Zero lacuna aqui.**
+2. **`mensageria.team_members.role` já reserva o valor `'lead'`** (contra `'agent'`), mas **nenhum
+   código hoje lê esse campo para conceder visão diferenciada** — é um metadado morto.
+
+O que **não existe** é o meio-termo: hoje, um atendente comum (`role='agent'`, não-admin) **também**
+vê a pasta "Todas" sem restrição — o filtro "Minhas" é uma escolha de UI, não uma imposição do
+backend. Ou seja, o modelo atual é binário demais: *ou você não entra no módulo, ou você vê tudo*.
+
+### 16.2 Modelo proposto — 3 níveis de visibilidade
+
+| Nível | Quem | Escopo de dados (conversas + futuro analytics de M5) | Custo de implementação |
+|---|---|---|---|
+| **Administrador** | Role do tenant `ILIKE '%admin%'` | Total — todos os times, todas as inboxes, todos os canais | Zero (já funciona) |
+| **Líder de time** | `team_members.role = 'lead'` | Apenas conversas/métricas do(s) time(s) em que é `lead` (via `inboxes.team_id` e `conversations.team_id`) | Novo — filtro de escopo |
+| **Atendente** | `team_members.role = 'agent'` (ou sem time) | Apenas conversas atribuídas a si + não atribuídas do(s) time(s) que participa | Novo — filtro de escopo |
+
+Este é o mesmo padrão de 3 camadas já usado no resto da plataforma (Master → Tenant → Cliente, ver
+`ACCESS_CONTROL.md`), aplicado agora *dentro* do módulo em vez de entre módulos.
+
+### 16.3 Decisão a confirmar antes de implementar
+
+**Restringir o atendente comum é uma mudança de comportamento**, não uma feature aditiva — hoje ele
+vê tudo. Duas opções:
+
+- **Opção A (recomendada) — aplicar o modelo de 3 níveis integralmente.** Atendente passa a ver só
+  o que lhe cabe; líder de time vê seu time; admin vê tudo. Mais alinhado ao padrão de mercado
+  (Chatwoot, Zendesk) e necessário para que o M5 (Analytics) não vaze dados de produtividade de um
+  atendente para outro atendente do mesmo nível.
+- **Opção B — manter atendente com visão total, só formalizar o líder de time.** Menor risco de
+  quebrar fluxo de uso já validado nos testes de M0–M3, mas não resolve o objetivo de "efetividade
+  por atendente" com isolamento adequado (qualquer atendente veria o ranking de todos os colegas).
+
+> **✅ Decisão confirmada pelo usuário (2026-07-07): Opção A.** Atendente passa a ver só suas
+> conversas + não atribuídas do(s) time(s) que participa; líder de time vê seu time; administrador
+> continua vendo tudo. `resolveMensageriaScope()` (seção 16.4) implementa isso e é pré-requisito
+> tanto do retrofit de `GET /conversations` (M3) quanto do M5 e do Painel do Gestor (seção 17).
+
+### 16.4 Implementação proposta (quando aprovada)
+
+Um único resolver de escopo, reaproveitado tanto pela Caixa de Entrada quanto pelo futuro M5:
+
+```ts
+// src/lib/mensageria/visibilityScope.ts
+export type MensageriaScope =
+  | { level: 'full' }                          // Administrador — sem filtro
+  | { level: 'team'; teamIds: string[] }        // Líder — restrito ao(s) time(s) que lidera
+  | { level: 'own'; userId: string; teamIds: string[] } // Atendente — próprias + não atribuídas do time
+
+export async function resolveMensageriaScope(
+  tenantId: string, userId: string, isTenantAdmin: boolean,
+): Promise<MensageriaScope> {
+  if (isTenantAdmin) return { level: 'full' }
+
+  const { rows } = await pool.query(
+    `SELECT team_id, role FROM mensageria.team_members WHERE user_id = $1
+       AND team_id IN (SELECT id FROM mensageria.teams WHERE tenant_id = $2)`,
+    [userId, tenantId],
+  )
+  const leaderTeams = rows.filter(r => r.role === 'lead').map(r => r.team_id)
+  if (leaderTeams.length > 0) return { level: 'team', teamIds: leaderTeams }
+
+  return { level: 'own', userId, teamIds: rows.map(r => r.team_id) }
+}
+```
+
+`GET /conversations` e as futuras rotas de `/mensageria/analytics` aplicam o mesmo `WHERE` conforme
+o `scope.level`:
+
+```sql
+-- level='team'  → AND c.team_id = ANY($teamIds)
+-- level='own'   → AND (c.assignee_id = $userId OR (c.assignee_id IS NULL AND c.team_id = ANY($teamIds)))
+-- level='full'  → sem filtro adicional (comportamento atual)
+```
+
+`isTenantAdmin` é resolvido do mesmo jeito que a sidebar já faz (`role.name ILIKE '%admin%'` no
+tenant) — reaproveita lógica existente, não inventa um novo conceito de "admin".
+
+### 16.5 Impacto no M5 (Analytics) — visão já nasce corretamente escopada
+
+Como o resolver de escopo é o mesmo, os dashboards de M5 (seção 9) herdam automaticamente a
+visibilidade correta sem lógica duplicada:
+
+| Widget de M5 | Administrador vê | Líder de time vê | Atendente vê |
+|---|---|---|---|
+| Ranking de atendentes | Todos os atendentes do tenant | Só os atendentes do(s) time(s) que lidera | Só a própria linha (autoavaliação) |
+| Leaderboard de times | Todos os times | Só o(s) time(s) que lidera | Não exibido (ou só o próprio time, sem ranking interno) |
+| Tempo de 1ª resposta / resolução | Agregado do tenant | Agregado do time liderado | Agregado próprio |
+| Funil bot→humano→resolvido | Todos os canais | Canais das inboxes do time | — |
+
+**Consequência prática:** a M5 deixa de ser "só um dashboard" e passa a ser, para o líder de time, a
+ferramenta de gestão de produtividade/efetividade da equipe que motivou esta seção — sem precisar de
+uma tela separada de "gestão de equipe", o próprio Analytics filtrado já cumpre esse papel.
+
+### 16.6 Onde isso entra nas fases de entrega (seção 11)
+
+Não é uma fase nova — é um **pré-requisito de hardening dentro de M3** (que já entrega times) e uma
+**dependência de M5** (que já pressupõe agregação por atendente/time). Sequência recomendada:
+
+1. Confirmar Opção A vs B (seção 16.3) com o usuário.
+2. Implementar `resolveMensageriaScope()` + aplicar em `GET /conversations` (retrofit de M3).
+3. M5 nasce já consumindo o mesmo resolver — nenhum retrabalho de escopo na fase de Analytics.
+
+---
+
+## 17. Painel do Gestor — fila operacional densa (`/mensageria/gestao`)
+
+> **Status:** proposta para avaliação · **Motivação:** a Caixa de Entrada (seção 8.1) usa layout de
+> lista/bolha de chat, ótimo para o atendente (1 conversa por vez), ruim para o gestor escanear
+> centenas de atendimentos simultâneos de uma equipe grande. Ver mockup discutido em conversa — tira
+> de KPIs + filtros + tabela densa ordenável, uma linha por conversa.
+
+### 17.1 O que é (e o que não é)
+
+**É** uma sala de controle **ao vivo**: estado atual de cada conversa em aberto/recente, para o
+gestor identificar onde intervir agora (SLA estourando, atendente sobrecarregado, fila não
+atribuída). **Não é** M5 (Analytics) — M5 é histórico/tendência (gráficos, ranking acumulado,
+funil ao longo do tempo). Os dois são complementares e reaproveitam o mesmo
+`resolveMensageriaScope()` (seção 16.4), mas atendem perguntas diferentes:
+
+| | Painel do Gestor (17) | M5 Analytics (seção 9) |
+|---|---|---|
+| Pergunta que responde | "O que está acontecendo agora, onde eu ajo?" | "Como estamos indo no período?" |
+| Unidade de exibição | 1 linha = 1 conversa | Agregado (gráfico, ranking) |
+| Atualização | Tempo real (mesmo canal SSE da seção 6) | Sob demanda / período fechado |
+
+### 17.2 Estrutura da tela
+
+- **Tira de KPIs** (4 cards): conversas no período, em aberto, SLA estourado, tempo médio de 1ª
+  resposta — mesmos números que alimentarão os cards de M5, só que recortados pro escopo do
+  visualizador (`resolveMensageriaScope`).
+- **Filtros:** Time, Atendente, Canal, Status, Prioridade, Etiqueta, Período (reaproveita
+  `<DateInputPtBR>` dos itens 1-3 já implementados na Caixa de Entrada).
+- **Tabela densa, ordenável por coluna:** Atendente (+ time, subtítulo) · Contato (+ ícone do
+  canal) · Status · Prioridade (dot colorido) · SLA (badge verde/âmbar/vermelho) · Tempo de 1ª
+  resposta · Última mensagem (relativo + `title=` com `formatFullDate`, mesmo padrão da inbox).
+  Paginação **numerada** (não infinita) — o gestor quer "ver a página 3", não rolar sem fim.
+- **Clique na linha → painel lateral (drawer/slide-over):** reaproveita 100% o componente de thread
+  já existente (header/etiquetas/mensagens/composer) como overlay, sem navegar pra outra página —
+  o gestor intervém sem perder o contexto da fila.
+
+### 17.3 API
+
+Estende `GET /api/admin/mensageria/conversations` em vez de criar endpoint paralelo (evita duas
+fontes de verdade para "lista de conversas"):
+
+- Novos parâmetros: `page`/`pageSize` (paginação numerada, alternativa ao `cursor` da seção 8.1 —
+  mesma rota serve os dois modos) · `teamId` · `priority` · `labelId`
+- Novos campos na resposta: `teamName` (via `conversations.team_id` → `teams.name`) ·
+  `firstResponseDurationSec` (calculado: `first_response_at - created_at`, `null` se ainda não
+  respondida) — nenhuma tabela nova, só mais colunas/joins na query existente.
+- **Sempre passa pelo `resolveMensageriaScope()`** (seção 16.4) antes de aplicar os demais filtros —
+  um atendente comum batendo nesse endpoint com `teamId` de outro time recebe resultado vazio, não erro.
+
+### 17.4 Registro de acesso — o que muda em relação à seção 15
+
+Isto é aditivo ao que já está registrado (módulo `mensageria` e categoria "Central de Mensagens" já
+existem, id 31 — não recriar). Só falta **1 feature nova**:
+
+| Nome | slug | url | Ações |
+|---|---|---|---|
+| Painel do Gestor | `mensageria-gestao` | `/mensageria/gestao` | read, execute |
+
+Migração idempotente, mesmo padrão da seção 15.2 (INSERT em `system_features` + `permissions` +
+`system_feature_modules` + `role_permissions` para roles 41/42/47/48 + `tenant_feature_overrides`
+por tenant, sempre um ato deliberado via `/admin/master/provisioning`, nunca automático).
+
+**⚠️ Nuance de acesso que esta feature introduz (não existia nas outras 5):** as 5 features da
+seção 15 são visíveis a **qualquer Administrador do tenant** — resolve sozinho pelo bypass
+`role.name ILIKE '%admin%'` já embutido em `get_sidebar_menu_for_user()`. O Painel do Gestor
+também precisa ficar visível para **líder de time não-administrador**
+(`mensageria.team_members.role = 'lead'`) — e esse conceito **não existe** no sistema de permissões
+da plataforma (`user_roles`/`role_permissions` só conhece papéis de plataforma como Administrador/
+Corretor, nada sobre liderança de time dentro do módulo Mensageria).
+
+Duas formas de resolver, com trade-off de acoplamento:
+
+| Opção | Como | Trade-off |
+|---|---|---|
+| **A — ensinar a função SQL global** | `get_sidebar_menu_for_user()` ganha um `EXISTS` checando `mensageria.team_members` | Resolve com 1 mudança, mas acopla o sidebar **de toda a plataforma** a uma tabela interna de um módulo — quebra o princípio de desacoplamento (seção 3) |
+| **B — augmentação no client, só dentro do módulo (recomendada)** | `MensageriaLayoutContent` faz 1 fetch extra (`GET /api/admin/mensageria/my-scope`) e, se `level='team'`, injeta o item "Painel do Gestor" no array `menuItems` retornado por `useSidebarMenu` — só nesse layout, nada global | A sidebar SQL genérica nunca sabe que Mensageria existe; feature "aparece" via composição no React, não no banco |
+
+**✅ Decisão confirmada pelo usuário (2026-07-07): Opção B.** Mantém a regra de ouro do módulo
+("nunca por tabelas ou regras de negócio compartilhadas", seção 3) — o mesmo motivo pelo qual o CRM
+e o Mensageria não compartilham tabela nenhuma vale aqui dentro, entre o sidebar genérico da
+plataforma e a lógica interna do módulo. Administrador continua vendo o item pelo caminho normal
+(banco); líder de time vê pelo caminho da Opção B (client, calculado a partir de
+`mensageria.team_members`) — os dois convergem no mesmo item de menu, por rotas de dado diferentes.
+
+### 17.5 Sequência de implementação
+
+**✅ Fundação de visibilidade — implementada e validada em 2026-07-07** (ponta a ponta: API com
+`curl` + usuário de teste não-admin real criado no tenant + confirmado na UI/sidebar de verdade):
+
+1. ✅ `resolveMensageriaScope()` + `scopeToSql()` — [src/lib/mensageria/visibilityScope.ts](../src/lib/mensageria/visibilityScope.ts)
+2. ✅ Escopo aplicado em `GET /conversations` (lista + `totalCount`) — atendente sem time viu 0,
+   com time (não atribuída) viu 1, admin viu as 6 (inalterado)
+3. ✅ Defesa em profundidade em `GET`/`PATCH /conversations/[id]` e `POST .../messages` — acesso
+   fora do escopo retorna 404 nos três endpoints (não só oculto na lista, bloqueado na escrita
+   também). Bug real encontrado e corrigido no processo: `UPDATE` sem alias `c.` quebrava com 500.
+4. ✅ UI de Times (`/mensageria/config`) ganhou seletor Agente/Líder ao adicionar membro + botão
+   de promover/rebaixar (⭐) em quem já está no time — sem isso `role='lead'` nunca seria alcançável.
+5. ✅ `GET /api/admin/mensageria/my-scope` — suporte à Opção B de 17.4.
+6. ✅ Augmentação client no `MensageriaLayoutContent` — líder de time vê "Painel do Gestor" injetado
+   no menu sem o sidebar genérico da plataforma conhecer o conceito.
+
+**⏳ Pendente — a página em si (Painel do Gestor):**
+
+7. Migração de acesso (17.4) — feature `mensageria-gestao` em `system_features` + `permissions` +
+   `system_feature_modules` + `role_permissions`, mesmo padrão da seção 15 (ainda não rodada).
+8. Extensão da API `GET /conversations` com os campos/params específicos do painel (17.3):
+   `page`/`pageSize` numerado, `teamId`, `priority`, `labelId`, `teamName`,
+   `firstResponseDurationSec` — hoje a API só tem a paginação por cursor da Caixa de Entrada.
+9. Página `/mensageria/gestao` (17.2) + drawer reaproveitando o componente de thread existente.

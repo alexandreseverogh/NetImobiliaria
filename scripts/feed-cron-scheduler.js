@@ -270,12 +270,37 @@ cron.schedule('*/5 * * * *', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
+// MENSAGERIA — Varredura de SLA estourado (M3): a cada 5 minutos
+// Marca conversas com 1ª resposta atrasada e dispara alerta WhatsApp/Slack do tenant.
+cron.schedule('*/5 * * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/mensageria/sla-check`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [mensageria-sla-check] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    if (data.alerted > 0) {
+      console.log(`✅ [mensageria-sla-check] scanned=${data.scanned} alerted=${data.alerted}`);
+    }
+  } catch (error) {
+    console.error('❌ [mensageria-sla-check] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
 console.log('✅ Agendador configurado:');
 console.log('   • Feed sync diário        → 03:00 (America/Sao_Paulo)');
 console.log('   • Transbordo de leads     → a cada 5 min');
 console.log('   • Audit report mensal     → 1º dia do mês às 09:00');
 console.log('   • Audit report semanal    → domingos às 18:00');
 console.log('   • Publicação orgânica     → a cada 5 min (agendadas)');
+console.log('   • Mensageria SLA check    → a cada 5 min');
 console.log('\n🚀 Agendador rodando... (Ctrl+C para parar)\n');
 
 // Removido o boot sync imediato para respeitar a janela das 03:00h conforme solicitado pelo usuário.

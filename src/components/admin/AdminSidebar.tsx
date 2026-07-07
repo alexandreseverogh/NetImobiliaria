@@ -282,7 +282,10 @@ export default function AdminSidebar({
       )}
 
       {/* Desktop Sidebar */}
-      <aside className={`hidden lg:flex lg:w-80 lg:flex-col lg:flex-shrink-0 h-screen sticky top-0 ${sidebarBg} overflow-hidden shadow-sm`}>
+      {/* sticky top-16 + h-[calc(100vh-4rem)] em vez de top-0/h-screen: o AdminHeader acima é
+          sticky h-16 (64px) e ocupa espaço normal de documento — h-screen aqui somaria +64px
+          além da viewport, criando scroll fantasma na janela inteira do painel admin. */}
+      <aside className={`hidden lg:flex lg:w-80 lg:flex-col lg:flex-shrink-0 h-[calc(100vh-4rem)] sticky top-16 ${sidebarBg} overflow-hidden shadow-sm`}>
         <div className="px-6 py-10 flex items-center group cursor-pointer border-b border-gray-50">
           <div 
             className="flex-shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center text-white font-black italic text-2xl shadow-xl transition-all duration-500 group-hover:scale-110 group-hover:rotate-3"

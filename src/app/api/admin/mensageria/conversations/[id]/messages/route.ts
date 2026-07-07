@@ -4,6 +4,7 @@ import { getTokenPayload } from '@/lib/auth/jwt-node'
 import { sendEvolutionMessage } from '@/lib/mensageria/channels/evolutionSend'
 import { publishMensageriaEvent } from '@/lib/mensageria/realtime'
 import { checkFirstResponseBreach } from '@/lib/mensageria/sla'
+import { resolveMensageriaScope, isTenantAdminFromPayload, scopeToSql } from '@/lib/mensageria/visibilityScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,13 +26,20 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const isPrivate: boolean = body.isPrivate === true
   if (!content) return NextResponse.json({ error: 'Mensagem vazia' }, { status: 400 })
 
+  // Visibilidade gerencial (seção 16) — atendente fora do escopo não consegue responder
+  // conversa alheia mesmo sabendo o id (defesa em profundidade, não só ocultação na lista).
+  const scope = await resolveMensageriaScope(payload.tenantId, payload.userId, isTenantAdminFromPayload(payload))
+  const convArgs: any[] = [params.id, payload.tenantId]
+  const scoped = scopeToSql(scope, convArgs)
+  const scopeClause = scoped.clause ? ` AND ${scoped.clause}` : ''
+
   const { rows: convRows } = await pool.query(
     `SELECT c.id, c.tenant_id, ct.phone, ib.channel_type, ib.config
        FROM mensageria.conversations c
        JOIN mensageria.contacts ct ON ct.id = c.contact_id
        JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
-      WHERE c.id = $1 AND c.tenant_id = $2`,
-    [params.id, payload.tenantId],
+      WHERE c.id = $1 AND c.tenant_id = $2${scopeClause}`,
+    convArgs,
   )
   const conv = convRows[0]
   if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })

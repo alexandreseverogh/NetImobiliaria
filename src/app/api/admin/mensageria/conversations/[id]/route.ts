@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { getTokenPayload } from '@/lib/auth/jwt-node'
 import { checkResolutionBreach } from '@/lib/mensageria/sla'
+import { resolveMensageriaScope, isTenantAdminFromPayload, scopeToSql } from '@/lib/mensageria/visibilityScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,13 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const payload = getTokenPayload(request)
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+
+  // Visibilidade gerencial (seção 16) — fora do escopo retorna 404, não 403 (não confirma
+  // nem a existência da conversa para quem não pode vê-la).
+  const scope = await resolveMensageriaScope(payload.tenantId, payload.userId, isTenantAdminFromPayload(payload))
+  const args: any[] = [params.id, payload.tenantId]
+  const scoped = scopeToSql(scope, args)
+  const scopeClause = scoped.clause ? ` AND ${scoped.clause}` : ''
 
   const { rows: convRows } = await pool.query(
     `SELECT c.id, c.status, c.priority, c.unread_count, c.assignee_id, c.handled_by_bot,
@@ -24,8 +32,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
        JOIN mensageria.contacts ct ON ct.id = c.contact_id
        JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
        LEFT JOIN public.users u ON u.id = c.assignee_id
-      WHERE c.id = $1 AND c.tenant_id = $2`,
-    [params.id, payload.tenantId],
+      WHERE c.id = $1 AND c.tenant_id = $2${scopeClause}`,
+    args,
   )
   const conv = convRows[0]
   if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
@@ -119,10 +127,20 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   if (sets.length === 0) return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 })
 
+  // Visibilidade gerencial (seção 16) — atendente fora do escopo não consegue alterar
+  // conversa alheia mesmo sabendo o id (defesa em profundidade, não só ocultação na lista).
+  const scope = await resolveMensageriaScope(payload.tenantId, payload.userId, isTenantAdminFromPayload(payload))
   args.push(params.id, payload.tenantId)
+  const idIdx = args.length - 1
+  const tenantIdx = args.length
+  // scopeToSql pode empurrar mais parâmetros — captura os índices de id/tenant ANTES,
+  // senão $${args.length} abaixo apontaria pros parâmetros do escopo, não pro id/tenant.
+  const scoped = scopeToSql(scope, args)
+  const scopeClause = scoped.clause ? ` AND ${scoped.clause}` : ''
+
   const { rows } = await pool.query(
-    `UPDATE mensageria.conversations SET ${sets.join(', ')}
-      WHERE id = $${args.length - 1} AND tenant_id = $${args.length}
+    `UPDATE mensageria.conversations AS c SET ${sets.join(', ')}
+      WHERE c.id = $${idIdx} AND c.tenant_id = $${tenantIdx}${scopeClause}
       RETURNING id, status, priority, assignee_id`,
     args,
   )
