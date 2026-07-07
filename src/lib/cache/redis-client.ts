@@ -15,12 +15,18 @@
 
 import Redis from 'ioredis'
 
-let _client: Redis | null = null
-let _connectionAttempted = false
+// Singleton via `global` — necessário porque o Next.js dev server pode recompilar
+// módulos isoladamente por rota (hot-reload), fazendo uma variável de módulo comum
+// (`let _client`) não ser compartilhada entre requests de rotas diferentes.
+// Mesmo padrão usado em src/lib/database/connection.ts (global.pgPool).
+declare global {
+  var _redisClient: Redis | null | undefined
+  var _redisConnectionAttempted: boolean | undefined
+}
 
 function createClient(): Redis | null {
-  if (_connectionAttempted) return _client
-  _connectionAttempted = true
+  if (global._redisConnectionAttempted) return global._redisClient ?? null
+  global._redisConnectionAttempted = true
 
   const host = process.env.REDIS_HOST
   if (!host) {
@@ -65,19 +71,21 @@ function createClient(): Redis | null {
     // Conectar de forma lazy sem bloquear o startup
     client.connect().catch(() => {})
 
+    global._redisClient = client
     return client
   } catch (err) {
     console.error('❌ [Redis] Falha ao criar cliente:', err)
+    global._redisClient = null
     return null
   }
 }
 
 /** Retorna o cliente Redis (singleton). Pode ser null se não configurado. */
 export function getRedisClient(): Redis | null {
-  if (!_client && !_connectionAttempted) {
-    _client = createClient()
+  if (!global._redisConnectionAttempted) {
+    return createClient()
   }
-  return _client
+  return global._redisClient ?? null
 }
 
 /** Verifica se Redis está pronto para uso */

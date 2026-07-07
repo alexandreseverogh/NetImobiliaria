@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { logInteraction, insertSubmission, linkSubmissionLead } from '@/lib/cta/service'
+import { ingestMessage } from '@/lib/mensageria/ingest'
+import { resolveWhatsAppInbox } from '@/lib/mensageria/inboxes'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,6 +90,27 @@ export async function POST(request: NextRequest) {
       dest = destRes.rows[0] || null
     }
 
+    // 5.a Ingestão no Mensageria (thread unificada) — roda em paralelo ao fluxo de
+    // CTA/lead abaixo; falha aqui NUNCA deve derrubar a captação de lead existente.
+    const mensageriaResult = await (async () => {
+      try {
+        const inboxId = await resolveWhatsAppInbox(tenant.id)
+        return await ingestMessage({
+          tenantId: tenant.id,
+          clientId: dest?.client_id ?? null,
+          inboxId,
+          contact: { name: pushName, phone },
+          direction: 'inbound',
+          senderType: 'contact',
+          content: msgText || null,
+          externalId: entry?.key?.id ?? null,
+        })
+      } catch (err) {
+        console.error('[evolution-webhook] falha na ingestão Mensageria (não bloqueante):', err)
+        return null
+      }
+    })()
+
     // 5. Logar interação (SUBMIT pois veio uma mensagem real)
     const interactionId = await logInteraction({
       tenantId: tenant.id,
@@ -136,6 +159,13 @@ export async function POST(request: NextRequest) {
         const leadUuid = crmData.leadUuid ?? crmData.lead_uuid ?? null
         if (leadUuid && submissionId) {
           await linkSubmissionLead(submissionId, leadUuid).catch(() => {})
+        }
+        // Liga o lead ao contato do Mensageria — ponte de desacoplamento (soft link, sem FK físico)
+        if (leadUuid && mensageriaResult?.contactId) {
+          await pool.query(
+            `UPDATE mensageria.contacts SET lead_uuid = $1 WHERE id = $2 AND lead_uuid IS NULL`,
+            [leadUuid, mensageriaResult.contactId],
+          ).catch(() => {})
         }
       }
     } catch {

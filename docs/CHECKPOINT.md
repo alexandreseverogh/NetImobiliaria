@@ -8,6 +8,45 @@
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-07 — Retomada Mensageria: Testes M0-M3 (EM PROGRESSO) 🔄
+
+**Status:** Resgate completo do projeto de mensageria. Plano e script de testes criados.
+
+**O que foi feito:**
+1. Lido `docs/PLANO_MENSAGERIA.md` — documento completo de 7 fases (M0-M6)
+2. Identificado que M0-M3 já foram implementados (schema + APIs + UI + SSE)
+3. Criado `docs/TESTES_MENSAGERIA_M0-M3.md` — plano estruturado com 14 seções:
+   - Testes de schema (tabelas, índices, multi-tenant)
+   - Testes de ingestão (idempotência, dedupe)
+   - Testes de APIs (CRUD, filtros, operações)
+   - Testes de UI (layout 3 colunas, fluxos, interações)
+   - Testes de tempo real (SSE)
+   - Testes de SLA, times, etiquetas, respostas rápidas
+4. Criado `scripts/test-mensageria-quick.mjs` — script Node.js executável com 9 seções (~30 testes)
+
+**Implementação atual (M0-M3):**
+- ✅ Schema `mensageria` completo (12+ tabelas com índices e constraints)
+- ✅ APIs CRUD para conversas, mensagens, labels, times, SLA
+- ✅ UI `/mensageria` com layout 3 colunas (filtros, lista conversas, thread)
+- ✅ Tempo real via SSE para atualizações ao vivo
+- ✅ Etiquetas, respostas rápidas, atribuição, prioridades, SLA
+- ✅ Suporte multi-canal (WhatsApp, webform, manual, chatbot)
+
+**Próximos passos (ordem de execução):**
+1. Rodar script: `node scripts/test-mensageria-quick.mjs <jwt>`
+2. Testes de UI manual: abrir `/mensageria` e validar fluxos
+3. Testes de SSE: múltiplas abas sincronizadas
+4. Testes com dados realistas (seed com 50+ conversas)
+5. ✅ Aprovação de M0-M3
+6. Iniciar **M4 — Chatbot** (bot_flows + LLM + tool-use)
+
+**Referências:**
+- `docs/PLANO_MENSAGERIA.md` — Plano mestre das 7 fases
+- `docs/TESTES_MENSAGERIA_M0-M3.md` — Plano de testes completo
+- `scripts/test-mensageria-quick.mjs` — Script de testes automatizados
+
+---
+
 ### Sessão 2026-06-16 — FASE 16 + MinIO unificado + Deploy automatizado ✅
 
 #### 1. FASE 16 — Postagem Orgânica no Meta (16.A–16.F) — COMPLETA

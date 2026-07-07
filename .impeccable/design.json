@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-05T00:00:00Z",
+  "title": "Design System: NetImobiliária",
+  "extensions": {
+    "colorMeta": {
+      "navy-void":      { "role": "neutral", "displayName": "Void", "canonical": "oklch(8% 0.02 250)", "tonalRamp": ["#020c1b","#071427","#0a192f","#112240","#1e3a5f","#2d5a8e","#4a80b8","#a8c4e0"] },
+      "navy-deep":      { "role": "neutral", "displayName": "Navy Profundo", "canonical": "oklch(13% 0.04 250)", "tonalRamp": ["#020c1b","#071427","#0a192f","#112240","#1a3560","#2d5a8e","#4a80b8","#a8c4e0"] },
+      "navy-surface":   { "role": "neutral", "displayName": "Navy Elevado", "canonical": "oklch(18% 0.045 250)", "tonalRamp": ["#070f1f","#0d1b35","#112240","#1a3560","#254a80","#3d6fa8","#6895c8","#b0cce0"] },
+      "gold-accent":    { "role": "primary", "displayName": "Âmbar Missão", "canonical": "oklch(68% 0.14 82)", "tonalRamp": ["#3d2d00","#5c4500","#7a5c00","#9a7800","#c5a028","#d4af37","#e8c84a","#fde047"] },
+      "gold-default":   { "role": "primary", "displayName": "Âmbar Quente", "canonical": "oklch(72% 0.13 85)", "tonalRamp": ["#3d2d00","#5c4500","#7a5c00","#9a7800","#c5a028","#d4af37","#e8c84a","#fde047"] },
+      "gold-highlight": { "role": "primary", "displayName": "Âmbar Alerta", "canonical": "oklch(91% 0.18 100)", "tonalRamp": ["#6b5900","#9a8200","#c5a800","#d4b400","#e8c800","#f5d800","#fde047","#fff8c0"] },
+      "ink-primary":    { "role": "neutral", "displayName": "Tinta Primária", "canonical": "oklch(10% 0.025 250)", "tonalRamp": ["#0f172a","#1e293b","#334155","#475569","#64748b","#94a3b8","#cbd5e1","#f1f5f9"] },
+      "ink-secondary":  { "role": "neutral", "displayName": "Tinta Secundária", "canonical": "oklch(28% 0.03 250)", "tonalRamp": ["#0f172a","#1e293b","#334155","#475569","#64748b","#94a3b8","#cbd5e1","#f1f5f9"] },
+      "ink-muted":      { "role": "neutral", "displayName": "Tinta Muted", "canonical": "oklch(48% 0.025 250)", "tonalRamp": ["#1e293b","#334155","#475569","#64748b","#94a3b8","#cbd5e1","#e2e8f0","#f8fafc"] },
+      "surface-white":  { "role": "neutral", "displayName": "Superfície Branca", "canonical": "oklch(100% 0 0)", "tonalRamp": ["#e2e8f0","#f1f5f9","#f8fafc","#ffffff","#ffffff","#ffffff","#ffffff","#ffffff"] },
+      "surface-faint":  { "role": "neutral", "displayName": "Superfície Faint", "canonical": "oklch(98% 0.004 250)", "tonalRamp": ["#e2e8f0","#f1f5f9","#f8fafc","#fafbfc","#ffffff","#ffffff","#ffffff","#ffffff"] },
+      "blue-action":    { "role": "secondary", "displayName": "Azul Institucional", "canonical": "oklch(45% 0.2 265)", "tonalRamp": ["#1e3a8a","#1d4ed8","#2563eb","#3b82f6","#60a5fa","#93c5fd","#bfdbfe","#eff6ff"] },
+      "blue-focus":     { "role": "secondary", "displayName": "Azul Foco", "canonical": "oklch(50% 0.22 265)", "tonalRamp": ["#1e3a8a","#1d4ed8","#2563eb","#3b82f6","#60a5fa","#93c5fd","#bfdbfe","#eff6ff"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Títulos de página e hero. Máximo em dashboards: nome do módulo." },
+      "headline": { "displayName": "Headline", "purpose": "Cabeçalhos de card e títulos de seção." },
+      "title":    { "displayName": "Title", "purpose": "Rótulos de widget, nomes em tabelas." },
+      "body":     { "displayName": "Body", "purpose": "Texto de suporte e descrições. Máx 75ch." },
+      "label":    { "displayName": "Label", "purpose": "Chaves de dado, badges, status tags." }
+    },
+    "shadows": [
+      { "name": "card-hover", "value": "0 4px 20px rgba(0,0,0,0.25)", "purpose": "Cards clicáveis ao hover. Estado, não decoração." },
+      { "name": "modal", "value": "0 20px 60px rgba(0,0,0,0.5)", "purpose": "Isolamento de modal do fundo." },
+      { "name": "dropdown", "value": "0 8px 24px rgba(0,0,0,0.3)", "purpose": "Menus suspensos e popovers." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Transições de estado padrão." },
+      { "name": "ease-out-quart", "value": "cubic-bezier(0.25, 1, 0.5, 1)", "purpose": "Entradas de elemento (modais, drawers)." },
+      { "name": "duration-fast", "value": "150ms", "purpose": "Hover, foco, badges." },
+      { "name": "duration-standard", "value": "220ms", "purpose": "Transições de painel e card." },
+      { "name": "duration-entrance", "value": "350ms", "purpose": "Entradas de modal e drawer." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "2xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão Primário",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ação principal de missão. Um por contexto, no ponto de decisão.",
+      "html": "<button class=\"ds-btn-primary\">Lançar Campanha</button>",
+      "css": ".ds-btn-primary { background: #c5a028; color: #020c1b; padding: 12px 24px; font-family: Inter, sans-serif; font-size: 0.875rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: background 0.18s cubic-bezier(0.4,0,0.2,1); letter-spacing: 0.01em; } .ds-btn-primary:hover { background: #d4af37; } .ds-btn-primary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; } .ds-btn-primary:active { background: #b89020; } @media (prefers-reduced-motion: reduce) { .ds-btn-primary { transition: none; } }"
+    },
+    {
+      "name": "Botão Secundário",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Ações secundárias: Cancelar, Exportar, Ver detalhes.",
+      "html": "<button class=\"ds-btn-secondary\">Exportar</button>",
+      "css": ".ds-btn-secondary { background: #ffffff; color: #1d4ed8; padding: 12px 24px; font-family: Inter, sans-serif; font-size: 0.875rem; font-weight: 600; border: 1px solid #1d4ed8; border-radius: 8px; cursor: pointer; transition: background 0.18s cubic-bezier(0.4,0,0.2,1); } .ds-btn-secondary:hover { background: #f8fafc; } .ds-btn-secondary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; } @media (prefers-reduced-motion: reduce) { .ds-btn-secondary { transition: none; } }"
+    },
+    {
+      "name": "Botão Ghost",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Ações terciárias dentro de cards densos.",
+      "html": "<button class=\"ds-btn-ghost\">Ver mais</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #334155; padding: 8px 16px; font-family: Inter, sans-serif; font-size: 0.875rem; font-weight: 500; border: none; border-radius: 8px; cursor: pointer; transition: background 0.15s ease; } .ds-btn-ghost:hover { background: rgba(15,23,42,0.06); } .ds-btn-ghost:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "KPI Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Componente central do produto. Toda métrica em contexto — número, label, delta e benchmark.",
+      "html": "<div class=\"ds-kpi-card\"><div class=\"ds-kpi-label\">CPL</div><div class=\"ds-kpi-value\">R$ 42,80</div><div class=\"ds-kpi-delta ds-kpi-delta--positive\">↓ 12% vs. semana anterior</div><div class=\"ds-kpi-benchmark\">Meta: R$ 50,00</div></div>",
+      "css": ".ds-kpi-card { background: #112240; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 6px; } .ds-kpi-label { font-family: Inter, sans-serif; font-size: 0.75rem; font-weight: 500; color: #64748b; letter-spacing: 0.01em; text-transform: none; } .ds-kpi-value { font-family: Inter, sans-serif; font-size: 1.75rem; font-weight: 700; color: #ffffff; line-height: 1.1; letter-spacing: -0.02em; } .ds-kpi-delta { font-family: Inter, sans-serif; font-size: 0.75rem; font-weight: 500; color: #64748b; } .ds-kpi-delta--positive { color: #c5a028; } .ds-kpi-delta--negative { color: #f87171; } .ds-kpi-benchmark { font-family: Inter, sans-serif; font-size: 0.6875rem; font-weight: 400; color: #475569; margin-top: 4px; }"
+    },
+    {
+      "name": "Input de Texto",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de formulário padrão.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-field-label\">Nome da Campanha</label><input class=\"ds-input\" type=\"text\" placeholder=\"Ex: Lançamento Residencial\" /></div>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; } .ds-field-label { font-family: Inter, sans-serif; font-size: 0.75rem; font-weight: 500; color: #334155; letter-spacing: 0.01em; } .ds-input { font-family: Inter, sans-serif; font-size: 0.875rem; font-weight: 400; color: #0f172a; background: #ffffff; border: 1px solid rgba(100,116,139,0.4); border-radius: 8px; padding: 10px 14px; width: 100%; transition: border-color 0.15s ease, box-shadow 0.15s ease; outline: none; } .ds-input::placeholder { color: #94a3b8; } .ds-input:focus-visible { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); } .ds-input:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Badge de Status",
+      "kind": "chip",
+      "refersTo": "card",
+      "description": "Status de campanha, saúde de CPL, estado de agente.",
+      "html": "<span class=\"ds-badge ds-badge--ok\">Ativo</span><span class=\"ds-badge ds-badge--warn\">Atenção</span><span class=\"ds-badge ds-badge--critical\">Crítico</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; font-family: Inter, sans-serif; font-size: 0.6875rem; font-weight: 500; border-radius: 6px; padding: 3px 8px; letter-spacing: 0.01em; } .ds-badge--ok { background: rgba(197,160,40,0.15); color: #c5a028; } .ds-badge--warn { background: rgba(234,179,8,0.12); color: #a16207; } .ds-badge--critical { background: rgba(239,68,68,0.12); color: #dc2626; } .ds-badge--neutral { background: rgba(100,116,139,0.1); color: #475569; }"
+    },
+    {
+      "name": "Card de Painel",
+      "kind": "card",
+      "refersTo": "card-dark",
+      "description": "Container de seção em dark mode (campanhas, insights, briefing).",
+      "html": "<div class=\"ds-panel\"><div class=\"ds-panel-header\"><span class=\"ds-panel-title\">Insights da IA</span></div><div class=\"ds-panel-body\">Conteúdo do painel</div></div>",
+      "css": ".ds-panel { background: #112240; border-radius: 12px; overflow: hidden; } .ds-panel-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.06); } .ds-panel-title { font-family: Inter, sans-serif; font-size: 0.9375rem; font-weight: 600; color: #ffffff; letter-spacing: -0.01em; } .ds-panel-body { padding: 24px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "O Painel de Missão",
+    "overview": "Este sistema de design opera sob a premissa de um centro de controle de alta precisão: dados densos apresentados com a calma de quem sabe exatamente o que está acontecendo. Cada número existe em contexto. Cada estado visual tem intenção. A interface não compete com o conteúdo — ela o serve com invisibilidade disciplinada.\n\nO vocabulário visual é grafite profundo e âmbar. O modo escuro não é estético — é funcional. Gestores de tráfego que monitoram CPL e CTR por horas consecutivas precisam de uma superfície que não canse, não distraia, não exija esforço de interpretação. O ouro aparece com parcimônia: uma métrica boa, um estado ativo, um elemento de ação. Sua raridade é a mensagem.",
+    "keyCharacteristics": [
+      "Modo escuro-primário com navy profundo como superfície base",
+      "Âmbar/ouro como único acento cromático — raridade intencional",
+      "Inter em múltiplos pesos como único typeface",
+      "Elevação via tonalidade, não via sombra",
+      "Dados em contexto: toda métrica com referência ou tendência"
+    ],
+    "rules": [
+      { "name": "A Regra do Acento Único", "body": "O âmbar é a única cor de decisão. Se um elemento pede destaque e não é âmbar, receba hierarquia via peso tipográfico ou posição — não via outra cor de acento.", "section": "colors" },
+      { "name": "A Regra Antivetorial", "body": "A superfície não é o branding. Fundo branco genérico com azul primário genérico é o template, não o produto. Toda superfície de dashboard deve ser navy ou derivado.", "section": "colors" },
+      { "name": "A Regra do Peso, Não da Cor", "body": "Hierarquia tipográfica é construída por peso e tamanho — nunca por cor diferente. Texto colorido em parágrafos de suporte é proibido.", "section": "typography" },
+      { "name": "A Regra Flat-By-Default", "body": "Superfícies estáticas são flat. Sombra aparece somente em resposta a estado (hover, foco, elevação modal).", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar âmbar (#c5a028) como único acento de ação — um por contexto, no ponto de decisão.",
+      "Do construir hierarquia com peso tipográfico (400/600/700 de Inter) antes de recorrer a tamanho ou cor.",
+      "Do usar navy profundo como superfície base em toda interface admin.",
+      "Do apresentar toda métrica com contexto: delta, benchmark ou período de referência visível.",
+      "Do reservar sombras para feedback de estado — nunca decorativo estático.",
+      "Do garantir contraste ≥ 4.5:1 em todo texto de corpo.",
+      "Do usar prefers-reduced-motion para toda animação.",
+      "Do limitar linhas de texto de corpo a 65–75ch máximo."
+    ],
+    "donts": [
+      "Don't usar #3b82f6 (azul pop SaaS) como cor de ação primária — é o template, não o produto.",
+      "Don't criar dashboards com fundo branco genérico.",
+      "Don't usar border-left colorido maior que 1px como acento decorativo.",
+      "Don't usar gradiente em texto (background-clip: text). Nunca.",
+      "Don't usar glassmorphism decorativo.",
+      "Don't criar cards idênticos em grid com ícone + heading + texto repetido.",
+      "Don't exibir métricas nuas sem contexto, benchmark ou tendência.",
+      "Don't fazer o design do Meta Ads Manager: cinza, denso sem ritmo, hostil."
+    ]
+  }
+}

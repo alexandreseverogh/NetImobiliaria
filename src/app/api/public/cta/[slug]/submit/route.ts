@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import pool from '@/lib/database/connection'
 import {
   getDestinationBySlug,
   logInteraction,
@@ -6,6 +7,8 @@ import {
   linkSubmissionLead,
   normalizeContact,
 } from '@/lib/cta/service'
+import { ingestMessage } from '@/lib/mensageria/ingest'
+import { resolveWebformInbox } from '@/lib/mensageria/inboxes'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,6 +95,31 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       utm,
     })
 
+    // 2.a Ingestão no Mensageria (thread unificada) — roda em paralelo ao fluxo de
+    // lead abaixo; falha aqui NUNCA deve derrubar a captação de lead existente.
+    const mensageriaResult = await (async () => {
+      try {
+        const inboxId = await resolveWebformInbox(dest.tenant_id)
+        const summary = Object.entries(cleanPayload)
+          .filter(([, v]) => v != null && String(v).trim() !== '')
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('\n')
+        return await ingestMessage({
+          tenantId: dest.tenant_id,
+          clientId: dest.client_id,
+          inboxId,
+          contact: { name, phone, email },
+          direction: 'inbound',
+          senderType: 'contact',
+          content: summary || 'Formulário enviado (sem campos preenchidos)',
+          externalId: submissionId,
+        })
+      } catch (err) {
+        console.error('[cta-submit] falha na ingestão Mensageria (não bloqueante):', err)
+        return null
+      }
+    })()
+
     // 3) Lead no CRM (reusa o pipeline completo via /api/crm/leads)
     let leadUuid: string | null = null
     try {
@@ -121,7 +149,15 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       if (crmRes.ok) {
         const crmData = await crmRes.json().catch(() => ({}))
         leadUuid = crmData.leadUuid || crmData.lead_uuid || crmData.id || crmData?.data?.lead_uuid || null
-        if (leadUuid) await linkSubmissionLead(submissionId, leadUuid)
+        if (leadUuid) {
+          await linkSubmissionLead(submissionId, leadUuid)
+          if (mensageriaResult?.contactId) {
+            await pool.query(
+              `UPDATE mensageria.contacts SET lead_uuid = $1 WHERE id = $2 AND lead_uuid IS NULL`,
+              [leadUuid, mensageriaResult.contactId],
+            ).catch(() => {})
+          }
+        }
       } else {
         console.error('[CTA submit] /api/crm/leads falhou:', crmRes.status)
       }

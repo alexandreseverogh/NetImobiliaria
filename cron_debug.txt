@@ -132522,3 +132522,1751 @@ xecutado.
 [2026-06-28T15:55:00.711Z] Found 0 expired staging leads
 [2026-06-28T15:55:07.069Z] GET /api/cron/transbordo called
 [2026-06-28T15:55:07.071Z] Unauthorized cron access attempt
+[2026-07-05T14:45:06.141Z] GET /api/cron/transbordo called
+[2026-07-05T14:45:06.287Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T14:45:06.309Z] Found 0 expired prospects
+[2026-07-05T14:45:06.315Z] Found 0 expired staging leads
+[2026-07-05T14:50:06.781Z] GET /api/cron/transbordo called
+[2026-07-05T14:50:06.803Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T14:50:06.830Z] Found 0 expired prospects
+[2026-07-05T14:50:06.836Z] Found 0 expired staging leads
+[2026-07-05T14:55:02.759Z] GET /api/cron/transbordo called
+[2026-07-05T14:55:02.769Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T14:55:02.779Z] Found 0 expired prospects
+[2026-07-05T14:55:02.787Z] Found 0 expired staging leads
+[2026-07-05T15:00:04.387Z] GET /api/cron/transbordo called
+[2026-07-05T15:00:04.391Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:00:04.403Z] Found 0 expired prospects
+[2026-07-05T15:00:04.411Z] Found 0 expired staging leads
+[2026-07-05T15:05:04.015Z] GET /api/cron/transbordo called
+[2026-07-05T15:05:04.019Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:05:04.030Z] Found 0 expired prospects
+[2026-07-05T15:05:04.038Z] Found 0 expired staging leads
+[2026-07-05T15:10:12.861Z] GET /api/cron/transbordo called
+[2026-07-05T15:10:12.867Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:10:12.876Z] Found 0 expired prospects
+[2026-07-05T15:10:12.884Z] Found 0 expired staging leads
+[2026-07-05T15:15:03.631Z] GET /api/cron/transbordo called
+[2026-07-05T15:15:03.636Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:15:03.649Z] Found 0 expired prospects
+[2026-07-05T15:15:03.657Z] Found 0 expired staging leads
+[2026-07-05T15:20:03.154Z] GET /api/cron/transbordo called
+[2026-07-05T15:20:03.162Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:20:03.169Z] Found 0 expired prospects
+[2026-07-05T15:20:03.177Z] Found 0 expired staging leads
+[2026-07-05T15:25:11.145Z] GET /api/cron/transbordo called
+[2026-07-05T15:25:11.157Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:25:11.175Z] Found 0 expired prospects
+[2026-07-05T15:25:11.187Z] Found 0 expired staging leads
+[2026-07-05T15:30:13.800Z] GET /api/cron/transbordo called
+[2026-07-05T15:30:13.840Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:30:13.899Z] Found 0 expired prospects
+[2026-07-05T15:30:13.945Z] Found 0 expired staging leads
+[2026-07-05T15:35:07.511Z] GET /api/cron/transbordo called
+[2026-07-05T15:35:07.527Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:35:07.535Z] Found 0 expired prospects
+[2026-07-05T15:35:07.544Z] Found 0 expired staging leads
+[2026-07-05T15:40:05.619Z] GET /api/cron/transbordo called
+[2026-07-05T15:40:05.627Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:40:05.638Z] Found 0 expired prospects
+[2026-07-05T15:40:05.650Z] Found 0 expired staging leads
+[2026-07-05T15:45:02.822Z] GET /api/cron/transbordo called
+[2026-07-05T15:45:02.835Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:45:02.848Z] Found 0 expired prospects
+[2026-07-05T15:45:02.852Z] Found 0 expired staging leads
+[2026-07-05T15:50:03.269Z] GET /api/cron/transbordo called
+[2026-07-05T15:50:03.276Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:50:03.288Z] Found 0 expired prospects
+[2026-07-05T15:50:03.296Z] Found 0 expired staging leads
+[2026-07-05T15:55:01.991Z] GET /api/cron/transbordo called
+[2026-07-05T15:55:02.012Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T15:55:02.021Z] Found 0 expired prospects
+[2026-07-05T15:55:02.031Z] Found 0 expired staging leads
+[2026-07-05T16:00:02.188Z] GET /api/cron/transbordo called
+[2026-07-05T16:00:02.192Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:00:02.202Z] Found 0 expired prospects
+[2026-07-05T16:00:02.209Z] Found 0 expired staging leads
+[2026-07-05T16:05:02.207Z] GET /api/cron/transbordo called
+[2026-07-05T16:05:02.212Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:05:02.223Z] Found 0 expired prospects
+[2026-07-05T16:05:02.230Z] Found 0 expired staging leads
+[2026-07-05T16:10:02.166Z] GET /api/cron/transbordo called
+[2026-07-05T16:10:02.170Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:10:02.180Z] Found 0 expired prospects
+[2026-07-05T16:10:02.188Z] Found 0 expired staging leads
+[2026-07-05T16:15:03.668Z] GET /api/cron/transbordo called
+[2026-07-05T16:15:03.673Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:15:03.686Z] Found 0 expired prospects
+[2026-07-05T16:15:03.694Z] Found 0 expired staging leads
+[2026-07-05T16:20:02.449Z] GET /api/cron/transbordo called
+[2026-07-05T16:20:02.457Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:20:02.467Z] Found 0 expired prospects
+[2026-07-05T16:20:02.476Z] Found 0 expired staging leads
+[2026-07-05T16:25:02.074Z] GET /api/cron/transbordo called
+[2026-07-05T16:25:02.082Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:25:02.094Z] Found 0 expired prospects
+[2026-07-05T16:25:02.101Z] Found 0 expired staging leads
+[2026-07-05T16:30:02.174Z] GET /api/cron/transbordo called
+[2026-07-05T16:30:02.182Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:30:02.193Z] Found 0 expired prospects
+[2026-07-05T16:30:02.201Z] Found 0 expired staging leads
+[2026-07-05T16:35:03.797Z] GET /api/cron/transbordo called
+[2026-07-05T16:35:03.804Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:35:03.820Z] Found 0 expired prospects
+[2026-07-05T16:35:03.832Z] Found 0 expired staging leads
+[2026-07-05T16:40:02.341Z] GET /api/cron/transbordo called
+[2026-07-05T16:40:02.345Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:40:02.356Z] Found 0 expired prospects
+[2026-07-05T16:40:02.364Z] Found 0 expired staging leads
+[2026-07-05T16:45:04.190Z] GET /api/cron/transbordo called
+[2026-07-05T16:45:04.197Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:45:04.212Z] Found 0 expired prospects
+[2026-07-05T16:45:04.221Z] Found 0 expired staging leads
+[2026-07-05T16:50:03.260Z] GET /api/cron/transbordo called
+[2026-07-05T16:50:03.266Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:50:03.279Z] Found 0 expired prospects
+[2026-07-05T16:50:03.287Z] Found 0 expired staging leads
+[2026-07-05T16:55:08.175Z] GET /api/cron/transbordo called
+[2026-07-05T16:55:08.186Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T16:55:08.192Z] Found 0 expired prospects
+[2026-07-05T16:55:08.200Z] Found 0 expired staging leads
+[2026-07-05T17:00:01.813Z] GET /api/cron/transbordo called
+[2026-07-05T17:00:01.825Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:00:01.832Z] Found 0 expired prospects
+[2026-07-05T17:00:01.841Z] Found 0 expired staging leads
+[2026-07-05T17:05:02.573Z] GET /api/cron/transbordo called
+[2026-07-05T17:05:02.577Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:05:02.589Z] Found 0 expired prospects
+[2026-07-05T17:05:02.596Z] Found 0 expired staging leads
+[2026-07-05T17:10:02.406Z] GET /api/cron/transbordo called
+[2026-07-05T17:10:02.416Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:10:02.426Z] Found 0 expired prospects
+[2026-07-05T17:10:02.433Z] Found 0 expired staging leads
+[2026-07-05T17:15:02.796Z] GET /api/cron/transbordo called
+[2026-07-05T17:15:02.800Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:15:02.810Z] Found 0 expired prospects
+[2026-07-05T17:15:02.818Z] Found 0 expired staging leads
+[2026-07-05T17:20:02.988Z] GET /api/cron/transbordo called
+[2026-07-05T17:20:02.993Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:20:03.007Z] Found 0 expired prospects
+[2026-07-05T17:20:03.015Z] Found 0 expired staging leads
+[2026-07-05T17:25:03.417Z] GET /api/cron/transbordo called
+[2026-07-05T17:25:03.421Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:25:03.431Z] Found 0 expired prospects
+[2026-07-05T17:25:03.438Z] Found 0 expired staging leads
+[2026-07-05T17:30:03.311Z] GET /api/cron/transbordo called
+[2026-07-05T17:30:03.314Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:30:03.325Z] Found 0 expired prospects
+[2026-07-05T17:30:03.332Z] Found 0 expired staging leads
+[2026-07-05T17:35:03.551Z] GET /api/cron/transbordo called
+[2026-07-05T17:35:03.555Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:35:03.571Z] Found 0 expired prospects
+[2026-07-05T17:35:03.580Z] Found 0 expired staging leads
+[2026-07-05T17:40:02.808Z] GET /api/cron/transbordo called
+[2026-07-05T17:40:02.813Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:40:02.831Z] Found 0 expired prospects
+[2026-07-05T17:40:02.836Z] Found 0 expired staging leads
+[2026-07-05T17:45:01.817Z] GET /api/cron/transbordo called
+[2026-07-05T17:45:01.823Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:45:01.835Z] Found 0 expired prospects
+[2026-07-05T17:45:01.842Z] Found 0 expired staging leads
+[2026-07-05T17:50:02.167Z] GET /api/cron/transbordo called
+[2026-07-05T17:50:02.174Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:50:02.188Z] Found 0 expired prospects
+[2026-07-05T17:50:02.194Z] Found 0 expired staging leads
+[2026-07-05T17:55:02.043Z] GET /api/cron/transbordo called
+[2026-07-05T17:55:02.050Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T17:55:02.059Z] Found 0 expired prospects
+[2026-07-05T17:55:02.068Z] Found 0 expired staging leads
+[2026-07-05T18:00:02.033Z] GET /api/cron/transbordo called
+[2026-07-05T18:00:02.043Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:00:02.052Z] Found 0 expired prospects
+[2026-07-05T18:00:02.060Z] Found 0 expired staging leads
+[2026-07-05T18:05:02.236Z] GET /api/cron/transbordo called
+[2026-07-05T18:05:02.242Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:05:02.259Z] Found 0 expired prospects
+[2026-07-05T18:05:02.266Z] Found 0 expired staging leads
+[2026-07-05T18:10:01.845Z] GET /api/cron/transbordo called
+[2026-07-05T18:10:01.853Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:10:01.863Z] Found 0 expired prospects
+[2026-07-05T18:10:01.870Z] Found 0 expired staging leads
+[2026-07-05T18:15:02.345Z] GET /api/cron/transbordo called
+[2026-07-05T18:15:02.348Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:15:02.359Z] Found 0 expired prospects
+[2026-07-05T18:15:02.368Z] Found 0 expired staging leads
+[2026-07-05T18:20:02.074Z] GET /api/cron/transbordo called
+[2026-07-05T18:20:02.084Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:20:02.093Z] Found 0 expired prospects
+[2026-07-05T18:20:02.102Z] Found 0 expired staging leads
+[2026-07-05T18:25:02.347Z] GET /api/cron/transbordo called
+[2026-07-05T18:25:02.363Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:25:02.374Z] Found 0 expired prospects
+[2026-07-05T18:25:02.381Z] Found 0 expired staging leads
+[2026-07-05T18:30:02.968Z] GET /api/cron/transbordo called
+[2026-07-05T18:30:02.972Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:30:02.982Z] Found 0 expired prospects
+[2026-07-05T18:30:02.989Z] Found 0 expired staging leads
+[2026-07-05T18:35:03.479Z] GET /api/cron/transbordo called
+[2026-07-05T18:35:03.494Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:35:03.501Z] Found 0 expired prospects
+[2026-07-05T18:35:03.517Z] Found 0 expired staging leads
+[2026-07-05T18:40:03.501Z] GET /api/cron/transbordo called
+[2026-07-05T18:40:03.506Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:40:03.521Z] Found 0 expired prospects
+[2026-07-05T18:40:03.531Z] Found 0 expired staging leads
+[2026-07-05T18:45:03.595Z] GET /api/cron/transbordo called
+[2026-07-05T18:45:03.600Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:45:03.614Z] Found 0 expired prospects
+[2026-07-05T18:45:03.620Z] Found 0 expired staging leads
+[2026-07-05T18:50:03.160Z] GET /api/cron/transbordo called
+[2026-07-05T18:50:03.164Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:50:03.176Z] Found 0 expired prospects
+[2026-07-05T18:50:03.186Z] Found 0 expired staging leads
+[2026-07-05T18:55:02.602Z] GET /api/cron/transbordo called
+[2026-07-05T18:55:02.612Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T18:55:02.623Z] Found 0 expired prospects
+[2026-07-05T18:55:02.631Z] Found 0 expired staging leads
+[2026-07-05T19:00:02.076Z] GET /api/cron/transbordo called
+[2026-07-05T19:00:02.082Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:00:02.095Z] Found 0 expired prospects
+[2026-07-05T19:00:02.224Z] Found 0 expired staging leads
+[2026-07-05T19:05:02.368Z] GET /api/cron/transbordo called
+[2026-07-05T19:05:02.372Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:05:02.385Z] Found 0 expired prospects
+[2026-07-05T19:05:02.392Z] Found 0 expired staging leads
+[2026-07-05T19:10:01.918Z] GET /api/cron/transbordo called
+[2026-07-05T19:10:01.928Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:10:01.938Z] Found 0 expired prospects
+[2026-07-05T19:10:01.945Z] Found 0 expired staging leads
+[2026-07-05T19:15:02.311Z] GET /api/cron/transbordo called
+[2026-07-05T19:15:02.315Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:15:02.327Z] Found 0 expired prospects
+[2026-07-05T19:15:02.335Z] Found 0 expired staging leads
+[2026-07-05T19:20:01.850Z] GET /api/cron/transbordo called
+[2026-07-05T19:20:01.856Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:20:01.870Z] Found 0 expired prospects
+[2026-07-05T19:20:01.878Z] Found 0 expired staging leads
+[2026-07-05T19:25:02.641Z] GET /api/cron/transbordo called
+[2026-07-05T19:25:02.648Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:25:02.661Z] Found 0 expired prospects
+[2026-07-05T19:25:02.670Z] Found 0 expired staging leads
+[2026-07-05T19:30:03.710Z] GET /api/cron/transbordo called
+[2026-07-05T19:30:03.715Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:30:03.741Z] Found 0 expired prospects
+[2026-07-05T19:30:03.744Z] Found 0 expired staging leads
+[2026-07-05T19:35:03.539Z] GET /api/cron/transbordo called
+[2026-07-05T19:35:03.548Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:35:03.558Z] Found 0 expired prospects
+[2026-07-05T19:35:03.565Z] Found 0 expired staging leads
+[2026-07-05T19:40:03.708Z] GET /api/cron/transbordo called
+[2026-07-05T19:40:03.716Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:40:03.726Z] Found 0 expired prospects
+[2026-07-05T19:40:03.735Z] Found 0 expired staging leads
+[2026-07-05T19:45:01.850Z] GET /api/cron/transbordo called
+[2026-07-05T19:45:01.858Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:45:01.868Z] Found 0 expired prospects
+[2026-07-05T19:45:01.875Z] Found 0 expired staging leads
+[2026-07-05T19:50:02.303Z] GET /api/cron/transbordo called
+[2026-07-05T19:50:02.306Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:50:02.317Z] Found 0 expired prospects
+[2026-07-05T19:50:02.324Z] Found 0 expired staging leads
+[2026-07-05T19:55:02.153Z] GET /api/cron/transbordo called
+[2026-07-05T19:55:02.157Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T19:55:02.167Z] Found 0 expired prospects
+[2026-07-05T19:55:02.175Z] Found 0 expired staging leads
+[2026-07-05T20:00:02.130Z] GET /api/cron/transbordo called
+[2026-07-05T20:00:02.133Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:00:02.144Z] Found 0 expired prospects
+[2026-07-05T20:00:02.151Z] Found 0 expired staging leads
+[2026-07-05T20:05:01.859Z] GET /api/cron/transbordo called
+[2026-07-05T20:05:01.870Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:05:01.878Z] Found 0 expired prospects
+[2026-07-05T20:05:01.886Z] Found 0 expired staging leads
+[2026-07-05T20:10:02.716Z] GET /api/cron/transbordo called
+[2026-07-05T20:10:02.720Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:10:02.745Z] Found 0 expired prospects
+[2026-07-05T20:10:02.748Z] Found 0 expired staging leads
+[2026-07-05T20:15:02.129Z] GET /api/cron/transbordo called
+[2026-07-05T20:15:02.138Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:15:02.146Z] Found 0 expired prospects
+[2026-07-05T20:15:02.155Z] Found 0 expired staging leads
+[2026-07-05T20:20:02.138Z] GET /api/cron/transbordo called
+[2026-07-05T20:20:02.147Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:20:02.157Z] Found 0 expired prospects
+[2026-07-05T20:20:02.165Z] Found 0 expired staging leads
+[2026-07-05T20:25:02.651Z] GET /api/cron/transbordo called
+[2026-07-05T20:25:02.656Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:25:02.675Z] Found 0 expired prospects
+[2026-07-05T20:25:02.681Z] Found 0 expired staging leads
+[2026-07-05T20:30:02.630Z] GET /api/cron/transbordo called
+[2026-07-05T20:30:02.641Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:30:02.649Z] Found 0 expired prospects
+[2026-07-05T20:30:02.657Z] Found 0 expired staging leads
+[2026-07-05T20:35:03.410Z] GET /api/cron/transbordo called
+[2026-07-05T20:35:03.416Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:35:03.427Z] Found 0 expired prospects
+[2026-07-05T20:35:03.436Z] Found 0 expired staging leads
+[2026-07-05T20:40:02.960Z] GET /api/cron/transbordo called
+[2026-07-05T20:40:02.966Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:40:02.977Z] Found 0 expired prospects
+[2026-07-05T20:40:02.986Z] Found 0 expired staging leads
+[2026-07-05T20:45:03.659Z] GET /api/cron/transbordo called
+[2026-07-05T20:45:03.664Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:45:03.686Z] Found 0 expired prospects
+[2026-07-05T20:45:03.689Z] Found 0 expired staging leads
+[2026-07-05T20:50:03.806Z] GET /api/cron/transbordo called
+[2026-07-05T20:50:03.812Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:50:03.836Z] Found 0 expired prospects
+[2026-07-05T20:50:03.839Z] Found 0 expired staging leads
+[2026-07-05T20:55:03.889Z] GET /api/cron/transbordo called
+[2026-07-05T20:55:03.897Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T20:55:03.907Z] Found 0 expired prospects
+[2026-07-05T20:55:03.914Z] Found 0 expired staging leads
+[2026-07-05T21:00:06.696Z] GET /api/cron/transbordo called
+[2026-07-05T21:00:06.705Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:00:06.719Z] Found 0 expired prospects
+[2026-07-05T21:00:06.731Z] Found 0 expired staging leads
+[2026-07-05T21:05:03.399Z] GET /api/cron/transbordo called
+[2026-07-05T21:05:03.403Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:05:03.413Z] Found 0 expired prospects
+[2026-07-05T21:05:03.421Z] Found 0 expired staging leads
+[2026-07-05T21:10:02.234Z] GET /api/cron/transbordo called
+[2026-07-05T21:10:02.240Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:10:02.249Z] Found 0 expired prospects
+[2026-07-05T21:10:02.257Z] Found 0 expired staging leads
+[2026-07-05T21:15:01.776Z] GET /api/cron/transbordo called
+[2026-07-05T21:15:01.784Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:15:01.797Z] Found 0 expired prospects
+[2026-07-05T21:15:01.804Z] Found 0 expired staging leads
+[2026-07-05T21:20:01.828Z] GET /api/cron/transbordo called
+[2026-07-05T21:20:01.835Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:20:01.846Z] Found 0 expired prospects
+[2026-07-05T21:20:01.853Z] Found 0 expired staging leads
+[2026-07-05T21:25:01.874Z] GET /api/cron/transbordo called
+[2026-07-05T21:25:01.908Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:25:01.931Z] Found 0 expired prospects
+[2026-07-05T21:25:01.936Z] Found 0 expired staging leads
+[2026-07-05T21:30:01.804Z] GET /api/cron/transbordo called
+[2026-07-05T21:30:01.820Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:30:01.828Z] Found 0 expired prospects
+[2026-07-05T21:30:01.837Z] Found 0 expired staging leads
+[2026-07-05T21:35:01.712Z] GET /api/cron/transbordo called
+[2026-07-05T21:35:01.720Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:35:01.731Z] Found 0 expired prospects
+[2026-07-05T21:35:01.739Z] Found 0 expired staging leads
+[2026-07-05T21:40:01.758Z] GET /api/cron/transbordo called
+[2026-07-05T21:40:01.764Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:40:01.777Z] Found 0 expired prospects
+[2026-07-05T21:40:01.788Z] Found 0 expired staging leads
+[2026-07-05T21:45:02.136Z] GET /api/cron/transbordo called
+[2026-07-05T21:45:02.140Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:45:02.151Z] Found 0 expired prospects
+[2026-07-05T21:45:02.159Z] Found 0 expired staging leads
+[2026-07-05T21:50:02.770Z] GET /api/cron/transbordo called
+[2026-07-05T21:50:02.780Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:50:02.787Z] Found 0 expired prospects
+[2026-07-05T21:50:02.798Z] Found 0 expired staging leads
+[2026-07-05T21:55:03.283Z] GET /api/cron/transbordo called
+[2026-07-05T21:55:03.291Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T21:55:03.302Z] Found 0 expired prospects
+[2026-07-05T21:55:03.310Z] Found 0 expired staging leads
+[2026-07-05T22:00:04.100Z] GET /api/cron/transbordo called
+[2026-07-05T22:00:04.104Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:00:04.130Z] Found 0 expired prospects
+[2026-07-05T22:00:04.132Z] Found 0 expired staging leads
+[2026-07-05T22:05:03.514Z] GET /api/cron/transbordo called
+[2026-07-05T22:05:03.522Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:05:03.536Z] Found 0 expired prospects
+[2026-07-05T22:05:03.542Z] Found 0 expired staging leads
+[2026-07-05T22:10:02.564Z] GET /api/cron/transbordo called
+[2026-07-05T22:10:02.572Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:10:02.585Z] Found 0 expired prospects
+[2026-07-05T22:10:02.593Z] Found 0 expired staging leads
+[2026-07-05T22:15:03.177Z] GET /api/cron/transbordo called
+[2026-07-05T22:15:03.190Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:15:03.197Z] Found 0 expired prospects
+[2026-07-05T22:15:03.205Z] Found 0 expired staging leads
+[2026-07-05T22:20:04.012Z] GET /api/cron/transbordo called
+[2026-07-05T22:20:04.032Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:20:04.037Z] Found 0 expired prospects
+[2026-07-05T22:20:04.044Z] Found 0 expired staging leads
+[2026-07-05T22:25:02.572Z] GET /api/cron/transbordo called
+[2026-07-05T22:25:02.580Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:25:02.592Z] Found 0 expired prospects
+[2026-07-05T22:25:02.598Z] Found 0 expired staging leads
+[2026-07-05T22:30:01.950Z] GET /api/cron/transbordo called
+[2026-07-05T22:30:01.957Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:30:01.971Z] Found 0 expired prospects
+[2026-07-05T22:30:01.980Z] Found 0 expired staging leads
+[2026-07-05T22:35:01.948Z] GET /api/cron/transbordo called
+[2026-07-05T22:35:01.957Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:35:01.969Z] Found 0 expired prospects
+[2026-07-05T22:35:01.976Z] Found 0 expired staging leads
+[2026-07-05T22:40:02.016Z] GET /api/cron/transbordo called
+[2026-07-05T22:40:02.029Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:40:02.037Z] Found 0 expired prospects
+[2026-07-05T22:40:02.044Z] Found 0 expired staging leads
+[2026-07-05T22:45:02.664Z] GET /api/cron/transbordo called
+[2026-07-05T22:45:02.691Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:45:02.711Z] Found 0 expired prospects
+[2026-07-05T22:45:02.723Z] Found 0 expired staging leads
+[2026-07-05T22:50:01.913Z] GET /api/cron/transbordo called
+[2026-07-05T22:50:01.921Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:50:01.930Z] Found 0 expired prospects
+[2026-07-05T22:50:01.939Z] Found 0 expired staging leads
+[2026-07-05T22:55:01.916Z] GET /api/cron/transbordo called
+[2026-07-05T22:55:01.923Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T22:55:01.939Z] Found 0 expired prospects
+[2026-07-05T22:55:01.945Z] Found 0 expired staging leads
+[2026-07-05T23:00:02.416Z] GET /api/cron/transbordo called
+[2026-07-05T23:00:02.426Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:00:02.435Z] Found 0 expired prospects
+[2026-07-05T23:00:02.442Z] Found 0 expired staging leads
+[2026-07-05T23:05:02.805Z] GET /api/cron/transbordo called
+[2026-07-05T23:05:02.814Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:05:02.824Z] Found 0 expired prospects
+[2026-07-05T23:05:02.831Z] Found 0 expired staging leads
+[2026-07-05T23:10:03.627Z] GET /api/cron/transbordo called
+[2026-07-05T23:10:03.632Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:10:03.647Z] Found 0 expired prospects
+[2026-07-05T23:10:03.658Z] Found 0 expired staging leads
+[2026-07-05T23:15:03.556Z] GET /api/cron/transbordo called
+[2026-07-05T23:15:03.560Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:15:03.571Z] Found 0 expired prospects
+[2026-07-05T23:15:03.578Z] Found 0 expired staging leads
+[2026-07-05T23:20:03.634Z] GET /api/cron/transbordo called
+[2026-07-05T23:20:03.638Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:20:03.649Z] Found 0 expired prospects
+[2026-07-05T23:20:03.656Z] Found 0 expired staging leads
+[2026-07-05T23:25:03.563Z] GET /api/cron/transbordo called
+[2026-07-05T23:25:03.567Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:25:03.578Z] Found 0 expired prospects
+[2026-07-05T23:25:03.585Z] Found 0 expired staging leads
+[2026-07-05T23:30:03.581Z] GET /api/cron/transbordo called
+[2026-07-05T23:30:03.584Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:30:03.595Z] Found 0 expired prospects
+[2026-07-05T23:30:03.602Z] Found 0 expired staging leads
+[2026-07-05T23:35:03.614Z] GET /api/cron/transbordo called
+[2026-07-05T23:35:03.618Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:35:03.629Z] Found 0 expired prospects
+[2026-07-05T23:35:03.636Z] Found 0 expired staging leads
+[2026-07-05T23:40:02.305Z] GET /api/cron/transbordo called
+[2026-07-05T23:40:02.308Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:40:02.319Z] Found 0 expired prospects
+[2026-07-05T23:40:02.326Z] Found 0 expired staging leads
+[2026-07-05T23:45:02.558Z] GET /api/cron/transbordo called
+[2026-07-05T23:45:02.564Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:45:02.581Z] Found 0 expired prospects
+[2026-07-05T23:45:02.587Z] Found 0 expired staging leads
+[2026-07-05T23:50:02.047Z] GET /api/cron/transbordo called
+[2026-07-05T23:50:02.053Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:50:02.063Z] Found 0 expired prospects
+[2026-07-05T23:50:02.071Z] Found 0 expired staging leads
+[2026-07-05T23:55:02.135Z] GET /api/cron/transbordo called
+[2026-07-05T23:55:02.138Z] Cleanup de histórico (30 dias) executado.
+[2026-07-05T23:55:02.149Z] Found 0 expired prospects
+[2026-07-05T23:55:02.157Z] Found 0 expired staging leads
+[2026-07-06T00:00:02.465Z] GET /api/cron/transbordo called
+[2026-07-06T00:00:02.472Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:00:02.485Z] Found 0 expired prospects
+[2026-07-06T00:00:02.494Z] Found 0 expired staging leads
+[2026-07-06T00:05:02.324Z] GET /api/cron/transbordo called
+[2026-07-06T00:05:02.328Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:05:02.339Z] Found 0 expired prospects
+[2026-07-06T00:05:02.346Z] Found 0 expired staging leads
+[2026-07-06T00:10:02.596Z] GET /api/cron/transbordo called
+[2026-07-06T00:10:02.605Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:10:02.616Z] Found 0 expired prospects
+[2026-07-06T00:10:02.624Z] Found 0 expired staging leads
+[2026-07-06T00:15:03.459Z] GET /api/cron/transbordo called
+[2026-07-06T00:15:03.463Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:15:03.486Z] Found 0 expired prospects
+[2026-07-06T00:15:03.489Z] Found 0 expired staging leads
+[2026-07-06T00:20:03.828Z] GET /api/cron/transbordo called
+[2026-07-06T00:20:03.832Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:20:03.859Z] Found 0 expired prospects
+[2026-07-06T00:20:03.861Z] Found 0 expired staging leads
+[2026-07-06T00:25:03.445Z] GET /api/cron/transbordo called
+[2026-07-06T00:25:03.455Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:25:03.464Z] Found 0 expired prospects
+[2026-07-06T00:25:03.473Z] Found 0 expired staging leads
+[2026-07-06T00:30:03.909Z] GET /api/cron/transbordo called
+[2026-07-06T00:30:03.915Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:30:03.926Z] Found 0 expired prospects
+[2026-07-06T00:30:03.941Z] Found 0 expired staging leads
+[2026-07-06T00:35:03.185Z] GET /api/cron/transbordo called
+[2026-07-06T00:35:03.192Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:35:03.201Z] Found 0 expired prospects
+[2026-07-06T00:35:03.212Z] Found 0 expired staging leads
+[2026-07-06T00:40:03.636Z] GET /api/cron/transbordo called
+[2026-07-06T00:40:03.642Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:40:03.655Z] Found 0 expired prospects
+[2026-07-06T00:40:03.662Z] Found 0 expired staging leads
+[2026-07-06T00:45:02.246Z] GET /api/cron/transbordo called
+[2026-07-06T00:45:02.255Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:45:02.265Z] Found 0 expired prospects
+[2026-07-06T00:45:02.273Z] Found 0 expired staging leads
+[2026-07-06T00:50:01.871Z] GET /api/cron/transbordo called
+[2026-07-06T00:50:01.878Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:50:01.888Z] Found 0 expired prospects
+[2026-07-06T00:50:01.896Z] Found 0 expired staging leads
+[2026-07-06T00:55:02.304Z] GET /api/cron/transbordo called
+[2026-07-06T00:55:02.314Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T00:55:02.325Z] Found 0 expired prospects
+[2026-07-06T00:55:02.330Z] Found 0 expired staging leads
+[2026-07-06T01:00:02.792Z] GET /api/cron/transbordo called
+[2026-07-06T01:00:02.796Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:00:02.821Z] Found 0 expired prospects
+[2026-07-06T01:00:02.823Z] Found 0 expired staging leads
+[2026-07-06T01:05:02.018Z] GET /api/cron/transbordo called
+[2026-07-06T01:05:02.022Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:05:02.032Z] Found 0 expired prospects
+[2026-07-06T01:05:02.040Z] Found 0 expired staging leads
+[2026-07-06T01:10:02.192Z] GET /api/cron/transbordo called
+[2026-07-06T01:10:02.196Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:10:02.207Z] Found 0 expired prospects
+[2026-07-06T01:10:02.215Z] Found 0 expired staging leads
+[2026-07-06T01:15:02.538Z] GET /api/cron/transbordo called
+[2026-07-06T01:15:02.542Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:15:02.553Z] Found 0 expired prospects
+[2026-07-06T01:15:02.560Z] Found 0 expired staging leads
+[2026-07-06T01:20:02.337Z] GET /api/cron/transbordo called
+[2026-07-06T01:20:02.345Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:20:02.355Z] Found 0 expired prospects
+[2026-07-06T01:20:02.362Z] Found 0 expired staging leads
+[2026-07-06T01:25:02.925Z] GET /api/cron/transbordo called
+[2026-07-06T01:25:02.937Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:25:02.946Z] Found 0 expired prospects
+[2026-07-06T01:25:02.953Z] Found 0 expired staging leads
+[2026-07-06T01:30:05.057Z] GET /api/cron/transbordo called
+[2026-07-06T01:30:05.069Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:30:05.083Z] Found 0 expired prospects
+[2026-07-06T01:30:05.090Z] Found 0 expired staging leads
+[2026-07-06T01:35:02.572Z] GET /api/cron/transbordo called
+[2026-07-06T01:35:02.581Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:35:02.592Z] Found 0 expired prospects
+[2026-07-06T01:35:02.599Z] Found 0 expired staging leads
+[2026-07-06T01:40:02.231Z] GET /api/cron/transbordo called
+[2026-07-06T01:40:02.238Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:40:02.250Z] Found 0 expired prospects
+[2026-07-06T01:40:02.258Z] Found 0 expired staging leads
+[2026-07-06T01:45:01.909Z] GET /api/cron/transbordo called
+[2026-07-06T01:45:01.916Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:45:01.927Z] Found 0 expired prospects
+[2026-07-06T01:45:01.934Z] Found 0 expired staging leads
+[2026-07-06T01:50:01.963Z] GET /api/cron/transbordo called
+[2026-07-06T01:50:01.969Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:50:01.981Z] Found 0 expired prospects
+[2026-07-06T01:50:01.988Z] Found 0 expired staging leads
+[2026-07-06T01:55:01.834Z] GET /api/cron/transbordo called
+[2026-07-06T01:55:01.848Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T01:55:01.856Z] Found 0 expired prospects
+[2026-07-06T01:55:01.863Z] Found 0 expired staging leads
+[2026-07-06T02:00:02.167Z] GET /api/cron/transbordo called
+[2026-07-06T02:00:02.171Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:00:02.182Z] Found 0 expired prospects
+[2026-07-06T02:00:02.189Z] Found 0 expired staging leads
+[2026-07-06T02:05:02.324Z] GET /api/cron/transbordo called
+[2026-07-06T02:05:02.337Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:05:02.343Z] Found 0 expired prospects
+[2026-07-06T02:05:02.353Z] Found 0 expired staging leads
+[2026-07-06T02:10:02.558Z] GET /api/cron/transbordo called
+[2026-07-06T02:10:02.564Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:10:02.578Z] Found 0 expired prospects
+[2026-07-06T02:10:02.584Z] Found 0 expired staging leads
+[2026-07-06T02:15:02.966Z] GET /api/cron/transbordo called
+[2026-07-06T02:15:02.975Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:15:02.986Z] Found 0 expired prospects
+[2026-07-06T02:15:02.993Z] Found 0 expired staging leads
+[2026-07-06T02:20:02.671Z] GET /api/cron/transbordo called
+[2026-07-06T02:20:02.677Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:20:02.690Z] Found 0 expired prospects
+[2026-07-06T02:20:02.701Z] Found 0 expired staging leads
+[2026-07-06T02:25:02.664Z] GET /api/cron/transbordo called
+[2026-07-06T02:25:02.672Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:25:02.687Z] Found 0 expired prospects
+[2026-07-06T02:25:02.692Z] Found 0 expired staging leads
+[2026-07-06T02:30:03.663Z] GET /api/cron/transbordo called
+[2026-07-06T02:30:03.668Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:30:03.686Z] Found 0 expired prospects
+[2026-07-06T02:30:03.693Z] Found 0 expired staging leads
+[2026-07-06T02:35:04.120Z] GET /api/cron/transbordo called
+[2026-07-06T02:35:04.129Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:35:04.144Z] Found 0 expired prospects
+[2026-07-06T02:35:04.152Z] Found 0 expired staging leads
+[2026-07-06T02:40:03.703Z] GET /api/cron/transbordo called
+[2026-07-06T02:40:03.712Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:40:03.722Z] Found 0 expired prospects
+[2026-07-06T02:40:03.732Z] Found 0 expired staging leads
+[2026-07-06T02:45:03.648Z] GET /api/cron/transbordo called
+[2026-07-06T02:45:03.652Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:45:03.667Z] Found 0 expired prospects
+[2026-07-06T02:45:03.678Z] Found 0 expired staging leads
+[2026-07-06T02:50:03.860Z] GET /api/cron/transbordo called
+[2026-07-06T02:50:03.873Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:50:03.883Z] Found 0 expired prospects
+[2026-07-06T02:50:03.890Z] Found 0 expired staging leads
+[2026-07-06T02:55:02.589Z] GET /api/cron/transbordo called
+[2026-07-06T02:55:02.593Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T02:55:02.604Z] Found 0 expired prospects
+[2026-07-06T02:55:02.611Z] Found 0 expired staging leads
+[2026-07-06T03:00:01.916Z] GET /api/cron/transbordo called
+[2026-07-06T03:00:01.924Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:00:01.936Z] Found 0 expired prospects
+[2026-07-06T03:00:01.944Z] Found 0 expired staging leads
+[2026-07-06T03:05:01.868Z] GET /api/cron/transbordo called
+[2026-07-06T03:05:01.876Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:05:01.891Z] Found 0 expired prospects
+[2026-07-06T03:05:01.900Z] Found 0 expired staging leads
+[2026-07-06T03:10:02.070Z] GET /api/cron/transbordo called
+[2026-07-06T03:10:02.077Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:10:02.093Z] Found 0 expired prospects
+[2026-07-06T03:10:02.106Z] Found 0 expired staging leads
+[2026-07-06T03:15:02.155Z] GET /api/cron/transbordo called
+[2026-07-06T03:15:02.160Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:15:02.171Z] Found 0 expired prospects
+[2026-07-06T03:15:02.180Z] Found 0 expired staging leads
+[2026-07-06T03:20:01.879Z] GET /api/cron/transbordo called
+[2026-07-06T03:20:01.887Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:20:01.901Z] Found 0 expired prospects
+[2026-07-06T03:20:01.910Z] Found 0 expired staging leads
+[2026-07-06T03:25:02.088Z] GET /api/cron/transbordo called
+[2026-07-06T03:25:02.092Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:25:02.102Z] Found 0 expired prospects
+[2026-07-06T03:25:02.110Z] Found 0 expired staging leads
+[2026-07-06T03:30:01.941Z] GET /api/cron/transbordo called
+[2026-07-06T03:30:01.947Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:30:01.959Z] Found 0 expired prospects
+[2026-07-06T03:30:01.967Z] Found 0 expired staging leads
+[2026-07-06T03:35:02.219Z] GET /api/cron/transbordo called
+[2026-07-06T03:35:02.226Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:35:02.238Z] Found 0 expired prospects
+[2026-07-06T03:35:02.245Z] Found 0 expired staging leads
+[2026-07-06T03:40:03.491Z] GET /api/cron/transbordo called
+[2026-07-06T03:40:03.499Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:40:03.513Z] Found 0 expired prospects
+[2026-07-06T03:40:03.518Z] Found 0 expired staging leads
+[2026-07-06T03:45:03.255Z] GET /api/cron/transbordo called
+[2026-07-06T03:45:03.260Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:45:03.272Z] Found 0 expired prospects
+[2026-07-06T03:45:03.280Z] Found 0 expired staging leads
+[2026-07-06T03:50:03.554Z] GET /api/cron/transbordo called
+[2026-07-06T03:50:03.560Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:50:03.576Z] Found 0 expired prospects
+[2026-07-06T03:50:03.583Z] Found 0 expired staging leads
+[2026-07-06T03:55:03.359Z] GET /api/cron/transbordo called
+[2026-07-06T03:55:03.362Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T03:55:03.374Z] Found 0 expired prospects
+[2026-07-06T03:55:03.381Z] Found 0 expired staging leads
+[2026-07-06T04:00:03.382Z] GET /api/cron/transbordo called
+[2026-07-06T04:00:03.386Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:00:03.397Z] Found 0 expired prospects
+[2026-07-06T04:00:03.405Z] Found 0 expired staging leads
+[2026-07-06T04:05:03.280Z] GET /api/cron/transbordo called
+[2026-07-06T04:05:03.284Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:05:03.295Z] Found 0 expired prospects
+[2026-07-06T04:05:03.303Z] Found 0 expired staging leads
+[2026-07-06T04:10:03.385Z] GET /api/cron/transbordo called
+[2026-07-06T04:10:03.388Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:10:03.400Z] Found 0 expired prospects
+[2026-07-06T04:10:03.407Z] Found 0 expired staging leads
+[2026-07-06T04:15:01.942Z] GET /api/cron/transbordo called
+[2026-07-06T04:15:01.949Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:15:01.965Z] Found 0 expired prospects
+[2026-07-06T04:15:01.971Z] Found 0 expired staging leads
+[2026-07-06T04:20:01.755Z] GET /api/cron/transbordo called
+[2026-07-06T04:20:01.760Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:20:01.777Z] Found 0 expired prospects
+[2026-07-06T04:20:01.783Z] Found 0 expired staging leads
+[2026-07-06T04:25:02.311Z] GET /api/cron/transbordo called
+[2026-07-06T04:25:02.317Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:25:02.333Z] Found 0 expired prospects
+[2026-07-06T04:25:02.341Z] Found 0 expired staging leads
+[2026-07-06T04:30:01.708Z] GET /api/cron/transbordo called
+[2026-07-06T04:30:01.714Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:30:01.724Z] Found 0 expired prospects
+[2026-07-06T04:30:01.733Z] Found 0 expired staging leads
+[2026-07-06T04:35:01.741Z] GET /api/cron/transbordo called
+[2026-07-06T04:35:01.752Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:35:01.764Z] Found 0 expired prospects
+[2026-07-06T04:35:01.773Z] Found 0 expired staging leads
+[2026-07-06T04:40:02.292Z] GET /api/cron/transbordo called
+[2026-07-06T04:40:02.303Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:40:02.312Z] Found 0 expired prospects
+[2026-07-06T04:40:02.319Z] Found 0 expired staging leads
+[2026-07-06T04:45:02.971Z] GET /api/cron/transbordo called
+[2026-07-06T04:45:02.981Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:45:02.991Z] Found 0 expired prospects
+[2026-07-06T04:45:03.000Z] Found 0 expired staging leads
+[2026-07-06T04:50:03.514Z] GET /api/cron/transbordo called
+[2026-07-06T04:50:03.531Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:50:03.543Z] Found 0 expired prospects
+[2026-07-06T04:50:03.550Z] Found 0 expired staging leads
+[2026-07-06T04:55:03.100Z] GET /api/cron/transbordo called
+[2026-07-06T04:55:03.106Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T04:55:03.120Z] Found 0 expired prospects
+[2026-07-06T04:55:03.129Z] Found 0 expired staging leads
+[2026-07-06T05:00:02.914Z] GET /api/cron/transbordo called
+[2026-07-06T05:00:02.929Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:00:02.939Z] Found 0 expired prospects
+[2026-07-06T05:00:02.944Z] Found 0 expired staging leads
+[2026-07-06T05:05:03.098Z] GET /api/cron/transbordo called
+[2026-07-06T05:05:03.114Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:05:03.120Z] Found 0 expired prospects
+[2026-07-06T05:05:03.132Z] Found 0 expired staging leads
+[2026-07-06T05:10:01.887Z] GET /api/cron/transbordo called
+[2026-07-06T05:10:01.897Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:10:01.905Z] Found 0 expired prospects
+[2026-07-06T05:10:01.913Z] Found 0 expired staging leads
+[2026-07-06T05:15:02.080Z] GET /api/cron/transbordo called
+[2026-07-06T05:15:02.086Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:15:02.099Z] Found 0 expired prospects
+[2026-07-06T05:15:02.106Z] Found 0 expired staging leads
+[2026-07-06T05:20:01.831Z] GET /api/cron/transbordo called
+[2026-07-06T05:20:01.844Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:20:01.853Z] Found 0 expired prospects
+[2026-07-06T05:20:01.863Z] Found 0 expired staging leads
+[2026-07-06T05:25:02.229Z] GET /api/cron/transbordo called
+[2026-07-06T05:25:02.233Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:25:02.245Z] Found 0 expired prospects
+[2026-07-06T05:25:02.252Z] Found 0 expired staging leads
+[2026-07-06T05:30:01.653Z] GET /api/cron/transbordo called
+[2026-07-06T05:30:01.661Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:30:01.672Z] Found 0 expired prospects
+[2026-07-06T05:30:01.681Z] Found 0 expired staging leads
+[2026-07-06T05:35:02.742Z] GET /api/cron/transbordo called
+[2026-07-06T05:35:02.749Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:35:02.763Z] Found 0 expired prospects
+[2026-07-06T05:35:02.769Z] Found 0 expired staging leads
+[2026-07-06T05:40:01.977Z] GET /api/cron/transbordo called
+[2026-07-06T05:40:01.986Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:40:02.001Z] Found 0 expired prospects
+[2026-07-06T05:40:02.009Z] Found 0 expired staging leads
+[2026-07-06T05:45:02.596Z] GET /api/cron/transbordo called
+[2026-07-06T05:45:02.601Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:45:02.622Z] Found 0 expired prospects
+[2026-07-06T05:45:02.627Z] Found 0 expired staging leads
+[2026-07-06T05:50:03.805Z] GET /api/cron/transbordo called
+[2026-07-06T05:50:03.812Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:50:03.830Z] Found 0 expired prospects
+[2026-07-06T05:50:03.837Z] Found 0 expired staging leads
+[2026-07-06T05:55:03.135Z] GET /api/cron/transbordo called
+[2026-07-06T05:55:03.152Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T05:55:03.159Z] Found 0 expired prospects
+[2026-07-06T05:55:03.167Z] Found 0 expired staging leads
+[2026-07-06T06:00:04.374Z] GET /api/cron/transbordo called
+[2026-07-06T06:00:04.379Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:00:04.392Z] Found 0 expired prospects
+[2026-07-06T06:00:04.403Z] Found 0 expired staging leads
+[2026-07-06T06:05:03.783Z] GET /api/cron/transbordo called
+[2026-07-06T06:05:03.788Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:05:03.800Z] Found 0 expired prospects
+[2026-07-06T06:05:03.808Z] Found 0 expired staging leads
+[2026-07-06T06:10:02.381Z] GET /api/cron/transbordo called
+[2026-07-06T06:10:02.385Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:10:02.395Z] Found 0 expired prospects
+[2026-07-06T06:10:02.403Z] Found 0 expired staging leads
+[2026-07-06T06:15:02.169Z] GET /api/cron/transbordo called
+[2026-07-06T06:15:02.175Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:15:02.197Z] Found 0 expired prospects
+[2026-07-06T06:15:02.202Z] Found 0 expired staging leads
+[2026-07-06T06:20:02.059Z] GET /api/cron/transbordo called
+[2026-07-06T06:20:02.066Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:20:02.079Z] Found 0 expired prospects
+[2026-07-06T06:20:02.087Z] Found 0 expired staging leads
+[2026-07-06T06:25:01.900Z] GET /api/cron/transbordo called
+[2026-07-06T06:25:01.912Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:25:01.922Z] Found 0 expired prospects
+[2026-07-06T06:25:01.930Z] Found 0 expired staging leads
+[2026-07-06T06:30:01.893Z] GET /api/cron/transbordo called
+[2026-07-06T06:30:01.907Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:30:01.919Z] Found 0 expired prospects
+[2026-07-06T06:30:01.926Z] Found 0 expired staging leads
+[2026-07-06T06:35:02.435Z] GET /api/cron/transbordo called
+[2026-07-06T06:35:02.440Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:35:02.452Z] Found 0 expired prospects
+[2026-07-06T06:35:02.461Z] Found 0 expired staging leads
+[2026-07-06T06:40:02.330Z] GET /api/cron/transbordo called
+[2026-07-06T06:40:02.336Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:40:02.351Z] Found 0 expired prospects
+[2026-07-06T06:40:02.360Z] Found 0 expired staging leads
+[2026-07-06T06:45:07.032Z] GET /api/cron/transbordo called
+[2026-07-06T06:45:07.295Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:45:07.370Z] Found 0 expired prospects
+[2026-07-06T06:45:07.393Z] Found 0 expired staging leads
+[2026-07-06T06:50:03.291Z] GET /api/cron/transbordo called
+[2026-07-06T06:50:03.296Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:50:03.315Z] Found 0 expired prospects
+[2026-07-06T06:50:03.324Z] Found 0 expired staging leads
+[2026-07-06T06:55:03.213Z] GET /api/cron/transbordo called
+[2026-07-06T06:55:03.219Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T06:55:03.241Z] Found 0 expired prospects
+[2026-07-06T06:55:03.246Z] Found 0 expired staging leads
+[2026-07-06T07:00:03.388Z] GET /api/cron/transbordo called
+[2026-07-06T07:00:03.395Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:00:03.406Z] Found 0 expired prospects
+[2026-07-06T07:00:03.414Z] Found 0 expired staging leads
+[2026-07-06T07:05:03.615Z] GET /api/cron/transbordo called
+[2026-07-06T07:05:03.620Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:05:03.635Z] Found 0 expired prospects
+[2026-07-06T07:05:03.643Z] Found 0 expired staging leads
+[2026-07-06T07:10:03.809Z] GET /api/cron/transbordo called
+[2026-07-06T07:10:03.814Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:10:03.838Z] Found 0 expired prospects
+[2026-07-06T07:10:03.840Z] Found 0 expired staging leads
+[2026-07-06T07:15:03.806Z] GET /api/cron/transbordo called
+[2026-07-06T07:15:03.810Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:15:03.822Z] Found 0 expired prospects
+[2026-07-06T07:15:03.829Z] Found 0 expired staging leads
+[2026-07-06T07:20:03.857Z] GET /api/cron/transbordo called
+[2026-07-06T07:20:03.862Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:20:03.877Z] Found 0 expired prospects
+[2026-07-06T07:20:03.885Z] Found 0 expired staging leads
+[2026-07-06T07:25:03.918Z] GET /api/cron/transbordo called
+[2026-07-06T07:25:03.922Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:25:03.937Z] Found 0 expired prospects
+[2026-07-06T07:25:03.945Z] Found 0 expired staging leads
+[2026-07-06T07:30:03.708Z] GET /api/cron/transbordo called
+[2026-07-06T07:30:03.714Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:30:03.725Z] Found 0 expired prospects
+[2026-07-06T07:30:03.734Z] Found 0 expired staging leads
+[2026-07-06T07:35:03.945Z] GET /api/cron/transbordo called
+[2026-07-06T07:35:03.949Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:35:03.963Z] Found 0 expired prospects
+[2026-07-06T07:35:03.972Z] Found 0 expired staging leads
+[2026-07-06T07:40:04.251Z] GET /api/cron/transbordo called
+[2026-07-06T07:40:04.258Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:40:04.278Z] Found 0 expired prospects
+[2026-07-06T07:40:04.293Z] Found 0 expired staging leads
+[2026-07-06T07:45:02.768Z] GET /api/cron/transbordo called
+[2026-07-06T07:45:02.782Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:45:02.791Z] Found 0 expired prospects
+[2026-07-06T07:45:02.799Z] Found 0 expired staging leads
+[2026-07-06T07:50:03.753Z] GET /api/cron/transbordo called
+[2026-07-06T07:50:03.757Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:50:03.768Z] Found 0 expired prospects
+[2026-07-06T07:50:03.776Z] Found 0 expired staging leads
+[2026-07-06T07:55:03.392Z] GET /api/cron/transbordo called
+[2026-07-06T07:55:03.401Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T07:55:03.409Z] Found 0 expired prospects
+[2026-07-06T07:55:03.417Z] Found 0 expired staging leads
+[2026-07-06T08:00:03.701Z] GET /api/cron/transbordo called
+[2026-07-06T08:00:03.713Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:00:03.735Z] Found 0 expired prospects
+[2026-07-06T08:00:03.737Z] Found 0 expired staging leads
+[2026-07-06T08:05:03.919Z] GET /api/cron/transbordo called
+[2026-07-06T08:05:03.926Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:05:03.937Z] Found 0 expired prospects
+[2026-07-06T08:05:03.945Z] Found 0 expired staging leads
+[2026-07-06T08:10:03.822Z] GET /api/cron/transbordo called
+[2026-07-06T08:10:03.827Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:10:03.845Z] Found 0 expired prospects
+[2026-07-06T08:10:03.851Z] Found 0 expired staging leads
+[2026-07-06T08:15:03.763Z] GET /api/cron/transbordo called
+[2026-07-06T08:15:03.768Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:15:03.781Z] Found 0 expired prospects
+[2026-07-06T08:15:03.789Z] Found 0 expired staging leads
+[2026-07-06T08:20:03.413Z] GET /api/cron/transbordo called
+[2026-07-06T08:20:03.419Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:20:03.431Z] Found 0 expired prospects
+[2026-07-06T08:20:03.440Z] Found 0 expired staging leads
+[2026-07-06T08:25:03.909Z] GET /api/cron/transbordo called
+[2026-07-06T08:25:03.915Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:25:03.929Z] Found 0 expired prospects
+[2026-07-06T08:25:03.935Z] Found 0 expired staging leads
+[2026-07-06T08:30:04.252Z] GET /api/cron/transbordo called
+[2026-07-06T08:30:04.256Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:30:04.269Z] Found 0 expired prospects
+[2026-07-06T08:30:04.276Z] Found 0 expired staging leads
+[2026-07-06T08:35:03.714Z] GET /api/cron/transbordo called
+[2026-07-06T08:35:03.724Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:35:03.737Z] Found 0 expired prospects
+[2026-07-06T08:35:03.742Z] Found 0 expired staging leads
+[2026-07-06T08:40:03.514Z] GET /api/cron/transbordo called
+[2026-07-06T08:40:03.522Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:40:03.535Z] Found 0 expired prospects
+[2026-07-06T08:40:03.541Z] Found 0 expired staging leads
+[2026-07-06T08:45:02.852Z] GET /api/cron/transbordo called
+[2026-07-06T08:45:02.861Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:45:02.872Z] Found 0 expired prospects
+[2026-07-06T08:45:02.881Z] Found 0 expired staging leads
+[2026-07-06T08:50:03.235Z] GET /api/cron/transbordo called
+[2026-07-06T08:50:03.240Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:50:03.251Z] Found 0 expired prospects
+[2026-07-06T08:50:03.258Z] Found 0 expired staging leads
+[2026-07-06T08:55:03.475Z] GET /api/cron/transbordo called
+[2026-07-06T08:55:03.481Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T08:55:03.495Z] Found 0 expired prospects
+[2026-07-06T08:55:03.502Z] Found 0 expired staging leads
+[2026-07-06T09:00:03.911Z] GET /api/cron/transbordo called
+[2026-07-06T09:00:03.916Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:00:03.927Z] Found 0 expired prospects
+[2026-07-06T09:00:03.935Z] Found 0 expired staging leads
+[2026-07-06T09:05:03.882Z] GET /api/cron/transbordo called
+[2026-07-06T09:05:03.902Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:05:03.907Z] Found 0 expired prospects
+[2026-07-06T09:05:03.914Z] Found 0 expired staging leads
+[2026-07-06T09:10:03.847Z] GET /api/cron/transbordo called
+[2026-07-06T09:10:03.852Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:10:03.862Z] Found 0 expired prospects
+[2026-07-06T09:10:03.874Z] Found 0 expired staging leads
+[2026-07-06T09:15:03.971Z] GET /api/cron/transbordo called
+[2026-07-06T09:15:03.976Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:15:03.987Z] Found 0 expired prospects
+[2026-07-06T09:15:03.998Z] Found 0 expired staging leads
+[2026-07-06T09:20:03.981Z] GET /api/cron/transbordo called
+[2026-07-06T09:20:03.986Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:20:03.997Z] Found 0 expired prospects
+[2026-07-06T09:20:04.009Z] Found 0 expired staging leads
+[2026-07-06T09:25:03.898Z] GET /api/cron/transbordo called
+[2026-07-06T09:25:03.903Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:25:03.913Z] Found 0 expired prospects
+[2026-07-06T09:25:03.924Z] Found 0 expired staging leads
+[2026-07-06T09:30:03.902Z] GET /api/cron/transbordo called
+[2026-07-06T09:30:03.912Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:30:03.919Z] Found 0 expired prospects
+[2026-07-06T09:30:03.936Z] Found 0 expired staging leads
+[2026-07-06T09:35:04.132Z] GET /api/cron/transbordo called
+[2026-07-06T09:35:04.137Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:35:04.148Z] Found 0 expired prospects
+[2026-07-06T09:35:04.155Z] Found 0 expired staging leads
+[2026-07-06T09:40:02.897Z] GET /api/cron/transbordo called
+[2026-07-06T09:40:02.905Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:40:02.920Z] Found 0 expired prospects
+[2026-07-06T09:40:02.926Z] Found 0 expired staging leads
+[2026-07-06T09:45:02.343Z] GET /api/cron/transbordo called
+[2026-07-06T09:45:02.349Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:45:02.370Z] Found 0 expired prospects
+[2026-07-06T09:45:02.386Z] Found 0 expired staging leads
+[2026-07-06T09:50:01.746Z] GET /api/cron/transbordo called
+[2026-07-06T09:50:01.753Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:50:01.769Z] Found 0 expired prospects
+[2026-07-06T09:50:01.775Z] Found 0 expired staging leads
+[2026-07-06T09:55:02.181Z] GET /api/cron/transbordo called
+[2026-07-06T09:55:02.188Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T09:55:02.204Z] Found 0 expired prospects
+[2026-07-06T09:55:02.212Z] Found 0 expired staging leads
+[2026-07-06T10:00:01.716Z] GET /api/cron/transbordo called
+[2026-07-06T10:00:01.724Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:00:01.738Z] Found 0 expired prospects
+[2026-07-06T10:00:01.745Z] Found 0 expired staging leads
+[2026-07-06T10:05:04.063Z] GET /api/cron/transbordo called
+[2026-07-06T10:05:04.067Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:05:04.080Z] Found 0 expired prospects
+[2026-07-06T10:05:04.087Z] Found 0 expired staging leads
+[2026-07-06T10:10:02.629Z] GET /api/cron/transbordo called
+[2026-07-06T10:10:02.638Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:10:02.650Z] Found 0 expired prospects
+[2026-07-06T10:10:02.657Z] Found 0 expired staging leads
+[2026-07-06T10:15:02.834Z] GET /api/cron/transbordo called
+[2026-07-06T10:15:02.838Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:15:02.851Z] Found 0 expired prospects
+[2026-07-06T10:15:02.859Z] Found 0 expired staging leads
+[2026-07-06T10:20:03.936Z] GET /api/cron/transbordo called
+[2026-07-06T10:20:03.941Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:20:03.956Z] Found 0 expired prospects
+[2026-07-06T10:20:03.968Z] Found 0 expired staging leads
+[2026-07-06T10:25:02.784Z] GET /api/cron/transbordo called
+[2026-07-06T10:25:02.803Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:25:02.808Z] Found 0 expired prospects
+[2026-07-06T10:25:02.816Z] Found 0 expired staging leads
+[2026-07-06T10:30:02.740Z] GET /api/cron/transbordo called
+[2026-07-06T10:30:02.759Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:30:02.765Z] Found 0 expired prospects
+[2026-07-06T10:30:02.771Z] Found 0 expired staging leads
+[2026-07-06T10:35:01.845Z] GET /api/cron/transbordo called
+[2026-07-06T10:35:01.853Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:35:01.868Z] Found 0 expired prospects
+[2026-07-06T10:35:01.880Z] Found 0 expired staging leads
+[2026-07-06T10:40:02.358Z] GET /api/cron/transbordo called
+[2026-07-06T10:40:02.370Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:40:02.388Z] Found 0 expired prospects
+[2026-07-06T10:40:02.394Z] Found 0 expired staging leads
+[2026-07-06T10:45:01.700Z] GET /api/cron/transbordo called
+[2026-07-06T10:45:01.706Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:45:01.722Z] Found 0 expired prospects
+[2026-07-06T10:45:01.730Z] Found 0 expired staging leads
+[2026-07-06T10:50:02.107Z] GET /api/cron/transbordo called
+[2026-07-06T10:50:02.111Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:50:02.125Z] Found 0 expired prospects
+[2026-07-06T10:50:02.134Z] Found 0 expired staging leads
+[2026-07-06T10:55:01.648Z] GET /api/cron/transbordo called
+[2026-07-06T10:55:01.654Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T10:55:01.668Z] Found 0 expired prospects
+[2026-07-06T10:55:01.676Z] Found 0 expired staging leads
+[2026-07-06T11:00:02.726Z] GET /api/cron/transbordo called
+[2026-07-06T11:00:02.746Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:00:02.751Z] Found 0 expired prospects
+[2026-07-06T11:00:02.758Z] Found 0 expired staging leads
+[2026-07-06T11:05:01.628Z] GET /api/cron/transbordo called
+[2026-07-06T11:05:01.635Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:05:01.648Z] Found 0 expired prospects
+[2026-07-06T11:05:01.656Z] Found 0 expired staging leads
+[2026-07-06T11:10:02.348Z] GET /api/cron/transbordo called
+[2026-07-06T11:10:02.359Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:10:02.370Z] Found 0 expired prospects
+[2026-07-06T11:10:02.377Z] Found 0 expired staging leads
+[2026-07-06T11:15:02.274Z] GET /api/cron/transbordo called
+[2026-07-06T11:15:02.280Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:15:02.297Z] Found 0 expired prospects
+[2026-07-06T11:15:02.304Z] Found 0 expired staging leads
+[2026-07-06T11:20:02.055Z] GET /api/cron/transbordo called
+[2026-07-06T11:20:02.063Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:20:02.076Z] Found 0 expired prospects
+[2026-07-06T11:20:02.083Z] Found 0 expired staging leads
+[2026-07-06T11:25:02.547Z] GET /api/cron/transbordo called
+[2026-07-06T11:25:02.567Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:25:02.572Z] Found 0 expired prospects
+[2026-07-06T11:25:02.579Z] Found 0 expired staging leads
+[2026-07-06T11:30:02.684Z] GET /api/cron/transbordo called
+[2026-07-06T11:30:02.704Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:30:02.708Z] Found 0 expired prospects
+[2026-07-06T11:30:02.716Z] Found 0 expired staging leads
+[2026-07-06T11:35:02.720Z] GET /api/cron/transbordo called
+[2026-07-06T11:35:02.725Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:35:02.736Z] Found 0 expired prospects
+[2026-07-06T11:35:02.743Z] Found 0 expired staging leads
+[2026-07-06T11:40:02.758Z] GET /api/cron/transbordo called
+[2026-07-06T11:40:02.762Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:40:02.774Z] Found 0 expired prospects
+[2026-07-06T11:40:02.782Z] Found 0 expired staging leads
+[2026-07-06T11:45:02.670Z] GET /api/cron/transbordo called
+[2026-07-06T11:45:02.675Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:45:02.696Z] Found 0 expired prospects
+[2026-07-06T11:45:02.699Z] Found 0 expired staging leads
+[2026-07-06T11:50:02.261Z] GET /api/cron/transbordo called
+[2026-07-06T11:50:02.272Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:50:02.282Z] Found 0 expired prospects
+[2026-07-06T11:50:02.289Z] Found 0 expired staging leads
+[2026-07-06T11:55:02.607Z] GET /api/cron/transbordo called
+[2026-07-06T11:55:02.612Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T11:55:02.637Z] Found 0 expired prospects
+[2026-07-06T11:55:02.640Z] Found 0 expired staging leads
+[2026-07-06T12:00:02.068Z] GET /api/cron/transbordo called
+[2026-07-06T12:00:02.076Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:00:02.087Z] Found 0 expired prospects
+[2026-07-06T12:00:02.094Z] Found 0 expired staging leads
+[2026-07-06T12:05:02.055Z] GET /api/cron/transbordo called
+[2026-07-06T12:05:02.064Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:05:02.077Z] Found 0 expired prospects
+[2026-07-06T12:05:02.083Z] Found 0 expired staging leads
+[2026-07-06T12:10:02.235Z] GET /api/cron/transbordo called
+[2026-07-06T12:10:02.243Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:10:02.255Z] Found 0 expired prospects
+[2026-07-06T12:10:02.263Z] Found 0 expired staging leads
+[2026-07-06T12:15:02.778Z] GET /api/cron/transbordo called
+[2026-07-06T12:15:02.788Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:15:02.797Z] Found 0 expired prospects
+[2026-07-06T12:15:02.805Z] Found 0 expired staging leads
+[2026-07-06T12:20:02.273Z] GET /api/cron/transbordo called
+[2026-07-06T12:20:02.290Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:20:02.299Z] Found 0 expired prospects
+[2026-07-06T12:20:02.308Z] Found 0 expired staging leads
+[2026-07-06T12:25:02.961Z] GET /api/cron/transbordo called
+[2026-07-06T12:25:02.965Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:25:02.976Z] Found 0 expired prospects
+[2026-07-06T12:25:02.984Z] Found 0 expired staging leads
+[2026-07-06T12:30:03.652Z] GET /api/cron/transbordo called
+[2026-07-06T12:30:03.673Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:30:03.678Z] Found 0 expired prospects
+[2026-07-06T12:30:03.685Z] Found 0 expired staging leads
+[2026-07-06T12:35:03.817Z] GET /api/cron/transbordo called
+[2026-07-06T12:35:03.824Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:35:03.836Z] Found 0 expired prospects
+[2026-07-06T12:35:03.845Z] Found 0 expired staging leads
+[2026-07-06T12:40:03.579Z] GET /api/cron/transbordo called
+[2026-07-06T12:40:03.585Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:40:03.599Z] Found 0 expired prospects
+[2026-07-06T12:40:03.607Z] Found 0 expired staging leads
+[2026-07-06T12:45:04.021Z] GET /api/cron/transbordo called
+[2026-07-06T12:45:04.027Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:45:04.037Z] Found 0 expired prospects
+[2026-07-06T12:45:04.045Z] Found 0 expired staging leads
+[2026-07-06T12:50:03.985Z] GET /api/cron/transbordo called
+[2026-07-06T12:50:03.989Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:50:04.004Z] Found 0 expired prospects
+[2026-07-06T12:50:04.012Z] Found 0 expired staging leads
+[2026-07-06T12:55:04.272Z] GET /api/cron/transbordo called
+[2026-07-06T12:55:04.277Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T12:55:04.293Z] Found 0 expired prospects
+[2026-07-06T12:55:04.302Z] Found 0 expired staging leads
+[2026-07-06T13:00:03.801Z] GET /api/cron/transbordo called
+[2026-07-06T13:00:03.810Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:00:03.821Z] Found 0 expired prospects
+[2026-07-06T13:00:03.828Z] Found 0 expired staging leads
+[2026-07-06T13:05:03.680Z] GET /api/cron/transbordo called
+[2026-07-06T13:05:03.692Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:05:03.703Z] Found 0 expired prospects
+[2026-07-06T13:05:03.708Z] Found 0 expired staging leads
+[2026-07-06T13:10:02.655Z] GET /api/cron/transbordo called
+[2026-07-06T13:10:02.665Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:10:02.676Z] Found 0 expired prospects
+[2026-07-06T13:10:02.683Z] Found 0 expired staging leads
+[2026-07-06T13:15:02.168Z] GET /api/cron/transbordo called
+[2026-07-06T13:15:02.181Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:15:02.191Z] Found 0 expired prospects
+[2026-07-06T13:15:02.199Z] Found 0 expired staging leads
+[2026-07-06T13:20:02.999Z] GET /api/cron/transbordo called
+[2026-07-06T13:20:03.004Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:20:03.032Z] Found 0 expired prospects
+[2026-07-06T13:20:03.035Z] Found 0 expired staging leads
+[2026-07-06T13:25:01.948Z] GET /api/cron/transbordo called
+[2026-07-06T13:25:01.958Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:25:01.971Z] Found 0 expired prospects
+[2026-07-06T13:25:01.981Z] Found 0 expired staging leads
+[2026-07-06T13:30:01.985Z] GET /api/cron/transbordo called
+[2026-07-06T13:30:01.993Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:30:02.007Z] Found 0 expired prospects
+[2026-07-06T13:30:02.014Z] Found 0 expired staging leads
+[2026-07-06T13:35:02.778Z] GET /api/cron/transbordo called
+[2026-07-06T13:35:02.784Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:35:02.795Z] Found 0 expired prospects
+[2026-07-06T13:35:02.805Z] Found 0 expired staging leads
+[2026-07-06T13:40:02.941Z] GET /api/cron/transbordo called
+[2026-07-06T13:40:02.961Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:40:02.966Z] Found 0 expired prospects
+[2026-07-06T13:40:02.974Z] Found 0 expired staging leads
+[2026-07-06T13:45:02.819Z] GET /api/cron/transbordo called
+[2026-07-06T13:45:02.838Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:45:02.842Z] Found 0 expired prospects
+[2026-07-06T13:45:02.850Z] Found 0 expired staging leads
+[2026-07-06T13:50:02.579Z] GET /api/cron/transbordo called
+[2026-07-06T13:50:02.587Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:50:02.598Z] Found 0 expired prospects
+[2026-07-06T13:50:02.606Z] Found 0 expired staging leads
+[2026-07-06T13:55:02.628Z] GET /api/cron/transbordo called
+[2026-07-06T13:55:02.644Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T13:55:02.648Z] Found 0 expired prospects
+[2026-07-06T13:55:02.655Z] Found 0 expired staging leads
+[2026-07-06T14:00:02.641Z] GET /api/cron/transbordo called
+[2026-07-06T14:00:02.661Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:00:02.665Z] Found 0 expired prospects
+[2026-07-06T14:00:02.673Z] Found 0 expired staging leads
+[2026-07-06T14:05:02.543Z] GET /api/cron/transbordo called
+[2026-07-06T14:05:02.551Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:05:02.574Z] Found 0 expired prospects
+[2026-07-06T14:05:02.577Z] Found 0 expired staging leads
+[2026-07-06T14:10:02.589Z] GET /api/cron/transbordo called
+[2026-07-06T14:10:02.597Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:10:02.610Z] Found 0 expired prospects
+[2026-07-06T14:10:02.618Z] Found 0 expired staging leads
+[2026-07-06T14:15:02.924Z] GET /api/cron/transbordo called
+[2026-07-06T14:15:02.934Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:15:02.942Z] Found 0 expired prospects
+[2026-07-06T14:15:02.951Z] Found 0 expired staging leads
+[2026-07-06T14:20:02.340Z] GET /api/cron/transbordo called
+[2026-07-06T14:20:02.354Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:20:02.360Z] Found 0 expired prospects
+[2026-07-06T14:20:02.372Z] Found 0 expired staging leads
+[2026-07-06T14:25:02.246Z] GET /api/cron/transbordo called
+[2026-07-06T14:25:02.253Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:25:02.264Z] Found 0 expired prospects
+[2026-07-06T14:25:02.271Z] Found 0 expired staging leads
+[2026-07-06T14:30:02.217Z] GET /api/cron/transbordo called
+[2026-07-06T14:30:02.228Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:30:02.238Z] Found 0 expired prospects
+[2026-07-06T14:30:02.244Z] Found 0 expired staging leads
+[2026-07-06T14:35:02.933Z] GET /api/cron/transbordo called
+[2026-07-06T14:35:02.942Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:35:02.956Z] Found 0 expired prospects
+[2026-07-06T14:35:02.964Z] Found 0 expired staging leads
+[2026-07-06T14:40:03.378Z] GET /api/cron/transbordo called
+[2026-07-06T14:40:03.391Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:40:03.398Z] Found 0 expired prospects
+[2026-07-06T14:40:03.406Z] Found 0 expired staging leads
+[2026-07-06T14:45:02.914Z] GET /api/cron/transbordo called
+[2026-07-06T14:45:02.928Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:45:02.945Z] Found 0 expired prospects
+[2026-07-06T14:45:02.949Z] Found 0 expired staging leads
+[2026-07-06T14:50:04.020Z] GET /api/cron/transbordo called
+[2026-07-06T14:50:04.025Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:50:04.041Z] Found 0 expired prospects
+[2026-07-06T14:50:04.046Z] Found 0 expired staging leads
+[2026-07-06T14:55:02.686Z] GET /api/cron/transbordo called
+[2026-07-06T14:55:02.690Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T14:55:02.704Z] Found 0 expired prospects
+[2026-07-06T14:55:02.715Z] Found 0 expired staging leads
+[2026-07-06T15:00:03.635Z] GET /api/cron/transbordo called
+[2026-07-06T15:00:03.638Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:00:03.650Z] Found 0 expired prospects
+[2026-07-06T15:00:03.657Z] Found 0 expired staging leads
+[2026-07-06T15:05:03.154Z] GET /api/cron/transbordo called
+[2026-07-06T15:05:03.158Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:05:03.169Z] Found 0 expired prospects
+[2026-07-06T15:05:03.176Z] Found 0 expired staging leads
+[2026-07-06T15:10:02.898Z] GET /api/cron/transbordo called
+[2026-07-06T15:10:02.906Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:10:02.917Z] Found 0 expired prospects
+[2026-07-06T15:10:02.926Z] Found 0 expired staging leads
+[2026-07-06T15:15:02.297Z] GET /api/cron/transbordo called
+[2026-07-06T15:15:02.303Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:15:02.317Z] Found 0 expired prospects
+[2026-07-06T15:15:02.324Z] Found 0 expired staging leads
+[2026-07-06T15:20:03.191Z] GET /api/cron/transbordo called
+[2026-07-06T15:20:03.195Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:20:03.206Z] Found 0 expired prospects
+[2026-07-06T15:20:03.213Z] Found 0 expired staging leads
+[2026-07-06T15:25:03.290Z] GET /api/cron/transbordo called
+[2026-07-06T15:25:03.294Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:25:03.305Z] Found 0 expired prospects
+[2026-07-06T15:25:03.313Z] Found 0 expired staging leads
+[2026-07-06T15:30:03.210Z] GET /api/cron/transbordo called
+[2026-07-06T15:30:03.213Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:30:03.224Z] Found 0 expired prospects
+[2026-07-06T15:30:03.231Z] Found 0 expired staging leads
+[2026-07-06T15:35:03.201Z] GET /api/cron/transbordo called
+[2026-07-06T15:35:03.208Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:35:03.218Z] Found 0 expired prospects
+[2026-07-06T15:35:03.225Z] Found 0 expired staging leads
+[2026-07-06T15:40:01.781Z] GET /api/cron/transbordo called
+[2026-07-06T15:40:01.789Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:40:01.797Z] Found 0 expired prospects
+[2026-07-06T15:40:01.808Z] Found 0 expired staging leads
+[2026-07-06T15:45:01.972Z] GET /api/cron/transbordo called
+[2026-07-06T15:45:01.977Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:45:01.994Z] Found 0 expired prospects
+[2026-07-06T15:45:02.001Z] Found 0 expired staging leads
+[2026-07-06T15:50:02.090Z] GET /api/cron/transbordo called
+[2026-07-06T15:50:02.095Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:50:02.108Z] Found 0 expired prospects
+[2026-07-06T15:50:02.117Z] Found 0 expired staging leads
+[2026-07-06T15:55:01.691Z] GET /api/cron/transbordo called
+[2026-07-06T15:55:01.696Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T15:55:01.709Z] Found 0 expired prospects
+[2026-07-06T15:55:01.716Z] Found 0 expired staging leads
+[2026-07-06T16:00:01.684Z] GET /api/cron/transbordo called
+[2026-07-06T16:00:01.692Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:00:01.704Z] Found 0 expired prospects
+[2026-07-06T16:00:01.711Z] Found 0 expired staging leads
+[2026-07-06T16:05:01.793Z] GET /api/cron/transbordo called
+[2026-07-06T16:05:01.799Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:05:01.812Z] Found 0 expired prospects
+[2026-07-06T16:05:01.820Z] Found 0 expired staging leads
+[2026-07-06T16:10:02.177Z] GET /api/cron/transbordo called
+[2026-07-06T16:10:02.181Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:10:02.193Z] Found 0 expired prospects
+[2026-07-06T16:10:02.200Z] Found 0 expired staging leads
+[2026-07-06T16:15:02.855Z] GET /api/cron/transbordo called
+[2026-07-06T16:15:02.859Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:15:02.871Z] Found 0 expired prospects
+[2026-07-06T16:15:02.878Z] Found 0 expired staging leads
+[2026-07-06T16:20:02.827Z] GET /api/cron/transbordo called
+[2026-07-06T16:20:02.832Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:20:02.843Z] Found 0 expired prospects
+[2026-07-06T16:20:02.851Z] Found 0 expired staging leads
+[2026-07-06T16:25:02.682Z] GET /api/cron/transbordo called
+[2026-07-06T16:25:02.701Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:25:02.706Z] Found 0 expired prospects
+[2026-07-06T16:25:02.713Z] Found 0 expired staging leads
+[2026-07-06T16:30:02.316Z] GET /api/cron/transbordo called
+[2026-07-06T16:30:02.324Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:30:02.336Z] Found 0 expired prospects
+[2026-07-06T16:30:02.345Z] Found 0 expired staging leads
+[2026-07-06T16:35:02.211Z] GET /api/cron/transbordo called
+[2026-07-06T16:35:02.229Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:35:02.240Z] Found 0 expired prospects
+[2026-07-06T16:35:02.246Z] Found 0 expired staging leads
+[2026-07-06T16:40:01.789Z] GET /api/cron/transbordo called
+[2026-07-06T16:40:01.802Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:40:01.811Z] Found 0 expired prospects
+[2026-07-06T16:40:01.820Z] Found 0 expired staging leads
+[2026-07-06T16:45:02.176Z] GET /api/cron/transbordo called
+[2026-07-06T16:45:02.184Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:45:02.194Z] Found 0 expired prospects
+[2026-07-06T16:45:02.204Z] Found 0 expired staging leads
+[2026-07-06T16:50:02.480Z] GET /api/cron/transbordo called
+[2026-07-06T16:50:02.498Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:50:02.506Z] Found 0 expired prospects
+[2026-07-06T16:50:02.514Z] Found 0 expired staging leads
+[2026-07-06T16:55:03.378Z] GET /api/cron/transbordo called
+[2026-07-06T16:55:03.382Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T16:55:03.393Z] Found 0 expired prospects
+[2026-07-06T16:55:03.401Z] Found 0 expired staging leads
+[2026-07-06T17:00:03.377Z] GET /api/cron/transbordo called
+[2026-07-06T17:00:03.380Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:00:03.392Z] Found 0 expired prospects
+[2026-07-06T17:00:03.399Z] Found 0 expired staging leads
+[2026-07-06T17:05:02.796Z] GET /api/cron/transbordo called
+[2026-07-06T17:05:02.813Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:05:02.819Z] Found 0 expired prospects
+[2026-07-06T17:05:02.833Z] Found 0 expired staging leads
+[2026-07-06T17:10:03.426Z] GET /api/cron/transbordo called
+[2026-07-06T17:10:03.433Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:10:03.449Z] Found 0 expired prospects
+[2026-07-06T17:10:03.455Z] Found 0 expired staging leads
+[2026-07-06T17:15:03.352Z] GET /api/cron/transbordo called
+[2026-07-06T17:15:03.361Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:15:03.380Z] Found 0 expired prospects
+[2026-07-06T17:15:03.388Z] Found 0 expired staging leads
+[2026-07-06T17:20:04.123Z] GET /api/cron/transbordo called
+[2026-07-06T17:20:04.128Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:20:04.143Z] Found 0 expired prospects
+[2026-07-06T17:20:04.151Z] Found 0 expired staging leads
+[2026-07-06T17:25:03.339Z] GET /api/cron/transbordo called
+[2026-07-06T17:25:03.343Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:25:03.354Z] Found 0 expired prospects
+[2026-07-06T17:25:03.361Z] Found 0 expired staging leads
+[2026-07-06T17:30:03.477Z] GET /api/cron/transbordo called
+[2026-07-06T17:30:03.487Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:30:03.500Z] Found 0 expired prospects
+[2026-07-06T17:30:03.506Z] Found 0 expired staging leads
+[2026-07-06T17:35:03.532Z] GET /api/cron/transbordo called
+[2026-07-06T17:35:03.541Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:35:03.554Z] Found 0 expired prospects
+[2026-07-06T17:35:03.561Z] Found 0 expired staging leads
+[2026-07-06T17:40:03.782Z] GET /api/cron/transbordo called
+[2026-07-06T17:40:03.786Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:40:03.799Z] Found 0 expired prospects
+[2026-07-06T17:40:03.806Z] Found 0 expired staging leads
+[2026-07-06T17:45:03.298Z] GET /api/cron/transbordo called
+[2026-07-06T17:45:03.302Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:45:03.313Z] Found 0 expired prospects
+[2026-07-06T17:45:03.321Z] Found 0 expired staging leads
+[2026-07-06T17:50:03.542Z] GET /api/cron/transbordo called
+[2026-07-06T17:50:03.550Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:50:03.562Z] Found 0 expired prospects
+[2026-07-06T17:50:03.571Z] Found 0 expired staging leads
+[2026-07-06T17:55:03.348Z] GET /api/cron/transbordo called
+[2026-07-06T17:55:03.359Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T17:55:03.370Z] Found 0 expired prospects
+[2026-07-06T17:55:03.379Z] Found 0 expired staging leads
+[2026-07-06T18:00:02.686Z] GET /api/cron/transbordo called
+[2026-07-06T18:00:02.692Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:00:02.706Z] Found 0 expired prospects
+[2026-07-06T18:00:02.714Z] Found 0 expired staging leads
+[2026-07-06T18:05:03.772Z] GET /api/cron/transbordo called
+[2026-07-06T18:05:03.779Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:05:03.791Z] Found 0 expired prospects
+[2026-07-06T18:05:03.798Z] Found 0 expired staging leads
+[2026-07-06T18:10:01.783Z] GET /api/cron/transbordo called
+[2026-07-06T18:10:01.788Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:10:01.804Z] Found 0 expired prospects
+[2026-07-06T18:10:01.813Z] Found 0 expired staging leads
+[2026-07-06T18:15:03.151Z] GET /api/cron/transbordo called
+[2026-07-06T18:15:03.159Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:15:03.169Z] Found 0 expired prospects
+[2026-07-06T18:15:03.178Z] Found 0 expired staging leads
+[2026-07-06T18:20:03.494Z] GET /api/cron/transbordo called
+[2026-07-06T18:20:03.502Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:20:03.513Z] Found 0 expired prospects
+[2026-07-06T18:20:03.522Z] Found 0 expired staging leads
+[2026-07-06T18:25:03.484Z] GET /api/cron/transbordo called
+[2026-07-06T18:25:03.493Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:25:03.505Z] Found 0 expired prospects
+[2026-07-06T18:25:03.511Z] Found 0 expired staging leads
+[2026-07-06T18:30:01.656Z] GET /api/cron/transbordo called
+[2026-07-06T18:30:01.660Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:30:01.683Z] Found 0 expired prospects
+[2026-07-06T18:30:01.688Z] Found 0 expired staging leads
+[2026-07-06T18:35:02.064Z] GET /api/cron/transbordo called
+[2026-07-06T18:35:02.071Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:35:02.084Z] Found 0 expired prospects
+[2026-07-06T18:35:02.096Z] Found 0 expired staging leads
+[2026-07-06T18:40:02.131Z] GET /api/cron/transbordo called
+[2026-07-06T18:40:02.138Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:40:02.152Z] Found 0 expired prospects
+[2026-07-06T18:40:02.158Z] Found 0 expired staging leads
+[2026-07-06T18:45:02.356Z] GET /api/cron/transbordo called
+[2026-07-06T18:45:02.372Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:45:02.383Z] Found 0 expired prospects
+[2026-07-06T18:45:02.390Z] Found 0 expired staging leads
+[2026-07-06T18:50:04.189Z] GET /api/cron/transbordo called
+[2026-07-06T18:50:04.196Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:50:04.212Z] Found 0 expired prospects
+[2026-07-06T18:50:04.218Z] Found 0 expired staging leads
+[2026-07-06T18:55:01.859Z] GET /api/cron/transbordo called
+[2026-07-06T18:55:01.866Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T18:55:01.876Z] Found 0 expired prospects
+[2026-07-06T18:55:01.885Z] Found 0 expired staging leads
+[2026-07-06T19:00:02.536Z] GET /api/cron/transbordo called
+[2026-07-06T19:00:02.557Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:00:02.562Z] Found 0 expired prospects
+[2026-07-06T19:00:02.569Z] Found 0 expired staging leads
+[2026-07-06T19:05:02.492Z] GET /api/cron/transbordo called
+[2026-07-06T19:05:02.497Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:05:02.519Z] Found 0 expired prospects
+[2026-07-06T19:05:02.521Z] Found 0 expired staging leads
+[2026-07-06T19:10:02.668Z] GET /api/cron/transbordo called
+[2026-07-06T19:10:02.677Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:10:02.684Z] Found 0 expired prospects
+[2026-07-06T19:10:02.695Z] Found 0 expired staging leads
+[2026-07-06T19:15:02.237Z] GET /api/cron/transbordo called
+[2026-07-06T19:15:02.244Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:15:02.261Z] Found 0 expired prospects
+[2026-07-06T19:15:02.267Z] Found 0 expired staging leads
+[2026-07-06T19:20:02.331Z] GET /api/cron/transbordo called
+[2026-07-06T19:20:02.340Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:20:02.351Z] Found 0 expired prospects
+[2026-07-06T19:20:02.366Z] Found 0 expired staging leads
+[2026-07-06T19:25:01.683Z] GET /api/cron/transbordo called
+[2026-07-06T19:25:01.696Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:25:01.704Z] Found 0 expired prospects
+[2026-07-06T19:25:01.712Z] Found 0 expired staging leads
+[2026-07-06T19:30:02.185Z] GET /api/cron/transbordo called
+[2026-07-06T19:30:02.193Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:30:02.206Z] Found 0 expired prospects
+[2026-07-06T19:30:02.213Z] Found 0 expired staging leads
+[2026-07-06T19:35:02.323Z] GET /api/cron/transbordo called
+[2026-07-06T19:35:02.329Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:35:02.346Z] Found 0 expired prospects
+[2026-07-06T19:35:02.353Z] Found 0 expired staging leads
+[2026-07-06T19:40:02.257Z] GET /api/cron/transbordo called
+[2026-07-06T19:40:02.261Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:40:02.274Z] Found 0 expired prospects
+[2026-07-06T19:40:02.281Z] Found 0 expired staging leads
+[2026-07-06T19:45:02.668Z] GET /api/cron/transbordo called
+[2026-07-06T19:45:02.674Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:45:02.685Z] Found 0 expired prospects
+[2026-07-06T19:45:02.695Z] Found 0 expired staging leads
+[2026-07-06T19:50:02.564Z] GET /api/cron/transbordo called
+[2026-07-06T19:50:02.575Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:50:02.584Z] Found 0 expired prospects
+[2026-07-06T19:50:02.592Z] Found 0 expired staging leads
+[2026-07-06T19:55:02.529Z] GET /api/cron/transbordo called
+[2026-07-06T19:55:02.537Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T19:55:02.549Z] Found 0 expired prospects
+[2026-07-06T19:55:02.556Z] Found 0 expired staging leads
+[2026-07-06T20:00:02.418Z] GET /api/cron/transbordo called
+[2026-07-06T20:00:02.423Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:00:02.438Z] Found 0 expired prospects
+[2026-07-06T20:00:02.446Z] Found 0 expired staging leads
+[2026-07-06T20:05:01.888Z] GET /api/cron/transbordo called
+[2026-07-06T20:05:01.897Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:05:01.909Z] Found 0 expired prospects
+[2026-07-06T20:05:01.916Z] Found 0 expired staging leads
+[2026-07-06T20:10:02.742Z] GET /api/cron/transbordo called
+[2026-07-06T20:10:02.746Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:10:02.759Z] Found 0 expired prospects
+[2026-07-06T20:10:02.766Z] Found 0 expired staging leads
+[2026-07-06T20:15:02.249Z] GET /api/cron/transbordo called
+[2026-07-06T20:15:02.256Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:15:02.272Z] Found 0 expired prospects
+[2026-07-06T20:15:02.280Z] Found 0 expired staging leads
+[2026-07-06T20:20:02.270Z] GET /api/cron/transbordo called
+[2026-07-06T20:20:02.277Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:20:02.292Z] Found 0 expired prospects
+[2026-07-06T20:20:02.298Z] Found 0 expired staging leads
+[2026-07-06T20:25:01.703Z] GET /api/cron/transbordo called
+[2026-07-06T20:25:01.712Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:25:01.732Z] Found 0 expired prospects
+[2026-07-06T20:25:01.744Z] Found 0 expired staging leads
+[2026-07-06T20:30:01.612Z] GET /api/cron/transbordo called
+[2026-07-06T20:30:01.623Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:30:01.633Z] Found 0 expired prospects
+[2026-07-06T20:30:01.642Z] Found 0 expired staging leads
+[2026-07-06T20:35:02.838Z] GET /api/cron/transbordo called
+[2026-07-06T20:35:02.858Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:35:02.862Z] Found 0 expired prospects
+[2026-07-06T20:35:02.870Z] Found 0 expired staging leads
+[2026-07-06T20:40:02.195Z] GET /api/cron/transbordo called
+[2026-07-06T20:40:02.200Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:40:02.214Z] Found 0 expired prospects
+[2026-07-06T20:40:02.223Z] Found 0 expired staging leads
+[2026-07-06T20:45:02.805Z] GET /api/cron/transbordo called
+[2026-07-06T20:45:02.816Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:45:02.828Z] Found 0 expired prospects
+[2026-07-06T20:45:02.836Z] Found 0 expired staging leads
+[2026-07-06T20:50:02.752Z] GET /api/cron/transbordo called
+[2026-07-06T20:50:02.761Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:50:02.776Z] Found 0 expired prospects
+[2026-07-06T20:50:02.790Z] Found 0 expired staging leads
+[2026-07-06T20:55:02.800Z] GET /api/cron/transbordo called
+[2026-07-06T20:55:02.811Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T20:55:02.821Z] Found 0 expired prospects
+[2026-07-06T20:55:02.830Z] Found 0 expired staging leads
+[2026-07-06T21:00:03.171Z] GET /api/cron/transbordo called
+[2026-07-06T21:00:03.176Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:00:03.201Z] Found 0 expired prospects
+[2026-07-06T21:00:03.204Z] Found 0 expired staging leads
+[2026-07-06T21:05:02.268Z] GET /api/cron/transbordo called
+[2026-07-06T21:05:02.273Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:05:02.288Z] Found 0 expired prospects
+[2026-07-06T21:05:02.296Z] Found 0 expired staging leads
+[2026-07-06T21:10:03.634Z] GET /api/cron/transbordo called
+[2026-07-06T21:10:03.644Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:10:03.655Z] Found 0 expired prospects
+[2026-07-06T21:10:03.664Z] Found 0 expired staging leads
+[2026-07-06T21:15:03.378Z] GET /api/cron/transbordo called
+[2026-07-06T21:15:03.385Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:15:03.406Z] Found 0 expired prospects
+[2026-07-06T21:15:03.413Z] Found 0 expired staging leads
+[2026-07-06T21:20:03.060Z] GET /api/cron/transbordo called
+[2026-07-06T21:20:03.063Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:20:03.074Z] Found 0 expired prospects
+[2026-07-06T21:20:03.081Z] Found 0 expired staging leads
+[2026-07-06T21:25:03.271Z] GET /api/cron/transbordo called
+[2026-07-06T21:25:03.278Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:25:03.295Z] Found 0 expired prospects
+[2026-07-06T21:25:03.300Z] Found 0 expired staging leads
+[2026-07-06T21:30:03.206Z] GET /api/cron/transbordo called
+[2026-07-06T21:30:03.211Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:30:03.222Z] Found 0 expired prospects
+[2026-07-06T21:30:03.231Z] Found 0 expired staging leads
+[2026-07-06T21:35:03.629Z] GET /api/cron/transbordo called
+[2026-07-06T21:35:03.633Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:35:03.645Z] Found 0 expired prospects
+[2026-07-06T21:35:03.653Z] Found 0 expired staging leads
+[2026-07-06T21:40:04.109Z] GET /api/cron/transbordo called
+[2026-07-06T21:40:04.116Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:40:04.129Z] Found 0 expired prospects
+[2026-07-06T21:40:04.135Z] Found 0 expired staging leads
+[2026-07-06T21:45:02.219Z] GET /api/cron/transbordo called
+[2026-07-06T21:45:02.222Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:45:02.236Z] Found 0 expired prospects
+[2026-07-06T21:45:02.244Z] Found 0 expired staging leads
+[2026-07-06T21:50:04.502Z] GET /api/cron/transbordo called
+[2026-07-06T21:50:04.505Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:50:04.518Z] Found 0 expired prospects
+[2026-07-06T21:50:04.525Z] Found 0 expired staging leads
+[2026-07-06T21:55:02.909Z] GET /api/cron/transbordo called
+[2026-07-06T21:55:02.917Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T21:55:02.924Z] Found 0 expired prospects
+[2026-07-06T21:55:02.932Z] Found 0 expired staging leads
+[2026-07-06T22:00:02.809Z] GET /api/cron/transbordo called
+[2026-07-06T22:00:02.813Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:00:02.825Z] Found 0 expired prospects
+[2026-07-06T22:00:02.832Z] Found 0 expired staging leads
+[2026-07-06T22:05:05.365Z] GET /api/cron/transbordo called
+[2026-07-06T22:05:05.378Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:05:05.394Z] Found 0 expired prospects
+[2026-07-06T22:05:05.404Z] Found 0 expired staging leads
+[2026-07-06T22:10:02.864Z] GET /api/cron/transbordo called
+[2026-07-06T22:10:02.873Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:10:02.887Z] Found 0 expired prospects
+[2026-07-06T22:10:02.893Z] Found 0 expired staging leads
+[2026-07-06T22:15:02.699Z] GET /api/cron/transbordo called
+[2026-07-06T22:15:02.702Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:15:02.714Z] Found 0 expired prospects
+[2026-07-06T22:15:02.723Z] Found 0 expired staging leads
+[2026-07-06T22:20:03.192Z] GET /api/cron/transbordo called
+[2026-07-06T22:20:03.199Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:20:03.206Z] Found 0 expired prospects
+[2026-07-06T22:20:03.214Z] Found 0 expired staging leads
+[2026-07-06T22:25:04.431Z] GET /api/cron/transbordo called
+[2026-07-06T22:25:04.439Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:25:04.456Z] Found 0 expired prospects
+[2026-07-06T22:25:04.463Z] Found 0 expired staging leads
+[2026-07-06T22:30:03.767Z] GET /api/cron/transbordo called
+[2026-07-06T22:30:03.772Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:30:03.783Z] Found 0 expired prospects
+[2026-07-06T22:30:03.790Z] Found 0 expired staging leads
+[2026-07-06T22:35:02.841Z] GET /api/cron/transbordo called
+[2026-07-06T22:35:02.846Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:35:02.857Z] Found 0 expired prospects
+[2026-07-06T22:35:02.865Z] Found 0 expired staging leads
+[2026-07-06T22:40:04.490Z] GET /api/cron/transbordo called
+[2026-07-06T22:40:04.500Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:40:04.516Z] Found 0 expired prospects
+[2026-07-06T22:40:04.522Z] Found 0 expired staging leads
+[2026-07-06T22:45:07.303Z] GET /api/cron/transbordo called
+[2026-07-06T22:45:07.336Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:45:07.359Z] Found 0 expired prospects
+[2026-07-06T22:45:07.365Z] Found 0 expired staging leads
+[2026-07-06T22:50:11.295Z] GET /api/cron/transbordo called
+[2026-07-06T22:50:11.301Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:50:11.311Z] Found 0 expired prospects
+[2026-07-06T22:50:11.321Z] Found 0 expired staging leads
+[2026-07-06T22:55:04.149Z] GET /api/cron/transbordo called
+[2026-07-06T22:55:04.161Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T22:55:04.177Z] Found 0 expired prospects
+[2026-07-06T22:55:04.182Z] Found 0 expired staging leads
+[2026-07-06T23:00:05.078Z] GET /api/cron/transbordo called
+[2026-07-06T23:00:05.081Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:00:05.094Z] Found 0 expired prospects
+[2026-07-06T23:00:05.103Z] Found 0 expired staging leads
+[2026-07-06T23:05:05.486Z] GET /api/cron/transbordo called
+[2026-07-06T23:05:05.590Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:05:05.604Z] Found 0 expired prospects
+[2026-07-06T23:05:05.613Z] Found 0 expired staging leads
+[2026-07-06T23:10:09.159Z] GET /api/cron/transbordo called
+[2026-07-06T23:10:09.168Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:10:09.181Z] Found 0 expired prospects
+[2026-07-06T23:10:09.191Z] Found 0 expired staging leads
+[2026-07-06T23:15:02.738Z] GET /api/cron/transbordo called
+[2026-07-06T23:15:02.760Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:15:02.774Z] Found 0 expired prospects
+[2026-07-06T23:15:02.782Z] Found 0 expired staging leads
+[2026-07-06T23:20:06.295Z] GET /api/cron/transbordo called
+[2026-07-06T23:20:06.316Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:20:06.333Z] Found 0 expired prospects
+[2026-07-06T23:20:06.338Z] Found 0 expired staging leads
+[2026-07-06T23:25:09.249Z] GET /api/cron/transbordo called
+[2026-07-06T23:25:09.477Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:25:09.495Z] Found 0 expired prospects
+[2026-07-06T23:25:09.500Z] Found 0 expired staging leads
+[2026-07-06T23:30:04.962Z] GET /api/cron/transbordo called
+[2026-07-06T23:30:04.975Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:30:05.071Z] Found 0 expired prospects
+[2026-07-06T23:30:05.076Z] Found 0 expired staging leads
+[2026-07-06T23:35:03.922Z] GET /api/cron/transbordo called
+[2026-07-06T23:35:03.992Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:35:04.000Z] Found 0 expired prospects
+[2026-07-06T23:35:04.017Z] Found 0 expired staging leads
+[2026-07-06T23:40:03.742Z] GET /api/cron/transbordo called
+[2026-07-06T23:40:03.771Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:40:03.863Z] Found 0 expired prospects
+[2026-07-06T23:40:03.922Z] Found 0 expired staging leads
+[2026-07-06T23:45:06.447Z] GET /api/cron/transbordo called
+[2026-07-06T23:45:06.460Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:45:06.471Z] Found 0 expired prospects
+[2026-07-06T23:45:06.481Z] Found 0 expired staging leads
+[2026-07-06T23:50:03.778Z] GET /api/cron/transbordo called
+[2026-07-06T23:50:03.831Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:50:03.838Z] Found 0 expired prospects
+[2026-07-06T23:50:03.846Z] Found 0 expired staging leads
+[2026-07-06T23:55:03.587Z] GET /api/cron/transbordo called
+[2026-07-06T23:55:03.653Z] Cleanup de histórico (30 dias) executado.
+[2026-07-06T23:55:03.671Z] Found 0 expired prospects
+[2026-07-06T23:55:03.678Z] Found 0 expired staging leads
+[2026-07-07T00:00:03.780Z] GET /api/cron/transbordo called
+[2026-07-07T00:00:03.916Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:00:03.966Z] Found 0 expired prospects
+[2026-07-07T00:00:03.972Z] Found 0 expired staging leads
+[2026-07-07T00:05:05.827Z] GET /api/cron/transbordo called
+[2026-07-07T00:05:05.839Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:05:05.857Z] Found 0 expired prospects
+[2026-07-07T00:05:05.867Z] Found 0 expired staging leads
+[2026-07-07T00:10:07.274Z] GET /api/cron/transbordo called
+[2026-07-07T00:10:07.286Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:10:07.315Z] Found 0 expired prospects
+[2026-07-07T00:10:07.345Z] Found 0 expired staging leads
+[2026-07-07T00:15:14.705Z] GET /api/cron/transbordo called
+[2026-07-07T00:15:14.737Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:15:14.743Z] Found 0 expired prospects
+[2026-07-07T00:15:14.755Z] Found 0 expired staging leads
+[2026-07-07T00:20:04.371Z] GET /api/cron/transbordo called
+[2026-07-07T00:20:04.400Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:20:04.414Z] Found 0 expired prospects
+[2026-07-07T00:20:04.418Z] Found 0 expired staging leads
+[2026-07-07T00:25:03.908Z] GET /api/cron/transbordo called
+[2026-07-07T00:25:03.912Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:25:03.924Z] Found 0 expired prospects
+[2026-07-07T00:25:03.932Z] Found 0 expired staging leads
+[2026-07-07T00:30:03.205Z] GET /api/cron/transbordo called
+[2026-07-07T00:30:03.211Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:30:03.229Z] Found 0 expired prospects
+[2026-07-07T00:30:03.236Z] Found 0 expired staging leads
+[2026-07-07T00:35:02.549Z] GET /api/cron/transbordo called
+[2026-07-07T00:35:02.568Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:35:02.578Z] Found 0 expired prospects
+[2026-07-07T00:35:02.590Z] Found 0 expired staging leads
+[2026-07-07T00:40:02.847Z] GET /api/cron/transbordo called
+[2026-07-07T00:40:02.862Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:40:02.869Z] Found 0 expired prospects
+[2026-07-07T00:40:02.878Z] Found 0 expired staging leads
+[2026-07-07T00:45:03.632Z] GET /api/cron/transbordo called
+[2026-07-07T00:45:03.639Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:45:03.657Z] Found 0 expired prospects
+[2026-07-07T00:45:03.662Z] Found 0 expired staging leads
+[2026-07-07T00:50:02.817Z] GET /api/cron/transbordo called
+[2026-07-07T00:50:02.821Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:50:02.832Z] Found 0 expired prospects
+[2026-07-07T00:50:02.839Z] Found 0 expired staging leads
+[2026-07-07T00:55:01.885Z] GET /api/cron/transbordo called
+[2026-07-07T00:55:01.894Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T00:55:01.908Z] Found 0 expired prospects
+[2026-07-07T00:55:01.916Z] Found 0 expired staging leads
+[2026-07-07T01:00:03.156Z] GET /api/cron/transbordo called
+[2026-07-07T01:00:03.160Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:00:03.171Z] Found 0 expired prospects
+[2026-07-07T01:00:03.178Z] Found 0 expired staging leads
+[2026-07-07T01:05:02.729Z] GET /api/cron/transbordo called
+[2026-07-07T01:05:02.733Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:05:02.747Z] Found 0 expired prospects
+[2026-07-07T01:05:02.756Z] Found 0 expired staging leads
+[2026-07-07T01:10:03.727Z] GET /api/cron/transbordo called
+[2026-07-07T01:10:03.731Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:10:03.742Z] Found 0 expired prospects
+[2026-07-07T01:10:03.749Z] Found 0 expired staging leads
+[2026-07-07T01:15:04.759Z] GET /api/cron/transbordo called
+[2026-07-07T01:15:04.768Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:15:04.778Z] Found 0 expired prospects
+[2026-07-07T01:15:04.786Z] Found 0 expired staging leads
+[2026-07-07T01:20:03.008Z] GET /api/cron/transbordo called
+[2026-07-07T01:20:03.013Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:20:03.026Z] Found 0 expired prospects
+[2026-07-07T01:20:03.033Z] Found 0 expired staging leads
+[2026-07-07T01:25:03.081Z] GET /api/cron/transbordo called
+[2026-07-07T01:25:03.085Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:25:03.096Z] Found 0 expired prospects
+[2026-07-07T01:25:03.103Z] Found 0 expired staging leads
+[2026-07-07T01:30:03.041Z] GET /api/cron/transbordo called
+[2026-07-07T01:30:03.045Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:30:03.057Z] Found 0 expired prospects
+[2026-07-07T01:30:03.065Z] Found 0 expired staging leads
+[2026-07-07T01:35:03.333Z] GET /api/cron/transbordo called
+[2026-07-07T01:35:03.337Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:35:03.348Z] Found 0 expired prospects
+[2026-07-07T01:35:03.356Z] Found 0 expired staging leads
+[2026-07-07T01:40:03.635Z] GET /api/cron/transbordo called
+[2026-07-07T01:40:03.639Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:40:03.651Z] Found 0 expired prospects
+[2026-07-07T01:40:03.658Z] Found 0 expired staging leads
+[2026-07-07T01:45:04.197Z] GET /api/cron/transbordo called
+[2026-07-07T01:45:04.209Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:45:04.218Z] Found 0 expired prospects
+[2026-07-07T01:45:04.225Z] Found 0 expired staging leads
+[2026-07-07T01:50:02.673Z] GET /api/cron/transbordo called
+[2026-07-07T01:50:02.677Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:50:02.691Z] Found 0 expired prospects
+[2026-07-07T01:50:02.698Z] Found 0 expired staging leads
+[2026-07-07T01:55:02.880Z] GET /api/cron/transbordo called
+[2026-07-07T01:55:02.884Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T01:55:02.895Z] Found 0 expired prospects
+[2026-07-07T01:55:02.903Z] Found 0 expired staging leads
+[2026-07-07T02:00:02.200Z] GET /api/cron/transbordo called
+[2026-07-07T02:00:02.206Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:00:02.218Z] Found 0 expired prospects
+[2026-07-07T02:00:02.223Z] Found 0 expired staging leads
+[2026-07-07T02:05:03.168Z] GET /api/cron/transbordo called
+[2026-07-07T02:05:03.175Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:05:03.184Z] Found 0 expired prospects
+[2026-07-07T02:05:03.191Z] Found 0 expired staging leads
+[2026-07-07T02:10:02.293Z] GET /api/cron/transbordo called
+[2026-07-07T02:10:02.298Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:10:02.309Z] Found 0 expired prospects
+[2026-07-07T02:10:02.317Z] Found 0 expired staging leads
+[2026-07-07T02:15:02.182Z] GET /api/cron/transbordo called
+[2026-07-07T02:15:02.189Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:15:02.200Z] Found 0 expired prospects
+[2026-07-07T02:15:02.209Z] Found 0 expired staging leads
+[2026-07-07T02:20:03.066Z] GET /api/cron/transbordo called
+[2026-07-07T02:20:03.070Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:20:03.081Z] Found 0 expired prospects
+[2026-07-07T02:20:03.088Z] Found 0 expired staging leads
+[2026-07-07T02:25:03.272Z] GET /api/cron/transbordo called
+[2026-07-07T02:25:03.276Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:25:03.287Z] Found 0 expired prospects
+[2026-07-07T02:25:03.294Z] Found 0 expired staging leads
+[2026-07-07T02:30:03.105Z] GET /api/cron/transbordo called
+[2026-07-07T02:30:03.109Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:30:03.121Z] Found 0 expired prospects
+[2026-07-07T02:30:03.128Z] Found 0 expired staging leads
+[2026-07-07T02:35:02.558Z] GET /api/cron/transbordo called
+[2026-07-07T02:35:02.566Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:35:02.577Z] Found 0 expired prospects
+[2026-07-07T02:35:02.586Z] Found 0 expired staging leads
+[2026-07-07T02:40:03.546Z] GET /api/cron/transbordo called
+[2026-07-07T02:40:03.555Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:40:03.566Z] Found 0 expired prospects
+[2026-07-07T02:40:03.574Z] Found 0 expired staging leads
+[2026-07-07T02:45:03.361Z] GET /api/cron/transbordo called
+[2026-07-07T02:45:03.365Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:45:03.375Z] Found 0 expired prospects
+[2026-07-07T02:45:03.383Z] Found 0 expired staging leads
+[2026-07-07T02:50:02.444Z] GET /api/cron/transbordo called
+[2026-07-07T02:50:02.449Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:50:02.464Z] Found 0 expired prospects
+[2026-07-07T02:50:02.472Z] Found 0 expired staging leads
+[2026-07-07T02:55:03.607Z] GET /api/cron/transbordo called
+[2026-07-07T02:55:03.616Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T02:55:03.638Z] Found 0 expired prospects
+[2026-07-07T02:55:03.648Z] Found 0 expired staging leads
+[2026-07-07T03:00:05.081Z] GET /api/cron/transbordo called
+[2026-07-07T03:00:05.085Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T03:00:05.097Z] Found 0 expired prospects
+[2026-07-07T03:00:05.105Z] Found 0 expired staging leads
+[2026-07-07T03:05:05.439Z] GET /api/cron/transbordo called
+[2026-07-07T03:05:05.452Z] Cleanup de histórico (30 dias) executado.
+[2026-07-07T03:05:05.468Z] Found 0 expired prospects
+[2026-07-07T03:05:05.474Z] Found 0 expired staging leads
