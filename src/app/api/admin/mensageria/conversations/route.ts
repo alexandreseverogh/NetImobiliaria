@@ -9,19 +9,27 @@ export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 50
 
+const SORTABLE_COLUMNS: Record<string, string> = {
+  lastMessageAt: 'c.last_message_at',
+  firstResponseDurationSec: 'first_response_duration_sec',
+  createdAt: 'c.created_at',
+}
+
 /**
  * GET /api/admin/mensageria/conversations
- * Lista conversas do tenant (coluna 2 da inbox — ver docs/PLANO_MENSAGERIA.md 8.1).
+ * Lista conversas do tenant. Serve dois consumidores com o mesmo filtro base:
+ * Caixa de Entrada (seção 8.1, paginação por `cursor`/scroll infinito) e Painel do
+ * Gestor (seção 17.3, paginação numerada `page`/`pageSize` + KPIs + ordenação).
  *
- * Query params: status ('open'|'pending'|'snoozed'|'resolved') · inboxId · assigneeId
+ * Query params: status · inboxId · teamId · priority · labelId · assigneeId
  *               ('me'|<uuid>|'unassigned') · search (nome/telefone do contato) ·
  *               dateFrom/dateTo (YYYY-MM-DD, filtra por last_message_at) ·
- *               cursor (ISO de last_message_at do último item da página anterior)
+ *               cursor (modo scroll infinito) OU page/pageSize (modo tabela) ·
+ *               sortBy ('lastMessageAt'|'firstResponseDurationSec'|'createdAt') · sortDir ('asc'|'desc')
+ *               includeKpis=1 — inclui agregados (emAberto, slaEstourado, tempoMedioSegundos)
  *
- * Paginação por cursor (não offset) — estável mesmo com conversas novas chegando
- * entre páginas. totalCount reflete o mesmo filtro, sem o cursor, para contadores
- * de UI (ver PLANO_MENSAGERIA.md — item 1-3 de escala: volumetria de centenas de
- * atendentes exige paginação real, não LIMIT fixo).
+ * Sempre passa por resolveMensageriaScope() antes dos demais filtros (seção 17.3) —
+ * um atendente batendo com teamId de outro time recebe resultado vazio, não erro.
  */
 export async function GET(request: NextRequest) {
   const payload = getTokenPayload(request)
@@ -30,11 +38,20 @@ export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams
   const status = sp.get('status')
   const inboxId = sp.get('inboxId')
+  const channelType = sp.get('channelType')
+  const teamId = sp.get('teamId')
+  const priority = sp.get('priority')
+  const labelId = sp.get('labelId')
   const assigneeId = sp.get('assigneeId')
   const search = sp.get('search')
   const dateFrom = sp.get('dateFrom')
   const dateTo = sp.get('dateTo')
   const cursor = sp.get('cursor')
+  const page = sp.get('page') ? Math.max(1, parseInt(sp.get('page')!, 10) || 1) : null
+  const pageSize = Math.min(200, Math.max(1, parseInt(sp.get('pageSize') || String(PAGE_SIZE), 10) || PAGE_SIZE))
+  const sortBy = SORTABLE_COLUMNS[sp.get('sortBy') || ''] || 'c.last_message_at'
+  const sortDir = sp.get('sortDir') === 'asc' ? 'ASC' : 'DESC'
+  const includeKpis = sp.get('includeKpis') === '1'
 
   const where: string[] = ['c.tenant_id = $1']
   const args: any[] = [payload.tenantId]
@@ -47,6 +64,10 @@ export async function GET(request: NextRequest) {
 
   if (status) { args.push(status); where.push(`c.status = $${args.length}`) }
   if (inboxId) { args.push(inboxId); where.push(`c.inbox_id = $${args.length}`) }
+  if (channelType) { args.push(channelType); where.push(`ib.channel_type = $${args.length}`) }
+  if (teamId) { args.push(teamId); where.push(`c.team_id = $${args.length}`) }
+  if (priority) { args.push(priority); where.push(`c.priority = $${args.length}`) }
+  if (labelId) { args.push(labelId); where.push(`EXISTS (SELECT 1 FROM mensageria.conversation_labels cl WHERE cl.conversation_id = c.id AND cl.label_id = $${args.length})`) }
   if (assigneeId === 'unassigned') where.push('c.assignee_id IS NULL')
   else if (assigneeId === 'me') { args.push(payload.userId); where.push(`c.assignee_id = $${args.length}`) }
   else if (assigneeId) { args.push(assigneeId); where.push(`c.assignee_id = $${args.length}`) }
@@ -54,41 +75,76 @@ export async function GET(request: NextRequest) {
   if (dateFrom) { args.push(dateFrom); where.push(`c.last_message_at >= $${args.length}::date`) }
   if (dateTo) { args.push(dateTo); where.push(`c.last_message_at < ($${args.length}::date + interval '1 day')`) }
 
-  // Contagem total do filtro (sem cursor) — usada no contador da pasta "Todas"
+  // Contagem total do filtro (sem cursor/página) — usada no contador da pasta "Todas"
+  // e no total de páginas do Painel do Gestor. JOIN inboxes é necessário mesmo aqui
+  // porque channelType (filtro de canal do Painel do Gestor) referencia ib.channel_type.
   const { rows: countRows } = await pool.query(
     `SELECT COUNT(*)::int AS total
        FROM mensageria.conversations c
        JOIN mensageria.contacts ct ON ct.id = c.contact_id
+       JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
       WHERE ${where.join(' AND ')}`,
     args,
   )
   const totalCount = countRows[0]?.total ?? 0
 
+  let kpis: { emAberto: number; slaEstourado: number; tempoMedioSegundos: number | null } | null = null
+  if (includeKpis) {
+    const { rows: kpiRows } = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE c.status IN ('open','pending'))::int AS em_aberto,
+         COUNT(*) FILTER (WHERE cs.first_response_breached OR cs.resolution_breached)::int AS sla_estourado,
+         AVG(EXTRACT(EPOCH FROM (c.first_response_at - c.created_at))) FILTER (WHERE c.first_response_at IS NOT NULL) AS tempo_medio_segundos
+         FROM mensageria.conversations c
+         JOIN mensageria.contacts ct ON ct.id = c.contact_id
+         JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
+         LEFT JOIN mensageria.conversation_sla cs ON cs.conversation_id = c.id
+        WHERE ${where.join(' AND ')}`,
+      args,
+    )
+    const k = kpiRows[0] || {}
+    kpis = {
+      emAberto: k.em_aberto ?? 0,
+      slaEstourado: k.sla_estourado ?? 0,
+      tempoMedioSegundos: k.tempo_medio_segundos != null ? Math.round(Number(k.tempo_medio_segundos)) : null,
+    }
+  }
+
   const listWhere = [...where]
   const listArgs = [...args]
-  if (cursor) { listArgs.push(cursor); listWhere.push(`c.last_message_at < $${listArgs.length}`) }
+  let limitOffsetClause = ''
+  if (page !== null) {
+    listArgs.push(pageSize, (page - 1) * pageSize)
+    limitOffsetClause = `LIMIT $${listArgs.length - 1} OFFSET $${listArgs.length}`
+  } else {
+    if (cursor) { listArgs.push(cursor); listWhere.push(`c.last_message_at < $${listArgs.length}`) }
+    limitOffsetClause = `LIMIT ${pageSize}`
+  }
 
   const { rows } = await pool.query(
     `SELECT
        c.id, c.status, c.priority, c.unread_count, c.last_message_at, c.handled_by_bot,
-       c.assignee_id, c.created_at,
+       c.assignee_id, c.created_at, c.team_id,
+       EXTRACT(EPOCH FROM (c.first_response_at - c.created_at)) AS first_response_duration_sec,
        ct.id AS contact_id, ct.name AS contact_name, ct.phone AS contact_phone,
        ct.avatar_url AS contact_avatar_url, ct.lead_uuid,
        ib.channel_type, ib.name AS inbox_name,
        u.nome AS assignee_name,
+       tm.name AS team_name,
        (SELECT m.content FROM mensageria.messages m
           WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_preview
      FROM mensageria.conversations c
      JOIN mensageria.contacts ct ON ct.id = c.contact_id
      JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
      LEFT JOIN public.users u ON u.id = c.assignee_id
+     LEFT JOIN mensageria.teams tm ON tm.id = c.team_id
      WHERE ${listWhere.join(' AND ')}
-     ORDER BY c.last_message_at DESC NULLS LAST
-     LIMIT ${PAGE_SIZE}`,
+     ORDER BY ${sortBy} ${sortDir} NULLS LAST
+     ${limitOffsetClause}`,
     listArgs,
   )
 
-  const nextCursor = rows.length === PAGE_SIZE ? rows[rows.length - 1].last_message_at : null
+  const nextCursor = page === null && rows.length === pageSize ? rows[rows.length - 1].last_message_at : null
 
   return NextResponse.json({
     conversations: rows.map((r) => ({
@@ -101,6 +157,9 @@ export async function GET(request: NextRequest) {
       handledByBot: r.handled_by_bot,
       channelType: r.channel_type,
       inboxName: r.inbox_name,
+      teamId: r.team_id,
+      teamName: r.team_name,
+      firstResponseDurationSec: r.first_response_duration_sec != null ? Math.round(Number(r.first_response_duration_sec)) : null,
       assignee: r.assignee_id ? { id: r.assignee_id, name: r.assignee_name } : null,
       contact: {
         id: r.contact_id,
@@ -113,6 +172,8 @@ export async function GET(request: NextRequest) {
     })),
     nextCursor,
     totalCount,
+    totalPages: page !== null ? Math.max(1, Math.ceil(totalCount / pageSize)) : null,
+    kpis,
   })
 }
 

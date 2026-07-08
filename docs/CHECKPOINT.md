@@ -1,12 +1,42 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-07 (Mensageria: config UI, controle de acesso, escala/paginação, modelo de visibilidade gerencial)
+> **Atualizado em:** 2026-07-07 (Mensageria: config UI, controle de acesso, escala/paginação, modelo de visibilidade gerencial, Painel do Gestor)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-07 (continuação 2) — Painel do Gestor (`/mensageria/gestao`) ✅
+
+**Status:** Fundação de visibilidade gerencial (sessão anterior) usada como base — seção 17 do
+plano (17.5, itens 7-9) implementada por completo: acesso, API estendida e a tela em si.
+
+1. `prisma/migration-2026-07-08-mensageria-gestao-access.sql` — feature `mensageria-gestao`
+   (id 115) registrada (aditiva à migration anterior, módulo/categoria já existiam).
+2. `GET /conversations` ganhou: paginação numerada (`page`/`pageSize`, coexiste com o `cursor` da
+   Caixa de Entrada na mesma rota) · filtros `teamId`/`priority`/`labelId`/`channelType` ·
+   `sortBy`/`sortDir` · `includeKpis=1` (em aberto, SLA estourado, tempo médio de 1ª resposta) ·
+   `teamName`/`firstResponseDurationSec` na resposta.
+3. `src/components/mensageria/ConversationThread.tsx` (novo) — thread reaproveitável (mesma UX da
+   Caixa de Entrada), usada no drawer lateral do Painel do Gestor. Não foi feita a refatoração de
+   `/mensageria/page.tsx` para usar esse componente também (ficou como componente novo e paralelo,
+   por segurança — evitar risco de regressão na Caixa de Entrada já validada em M0-M3).
+4. `/mensageria/gestao` (novo) — KPIs, filtros, tabela densa ordenável, paginação numerada, drawer.
+   Gate client-side pra `scopeLevel==='own'` (a API já protege os dados por trás disso de qualquer forma).
+
+**Testado:** filtros (time/canal/prioridade/data), ordenação, paginação numerada e KPIs — todos
+validados via API com dados reais do tenant de teste. Sidebar confirmada via
+`get_sidebar_menu_for_user()` real (admin vê pelo caminho do banco).
+
+**Pendência conhecida, não crítica:** `ConversationThread.tsx` duplica lógica que também existe
+inline em `/mensageria/page.tsx` (coluna 3). Refatorar a Caixa de Entrada pra usar o componente
+compartilhado é trabalho futuro de limpeza, não bloqueante.
+
+**Referências:** `docs/PLANO_MENSAGERIA.md` seção 17 (17.5 — todos os itens 1-9 concluídos).
+
+---
 
 ### Sessão 2026-07-07 (continuação) — Mensageria: config UI, acesso, escala e visibilidade gerencial ✅
 

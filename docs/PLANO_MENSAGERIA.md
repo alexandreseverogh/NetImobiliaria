@@ -1137,11 +1137,20 @@ plataforma e a lógica interna do módulo. Administrador continua vendo o item p
 6. ✅ Augmentação client no `MensageriaLayoutContent` — líder de time vê "Painel do Gestor" injetado
    no menu sem o sidebar genérico da plataforma conhecer o conceito.
 
-**⏳ Pendente — a página em si (Painel do Gestor):**
+**✅ Painel do Gestor — implementado e validado em 2026-07-07:**
 
-7. Migração de acesso (17.4) — feature `mensageria-gestao` em `system_features` + `permissions` +
-   `system_feature_modules` + `role_permissions`, mesmo padrão da seção 15 (ainda não rodada).
-8. Extensão da API `GET /conversations` com os campos/params específicos do painel (17.3):
-   `page`/`pageSize` numerado, `teamId`, `priority`, `labelId`, `teamName`,
-   `firstResponseDurationSec` — hoje a API só tem a paginação por cursor da Caixa de Entrada.
-9. Página `/mensageria/gestao` (17.2) + drawer reaproveitando o componente de thread existente.
+7. ✅ Migração de acesso — `prisma/migration-2026-07-08-mensageria-gestao-access.sql`: feature
+   `mensageria-gestao` (id 115) em `system_features` + `permissions` + `system_feature_modules` +
+   `role_permissions` (41/42/47/48) + `tenant_feature_overrides` (4 tenants). Confirmado via
+   `get_sidebar_menu_for_user()` real — admin vê "Painel do Gestor" pelo caminho normal do banco.
+8. ✅ `GET /conversations` estendido: `page`/`pageSize` (paginação numerada, coexiste com o
+   `cursor` da Caixa de Entrada na mesma rota) · `teamId` · `priority` · `labelId` · `channelType`
+   · `sortBy`/`sortDir` (`lastMessageAt` | `firstResponseDurationSec`) · `includeKpis=1` (em
+   aberto, SLA estourado, tempo médio de 1ª resposta) · `teamName`/`firstResponseDurationSec` na
+   resposta. Testado: filtro por time, canal, prioridade, ordenação, KPIs — todos batendo com os
+   dados reais do banco.
+9. ✅ `src/components/mensageria/ConversationThread.tsx` (thread reaproveitável, mesma UX da
+   Caixa de Entrada) + `/mensageria/gestao` (17.2): KPIs, filtros, tabela densa ordenável,
+   paginação numerada, drawer lateral abrindo a thread ao clicar na linha. Gate client-side:
+   `scopeLevel==='own'` vê mensagem de acesso restrito em vez da tabela (a API já protege os
+   dados por trás mesmo sem esse gate, via `resolveMensageriaScope`).
