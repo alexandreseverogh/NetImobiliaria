@@ -386,7 +386,44 @@ segmento/cliente) e **agrupamentos**. Reusa a linguagem visual dos gráficos que
 **Visualizações:**
 - Tendência diária de conversas (linha) · Distribuição por canal (donut) · Heatmap dia×hora de
   entrada (reaproveita o componente já feito no CTA Analytics) · Ranking de atendentes (volume +
-  tempo médio) · Funil bot→humano→resolvido · Leaderboard de times.
+  tempo médio) · Funil bot→humano→resolvido · Leaderboard de times · **Demanda por faixa
+  horária** — soma de todos os dias do período por hora-do-dia (0-23h), reaproveitando também o
+  componente `LeadsPerHour` do CTA Analytics (extraído para `HourlyVolumeBar.tsx`). Adicionada a
+  pedido do usuário em 2026-07-08: é a visualização que mostra o pico de demanda do dia típico,
+  usada pra dimensionar capacidade de resposta do bot/atendentes humanos por horário.
+  **Escopo (refinado em 2026-07-08):** conta mensagens **inbound** em qualquer canal digital
+  (WhatsApp/formulário/chatbot) **+ só a 1ª mensagem de cada conversa do canal manual** — nesse
+  canal a mensagem é sempre outbound (o atendente registrando um contato que já aconteceu por
+  telefone/presencial), então ela é o evento de demanda; mensagens seguintes na mesma conversa
+  (notas do atendente) não contam de novo, senão atualizar uma conversa várias vezes infla o
+  pico artificialmente. Filtra pela data da própria mensagem, não da conversa.
+
+> **✅ M5 implementado e testado em 2026-07-08.** `GET /api/admin/mensageria/analytics`
+> (`src/app/api/admin/mensageria/analytics/route.ts`) — todos os KPIs e visualizações acima,
+> sempre passando por `resolveMensageriaScope()` (seção 16.5, mesmo resolver do Painel do
+> Gestor). Heatmap **de fato reaproveitado**, não copiado — extraído para
+> `src/components/marketing/charts/DayHourHeatmap.tsx` e a página original do CTA Analytics
+> foi atualizada para importar do mesmo lugar. Filtros: período (`<DateInputPtBR>`), time,
+> atendente, canal. Segmento/cliente listado no texto original não foi filtrado nesta entrega
+> (não há um seletor de cliente equivalente ao das campanhas ainda no Mensageria) — client_id
+> aceito pela API via query param, só falta o combobox na UI se vier a ser necessário.
+> Deflection bot×humano existe na estrutura (`taxaResolucaoBotPct`, funil) mas fica em 0% até
+> o M4 (Chatbot) popular `handled_by_bot`/mensagens `sender_type='bot'`.
+>
+> **Default de período: dia do sistema, não últimos 30 dias.** Sem filtro de data explícito,
+> `dateFrom`/`dateTo` = hoje/hoje — só amplia quando o usuário preenche os filtros. Ajustado
+> em 2026-07-08 a pedido do usuário (o default original de 30 dias era o mais comum em outros
+> dashboards do projeto, mas não o esperado aqui).
+>
+> **Bugs de implementação corrigidos durante o desenvolvimento:**
+> 1. Reusar um único array de parâmetros SQL entre 7 queries paralelas, cada uma referenciando
+>    só um subconjunto dos índices, quebra com `could not determine data type of parameter $N`
+>    — Postgres exige que todo parâmetro passado seja referenciado no texto daquela query
+>    específica. Corrigido dando a cada query seu próprio array de parâmetros (`withPeriod()`).
+> 2. Data inicial depois da final (fácil de digitar por engano) fazia a API responder `200`
+>    com tudo zerado, sem nenhum aviso — parecia "nada é exibido". Corrigido com banner de
+>    aviso explícito na UI quando o intervalo é inválido, mais uma guarda de sequência
+>    (`requestSeqRef`) para respostas de rede fora de ordem não sobrescreverem dado correto.
 
 ---
 
@@ -410,15 +447,15 @@ Segue **exatamente** o fluxo do `ACCESS_CONTROL.md`:
 > MVP = todos os canais, porém fatiado para reduzir risco de integração. Cada fase: migração local +
 > commit + push + checkpoint (regra do CLAUDE.md).
 
-| Fase | Entrega | Núcleo |
-|---|---|---|
-| **M0 — Fundação** | Schema `mensageria` + `ingestMessage()` + adapters WhatsApp/webform | DB + ingestão idempotente; webhook Evolution refatorado sem perder captação de lead |
-| **M1 — Inbox WhatsApp** | Caixa 3 colunas + envio outbound + tempo real (Redis→SSE) | Atender e responder WhatsApp em thread, com atribuição manual |
-| **M2 — Multicanal** | Formulários (CTA) + input manual unificados na mesma inbox | `webformAdapter` + `manualAdapter`; painel do contato com link CRM |
-| **M3 — Times & produtividade** | Times, auto-atribuição round-robin, etiquetas, respostas rápidas, notas internas, SLA | Colaboração real de equipe |
-| **M4 — Chatbot** | `bot_flows` + `botAdapter` (LLM) + handoff para humano | Bot alimentando o painel + deflection |
-| **M5 — Analytics** | Dashboards com filtros/agrupamentos + KPIs de SLA | Camada de inteligência |
-| **M6 — Acesso & rollout** | `system_features` + provisionamento + sidebar + hardening | Go-live por tenant |
+| Fase | Entrega | Núcleo | Status |
+|---|---|---|---|
+| **M0 — Fundação** | Schema `mensageria` + `ingestMessage()` + adapters WhatsApp/webform | DB + ingestão idempotente; webhook Evolution refatorado sem perder captação de lead | ✅ |
+| **M1 — Inbox WhatsApp** | Caixa 3 colunas + envio outbound + tempo real (Redis→SSE) | Atender e responder WhatsApp em thread, com atribuição manual | ✅ |
+| **M2 — Multicanal** | Formulários (CTA) + input manual unificados na mesma inbox | `webformAdapter` + `manualAdapter`; painel do contato com link CRM | ✅ |
+| **M3 — Times & produtividade** | Times, auto-atribuição round-robin, etiquetas, respostas rápidas, notas internas, SLA | Colaboração real de equipe | ✅ |
+| **M4 — Chatbot** | `bot_flows` + `botAdapter` (LLM) + handoff para humano | Bot alimentando o painel + deflection | ⏳ Em andamento (M4.1+M4.2, ver 18.1) |
+| **M5 — Analytics** | Dashboards com filtros/agrupamentos + KPIs de SLA | Camada de inteligência | ✅ |
+| **M6 — Acesso & rollout** | `system_features` + provisionamento + sidebar + hardening | Go-live por tenant | ⚠️ Parcial — `system_features` registrado/testado; provisionamento real via UI e deploy VPS pendentes |
 
 **Sugestão de ordem de valor:** M0→M1 entrega a dor mais aguda (WhatsApp em thread de verdade) já
 utilizável; M2–M5 incrementam sem retrabalho porque tudo já nasce sobre `ingestMessage()`.
@@ -756,9 +793,9 @@ Sim, em três camadas com custo de token controlado:
 
 ### 14.9 Gap identificado em produção — inbox de WhatsApp é por tenant, não por cliente
 
-> **Status:** gap confirmado no código em uso (não é hipótese) — encontrado ao rastrear o fluxo
-> real de "campanha lança CTA WhatsApp → mensagem cai no Mensageria" em
-> `src/app/api/public/evolution/webhook/route.ts`.
+> **Status: ✅ Resolvido em 2026-07-08.** Gap confirmado no código em uso (não era hipótese) —
+> encontrado ao rastrear o fluxo real de "campanha lança CTA WhatsApp → mensagem cai no
+> Mensageria" em `src/app/api/public/evolution/webhook/route.ts`.
 
 **O que já funciona:** o webhook Evolution já chama `ingestMessage()` em paralelo à captação de lead
 existente (não é mais plano, está implementado). Quando a mensagem carrega `[ref:slug]` de uma
@@ -780,28 +817,40 @@ Evolution por cliente para o webhook consultar.
 diferentes" (Evolution × Meta Cloud × Z-API). Este gap é sobre "múltiplos **números** da mesma API,
 um por cliente" — os dois podem coexistir na mesma correção, mas são problemas distintos.
 
-**Correção proposta (consistente com 14.1, não um mecanismo novo):**
+**Decisão de onde vive a credencial (confirmada com o usuário):** não em `tenant_network_credentials`
+(estruturalmente só suporta 1 linha por tenant, `UNIQUE(tenant_id, network_id)`, sem `client_id`).
+As colunas Evolution do cliente vivem em `public.clientes`, espelhando as que já existem em
+`public.tenants` — o mesmo padrão já usado para `page_id`/`pixel_id`/`instagram_actor_id`/`website`
+(cascata Tenant → Cliente, ver `CLAUDE.md` "Arquitetura de 3 camadas").
+
+**Implementado** (`prisma/migration-2026-07-08-mensageria-whatsapp-per-client.sql`):
 
 ```sql
--- inboxes já suporta client_id — falta só um índice que permita mais de 1 inbox
--- de whatsapp por tenant (hoje resolveWhatsAppInbox() para no primeiro que acha)
+ALTER TABLE public.clientes
+  ADD COLUMN evolution_api_url TEXT, ADD COLUMN evolution_api_key TEXT,
+  ADD COLUMN evolution_instance TEXT, ADD COLUMN numero_whatsapp TEXT,
+  ADD COLUMN evolution_webhook_secret TEXT;
+CREATE UNIQUE INDEX idx_clientes_evolution_webhook_secret
+  ON public.clientes (evolution_webhook_secret) WHERE evolution_webhook_secret IS NOT NULL;
 CREATE UNIQUE INDEX idx_inboxes_tenant_client_channel
   ON mensageria.inboxes (tenant_id, COALESCE(client_id, '00000000-0000-0000-0000-000000000000'), channel_type)
   WHERE channel_type = 'whatsapp';
 ```
 
-- `resolveWhatsAppInbox(tenantId, clientId?)` passa a buscar primeiro por `(tenant_id, client_id)`
-  e cair para `(tenant_id, client_id IS NULL)` só se o cliente não tiver número próprio — mesmo
-  padrão de cascata já usado em `getNetworkServiceForTenant()` (client → tenant) no módulo de
-  campanhas.
-- O webhook precisa aceitar identificar o CLIENTE, não só o tenant, a partir do `evolution_instance`
-  recebido no payload — exige uma tabela (ou reuso de `tenant_network_credentials`, já existente
-  para outras redes) mapeando `evolution_instance` → `client_id` quando o número não é o principal
-  do tenant.
+- `resolveWhatsAppInbox(tenantId, clientId?)` (`src/lib/mensageria/inboxes.ts`) busca primeiro por
+  `(tenant_id, client_id)`; se o cliente tiver `evolution_instance` configurado, cria a inbox
+  dedicada lazy; senão cai para a inbox padrão do tenant (`client_id IS NULL`) — mesma cascata de
+  `getNetworkServiceForTenant()` no módulo de campanhas.
+- O webhook (`src/app/api/public/evolution/webhook/route.ts`) checa `clientes.evolution_webhook_secret`
+  **antes** de `tenants.evolution_webhook_secret` — se bater no cliente, identifica tenant *e*
+  cliente pelo mesmo token, sem precisar do `[ref:slug]` da campanha. Esse `ownerClientId`
+  (dono do número físico) é usado só para roteamento no **Mensageria**; a atribuição de campanha
+  pro CRM/CtaSubmission continua vindo do `[ref:slug]`, propositalmente não misturados.
 
-**Prioridade:** baixa/sob demanda — só vira urgente se algum cliente do tenant efetivamente tiver
-WhatsApp Business próprio. Até lá, o comportamento atual (1 número, todos os clientes) é correto e
-não deve ser complicado preventivamente.
+**Testado ponta a ponta:** retrocompatibilidade (secret do tenant → mesma inbox de sempre, sem
+`client_id`) · fluxo novo (secret do cliente → inbox dedicada criada com as credenciais certas,
+`client_id` propagado a contato/conversa) · idempotência (2ª mensagem do mesmo cliente reusa a
+inbox, não duplica) · segurança (instância divergente da configurada → 403).
 
 ---
 
@@ -1154,3 +1203,36 @@ plataforma e a lógica interna do módulo. Administrador continua vendo o item p
    paginação numerada, drawer lateral abrindo a thread ao clicar na linha. Gate client-side:
    `scopeLevel==='own'` vê mensagem de acesso restrito em vez da tabela (a API já protege os
    dados por trás mesmo sem esse gate, via `resolveMensageriaScope`).
+
+---
+
+## 18. M4 — Chatbot: fatiamento confirmado (2026-07-08)
+
+O M4 "cheio" descrito nas seções 4.3, 7, 8.4 e 14.5–14.7 é grande demais pra uma rodada só: núcleo
+do bot, tool-use sobre dados estruturados, RAG (pgvector) e widget público são 4 entregas de porte
+médio cada. A tabela de fases (seção 11) define o núcleo mínimo do M4 como só "bot_flows + botAdapter
+(LLM) + handoff para humano" — tools/RAG/widget são refinamentos da rodada 2 (seção 14) que entram
+como sub-fases separadas.
+
+### 18.1 Sub-fases e decisão de escopo
+
+| Sub-fase | Entrega | Depende de | Status |
+|---|---|---|---|
+| **M4.1** | Núcleo do bot: `bot_flows`/`bot_sessions`, `botAdapter`, resposta como `message(sender_type='bot')`, handoff por regra, aba "Bot" em `/mensageria/config` | M0 (ingestMessage) | ⏳ Em andamento |
+| **M4.2** | Tool-use sobre dados do segmento: `segment_data_entities` + resolver genérico + `completeWithTools()` na factory LLM | M4.1 | ⏳ Em andamento (junto com M4.1) |
+| **M4.3** | RAG: pgvector + `knowledge_documents/chunks` + `embed()` — FAQ/políticas em markdown | M4.1 | Não iniciada |
+| **M4.4** | Widget público: canal `webchat` + API pública + `ChatWidget.tsx` embutível nas landings | M4.1 | Não iniciada |
+
+**Decisão confirmada com o usuário (2026-07-08):** M4.1 e M4.2 juntos nesta rodada — o bot já nasce
+consultando dados reais do segmento (ex.: imóveis por bairro), não só respondendo texto solto.
+M4.3 (RAG) e M4.4 (widget) ficam para rodadas futuras — não fazem parte do escopo atual.
+
+**Simplificações desta rodada** (para reduzir risco de infra nova, sem fechar a porta pras versões
+completas depois):
+- Cadastro de `segment_data_entities` via SQL direto — o job de introspecção automática
+  (`information_schema`) e a aba "Dados do Bot" no Master (14.6-A, passo 2-4) ficam para quando
+  houver mais de 1-2 segmentos usando o bot.
+- Handoff por regra simples (keyword + contador de N interações) — não é o motor de intenção mais
+  sofisticado que a seção 14.6 sugere como possível evolução.
+- Memória em 2 camadas (histórico da thread + `bot_sessions.state`) — o resumo rolante (14.7,
+  3ª camada) só se justifica quando threads ficarem longas o bastante para estourar contexto.

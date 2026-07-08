@@ -1,12 +1,63 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-07 (Mensageria: config UI, controle de acesso, escala/paginação, modelo de visibilidade gerencial, Painel do Gestor)
+> **Atualizado em:** 2026-07-08 (M4.1+M4.2 — Chatbot com tool-use: iniciando)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
+## Tarefa em andamento
+
+### Sessão 2026-07-08 — M4.1 + M4.2: Chatbot mínimo + ferramentas de dados por segmento ⏳
+
+**Escopo confirmado com o usuário:** M4.1 (núcleo do bot: `bot_flows`/`bot_sessions`, `botAdapter`,
+resposta como `message(sender_type='bot')`, handoff pra humano, aba "Bot" em `/mensageria/config`)
+**junto com** M4.2 (tool-use sobre dados do segmento: `segment_data_entities` + resolver genérico +
+`completeWithTools()` na factory LLM — bot consulta dados reais, ex. imóveis). RAG (14.6-B) e o
+widget público (`webchat`, 8.4) ficam para depois (M4.3/M4.4), não entram nesta rodada.
+
+Referência: `docs/PLANO_MENSAGERIA.md` seções 4.3, 7, 14.5, 14.6-A, 14.7.
+
+**Plano de implementação:**
+1. Migração `bot_flows` + `bot_sessions` + `segment_data_entities`
+2. `botAdapter.ts` + hook em `ingestMessage()` (dispara só se inbox/segmento tem bot ativo e conversa
+   não atribuída a humano)
+3. Persona via `resolvePromptTemplate('mensageria_bot_persona', segmentId)` com override em
+   `bot_flows.system_prompt`
+4. `completeWithTools()` na factory LLM (`getLlmClientForCampaigns`) + `genericResolver.ts` +
+   `getToolsForSegment()` — cadastro inicial de entidades via SQL direto (job de introspecção +
+   UI "Dados do Bot" no Master ficam para depois)
+5. Handoff simples (regra por keyword/intent + contador de N interações sem resolução)
+6. Memória camadas 1 (thread) + 2 (`bot_sessions.state`), sem resumo rolante ainda
+7. Aba "Bot" em `/mensageria/config`
+
+**Plano de teste:** simular inbound numa inbox com bot ativo → resposta `sender_type='bot'` na thread
+(selo 🤖 já existe em `MessageBubble`/`ConversationThread`) → pergunta que exige tool (ex. imóveis por
+bairro) → resposta cita dados reais → forçar gatilho de handoff → `handled_by_bot=false` + conversa
+cai na fila "não atribuídas"/Painel do Gestor → regressão: inbox sem bot ativo continua 100% manual.
+
+---
+
 ## Última tarefa concluída
+
+### Sessão 2026-07-08 — Caixa de Entrada: Coluna 3 refatorada para `ConversationThread` ✅
+
+Pendência registrada na sessão anterior ("`ConversationThread.tsx` duplica lógica que também existe
+inline em `/mensageria/page.tsx`") resolvida. Trouxe o recurso de respostas rápidas (`/atalho`) para
+dentro de `ConversationThread.tsx` (não existia lá) — estado, memo `cannedMatches`, dropdown no
+composer — alcançando paridade total antes de trocar. Removido `showCannedSuggestions` (confirmado
+código morto). `page.tsx` agora usa `<ConversationThread key={selectedId} conversationId={selectedId}
+onUpdated={loadConversations} />`; todo estado/lógica da thread duplicados foram removidos
+(~314 linhas de duplicação eliminadas no total). O antigo update otimista local de `unreadCount` foi
+substituído por `onUpdated` → `loadConversations()` (o `GET /conversations/[id]` já zera
+`unread_count` no servidor) — validado ponta a ponta via API+DB. `key={selectedId}` também corrigiu
+um bug latente (texto do composer vazando entre conversas ao trocar de seleção).
+
+**Testado:** `npx tsc --noEmit` sem erros novos; bundle compilado inspecionado via curl confirma
+presença de `cannedMatches`/`shortcut`/`canned-responses`; fluxo de zerar `unread_count` confirmado
+via API+DB real.
+
+---
 
 ### Sessão 2026-07-07 (continuação 2) — Painel do Gestor (`/mensageria/gestao`) ✅
 
