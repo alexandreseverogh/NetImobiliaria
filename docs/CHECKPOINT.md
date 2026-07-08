@@ -1,44 +1,69 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-08 (M4.1+M4.2 — Chatbot com tool-use: iniciando)
+> **Atualizado em:** 2026-07-08 (M4.1+M4.2 — Chatbot com tool-use: concluído e testado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
-## Tarefa em andamento
+## Última tarefa concluída
 
-### Sessão 2026-07-08 — M4.1 + M4.2: Chatbot mínimo + ferramentas de dados por segmento ⏳
+### Sessão 2026-07-08 — M4.1 + M4.2: Chatbot mínimo + ferramentas de dados por segmento ✅
 
-**Escopo confirmado com o usuário:** M4.1 (núcleo do bot: `bot_flows`/`bot_sessions`, `botAdapter`,
-resposta como `message(sender_type='bot')`, handoff pra humano, aba "Bot" em `/mensageria/config`)
-**junto com** M4.2 (tool-use sobre dados do segmento: `segment_data_entities` + resolver genérico +
-`completeWithTools()` na factory LLM — bot consulta dados reais, ex. imóveis). RAG (14.6-B) e o
-widget público (`webchat`, 8.4) ficam para depois (M4.3/M4.4), não entram nesta rodada.
+**Escopo confirmado com o usuário:** M4.1 (núcleo do bot) **junto com** M4.2 (tool-use sobre dados do
+segmento). RAG (14.6-B) e o widget público (`webchat`, 8.4) ficam para depois (M4.3/M4.4). Ver
+`docs/PLANO_MENSAGERIA.md` seção 18.1.
 
-Referência: `docs/PLANO_MENSAGERIA.md` seções 4.3, 7, 14.5, 14.6-A, 14.7.
+**Implementado:**
+1. `src/lib/marketing/services/llmClient.ts` — `LlmClient` ganhou `completeWithTools(system, messages,
+   tools, maxTokens)`, implementado nos dois branches (Anthropic nativo com `system`+`tools`+
+   `tool_use`/`tool_result` blocks; OpenAI-compatible com `role:'system'`+`tool_calls`+`role:'tool'`).
+   Tipos novos: `LlmToolDef`, `LlmToolCall`, `LlmMessage`, `LlmToolResponse`.
+2. `src/lib/mensageria/tools/genericResolver.ts` (novo) — `loadEntitiesForSegment`, `resolveEntity`
+   (SQL parametrizado, whitelist de identificadores, `default_filter` como config confiável),
+   `getToolsForSegment` (1 entidade ativa → 1 ferramenta do LLM, sem tocar em código).
+3. `src/lib/mensageria/botAdapter.ts` (novo) — `maybeRunBot(conversationId, tenantId)`: gate (canal
+   ≠ manual, sem assignee humano, `bot_sessions.active` — não reage depois de um handoff já feito),
+   resolve `bot_flows` (client_id > tenant-wide), handoff por keyword/maxTurns ANTES de chamar o LLM,
+   loop de tool-use (`runBotReply`, até 3 iterações) com fallback de mensagem se o LLM devolver vazio.
+4. `src/lib/mensageria/ingest.ts` — hook best-effort no fim de `ingestMessage()`: mensagem inbound de
+   contato chama `maybeRunBot()`; a resposta do bot reentra em `ingestMessage()` como outbound/bot
+   (sem recursão infinita, já que o hook só dispara em inbound).
+5. `prisma/migration-2026-07-08-mensageria-bot-persona.sql` — seed de dados (schema já existia desde
+   M0): prompt `mensageria_bot_persona` (fallback global + especialização do segmento Imobiliário) +
+   1ª `segment_data_entities` (entidade `imovel` → `public.imoveis`, 10 colunas, segmento Imobiliário,
+   todos os tenants do segmento). Aplicada localmente.
+6. `GET/PUT /api/admin/mensageria/bot-flows` — configura o flow padrão do tenant (ativo, persona
+   override, keywords de handoff, maxTurns). `POST /api/admin/mensageria/bot/test` — simula mensagem
+   inbound numa inbox (exercita o pipeline real) e retorna a resposta; rejeita canal Manual.
+7. Aba "Bot" em `/mensageria/config` — toggle ativo/inativo, persona override, keywords/maxTurns,
+   painel "Testar bot". Fix incidental: `TextInput` (componente compartilhado da página) descartava
+   silenciosamente qualquer `className` passado via prop (spread antes do className fixo) — corrigido
+   para mesclar, afetando também os 2 usos pré-existentes que já passavam `className` sem efeito.
 
-**Plano de implementação:**
-1. Migração `bot_flows` + `bot_sessions` + `segment_data_entities`
-2. `botAdapter.ts` + hook em `ingestMessage()` (dispara só se inbox/segmento tem bot ativo e conversa
-   não atribuída a humano)
-3. Persona via `resolvePromptTemplate('mensageria_bot_persona', segmentId)` com override em
-   `bot_flows.system_prompt`
-4. `completeWithTools()` na factory LLM (`getLlmClientForCampaigns`) + `genericResolver.ts` +
-   `getToolsForSegment()` — cadastro inicial de entidades via SQL direto (job de introspecção +
-   UI "Dados do Bot" no Master ficam para depois)
-5. Handoff simples (regra por keyword/intent + contador de N interações sem resolução)
-6. Memória camadas 1 (thread) + 2 (`bot_sessions.state`), sem resumo rolante ainda
-7. Aba "Bot" em `/mensageria/config`
+**Testado ponta a ponta** (via API real, tenant Marketing Digital): tool-use encontrando zero
+resultados corretamente isolado por tenant (perguntou por imóveis que só existiam em outro tenant) ·
+com 3 imóveis de teste inseridos em `public.imoveis` (removidos após validação, autorizado pelo
+usuário) o bot respondeu citando dados reais corretos (2 de 3 matches, detalhes batendo com o banco) ·
+handoff por palavra-chave (`handled_by_bot=false`, evento `bot_handoff` registrado, conversa aparece
+na fila "não atribuídas") · bug real encontrado e corrigido durante o teste: `ON CONFLICT ... SET
+active = true` reativava a sessão do bot a cada mensagem, então depois de um handoff o bot voltava a
+responder na próxima mensagem do contato — corrigido pra checar `bot_sessions.active` antes de
+qualquer coisa e retornar silenciosamente se já foi feito handoff · canal Manual rejeitado pelo
+endpoint de teste · `npx tsc --noEmit` limpo (zero erros novos, só os pré-existentes de outras áreas).
 
-**Plano de teste:** simular inbound numa inbox com bot ativo → resposta `sender_type='bot'` na thread
-(selo 🤖 já existe em `MessageBubble`/`ConversationThread`) → pergunta que exige tool (ex. imóveis por
-bairro) → resposta cita dados reais → forçar gatilho de handoff → `handled_by_bot=false` + conversa
-cai na fila "não atribuídas"/Painel do Gestor → regressão: inbox sem bot ativo continua 100% manual.
+**Pendências conhecidas, não bloqueantes:** UI "Dados do Bot" no Master (cadastro de
+`segment_data_entities` por enquanto só via SQL) · job de introspecção automática de tabelas novas ·
+resumo rolante de memória (thread + `bot_sessions.state` sem resumo já bastam pro MVP) · verificação
+visual em navegador da aba "Bot" não feita (só bundle compilado + API real — sem 2º servidor dev,
+ver lição operacional já registrada nesta sessão).
+
+**Dados mantidos para o usuário continuar testando:** `bot_flows` ativo no tenant Marketing Digital
+(flow padrão, sem persona override, keywords `atendente/humano/falar com alguem`, maxTurns=6).
 
 ---
 
-## Última tarefa concluída
+### Sessão 2026-07-08 — Caixa de Entrada: Coluna 3 refatorada para `ConversationThread` ✅
 
 ### Sessão 2026-07-08 — Caixa de Entrada: Coluna 3 refatorada para `ConversationThread` ✅
 

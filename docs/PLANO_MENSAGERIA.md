@@ -453,7 +453,7 @@ Segue **exatamente** o fluxo do `ACCESS_CONTROL.md`:
 | **M1 — Inbox WhatsApp** | Caixa 3 colunas + envio outbound + tempo real (Redis→SSE) | Atender e responder WhatsApp em thread, com atribuição manual | ✅ |
 | **M2 — Multicanal** | Formulários (CTA) + input manual unificados na mesma inbox | `webformAdapter` + `manualAdapter`; painel do contato com link CRM | ✅ |
 | **M3 — Times & produtividade** | Times, auto-atribuição round-robin, etiquetas, respostas rápidas, notas internas, SLA | Colaboração real de equipe | ✅ |
-| **M4 — Chatbot** | `bot_flows` + `botAdapter` (LLM) + handoff para humano | Bot alimentando o painel + deflection | ⏳ Em andamento (M4.1+M4.2, ver 18.1) |
+| **M4 — Chatbot** | `bot_flows` + `botAdapter` (LLM) + handoff para humano | Bot alimentando o painel + deflection | ⚠️ Parcial — M4.1+M4.2 ✅ (ver 18.1); M4.3 (RAG)/M4.4 (widget) não iniciadas |
 | **M5 — Analytics** | Dashboards com filtros/agrupamentos + KPIs de SLA | Camada de inteligência | ✅ |
 | **M6 — Acesso & rollout** | `system_features` + provisionamento + sidebar + hardening | Go-live por tenant | ⚠️ Parcial — `system_features` registrado/testado; provisionamento real via UI e deploy VPS pendentes |
 
@@ -1218,14 +1218,25 @@ como sub-fases separadas.
 
 | Sub-fase | Entrega | Depende de | Status |
 |---|---|---|---|
-| **M4.1** | Núcleo do bot: `bot_flows`/`bot_sessions`, `botAdapter`, resposta como `message(sender_type='bot')`, handoff por regra, aba "Bot" em `/mensageria/config` | M0 (ingestMessage) | ⏳ Em andamento |
-| **M4.2** | Tool-use sobre dados do segmento: `segment_data_entities` + resolver genérico + `completeWithTools()` na factory LLM | M4.1 | ⏳ Em andamento (junto com M4.1) |
+| **M4.1** | Núcleo do bot: `bot_flows`/`bot_sessions`, `botAdapter`, resposta como `message(sender_type='bot')`, handoff por regra, aba "Bot" em `/mensageria/config` | M0 (ingestMessage) | ✅ |
+| **M4.2** | Tool-use sobre dados do segmento: `segment_data_entities` + resolver genérico + `completeWithTools()` na factory LLM | M4.1 | ✅ |
 | **M4.3** | RAG: pgvector + `knowledge_documents/chunks` + `embed()` — FAQ/políticas em markdown | M4.1 | Não iniciada |
 | **M4.4** | Widget público: canal `webchat` + API pública + `ChatWidget.tsx` embutível nas landings | M4.1 | Não iniciada |
 
 **Decisão confirmada com o usuário (2026-07-08):** M4.1 e M4.2 juntos nesta rodada — o bot já nasce
 consultando dados reais do segmento (ex.: imóveis por bairro), não só respondendo texto solto.
 M4.3 (RAG) e M4.4 (widget) ficam para rodadas futuras — não fazem parte do escopo atual.
+
+**M4.1+M4.2 concluídas e testadas em 2026-07-08** — ver `docs/CHECKPOINT.md` para o detalhe completo
+de arquivos criados/modificados e evidências de teste. Resumo: `completeWithTools()` adicionado à
+factory LLM (Anthropic nativo + OpenAI-compatible), `genericResolver.ts` (camada semântica dirigida
+por metadados), `botAdapter.ts` (gate por canal/assignee/sessão, handoff por keyword/maxTurns ANTES
+do LLM, loop de tool-use), hook em `ingestMessage()`, seed de persona (global + Imobiliário) e da 1ª
+entidade (`imovel` → `public.imoveis`), CRUD de config + endpoint de teste, aba "Bot" na UI. Testado
+ponta a ponta com dados reais (isolamento por tenant confirmado; resposta com dados reais confirmada
+com imóveis de teste temporários, removidos após validação). Bug real corrigido durante o teste: o
+`ON CONFLICT` do upsert de `bot_sessions` reativava a sessão a cada mensagem, fazendo o bot voltar a
+responder mesmo depois de um handoff — corrigido pra checar `active` antes de qualquer coisa.
 
 **Simplificações desta rodada** (para reduzir risco de infra nova, sem fechar a porta pras versões
 completas depois):
