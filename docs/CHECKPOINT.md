@@ -1,12 +1,52 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-09 (M4.2 — UI de teste de conversa + fix tenant_id em tipos_imovel/status_imovel: concluído e testado)
+> **Atualizado em:** 2026-07-09 (M4.2 Ponto 3c — UI "Dados do Bot" no Master: concluído e testado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-09 (continuação 2) — UI "Dados do Bot" no Master (Ponto 3c) ✅
+
+**Decisão de UX (discutida com o usuário antes de implementar):** usuário propôs um botão na
+página de Prompts. Recomendei `/admin/master/segments` em vez disso — `segment_data_entities` é
+keyed por `segment_id`, igual `segment_angle_terms` (Ângulos & Demanda) e Interesses Meta, e a
+página de Prompts é genérica pra qualquer `template_key` (não só a persona do bot), então acoplar
+um botão específico ali seria estranho. Segments já tem exatamente essa gaveta — 3 botões de
+config por segmento (Ângulos, Interesses, Parâmetros do Agente). Usuário confirmou: seguir só na
+página de Segmentos, sem atalho a partir de Prompts.
+
+**Implementado** (mesmo padrão visual/interação de `SegmentAnglesModal` — cards editáveis,
+replace-all no save, sem "Sugerir com IA" ainda, já que não há job de introspecção):
+1. `GET/PUT /api/admin/master/segments/[id]/data-entities` — só entidades de escopo segmento
+   (`tenant_id IS NULL`; overrides por tenant continuam via SQL, mesma decisão já tomada pra
+   `bot_flows`). PUT é replace-all transacional (delete + reinsert), valida todo identificador
+   (nome de tabela/coluna/tabela-ponte/lookup) contra `IDENT_RE` antes de persistir — o Master não
+   consegue salvar um fragmento de SQL disfarçado de nome de coluna.
+2. `SegmentDataEntitiesModal.tsx` (novo) — cards de entidade (nome/tabela/descrição/coluna de
+   tenant/filtro padrão/máx. resultados/ativo), sub-lista de colunas (nome/tipo/descrição/
+   mostra/filtra), sub-lista de relations (nome/agregação/tabela-ponte/FK/tabela de nomes/FK do
+   lookup/coluna trazida/teto), painel de Ajuda explicando colunas×relations e a garantia de
+   segurança (bot nunca escreve SQL, sempre isolado por tenant).
+3. `/admin/master/segments` — 4º botão na coluna de Ações (ícone `CircleStackIcon`, verde-esmeralda
+   pra diferenciar dos outros 3), abre o modal escopado ao segmento da linha.
+
+**Testado** (token Master gerado manualmente via padrão do CLAUDE.md, cookie `admin_auth_token` —
+a rota usa cookie como as rotas irmãs de Ângulos/Benchmarks, não Bearer header):
+`GET` retorna as 2 entidades reais (`imovel` com as 3 relations, `tipo_imovel`) exatamente como
+estão no banco · `PUT` com uma 3ª entidade de teste persistiu tudo corretamente (colunas, relations,
+inclusive `is_active=false`) · validação rejeitou um nome de tabela com SQL injetado
+(`"imoveis; DROP TABLE imoveis;--"`) · estado original restaurado byte-a-byte (mesma contagem de
+colunas/relations) · bot re-testado depois do round-trip pela API — continua respondendo com os 12
+tipos reais, sem regressão. `npx tsc --noEmit` limpo.
+
+**Pendências (próxima rodada):** UX multi-segmento em `/admin/master/prompts` (Ponto 2, ainda não
+atacado) · sem botão "Sugerir com IA" nesta tela (dependeria do job de introspecção, fora de
+escopo) · overrides por tenant de `segment_data_entities` continuam só via SQL.
+
+---
 
 ### Sessão 2026-07-09 (continuação) — UI de teste de conversa + fix tenant_id em tipos_imovel/status_imovel ✅
 

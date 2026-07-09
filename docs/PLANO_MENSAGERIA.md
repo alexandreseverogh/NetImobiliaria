@@ -1266,10 +1266,19 @@ depois**. Esta rodada fez o Ponto 1 e o Ponto 3a/3b (ver `docs/CHECKPOINT.md` pa
   ponta. Bug de robustez de tool-use corrigido: schema de filtros exposto como `string` + coerção
   server-side (o provider global é OpenAI-compatible e rejeita número-como-string).
 
-**Ainda pendente (próxima rodada — "UI depois"):**
-- **Ponto 3c:** UI "Dados do Bot" no Master (modal por segmento, padrão dos modais de
-  `/admin/master/segments`) — cadastro de entidades/colunas/relations sem SQL, por segmento
-  (Imobiliário, Saúde, Carros, …). É o "total parametrização de quais tabelas cada segmento acessa".
+**Ponto 3c concluído em 2026-07-09** — UI "Dados do Bot" implementada em `/admin/master/segments`
+(4º botão na coluna Ações, junto de Ângulos/Interesses/Parâmetros do Agente — mesmo padrão visual/
+replace-all de `SegmentAnglesModal`). `GET/PUT /api/admin/master/segments/[id]/data-entities`,
+`SegmentDataEntitiesModal.tsx`. Decisão de UX: **não** na página de Prompts (proposta original do
+usuário) — `segment_data_entities` é por segmento como Ângulos/Interesses, e Prompts é genérico pra
+qualquer `template_key`, não só a persona do bot. Testado (Master token manual, cookie
+`admin_auth_token`): GET/PUT round-trip preservando colunas/relations, validação rejeita
+identificador com SQL injetado, bot recontinua funcionando após editar via UI. Ver
+`docs/CHECKPOINT.md` pro detalhe completo.
+
+**Ainda pendente (próxima rodada):**
 - **Ponto 2:** UX multi-segmento em `/admin/master/prompts` — a capacidade existe (Duplicar
   p/ segmento; banco permite N variantes por `template_key`), falta torná-la first-class e proteger o
   footgun do Salvar (trocar o segmento e Salvar MOVE o Global).
+- Job de introspecção automática (14.6-A) — sem "Sugerir com IA" na tela de Dados do Bot ainda.
+- Overrides de `segment_data_entities` por tenant continuam só via SQL.
