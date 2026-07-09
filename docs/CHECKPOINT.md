@@ -1,8 +1,37 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-08 (M4.1+M4.2 — Chatbot com tool-use: concluído e testado)
+> **Atualizado em:** 2026-07-08 (M4.2 refinamento — relations multi-tabela + persona no lugar certo: iniciando)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Tarefa em andamento
+
+### Sessão 2026-07-08 — M4.2 refinamento (motor de dados multi-tabela + persona) ⏳
+
+**Contexto:** revisão holística pedida pelo usuário apontou 3 pontos. Decisão de sequência confirmada:
+"motor primeiro, UI depois". Esta rodada faz Ponto 1 + Ponto 3a/3b; próxima rodada faz 3c (UI Master
+"Dados do Bot") + Ponto 2 (UX prompts multi-segmento).
+
+1. **Ponto 1 — persona no lugar certo:** remover o campo de persona (override) da aba Bot em
+   `/mensageria/config` e do `botAdapter` (`resolvePersona` deixa de honrar `bot_flows.system_prompt`).
+   Persona passa a ser 100% dirigida por segmento via `/admin/master/prompts`
+   (`resolvePromptTemplate('mensageria_bot_persona', segmentId)` — segmento → fallback global).
+   A aba Bot fica só com o operacional do tenant: ativo, handoff (keywords/maxTurns), teste.
+2. **Ponto 3a — relations no resolver:** `genericResolver.ts` ganhou de volta o suporte a `relations`
+   (que eu havia descartado do design 14.6-A), agora mais rico que o plano: subqueries escalares
+   correlacionadas com agregação one-to-many (`array_agg`), `count`, `first`, e multi-hop
+   (imovel → tabela-ponte → lookup de nome). TODOS os identificadores montados pelo resolver a partir
+   de campos bare validados por IDENT_RE (config nunca fornece fragmento SQL cru — mais seguro que o
+   plano, que interpolava `r.join_table`/`r.on`/`r.select` direto).
+3. **Ponto 3b — re-seed Imobiliário:** entidade `imovel` ganha relations reais (fotos=count de
+   `imovel_imagens`; amenidades=array via `imovel_amenidades`→`amenidades.nome`; proximidades=array
+   via `imovel_proximidades`→`proximidades.nome`), validado ponta a ponta.
+
+**Pendências desta frente (próxima rodada):** UI "Dados do Bot" no Master (3c, modal por segmento no
+padrão Ângulos/Interesses/Benchmarks de `/admin/master/segments`) · UX multi-segmento em
+`/admin/master/prompts` (Ponto 2: "adicionar variante por segmento" + guarda do footgun do Salvar).
 
 ---
 
