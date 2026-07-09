@@ -1,41 +1,72 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-08 (M4.2 refinamento — relations multi-tabela + persona no lugar certo: iniciando)
+> **Atualizado em:** 2026-07-09 (M4.2 refinamento — relations multi-tabela + persona no lugar certo: concluído e testado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
-## Tarefa em andamento
+## Última tarefa concluída
 
-### Sessão 2026-07-08 — M4.2 refinamento (motor de dados multi-tabela + persona) ⏳
+### Sessão 2026-07-09 — M4.2 refinamento (motor de dados multi-tabela + persona no lugar certo) ✅
 
-**Contexto:** revisão holística pedida pelo usuário apontou 3 pontos. Decisão de sequência confirmada:
-"motor primeiro, UI depois". Esta rodada faz Ponto 1 + Ponto 3a/3b; próxima rodada faz 3c (UI Master
-"Dados do Bot") + Ponto 2 (UX prompts multi-segmento).
+**Contexto:** revisão holística pedida pelo usuário apontou 3 pontos. Sequência confirmada:
+"motor primeiro, UI depois". Esta rodada fez Ponto 1 + Ponto 3a/3b.
 
-1. **Ponto 1 — persona no lugar certo:** remover o campo de persona (override) da aba Bot em
-   `/mensageria/config` e do `botAdapter` (`resolvePersona` deixa de honrar `bot_flows.system_prompt`).
-   Persona passa a ser 100% dirigida por segmento via `/admin/master/prompts`
-   (`resolvePromptTemplate('mensageria_bot_persona', segmentId)` — segmento → fallback global).
-   A aba Bot fica só com o operacional do tenant: ativo, handoff (keywords/maxTurns), teste.
-2. **Ponto 3a — relations no resolver:** `genericResolver.ts` ganhou de volta o suporte a `relations`
-   (que eu havia descartado do design 14.6-A), agora mais rico que o plano: subqueries escalares
-   correlacionadas com agregação one-to-many (`array_agg`), `count`, `first`, e multi-hop
-   (imovel → tabela-ponte → lookup de nome). TODOS os identificadores montados pelo resolver a partir
-   de campos bare validados por IDENT_RE (config nunca fornece fragmento SQL cru — mais seguro que o
-   plano, que interpolava `r.join_table`/`r.on`/`r.select` direto).
-3. **Ponto 3b — re-seed Imobiliário:** entidade `imovel` ganha relations reais (fotos=count de
-   `imovel_imagens`; amenidades=array via `imovel_amenidades`→`amenidades.nome`; proximidades=array
-   via `imovel_proximidades`→`proximidades.nome`), validado ponta a ponta.
+1. **Ponto 1 — persona no lugar certo (feito):** removido o campo de persona (override) da aba Bot em
+   `/mensageria/config`, do endpoint `bot-flows` (GET/PUT não lê/grava mais `system_prompt`) e do
+   `botAdapter` (`resolvePersona` não honra mais override — persona é 100% dirigida por segmento).
+   A persona agora vem só de `/admin/master/prompts` (template `mensageria_bot_persona`,
+   `resolvePromptTemplate` faz segmento → fallback global). A aba Bot ficou com o operacional do
+   tenant (ativo, handoff keywords/maxTurns, teste) + uma nota apontando pro Editor de Prompts.
+2. **Ponto 3a — relations no resolver (feito):** `genericResolver.ts` reganhou o suporte a `relations`
+   (que eu havia descartado do design 14.6-A), mais robusto que o rascunho do plano: subqueries
+   escalares correlacionadas com agregação one-to-many (`array_agg` com teto), `count`, `first`, e
+   multi-hop (imovel → tabela-ponte → lookup do nome). TODOS os identificadores são montados pelo
+   resolver a partir de campos "bare" validados por IDENT_RE — config NUNCA fornece fragmento SQL cru
+   (o rascunho 14.6-A interpolava `r.join_table`/`r.on`/`r.select` direto; isto é mais seguro).
+3. **Ponto 3b — re-seed Imobiliário (feito):** `migration-2026-07-08-mensageria-bot-relations.sql`
+   popula relations reais na entidade `imovel`: `qtd_fotos`=count de `imovel_imagens`;
+   `amenidades`=array via `imovel_amenidades`→`amenidades.nome`; `proximidades`=array via
+   `imovel_proximidades`→`proximidades.nome`. Aplicada localmente.
 
-**Pendências desta frente (próxima rodada):** UI "Dados do Bot" no Master (3c, modal por segmento no
-padrão Ângulos/Interesses/Benchmarks de `/admin/master/segments`) · UX multi-segmento em
-`/admin/master/prompts` (Ponto 2: "adicionar variante por segmento" + guarda do footgun do Salvar).
+**Bug real encontrado e corrigido durante o teste (importante):** o LLM global da plataforma é um
+provider **OpenAI-compatible com validação estrita de schema** (não Anthropic). O modelo mandou
+`quartos: "3"` (string) e o provider rejeitou a tool call porque o schema declarava `number`
+(`400 tool call validation failed ... expected number, but got string`). Isso explica por que o
+teste de M4.1 tinha passado "na sorte" (naquela vez o modelo emitiu número). **Correção:** o schema
+das ferramentas agora expõe todo filtro como `string`, e a coerção pro tipo real acontece
+server-side no `resolveEntity` (número via `Number()` com validação, boolean normalizado, texto
+ILIKE). Robusto e determinístico independentemente do que o modelo emite. Também: `completeWithTools`
+passou a **omitir** `tools` da requisição quando o array é vazio (a rodada final do loop de tool-use
+mandava `tools: []`, que os providers rejeitam).
+
+**Testado ponta a ponta** (tenant Marketing Digital, dados temporários removidos após validação):
+SQL das relations validado contra dados REAIS do tenant Imobiliaria XYZ (imóvel 17, 44 amenidades →
+multi-hop + `array_agg` corretos) · bot respondeu citando as 3 amenidades, 2 proximidades e campos
+base (preço/banheiros/vagas/área) exatamente como inseridos · `npx tsc --noEmit` limpo · bundle da
+config confirma persona removida + nota do Editor de Prompts presente.
+
+**Nota honesta de cobertura:** só o branch **OpenAI-compatible** de `completeWithTools` foi exercitado
+em runtime (é o provider global configurado). O branch Anthropic compila e está correto por
+construção, mas não foi testado ao vivo nesta rodada.
+
+**Pendências desta frente (próxima rodada — "UI depois"):**
+- **3c — UI "Dados do Bot" no Master:** modal por segmento (padrão Ângulos/Interesses/Benchmarks de
+  `/admin/master/segments`) pra cadastrar entidades + colunas selectable/filterable + relations sem
+  SQL. É o que torna o "quais tabelas cada segmento acessa" 100% parametrizável (inclusive Saúde,
+  Carros, etc. — hoje só via SQL).
+- **Ponto 2 — UX multi-segmento em `/admin/master/prompts`:** a capacidade existe (botão "Duplicar
+  p/ segmento"; banco permite N variantes por template_key), mas o fluxo é escondido e tem footgun
+  (abrir o Global, trocar segmento e clicar Salvar MOVE o Global pro segmento). Tornar "adicionar
+  variante por segmento" first-class + proteger o Salvar.
+- Persona por segmento: hoje semeados global + Imobiliário. Saúde/Carros/etc. entram via
+  `/admin/master/prompts` quando forem ativados.
+- Job de introspecção de tabelas novas (14.6-A) — futuro.
 
 ---
 
-## Última tarefa concluída
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-08 — M4.1 + M4.2: Chatbot mínimo + ferramentas de dados por segmento ✅
 
@@ -91,8 +122,6 @@ ver lição operacional já registrada nesta sessão).
 (flow padrão, sem persona override, keywords `atendente/humano/falar com alguem`, maxTurns=6).
 
 ---
-
-### Sessão 2026-07-08 — Caixa de Entrada: Coluna 3 refatorada para `ConversationThread` ✅
 
 ### Sessão 2026-07-08 — Caixa de Entrada: Coluna 3 refatorada para `ConversationThread` ✅
 

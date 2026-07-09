@@ -1247,3 +1247,29 @@ completas depois):
   sofisticado que a seção 14.6 sugere como possível evolução.
 - Memória em 2 camadas (histórico da thread + `bot_sessions.state`) — o resumo rolante (14.7,
   3ª camada) só se justifica quando threads ficarem longas o bastante para estourar contexto.
+
+### 18.2 Refinamento pós-revisão holística (2026-07-09) — motor de dados multi-tabela + persona
+
+Revisão holística pedida pelo usuário apontou 3 pontos. Sequência confirmada: **motor primeiro, UI
+depois**. Esta rodada fez o Ponto 1 e o Ponto 3a/3b (ver `docs/CHECKPOINT.md` para detalhe e testes).
+
+- **Ponto 1 — persona no lugar certo:** a persona do bot NÃO mora mais na aba Bot de
+  `/mensageria/config`. É 100% dirigida por segmento em `/admin/master/prompts` (template
+  `mensageria_bot_persona`). Removido o campo/override da aba Bot, do endpoint `bot-flows` e do
+  `botAdapter`. A aba Bot ficou só com o operacional do tenant (ativo + handoff + teste).
+- **Ponto 3a/3b — motor multi-tabela:** `genericResolver.ts` reganhou `relations` (que eu havia
+  descartado do rascunho 14.6-A), agora com agregação one-to-many (`array_agg`), `count`, `first` e
+  **multi-hop** (imovel → tabela-ponte → lookup do nome). **Mais seguro que o rascunho do plano:** o
+  resolver monta o SQL das relations a partir de campos "bare" validados por IDENT_RE — a config
+  nunca fornece fragmento SQL cru (o rascunho 14.6-A interpolava `r.join_table`/`r.on`/`r.select`
+  direto). Entidade `imovel` re-semeada com fotos/amenidades/proximidades reais e validada ponta a
+  ponta. Bug de robustez de tool-use corrigido: schema de filtros exposto como `string` + coerção
+  server-side (o provider global é OpenAI-compatible e rejeita número-como-string).
+
+**Ainda pendente (próxima rodada — "UI depois"):**
+- **Ponto 3c:** UI "Dados do Bot" no Master (modal por segmento, padrão dos modais de
+  `/admin/master/segments`) — cadastro de entidades/colunas/relations sem SQL, por segmento
+  (Imobiliário, Saúde, Carros, …). É o "total parametrização de quais tabelas cada segmento acessa".
+- **Ponto 2:** UX multi-segmento em `/admin/master/prompts` — a capacidade existe (Duplicar
+  p/ segmento; banco permite N variantes por `template_key`), falta torná-la first-class e proteger o
+  footgun do Salvar (trocar o segmento e Salvar MOVE o Global).
