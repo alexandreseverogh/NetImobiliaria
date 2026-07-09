@@ -1,12 +1,76 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-09 (M4.2 refinamento — relations multi-tabela + persona no lugar certo: concluído e testado)
+> **Atualizado em:** 2026-07-09 (M4.2 — UI de teste de conversa + fix tenant_id em tipos_imovel/status_imovel: concluído e testado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-09 (continuação) — UI de teste de conversa + fix tenant_id em tipos_imovel/status_imovel ✅
+
+**Contexto:** usuário pediu uma UI temporária pra testar conversas de múltiplos turnos com o bot
+(memória, handoff, tool-use) antes de ir pra UI definitiva do Master. Testando, encontrou o bot
+respondendo genérico/alucinado sobre "que tipos de imóveis vocês trabalham" — investigação revelou
+um bug pré-existente e maior do que a pergunta original, em `tipos_imovel`/`status_imovel`.
+
+**1. UI de teste de conversa** (`/mensageria/config` → aba Bot):
+- `POST /api/admin/mensageria/bot/test` reescrito: `GET ?inboxId=` (estado atual — histórico completo
+  + `handledByBot`/`botSessionActive`), `POST` (manda mensagem, retorna histórico **inteiro**, não só
+  a resposta nova), `DELETE ?inboxId=` (reinicia — deleta a `conversation`, `messages`/`bot_sessions`/
+  `conversation_events` cascateiam via FK).
+- Painel "Testar bot" virou chat de verdade: bolhas indo/vindo (mesmo estilo do `ConversationThread`
+  real), scroll automático, persiste entre trocas de aba/reload, banner quando handoff já ocorreu,
+  botão "Reiniciar conversa".
+- **Bug de robustez pego no teste:** o LLM global é OpenAI-compatible com validação estrita — a rodada
+  final do loop de tool-use mandava `tools: []`, que o provider rejeita (`400`). Corrigido:
+  `completeWithTools` omite `tools` da requisição quando vazio, nos dois branches (Anthropic/OpenAI).
+- **Testado:** memória entre turnos (perguntei nome, dei "Carlos", perguntei de volta — acertou) ·
+  handoff por keyword (`botSessionActive` vira `false`, bot fica em silêncio nas mensagens seguintes,
+  confirmado por acidente com um double-submit) · `GET` reflete exatamente o mesmo estado do último
+  `POST` (sem drift, testável após reload).
+
+**2. Bug real encontrado via teste — `tipos_imovel` não tinha escopo por tenant de verdade:**
+- Comparando com as rotas irmãs (`finalidades`/`status_imovel`, que extraem `tenantId` do JWT
+  corretamente), a rota `/api/admin/tipos-imoveis` **ignorava o tenant do token** — `GET` chamava
+  `findAllTiposImovel()` sem argumento, e a função tinha `tenantId: string = '00000000-...'`
+  **hardcoded como default**. Toda empresa da plataforma via a mesma lista de 12 tipos do tenant
+  master. `POST`/`PUT`/`PATCH`/`DELETE` em `[id]/route.ts` tinham o mesmo problema (e ainda um bug de
+  assinatura: `updateTipoImovel(id, {nome,...})` passava um objeto no lugar do `tenantId` esperado —
+  confirmado pelos erros de TS pré-existentes já vistos no baseline desta sessão, que na hora pareciam
+  não-relacionados e agora se mostraram diretamente relevantes).
+- **Descoberta adicional:** a constraint `UNIQUE(nome)` (global, não por tenant) em `tipos_imovel` E
+  `status_imovel` impedia a correção direta — não dava pra duplicar "Apartamento" pro tenant Marketing
+  Digital enquanto "Apartamento" já existisse sob o master.
+- **Verificação de impacto antes de agir:** Imobiliaria XYZ (tenant real, `c828d003...`) tem **12
+  imóveis reais** usando `tipo_fk=12` ("Apartamento", uma linha do master) — mover(UPDATE) as linhas
+  pra Marketing Digital quebraria a visibilidade do catálogo pra Imobiliaria XYZ assim que o bug da
+  rota fosse corrigido. Decisão confirmada com o usuário: **duplicar** (não mover) pro Marketing
+  Digital, `amenidades`/`proximidades` ficam de fora (são catálogos genuinamente compartilhados,
+  já validados funcionando via `imovel_amenidades`/`imovel_proximidades` no teste anterior).
+- **`prisma/migration-2026-07-09-tipos-status-imovel-tenant-scope.sql`** (aplicada): `UNIQUE(nome)` →
+  `UNIQUE(tenant_id, nome)` em `tipos_imovel` e `status_imovel` · duplica as 12 linhas de `tipos_imovel`
+  e a 1 linha órfã de `status_imovel` (ambas sob o master) pro tenant Marketing Digital · Imobiliaria
+  XYZ e o master continuam com suas linhas intactas.
+- **Rotas corrigidas** (`src/lib/database/tipos-imoveis.ts` + `src/app/api/admin/tipos-imoveis/
+  route.ts` + `.../[id]/route.ts`): `tenantId` agora `string | undefined` em toda a cadeia (mesmo
+  padrão de `status-imovel.ts`) — master vê tudo (sem filtro), tenant vê só o seu; `POST` exige
+  tenantId (401 se ausente); `PUT`/`PATCH`/`DELETE` corrigidos pra passar `tenantId` na posição certa.
+- **`prisma/migration-2026-07-09-mensageria-bot-tipos-imovel.sql`** — registra `tipos_imovel` como 2ª
+  ferramenta de dados do bot (segmento Imobiliário).
+- **Testado:** `npx tsc --noEmit` limpo (os erros de TS pré-existentes em `tipos-imoveis/*` do
+  baseline desta sessão desapareceram) · query simulada confirma 12 linhas próprias do Marketing
+  Digital · bot re-testado com a MESMA pergunta que tinha alucinado antes — agora cita os 12 tipos
+  reais, sem inventar nada.
+
+**Pendências (inalteradas, próxima rodada):** UI "Dados do Bot" no Master (3c) · UX multi-segmento em
+`/admin/master/prompts` (Ponto 2) · `amenidades`/`proximidades` ainda não registradas como ferramentas
+do bot (ficaram de fora desta rodada, mas o motor já suporta — é só cadastro).
+
+---
+
+### Sessão 2026-07-09 — M4.2 refinamento (motor de dados multi-tabela + persona no lugar certo) ✅
 
 ### Sessão 2026-07-09 — M4.2 refinamento (motor de dados multi-tabela + persona no lugar certo) ✅
 
