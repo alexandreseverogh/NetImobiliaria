@@ -9,9 +9,49 @@ import pool from '@/lib/database/connection'
 
 const SCHEMA = 'mensageria'
 
-export async function resolveWhatsAppInbox(tenantId: string): Promise<string> {
+/**
+ * Cascata cliente → tenant (mesmo padrão de getNetworkServiceForTenant() no módulo de
+ * campanhas): se o cliente tiver credenciais Evolution próprias (public.clientes),
+ * resolve/cria uma inbox dedicada a ele; senão cai para a inbox padrão do tenant.
+ * Ver docs/PLANO_MENSAGERIA.md seção 14.9 — gap corrigido: antes, uma única inbox por
+ * tenant era usada para todos os clientes, ignorando client_id mesmo a coluna existindo.
+ */
+export async function resolveWhatsAppInbox(tenantId: string, clientId?: string | null): Promise<string> {
+  if (clientId) {
+    const { rows } = await pool.query(
+      `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id = $2 AND channel_type = 'whatsapp' LIMIT 1`,
+      [tenantId, clientId],
+    )
+    if (rows[0]) return rows[0].id
+
+    const { rows: clientRows } = await pool.query(
+      `SELECT evolution_api_url, evolution_api_key, evolution_instance, numero_whatsapp
+         FROM public.clientes WHERE uuid = $1 AND tenant_id = $2`,
+      [clientId, tenantId],
+    )
+    const c = clientRows[0]
+    if (c?.evolution_instance) {
+      const { rows: created } = await pool.query(
+        `INSERT INTO ${SCHEMA}.inboxes (tenant_id, client_id, name, channel_type, provider, config)
+         VALUES ($1, $2, 'WhatsApp (cliente)', 'whatsapp', 'evolution', $3::jsonb)
+         RETURNING id`,
+        [
+          tenantId, clientId,
+          JSON.stringify({
+            api_url: c.evolution_api_url ?? null,
+            api_key: c.evolution_api_key ?? null,
+            instance: c.evolution_instance ?? null,
+            number: c.numero_whatsapp ?? null,
+          }),
+        ],
+      )
+      return created[0].id
+    }
+    // Cliente sem número próprio configurado — cai para a inbox padrão do tenant abaixo.
+  }
+
   const { rows } = await pool.query(
-    `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND channel_type = 'whatsapp' LIMIT 1`,
+    `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND client_id IS NULL AND channel_type = 'whatsapp' LIMIT 1`,
     [tenantId],
   )
   if (rows[0]) return rows[0].id

@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  InboxIcon, UserCircleIcon, UsersIcon, PaperAirplaneIcon,
-  CheckCircleIcon, ClockIcon, PhoneIcon, LockClosedIcon, PlusIcon, XMarkIcon,
+  InboxIcon, UserCircleIcon, UsersIcon,
+  CheckCircleIcon, PlusIcon, XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import { formatTelefone } from '@/lib/utils/formatters'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
+import ConversationThread from '@/components/mensageria/ConversationThread'
 
 type Folder = 'all' | 'unassigned' | 'mine'
 
@@ -26,33 +27,6 @@ interface ConversationSummary {
   createdAt: string
 }
 
-interface Message {
-  id: string
-  direction: 'inbound' | 'outbound'
-  senderType: 'contact' | 'agent' | 'bot' | 'system'
-  senderId: string | null
-  content: string | null
-  contentType: string
-  deliveryStatus: string
-  isPrivate: boolean
-  createdAt: string
-}
-
-interface ConversationDetail {
-  id: string
-  status: string
-  priority: string | null
-  handledByBot: boolean
-  firstResponseAt?: string | null
-  contact: { id: string; name: string | null; phone: string | null; email: string | null; avatarUrl: string | null; leadUuid: string | null }
-  inbox: { id: string; channelType: string; name: string }
-  labels: { id: string; name: string; color: string }[]
-  sla: { firstResponseDue: string | null; firstResponseBreached: boolean; resolutionDue: string | null; resolutionBreached: boolean } | null
-}
-
-interface Label { id: string; name: string; color: string }
-interface CannedResponse { id: string; shortcut: string; content: string }
-
 function timeAgo(iso: string | null): string {
   if (!iso) return ''
   const diffMs = Date.now() - new Date(iso).getTime()
@@ -62,31 +36,6 @@ function timeAgo(iso: string | null): string {
   const h = Math.floor(min / 60)
   if (h < 24) return `${h}h`
   return `${Math.floor(h / 24)}d`
-}
-
-function SlaBadge({ detail }: { detail: ConversationDetail }) {
-  if (!detail.sla) return null
-  const { firstResponseDue, firstResponseBreached, resolutionDue, resolutionBreached } = detail.sla
-
-  // Ainda não respondeu ao contato — prioridade é o prazo de 1ª resposta
-  if (!detail.firstResponseAt && firstResponseDue) {
-    if (firstResponseBreached) {
-      return <span className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-rose-500/12 text-rose-400 text-xs font-medium"><ClockIcon className="w-3.5 h-3.5" /> SLA estourado</span>
-    }
-    const due = new Date(firstResponseDue)
-    return <span className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-white/5 text-slate-400 text-xs font-medium"><ClockIcon className="w-3.5 h-3.5" /> Responder até {due.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-  }
-
-  // Já respondeu — se ainda aberta, o prazo relevante passa a ser resolução
-  if (detail.status !== 'resolved' && resolutionDue) {
-    if (resolutionBreached) {
-      return <span className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-rose-500/12 text-rose-400 text-xs font-medium"><ClockIcon className="w-3.5 h-3.5" /> Resolução atrasada</span>
-    }
-    const due = new Date(resolutionDue)
-    return <span className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-white/5 text-slate-400 text-xs font-medium"><ClockIcon className="w-3.5 h-3.5" /> Resolver até {due.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-  }
-
-  return null
 }
 
 function initials(name: string | null): string {
@@ -99,30 +48,6 @@ function initials(name: string | null): string {
 function formatFullDate(iso: string | null): string {
   if (!iso) return ''
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-}
-
-function isSameDay(isoA: string, isoB: string): boolean {
-  const a = new Date(isoA); const b = new Date(isoB)
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-}
-
-function formatDateLabel(iso: string): string {
-  const d = new Date(iso)
-  const today = new Date()
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
-  if (isSameDay(iso, today.toISOString())) return 'Hoje'
-  if (isSameDay(iso, yesterday.toISOString())) return 'Ontem'
-  return d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-}
-
-function DateDivider({ iso }: { iso: string }) {
-  return (
-    <div className="flex justify-center my-1">
-      <span className="text-[10px] font-medium text-slate-400 bg-white/5 border border-white/8 px-2.5 py-1 rounded-full capitalize">
-        {formatDateLabel(iso)}
-      </span>
-    </div>
-  )
 }
 
 // Validação reforçada — a global validateTelefone()/validateEmail() (src/lib/utils/formatters.ts)
@@ -165,19 +90,6 @@ export default function MensageriaPage() {
   const [dateFrom, setDateFrom] = useState('') // ISO yyyy-mm-dd — filtro de período (item 2)
   const [dateTo, setDateTo] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<ConversationDetail | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [loadingThread, setLoadingThread] = useState(false)
-  const [composer, setComposer] = useState('')
-  const [isPrivateNote, setIsPrivateNote] = useState(false)
-  const [sending, setSending] = useState(false)
-  const messagesContainerRef = useRef<HTMLDivElement>(null)
-
-  // Etiquetas + Respostas rápidas (M3)
-  const [allLabels, setAllLabels] = useState<Label[]>([])
-  const [showLabelPicker, setShowLabelPicker] = useState(false)
-  const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([])
-  const [showCannedSuggestions, setShowCannedSuggestions] = useState(false)
 
   // Nova conversa manual (input manual — canal 'manual', ver M2)
   const [showNewModal, setShowNewModal] = useState(false)
@@ -238,95 +150,23 @@ export default function MensageriaPage() {
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 150) loadMoreConversations()
   }
 
-  async function loadDetail(id: string) {
-    setLoadingThread(true)
-    try {
-      const res = await adminFetch(`/api/admin/mensageria/conversations/${id}`)
-      const data = await res.json()
-      setDetail(data.conversation)
-      setMessages(data.messages || [])
-      // zera contador local sem esperar novo fetch da lista
-      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)))
-    } finally {
-      setLoadingThread(false)
-    }
-  }
-
   useEffect(() => { loadConversations() }, [folder, dateFrom, dateTo])
 
-  useEffect(() => {
-    if (selectedId) loadDetail(selectedId)
-    else { setDetail(null); setMessages([]) }
-  }, [selectedId])
-
-  useEffect(() => {
-    adminFetch('/api/admin/mensageria/labels').then((r) => r.json()).then((d) => setAllLabels(d.labels || [])).catch(() => {})
-    adminFetch('/api/admin/mensageria/canned-responses').then((r) => r.json()).then((d) => setCannedResponses(d.cannedResponses || [])).catch(() => {})
-  }, [])
-
-  async function addLabel(labelId: string) {
-    if (!selectedId) return
-    await adminFetch(`/api/admin/mensageria/conversations/${selectedId}/labels`, {
-      method: 'POST', body: JSON.stringify({ labelId }),
-    })
-    await loadDetail(selectedId)
-    setShowLabelPicker(false)
-  }
-
-  async function removeLabel(labelId: string) {
-    if (!selectedId) return
-    await adminFetch(`/api/admin/mensageria/conversations/${selectedId}/labels?labelId=${labelId}`, { method: 'DELETE' })
-    await loadDetail(selectedId)
-  }
-
-  const cannedMatches = useMemo(() => {
-    if (!composer.startsWith('/')) return []
-    const query = composer.slice(1).toLowerCase()
-    return cannedResponses.filter((c) => c.shortcut.slice(1).toLowerCase().startsWith(query)).slice(0, 5)
-  }, [composer, cannedResponses])
-
-  useEffect(() => {
-    // Rola só o container interno de mensagens — scrollIntoView() escalaria para
-    // ancestrais scrolláveis (inclusive a janela), causando "pulo" da página inteira.
-    const el = messagesContainerRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [messages])
-
-  // Tempo real — SSE (EventSource não aceita headers custom; a rota autentica via cookie)
+  // Tempo real — SSE (EventSource não aceita headers custom; a rota autentica via cookie).
+  // A thread (ConversationThread) tem sua própria assinatura para as mensagens da conversa
+  // aberta; aqui só recarregamos a lista (coluna 2) pra refletir preview/unread/ordenação.
   useEffect(() => {
     const es = new EventSource('/api/admin/mensageria/stream')
     es.onmessage = (ev) => {
       try {
         const event = JSON.parse(ev.data)
-        if (event.type === 'message.created') {
-          loadConversations()
-          if (event.conversationId === selectedId) {
-            setMessages((prev) => (prev.some((m) => m.id === event.message.id) ? prev : [...prev, event.message]))
-          }
-        }
+        if (event.type === 'message.created') loadConversations()
       } catch { /* ignora payload inválido */ }
     }
     es.onerror = () => { /* reconexão automática do EventSource */ }
     return () => es.close()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId])
-
-  async function sendMessage() {
-    if (!selectedId || !composer.trim()) return
-    setSending(true)
-    const content = composer.trim()
-    setComposer('')
-    try {
-      await adminFetch(`/api/admin/mensageria/conversations/${selectedId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ content, isPrivate: isPrivateNote }),
-      })
-      await loadDetail(selectedId)
-      setIsPrivateNote(false)
-    } finally {
-      setSending(false)
-    }
-  }
+  }, [])
 
   // Busca em public.clientes com debounce enquanto o atendente digita o nome —
   // some assim que um cliente é selecionado (newClientId setado)
@@ -405,16 +245,6 @@ export default function MensageriaPage() {
       return
     }
     createManualConversation()
-  }
-
-  async function patchConversation(patch: Record<string, any>) {
-    if (!selectedId) return
-    await adminFetch(`/api/admin/mensageria/conversations/${selectedId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    })
-    await loadDetail(selectedId)
-    await loadConversations()
   }
 
   // "all" usa totalCount (contagem real do servidor) — conversations.length agora só
@@ -527,154 +357,14 @@ export default function MensageriaPage() {
         )}
       </div>
 
-      {/* Coluna 3 — Thread */}
+      {/* Coluna 3 — Thread (componente compartilhado com o drawer do Painel do Gestor) */}
       <div className="flex-1 flex flex-col bg-[#0a192f] min-w-0">
         {!selectedId ? (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-sm text-slate-500">Selecione uma conversa para começar.</p>
           </div>
-        ) : loadingThread || !detail ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-[#c5a028]/30 border-t-[#c5a028] rounded-full animate-spin" />
-          </div>
         ) : (
-          <>
-            {/* Header da thread */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#c5a028]/15 border border-[#c5a028]/20 flex items-center justify-center text-[11px] font-semibold text-[#d4af37]">
-                  {initials(detail.contact.name)}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">{detail.contact.name || detail.contact.phone}</p>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                    <PhoneIcon className="w-3 h-3" /> {detail.contact.phone}
-                    {detail.contact.leadUuid && (
-                      <a href={`/crm/leads?leadId=${detail.contact.leadUuid}`} target="_blank" rel="noreferrer"
-                         className="ml-2 text-[#d4af37] hover:underline">Ver no CRM →</a>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <SlaBadge detail={detail} />
-                <select
-                  value={detail.priority || ''}
-                  onChange={(e) => patchConversation({ priority: e.target.value || null })}
-                  className="h-8 px-2 rounded-lg bg-[#112240] border border-white/8 text-xs text-slate-300 outline-none"
-                >
-                  <option value="">Sem prioridade</option>
-                  <option value="low">Baixa</option>
-                  <option value="medium">Média</option>
-                  <option value="high">Alta</option>
-                  <option value="urgent">Urgente</option>
-                </select>
-                {detail.status !== 'resolved' ? (
-                  <button
-                    onClick={() => patchConversation({ status: 'resolved' })}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#c5a028]/12 text-[#d4af37] text-xs font-medium hover:bg-[#c5a028]/20 transition-colors"
-                  >
-                    <CheckCircleIcon className="w-3.5 h-3.5" /> Resolver
-                  </button>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium">
-                    <CheckCircleIcon className="w-3.5 h-3.5" /> Resolvida
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Etiquetas */}
-            <div className="flex items-center gap-1.5 px-5 py-2 border-b border-white/5 flex-wrap relative">
-              {detail.labels.map((l) => (
-                <span key={l.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium" style={{ background: `${l.color}22`, color: l.color, border: `1px solid ${l.color}40` }}>
-                  {l.name}
-                  <button onClick={() => removeLabel(l.id)} className="opacity-60 hover:opacity-100">×</button>
-                </span>
-              ))}
-              <button
-                onClick={() => setShowLabelPicker((v) => !v)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-slate-500 border border-white/8 hover:text-slate-300 transition-colors"
-              >
-                <PlusIcon className="w-3 h-3" /> Etiqueta
-              </button>
-              {showLabelPicker && (
-                <div className="absolute top-full left-5 mt-1 z-20 w-48 rounded-lg bg-[#112240] border border-white/10 shadow-xl py-1">
-                  {allLabels.filter((l) => !detail.labels.some((dl) => dl.id === l.id)).map((l) => (
-                    <button key={l.id} onClick={() => addLabel(l.id)} className="w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full" style={{ background: l.color }} /> {l.name}
-                    </button>
-                  ))}
-                  {allLabels.length === 0 && <p className="px-3 py-1.5 text-xs text-slate-500">Nenhuma etiqueta cadastrada.</p>}
-                </div>
-              )}
-            </div>
-
-            {/* Mensagens */}
-            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-              {messages.map((m, i) => (
-                <div key={m.id}>
-                  {(i === 0 || !isSameDay(messages[i - 1].createdAt, m.createdAt)) && <DateDivider iso={m.createdAt} />}
-                  <MessageBubble message={m} />
-                </div>
-              ))}
-            </div>
-
-            {/* Composer */}
-            <div className="border-t border-white/5 p-3 relative">
-              {isPrivateNote && (
-                <div className="mb-2 flex items-center gap-1.5 text-[11px] text-amber-400/80">
-                  <LockClosedIcon className="w-3 h-3" /> Nota interna — não será enviada ao contato
-                </div>
-              )}
-              {cannedMatches.length > 0 && (
-                <div className="absolute bottom-full left-3 mb-1 w-80 rounded-lg bg-[#112240] border border-white/10 shadow-xl py-1 z-20">
-                  {cannedMatches.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => setComposer(c.content)}
-                      className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors"
-                    >
-                      <p className="text-xs font-semibold text-[#d4af37]">{c.shortcut}</p>
-                      <p className="text-xs text-slate-400 truncate">{c.content}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-end gap-2">
-                <textarea
-                  value={composer}
-                  onChange={(e) => setComposer(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-                  placeholder={isPrivateNote ? 'Escreva uma nota interna...' : 'Escreva uma mensagem... (/ para respostas rápidas)'}
-                  rows={2}
-                  className={`flex-1 resize-none rounded-lg px-3 py-2 text-sm outline-none border transition-colors ${
-                    isPrivateNote
-                      ? 'bg-amber-500/5 border-amber-500/20 text-amber-100 focus:border-amber-500/40'
-                      : 'bg-[#112240] border-white/8 text-slate-200 focus:border-[#c5a028]'
-                  }`}
-                />
-                <div className="flex flex-col gap-1.5">
-                  <button
-                    onClick={() => setIsPrivateNote((v) => !v)}
-                    title="Alternar nota interna"
-                    className={`h-8 w-8 flex items-center justify-center rounded-lg border transition-colors ${
-                      isPrivateNote ? 'bg-amber-500/15 border-amber-500/30 text-amber-400' : 'bg-white/3 border-white/8 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <LockClosedIcon className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={sendMessage}
-                    disabled={sending || !composer.trim()}
-                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-[#c5a028] text-[#020c1b] disabled:opacity-40 hover:bg-[#d4af37] transition-colors"
-                  >
-                    <PaperAirplaneIcon className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
+          <ConversationThread key={selectedId} conversationId={selectedId} onUpdated={loadConversations} />
         )}
       </div>
 
@@ -834,34 +524,3 @@ function ChannelChip({ channelType }: { channelType: string }) {
   )
 }
 
-function MessageBubble({ message }: { message: Message }) {
-  const isOutbound = message.direction === 'outbound'
-  if (message.isPrivate) {
-    return (
-      <div className="flex justify-center">
-        <div className="max-w-[75%] rounded-lg border border-dashed border-amber-500/25 bg-amber-500/5 px-3 py-2">
-          <p className="text-[11px] text-amber-400/70 mb-0.5 flex items-center gap-1"><LockClosedIcon className="w-3 h-3" /> Nota interna</p>
-          <p className="text-sm text-amber-100/90">{message.content}</p>
-        </div>
-      </div>
-    )
-  }
-  return (
-    <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[70%] rounded-xl px-3.5 py-2 ${
-        isOutbound ? 'bg-[#c5a028]/15 text-white' : 'bg-[#112240] text-slate-200'
-      }`}>
-        {message.senderType === 'bot' && (
-          <p className="text-[10px] text-[#d4af37] font-semibold mb-0.5">🤖 Bot</p>
-        )}
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-        <div className="flex items-center justify-end gap-1 mt-1">
-          <span className="text-[10px] text-slate-500" title={formatFullDate(message.createdAt)}>{timeAgo(message.createdAt)}</span>
-          {isOutbound && message.deliveryStatus === 'failed' && (
-            <span className="text-[10px] text-rose-400">falhou</span>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}

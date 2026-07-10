@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   InboxStackIcon, UsersIcon, TagIcon, ChatBubbleBottomCenterTextIcon,
-  ClockIcon, PlusIcon, TrashIcon, CheckCircleIcon, XCircleIcon, StarIcon,
+  ClockIcon, PlusIcon, TrashIcon, CheckCircleIcon, XCircleIcon, StarIcon, CpuChipIcon,
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { adminFetch } from '@/lib/auth/adminFetch'
 
-type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla'
+type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla' | 'bot'
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'inboxes', label: 'Inboxes', icon: InboxStackIcon },
@@ -16,6 +16,7 @@ const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: st
   { id: 'labels', label: 'Etiquetas', icon: TagIcon },
   { id: 'canned', label: 'Respostas Rápidas', icon: ChatBubbleBottomCenterTextIcon },
   { id: 'sla', label: 'SLA', icon: ClockIcon },
+  { id: 'bot', label: 'Bot', icon: CpuChipIcon },
 ]
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -64,6 +65,7 @@ export default function MensageriaConfigPage() {
         {tab === 'labels' && <LabelsTab />}
         {tab === 'canned' && <CannedTab />}
         {tab === 'sla' && <SlaTab />}
+        {tab === 'bot' && <BotTab />}
       </div>
     </div>
   )
@@ -77,11 +79,11 @@ function EmptyState({ text }: { text: string }) {
   return <p className="text-sm text-slate-500 text-center py-8">{text}</p>
 }
 
-function TextInput({ ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+function TextInput({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className="h-9 px-3 rounded-lg bg-[#112240] border border-white/8 text-sm text-slate-200 outline-none focus:border-[#c5a028] transition-colors"
+      className={`h-9 px-3 rounded-lg bg-[#112240] border border-white/8 text-sm text-slate-200 outline-none focus:border-[#c5a028] transition-colors ${className || ''}`}
     />
   )
 }
@@ -677,6 +679,257 @@ function SlaTab() {
             ))}
           </div>
         )}
+      </Card>
+    </div>
+  )
+}
+
+// ============================================================================
+// Bot (M4.1 + M4.2) — operacional (ativo + handoff) e teste rápido.
+// A PERSONA por segmento é editada em /admin/master/prompts, não aqui.
+// ============================================================================
+
+interface BotFlow {
+  id: string; name: string; isActive: boolean
+  handoffKeywords: string[]; maxTurns: number | null
+}
+interface TestMessage { id: string; direction: 'inbound' | 'outbound'; senderType: string; content: string | null; createdAt: string }
+
+function BotTab() {
+  const [flow, setFlow] = useState<BotFlow | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const [isActive, setIsActive] = useState(false)
+  const [keywordsText, setKeywordsText] = useState('atendente, humano, falar com alguem')
+  const [maxTurns, setMaxTurns] = useState('6')
+
+  const [inboxes, setInboxes] = useState<Inbox[]>([])
+  const [testInboxId, setTestInboxId] = useState('')
+  const [testMessage, setTestMessage] = useState('')
+  const [testing, setTesting] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [testMessages, setTestMessages] = useState<TestMessage[]>([])
+  const [handledByBot, setHandledByBot] = useState<boolean | null>(null)
+  const [botSessionActive, setBotSessionActive] = useState<boolean | null>(null)
+  const [testError, setTestError] = useState('')
+  const testScrollRef = useRef<HTMLDivElement>(null)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const [flowRes, ibRes] = await Promise.all([
+        adminFetch('/api/admin/mensageria/bot-flows'),
+        adminFetch('/api/admin/mensageria/inboxes'),
+      ])
+      const flowData: BotFlow | null = (await flowRes.json()).flow
+      setFlow(flowData)
+      setIsActive(flowData?.isActive ?? false)
+      setKeywordsText(flowData?.handoffKeywords?.length ? flowData.handoffKeywords.join(', ') : keywordsText)
+      setMaxTurns(flowData?.maxTurns != null ? String(flowData.maxTurns) : '6')
+
+      const nonManual = ((await ibRes.json()).inboxes || []).filter((i: Inbox) => i.channelType !== 'manual')
+      setInboxes(nonManual)
+      if (nonManual[0]) setTestInboxId(nonManual[0].id)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  // Carrega o estado da conversa de teste dessa inbox (persiste entre trocas de aba/reload).
+  async function loadTestConversation(inboxId: string) {
+    if (!inboxId) return
+    const res = await adminFetch(`/api/admin/mensageria/bot/test?inboxId=${inboxId}`)
+    const data = await res.json()
+    setTestMessages(data.messages || [])
+    setHandledByBot(data.handledByBot)
+    setBotSessionActive(data.botSessionActive)
+  }
+
+  useEffect(() => { if (testInboxId) loadTestConversation(testInboxId) }, [testInboxId])
+
+  useEffect(() => {
+    const el = testScrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [testMessages])
+
+  async function save() {
+    setSaving(true)
+    try {
+      const handoffKeywords = keywordsText.split(',').map((k) => k.trim()).filter(Boolean)
+      const res = await adminFetch('/api/admin/mensageria/bot-flows', {
+        method: 'PUT',
+        body: JSON.stringify({
+          isActive,
+          handoffKeywords, maxTurns: maxTurns ? parseInt(maxTurns, 10) : null,
+        }),
+      })
+      setFlow((await res.json()).flow)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function runTest() {
+    if (!testInboxId || !testMessage.trim()) return
+    const sent = testMessage.trim()
+    setTesting(true)
+    setTestError('')
+    setTestMessage('')
+    try {
+      const res = await adminFetch('/api/admin/mensageria/bot/test', {
+        method: 'POST',
+        body: JSON.stringify({ inboxId: testInboxId, message: sent }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setTestError(data.error || 'Falha ao testar o bot.'); setTestMessage(sent); return }
+      setTestMessages(data.messages || [])
+      setHandledByBot(data.handledByBot)
+      setBotSessionActive(data.botSessionActive)
+    } catch {
+      setTestError('Falha ao testar o bot.')
+      setTestMessage(sent)
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  async function resetTest() {
+    if (!testInboxId) return
+    setResetting(true)
+    try {
+      await adminFetch(`/api/admin/mensageria/bot/test?inboxId=${testInboxId}`, { method: 'DELETE' })
+      setTestMessages([])
+      setHandledByBot(null)
+      setBotSessionActive(null)
+      setTestError('')
+    } finally {
+      setResetting(false)
+    }
+  }
+
+  if (loading) return <Card><p className="text-sm text-slate-500">Carregando...</p></Card>
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <p className="text-sm font-medium text-white">Bot de atendimento</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Responde automaticamente em conversas ainda não atribuídas a um atendente (não atua no canal Manual).
+              Cada resposta aparece na Caixa de Entrada normalmente, com o selo 🤖 Bot.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsActive((v) => !v)}
+            className={`shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors ${
+              isActive ? 'bg-emerald-500/12 text-emerald-400' : 'bg-white/5 text-slate-400'
+            }`}
+          >
+            {isActive ? <CheckCircleIcon className="w-3.5 h-3.5" /> : <XCircleIcon className="w-3.5 h-3.5" />}
+            {isActive ? 'Ativo' : 'Inativo'}
+          </button>
+        </div>
+
+        <div className="rounded-lg bg-[#112240] border border-white/8 px-3.5 py-2.5 mb-3">
+          <p className="text-xs text-slate-400">
+            <span className="text-[#d4af37] font-medium">Persona &amp; conhecimento:</span> a personalidade e as
+            instruções do bot são definidas por <strong>segmento de negócio</strong> pelo Master, na página{' '}
+            <span className="font-mono text-slate-300">Editor de Prompts</span> (template{' '}
+            <span className="font-mono text-slate-300">mensageria_bot_persona</span>). Cada segmento tem seu próprio
+            prompt; sem um específico, vale o global de fallback.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div>
+            <p className="text-xs text-slate-500 mb-1.5">Palavras-chave de transferência (separadas por vírgula)</p>
+            <TextInput value={keywordsText} onChange={(e) => setKeywordsText(e.target.value)} className="w-full" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1.5">Transferir após N interações do bot</p>
+            <TextInput type="number" value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} className="w-full" />
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <PrimaryButton onClick={save} disabled={saving}>
+            {saving ? 'Salvando...' : flow ? 'Salvar alterações' : 'Ativar bot'}
+          </PrimaryButton>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="flex items-start justify-between mb-1">
+          <p className="text-sm font-medium text-white">Testar conversa com o bot</p>
+          <button
+            onClick={resetTest}
+            disabled={resetting || !testInboxId || testMessages.length === 0}
+            className="shrink-0 text-xs text-slate-500 hover:text-rose-400 disabled:opacity-30 disabled:hover:text-slate-500 transition-colors"
+          >
+            {resetting ? 'Reiniciando...' : 'Reiniciar conversa'}
+          </button>
+        </div>
+        <p className="text-xs text-slate-500 mb-3">
+          Conversa real de teste (thread própria por inbox) — dá pra ir e voltar várias mensagens pra
+          testar memória, handoff e ferramentas de dados, exatamente como um contato de verdade veria.
+        </p>
+
+        <select
+          value={testInboxId} onChange={(e) => setTestInboxId(e.target.value)}
+          className="h-9 px-3 mb-3 rounded-lg bg-[#112240] border border-white/8 text-sm text-slate-300 outline-none"
+        >
+          {inboxes.length === 0 && <option value="">Nenhuma inbox elegível</option>}
+          {inboxes.map((ib) => <option key={ib.id} value={ib.id}>{CHANNEL_LABELS[ib.channelType] || ib.name}</option>)}
+        </select>
+
+        {botSessionActive === false && (
+          <div className="mb-3 rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2">
+            <p className="text-xs text-amber-400">
+              ⚠ Handoff já ocorreu nesta conversa — o bot fica em silêncio até você reiniciar (ou, numa
+              conversa real, até um atendente assumir).
+              {handledByBot === false && ' O contato agora está na fila de "não atribuídas".'}
+            </p>
+          </div>
+        )}
+
+        <div
+          ref={testScrollRef}
+          className="h-72 overflow-y-auto rounded-lg bg-[#020c1b] border border-white/8 px-3.5 py-3 mb-3 space-y-2.5"
+        >
+          {testMessages.length === 0 ? (
+            <p className="text-xs text-slate-600 text-center mt-8">Envie uma mensagem abaixo para começar.</p>
+          ) : (
+            testMessages.map((m) => (
+              <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[75%] rounded-xl px-3.5 py-2 ${
+                  m.direction === 'outbound' ? 'bg-[#c5a028]/15 text-white' : 'bg-[#112240] text-slate-200'
+                }`}>
+                  {m.senderType === 'bot' && <p className="text-[10px] text-[#d4af37] font-semibold mb-0.5">🤖 Bot</p>}
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.content}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {testError && <p className="text-xs text-rose-400 mb-2">{testError}</p>}
+
+        <div className="flex gap-2">
+          <TextInput
+            value={testMessage} onChange={(e) => setTestMessage(e.target.value)}
+            placeholder="Ex.: tem apartamento de 2 quartos em Boa Viagem?"
+            className="flex-1"
+            disabled={testing || !testInboxId}
+            onKeyDown={(e) => { if (e.key === 'Enter') runTest() }}
+          />
+          <PrimaryButton onClick={runTest} disabled={testing || !testInboxId || !testMessage.trim()}>
+            {testing ? 'Enviando...' : 'Enviar'}
+          </PrimaryButton>
+        </div>
       </Card>
     </div>
   )

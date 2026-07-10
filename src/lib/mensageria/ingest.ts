@@ -10,6 +10,7 @@ import pool from '@/lib/database/connection'
 import { publishMensageriaEvent } from '@/lib/mensageria/realtime'
 import { autoAssignConversation } from '@/lib/mensageria/autoAssign'
 import { attachSlaPolicy, checkFirstResponseBreach } from '@/lib/mensageria/sla'
+import { maybeRunBot } from '@/lib/mensageria/botAdapter'
 
 const SCHEMA = 'mensageria'
 
@@ -198,6 +199,15 @@ export async function ingestMessage(input: IngestMessageInput): Promise<IngestRe
     conversationId,
     message: { id: messageId, direction, senderType, content: content ?? null, contentType, createdAt: new Date().toISOString() },
   })
+
+  // Bot (M4.1/M4.2): só reage a mensagem inbound de contato — a resposta dele reentra em
+  // ingestMessage() como outbound/bot, então nunca recursa infinitamente. Best-effort: uma
+  // falha do bot nunca deve derrubar a ingestão da mensagem original do contato.
+  if (direction === 'inbound' && senderType === 'contact') {
+    await maybeRunBot(conversationId, tenantId).catch((err) => {
+      console.error('[mensageria/ingest] falha ao rodar o bot:', err)
+    })
+  }
 
   return { contactId, conversationId, messageId, isNewContact, isNewConversation }
 }

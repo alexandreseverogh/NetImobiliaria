@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   PaperAirplaneIcon, CheckCircleIcon, ClockIcon, PhoneIcon, LockClosedIcon, PlusIcon,
 } from '@heroicons/react/24/outline'
@@ -31,6 +31,7 @@ interface ConversationDetail {
 }
 
 interface Label { id: string; name: string; color: string }
+interface CannedResponse { id: string; shortcut: string; content: string }
 
 function timeAgo(iso: string | null): string {
   if (!iso) return ''
@@ -136,6 +137,7 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
   const [sending, setSending] = useState(false)
   const [allLabels, setAllLabels] = useState<Label[]>([])
   const [showLabelPicker, setShowLabelPicker] = useState(false)
+  const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([])
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   async function loadDetail() {
@@ -150,11 +152,23 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
     }
   }
 
-  useEffect(() => { loadDetail() }, [conversationId])
+  // Abrir a conversa zera unread_count no servidor (GET .../[id]) — repassa pro
+  // chamador atualizar a lista (badge) sem o thread precisar conhecer o estado da lista.
+  useEffect(() => {
+    loadDetail().then(() => onUpdated?.())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId])
 
   useEffect(() => {
     adminFetch('/api/admin/mensageria/labels').then((r) => r.json()).then((d) => setAllLabels(d.labels || [])).catch(() => {})
+    adminFetch('/api/admin/mensageria/canned-responses').then((r) => r.json()).then((d) => setCannedResponses(d.cannedResponses || [])).catch(() => {})
   }, [])
+
+  const cannedMatches = useMemo(() => {
+    if (!composer.startsWith('/')) return []
+    const query = composer.slice(1).toLowerCase()
+    return cannedResponses.filter((c) => c.shortcut.slice(1).toLowerCase().startsWith(query)).slice(0, 5)
+  }, [composer, cannedResponses])
 
   useEffect(() => {
     const el = messagesContainerRef.current
@@ -290,10 +304,24 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
         ))}
       </div>
 
-      <div className="border-t border-white/5 p-3">
+      <div className="border-t border-white/5 p-3 relative">
         {isPrivateNote && (
           <div className="mb-2 flex items-center gap-1.5 text-[11px] text-amber-400/80">
             <LockClosedIcon className="w-3 h-3" /> Nota interna — não será enviada ao contato
+          </div>
+        )}
+        {cannedMatches.length > 0 && (
+          <div className="absolute bottom-full left-3 mb-1 w-80 rounded-lg bg-[#112240] border border-white/10 shadow-xl py-1 z-20">
+            {cannedMatches.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setComposer(c.content)}
+                className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors"
+              >
+                <p className="text-xs font-semibold text-[#d4af37]">{c.shortcut}</p>
+                <p className="text-xs text-slate-400 truncate">{c.content}</p>
+              </button>
+            ))}
           </div>
         )}
         <div className="flex items-end gap-2">
@@ -301,7 +329,7 @@ export default function ConversationThread({ conversationId, onUpdated }: { conv
             value={composer}
             onChange={(e) => setComposer(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-            placeholder={isPrivateNote ? 'Escreva uma nota interna...' : 'Escreva uma mensagem...'}
+            placeholder={isPrivateNote ? 'Escreva uma nota interna...' : 'Escreva uma mensagem... (/ para respostas rápidas)'}
             rows={2}
             className={`flex-1 resize-none rounded-lg px-3 py-2 text-sm outline-none border transition-colors ${
               isPrivateNote ? 'bg-amber-500/5 border-amber-500/20 text-amber-100 focus:border-amber-500/40' : 'bg-[#112240] border-white/8 text-slate-200 focus:border-[#c5a028]'

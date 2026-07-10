@@ -4,6 +4,13 @@ import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionM
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger';
 import { extractRequestData } from '@/lib/utils/ipUtils';
+import { getTokenFromRequest, verifyToken } from '@/lib/auth/jwt';
+
+async function resolveTenantId(request: NextRequest): Promise<string | undefined> {
+  const token = getTokenFromRequest(request)
+  const decoded = token ? await verifyToken(token) : null
+  return decoded?.is_system_role ? undefined : decoded?.tenantId
+}
 
 export async function GET(
   request: NextRequest,
@@ -16,7 +23,8 @@ export async function GET(
       return permissionCheck
     }
 
-    const tipo = await findTipoImovelById(parseInt(params.id));
+    const tenantId = await resolveTenantId(request)
+    const tipo = await findTipoImovelById(parseInt(params.id), tenantId);
 
     if (!tipo) {
       return NextResponse.json({ error: 'Tipo de imóvel não encontrado' }, { status: 404 });
@@ -52,14 +60,16 @@ export async function PUT(
       return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 });
     }
 
+    const tenantId = await resolveTenantId(request)
+
     // Buscar dados ANTES da atualização para auditoria
-    const tipoAntes = await findTipoImovelById(parseInt(params.id));
-    
+    const tipoAntes = await findTipoImovelById(parseInt(params.id), tenantId);
+
     if (!tipoAntes) {
       return NextResponse.json({ error: 'Tipo de imóvel não encontrado' }, { status: 404 });
     }
 
-    const tipo = await updateTipoImovel(parseInt(params.id), { nome, descricao, ativo });
+    const tipo = await updateTipoImovel(parseInt(params.id), tenantId, { nome, descricao, ativo });
 
     if (!tipo) {
       return NextResponse.json({ error: 'Tipo de imóvel não encontrado' }, { status: 404 });
@@ -126,14 +136,16 @@ export async function PATCH(
 
     const { ativo } = await request.json();
 
+    const tenantId = await resolveTenantId(request)
+
     // Buscar dados ANTES da mudança para auditoria
-    const tipoAntes = await findTipoImovelById(parseInt(params.id));
-    
+    const tipoAntes = await findTipoImovelById(parseInt(params.id), tenantId);
+
     if (!tipoAntes) {
       return NextResponse.json({ error: 'Tipo de imóvel não encontrado' }, { status: 404 });
     }
 
-    const tipo = await updateTipoImovel(parseInt(params.id), { ativo });
+    const tipo = await updateTipoImovel(parseInt(params.id), tenantId, { ativo });
 
     if (!tipo) {
       return NextResponse.json({ error: 'Tipo de imóvel não encontrado' }, { status: 404 });
@@ -190,14 +202,16 @@ export async function DELETE(
       return permissionCheck
     }
 
+    const tenantId = await resolveTenantId(request)
+
     // Buscar dados ANTES da exclusão para auditoria
-    const tipo = await findTipoImovelById(parseInt(params.id));
-    
+    const tipo = await findTipoImovelById(parseInt(params.id), tenantId);
+
     if (!tipo) {
       return NextResponse.json({ error: 'Tipo de imóvel não encontrado' }, { status: 404 });
     }
 
-    const success = await deleteTipoImovel(parseInt(params.id));
+    const success = await deleteTipoImovel(parseInt(params.id), tenantId);
 
     if (!success) {
       return NextResponse.json({ error: 'Tipo de imóvel não encontrado' }, { status: 404 });

@@ -9,10 +9,35 @@
 
 import { Pool } from 'pg';
 
+export interface LlmToolDef {
+  name: string;
+  description: string;
+  parameters: { type: 'object'; properties: Record<string, any>; required?: string[] };
+}
+
+export interface LlmToolCall {
+  id: string;
+  name: string;
+  input: Record<string, any>;
+}
+
+/** Histórico normalizado do loop de tool-use — provider-agnóstico (ver completeWithTools). */
+export type LlmMessage =
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; content: string; toolCalls?: LlmToolCall[] }
+  | { role: 'tool_result'; toolCallId: string; content: string };
+
+export interface LlmToolResponse {
+  content: string;
+  toolCalls: LlmToolCall[];
+}
+
 export interface LlmClient {
   provider: string;
   model: string;
   complete(prompt: string, maxTokens?: number): Promise<string>;
+  /** Uma rodada do loop de tool-use — o chamador decide se executa toolCalls e chama de novo. */
+  completeWithTools(system: string, messages: LlmMessage[], tools: LlmToolDef[], maxTokens?: number): Promise<LlmToolResponse>;
 }
 
 // Pool isolado para consultas de settings/modelos
@@ -67,6 +92,43 @@ async function makeAnthropicClient(apiKey: string, model: string): Promise<LlmCl
       });
       return msg.content[0]?.type === 'text' ? msg.content[0].text : '';
     },
+    async completeWithTools(system: string, messages: LlmMessage[], tools: LlmToolDef[], maxTokens = 1024): Promise<LlmToolResponse> {
+      const anthropicMessages: any[] = [];
+      for (const m of messages) {
+        if (m.role === 'user') {
+          anthropicMessages.push({ role: 'user', content: m.content });
+        } else if (m.role === 'assistant') {
+          const content: any[] = [];
+          if (m.content) content.push({ type: 'text', text: m.content });
+          for (const tc of m.toolCalls ?? []) content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
+          anthropicMessages.push({ role: 'assistant', content });
+        } else if (m.role === 'tool_result') {
+          // Anthropic exige todos os tool_result de uma rodada num único bloco 'user' —
+          // agrupa com o anterior se ele já for esse bloco.
+          const block = { type: 'tool_result', tool_use_id: m.toolCallId, content: m.content };
+          const last = anthropicMessages[anthropicMessages.length - 1];
+          if (last?.role === 'user' && Array.isArray(last.content) && last.content[0]?.type === 'tool_result') {
+            last.content.push(block);
+          } else {
+            anthropicMessages.push({ role: 'user', content: [block] });
+          }
+        }
+      }
+
+      // tools omitido quando vazio — a API rejeita `tools: []` (usado na rodada final
+      // do loop de tool-use, que força uma resposta em texto sem novas ferramentas).
+      const req: any = { model, max_tokens: maxTokens, system, messages: anthropicMessages };
+      if (tools.length > 0) req.tools = tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+      const msg = await client.messages.create(req);
+
+      let content = '';
+      const toolCalls: LlmToolCall[] = [];
+      for (const block of msg.content) {
+        if (block.type === 'text') content += block.text;
+        else if (block.type === 'tool_use') toolCalls.push({ id: block.id, name: block.name, input: block.input as Record<string, any> });
+      }
+      return { content, toolCalls };
+    },
   };
 }
 
@@ -90,6 +152,35 @@ async function makeOpenAICompatibleClient(
         messages: [{ role: 'user', content: prompt }],
       });
       return res.choices[0]?.message?.content || '';
+    },
+    async completeWithTools(system: string, messages: LlmMessage[], tools: LlmToolDef[], maxTokens = 1024): Promise<LlmToolResponse> {
+      const oaMessages: any[] = [{ role: 'system', content: system }];
+      for (const m of messages) {
+        if (m.role === 'user') {
+          oaMessages.push({ role: 'user', content: m.content });
+        } else if (m.role === 'assistant') {
+          oaMessages.push({
+            role: 'assistant',
+            content: m.content || null,
+            tool_calls: (m.toolCalls?.length ?? 0) > 0
+              ? m.toolCalls!.map((tc) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) } }))
+              : undefined,
+          });
+        } else if (m.role === 'tool_result') {
+          oaMessages.push({ role: 'tool', tool_call_id: m.toolCallId, content: m.content });
+        }
+      }
+
+      // tools omitido quando vazio — mesma razão do branch Anthropic (rodada final do loop).
+      const req: any = { model, max_tokens: maxTokens, messages: oaMessages };
+      if (tools.length > 0) req.tools = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+      const res = await client.chat.completions.create(req);
+
+      const choice = res.choices[0]?.message;
+      const toolCalls: LlmToolCall[] = (choice?.tool_calls ?? []).map((tc: any) => ({
+        id: tc.id, name: tc.function.name, input: JSON.parse(tc.function.arguments || '{}'),
+      }));
+      return { content: choice?.content ?? '', toolCalls };
     },
   };
 }

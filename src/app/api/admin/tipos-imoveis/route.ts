@@ -4,6 +4,7 @@ import { unifiedPermissionMiddleware } from '@/lib/middleware/UnifiedPermissionM
 import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger';
 import { extractRequestData } from '@/lib/utils/ipUtils';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
+import { getTokenFromRequest, verifyToken } from '@/lib/auth/jwt';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +14,11 @@ export async function GET(request: NextRequest) {
       return permissionCheck
     }
 
-    const tipos = await findAllTiposImovel();
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.is_system_role ? undefined : decoded?.tenantId
+
+    const tipos = await findAllTiposImovel(tenantId);
     return NextResponse.json(tipos);
   } catch (error) {
     console.error('Erro ao buscar tipos de imóveis:', error);
@@ -41,7 +46,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 });
     }
 
-    const tipo = await createTipoImovel({ nome, descricao, ativo });
+    const token = getTokenFromRequest(request)
+    const decoded = token ? await verifyToken(token) : null
+    const tenantId = decoded?.tenantId
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant ID não encontrado no token' }, { status: 401 });
+    }
+
+    const tipo = await createTipoImovel({ nome, descricao, ativo, tenant_id: tenantId });
     
     // Log de auditoria (não crítico - falha não afeta operação)
     try {

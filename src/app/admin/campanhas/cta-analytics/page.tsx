@@ -12,12 +12,13 @@ import {
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
+import DayHourHeatmap from '@/components/marketing/charts/DayHourHeatmap'
+import HourlyVolumeBar from '@/components/marketing/charts/HourlyVolumeBar'
 
 const CTA_LABELS: Record<string, string> = {
   WHATSAPP_MESSAGE: 'WhatsApp', LEARN_MORE: 'Saiba Mais', SHOP_NOW: 'Comprar Agora',
   SIGN_UP: 'Cadastre-se', CONTACT_US: 'Fale Conosco', BOOK_TRAVEL: 'Reserve', GET_OFFER: 'Ver Oferta',
 }
-const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const PERIOD_OPTIONS = [{ label: '7d', value: 7 }, { label: '30d', value: 30 }, { label: '90d', value: 90 }]
 
 // Amber funnel: brightness encodes drop-off naturally, no hue information
@@ -344,7 +345,7 @@ export default function CtaAnalyticsPage() {
         {/* Heatmap submissões + Origem UTM */}
         <div className="grid lg:grid-cols-2 gap-4">
           <Panel title="Demanda por dia × hora — Submissões">
-            <Heatmap data={data?.heatmap || []} loading={loading} />
+            <DayHourHeatmap data={data?.heatmap || []} loading={loading} />
           </Panel>
           <Panel title="Origem das submissões (UTM)">
             {loading
@@ -385,7 +386,7 @@ export default function CtaAnalyticsPage() {
 
         {/* Leads por hora */}
         <Panel title="Leads gerados por faixa de hora">
-          <LeadsPerHour data={data?.leadsHourly || []} loading={loading} />
+          <HourlyVolumeBar data={data?.leadsHourly || []} loading={loading} />
         </Panel>
 
         {/* Insights */}
@@ -485,111 +486,6 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function Empty() {
   return <p className="text-sm text-slate-500 text-center py-8">Sem dados no período.</p>
-}
-
-function Heatmap({ data, loading }: { data: any[]; loading: boolean }) {
-  const grid: Record<string, number> = {}
-  let max = 1
-  for (const d of data) { grid[`${d.dow}-${d.hour}`] = d.n; if (d.n > max) max = d.n }
-  const labelHours = [0, 4, 8, 12, 16, 20]
-
-  if (loading) return <div className="h-28 bg-white/3 rounded-lg animate-pulse" />
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="border-separate" style={{ borderSpacing: 3 }}>
-        <tbody>
-          {[0, 1, 2, 3, 4, 5, 6].map((dow) => (
-            <tr key={dow}>
-              <td className="text-[10px] text-slate-500 pr-2 align-middle w-7">{DOW[dow]}</td>
-              {Array.from({ length: 24 }).map((_, h) => {
-                const n = grid[`${dow}-${h}`] || 0
-                const intensity = n === 0 ? 0 : 0.12 + (n / max) * 0.88
-                return (
-                  <td
-                    key={h}
-                    title={`${DOW[dow]} ${h}h: ${n}`}
-                    style={{
-                      width: 13, height: 16, borderRadius: 3,
-                      background: n === 0 ? 'rgba(255,255,255,0.04)' : `rgba(197,160,40,${intensity.toFixed(2)})`,
-                    }}
-                  />
-                )
-              })}
-            </tr>
-          ))}
-          <tr>
-            <td />
-            {Array.from({ length: 24 }).map((_, h) => (
-              <td key={h} className="text-[9px] text-slate-500 text-center pt-1 font-medium">
-                {labelHours.includes(h) ? h : ''}
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-      <div className="flex items-center gap-1.5 mt-3">
-        <span className="text-[10px] text-slate-500">Menor</span>
-        {[0.12, 0.3, 0.5, 0.7, 0.9].map((a, i) => (
-          <div key={i} className="w-3.5 h-3.5 rounded-sm" style={{ background: `rgba(197,160,40,${a})` }} />
-        ))}
-        <span className="text-[10px] text-slate-500">Maior</span>
-      </div>
-    </div>
-  )
-}
-
-function LeadsPerHour({ data, loading }: { data: any[]; loading: boolean }) {
-  if (loading) {
-    return (
-      <div className="space-y-1.5">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-5 bg-white/5 rounded animate-pulse" style={{ width: `${85 - i * 10}%` }} />
-        ))}
-      </div>
-    )
-  }
-
-  const max = Math.max(1, ...data.map(d => d.n))
-  const total = data.reduce((s, d) => s + d.n, 0)
-  if (total === 0) return <Empty />
-
-  return (
-    <div className="space-y-[3px]">
-      {data.map(({ hr, label, n }) => {
-        const barPct = Math.round((n / max) * 100)
-        const sharePct = total > 0 ? Math.round((n / total) * 100) : 0
-        return (
-          <div key={hr} className="flex items-center gap-2 group">
-            <span className="text-[10px] text-slate-500 font-medium w-[110px] shrink-0 tabular-nums group-hover:text-slate-300 transition-colors">
-              {label}
-            </span>
-            <div className="flex-1 h-[14px] bg-white/4 rounded overflow-hidden">
-              {n > 0 && (
-                <div
-                  className="h-full rounded transition-all duration-500"
-                  style={{ width: `${barPct}%`, background: `rgba(197,160,40,${0.4 + (barPct / 100) * 0.55})` }}
-                />
-              )}
-            </div>
-            <span className={`text-[11px] tabular-nums w-5 text-right font-semibold ${n > 0 ? 'text-[#d4af37]' : 'text-slate-600'}`}>
-              {n > 0 ? n : ''}
-            </span>
-            <span className="text-[10px] tabular-nums w-7 text-right text-slate-500">
-              {n > 0 ? `${sharePct}%` : ''}
-            </span>
-          </div>
-        )
-      })}
-      {/* Total */}
-      <div className="flex items-center gap-2 pt-2 mt-1 border-t border-white/8">
-        <span className="text-[10px] text-slate-400 font-semibold w-[110px] shrink-0">Total</span>
-        <div className="flex-1" />
-        <span className="text-[11px] tabular-nums w-5 text-right font-bold text-white">{total}</span>
-        <span className="text-[10px] tabular-nums w-7 text-right font-semibold text-slate-400">100%</span>
-      </div>
-    </div>
-  )
 }
 
 function InsightCard({ ins }: { ins: any }) {

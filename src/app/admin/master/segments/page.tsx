@@ -12,11 +12,13 @@ import {
   CommandLineIcon,
   SparklesIcon,
   AdjustmentsHorizontalIcon,
+  CircleStackIcon,
 } from '@heroicons/react/24/outline'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 import { SegmentInterestsModal } from '@/components/admin/master/SegmentInterestsModal'
 import { SegmentAnglesModal } from '@/components/admin/master/SegmentAnglesModal'
 import { SegmentBenchmarksModal } from '@/components/admin/master/SegmentBenchmarksModal'
+import { SegmentDataEntitiesModal } from '@/components/admin/master/SegmentDataEntitiesModal'
 
 interface Segment {
   id: string
@@ -49,6 +51,7 @@ export default function MasterSegmentsPage() {
   const [interestsSegment, setInterestsSegment] = useState<Segment | null>(null)
   const [anglesSegment, setAnglesSegment] = useState<Segment | null>(null)
   const [benchmarksSegment, setBenchmarksSegment] = useState<Segment | null>(null)
+  const [dataEntitiesSegment, setDataEntitiesSegment] = useState<Segment | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -292,6 +295,13 @@ export default function MasterSegmentsPage() {
                       >
                         <AdjustmentsHorizontalIcon className="h-4 w-4" />
                       </button>
+                      <button
+                        onClick={() => setDataEntitiesSegment(segment)}
+                        className="p-2 rounded-lg text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                        title="Dados do Bot (tabelas/colunas que o bot pode consultar)"
+                      >
+                        <CircleStackIcon className="h-4 w-4" />
+                      </button>
                       <UpdateGuard resource="master-segments">
                         <button
                           onClick={() => handleEdit(segment)}
@@ -528,6 +538,14 @@ export default function MasterSegmentsPage() {
         <SegmentBenchmarksModal
           segment={benchmarksSegment}
           onClose={() => setBenchmarksSegment(null)}
+        />
+      )}
+
+      {/* Dados do Bot (M4.2, Ponto 3c) */}
+      {dataEntitiesSegment && (
+        <SegmentDataEntitiesModal
+          segment={dataEntitiesSegment}
+          onClose={() => setDataEntitiesSegment(null)}
         />
       )}
     </div>

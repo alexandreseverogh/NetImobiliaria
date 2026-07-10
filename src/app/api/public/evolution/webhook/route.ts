@@ -18,7 +18,9 @@ const SCHEMA = 'campanhasmarketingdigital'
  * Para mensagens sem [ref:], cria o lead de origem genérica 'whatsapp_organico'.
  *
  * Autenticação: query param ?token= mapeia para tenants.evolution_webhook_secret
- *               + verifica se payload.instance bate com tenants.evolution_instance
+ *               (ou clientes.evolution_webhook_secret, se o cliente tiver número próprio —
+ *               seção 14.9 do plano) + verifica se payload.instance bate com a instância
+ *               configurada em quem o token identificou.
  */
 export async function POST(request: NextRequest) {
   const token = new URL(request.url).searchParams.get('token')
@@ -34,17 +36,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, ignored: true })
   }
 
-  // 2. Identificar tenant pelo token + instância
+  // 2. Identificar tenant (e opcionalmente cliente) pelo token + instância. Checa primeiro
+  // clientes.evolution_webhook_secret (mais específico — cliente com WhatsApp próprio); se
+  // não bater, cai para tenants.evolution_webhook_secret (número principal, comportamento
+  // original). Ver PLANO_MENSAGERIA.md seção 14.9.
   const instance: string = body?.instance || ''
-  const { rows: tenantRows } = await pool.query(
-    `SELECT id, slug, evolution_instance FROM public.tenants
-      WHERE evolution_webhook_secret = $1 AND status = 'active' LIMIT 1`,
+  let tenant: { id: string; slug: string; evolution_instance: string | null }
+  let ownerClientId: string | null = null
+
+  const { rows: clientMatchRows } = await pool.query(
+    `SELECT c.uuid AS client_id, c.tenant_id, c.evolution_instance, t.slug AS tenant_slug
+       FROM public.clientes c
+       JOIN public.tenants t ON t.id = c.tenant_id
+      WHERE c.evolution_webhook_secret = $1 AND t.status = 'active' LIMIT 1`,
     [token],
   )
-  const tenant = tenantRows[0]
-  if (!tenant) return NextResponse.json({ ok: false, error: 'token inválido' }, { status: 401 })
+  if (clientMatchRows[0]) {
+    const cm = clientMatchRows[0]
+    tenant = { id: cm.tenant_id, slug: cm.tenant_slug, evolution_instance: cm.evolution_instance }
+    ownerClientId = cm.client_id
+  } else {
+    const { rows: tenantRows } = await pool.query(
+      `SELECT id, slug, evolution_instance FROM public.tenants
+        WHERE evolution_webhook_secret = $1 AND status = 'active' LIMIT 1`,
+      [token],
+    )
+    if (!tenantRows[0]) return NextResponse.json({ ok: false, error: 'token inválido' }, { status: 401 })
+    tenant = tenantRows[0]
+  }
 
-  // Verificação secundária: instância bate com a configurada no tenant
+  // Verificação secundária: instância bate com a configurada em quem o token identificou
   if (tenant.evolution_instance && instance && tenant.evolution_instance !== instance) {
     return NextResponse.json({ ok: false, error: 'instância não corresponde' }, { status: 403 })
   }
@@ -90,14 +111,20 @@ export async function POST(request: NextRequest) {
       dest = destRes.rows[0] || null
     }
 
+    // Cliente dono do número físico (ownerClientId, resolvido na autenticação) é mais
+    // confiável que o [ref:slug] da campanha pra decidir ONDE a mensagem cai no Mensageria —
+    // a mensagem chegou fisicamente naquele número. [ref:slug] continua sendo a fonte de
+    // verdade pra atribuição de campanha (CTA/lead abaixo), propositalmente não misturado.
+    const mensageriaClientId = ownerClientId ?? dest?.client_id ?? null
+
     // 5.a Ingestão no Mensageria (thread unificada) — roda em paralelo ao fluxo de
     // CTA/lead abaixo; falha aqui NUNCA deve derrubar a captação de lead existente.
     const mensageriaResult = await (async () => {
       try {
-        const inboxId = await resolveWhatsAppInbox(tenant.id)
+        const inboxId = await resolveWhatsAppInbox(tenant.id, mensageriaClientId)
         return await ingestMessage({
           tenantId: tenant.id,
-          clientId: dest?.client_id ?? null,
+          clientId: mensageriaClientId,
           inboxId,
           contact: { name: pushName, phone },
           direction: 'inbound',
