@@ -27,22 +27,22 @@ export async function GET(request: NextRequest) {
     [payload.tenantId],
   )
   const row = rows[0]
-  if (row) {
-    return NextResponse.json({
-      flow: {
-        id: row.id,
-        name: row.name,
-        isActive: row.is_active,
-        handoffKeywords: row.handoff_rules?.keywords || [],
-        maxTurns: row.handoff_rules?.maxTurns ?? null,
-      },
-    })
-  }
 
-  // Tenant ainda não configurou o próprio flow — sugere o padrão do segmento (editável
-  // pelo Master em /admin/master/segments) em vez de um valor fixo no componente React.
+  // Sempre resolve o padrão do segmento (editável pelo Master) — o front usa isso pro toggle
+  // "usar padrão do segmento" independente de já existir um flow salvo ou não.
   const segment = await resolveSegment(payload.tenantId).catch(() => null)
-  return NextResponse.json({ flow: null, suggestedMaxTurns: segment?.chatbot_max_turns_default ?? 6 })
+  const segmentMaxTurnsDefault = segment?.chatbot_max_turns_default ?? 6
+
+  return NextResponse.json({
+    flow: row ? {
+      id: row.id,
+      name: row.name,
+      isActive: row.is_active,
+      handoffKeywords: row.handoff_rules?.keywords || [],
+      maxTurns: row.handoff_rules?.maxTurns ?? null,
+    } : null,
+    segmentMaxTurnsDefault,
+  })
 }
 
 /**

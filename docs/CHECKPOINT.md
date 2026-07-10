@@ -1,12 +1,43 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-10 (chatbot_max_turns_default — parâmetro por segmento no Master: concluído e testado)
+> **Atualizado em:** 2026-07-10 (toggle "usar padrão do segmento" pro MaxTurns + botão Limpar mais visível: concluído e testado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-10 (continuação 5) — Toggle "usar padrão do segmento" + botão Limpar ✅
+
+**Motivação:** usuário reportou que o campo MaxTurns não refletia o valor do segmento — causa
+real: tenants que já tinham salvo seu próprio `maxTurns` sempre viam esse valor, nunca o padrão
+do segmento, mesmo depois do Master mudar o padrão (comportamento correto de override, mas
+confuso sem uma forma explícita de "voltar a seguir o segmento"). Também reportado: falta um
+botão "Limpar" — já existia ("Reiniciar conversa"), só estava pequeno demais pra ser notado.
+
+**Implementado:**
+1. `bot_flows.handoff_rules.maxTurns` agora é tratado como genuinamente opcional — `null`
+   significa "segue o padrão do segmento". `botAdapter.ts`: `effectiveMaxTurns = rules.maxTurns
+   ?? segmento.chatbot_max_turns_default ?? 6` — a mudança real está aqui, o fallback agora vale
+   em **runtime**, não só como sugestão de UI (antes, `maxTurns=null` nunca disparava handoff
+   por turno nenhuma vez).
+2. `GET /api/admin/mensageria/bot-flows` sempre retorna `segmentMaxTurnsDefault` junto do
+   `flow` (antes só vinha quando `flow` era `null`).
+3. Aba Bot — checkbox "Usar padrão do segmento (N)" ao lado do campo MaxTurns; quando marcado,
+   o input fica desabilitado mostrando o valor do segmento, e o PUT manda `maxTurns: null`.
+4. "Reiniciar conversa" virou um botão de verdade — rótulo "Limpar conversa", ícone de lixeira,
+   fundo/borda vermelha — usuário não tinha notado o texto pequeno anterior.
+
+**Testado:** GET confirma `segmentMaxTurnsDefault=15` (o usuário já tinha ajustado o segmento
+Imobiliário pra 15 seguindo minha sugestão anterior — boa validação orgânica de que a UI do
+Master funciona) · PUT com `maxTurns:null` persiste e reflete corretamente no GET seguinte ·
+**teste de runtime decisivo:** rodei 6 turnos numa conversa com `maxTurns:null` — turno 6 (que
+teria disparado handoff sob o limite fixo antigo de 6) **não** disparou, confirmando que o bot
+está usando o padrão do segmento (15) de verdade, não só exibindo na tela. `npx tsc --noEmit`
+limpo.
+
+---
 
 ### Sessão 2026-07-10 (continuação 4) — MaxTurns padrão vira parâmetro por segmento ✅
 

@@ -203,8 +203,11 @@ export async function maybeRunBot(conversationId: string, tenantId: string): Pro
   const lastInbound: string = lastMsgRows[0]?.content || ''
 
   const rules: HandoffRules = flow.handoff_rules || {}
+  // maxTurns null/ausente = tenant não sobrepôs; segue o padrão do segmento (editável pelo
+  // Master em /admin/master/segments) em vez de nunca disparar handoff por turno.
+  const effectiveMaxTurns = rules.maxTurns ?? (await resolveSegment(tenantId, conv.client_id).catch(() => null))?.chatbot_max_turns_default ?? 6
   const keywordHit = !!rules.keywords?.length && matchesHandoffKeyword(lastInbound, rules.keywords)
-  const turnsExceeded = !!rules.maxTurns && turns >= rules.maxTurns
+  const turnsExceeded = turns >= effectiveMaxTurns
 
   if (keywordHit || turnsExceeded) {
     await handoffToHuman(conversationId, tenantId, conv.client_id, conv.inbox_id, keywordHit ? 'keyword' : 'max_turns')

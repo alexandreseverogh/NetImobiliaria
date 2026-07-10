@@ -754,6 +754,8 @@ function BotTab() {
   const [isActive, setIsActive] = useState(false)
   const [keywordsText, setKeywordsText] = useState('atendente, humano, falar com alguem')
   const [maxTurns, setMaxTurns] = useState('6')
+  const [useSegmentDefault, setUseSegmentDefault] = useState(true)
+  const [segmentMaxTurnsDefault, setSegmentMaxTurnsDefault] = useState(6)
 
   const [inboxes, setInboxes] = useState<Inbox[]>([])
   const [testInboxId, setTestInboxId] = useState('')
@@ -778,8 +780,11 @@ function BotTab() {
       setFlow(flowData)
       setIsActive(flowData?.isActive ?? false)
       setKeywordsText(flowData?.handoffKeywords?.length ? flowData.handoffKeywords.join(', ') : keywordsText)
-      // Sem flow próprio ainda → sugere o padrão do segmento (editável pelo Master), não um valor fixo.
-      setMaxTurns(flowData?.maxTurns != null ? String(flowData.maxTurns) : String(flowJson.suggestedMaxTurns ?? 6))
+      setSegmentMaxTurnsDefault(flowJson.segmentMaxTurnsDefault ?? 6)
+      // maxTurns nulo/ausente = tenant nunca sobrepôs — segue o padrão do segmento (editável
+      // pelo Master), com opção de personalizar.
+      setUseSegmentDefault(flowData?.maxTurns == null)
+      setMaxTurns(flowData?.maxTurns != null ? String(flowData.maxTurns) : String(flowJson.segmentMaxTurnsDefault ?? 6))
 
       const nonManual = ((await ibRes.json()).inboxes || []).filter((i: Inbox) => i.channelType !== 'manual')
       setInboxes(nonManual)
@@ -816,10 +821,14 @@ function BotTab() {
         method: 'PUT',
         body: JSON.stringify({
           isActive,
-          handoffKeywords, maxTurns: maxTurns ? parseInt(maxTurns, 10) : null,
+          handoffKeywords,
+          maxTurns: useSegmentDefault ? null : (maxTurns ? parseInt(maxTurns, 10) : null),
         }),
       })
-      setFlow((await res.json()).flow)
+      const data = await res.json()
+      setFlow(data.flow)
+      setUseSegmentDefault(data.flow?.maxTurns == null)
+      if (data.flow?.maxTurns == null) setMaxTurns(String(segmentMaxTurnsDefault))
     } finally {
       setSaving(false)
     }
@@ -904,7 +913,22 @@ function BotTab() {
           </div>
           <div>
             <p className="text-xs text-slate-500 mb-1.5">Transferir após N interações do bot</p>
-            <TextInput type="number" value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} className="w-full" />
+            <label className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1.5">
+              <input
+                type="checkbox"
+                checked={useSegmentDefault}
+                onChange={(e) => {
+                  setUseSegmentDefault(e.target.checked)
+                  if (e.target.checked) setMaxTurns(String(segmentMaxTurnsDefault))
+                }}
+              />
+              Usar padrão do segmento ({segmentMaxTurnsDefault})
+            </label>
+            <TextInput
+              type="number" value={maxTurns} disabled={useSegmentDefault}
+              onChange={(e) => setMaxTurns(e.target.value)}
+              className="w-full disabled:opacity-40 disabled:cursor-not-allowed"
+            />
           </div>
         </div>
 
@@ -921,9 +945,11 @@ function BotTab() {
           <button
             onClick={resetTest}
             disabled={resetting || !testInboxId || testMessages.length === 0}
-            className="shrink-0 text-xs text-slate-500 hover:text-rose-400 disabled:opacity-30 disabled:hover:text-slate-500 transition-colors"
+            title="Apaga esta conversa de teste e começa do zero"
+            className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-rose-500/10 text-rose-400 text-xs font-medium border border-rose-500/20 hover:bg-rose-500/20 disabled:opacity-30 disabled:hover:bg-rose-500/10 transition-colors"
           >
-            {resetting ? 'Reiniciando...' : 'Reiniciar conversa'}
+            <TrashIcon className="w-3.5 h-3.5" />
+            {resetting ? 'Limpando...' : 'Limpar conversa'}
           </button>
         </div>
         <p className="text-xs text-slate-500 mb-3">
