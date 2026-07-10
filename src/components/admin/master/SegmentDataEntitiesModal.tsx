@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { XMarkIcon, CheckCircleIcon, PlusIcon, TrashIcon, QuestionMarkCircleIcon, CircleStackIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CheckCircleIcon, PlusIcon, TrashIcon, QuestionMarkCircleIcon, CircleStackIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
 
 interface Column {
@@ -97,11 +97,18 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
   const [saveOk, setSaveOk] = useState(false);
   const [error, setError] = useState('');
   const [showHelp, setShowHelp] = useState(false);
+  const [loadingColumnsFor, setLoadingColumnsFor] = useState<number | null>(null);
 
   useEffect(() => {
+    // Guarda contra o double-invoke do React Strict Mode (dev): sem isso, duas buscas
+    // concorrentes disparam a cada abertura do modal e a que resolver por último "vence"
+    // de forma imprevisível — com a guarda, só a busca da invocação mais recente aplica.
+    let cancelled = false;
+
     fetch(`/api/admin/master/segments/${segment.id}/data-entities`, { credentials: 'include' })
       .then((r) => r.json())
       .then((d) => {
+        if (cancelled) return;
         const loaded = (Array.isArray(d.entities) ? d.entities : []).map((e: any) => ({
           entityName: e.entityName ?? '',
           tableName: e.tableName ?? '',
@@ -123,8 +130,10 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
         }));
         setEntities(loaded);
       })
-      .catch(() => setEntities([]))
-      .finally(() => setLoading(false));
+      .catch(() => { if (!cancelled) setEntities([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
   }, [segment.id]);
 
   const updateEntity = (i: number, patch: Partial<Entity>) =>
@@ -140,6 +149,33 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
   const removeColumn = (ei: number, ci: number) =>
     setEntities((prev) => prev.map((e, idx) => idx === ei
       ? { ...e, columns: e.columns.filter((_, cj) => cj !== ci) } : e));
+
+  // Introspecção sob demanda — busca as colunas REAIS da tabela física e mescla com as já
+  // configuradas (nunca apaga/sobrescreve o que já existe, só adiciona o que falta).
+  async function loadTableColumns(ei: number) {
+    const tableName = entities[ei]?.tableName.trim();
+    if (!tableName) { setError('Preencha "Tabela física" antes de carregar as colunas.'); return; }
+    setLoadingColumnsFor(ei);
+    setError('');
+    try {
+      const res = await fetch(`/api/admin/master/segments/${segment.id}/data-entities/table-columns?table=${encodeURIComponent(tableName)}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao carregar colunas');
+      const real: { name: string; type: Column['type'] }[] = data.columns || [];
+      setEntities((prev) => prev.map((e, idx) => {
+        if (idx !== ei) return e;
+        const existingNames = new Set(e.columns.map((c) => c.name));
+        const toAdd = real
+          .filter((r) => !existingNames.has(r.name))
+          .map((r) => ({ name: r.name, type: r.type, description: '', selectable: false, filterable: false }));
+        return { ...e, columns: [...e.columns, ...toAdd] };
+      }));
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao carregar colunas da tabela');
+    } finally {
+      setLoadingColumnsFor(null);
+    }
+  }
 
   const updateRelation = (ei: number, ri: number, patch: Partial<Relation>) =>
     setEntities((prev) => prev.map((e, idx) => idx === ei
@@ -220,8 +256,26 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
           {error && <p className="text-xs text-red-600 font-medium">⚠️ {error}</p>}
 
           {loading ? (
-            <div className="space-y-3">
-              {[1, 2].map((i) => <div key={i} className="h-24 rounded-xl bg-gray-100 animate-pulse" />)}
+            // Esqueleto no mesmo formato do card real (título+tabela, descrição, colunas) —
+            // evita a troca brusca "caixa vazia → formulário denso" que lia como um 2º modal abrindo.
+            <div className="space-y-4 animate-pulse">
+              {[1, 2].map((i) => (
+                <div key={i} className="rounded-xl border border-gray-200 p-4 bg-gray-50/50">
+                  <div className="flex gap-2 mb-3">
+                    <div className="flex-1 h-8 rounded-lg bg-gray-200" />
+                    <div className="flex-1 h-8 rounded-lg bg-gray-200" />
+                  </div>
+                  <div className="h-10 rounded-lg bg-gray-100 mb-3" />
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    <div className="h-7 rounded bg-gray-100" />
+                    <div className="h-7 rounded bg-gray-100" />
+                    <div className="h-7 rounded bg-gray-100" />
+                  </div>
+                  <div className="space-y-1.5">
+                    {[1, 2, 3].map((j) => <div key={j} className="h-8 rounded-lg bg-gray-100" />)}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : entities.length === 0 ? (
             <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center">
@@ -299,7 +353,18 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
 
                   {/* Colunas */}
                   <div className="mb-3">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Colunas</p>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Colunas</p>
+                      <button
+                        onClick={() => loadTableColumns(ei)}
+                        disabled={loadingColumnsFor === ei || !e.tableName.trim()}
+                        title="Busca as colunas reais da tabela e adiciona as que ainda não estão na lista"
+                        className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold disabled:opacity-40"
+                      >
+                        <ArrowDownTrayIcon className="h-3 w-3" />
+                        {loadingColumnsFor === ei ? 'Carregando...' : 'Carregar colunas da tabela'}
+                      </button>
+                    </div>
                     <div className="space-y-1.5">
                       {e.columns.map((c, ci) => (
                         <div key={ci} className="flex items-center gap-1.5 bg-white rounded-lg border border-gray-200 px-2 py-1.5">

@@ -1,12 +1,42 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-09 (M4.2 Ponto 3c — UI "Dados do Bot" no Master: concluído e testado)
+> **Atualizado em:** 2026-07-10 (Dados do Bot — introspecção sob demanda de colunas: concluído e testado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-10 — "Dados do Bot": introspecção sob demanda de colunas ✅
+
+**Motivação (feedback real do usuário testando a UI):** o cadastro de colunas era 100% manual —
+o Master tinha que digitar de cabeça os nomes reais das colunas de `imoveis` (47 colunas ao todo,
+só 10 configuradas). Usuário: "imaginei que fosse listados todos os campos da tabela para o
+usuário não precisar adivinhar".
+
+**Implementado** (versão simples/imediata do job de introspecção da seção 14.6-A — sem criar
+linhas-esqueleto automaticamente, só carrega sob demanda quando o Master pede):
+- `GET /api/admin/master/segments/[id]/data-entities/table-columns?table=X` — consulta
+  `information_schema.columns` (schema `public`) e mapeia `data_type` do Postgres pro
+  vocabulário simplificado do resolver (`text`/`number`/`boolean`). Valida o nome da tabela
+  contra `IDENT_RE` antes de consultar; 404 se a tabela não existir.
+- Botão "Carregar colunas da tabela" em cada card de entidade — busca as colunas reais e
+  **mescla** com as já configuradas (nunca sobrescreve; só adiciona as que faltam, com
+  `selectable=false`/`filterable=false` por padrão — o Master decide o que exibir/filtrar).
+
+**Testado:** `imoveis` retorna as 47 colunas reais com tipo mapeado corretamente · tabela
+inexistente → 404 · identificador com SQL injetado (`imoveis; DROP TABLE imoveis;--`) → 400,
+rejeitado pela validação · rota é somente leitura (não grava nada), sem necessidade de
+restaurar estado depois do teste. `npx tsc --noEmit` limpo.
+
+**Também corrigido nesta sessão (feedback de UX sobre a transição de loading):** esqueleto de
+carregamento do modal reescrito para imitar a forma real dos cards (título+tabela, descrição,
+grid de colunas) em vez de 2 blocos cinzas genéricos — a troca abrupta "caixa vazia → formulário
+denso" estava sendo percebida como "dois modais abrindo em sequência". Também adicionada uma
+guarda contra fetch duplicado do React Strict Mode (dev) no `useEffect` de carregamento.
+
+---
 
 ### Sessão 2026-07-09 (continuação 2) — UI "Dados do Bot" no Master (Ponto 3c) ✅
 
