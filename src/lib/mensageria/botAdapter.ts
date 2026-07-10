@@ -150,15 +150,22 @@ async function runBotReply(
           for (const url of foundImages) {
             if (!collectedImages.includes(url)) collectedImages.push(url)
           }
-          // Aviso explícito nos próprios dados, não só na persona — um array vazio ("fotos": [])
-          // é fácil demais do LLM ignorar/inferir errado; uma frase textual junto do resultado
-          // é seguida de forma muito mais confiável do que uma regra abstrata escrita antes.
+          // Avisos explícitos DENTRO dos dados, não só na persona — uma regra abstrata escrita
+          // antes (ex.: "não invente campo não mapeado") não é seguida com confiabilidade; um
+          // array vazio ("fotos":[]) também não basta. O modelo segue muito melhor um aviso
+          // textual que chega junto com o resultado da própria chamada.
+          const avisos: string[] = []
           if (hasImageRelation && rows.length > 0 && foundImages.length === 0) {
-            resultPayload = {
-              aviso: 'Nenhum dos itens abaixo tem foto/imagem disponível no momento. Não afirme que há fotos disponíveis.',
-              resultados: rows,
-            }
+            avisos.push('Nenhum dos itens abaixo tem foto/imagem disponível no momento. Não afirme que há fotos disponíveis.')
           }
+          const availableFields = [
+            ...entity.columns.filter((c) => c.selectable).map((c) => c.name),
+            ...entity.relations.map((r) => r.name),
+          ]
+          avisos.push(
+            `Os únicos campos disponíveis nestes dados são: ${availableFields.join(', ')}. Se o visitante perguntar algo fora dessa lista, diga claramente que não tem essa informação disponível no momento e sugira falar com um atendente — nunca estime, calcule ou invente um valor pra um campo que não veio aqui.`,
+          )
+          resultPayload = { aviso: avisos.join(' '), resultados: rows }
         }
         resultText = JSON.stringify(resultPayload)
       } catch (err) {

@@ -88,6 +88,31 @@ agora abrem com "No momento não tenho fotos desses imóveis disponíveis" · re
 misto (1 imóvel com foto real) continua mencionando certo e mandando a imagem de verdade. `npx tsc
 --noEmit` limpo.
 
+**Follow-up mesma sessão — dados de teste reais + 3º bug (invenção de campo não mapeado):**
+1. **Limpeza + dados reais:** os 13 registros do imóvel 17 apontavam pra objetos que não existem
+   mais no MinIO (404 confirmado direto na origem, `curl` contra o bucket) — resquício de teste de
+   uma sessão anterior. Limpos (`storage_type`/`url_cdn = NULL`). `prisma/seed-fotos-reais-
+   imbiribeira.sql` — a pedido do usuário, populou a foto principal de cada um dos 6 imóveis do
+   bairro Imbiribeira (tenant Imobiliária XYZ) com uma imagem pública real (picsum.photos, uma
+   por imóvel, todas testadas com `curl` retornando 200) — dado persistente, não revertido depois
+   (diferente dos testes anteriores desta sessão), pra servir de base de teste contínua.
+2. **`preco_condominio` exposto ao bot** (estava com `selectable=false`, igual o usuário suspeitou)
+   — `prisma/migration-2026-07-10-mensageria-bot-preco-condominio.sql`.
+3. **3º bug real — invenção de valor pra campo não mapeado:** usuário pediu explicitamente que,
+   pra QUALQUER campo não mapeado (não só condomínio), o bot admita que não tem a informação em
+   vez de inventar. 1ª tentativa (regra só na persona) FALHOU no teste — perguntado sobre "suítes"
+   (campo não mapeado), o bot respondeu com números fabricados e ERRADOS por imóvel (comparado
+   com o valor real na tabela `imoveis`). Mesma lição do bug de fotos: regra abstrata na persona
+   não é confiável sozinha. Corrigido em `botAdapter.ts`: todo `tool_result` agora inclui um
+   `aviso` com a lista exata dos campos disponíveis (`entity.columns` selecionáveis +
+   `entity.relations`) e instrução explícita de nunca estimar/inventar campo fora dessa lista —
+   sinal explícito nos dados, igual ao fix de fotos. Retestado: parou de inventar números
+   específicos, mas 1ª rodada ainda disse "o imóvel não possui suítes" (confundindo "sem dado"
+   com "resposta é zero") — reforçada a persona distinguindo os dois casos
+   (`migration-2026-07-10-mensageria-bot-persona-nao-confundir-zero.sql`). Retestado 2x: resposta
+   limpa nas duas ("Não tenho essa informação disponível... sugiro falar com um atendente"), sem
+   afirmar zero nem inventar valor. `npx tsc --noEmit` limpo.
+
 **Follow-up mesma sessão — generalização pra qualquer segmento (Saúde, Veículos, etc.):** usuário
 perguntou se a exibição de fotos funcionaria pra outros segmentos "com zero hardcoded". Resposta
 honesta: a 1ª versão tinha um hardcode real — `collectImageUrls()` procurava literalmente a chave
