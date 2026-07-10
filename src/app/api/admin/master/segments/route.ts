@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
       color_theme = '#2563eb', is_active = true,
       module_ids = [] as string[],
       imagens_por_ia = false as boolean,
+      chatbot_max_turns_default = 6 as number,
     } = body;
 
     if (!name || !slug) {
@@ -67,10 +68,10 @@ export async function POST(request: NextRequest) {
 
     const { rows } = await pool.query(`
       INSERT INTO public.system_segments
-        (name, slug, description, icon, color_theme, is_active, imagens_por_ia)
-      VALUES ($1, $2, $3, $4, $5, $6, $7::BOOLEAN)
+        (name, slug, description, icon, color_theme, is_active, imagens_por_ia, chatbot_max_turns_default)
+      VALUES ($1, $2, $3, $4, $5, $6, $7::BOOLEAN, $8)
       RETURNING id
-    `, [name, slug, description, icon, color_theme, is_active, imagens_por_ia ?? false]);
+    `, [name, slug, description, icon, color_theme, is_active, imagens_por_ia ?? false, chatbot_max_turns_default || 6]);
 
     const newId = rows[0].id;
 
@@ -124,6 +125,7 @@ export async function PUT(request: NextRequest) {
       color_theme = '#2563eb', is_active = true,
       module_ids = [] as string[],
       imagens_por_ia = false as boolean,
+      chatbot_max_turns_default = 6 as number,
     } = body;
 
     if (!id || !name) {
@@ -132,14 +134,15 @@ export async function PUT(request: NextRequest) {
 
     await pool.query(`
       UPDATE public.system_segments SET
-        name           = $2,
-        description    = $3,
-        icon           = $4,
-        color_theme    = $5,
-        is_active      = $6,
-        imagens_por_ia = $7::BOOLEAN
+        name                       = $2,
+        description                = $3,
+        icon                       = $4,
+        color_theme                = $5,
+        is_active                  = $6,
+        imagens_por_ia             = $7::BOOLEAN,
+        chatbot_max_turns_default  = $8
       WHERE id = $1::uuid
-    `, [id, name, description, icon, color_theme, is_active, imagens_por_ia ?? false]);
+    `, [id, name, description, icon, color_theme, is_active, imagens_por_ia ?? false, chatbot_max_turns_default || 6]);
 
     // Re-sincronizar módulos: remove todos e reinsere
     await pool.query(

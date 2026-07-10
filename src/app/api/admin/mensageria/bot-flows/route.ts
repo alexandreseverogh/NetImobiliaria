@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { getTokenPayload } from '@/lib/auth/jwt-node'
+import { resolveSegment } from '@/lib/intelligence/segmentResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,15 +27,22 @@ export async function GET(request: NextRequest) {
     [payload.tenantId],
   )
   const row = rows[0]
-  return NextResponse.json({
-    flow: row ? {
-      id: row.id,
-      name: row.name,
-      isActive: row.is_active,
-      handoffKeywords: row.handoff_rules?.keywords || [],
-      maxTurns: row.handoff_rules?.maxTurns ?? null,
-    } : null,
-  })
+  if (row) {
+    return NextResponse.json({
+      flow: {
+        id: row.id,
+        name: row.name,
+        isActive: row.is_active,
+        handoffKeywords: row.handoff_rules?.keywords || [],
+        maxTurns: row.handoff_rules?.maxTurns ?? null,
+      },
+    })
+  }
+
+  // Tenant ainda não configurou o próprio flow — sugere o padrão do segmento (editável
+  // pelo Master em /admin/master/segments) em vez de um valor fixo no componente React.
+  const segment = await resolveSegment(payload.tenantId).catch(() => null)
+  return NextResponse.json({ flow: null, suggestedMaxTurns: segment?.chatbot_max_turns_default ?? 6 })
 }
 
 /**

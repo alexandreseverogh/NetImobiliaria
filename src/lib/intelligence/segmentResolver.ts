@@ -17,6 +17,7 @@ export interface Segment {
   creative_taxonomy: Record<string, any>;
   primary_kpis: any[];
   imagens_por_ia: boolean;
+  chatbot_max_turns_default: number;
 }
 
 export interface SegmentOption {

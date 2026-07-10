@@ -1,12 +1,49 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-10 (tipos_imovel — completa o fix de escopo pra Imobiliaria XYZ: concluído e testado)
+> **Atualizado em:** 2026-07-10 (chatbot_max_turns_default — parâmetro por segmento no Master: concluído e testado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-10 (continuação 4) — MaxTurns padrão vira parâmetro por segmento ✅
+
+**Contexto:** investigando um handoff "inesperado" no bairro Imbiribeira (Imobiliaria XYZ), veio
+à tona que a conversa de teste tinha mais turnos do que o usuário mostrou (6, não 4 — puxei o
+histórico completo do banco pra provar) — o limite configurado (`maxTurns=6`) disparou
+corretamente, não foi bug de dados/ferramenta. Só que 6 é pouco pra uma conversa imobiliária real
+(fácil estourar só explorando 2-3 bairros). Usuário pediu: esse padrão deve ser um parâmetro de
+tabela, editável pelo Master, **por segmento de negócio** (não um valor fixo no componente).
+
+**Implementado** (mesmo padrão já usado pra outros parâmetros diretos em `system_segments`, ex.
+`cpl_ideal`/`cpl_critical`):
+1. `prisma/migration-2026-07-10-segment-chatbot-max-turns.sql` — `system_segments.
+   chatbot_max_turns_default INTEGER NOT NULL DEFAULT 6`.
+2. `POST/PUT /api/admin/master/segments` aceitam o novo campo.
+3. `/admin/master/segments` — modal "Editar segmento" ganhou o campo (seção verde, mesmo padrão
+   visual do toggle "Imagens por IA"), editável por segmento.
+4. `GET /api/admin/mensageria/bot-flows` (nível tenant) — quando o tenant ainda não configurou o
+   próprio flow, resolve o segmento do tenant (`resolveSegment`) e retorna
+   `suggestedMaxTurns = segmento.chatbot_max_turns_default` em vez do `flow: null` cru. A aba Bot
+   em `/mensageria/config` usa essa sugestão como valor inicial do campo, em vez do `'6'` fixo
+   que tinha antes.
+
+**Testado:** `npx tsc --noEmit` limpo · `GET /master/segments` confirma o campo presente e = 6
+pros 6 segmentos existentes · `PUT` alterando o valor funciona (confirmado, depois revertido) ·
+tentativa de testar o fallback (`suggestedMaxTurns`) end-to-end esbarrou numa FK (`bot_sessions`
+referenciando o `bot_flows` da Imobiliaria XYZ) — não forcei a remoção pra não arriscar o config
+real do tenant; a lógica em si é simples e segue o mesmo padrão já comprovado de `resolveSegment`
+usado em várias outras partes do código nesta sessão, então confiei na revisão de código.
+
+**Erro cometido de novo (4ª vez nesta sessão) e corrigido:** digitei "Imobiliário" acentuado
+direto num `curl -d` de teste — corrompeu o **nome do segmento** (mais visível que os casos
+anteriores, que eram descrições). Corrigido via arquivo. **Ação tomada:** a partir de agora,
+qualquer corpo de requisição com acento vai sempre por arquivo primeiro, sem exceção — o padrão
+"é só um valor que eu já sei que está certo" continua causando o mesmo erro toda vez.
+
+---
 
 ### Sessão 2026-07-10 (continuação 3) — tipos_imovel: completa o fix de escopo pra Imobiliaria XYZ ✅
 

@@ -33,6 +33,7 @@ interface Segment {
   module_names: string
   imagens_por_ia: boolean
   tenant_count:   number
+  chatbot_max_turns_default: number
 }
 
 interface Module {
@@ -62,6 +63,7 @@ export default function MasterSegmentsPage() {
     is_active: true,
     module_ids: [] as string[],
     imagens_por_ia: false,
+    chatbot_max_turns_default: 6,
   })
 
   const fetchSegments = async () => {
@@ -95,7 +97,7 @@ export default function MasterSegmentsPage() {
       if (response.ok) {
         setShowModal(false)
         setEditingSegment(null)
-        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false })
+        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6 })
         fetchSegments()
       } else {
         const err = await response.json()
@@ -117,6 +119,7 @@ export default function MasterSegmentsPage() {
       is_active:      segment.is_active,
       module_ids:     (segment.module_ids || []).filter(Boolean),
       imagens_por_ia: segment.imagens_por_ia ?? false,
+      chatbot_max_turns_default: segment.chatbot_max_turns_default ?? 6,
     })
     setShowModal(true)
   }
@@ -152,7 +155,7 @@ export default function MasterSegmentsPage() {
             <button
               onClick={() => {
                 setEditingSegment(null)
-                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false })
+                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6 })
                 setShowModal(true)
               }}
               className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95"
@@ -432,6 +435,25 @@ export default function MasterSegmentsPage() {
                         </p>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Chatbot — padrão de transferência */}
+                  <div className="p-3.5 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/50">
+                    <label htmlFor="chatbot_max_turns_default" className="text-sm font-black text-emerald-800 flex items-center gap-1.5 mb-1">
+                      <CommandLineIcon className="h-3.5 w-3.5" />
+                      Bot — transferir após N interações (padrão)
+                    </label>
+                    <p className="text-[10px] text-emerald-600 mb-2 leading-relaxed">
+                      Valor sugerido quando um tenant deste segmento ainda não configurou o próprio
+                      (em Mensageria → Config → Bot). Segmentos com conversa naturalmente mais longa
+                      (ex.: imóveis, explorando vários bairros) merecem um valor maior.
+                    </p>
+                    <input
+                      type="number" id="chatbot_max_turns_default" min={1} max={50}
+                      value={formData.chatbot_max_turns_default}
+                      onChange={e => setFormData({...formData, chatbot_max_turns_default: parseInt(e.target.value, 10) || 6})}
+                      className="w-24 px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium text-sm"
+                    />
                   </div>
                 </div>
                 {/* ╚══════════════ FIM COLUNA ESQUERDA ══════════════╝ */}

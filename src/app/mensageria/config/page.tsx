@@ -773,11 +773,13 @@ function BotTab() {
         adminFetch('/api/admin/mensageria/bot-flows'),
         adminFetch('/api/admin/mensageria/inboxes'),
       ])
-      const flowData: BotFlow | null = (await flowRes.json()).flow
+      const flowJson = await flowRes.json()
+      const flowData: BotFlow | null = flowJson.flow
       setFlow(flowData)
       setIsActive(flowData?.isActive ?? false)
       setKeywordsText(flowData?.handoffKeywords?.length ? flowData.handoffKeywords.join(', ') : keywordsText)
-      setMaxTurns(flowData?.maxTurns != null ? String(flowData.maxTurns) : '6')
+      // Sem flow próprio ainda → sugere o padrão do segmento (editável pelo Master), não um valor fixo.
+      setMaxTurns(flowData?.maxTurns != null ? String(flowData.maxTurns) : String(flowJson.suggestedMaxTurns ?? 6))
 
       const nonManual = ((await ibRes.json()).inboxes || []).filter((i: Inbox) => i.channelType !== 'manual')
       setInboxes(nonManual)
