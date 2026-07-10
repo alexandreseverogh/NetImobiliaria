@@ -143,12 +143,24 @@ async function runBotReply(
       let resultText: string
       try {
         const rows = entity ? await resolveEntity(entity, call.input, { tenantId }) : []
+        let resultPayload: any = rows
         if (entity) {
-          for (const url of collectImageUrls(rows, entity)) {
+          const hasImageRelation = entity.relations.some((r) => r.is_image)
+          const foundImages = collectImageUrls(rows, entity)
+          for (const url of foundImages) {
             if (!collectedImages.includes(url)) collectedImages.push(url)
           }
+          // Aviso explícito nos próprios dados, não só na persona — um array vazio ("fotos": [])
+          // é fácil demais do LLM ignorar/inferir errado; uma frase textual junto do resultado
+          // é seguida de forma muito mais confiável do que uma regra abstrata escrita antes.
+          if (hasImageRelation && rows.length > 0 && foundImages.length === 0) {
+            resultPayload = {
+              aviso: 'Nenhum dos itens abaixo tem foto/imagem disponível no momento. Não afirme que há fotos disponíveis.',
+              resultados: rows,
+            }
+          }
         }
-        resultText = JSON.stringify(rows)
+        resultText = JSON.stringify(resultPayload)
       } catch (err) {
         resultText = JSON.stringify({ error: 'Falha ao consultar os dados.' })
         console.error('[mensageria/botAdapter] falha na ferramenta', call.name, err)

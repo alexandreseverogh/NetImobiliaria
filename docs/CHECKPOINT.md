@@ -73,6 +73,21 @@ desses imóveis disponíveis" · cenário misto (1 imóvel com foto real + outro
 disponível corretamente e manda só 1 imagem de verdade, sem ruído nos demais. `npx tsc --noEmit`
 limpo.
 
+**Follow-up mesma sessão — 2º bug real, mesma causa raiz mais funda:** mesmo depois do fix acima
+(array `fotos:[]` limpo), o usuário reportou o bot dizendo "As fotos dos imóveis estão disponíveis"
+pra uma lista de imóveis SEM foto real nenhuma — confirmado via SQL direto que o resultado da
+ferramenta era `fotos:[]` para todos, então o array já estava correto; o problema era o LLM não
+seguir de forma confiável a regra "se vazio, diga que não há foto" só porque ela estava escrita na
+persona, um texto separado do resultado da chamada. Corrigido em `botAdapter.ts`: quando a entidade
+tem relation `is_image` e a chamada retorna linhas mas nenhuma foto de verdade, o `tool_result`
+mandado pro LLM passa a incluir um campo `aviso` explícito ("Nenhum dos itens abaixo tem foto/imagem
+disponível no momento. Não afirme que há fotos disponíveis.") directly nos dados, não só na
+instrução geral — sinal textual explícito nos dados é seguido de forma muito mais confiável do que
+inferência sobre array vazio. Retestado 3x seguidas com o cenário exato reportado: as 3 respostas
+agora abrem com "No momento não tenho fotos desses imóveis disponíveis" · regressão confirmada: caso
+misto (1 imóvel com foto real) continua mencionando certo e mandando a imagem de verdade. `npx tsc
+--noEmit` limpo.
+
 **Follow-up mesma sessão — generalização pra qualquer segmento (Saúde, Veículos, etc.):** usuário
 perguntou se a exibição de fotos funcionaria pra outros segmentos "com zero hardcoded". Resposta
 honesta: a 1ª versão tinha um hardcode real — `collectImageUrls()` procurava literalmente a chave
