@@ -1,12 +1,33 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-10 (Mensageria — criação manual de inbox: concluído e testado)
+> **Atualizado em:** 2026-07-10 (Persona do bot — reforço de idioma e escopo: concluído e testado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-10 (continuação 2) — Persona: reforço de idioma e escopo ✅
+
+**Motivação (bug real, achado testando com Imobiliaria XYZ já ativa):** perguntado algo fora do
+segmento imobiliário ("indicação de remédio pra dor de cabeça"), o bot respondeu **em inglês**
+("I don't have access to médico information") — a persona já pedia português, mas não tinha
+instrução explícita pra pergunta fora de escopo, e o modelo "escapou" do idioma nesse caso.
+
+**Corrigido** (dado, não código — `public.system_prompt_templates`, template
+`mensageria_bot_persona`, os dois templates ativos hoje: fallback global + Imobiliário):
+adicionadas 2 regras explícitas — (1) responder SEMPRE em português, mesmo pergunta em outro
+idioma ou assunto fora do papel; (2) se a pergunta não tem relação com o negócio, responder com
+cordialidade que não tem conhecimento sobre aquele assunto específico, deixar claro qual é o
+papel do bot, e perguntar se pode ajudar com algo relacionado.
+`prisma/migration-2026-07-10-mensageria-bot-persona-escopo-idioma.sql` (aplicada, idempotente).
+
+**Testado:** repeti a exata pergunta que tinha vazado pra inglês, no mesmo tenant (Imobiliaria
+XYZ) — resposta agora cordial, 100% em português, explicando que não tem conhecimento sobre
+remédios e redirecionando pro que pode ajudar (imóveis).
+
+---
 
 ### Sessão 2026-07-10 (continuação) — Criação manual de inbox ✅
 
