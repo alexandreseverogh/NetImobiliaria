@@ -1,8 +1,41 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-10 (toggle "usar padrão do segmento" pro MaxTurns + botão Limpar mais visível: concluído e testado)
+> **Atualizado em:** 2026-07-10 (bug real causado por mim: PUT de segments apagou system_segment_modules — corrigido)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## ⚠️ Incidente registrado — dados apagados por engano nesta sessão
+
+**O que aconteceu:** ao testar a feature `chatbot_max_turns_default` (item anterior deste
+checkpoint), fiz 2 chamadas diretas via curl a `PUT /api/admin/master/segments` passando
+`"module_ids":[]` (só queria testar o campo novo, ignorei os demais campos do payload). Essa
+rota faz **replace-all** de `system_segment_modules` pro segmento (`DELETE` + reinsert do que
+vier no body) — como não veio nada, apagou os 6 vínculos módulo↔segmento do "Imobiliário" que
+existiam antes. Sintoma reportado pelo usuário: `/admin/master/provisioning` parou de mostrar
+módulos/features pro segmento Imobiliário (a árvore dessa tela é agrupada por
+`system_segment_modules`).
+
+**Diagnóstico errado na primeira resposta:** inicialmente concluí "não fui eu" com base só em
+não ter tocado o COMPONENTE da tela — não considerei que uma chamada de API minha, em outro
+contexto (testando outro campo), pudesse ter efeito colateral destrutivo numa tabela
+compartilhada. O usuário insistiu "a tela funcionava antes" e essa insistência foi o que me fez
+reabrir a investigação e achar a causa real.
+
+**Corrigido:** reconstrução por evidência (não há backup do estado exato anterior) — união dos
+módulos que os 2 tenants reais do segmento Imobiliário (Imobiliaria XYZ + Marketing Digital) já
+tinham provisionados em `tenant_modules`: Mercado Imobiliário, Administrativo Provisionado,
+Cadastros, CRM de Vendas, Gestão de Campanhas de Marketing Digital, Gestão de Mensageria (6).
+Reinseridos via SQL direto (não pela rota PUT, pra não repetir o mesmo erro). Verificado via
+`GET /api/admin/master/provisioning` — a árvore volta a mostrar os 6 módulos com features sob
+o segmento Imobiliário.
+
+**Lição registrada:** ao testar uma API existente por fora da UI (curl direto), **nunca**
+montar o body só com o campo que estou testando quando a rota é do tipo "replace-all" — sempre
+buscar o estado atual completo primeiro (`GET`) e enviar o objeto inteiro de volta, alterando só
+o campo relevante. Isso já era a prática usada em alguns dos meus testes anteriores nesta sessão
+(ex.: round-trip do PUT de `segment_data_entities`), mas não segui essa mesma disciplina aqui.
 
 ---
 
