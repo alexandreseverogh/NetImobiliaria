@@ -1,12 +1,33 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-10 (Persona do bot — reforço de idioma e escopo: concluído e testado)
+> **Atualizado em:** 2026-07-10 (tipos_imovel — completa o fix de escopo pra Imobiliaria XYZ: concluído e testado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-10 (continuação 3) — tipos_imovel: completa o fix de escopo pra Imobiliaria XYZ ✅
+
+**Motivação:** usuário reportou `/admin/tipos-imoveis` sem nenhum registro, logado como
+Imobiliaria XYZ. Causa: consequência direta do fix de escopo por tenant feito antes nesta sessão
+(`migration-2026-07-09-tipos-status-imovel-tenant-scope.sql`) — naquela rodada só duplicamos o
+catálogo do master pro Marketing Digital (decisão explícita do usuário na hora, pra não arriscar
+os 12 imóveis reais da Imobiliaria XYZ que usam `tipo_fk=12`). Antes do fix do bug de escopo, a
+Imobiliaria XYZ "enxergava" (incorretamente) as linhas do master; com o escopo corrigido, passou
+a ver zero linhas próprias — ficou pendente duplicar pra ela também, e esqueci de fazer isso.
+
+**Corrigido:** `prisma/migration-2026-07-10-tipos-imovel-imobiliaria-xyz.sql` — duplica as 12
+linhas do master pro tenant Imobiliaria XYZ (mesmo padrão já usado pro Marketing Digital,
+puramente aditivo/INSERT, `ON CONFLICT DO NOTHING` idempotente).
+
+**Testado:** API `/api/admin/tipos-imoveis` com token real da Imobiliaria XYZ retorna os 12 tipos
+próprios, acentos corretos (usei arquivo pra aplicar, não linha de comando — sem repetir o erro
+de encoding desta vez) · confirmado que os 12 imóveis reais que usam `tipo_fk=12` continuam
+intactos e apontando pro mesmo id (INSERT não mexeu em nenhuma linha existente nem em nenhum FK).
+
+---
 
 ### Sessão 2026-07-10 (continuação 2) — Persona: reforço de idioma e escopo ✅
 
