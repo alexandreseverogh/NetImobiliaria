@@ -1,12 +1,44 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-10 (Dados do Bot — introspecção sob demanda de colunas: concluído e testado)
+> **Atualizado em:** 2026-07-10 (Mensageria — criação manual de inbox: concluído e testado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-10 (continuação) — Criação manual de inbox ✅
+
+**Motivação:** usuário reportou o campo de "Testar bot" desabilitado logado como Imobiliaria XYZ.
+Investigação: tenant tem **zero inboxes** — nunca teve nenhuma interação real em nenhum canal.
+Achado importante antes de implementar: `resolveWebformInbox()`/`resolveManualInbox()`
+(`src/lib/mensageria/inboxes.ts`) já criam a inbox **automaticamente na primeira mensagem real**
+de cada canal — não é ausência de mecanismo, é que Imobiliaria XYZ nunca usou o módulo. Levei
+isso ao usuário antes de construir a tela (pra não duplicar um mecanismo já existente); usuário
+confirmou que queria a criação manual mesmo assim — útil pra provisionar a inbox **antes** da
+primeira interação real (ex.: testar o bot antes de divulgar o canal).
+
+**Implementado:**
+- `POST /api/admin/mensageria/inboxes` — cria inbox própria do tenant (`client_id NULL`).
+  Restrito a canais funcionais hoje (`whatsapp`/`webform`/`manual` — não `webchat`/`chatbot`,
+  que ainda não têm superfície real). Rejeita duplicata do mesmo canal pro tenant (409) —
+  mantém a mesma premissa de unicidade que o auto-create já assume (`LIMIT 1`).
+- Aba "Inboxes" — formulário de criação (nome + canal) aparece só se houver algum canal ainda
+  não criado; lista abaixo continua como já era.
+
+**Testado** (token de teste pro tenant Imobiliaria XYZ, usuário real `admxyz`): tenant começou
+com 0 inboxes · POST criou "Formulários do Site" (webform) · 2ª tentativa do mesmo canal → 409 ·
+GET reflete o estado correto. **Erro cometido e corrigido no processo:** digitei "Formulários"
+acentuado direto no `curl -d` de novo (mesmo erro já registrado antes) — corrigido via arquivo.
+**Reforçando a lição:** revisar antes de testar — nunca digitar acento inline em curl/bash.
+`npx tsc --noEmit` limpo.
+
+**Pendente:** Imobiliaria XYZ ainda não tem `bot_flows` ativo — a inbox já existe e o campo de
+teste já destrava, mas o bot em si precisa ser configurado/ativado na aba Bot pra responder de
+verdade (mesmo passo que qualquer tenant novo precisa fazer).
+
+---
 
 ### Sessão 2026-07-10 — "Dados do Bot": introspecção sob demanda de colunas ✅
 

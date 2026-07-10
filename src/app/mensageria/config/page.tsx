@@ -103,11 +103,18 @@ function PrimaryButton({ children, ...props }: React.ButtonHTMLAttributes<HTMLBu
 // Inboxes (somente leitura)
 // ============================================================================
 
+const CREATABLE_CHANNELS = ['whatsapp', 'webform', 'manual'] as const
+
 function InboxesTab() {
   const [inboxes, setInboxes] = useState<Inbox[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
+
+  const [newName, setNewName] = useState('')
+  const [newChannelType, setNewChannelType] = useState<string>('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
 
   async function load() {
     setLoading(true)
@@ -137,15 +144,59 @@ function InboxesTab() {
     }
   }
 
+  const existingChannels = new Set(inboxes.map((ib) => ib.channelType))
+  const availableChannels = CREATABLE_CHANNELS.filter((c) => !existingChannels.has(c))
+
+  async function createInbox() {
+    if (!newName.trim() || !newChannelType) return
+    setCreating(true)
+    setCreateError('')
+    try {
+      const res = await adminFetch('/api/admin/mensageria/inboxes', {
+        method: 'POST', body: JSON.stringify({ name: newName.trim(), channelType: newChannelType }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setCreateError(data.error || 'Falha ao criar inbox.'); return }
+      setNewName(''); setNewChannelType('')
+      await load()
+    } finally {
+      setCreating(false)
+    }
+  }
+
   if (loading) return <Card><p className="text-sm text-slate-500">Carregando...</p></Card>
 
   return (
     <Card>
       <p className="text-xs text-slate-500 mb-3">
-        Canais de entrada são criados automaticamente na primeira mensagem de cada tipo (WhatsApp, Formulário, Manual).
-        Vincule um <strong className="text-slate-400">time responsável</strong> para que conversas novas nesse canal sejam
-        auto-atribuídas ao membro com menos conversas em aberto (só funciona se o time tiver &quot;Auto-atribuição ativa&quot;).
+        Canais de entrada são criados automaticamente na primeira mensagem de cada tipo (WhatsApp, Formulário, Manual),
+        ou você pode criar um antecipadamente aqui — útil, por exemplo, pra já poder testar o bot antes da primeira
+        interação real chegar. Vincule um <strong className="text-slate-400">time responsável</strong> para que
+        conversas novas nesse canal sejam auto-atribuídas ao membro com menos conversas em aberto (só funciona se
+        o time tiver &quot;Auto-atribuição ativa&quot;).
       </p>
+
+      {availableChannels.length > 0 && (
+        <div className="flex flex-col sm:flex-row gap-2 mb-4 pb-4 border-b border-white/5">
+          <TextInput
+            value={newName} onChange={(e) => setNewName(e.target.value)}
+            placeholder="Nome da inbox (ex: Formulários do Site)"
+            className="flex-1"
+          />
+          <select
+            value={newChannelType} onChange={(e) => setNewChannelType(e.target.value)}
+            className="h-9 px-3 rounded-lg bg-[#112240] border border-white/8 text-sm text-slate-300 outline-none"
+          >
+            <option value="">Canal...</option>
+            {availableChannels.map((c) => <option key={c} value={c}>{CHANNEL_LABELS[c] || c}</option>)}
+          </select>
+          <PrimaryButton onClick={createInbox} disabled={creating || !newName.trim() || !newChannelType}>
+            <PlusIcon className="w-4 h-4" /> {creating ? 'Criando...' : 'Criar inbox'}
+          </PrimaryButton>
+        </div>
+      )}
+      {createError && <p className="text-xs text-rose-400 mb-3">{createError}</p>}
+
       {inboxes.length === 0 ? (
         <EmptyState text="Nenhuma inbox criada ainda. Envie/receba uma mensagem para que o canal apareça aqui." />
       ) : (
