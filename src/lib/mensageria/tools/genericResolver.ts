@@ -122,9 +122,12 @@ function buildRelationSubquery(rel: EntityRelation, baseAlias: string): string |
   if (agg === 'first') {
     return `(SELECT ${proj} FROM ${from} WHERE ${corr} LIMIT 1) AS ${rel.name}`
   }
-  // array (default) — one-to-many agregado, com teto de itens
+  // array (default) — one-to-many agregado, com teto de itens. Descarta nulo/vazio na origem —
+  // sem isso, uma linha-ponte sem valor real vira um `null` solto dentro do array (ex.: imóvel
+  // sem foto com link CDN gera fotos:[null,null,...] em vez de fotos:[]), e um array "cheio de
+  // null" engana o LLM: ele acha que tem conteúdo pra apresentar item a item quando não tem nada.
   const cap = Math.min(Math.max(rel.max ?? 25, 1), 50)
-  return `(SELECT array_agg(v) FROM (SELECT ${proj} AS v FROM ${from} WHERE ${corr} LIMIT ${cap}) s) AS ${rel.name}`
+  return `(SELECT COALESCE(array_agg(v), ARRAY[]::text[]) FROM (SELECT ${proj}::text AS v FROM ${from} WHERE ${corr} AND ${proj} IS NOT NULL AND ${proj}::text <> '' LIMIT ${cap}) s) AS ${rel.name}`
 }
 
 export async function resolveEntity(

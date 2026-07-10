@@ -58,6 +58,21 @@ credenciais (falha graciosa) — teste com credenciais reais fica pendente de o 
 número de teste, conforme combinado no plano (ação externa irreversível, não disparada
 unilateralmente).
 
+**Follow-up mesma sessão — bug real reportado pelo usuário e corrigido:** usuário testou "gostaria
+de ver as fotos de cada um" (vários imóveis numa lista de bairros sem foto real no CDN) e o bot
+respondeu com "Fotos: Aqui estão as fotos!" repetido por item, sem mandar imagem nenhuma. Causa
+raiz: `buildRelationSubquery` (array agg) não filtrava `NULL`/vazio na origem — um imóvel sem
+`url_cdn` gerava `fotos:[null,null,null,null]` (array "cheio", só que de nulos) em vez de `fotos:[]`
+limpo. O LLM via aquele array não-vazio e tentava renderizar algo por posição. Corrigido em
+`genericResolver.ts`: a subquery agora filtra `IS NOT NULL AND <> ''` na origem e usa
+`COALESCE(array_agg(v), ARRAY[]::text[])` — garante `[]` de verdade quando não há valor real.
+Reforçada também a persona (`mensageria_bot_persona`) pro caso de LISTA de vários imóveis: uma
+frase única no fim, não uma linha "Fotos:" repetida por item. Retestado: cenário exato reportado
+(zero fotos reais entre os imóveis) agora responde com 1 frase natural "No momento não tenho fotos
+desses imóveis disponíveis" · cenário misto (1 imóvel com foto real + outros sem) menciona a foto
+disponível corretamente e manda só 1 imagem de verdade, sem ruído nos demais. `npx tsc --noEmit`
+limpo.
+
 **Follow-up mesma sessão — generalização pra qualquer segmento (Saúde, Veículos, etc.):** usuário
 perguntou se a exibição de fotos funcionaria pra outros segmentos "com zero hardcoded". Resposta
 honesta: a 1ª versão tinha um hardcode real — `collectImageUrls()` procurava literalmente a chave
