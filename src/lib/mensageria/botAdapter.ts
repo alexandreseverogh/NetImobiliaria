@@ -12,7 +12,7 @@ import { resolvePromptTemplate } from '@/lib/intelligence/promptResolver'
 import { renderPrompt } from '@/lib/intelligence/promptRenderer'
 import { getLlmClientForCampaigns } from '@/lib/marketing/services/llmClient'
 import type { LlmMessage } from '@/lib/marketing/services/llmClient'
-import { getToolsForSegment, resolveEntity } from '@/lib/mensageria/tools/genericResolver'
+import { getToolsForSegment, resolveEntity, type SegmentDataEntity } from '@/lib/mensageria/tools/genericResolver'
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import { sendEvolutionMessage, sendEvolutionMedia, type EvolutionInboxConfig } from '@/lib/mensageria/channels/evolutionSend'
 
@@ -89,16 +89,24 @@ interface BotReply {
 const MAX_IMAGES_PER_REPLY = 4
 
 /**
- * Colhe links de foto ("fotos": string[]) de dentro das linhas retornadas por uma tool call,
- * ignorando nulos/vazios — o próprio resolver já traz null quando o imóvel não tem link CDN.
+ * Colhe links de imagem de dentro das linhas retornadas por uma tool call — genérico por
+ * construção: não amarra a nenhum nome de campo/entidade/segmento específico. Qualquer relation
+ * marcada `is_image: true` no cadastro de "Dados do Bot" (Master → Segmentos) vira candidata,
+ * seja "fotos" do imóvel, "fotos_clinica" da Saúde, "imagens" de um carro, etc. Zero mudança de
+ * código pra um segmento novo ganhar essa capacidade — só cadastro.
  */
-function collectImageUrls(rows: any[]): string[] {
+function collectImageUrls(rows: any[], entity: SegmentDataEntity): string[] {
+  const imageFields = entity.relations.filter((r) => r.is_image).map((r) => r.name)
+  if (imageFields.length === 0) return []
+
   const urls: string[] = []
   for (const row of rows) {
-    const fotos = row?.fotos
-    if (!Array.isArray(fotos)) continue
-    for (const url of fotos) {
-      if (typeof url === 'string' && url.trim()) urls.push(url)
+    for (const field of imageFields) {
+      const val = row?.[field]
+      if (!Array.isArray(val)) continue
+      for (const url of val) {
+        if (typeof url === 'string' && url.trim()) urls.push(url)
+      }
     }
   }
   return urls
@@ -135,8 +143,10 @@ async function runBotReply(
       let resultText: string
       try {
         const rows = entity ? await resolveEntity(entity, call.input, { tenantId }) : []
-        for (const url of collectImageUrls(rows)) {
-          if (!collectedImages.includes(url)) collectedImages.push(url)
+        if (entity) {
+          for (const url of collectImageUrls(rows, entity)) {
+            if (!collectedImages.includes(url)) collectedImages.push(url)
+          }
         }
         resultText = JSON.stringify(rows)
       } catch (err) {

@@ -42,6 +42,7 @@ interface EntityRelationInput {
   select_column: string;
   agg?: 'array' | 'count' | 'first';
   max?: number;
+  is_image?: boolean;
 }
 interface EntityInput {
   entityName: string;

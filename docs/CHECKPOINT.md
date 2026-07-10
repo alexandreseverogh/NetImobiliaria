@@ -58,6 +58,21 @@ credenciais (falha graciosa) — teste com credenciais reais fica pendente de o 
 número de teste, conforme combinado no plano (ação externa irreversível, não disparada
 unilateralmente).
 
+**Follow-up mesma sessão — generalização pra qualquer segmento (Saúde, Veículos, etc.):** usuário
+perguntou se a exibição de fotos funcionaria pra outros segmentos "com zero hardcoded". Resposta
+honesta: a 1ª versão tinha um hardcode real — `collectImageUrls()` procurava literalmente a chave
+`"fotos"` no resultado da tool call. Corrigido: `EntityRelation` (`genericResolver.ts`) ganhou o
+campo `is_image?: boolean`; `collectImageUrls()` agora recebe a `entity` e descobre dinamicamente
+quais relations são imagem (`entity.relations.filter(r => r.is_image)`) — funciona pra qualquer
+nome de campo/entidade/segmento, sem tocar em código. UI "Dados do Bot" (Master → Segmentos →
+`SegmentDataEntitiesModal.tsx`) ganhou o checkbox "É uma lista de links de imagem" nas relations
+tipo array — um Master configurando Saúde Digital ou Veículos marca isso na tela, sem SQL nenhum.
+`prisma/migration-2026-07-10-mensageria-bot-fotos-is-image-flag.sql` retroaplicou a flag na relation
+`fotos` já existente do imóvel. Testado: GET/PUT reais via `/api/admin/master/segments/[id]/
+data-entities` confirmam a flag sobrevivendo ao round-trip completo; reteste do bot (mesmo cenário
+de Boa Viagem) confirma que a imagem continua sendo detectada e enviada corretamente pelo novo
+mecanismo genérico. `npx tsc --noEmit` limpo.
+
 ---
 
 ## Penúltima tarefa concluída

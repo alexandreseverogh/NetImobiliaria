@@ -29,6 +29,7 @@ interface Relation {
   select_column: string;
   agg: 'array' | 'count' | 'first';
   max: number;
+  is_image: boolean;
 }
 interface Entity {
   entityName: string;
@@ -52,6 +53,7 @@ const emptyColumn = (): Column => ({ name: '', type: 'text', description: '', se
 const emptyRelation = (): Relation => ({
   name: '', description: '', bridge_table: '', bridge_fk: '', base_pk: 'id',
   lookup_table: '', lookup_fk: '', lookup_pk: 'id', select_column: '', agg: 'array', max: 25,
+  is_image: false,
 });
 const emptyEntity = (): Entity => ({
   entityName: '', tableName: '', description: '', tenantColumn: 'tenant_id', defaultFilter: 'ativo = true',
@@ -125,7 +127,7 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
             name: r.name ?? '', description: r.description ?? '', bridge_table: r.bridge_table ?? '',
             bridge_fk: r.bridge_fk ?? '', base_pk: r.base_pk ?? 'id', lookup_table: r.lookup_table ?? '',
             lookup_fk: r.lookup_fk ?? '', lookup_pk: r.lookup_pk ?? 'id', select_column: r.select_column ?? '',
-            agg: r.agg ?? 'array', max: r.max ?? 25,
+            agg: r.agg ?? 'array', max: r.max ?? 25, is_image: !!r.is_image,
           })),
         }));
         setEntities(loaded);
@@ -456,6 +458,14 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
                                 className="px-2 py-1 rounded border border-gray-200 text-[11px] text-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-400" />
                             )}
                           </div>
+                          {r.agg === 'array' && (
+                            <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer">
+                              <input type="checkbox" checked={r.is_image}
+                                onChange={(ev) => updateRelation(ei, ri, { is_image: ev.target.checked })}
+                                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-400" />
+                              É uma lista de links de imagem — o bot manda cada item como foto de verdade na conversa, não como texto/link
+                            </label>
+                          )}
                         </div>
                       ))}
                     </div>

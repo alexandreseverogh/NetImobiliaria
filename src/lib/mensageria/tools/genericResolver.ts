@@ -28,7 +28,7 @@ interface EntityColumn {
  * fan-out na query principal. Suporta agregação one-to-many e multi-hop (tabela-ponte
  * → tabela de lookup do nome). Ex.: imovel → imovel_amenidades → amenidades.nome.
  */
-interface EntityRelation {
+export interface EntityRelation {
   name: string                 // chave no resultado (ex.: 'amenidades') — vira coluna do SELECT
   description?: string
   bridge_table: string         // tabela correlacionada / ponte (ex.: 'imovel_amenidades')
@@ -40,6 +40,10 @@ interface EntityRelation {
   select_column: string        // coluna trazida (do lookup se houver, senão da ponte)
   agg?: 'array' | 'count' | 'first'
   max?: number                 // teto de itens no array (default 25)
+  is_image?: boolean           // marca a relation como lista de URLs de imagem — qualquer
+                                // segmento/entidade pode usar (não amarrado a nome de campo nem
+                                // a "imóvel"); é isso que o bot usa pra decidir o que virar
+                                // mensagem de imagem de verdade em vez de texto/link
 }
 
 export interface SegmentDataEntity {
