@@ -1,8 +1,34 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-10 (fallback de robustez no botAdapter — falha do LLM não deixa mais o contato sem resposta)
+> **Atualizado em:** 2026-07-10 (iniciando: bot exibindo fotos de imóveis + fecha gap de envio real ao WhatsApp)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Tarefa em andamento
+
+### Bot exibindo fotos de imóveis + envio real ao WhatsApp (M4.2 extensão)
+
+Usuário perguntou se o bot consegue exibir fotos (hoje só conta via `qtd_fotos`). Investigação
+achou 2 lacunas: (1) falta relation com o link real da foto (`imovel_imagens.url_cdn`) + nenhuma
+bolha de chat sabe renderizar imagem; (2) descoberta maior — **nenhuma resposta do bot chega hoje
+ao WhatsApp real** (`sendEvolutionMessage` só é chamado na resposta manual de atendente, nunca em
+`botAdapter.ts`). Usuário confirmou querer as duas coisas resolvidas juntas. Plano completo salvo
+em `C:\Users\T-GAMER\.claude\plans\bright-herding-minsky.md`.
+
+**Etapas:** A) relation `fotos` (config/SQL) · B) `botAdapter.ts` captura URLs das tool calls e
+separa texto/imagens · C) `ConversationThread.tsx` + painel de teste renderizam `<img>` · D) nova
+`sendEvolutionMedia()` + `botAdapter.ts` chama envio real (texto E imagem) após cada `ingestMessage`,
+fechando o gap de entrega pra WhatsApp real.
+
+**Nota importante confirmada pelo usuário:** as 93 fotos sem `url_cdn` (de 106 totais) são
+resquício de uma versão antiga da app que guardava blob cru — fluxo legado, não o caminho atual.
+Todo upload novo já entra via CDN com `url_cdn` populado (`s3-client.ts`). Não é uma limitação
+estrutural do plano, só do estado atual dos dados antigos.
+
+**Etapa D (envio real) só será testada com confirmação explícita do usuário e número de teste** —
+é uma ação externa irreversível.
 
 ---
 
