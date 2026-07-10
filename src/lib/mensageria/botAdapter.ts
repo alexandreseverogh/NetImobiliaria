@@ -220,10 +220,17 @@ export async function maybeRunBot(conversationId: string, tenantId: string): Pro
     [conversationId, turns],
   )
 
-  const reply = await runBotReply(conversationId, tenantId, conv.client_id)
-  // O LLM ocasionalmente retorna conteúdo vazio na última rodada do loop de tool-use —
-  // preferível uma mensagem genérica a deixar o contato sem resposta nenhuma.
-  const finalReply = reply || 'Desculpe, não consegui processar sua mensagem agora. Pode reformular ou tentar novamente em instantes?'
+  // runBotReply pode falhar de verdade (timeout/erro do provider LLM, não só conteúdo vazio) —
+  // nesses casos o contato NÃO pode ficar sem nenhuma resposta; melhor uma mensagem genérica
+  // de desculpa do que silêncio total (silêncio parece bot quebrado; a mensagem deixa claro
+  // que ele está ativo e convida a tentar de novo).
+  let reply: string | null = null
+  try {
+    reply = await runBotReply(conversationId, tenantId, conv.client_id)
+  } catch (err) {
+    console.error('[mensageria/botAdapter] falha ao gerar resposta do bot:', err)
+  }
+  const finalReply = reply || 'Desculpe, tive um problema para processar sua mensagem agora. Pode tentar de novo em instantes?'
 
   const contact = await loadContact(conversationId)
   if (!contact) return

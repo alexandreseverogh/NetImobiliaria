@@ -1,8 +1,42 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-10 (bug real causado por mim: PUT de segments apagou system_segment_modules — corrigido)
+> **Atualizado em:** 2026-07-10 (fallback de robustez no botAdapter — falha do LLM não deixa mais o contato sem resposta)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-10 (continuação 6) — Investigação "andar inventado" + fallback de robustez do bot ✅
+
+**Investigação 1 — falso alarme corrigido:** usuário reportou o bot "inventando" andares dos
+imóveis. Eu tinha confirmado `andar = NULL` numa consulta ANTERIOR e assumi que continuava assim
+— erro meu, não considerei que o usuário pudesse ter atualizado o dado manualmente entre as duas
+consultas. Reconferido: os valores que o bot reportou (`andar=1,2,3,5,6`) batiam **exatamente**
+com o estado atual real da tabela `imoveis` — o bot estava certo, eu que me baseei em dado
+desatualizado. Lição: nunca reafirmar uma conclusão de consulta anterior sem reconferir o estado
+atual, especialmente quando o usuário pode estar editando dados em paralelo.
+
+**Investigação 2 — bot não respondeu a "me mostre as fotos dos imoveis":** confirmado no histórico
+real (`mensageria.messages`) que a mensagem foi ingerida mas nenhuma resposta do bot foi gerada —
+falha real, engolida silenciosamente pelo catch "best-effort" do hook em `ingestMessage()`.
+Tentei reproduzir com logging temporário de erro (escrita em arquivo) — a reprodução ("de novo")
+funcionou perfeitamente (usou a relation `qtd_fotos` corretamente, retornou contagens reais).
+Não consegui capturar o stack trace da falha original (aconteceu antes de eu adicionar o log).
+Indício de falha transitória (timeout/hiccup da API do LLM), não bug determinístico — mas revelou
+uma lacuna de robustez real independente da causa exata.
+
+**Corrigido:** `botAdapter.ts` — `runBotReply()` agora roda dentro de try/catch próprio; se
+lançar exceção (não só retornar vazio), ainda envia uma mensagem de desculpa genérica ao contato
+em vez de silêncio total. Antes, só o caso "conteúdo vazio" tinha fallback — uma falha de
+verdade (erro de rede/provider) deixava o contato sem nenhuma resposta, parecendo bot quebrado.
+
+**Testado:** `npx tsc --noEmit` limpo. Não foi possível testar o caminho de erro em si (exigiria
+forçar uma falha real do provider LLM), mas a mudança é estruturalmente simples (try/catch +
+fallback já usado no caso de conteúdo vazio) e de baixo risco.
+
+---
 
 ---
 
