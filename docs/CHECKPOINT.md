@@ -42,6 +42,18 @@ inclusive `is_active=false`) · validação rejeitou um nome de tabela com SQL i
 colunas/relations) · bot re-testado depois do round-trip pela API — continua respondendo com os 12
 tipos reais, sem regressão. `npx tsc --noEmit` limpo.
 
+**Follow-up — usuário reportou modal preso no skeleton de loading:** investigação longa (Fast
+Refresh do dev server, tentativa de injetar cookie de sessão Master via Chrome DevTools MCP pra
+reproduzir — abandonada, muita camada de validação client-side pra forjar) até o usuário mandar
+prints reais do Network/Response do navegador: a API sempre respondeu 200 com dado correto: **o
+modal nunca teve bug** — a UI renderiza os cards perfeitamente. O que os prints revelaram foi outro
+problema real, introduzido por mim: o `curl` que usei mais cedo pra restaurar o estado original
+depois do teste de round-trip passou o JSON acentuado direto na linha de comando do Git Bash
+(Windows) — corrompeu UTF-8 (á/ç/õ/— viraram `�`) ao gravar no banco. Corrigido com um `UPDATE`
+aplicado via arquivo real (`docker exec -i ... < arquivo.sql`), não linha de comando — mesmo padrão
+seguro já usado nas migrações. **Lição registrada:** nunca passar texto acentuado inline em comando
+bash/curl no Git Bash Windows — sempre escrever um arquivo (Write tool) e aplicar via stdin/arquivo.
+
 **Pendências (próxima rodada):** UX multi-segmento em `/admin/master/prompts` (Ponto 2, ainda não
 atacado) · sem botão "Sugerir com IA" nesta tela (dependeria do job de introspecção, fora de
 escopo) · overrides por tenant de `segment_data_entities` continuam só via SQL.
