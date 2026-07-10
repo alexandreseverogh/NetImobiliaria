@@ -13,6 +13,7 @@ interface Message {
   senderId: string | null
   content: string | null
   contentType: string
+  attachments?: { url: string }[] | null
   deliveryStatus: string
   isPrivate: boolean
   createdAt: string
@@ -100,11 +101,16 @@ function MessageBubble({ message }: { message: Message }) {
       </div>
     )
   }
+  const imageUrl = message.contentType === 'image' ? message.attachments?.[0]?.url : null
   return (
     <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[70%] rounded-xl px-3.5 py-2 ${isOutbound ? 'bg-[#c5a028]/15 text-white' : 'bg-[#112240] text-slate-200'}`}>
         {message.senderType === 'bot' && <p className="text-[10px] text-[#d4af37] font-semibold mb-0.5">🤖 Bot</p>}
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+        {imageUrl ? (
+          <img src={imageUrl} loading="lazy" className="rounded-lg max-w-full max-h-64 object-cover" alt="Foto do imóvel" />
+        ) : (
+          <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+        )}
         <div className="flex items-center justify-end gap-1 mt-1">
           <span className="text-[10px] text-slate-500" title={formatFullDate(message.createdAt)}>{timeAgo(message.createdAt)}</span>
           {isOutbound && message.deliveryStatus === 'failed' && <span className="text-[10px] text-rose-400">falhou</span>}

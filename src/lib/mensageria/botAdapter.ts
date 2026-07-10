@@ -14,6 +14,7 @@ import { getLlmClientForCampaigns } from '@/lib/marketing/services/llmClient'
 import type { LlmMessage } from '@/lib/marketing/services/llmClient'
 import { getToolsForSegment, resolveEntity } from '@/lib/mensageria/tools/genericResolver'
 import { ingestMessage } from '@/lib/mensageria/ingest'
+import { sendEvolutionMessage, sendEvolutionMedia, type EvolutionInboxConfig } from '@/lib/mensageria/channels/evolutionSend'
 
 const SCHEMA = 'mensageria'
 const MAX_HISTORY = 20
@@ -80,12 +81,35 @@ async function resolvePersona(tenantId: string, segmentId: string | null): Promi
   return renderPrompt(template, { tenant_name: tenantName })
 }
 
+interface BotReply {
+  text: string | null
+  images: string[]
+}
+
+const MAX_IMAGES_PER_REPLY = 4
+
+/**
+ * Colhe links de foto ("fotos": string[]) de dentro das linhas retornadas por uma tool call,
+ * ignorando nulos/vazios — o próprio resolver já traz null quando o imóvel não tem link CDN.
+ */
+function collectImageUrls(rows: any[]): string[] {
+  const urls: string[] = []
+  for (const row of rows) {
+    const fotos = row?.fotos
+    if (!Array.isArray(fotos)) continue
+    for (const url of fotos) {
+      if (typeof url === 'string' && url.trim()) urls.push(url)
+    }
+  }
+  return urls
+}
+
 /** Uma resposta do bot, com tool-use quando o segmento tiver ferramentas de dados (M4.2). */
 async function runBotReply(
   conversationId: string,
   tenantId: string,
   clientId: string | null,
-): Promise<string | null> {
+): Promise<BotReply> {
   const segment = await resolveSegment(tenantId, clientId)
   const persona = await resolvePersona(tenantId, segment?.id ?? null)
   const { tools, entities } = await getToolsForSegment(segment?.id ?? null, tenantId)
@@ -94,6 +118,7 @@ async function runBotReply(
 
   const messages: LlmMessage[] = [...history]
   let finalText = ''
+  const collectedImages: string[] = []
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
     const { content, toolCalls } = await llm.completeWithTools(persona, messages, tools, 1024)
@@ -110,6 +135,9 @@ async function runBotReply(
       let resultText: string
       try {
         const rows = entity ? await resolveEntity(entity, call.input, { tenantId }) : []
+        for (const url of collectImageUrls(rows)) {
+          if (!collectedImages.includes(url)) collectedImages.push(url)
+        }
         resultText = JSON.stringify(rows)
       } catch (err) {
         resultText = JSON.stringify({ error: 'Falha ao consultar os dados.' })
@@ -125,10 +153,46 @@ async function runBotReply(
     }
   }
 
-  return finalText || null
+  return { text: finalText || null, images: collectedImages.slice(0, MAX_IMAGES_PER_REPLY) }
 }
 
-async function handoffToHuman(conversationId: string, tenantId: string, clientId: string | null, inboxId: string, reason: string): Promise<void> {
+/**
+ * Envio real pelo canal — hoje só WhatsApp (Evolution API). Falha aqui nunca derruba a
+ * ingestão: a mensagem já está gravada e visível na plataforma; delivery_status registra
+ * se o envio real deu certo, pro atendente ver e poder reagir a uma falha.
+ */
+async function deliverIfWhatsApp(
+  messageId: string | null,
+  channelType: string,
+  config: EvolutionInboxConfig | null,
+  phone: string | null,
+  payload: { kind: 'text'; text: string } | { kind: 'image'; url: string },
+): Promise<void> {
+  if (!messageId || channelType !== 'whatsapp' || !config || !phone) return
+  try {
+    const result = payload.kind === 'text'
+      ? await sendEvolutionMessage(config, phone, payload.text)
+      : await sendEvolutionMedia(config, phone, payload.url)
+    await pool.query(
+      `UPDATE ${SCHEMA}.messages SET delivery_status = $1, external_id = COALESCE($2, external_id) WHERE id = $3`,
+      [result.ok ? 'sent' : 'failed', result.externalId ?? null, messageId],
+    )
+    if (!result.ok) console.error('[mensageria/botAdapter] falha no envio real Evolution:', result.error)
+  } catch (err) {
+    console.error('[mensageria/botAdapter] exceção no envio real Evolution:', err)
+  }
+}
+
+async function handoffToHuman(
+  conversationId: string,
+  tenantId: string,
+  clientId: string | null,
+  inboxId: string,
+  channelType: string,
+  config: EvolutionInboxConfig | null,
+  phone: string | null,
+  reason: string,
+): Promise<void> {
   await pool.query(`UPDATE ${SCHEMA}.conversations SET handled_by_bot = false WHERE id = $1`, [conversationId])
   await pool.query(
     `INSERT INTO ${SCHEMA}.conversation_events (conversation_id, event_type, actor_id, payload)
@@ -139,15 +203,17 @@ async function handoffToHuman(conversationId: string, tenantId: string, clientId
 
   const contact = await loadContact(conversationId)
   if (!contact) return
-  await ingestMessage({
+  const text = 'Claro! Vou te conectar com um de nossos atendentes — só um instante. 🙂'
+  const { messageId } = await ingestMessage({
     tenantId,
     clientId,
     inboxId,
     contact,
     direction: 'outbound',
     senderType: 'bot',
-    content: 'Claro! Vou te conectar com um de nossos atendentes — só um instante. 🙂',
+    content: text,
   })
+  await deliverIfWhatsApp(messageId, channelType, config, phone, { kind: 'text', text })
 }
 
 /**
@@ -157,9 +223,10 @@ async function handoffToHuman(conversationId: string, tenantId: string, clientId
  */
 export async function maybeRunBot(conversationId: string, tenantId: string): Promise<void> {
   const { rows: convRows } = await pool.query(
-    `SELECT c.id, c.client_id, c.assignee_id, c.inbox_id, ib.channel_type
+    `SELECT c.id, c.client_id, c.assignee_id, c.inbox_id, ib.channel_type, ib.config, ct.phone
        FROM ${SCHEMA}.conversations c
        JOIN ${SCHEMA}.inboxes ib ON ib.id = c.inbox_id
+       JOIN ${SCHEMA}.contacts ct ON ct.id = c.contact_id
       WHERE c.id = $1`,
     [conversationId],
   )
@@ -210,7 +277,7 @@ export async function maybeRunBot(conversationId: string, tenantId: string): Pro
   const turnsExceeded = turns >= effectiveMaxTurns
 
   if (keywordHit || turnsExceeded) {
-    await handoffToHuman(conversationId, tenantId, conv.client_id, conv.inbox_id, keywordHit ? 'keyword' : 'max_turns')
+    await handoffToHuman(conversationId, tenantId, conv.client_id, conv.inbox_id, conv.channel_type, conv.config, conv.phone, keywordHit ? 'keyword' : 'max_turns')
     return
   }
 
@@ -224,24 +291,45 @@ export async function maybeRunBot(conversationId: string, tenantId: string): Pro
   // nesses casos o contato NÃO pode ficar sem nenhuma resposta; melhor uma mensagem genérica
   // de desculpa do que silêncio total (silêncio parece bot quebrado; a mensagem deixa claro
   // que ele está ativo e convida a tentar de novo).
-  let reply: string | null = null
+  let reply: BotReply | null = null
   try {
     reply = await runBotReply(conversationId, tenantId, conv.client_id)
   } catch (err) {
     console.error('[mensageria/botAdapter] falha ao gerar resposta do bot:', err)
   }
-  const finalReply = reply || 'Desculpe, tive um problema para processar sua mensagem agora. Pode tentar de novo em instantes?'
+  const images = reply?.images ?? []
+  // Sem texto E sem imagem (LLM voltou vazio ou runBotReply lançou) → cai no fallback genérico.
+  // Só imagens (sem texto) é uma resposta válida — não força um pedido de desculpas em cima.
+  const finalText = reply?.text || (images.length > 0 ? null : 'Desculpe, tive um problema para processar sua mensagem agora. Pode tentar de novo em instantes?')
 
   const contact = await loadContact(conversationId)
   if (!contact) return
 
-  await ingestMessage({
-    tenantId,
-    clientId: conv.client_id,
-    inboxId: conv.inbox_id,
-    contact,
-    direction: 'outbound',
-    senderType: 'bot',
-    content: finalReply,
-  })
+  // Texto primeiro, depois as fotos — mesma ordem que um atendente humano mandaria no WhatsApp.
+  if (finalText) {
+    const { messageId } = await ingestMessage({
+      tenantId,
+      clientId: conv.client_id,
+      inboxId: conv.inbox_id,
+      contact,
+      direction: 'outbound',
+      senderType: 'bot',
+      content: finalText,
+    })
+    await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'text', text: finalText })
+  }
+  for (const url of images) {
+    const { messageId } = await ingestMessage({
+      tenantId,
+      clientId: conv.client_id,
+      inboxId: conv.inbox_id,
+      contact,
+      direction: 'outbound',
+      senderType: 'bot',
+      content: null,
+      contentType: 'image',
+      attachments: [{ url }],
+    })
+    await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'image', url })
+  }
 }

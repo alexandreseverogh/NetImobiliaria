@@ -26,14 +26,15 @@ async function findTestConversation(tenantId: string, inboxId: string) {
 
 async function loadMessages(conversationId: string) {
   const { rows } = await pool.query(
-    `SELECT id, direction, sender_type, content, created_at
+    `SELECT id, direction, sender_type, content, content_type, attachments, created_at
        FROM mensageria.messages
       WHERE conversation_id = $1
       ORDER BY created_at ASC`,
     [conversationId],
   )
   return rows.map((r: any) => ({
-    id: r.id, direction: r.direction, senderType: r.sender_type, content: r.content, createdAt: r.created_at,
+    id: r.id, direction: r.direction, senderType: r.sender_type, content: r.content,
+    contentType: r.content_type, attachments: r.attachments, createdAt: r.created_at,
   }))
 }
 

@@ -744,7 +744,7 @@ interface BotFlow {
   id: string; name: string; isActive: boolean
   handoffKeywords: string[]; maxTurns: number | null
 }
-interface TestMessage { id: string; direction: 'inbound' | 'outbound'; senderType: string; content: string | null; createdAt: string }
+interface TestMessage { id: string; direction: 'inbound' | 'outbound'; senderType: string; content: string | null; contentType?: string; attachments?: { url: string }[] | null; createdAt: string }
 
 function BotTab() {
   const [flow, setFlow] = useState<BotFlow | null>(null)
@@ -982,16 +982,23 @@ function BotTab() {
           {testMessages.length === 0 ? (
             <p className="text-xs text-slate-600 text-center mt-8">Envie uma mensagem abaixo para começar.</p>
           ) : (
-            testMessages.map((m) => (
-              <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[75%] rounded-xl px-3.5 py-2 ${
-                  m.direction === 'outbound' ? 'bg-[#c5a028]/15 text-white' : 'bg-[#112240] text-slate-200'
-                }`}>
-                  {m.senderType === 'bot' && <p className="text-[10px] text-[#d4af37] font-semibold mb-0.5">🤖 Bot</p>}
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.content}</p>
+            testMessages.map((m) => {
+              const imageUrl = m.contentType === 'image' ? m.attachments?.[0]?.url : null
+              return (
+                <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[75%] rounded-xl px-3.5 py-2 ${
+                    m.direction === 'outbound' ? 'bg-[#c5a028]/15 text-white' : 'bg-[#112240] text-slate-200'
+                  }`}>
+                    {m.senderType === 'bot' && <p className="text-[10px] text-[#d4af37] font-semibold mb-0.5">🤖 Bot</p>}
+                    {imageUrl ? (
+                      <img src={imageUrl} loading="lazy" className="rounded-lg max-w-full max-h-64 object-cover" alt="Foto do imóvel" />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.content}</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 

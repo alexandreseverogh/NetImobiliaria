@@ -1,38 +1,66 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-10 (iniciando: bot exibindo fotos de imóveis + fecha gap de envio real ao WhatsApp)
+> **Atualizado em:** 2026-07-10 (bot exibindo fotos de imóveis + fecha gap de envio real ao WhatsApp)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
-## Tarefa em andamento
+## Última tarefa concluída
 
-### Bot exibindo fotos de imóveis + envio real ao WhatsApp (M4.2 extensão)
+### Bot exibindo fotos de imóveis + envio real ao WhatsApp (M4.2 extensão) ✅
 
-Usuário perguntou se o bot consegue exibir fotos (hoje só conta via `qtd_fotos`). Investigação
-achou 2 lacunas: (1) falta relation com o link real da foto (`imovel_imagens.url_cdn`) + nenhuma
-bolha de chat sabe renderizar imagem; (2) descoberta maior — **nenhuma resposta do bot chega hoje
-ao WhatsApp real** (`sendEvolutionMessage` só é chamado na resposta manual de atendente, nunca em
-`botAdapter.ts`). Usuário confirmou querer as duas coisas resolvidas juntas. Plano completo salvo
-em `C:\Users\T-GAMER\.claude\plans\bright-herding-minsky.md`.
+Usuário perguntou se o bot consegue exibir fotos (antes só contava via `qtd_fotos`). Investigação
+achou 2 lacunas: (1) faltava relation com o link real da foto (`imovel_imagens.url_cdn`) + nenhuma
+bolha de chat sabia renderizar imagem; (2) descoberta maior — **nenhuma resposta do bot chegava ao
+WhatsApp real** (`sendEvolutionMessage` só era chamado na resposta manual de atendente, nunca em
+`botAdapter.ts`). Usuário confirmou querer as duas coisas resolvidas juntas. Plano completo em
+`C:\Users\T-GAMER\.claude\plans\bright-herding-minsky.md`.
 
-**Etapas:** A) relation `fotos` (config/SQL) · B) `botAdapter.ts` captura URLs das tool calls e
-separa texto/imagens · C) `ConversationThread.tsx` + painel de teste renderizam `<img>` · D) nova
-`sendEvolutionMedia()` + `botAdapter.ts` chama envio real (texto E imagem) após cada `ingestMessage`,
-fechando o gap de entrega pra WhatsApp real.
+**Implementado:**
+1. `prisma/migration-2026-07-10-mensageria-bot-fotos-relation.sql` — nova relation `fotos`
+   (`agg:'array'`, `imovel_imagens.url_cdn`, max 4) na entidade `imovel` do segmento Imobiliário.
+2. `botAdapter.ts`: `runBotReply()` agora retorna `{ text, images }` em vez de só string —
+   `collectImageUrls()` colhe as URLs não-nulas de dentro das linhas retornadas por qualquer tool
+   call (determinístico, não depende do LLM formatar um link na prosa). `maybeRunBot()` manda 1
+   `ingestMessage()` pro texto + 1 `ingestMessage()` por imagem (`contentType:'image'`,
+   `attachments:[{url}]`) — mesma ordem que um atendente mandaria no WhatsApp.
+3. **Fecha o gap de entrega real**: novo `deliverIfWhatsApp()` em `botAdapter.ts` — depois de cada
+   `ingestMessage()` bem-sucedido (incluindo a mensagem fixa de `handoffToHuman()`), se o canal é
+   `whatsapp`, chama `sendEvolutionMessage()` (texto) ou a nova `sendEvolutionMedia()` (imagem, via
+   `POST {api_url}/message/sendMedia/{instance}`) e atualiza `delivery_status`. Antes desta sessão,
+   NENHUMA resposta do bot saía de fato pro WhatsApp — só ficava visível dentro da plataforma.
+4. `ConversationThread.tsx` + painel de teste (`mensageria/config/page.tsx`) — bolha de mensagem
+   renderiza `<img>` quando `contentType==='image'`; `GET /api/admin/mensageria/bot/test` passou a
+   selecionar/retornar `content_type`/`attachments` (faltava, só a rota de conversas já tinha).
+5. Persona (`mensageria_bot_persona`, segmento Imobiliário) reforçada 2x: (1) ignorar
+   silenciosamente links vazios/nulos da relation `fotos`; (2) **nunca colar a URL crua no texto**
+   — a foto já é enviada como mensagem de imagem de verdade logo em seguida (1ª versão do teste
+   mostrou o bot colando o link como texto E mandando a imagem, redundante — corrigido).
 
-**Nota importante confirmada pelo usuário:** as 93 fotos sem `url_cdn` (de 106 totais) são
-resquício de uma versão antiga da app que guardava blob cru — fluxo legado, não o caminho atual.
-Todo upload novo já entra via CDN com `url_cdn` populado (`s3-client.ts`). Não é uma limitação
-estrutural do plano, só do estado atual dos dados antigos.
+**Testado ponta a ponta** (via `POST /api/admin/mensageria/bot/test`, tenant Imobiliária XYZ, inbox
+WhatsApp de teste sem credenciais reais — envio real tentado e falhou graciosamente como esperado,
+sem nenhuma chamada de fato disparada com sucesso): apontei temporariamente `url_cdn` de 1 foto real
+(imóvel 2, Boa Viagem) pra uma URL de imagem pública de teste (revertido depois) · pedi "fotos de
+apartamentos de 3 quartos em Boa Viagem" (filtro determinístico — a entidade não permite filtrar
+por ID do imóvel, só por bairro/quartos/etc., então perguntar por "imóvel 2" diretamente é
+inconsistente por design) · confirmado: mensagem de texto limpa ("Aqui estão as fotos!", sem URL) +
+mensagem separada `contentType:'image'` com a URL real em `attachments` · `delivery_status='failed'`
+na tentativa de envio real (esperado, inbox de teste sem credenciais Evolution) · `npx tsc --noEmit`
+limpo nos 6 arquivos tocados.
 
-**Etapa D (envio real) só será testada com confirmação explícita do usuário e número de teste** —
-é uma ação externa irreversível.
+**Pendências:** verificação visual da renderização `<img>` no navegador não foi feita (injeção de
+cookie de sessão não sobrevive à revalidação de middleware em navegação completa — mesma limitação
+já registrada antes nesta sessão) — validado via API/JSON real (`contentType`/`attachments` no
+formato exato que os componentes esperam) + revisão de código, não visualmente. Envio real de
+imagem/texto ao WhatsApp genuíno (`sendEvolutionMedia`) só foi testado contra uma inbox sem
+credenciais (falha graciosa) — teste com credenciais reais fica pendente de o usuário indicar um
+número de teste, conforme combinado no plano (ação externa irreversível, não disparada
+unilateralmente).
 
 ---
 
-## Última tarefa concluída
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-10 (continuação 6) — Investigação "andar inventado" + fallback de robustez do bot ✅
 

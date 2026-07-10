@@ -44,3 +44,26 @@ export async function sendEvolutionMessage(
     return { ok: false, error: err.response?.data?.message || err.message }
   }
 }
+
+export async function sendEvolutionMedia(
+  config: EvolutionInboxConfig,
+  toPhone: string,
+  mediaUrl: string,
+  caption?: string,
+): Promise<{ ok: boolean; externalId?: string; error?: string }> {
+  if (!config.api_url || !config.api_key || !config.instance) {
+    return { ok: false, error: 'Inbox sem credenciais Evolution configuradas' }
+  }
+
+  try {
+    const res = await axios.post(
+      `${config.api_url}/message/sendMedia/${config.instance}`,
+      { number: normalizePhone(toPhone), mediatype: 'image', media: mediaUrl, caption: caption || undefined },
+      { headers: { 'Content-Type': 'application/json', apikey: config.api_key } },
+    )
+    const externalId = res.data?.key?.id ?? res.data?.id ?? undefined
+    return { ok: true, externalId }
+  } catch (err: any) {
+    return { ok: false, error: err.response?.data?.message || err.message }
+  }
+}
