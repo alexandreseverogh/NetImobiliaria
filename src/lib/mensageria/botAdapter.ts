@@ -155,16 +155,23 @@ async function runBotReply(
           // array vazio ("fotos":[]) também não basta. O modelo segue muito melhor um aviso
           // textual que chega junto com o resultado da própria chamada.
           const avisos: string[] = []
-          if (hasImageRelation && rows.length > 0 && foundImages.length === 0) {
-            avisos.push('Nenhum dos itens abaixo tem foto/imagem disponível no momento. Não afirme que há fotos disponíveis.')
+          if (rows.length === 0) {
+            // Resultado vazio: o aviso de "campos disponíveis" abaixo NÃO deve entrar — listar os
+            // nomes dos campos com resultado vazio faz o LLM inferir "a entidade existe → temos o
+            // produto" e responder "sim, temos" contradizendo o zero resultados. Sinal explícito:
+            avisos.push('A consulta não retornou nenhum resultado com esses critérios. NÃO afirme que existe o que foi pedido; diga com clareza que não encontrou nada que combine e ofereça ajustar os critérios da busca.')
+          } else {
+            if (hasImageRelation && foundImages.length === 0) {
+              avisos.push('Nenhum dos itens abaixo tem foto/imagem disponível no momento. Não afirme que há fotos disponíveis.')
+            }
+            const availableFields = [
+              ...entity.columns.filter((c) => c.selectable).map((c) => c.name),
+              ...entity.relations.map((r) => r.name),
+            ]
+            avisos.push(
+              `Os únicos campos disponíveis nestes dados são: ${availableFields.join(', ')}. Se o visitante perguntar algo fora dessa lista, diga claramente que não tem essa informação disponível no momento e sugira falar com um atendente — nunca estime, calcule ou invente um valor pra um campo que não veio aqui.`,
+            )
           }
-          const availableFields = [
-            ...entity.columns.filter((c) => c.selectable).map((c) => c.name),
-            ...entity.relations.map((r) => r.name),
-          ]
-          avisos.push(
-            `Os únicos campos disponíveis nestes dados são: ${availableFields.join(', ')}. Se o visitante perguntar algo fora dessa lista, diga claramente que não tem essa informação disponível no momento e sugira falar com um atendente — nunca estime, calcule ou invente um valor pra um campo que não veio aqui.`,
-          )
           resultPayload = { aviso: avisos.join(' '), resultados: rows }
         }
         resultText = JSON.stringify(resultPayload)
