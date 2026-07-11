@@ -1,12 +1,49 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-10 (bot exibindo fotos de imóveis + fecha gap de envio real ao WhatsApp)
+> **Atualizado em:** 2026-07-11 (fix segmento no login + botão Empresas em /admin/master/segments)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-11 — Fix segmento no modal de login + botão "Empresas" nos Segmentos ✅
+
+**1. Fix — modal de seleção de empresa no login sempre mostrava "Geral":** causa raiz era um
+mismatch de nome de campo, não falta de dado — `src/app/api/admin/auth/login/route.ts` fazia o
+JOIN certo com `system_segments` mas selecionava a coluna como `s.name as segment`; o frontend
+(`src/app/admin/login/page.tsx:368`) lia `tenant.segment_name` (undefined sempre) com fallback
+literal `'Geral'`. Corrigido o alias da query pra `segment_name` — sem tocar no frontend. Validado
+via SQL direto (não via HTTP — não tenho a senha real de nenhum usuário multi-tenant e não resetei
+sem autorização): usuário `admxyz` (2 empresas, ambas segmento Imobiliário) agora traria
+"Imobiliário" nas duas em vez de "Geral". `npx tsc --noEmit` limpo.
+
+**2. Botão "Empresas" em `/admin/master/segments`:** 6º botão na coluna de Ações (ícone
+`BuildingOffice2Icon`, azul-céu), abre `SegmentTenantsModal.tsx` (novo componente, mesmo shell
+visual de `SegmentDataEntitiesModal.tsx`) — lista alfabética das empresas do segmento, busca com
+debounce 350ms, paginação real via API (preparado para centenas de tenants por segmento).
+- `GET /api/admin/master/segments/[id]/tenants` (novo, `requireMaster`) — `search`/`page`/
+  `pageSize`, `ORDER BY name ASC`, count separado pro total. Endpoint dedicado, não reaproveita
+  `GET /api/admin/master/tenants` (sem filtro de segmento/paginação, JOINs pesados desnecessários).
+- **Bug real pego no próprio teste:** `logo_url` de pelo menos 1 tenant é uma imagem base64
+  embutida (não uma URL leve) — o payload da 1ª versão da query veio com 554KB só pra 2-3 linhas.
+  Corrigido: `CASE WHEN logo_url LIKE 'data:%' THEN NULL ELSE logo_url END` — omite o blob grande
+  da lista (cai no fallback de iniciais via `ClientAvatarWithFallback`), mantém URLs leves reais.
+- Avatar reaproveita `ClientAvatarWithFallback` (`@/components/admin/ClientAvatar`, já usado em
+  Portfolio/clientes) — zero componente de avatar novo.
+
+**Testado:** `GET .../tenants` real via curl+JWT Master — retorna as 3 empresas do segmento
+Imobiliário em ordem alfabética (Imobiliaria XYZ, Imovitec, Marketing Digital), `search=imov` filtra
+corretamente pra 1 resultado, `pageSize=1&page=2` pagina corretamente, sem cookie → 403. Payload
+compacto após o fix do `logo_url`. `npx tsc --noEmit` limpo nos 3 arquivos. **Não verificado
+visualmente no navegador** — injeção de cookie de sessão Master não sobrevive à revalidação de
+middleware em navegação completa (mesma limitação já registrada várias vezes nesta sessão) —
+confiei na API real + no mesmo padrão visual já comprovado em `SegmentDataEntitiesModal.tsx`.
+
+---
+
+## Penúltima tarefa concluída
 
 ### Bot exibindo fotos de imóveis + envio real ao WhatsApp (M4.2 extensão) ✅
 

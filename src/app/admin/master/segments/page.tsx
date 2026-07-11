@@ -13,12 +13,14 @@ import {
   SparklesIcon,
   AdjustmentsHorizontalIcon,
   CircleStackIcon,
+  BuildingOffice2Icon,
 } from '@heroicons/react/24/outline'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 import { SegmentInterestsModal } from '@/components/admin/master/SegmentInterestsModal'
 import { SegmentAnglesModal } from '@/components/admin/master/SegmentAnglesModal'
 import { SegmentBenchmarksModal } from '@/components/admin/master/SegmentBenchmarksModal'
 import { SegmentDataEntitiesModal } from '@/components/admin/master/SegmentDataEntitiesModal'
+import { SegmentTenantsModal } from '@/components/admin/master/SegmentTenantsModal'
 
 interface Segment {
   id: string
@@ -53,6 +55,7 @@ export default function MasterSegmentsPage() {
   const [anglesSegment, setAnglesSegment] = useState<Segment | null>(null)
   const [benchmarksSegment, setBenchmarksSegment] = useState<Segment | null>(null)
   const [dataEntitiesSegment, setDataEntitiesSegment] = useState<Segment | null>(null)
+  const [tenantsSegment, setTenantsSegment] = useState<Segment | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -304,6 +307,13 @@ export default function MasterSegmentsPage() {
                         title="Dados do Bot (tabelas/colunas que o bot pode consultar)"
                       >
                         <CircleStackIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setTenantsSegment(segment)}
+                        className="p-2 rounded-lg text-sky-600 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors"
+                        title="Empresas deste segmento"
+                      >
+                        <BuildingOffice2Icon className="h-4 w-4" />
                       </button>
                       <UpdateGuard resource="master-segments">
                         <button
@@ -568,6 +578,14 @@ export default function MasterSegmentsPage() {
         <SegmentDataEntitiesModal
           segment={dataEntitiesSegment}
           onClose={() => setDataEntitiesSegment(null)}
+        />
+      )}
+
+      {/* Empresas do segmento */}
+      {tenantsSegment && (
+        <SegmentTenantsModal
+          segment={tenantsSegment}
+          onClose={() => setTenantsSegment(null)}
         />
       )}
     </div>

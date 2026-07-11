@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
 
     // 5. Verificar vínculos de Multi-tenancia
     const tenantsQuery = `
-      SELECT t.id, t.name, t.slug, s.name as segment, t.logo, t.logo_url, t.logo_mime_type
+      SELECT t.id, t.name, t.slug, s.name as segment_name, t.logo, t.logo_url, t.logo_mime_type
       FROM tenants t
       JOIN user_tenant_membership utm ON t.id = utm.tenant_id
       LEFT JOIN system_segments s ON t.segment_id = s.id
