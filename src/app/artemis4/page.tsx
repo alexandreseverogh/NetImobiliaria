@@ -38,12 +38,52 @@ export default function Artemis4LandingPage() {
   const [playerReady, setPlayerReady] = useState(false)
   const [useVideo, setUseVideo] = useState(true) // Fallback caso YouTube falhe ou sem conexão
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false) // Drawer de navegação no mobile (< lg)
+  const [navigating, setNavigating] = useState(false) // Overlay de transição ao entrar na área admin
 
   // Referências para controle de scroll e seeking
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
   const [scrollPct, setScrollPct] = useState(0)
   const scrollPercentRef = useRef<number>(0)
+
+  // Referências para desligar a simulação instantaneamente no clique de "Entrar" —
+  // sem isso, o loop de canvas (rAF 60fps) + o interval da telemetria (postMessage ao
+  // iframe do YouTube) continuam disputando a main thread durante a navegação, travando
+  // a aba e dando a sensação de "não vai até o vídeo adiantar".
+  const rafIdRef = useRef<number | null>(null)
+  const telemetryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const simStoppedRef = useRef(false)
+
+  // Mata rAF + interval + player do YouTube num único passo. Idempotente.
+  const teardownSimulation = () => {
+    simStoppedRef.current = true
+    if (rafIdRef.current != null) {
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = null
+    }
+    if (telemetryIntervalRef.current) {
+      clearInterval(telemetryIntervalRef.current)
+      telemetryIntervalRef.current = null
+    }
+    try {
+      if (playerRef.current && typeof playerRef.current.destroy === 'function') {
+        playerRef.current.destroy()
+      }
+    } catch {
+      /* best-effort: já estamos saindo da página */
+    }
+    playerRef.current = null
+    if (playerContainerRef.current) {
+      try { playerContainerRef.current.innerHTML = '' } catch { /* noop */ }
+    }
+  }
+
+  // Clique em qualquer CTA "/admin/login": libera a main thread na hora (mata o vídeo/sim)
+  // e mostra feedback imediato. NÃO faz preventDefault — o <a> nativo segue navegando.
+  const handleEnter = () => {
+    setNavigating(true)
+    teardownSimulation()
+  }
 
   // Referências do Canvas
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -77,6 +117,29 @@ export default function Artemis4LandingPage() {
       }
     }
     fetchModules()
+  }, [])
+
+  // 1.5. Pré-aquece /admin/login em segundo plano (durante ocioso) — a rota vive no route
+  // group `admin` (layout pesado) e, em dev, compila sob demanda (~10s na 1ª navegação).
+  // Warmando enquanto o usuário lê a landing, o clique em "Entrar" pega a rota já morna
+  // (~0,3s). Em produção é inofensivo (só um GET de baixa prioridade). Roda uma única vez.
+  useEffect(() => {
+    let idleId: number | undefined
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const warm = () => { fetch('/admin/login', { credentials: 'same-origin' }).catch(() => {}) }
+
+    if (typeof (window as any).requestIdleCallback === 'function') {
+      idleId = (window as any).requestIdleCallback(warm, { timeout: 4000 })
+    } else {
+      timeoutId = setTimeout(warm, 3000)
+    }
+
+    return () => {
+      if (idleId !== undefined && typeof (window as any).cancelIdleCallback === 'function') {
+        ;(window as any).cancelIdleCallback(idleId)
+      }
+      if (timeoutId) clearTimeout(timeoutId)
+    }
   }, [])
 
   // 2. Inicialização do YouTube IFrame Player API
@@ -371,6 +434,8 @@ export default function Artemis4LandingPage() {
 
     // Loop principal da física e atualização de telemetria em tempo real
     const render = () => {
+      // Parada dura (clique em "Entrar"): não reagenda o próximo frame.
+      if (simStoppedRef.current) return
       frame++
       
       const p = scrollPercentRef.current
@@ -552,7 +617,7 @@ export default function Artemis4LandingPage() {
         }
       }
 
-      animationFrameId = requestAnimationFrame(render)
+      animationFrameId = rafIdRef.current = requestAnimationFrame(render)
     }
 
     // Atrasa 300ms para permitir interatividade antes de iniciar o loop de canvas
@@ -678,6 +743,7 @@ export default function Artemis4LandingPage() {
     const telemetryStartTimer = setTimeout(() => {
       tick()
       intervalId = setInterval(tick, 150)
+      telemetryIntervalRef.current = intervalId
     }, 700)
 
     return () => {
@@ -744,6 +810,17 @@ export default function Artemis4LandingPage() {
 
   return (
     <div className="artemis4-page min-h-screen relative flex flex-col justify-between">
+
+      {/* Overlay de transição — feedback instantâneo ao clicar em "Entrar" enquanto a
+          área administrativa carrega (a simulação já foi desligada em handleEnter). */}
+      {navigating && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 bg-[#020617]/95 backdrop-blur-xl">
+          <div className="w-12 h-12 rounded-full border-2 border-amber-300/30 border-t-amber-400 animate-spin" />
+          <p className="text-xs font-black uppercase tracking-[0.3em] text-amber-200/90 italic">
+            Acessando área administrativa…
+          </p>
+        </div>
+      )}
 
       {/* Acessibilidade: respeita prefers-reduced-motion desativando animações decorativas do DOM */}
       <style>{`
@@ -815,6 +892,7 @@ export default function Artemis4LandingPage() {
 
               <a
                 href="/admin/login"
+                onClick={handleEnter}
                 className="relative overflow-hidden group px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-300 to-amber-500 text-slate-950 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation shadow-lg shadow-amber-500/25 ring-1 ring-amber-200/40 hover:shadow-amber-400/40 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]"
               >
                 <span className="relative z-10">Entrar</span>
@@ -925,6 +1003,7 @@ export default function Artemis4LandingPage() {
               </a>
               <a
                 href="/admin/login"
+                onClick={handleEnter}
                 className="px-8 py-4.5 rounded-2xl bg-white/[0.04] hover:bg-amber-300/5 text-white hover:text-amber-100 font-black uppercase tracking-wider italic text-xs border border-white/10 hover:border-amber-300/30 transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]"
               >
                 Área de Testes
@@ -1108,6 +1187,7 @@ export default function Artemis4LandingPage() {
                     <div>
                       <a
                         href="/admin/login"
+                        onClick={handleEnter}
                         className="w-full py-3.5 rounded-2xl bg-white/5 group-hover:bg-blue-600/10 border border-white/10 group-hover:border-blue-500/20 text-white group-hover:text-blue-400 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] flex items-center justify-center gap-2"
                       >
                         Acessar Módulo <ArrowRightIcon className="w-3.5 h-3.5 mt-0.5 transition-transform group-hover:translate-x-1" />
@@ -1175,12 +1255,14 @@ export default function Artemis4LandingPage() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a
                   href="/admin/login"
+                  onClick={handleEnter}
                   className="w-full sm:w-auto px-8 py-4.5 rounded-2xl bg-gradient-to-r from-amber-300 to-amber-500 hover:from-amber-200 hover:to-amber-400 text-slate-950 font-black uppercase tracking-wider italic text-xs shadow-xl shadow-amber-500/25 ring-1 ring-amber-200/40 transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] flex items-center justify-center gap-2"
                 >
                   Registrar Corporação
                 </a>
                 <a
                   href="/admin/login"
+                  onClick={handleEnter}
                   className="w-full sm:w-auto px-8 py-4.5 rounded-2xl bg-white/[0.04] hover:bg-amber-300/5 border border-white/10 hover:border-amber-300/30 text-white hover:text-amber-100 font-black uppercase tracking-wider italic text-xs transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] flex items-center justify-center gap-2"
                 >
                   Área Administrativa <ArrowRightIcon className="w-3.5 h-3.5 mt-0.5" />

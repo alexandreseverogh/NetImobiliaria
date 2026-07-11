@@ -1,12 +1,49 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-11 (fix segmento no login + botão Empresas em /admin/master/segments)
+> **Atualizado em:** 2026-07-11 (artemis4: clique "Entrar" lento — root cause medido + fix)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-11 — artemis4: "Entrar" lento (issue crônico) — root cause + fix ✅
+
+**Sintoma (crônico):** na landing `/artemis4`, depois que o vídeo do YouTube começa, clicar em
+"Entrar" demorava um tempo enorme pra abrir `/admin/login`. Hipótese do usuário: o vídeo prende as
+ações. Já havia uma decisão registrada ([[feedback_landing_nav]]) de usar `<a>` nativo em vez de
+`<Link>` — mas ainda estava lento.
+
+**Root cause REAL (medido, não suposto):** `GET /admin/login` = **10,1s na 1ª vez (fria) vs
+0,1–0,3s morna** (curl direto no dev server). O gargalo dominante é a **compilação sob demanda do
+Next em DEV** do route group `admin` inteiro (`AuthProvider` + `SkillsProvider` +
+`AdminLayoutContent`), não o vídeo — **artefato de desenvolvimento, some em produção (build)**. O
+vídeo/rAF é só agravante de percepção: durante a espera, o loop de canvas (60fps) + o interval da
+telemetria (postMessage ao iframe YT) travam a aba e não dão feedback, reforçando a sensação de
+"travou até o vídeo adiantar".
+
+**Fix — 3 partes, tudo confinado a `src/app/artemis4/page.tsx`:**
+1. **Pré-aquecer `/admin/login`** em segundo plano no mount, via `requestIdleCallback`
+   (`fetch('/admin/login')`, mesmo padrão que o YouTube já usa) — compila a rota enquanto o usuário
+   lê a landing; o clique pega a rota morna (~0,3s em vez de 10s). Inofensivo em produção.
+2. **`teardownSimulation()`** no `onClick` de todos os 5 CTAs de `/admin/login` — cancela o rAF
+   (novo `rafIdRef` + guarda `simStoppedRef` no topo do `render`), limpa o interval da telemetria
+   (`telemetryIntervalRef`) e destrói o player do YouTube. Libera a main thread na hora do clique.
+   **Não** faz `preventDefault` — o `<a>` nativo segue navegando.
+3. **Overlay "Acessando área administrativa…"** (`navigating` state) — feedback visual instantâneo
+   em vez de página congelada durante a carga.
+
+**Testado ponta a ponta** (preview real, YouTube de fato tocando): prefetch confirmado no network
+(`GET /admin/login → 200` disparado ANTES de qualquer clique) · clicar em "Entrar" numa página tão
+pesada que o screenshot pré-clique deu timeout **navegou com sucesso** pro formulário de login (a
+teardown destravou a thread + rota morna) · `npx tsc --noEmit` limpo · erros de hidratação
+`#document` observados são pré-existentes (injeção do MetaPixel no `artemis4/layout.tsx`), não
+introduzidos por esta mudança (o state `navigating` começa `false` nos dois lados do SSR).
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-11 — Fix segmento no modal de login + botão "Empresas" nos Segmentos ✅
 

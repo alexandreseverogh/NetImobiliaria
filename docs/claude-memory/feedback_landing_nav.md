@@ -20,4 +20,20 @@ contexto JS atual (mata vídeo + rAF). Reserve `<Link>` para navegação **dentr
 mesma route group (menu/rodapé internos). Vídeo do YouTube em artemis4 já carrega
 async via `requestIdleCallback` + script async/defer — não é o gargalo do clique.
 
+**Root cause real medido (2026-07-11):** mesmo com `<a>` nativo, o clique continuava
+lento. Medição: `GET /admin/login` = **10,1s na 1ª vez (fria) vs 0,1–0,3s morna**. O
+gargalo dominante é a **compilação sob demanda do Next em DEV** do route group `admin`
+inteiro (AuthProvider + SkillsProvider + AdminLayoutContent) — artefato de dev, some
+em produção (build). O vídeo/rAF é só agravante de percepção (trava a aba + zero
+feedback durante a espera).
+
+**Fix aplicado em `artemis4/page.tsx` (3 partes):** (1) **pré-aquecer** `/admin/login`
+em segundo plano no mount via `requestIdleCallback` (`fetch('/admin/login')`) — compila
+a rota enquanto o usuário lê a landing, clique pega morna. (2) **teardownSimulation()**
+no `onClick` de todo CTA de login — cancela rAF (via `rafIdRef`), limpa o interval da
+telemetria (`telemetryIntervalRef`), destrói o player YT; libera a main thread na hora.
+(3) **overlay** "Acessando…" (`navigating` state) pra feedback instantâneo. Sem
+preventDefault — o `<a>` nativo segue navegando. Verificado: prefetch dispara (network),
+clique navega mesmo com a página pesada (rAF+YT ativos).
+
 Relacionado: [[project_arquitetura_core]].
