@@ -16,7 +16,7 @@ const SCHEMA = 'mensageria'
 
 export type MessageDirection = 'inbound' | 'outbound'
 export type SenderType = 'contact' | 'agent' | 'bot' | 'system'
-export type ContentType = 'text' | 'image' | 'file' | 'audio' | 'template' | 'note'
+export type ContentType = 'text' | 'image' | 'file' | 'audio' | 'template' | 'note' | 'card'
 
 export interface IngestContactInput {
   name?: string | null

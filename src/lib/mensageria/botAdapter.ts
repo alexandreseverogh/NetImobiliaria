@@ -81,35 +81,105 @@ async function resolvePersona(tenantId: string, segmentId: string | null): Promi
   return renderPrompt(template, { tenant_name: tenantName })
 }
 
-interface BotReply {
-  text: string | null
+interface BotCard {
+  header: string
+  text: string
   images: string[]
 }
+
+// Resposta do bot: ou plana (texto + fotos em lote) ou agrupada em cartões por item (premium).
+type BotReply =
+  | { kind: 'flat'; text: string | null; images: string[] }
+  | { kind: 'cards'; intro: string | null; outro: string | null; cards: BotCard[] }
 
 const MAX_IMAGES_PER_REPLY = 4
 
 /**
- * Colhe links de imagem de dentro das linhas retornadas por uma tool call — genérico por
- * construção: não amarra a nenhum nome de campo/entidade/segmento específico. Qualquer relation
- * marcada `is_image: true` no cadastro de "Dados do Bot" (Master → Segmentos) vira candidata,
- * seja "fotos" do imóvel, "fotos_clinica" da Saúde, "imagens" de um carro, etc. Zero mudança de
- * código pra um segmento novo ganhar essa capacidade — só cadastro.
+ * Colhe as URLs de imagem reais de UMA linha, a partir dos nomes das relations marcadas
+ * `is_image` (Master → Segmentos → Dados do Bot). Genérico: não amarra a nome de campo/segmento.
  */
-function collectImageUrls(rows: any[], entity: SegmentDataEntity): string[] {
-  const imageFields = entity.relations.filter((r) => r.is_image).map((r) => r.name)
-  if (imageFields.length === 0) return []
-
+function collectRowImages(row: any, imageFields: string[]): string[] {
   const urls: string[] = []
-  for (const row of rows) {
-    for (const field of imageFields) {
-      const val = row?.[field]
-      if (!Array.isArray(val)) continue
-      for (const url of val) {
-        if (typeof url === 'string' && url.trim()) urls.push(url)
-      }
+  for (const field of imageFields) {
+    const val = row?.[field]
+    if (!Array.isArray(val)) continue
+    for (const url of val) {
+      if (typeof url === 'string' && url.trim()) urls.push(url)
     }
   }
   return urls
+}
+
+/**
+ * Troca os campos de imagem (arrays de URL) por um flag textual antes de mandar pro LLM — ele
+ * sabe QUEM tem foto (pra descrever/agrupar) mas nunca recebe a URL crua pra colar no texto.
+ * As URLs reais ficam só no código, pro envio de mídia de verdade.
+ */
+function sanitizeRowForLlm(row: any, imageFields: string[]): any {
+  if (imageFields.length === 0) return row
+  const out: any = { ...row }
+  for (const field of imageFields) {
+    const has = collectRowImages(row, [field]).length > 0
+    out[field] = has ? '<foto disponível — enviada automaticamente pela plataforma>' : '<sem foto disponível>'
+  }
+  return out
+}
+
+/** Extrai o 1º objeto JSON de uma resposta do LLM (tolera cercas ``` e texto ao redor). */
+function parseJsonObject(raw: string): Record<string, any> | null {
+  let s = (raw || '').trim()
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fence) s = fence[1].trim()
+  const start = s.indexOf('{')
+  const end = s.lastIndexOf('}')
+  if (start === -1 || end === -1 || end <= start) return null
+  try {
+    const obj = JSON.parse(s.slice(start, end + 1))
+    return obj && typeof obj === 'object' ? obj : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Chamada de formatação dedicada (sem tools): o código fornece as chaves exatas (ids) e o LLM
+ * devolve JSON com o texto das infos pedidas por item. Casamento por chave = robusto (sem parsing
+ * frágil de prosa livre). Retorna null se o JSON não vier válido → chamador cai no fluxo plano.
+ */
+async function buildCards(
+  llm: Awaited<ReturnType<typeof getLlmClientForCampaigns>>,
+  persona: string,
+  messages: LlmMessage[],
+  items: { key: string; header: string; images: string[] }[],
+): Promise<{ intro: string | null; outro: string | null; cards: BotCard[] } | null> {
+  const keys = items.map((it) => it.key)
+  const instruction =
+    `Formate a resposta final AGRUPADA POR ITEM. Para CADA um destes itens (identificados pela chave): ${keys.join(', ')}, ` +
+    `escreva um texto curto e natural com as informações que o visitante pediu sobre aquele item — SEM repetir o nome/cabeçalho do item e SEM nenhum link ou URL de foto. ` +
+    `Responda SOMENTE com um objeto JSON, sem nenhum texto fora dele, no formato: ` +
+    `{"_intro": "<frase de abertura opcional>", "<chave>": "<texto do item>", "_outro": "<frase de fechamento opcional>"}. ` +
+    `Use exatamente as chaves fornecidas. "_intro" e "_outro" são opcionais.`
+
+  let raw = ''
+  try {
+    const res = await llm.completeWithTools(persona, [...messages, { role: 'user', content: instruction }], [], 800)
+    raw = res.content || ''
+  } catch (err) {
+    console.error('[mensageria/botAdapter] falha na formatação de cartões:', err)
+    return null
+  }
+
+  const parsed = parseJsonObject(raw)
+  if (!parsed) return null
+
+  const cards: BotCard[] = items.map((it) => ({
+    header: it.header || 'Item',
+    text: typeof parsed[it.key] === 'string' ? parsed[it.key] : '',
+    images: it.images,
+  }))
+  const intro = typeof parsed._intro === 'string' && parsed._intro.trim() ? parsed._intro.trim() : null
+  const outro = typeof parsed._outro === 'string' && parsed._outro.trim() ? parsed._outro.trim() : null
+  return { intro, outro, cards }
 }
 
 /** Uma resposta do bot, com tool-use quando o segmento tiver ferramentas de dados (M4.2). */
@@ -126,7 +196,10 @@ async function runBotReply(
 
   const messages: LlmMessage[] = [...history]
   let finalText = ''
-  const collectedImages: string[] = []
+  // Itens retornados (na ordem de 1ª aparição), por chave — cabeçalho + fotos reais de cada um.
+  // Alimenta os cartões (agrupamento premium por item) e o envio de mídia.
+  const itemsByKey = new Map<string, { header: string; images: string[] }>()
+  let anyImages = false
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
     const { content, toolCalls } = await llm.completeWithTools(persona, messages, tools, 1024)
@@ -145,24 +218,40 @@ async function runBotReply(
         const rows = entity ? await resolveEntity(entity, call.input, { tenantId }) : []
         let resultPayload: any = rows
         if (entity) {
-          const hasImageRelation = entity.relations.some((r) => r.is_image)
-          const foundImages = collectImageUrls(rows, entity)
-          for (const url of foundImages) {
-            if (!collectedImages.includes(url)) collectedImages.push(url)
+          const imageFields = entity.relations.filter((r) => r.is_image).map((r) => r.name)
+          // Cabeçalho/rótulo do item: coluna marcada is_group_header; fallback = 1ª coluna texto
+          // selecionável. Tudo dirigido por config — genérico p/ qualquer segmento.
+          const headerCol = entity.columns.find((c) => c.is_group_header)?.name
+            ?? entity.columns.find((c) => c.selectable && c.type === 'text')?.name
+
+          let idx = 0
+          let foundImagesInCall = false
+          for (const row of rows) {
+            idx++
+            const urls = collectRowImages(row, imageFields)
+            if (urls.length > 0) { anyImages = true; foundImagesInCall = true }
+            const key = String(row?.id ?? (headerCol ? row?.[headerCol] : undefined) ?? `item_${idx}`)
+            if (!itemsByKey.has(key)) {
+              const header = headerCol && row?.[headerCol] != null ? String(row[headerCol]) : ''
+              itemsByKey.set(key, { header, images: urls })
+            }
           }
+
+          // Sanitiza as URLs de imagem antes de mostrar ao LLM (ele nunca cola link — não recebe).
+          const sanitized = rows.map((r) => sanitizeRowForLlm(r, imageFields))
+
           // Avisos explícitos DENTRO dos dados, não só na persona — uma regra abstrata escrita
-          // antes (ex.: "não invente campo não mapeado") não é seguida com confiabilidade; um
-          // array vazio ("fotos":[]) também não basta. O modelo segue muito melhor um aviso
-          // textual que chega junto com o resultado da própria chamada.
+          // antes (ex.: "não invente campo não mapeado") não é seguida com confiabilidade. O
+          // modelo segue muito melhor um aviso textual que chega junto com o resultado.
           const avisos: string[] = []
           if (rows.length === 0) {
-            // Resultado vazio: o aviso de "campos disponíveis" abaixo NÃO deve entrar — listar os
-            // nomes dos campos com resultado vazio faz o LLM inferir "a entidade existe → temos o
-            // produto" e responder "sim, temos" contradizendo o zero resultados. Sinal explícito:
+            // Resultado vazio: o aviso de "campos disponíveis" NÃO entra — listar os nomes dos
+            // campos com resultado vazio faz o LLM inferir "a entidade existe → temos o produto"
+            // e responder "sim, temos" contradizendo o zero resultados.
             avisos.push('A consulta não retornou nenhum resultado com esses critérios. NÃO afirme que existe o que foi pedido; diga com clareza que não encontrou nada que combine e ofereça ajustar os critérios da busca.')
           } else {
-            if (hasImageRelation && foundImages.length === 0) {
-              avisos.push('Nenhum dos itens abaixo tem foto/imagem disponível no momento. Não afirme que há fotos disponíveis.')
+            if (imageFields.length > 0 && !foundImagesInCall) {
+              avisos.push('Nenhum dos itens abaixo tem foto disponível no momento. Diga, de forma natural, que não há fotos DESSES itens disponíveis agora. NUNCA diga que você "não pode exibir imagens" ou "não tem acesso a imagens" — você PODE mostrar fotos (a plataforma envia automaticamente quando existem); é só que estes itens específicos não têm foto agora.')
             }
             const availableFields = [
               ...entity.columns.filter((c) => c.selectable).map((c) => c.name),
@@ -172,7 +261,7 @@ async function runBotReply(
               `Os únicos campos disponíveis nestes dados são: ${availableFields.join(', ')}. Se o visitante perguntar algo fora dessa lista, diga claramente que não tem essa informação disponível no momento e sugira falar com um atendente — nunca estime, calcule ou invente um valor pra um campo que não veio aqui.`,
             )
           }
-          resultPayload = { aviso: avisos.join(' '), resultados: rows }
+          resultPayload = { aviso: avisos.join(' '), resultados: sanitized }
         }
         resultText = JSON.stringify(resultPayload)
       } catch (err) {
@@ -189,7 +278,19 @@ async function runBotReply(
     }
   }
 
-  return { text: finalText || null, images: collectedImages.slice(0, MAX_IMAGES_PER_REPLY) }
+  const items = Array.from(itemsByKey.entries()).map(([key, v]) => ({ key, header: v.header, images: v.images }))
+  const allImages: string[] = []
+  for (const it of items) for (const u of it.images) if (!allImages.includes(u)) allImages.push(u)
+
+  // Modo cartão: vários itens E pelo menos uma foto real → agrupa por item (cabeçalho + info + fotos
+  // daquele item). Item único ou sem foto nenhuma → fluxo plano (texto + eventuais fotos em lote).
+  if (items.length > 1 && anyImages) {
+    const cards = await buildCards(llm, persona, messages, items)
+    if (cards) return { kind: 'cards', intro: cards.intro, outro: cards.outro, cards: cards.cards }
+    // formatação falhou → cai no plano abaixo, sem quebrar
+  }
+
+  return { kind: 'flat', text: finalText || null, images: allImages.slice(0, MAX_IMAGES_PER_REPLY) }
 }
 
 /**
@@ -333,38 +434,55 @@ export async function maybeRunBot(conversationId: string, tenantId: string): Pro
   } catch (err) {
     console.error('[mensageria/botAdapter] falha ao gerar resposta do bot:', err)
   }
-  const images = reply?.images ?? []
-  // Sem texto E sem imagem (LLM voltou vazio ou runBotReply lançou) → cai no fallback genérico.
-  // Só imagens (sem texto) é uma resposta válida — não força um pedido de desculpas em cima.
-  const finalText = reply?.text || (images.length > 0 ? null : 'Desculpe, tive um problema para processar sua mensagem agora. Pode tentar de novo em instantes?')
 
   const contact = await loadContact(conversationId)
   if (!contact) return
 
-  // Texto primeiro, depois as fotos — mesma ordem que um atendente humano mandaria no WhatsApp.
-  if (finalText) {
+  const sendBotText = async (text: string) => {
     const { messageId } = await ingestMessage({
-      tenantId,
-      clientId: conv.client_id,
-      inboxId: conv.inbox_id,
-      contact,
-      direction: 'outbound',
-      senderType: 'bot',
-      content: finalText,
+      tenantId, clientId: conv.client_id, inboxId: conv.inbox_id, contact,
+      direction: 'outbound', senderType: 'bot', content: text,
     })
-    await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'text', text: finalText })
+    await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'text', text })
   }
+
+  const FALLBACK = 'Desculpe, tive um problema para processar sua mensagem agora. Pode tentar de novo em instantes?'
+
+  if (!reply) {
+    await sendBotText(FALLBACK)
+    return
+  }
+
+  if (reply.kind === 'cards') {
+    // Agrupamento premium por item: intro → (cabeçalho+info + fotos daquele item) por item → outro.
+    if (reply.intro) await sendBotText(reply.intro)
+    for (const card of reply.cards) {
+      const body = card.text ? `${card.header}\n\n${card.text}` : card.header
+      // 1 mensagem 'card' (cabeçalho+info + galeria) — representação premium na plataforma.
+      const { messageId } = await ingestMessage({
+        tenantId, clientId: conv.client_id, inboxId: conv.inbox_id, contact,
+        direction: 'outbound', senderType: 'bot',
+        content: body, contentType: 'card', attachments: card.images.map((url) => ({ url })),
+      })
+      // WhatsApp real não tem cartão: manda o texto e depois cada foto daquele item, em sequência.
+      await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'text', text: body })
+      for (const url of card.images) {
+        await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'image', url })
+      }
+    }
+    if (reply.outro) await sendBotText(reply.outro)
+    return
+  }
+
+  // Fluxo plano: texto primeiro, depois as fotos em lote (mesma ordem de um atendente no WhatsApp).
+  const images = reply.images
+  const finalText = reply.text || (images.length > 0 ? null : FALLBACK)
+  if (finalText) await sendBotText(finalText)
   for (const url of images) {
     const { messageId } = await ingestMessage({
-      tenantId,
-      clientId: conv.client_id,
-      inboxId: conv.inbox_id,
-      contact,
-      direction: 'outbound',
-      senderType: 'bot',
-      content: null,
-      contentType: 'image',
-      attachments: [{ url }],
+      tenantId, clientId: conv.client_id, inboxId: conv.inbox_id, contact,
+      direction: 'outbound', senderType: 'bot',
+      content: null, contentType: 'image', attachments: [{ url }],
     })
     await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'image', url })
   }

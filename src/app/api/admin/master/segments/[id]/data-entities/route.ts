@@ -29,6 +29,7 @@ interface EntityColumnInput {
   description?: string;
   selectable?: boolean;
   filterable?: boolean;
+  is_group_header?: boolean;
 }
 interface EntityRelationInput {
   name: string;

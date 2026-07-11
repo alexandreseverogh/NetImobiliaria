@@ -101,6 +101,34 @@ function MessageBubble({ message }: { message: Message }) {
       </div>
     )
   }
+  // Cartão premium (agrupamento por item): cabeçalho + info + galeria das fotos daquele item.
+  if (message.contentType === 'card') {
+    const [header, ...rest] = (message.content || '').split('\n\n')
+    const body = rest.join('\n\n')
+    const imgs = (message.attachments || []).map((a) => a?.url).filter(Boolean) as string[]
+    return (
+      <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+        <div className="max-w-[85%] rounded-2xl overflow-hidden border border-[#c5a028]/25 bg-[#0f1b30] shadow-lg">
+          {message.senderType === 'bot' && <div className="px-3.5 pt-2 text-[10px] text-[#d4af37] font-semibold">🤖 Bot</div>}
+          <div className="px-3.5 pt-1.5 pb-2">
+            <p className="text-sm font-bold text-[#e9c766] leading-snug">{header}</p>
+            {body && <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed mt-1">{body}</p>}
+          </div>
+          {imgs.length > 0 && (
+            <div className={`grid gap-0.5 ${imgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              {imgs.map((u, i) => (
+                <img key={i} src={u} loading="lazy" className="w-full h-40 object-cover" alt="Foto do item" />
+              ))}
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-1 px-3.5 py-1.5">
+            <span className="text-[10px] text-slate-500" title={formatFullDate(message.createdAt)}>{timeAgo(message.createdAt)}</span>
+            {isOutbound && message.deliveryStatus === 'failed' && <span className="text-[10px] text-rose-400">falhou</span>}
+          </div>
+        </div>
+      </div>
+    )
+  }
   const imageUrl = message.contentType === 'image' ? message.attachments?.[0]?.url : null
   return (
     <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>

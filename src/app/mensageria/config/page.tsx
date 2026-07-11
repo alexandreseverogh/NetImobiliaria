@@ -983,6 +983,30 @@ function BotTab() {
             <p className="text-xs text-slate-600 text-center mt-8">Envie uma mensagem abaixo para começar.</p>
           ) : (
             testMessages.map((m) => {
+              // Cartão premium (agrupamento por item): cabeçalho + info + galeria das fotos do item.
+              if (m.contentType === 'card') {
+                const [header, ...rest] = (m.content || '').split('\n\n')
+                const body = rest.join('\n\n')
+                const imgs = (m.attachments || []).map((a) => a?.url).filter(Boolean) as string[]
+                return (
+                  <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                    <div className="max-w-[85%] rounded-2xl overflow-hidden border border-[#c5a028]/25 bg-[#0f1b30] shadow-lg">
+                      {m.senderType === 'bot' && <div className="px-3.5 pt-2 text-[10px] text-[#d4af37] font-semibold">🤖 Bot</div>}
+                      <div className="px-3.5 pt-1.5 pb-2">
+                        <p className="text-sm font-bold text-[#e9c766] leading-snug">{header}</p>
+                        {body && <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed mt-1">{body}</p>}
+                      </div>
+                      {imgs.length > 0 && (
+                        <div className={`grid gap-0.5 ${imgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                          {imgs.map((u, i) => (
+                            <img key={i} src={u} loading="lazy" className="w-full h-40 object-cover" alt="Foto do item" />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              }
               const imageUrl = m.contentType === 'image' ? m.attachments?.[0]?.url : null
               return (
                 <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>

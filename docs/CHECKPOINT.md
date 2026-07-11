@@ -1,12 +1,63 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-11 (artemis4: clique "Entrar" lento — root cause medido + fix)
+> **Atualizado em:** 2026-07-11 (bot: cartões premium por item + fix contradição consulta vazia)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-11 — Bot: agrupamento por item em cartões premium (multi-segmento) ✅
+
+**Contexto:** pedindo fotos de vários imóveis, o bot (1) colava URLs cruas no texto e (2) mandava as
+fotos como lote anônimo no fim, sem associação ao imóvel, cortadas no teto de 4. Usuário quer, por
+item: cabeçalho + infos pedidas + TODAS as fotos daquele item, item a item, numa visualização
+premium, **genérico multi-segmento** (Saúde/Carros/etc. — "sempre há um item de agrupamento
+principal"). Plano em `C:\Users\T-GAMER\.claude\plans\bright-herding-minsky.md`.
+
+**Antes disso, 2 bugs menores corrigidos e commitados nesta sessão:**
+- Contradição em consulta vazia ("Sim, temos apartamentos em SP" + "não tenho informações"): o
+  aviso de "campos disponíveis" entrava mesmo com zero linhas, fazendo o LLM inferir que a entidade
+  existe → "temos". Agora resultado vazio recebe aviso explícito de "nenhum resultado" (commit
+  `f9f7321`).
+
+**Implementado (cartões):**
+1. **Config — flag `is_group_header` por coluna** (espelha `is_image`): `EntityColumn`
+   (`genericResolver.ts`), rota `data-entities`, checkbox "cabeçalho" no `SegmentDataEntitiesModal`.
+   Migração seta `is_group_header:true` na coluna `titulo` do imóvel. Genérico: qualquer segmento
+   marca sua coluna de rótulo (nome da clínica, modelo do carro).
+2. **`botAdapter.ts`** — reescrita: coleta fotos POR LINHA (Map por id, não mais achatado);
+   **sanitiza** o `tool_result` (troca os arrays de URL por flag `<foto disponível>`/`<sem foto>` —
+   o LLM nunca recebe URL pra colar); novo tipo `BotReply` (flat | cards); **modo cartão** (gatilho:
+   >1 item E ≥1 foto real) faz uma chamada de formatação dedicada que devolve JSON `{_intro, "<id>":
+   texto, _outro}` (código fornece as chaves = casamento robusto por id, sem parsing de prosa); envia
+   `_intro` → 1 msg `contentType:'card'` por item (content=cabeçalho+info, attachments=fotos daquele
+   item) → `_outro`. `deliverIfWhatsApp` p/ card manda texto + cada mídia (WhatsApp não tem cartão).
+3. **`ingest.ts`**: `'card'` no union `ContentType` (sem migração — coluna é `text` livre).
+4. **Renderização premium do card** nas duas bolhas (`ConversationThread.tsx` + painel de teste):
+   cabeçalho dourado + info + galeria grid das fotos, tema escuro do chat.
+5. **Persona** ajustada: agrupamento por cartão é automático da plataforma (LLM não monta no texto
+   nem cola link); aviso de "sem foto" reforçado pra NUNCA negar capacidade ("não posso exibir
+   imagens") — só dizer que estes itens não têm foto agora.
+
+**Testado ponta a ponta** (API de teste, tenant Imobiliária XYZ): multi-item c/ foto (Imbiribeira) →
+intro + 1 cartão por imóvel com a foto correta de cada um, zero URL no texto ✓ · item único → flat
+(sem regressão) ✓ · vazio (SP) → limpo, sem cartão ✓ · multi-item SEM foto (Boa Viagem) → agrupa no
+texto, sem cartão ✓ · regressão de tom "não posso exibir imagens" corrigida (agora "nenhum desses
+imóveis tem foto no momento") ✓ · round-trip real de `is_group_header` via PUT `data-entities`
+sobrevive (`true`) ✓ · `npx tsc --noEmit` limpo.
+
+**Pendências/nota:** verificação VISUAL do card no navegador não feita (injeção de cookie de sessão
+não sobrevive ao middleware — mesma limitação de toda a sessão; estrutura JSON confirmada via API no
+formato exato que o componente consome + revisão de código). **Artefato de dado conhecido:** a
+relation `qtd_fotos` conta TODAS as linhas de `imovel_imagens` (inclui legadas sem `url_cdn`), então
+um card pode dizer "Possui 18 fotos" exibindo 1 — some quando as fotos legadas forem migradas pro
+CDN (fora de escopo). Envio real ao WhatsApp de card ainda não testado com credenciais reais.
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-11 — artemis4: "Entrar" lento (issue crônico) — root cause + fix ✅
 

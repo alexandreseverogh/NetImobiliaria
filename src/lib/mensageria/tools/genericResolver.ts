@@ -15,12 +15,14 @@
 import pool from '@/lib/database/connection'
 import type { LlmToolDef } from '@/lib/marketing/services/llmClient'
 
-interface EntityColumn {
+export interface EntityColumn {
   name: string
   type: 'text' | 'number' | 'boolean'
   description?: string
   filterable?: boolean
   selectable?: boolean
+  is_group_header?: boolean  // coluna que dá o cabeçalho/rótulo do item no agrupamento premium
+                             // (ex.: titulo p/ imóvel, nome p/ clínica) — genérico por segmento
 }
 
 /**

@@ -16,6 +16,7 @@ interface Column {
   description: string;
   selectable: boolean;
   filterable: boolean;
+  is_group_header: boolean;
 }
 interface Relation {
   name: string;
@@ -49,7 +50,7 @@ interface Props {
   onClose: () => void;
 }
 
-const emptyColumn = (): Column => ({ name: '', type: 'text', description: '', selectable: true, filterable: false });
+const emptyColumn = (): Column => ({ name: '', type: 'text', description: '', selectable: true, filterable: false, is_group_header: false });
 const emptyRelation = (): Relation => ({
   name: '', description: '', bridge_table: '', bridge_fk: '', base_pk: 'id',
   lookup_table: '', lookup_fk: '', lookup_pk: 'id', select_column: '', agg: 'array', max: 25,
@@ -121,7 +122,7 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
           isActive: e.isActive !== false,
           columns: (e.columns ?? []).map((c: any) => ({
             name: c.name ?? '', type: c.type ?? 'text', description: c.description ?? '',
-            selectable: !!c.selectable, filterable: !!c.filterable,
+            selectable: !!c.selectable, filterable: !!c.filterable, is_group_header: !!c.is_group_header,
           })),
           relations: (e.relations ?? []).map((r: any) => ({
             name: r.name ?? '', description: r.description ?? '', bridge_table: r.bridge_table ?? '',
@@ -169,7 +170,7 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
         const existingNames = new Set(e.columns.map((c) => c.name));
         const toAdd = real
           .filter((r) => !existingNames.has(r.name))
-          .map((r) => ({ name: r.name, type: r.type, description: '', selectable: false, filterable: false }));
+          .map((r) => ({ name: r.name, type: r.type, description: '', selectable: false, filterable: false, is_group_header: false }));
         return { ...e, columns: [...e.columns, ...toAdd] };
       }));
     } catch (e: any) {
@@ -389,6 +390,10 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
                           <label className="flex items-center gap-1 text-[10px] text-gray-500 shrink-0">
                             <input type="checkbox" checked={c.filterable} onChange={(ev) => updateColumn(ei, ci, { filterable: ev.target.checked })} />
                             filtra
+                          </label>
+                          <label className="flex items-center gap-1 text-[10px] text-emerald-600 shrink-0" title="Usa esta coluna como cabeçalho/rótulo do item quando o bot agrupa vários resultados">
+                            <input type="checkbox" checked={c.is_group_header} onChange={(ev) => updateColumn(ei, ci, { is_group_header: ev.target.checked })} />
+                            cabeçalho
                           </label>
                           <button onClick={() => removeColumn(ei, ci)} className="text-gray-300 hover:text-red-500 shrink-0">
                             <XMarkIcon className="h-3.5 w-3.5" />
