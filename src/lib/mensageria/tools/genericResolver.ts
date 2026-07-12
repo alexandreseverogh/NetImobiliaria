@@ -67,6 +67,9 @@ export interface SegmentDataEntity {
   tenantColumn: string
   defaultFilter: string | null
   maxRows: number
+  identityColumn: string  // coluna de identidade/PK da entidade (default 'id') — configurável por
+                           // entidade em vez de assumido fixo, pro casamento de linha↔item nos
+                           // cartões (botAdapter.ts) funcionar mesmo se a PK não se chamar "id"
 }
 
 // Identificador SQL seguro — nunca interpolar nome de tabela/coluna sem passar por aqui.
@@ -75,7 +78,7 @@ const ok = (s: unknown): s is string => typeof s === 'string' && IDENT_RE.test(s
 
 export async function loadEntitiesForSegment(segmentId: string | null, tenantId: string): Promise<SegmentDataEntity[]> {
   const { rows } = await pool.query(
-    `SELECT id, entity_name, table_name, description, columns, relations, tenant_column, default_filter, max_rows, tenant_id, segment_id
+    `SELECT id, entity_name, table_name, description, columns, relations, tenant_column, default_filter, max_rows, identity_column, tenant_id, segment_id
        FROM mensageria.segment_data_entities
       WHERE is_active = true
         AND (tenant_id = $1 OR tenant_id IS NULL)
@@ -100,6 +103,7 @@ export async function loadEntitiesForSegment(segmentId: string | null, tenantId:
     tenantColumn: r.tenant_column,
     defaultFilter: r.default_filter,
     maxRows: r.max_rows,
+    identityColumn: r.identity_column || 'id',
   }))
 }
 
@@ -214,7 +218,15 @@ export async function resolveEntity(
     .map((r) => buildRelationSubquery(r, 'e'))
     .filter((s): s is string => s !== null)
 
+  // A coluna de identidade sempre entra na projeção, mesmo se o Master esquecer de marcá-la
+  // "mostra" no cadastro — sem isso, um erro de config quebraria silenciosamente o casamento
+  // linha↔item nos cartões (botAdapter.ts), que depende de ler esse campo do resultado.
+  const identityCol = entity.identityColumn || 'id'
+  const identityAlreadyIncluded = selectableCols.some((c) => c.name === identityCol)
+  const identityProjection = !identityAlreadyIncluded && ok(identityCol) ? [`e.${identityCol}`] : []
+
   const projection = [
+    ...identityProjection,
     ...selectableCols.map((c) => buildColumnProjection(c, 'e') ?? `e.${c.name}`),
     ...relationCols,
   ].join(', ')

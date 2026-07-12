@@ -43,6 +43,7 @@ interface Entity {
   defaultFilter: string;
   maxRows: number;
   isActive: boolean;
+  identityColumn: string;
   columns: Column[];
   relations: Relation[];
 }
@@ -61,7 +62,7 @@ const emptyRelation = (): Relation => ({
 });
 const emptyEntity = (): Entity => ({
   entityName: '', tableName: '', description: '', tenantColumn: 'tenant_id', defaultFilter: 'ativo = true',
-  maxRows: 5, isActive: true, columns: [emptyColumn()], relations: [],
+  maxRows: 5, isActive: true, identityColumn: 'id', columns: [emptyColumn()], relations: [],
 });
 
 function HelpPanel() {
@@ -123,6 +124,7 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
           defaultFilter: e.defaultFilter ?? '',
           maxRows: e.maxRows ?? 5,
           isActive: e.isActive !== false,
+          identityColumn: e.identityColumn || 'id',
           columns: (e.columns ?? []).map((c: any) => ({
             name: c.name ?? '', type: c.type ?? 'text', description: c.description ?? '',
             selectable: !!c.selectable, filterable: !!c.filterable, is_group_header: !!c.is_group_header,
@@ -337,7 +339,7 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
                       className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="grid grid-cols-4 gap-2 mb-4">
                     <div>
                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-wide mb-1">Coluna de tenant</label>
                       <input value={e.tenantColumn} onChange={(ev) => updateEntity(ei, { tenantColumn: ev.target.value })}
@@ -355,6 +357,12 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
                       <input type="number" min={1} max={20} value={e.maxRows}
                         onChange={(ev) => updateEntity(ei, { maxRows: parseInt(ev.target.value, 10) || 5 })}
                         className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-wide mb-1" title="Coluna que identifica cada linha de forma única (PK) — usada pra casar item↔foto no agrupamento em cartões">Coluna de identidade</label>
+                      <input value={e.identityColumn} onChange={(ev) => updateEntity(ei, { identityColumn: ev.target.value })}
+                        placeholder="id" spellCheck={false}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                     </div>
                   </div>
 

@@ -230,7 +230,7 @@ async function runBotReply(
             idx++
             const urls = collectRowImages(row, imageFields)
             if (urls.length > 0) { anyImages = true; foundImagesInCall = true }
-            const key = String(row?.id ?? (headerCol ? row?.[headerCol] : undefined) ?? `item_${idx}`)
+            const key = String(row?.[entity.identityColumn] ?? (headerCol ? row?.[headerCol] : undefined) ?? `item_${idx}`)
             if (!itemsByKey.has(key)) {
               const header = headerCol && row?.[headerCol] != null ? String(row[headerCol]) : ''
               itemsByKey.set(key, { header, images: urls })

@@ -1,12 +1,45 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-11 (bot: colunas FK com lookup — fix "bangalô" inexistente)
+> **Atualizado em:** 2026-07-11 (auditoria de hardcode + coluna de identidade configurável)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-11 (continuação 3) — Auditoria de hardcode + coluna de identidade configurável ✅
+
+**Contexto:** usuário questionou, após eu ter corrigido um nome de tabela errado numa migração
+("finalidades" → "finalidades_imovel"), se existe qualquer coisa hardcoded na aplicação —
+exigência explícita de zero hardcode, multi-segmento, tudo regido por registros em tabela.
+
+**Auditoria feita (grep no código, não por memória):** confirmado zero ocorrências de nomes de
+entidade/tabela/campo específicos do imóvel (`'imovel'`, `'tipos_imovel'`, `'fotos'`, `'titulo'`,
+`'bairro'`, `'quartos'`, `'preco'`, `'andar'`, `'condominio'`) em `src/lib/mensageria/`. Todo acesso
+a campo em `botAdapter.ts` é dinâmico (`row?.[field]`, `row?.[headerCol]`), com o nome do campo
+vindo de config (`entity.relations.filter(r => r.is_image)`, `entity.columns.find(c =>
+c.is_group_header)`). A frase citada pelo usuário era sobre um erro meu **numa migração SQL**
+(dado gravado numa linha de config, equivalente a um Master digitando errado num formulário) — não
+código.
+
+**Um ponto real encontrado e corrigido:** `botAdapter.ts` casava linha↔item nos cartões sempre via
+`row?.id` — nome de coluna fixo (não específico de segmento, mas não configurável, diferente do
+`base_pk` das relations que já era). Corrigido: nova coluna real `identity_column` em
+`mensageria.segment_data_entities` (`prisma/migration-2026-07-11-mensageria-bot-identity-column.sql`,
+default `'id'`, preserva 100% do comportamento atual) — cada entidade declara sua própria PK.
+`genericResolver.ts`: `SegmentDataEntity.identityColumn`; `resolveEntity` sempre inclui essa coluna
+na projeção SQL mesmo se o Master esquecer de marcá-la "mostra" (evita quebra silenciosa por erro
+de config). `botAdapter.ts` usa `entity.identityColumn` em vez do literal `'id'`. UI (Master →
+Segmentos → Dados do Bot): novo campo "Coluna de identidade" no formulário da entidade.
+
+**Testado:** `npx tsc --noEmit` limpo · regressão dos cartões premium (Imbiribeira) — chave de item
+agora via `entity.identityColumn`, mesmo resultado de antes (1 cartão por imóvel, 1 foto cada) ·
+round-trip real `PUT/GET /data-entities` confirma `identityColumn` sobrevivendo ao salvar pela tela.
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-11 (continuação) — Colunas FK com lookup no resolver genérico ✅
 

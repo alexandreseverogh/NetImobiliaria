@@ -56,6 +56,7 @@ interface EntityInput {
   defaultFilter?: string;
   maxRows?: number;
   isActive?: boolean;
+  identityColumn?: string;
   columns: EntityColumnInput[];
   relations: EntityRelationInput[];
 }
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   try {
     const { rows } = await pool.query(
       `SELECT id, entity_name, table_name, description, columns, relations,
-              tenant_column, default_filter, max_rows, is_active
+              tenant_column, default_filter, max_rows, is_active, identity_column
          FROM mensageria.segment_data_entities
         WHERE segment_id = $1::uuid AND tenant_id IS NULL
         ORDER BY entity_name`,
@@ -85,6 +86,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         defaultFilter: r.default_filter,
         maxRows: r.max_rows,
         isActive: r.is_active,
+        identityColumn: r.identity_column || 'id',
       })),
     });
   } catch (err: any) {
@@ -105,6 +107,9 @@ function validateEntities(entities: EntityInput[]): string | null {
     }
     if (e.tenantColumn && !IDENT_RE.test(e.tenantColumn)) {
       return `Coluna de tenant inválida em "${e.entityName}": "${e.tenantColumn}"`;
+    }
+    if (e.identityColumn && !IDENT_RE.test(e.identityColumn)) {
+      return `Coluna de identidade inválida em "${e.entityName}": "${e.identityColumn}"`;
     }
     for (const c of e.columns || []) {
       if (!c.name?.trim() || !IDENT_RE.test(c.name.trim())) {
@@ -154,8 +159,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         await client.query(
           `INSERT INTO mensageria.segment_data_entities
              (segment_id, tenant_id, entity_name, table_name, description, columns, relations,
-              tenant_column, default_filter, max_rows, is_active)
-           VALUES ($1::uuid, NULL, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10)`,
+              tenant_column, default_filter, max_rows, is_active, identity_column)
+           VALUES ($1::uuid, NULL, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11)`,
           [
             params.id,
             e.entityName.trim(),
@@ -167,6 +172,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
             e.defaultFilter?.trim() || null,
             Math.min(Math.max(e.maxRows || 5, 1), 20),
             e.isActive !== false,
+            e.identityColumn?.trim() || 'id',
           ],
         );
       }
