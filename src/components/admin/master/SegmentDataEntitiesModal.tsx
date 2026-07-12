@@ -17,6 +17,9 @@ interface Column {
   selectable: boolean;
   filterable: boolean;
   is_group_header: boolean;
+  lookup_table: string;
+  lookup_pk: string;
+  lookup_label_column: string;
 }
 interface Relation {
   name: string;
@@ -50,7 +53,7 @@ interface Props {
   onClose: () => void;
 }
 
-const emptyColumn = (): Column => ({ name: '', type: 'text', description: '', selectable: true, filterable: false, is_group_header: false });
+const emptyColumn = (): Column => ({ name: '', type: 'text', description: '', selectable: true, filterable: false, is_group_header: false, lookup_table: '', lookup_pk: 'id', lookup_label_column: '' });
 const emptyRelation = (): Relation => ({
   name: '', description: '', bridge_table: '', bridge_fk: '', base_pk: 'id',
   lookup_table: '', lookup_fk: '', lookup_pk: 'id', select_column: '', agg: 'array', max: 25,
@@ -123,6 +126,7 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
           columns: (e.columns ?? []).map((c: any) => ({
             name: c.name ?? '', type: c.type ?? 'text', description: c.description ?? '',
             selectable: !!c.selectable, filterable: !!c.filterable, is_group_header: !!c.is_group_header,
+            lookup_table: c.lookup_table ?? '', lookup_pk: c.lookup_pk ?? 'id', lookup_label_column: c.lookup_label_column ?? '',
           })),
           relations: (e.relations ?? []).map((r: any) => ({
             name: r.name ?? '', description: r.description ?? '', bridge_table: r.bridge_table ?? '',
@@ -170,7 +174,7 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
         const existingNames = new Set(e.columns.map((c) => c.name));
         const toAdd = real
           .filter((r) => !existingNames.has(r.name))
-          .map((r) => ({ name: r.name, type: r.type, description: '', selectable: false, filterable: false, is_group_header: false }));
+          .map((r) => ({ name: r.name, type: r.type, description: '', selectable: false, filterable: false, is_group_header: false, lookup_table: '', lookup_pk: 'id', lookup_label_column: '' }));
         return { ...e, columns: [...e.columns, ...toAdd] };
       }));
     } catch (e: any) {
@@ -370,34 +374,51 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
                     </div>
                     <div className="space-y-1.5">
                       {e.columns.map((c, ci) => (
-                        <div key={ci} className="flex items-center gap-1.5 bg-white rounded-lg border border-gray-200 px-2 py-1.5">
-                          <input value={c.name} onChange={(ev) => updateColumn(ei, ci, { name: ev.target.value })}
-                            placeholder="coluna" spellCheck={false}
-                            className="w-32 text-xs font-mono text-gray-800 focus:outline-none" />
-                          <select value={c.type} onChange={(ev) => updateColumn(ei, ci, { type: ev.target.value as Column['type'] })}
-                            className="text-xs text-gray-600 bg-transparent focus:outline-none">
-                            <option value="text">texto</option>
-                            <option value="number">número</option>
-                            <option value="boolean">booleano</option>
-                          </select>
-                          <input value={c.description} onChange={(ev) => updateColumn(ei, ci, { description: ev.target.value })}
-                            placeholder="descrição pro LLM"
-                            className="flex-1 text-xs text-gray-500 focus:outline-none" />
-                          <label className="flex items-center gap-1 text-[10px] text-gray-500 shrink-0">
-                            <input type="checkbox" checked={c.selectable} onChange={(ev) => updateColumn(ei, ci, { selectable: ev.target.checked })} />
-                            mostra
-                          </label>
-                          <label className="flex items-center gap-1 text-[10px] text-gray-500 shrink-0">
-                            <input type="checkbox" checked={c.filterable} onChange={(ev) => updateColumn(ei, ci, { filterable: ev.target.checked })} />
-                            filtra
-                          </label>
-                          <label className="flex items-center gap-1 text-[10px] text-emerald-600 shrink-0" title="Usa esta coluna como cabeçalho/rótulo do item quando o bot agrupa vários resultados">
-                            <input type="checkbox" checked={c.is_group_header} onChange={(ev) => updateColumn(ei, ci, { is_group_header: ev.target.checked })} />
-                            cabeçalho
-                          </label>
-                          <button onClick={() => removeColumn(ei, ci)} className="text-gray-300 hover:text-red-500 shrink-0">
-                            <XMarkIcon className="h-3.5 w-3.5" />
-                          </button>
+                        <div key={ci} className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <input value={c.name} onChange={(ev) => updateColumn(ei, ci, { name: ev.target.value })}
+                              placeholder="coluna" spellCheck={false}
+                              className="w-32 text-xs font-mono text-gray-800 focus:outline-none" />
+                            <select value={c.type} onChange={(ev) => updateColumn(ei, ci, { type: ev.target.value as Column['type'] })}
+                              className="text-xs text-gray-600 bg-transparent focus:outline-none">
+                              <option value="text">texto</option>
+                              <option value="number">número</option>
+                              <option value="boolean">booleano</option>
+                            </select>
+                            <input value={c.description} onChange={(ev) => updateColumn(ei, ci, { description: ev.target.value })}
+                              placeholder="descrição pro LLM"
+                              className="flex-1 text-xs text-gray-500 focus:outline-none" />
+                            <label className="flex items-center gap-1 text-[10px] text-gray-500 shrink-0">
+                              <input type="checkbox" checked={c.selectable} onChange={(ev) => updateColumn(ei, ci, { selectable: ev.target.checked })} />
+                              mostra
+                            </label>
+                            <label className="flex items-center gap-1 text-[10px] text-gray-500 shrink-0">
+                              <input type="checkbox" checked={c.filterable} onChange={(ev) => updateColumn(ei, ci, { filterable: ev.target.checked })} />
+                              filtra
+                            </label>
+                            <label className="flex items-center gap-1 text-[10px] text-emerald-600 shrink-0" title="Usa esta coluna como cabeçalho/rótulo do item quando o bot agrupa vários resultados">
+                              <input type="checkbox" checked={c.is_group_header} onChange={(ev) => updateColumn(ei, ci, { is_group_header: ev.target.checked })} />
+                              cabeçalho
+                            </label>
+                            <button onClick={() => removeColumn(ei, ci)} className="text-gray-300 hover:text-red-500 shrink-0">
+                              <XMarkIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          {/* Chave estrangeira com lookup (opcional) — preencher table+coluna faz esta
+                              coluna exibir o NOME legível (não o id) e filtrar por nome (não por id
+                              numérico). Ex.: tipo_fk → tabela "tipos_imovel", coluna "nome". */}
+                          <div className="flex items-center gap-1.5 pl-1">
+                            <span className="text-[9px] text-gray-400 shrink-0 w-16" title="Se esta coluna é uma chave estrangeira (FK), preencha pra resolver o nome legível">FK →</span>
+                            <input value={c.lookup_table} onChange={(ev) => updateColumn(ei, ci, { lookup_table: ev.target.value })}
+                              placeholder="tabela de lookup (opcional, ex: tipos_imovel)" spellCheck={false}
+                              className="w-52 px-2 py-1 rounded border border-gray-100 text-[11px] font-mono text-gray-600 focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+                            <input value={c.lookup_label_column} onChange={(ev) => updateColumn(ei, ci, { lookup_label_column: ev.target.value })}
+                              placeholder="coluna do nome (ex: nome)" spellCheck={false}
+                              className="w-40 px-2 py-1 rounded border border-gray-100 text-[11px] font-mono text-gray-600 focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+                            <input value={c.lookup_pk} onChange={(ev) => updateColumn(ei, ci, { lookup_pk: ev.target.value })}
+                              placeholder="PK (default id)" spellCheck={false}
+                              className="w-28 px-2 py-1 rounded border border-gray-100 text-[11px] font-mono text-gray-400 focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+                          </div>
                         </div>
                       ))}
                     </div>

@@ -23,6 +23,15 @@ export interface EntityColumn {
   selectable?: boolean
   is_group_header?: boolean  // coluna que dá o cabeçalho/rótulo do item no agrupamento premium
                              // (ex.: titulo p/ imóvel, nome p/ clínica) — genérico por segmento
+  // Coluna que é chave estrangeira (ex.: tipo_fk → tipos_imovel.id): presença de lookup_table
+  // marca a coluna como "com lookup" — na exibição, o valor bruto (id) é resolvido pro nome
+  // legível; no filtro, o LLM passa o NOME (texto), nunca o id, e o resolver casa via subquery.
+  // Sem isso, um FK só pode ser tratado como número cru que o LLM não tem como preencher (ele
+  // sabe "bangalô", não sabe que o id é 90) — o bot ou ignora o campo, ou (pior) finge que
+  // filtrou. Genérico: qualquer segmento pode marcar qualquer FK dessa forma, sem código novo.
+  lookup_table?: string
+  lookup_pk?: string           // default 'id'
+  lookup_label_column?: string // obrigatório se lookup_table setado (ex.: 'nome')
 }
 
 /**
@@ -132,6 +141,25 @@ function buildRelationSubquery(rel: EntityRelation, baseAlias: string): string |
   return `(SELECT COALESCE(array_agg(v), ARRAY[]::text[]) FROM (SELECT ${proj}::text AS v FROM ${from} WHERE ${corr} AND ${proj} IS NOT NULL AND ${proj}::text <> '' LIMIT ${cap}) s) AS ${rel.name}`
 }
 
+/**
+ * Coluna com lookup (FK): projeta o NOME legível (via subquery) em vez do id cru. Retorna null
+ * (cai no `e.<col>` normal) se a config de lookup faltar ou tiver identificador inválido — nunca
+ * quebra por config incompleta.
+ */
+function buildColumnProjection(col: EntityColumn, baseAlias: string): string | null {
+  if (!col.lookup_table || !col.lookup_label_column) return null
+  const lookupPk = col.lookup_pk ?? 'id'
+  if (!ok(col.name) || !ok(col.lookup_table) || !ok(col.lookup_label_column) || !ok(lookupPk)) return null
+  return `(SELECT lk.${col.lookup_label_column} FROM ${col.lookup_table} lk WHERE lk.${lookupPk} = ${baseAlias}.${col.name}) AS ${col.name}`
+}
+
+/** true quando a coluna tem config de lookup válida (mesma checagem usada na projeção). */
+function hasValidLookup(col: EntityColumn): boolean {
+  if (!col.lookup_table || !col.lookup_label_column) return false
+  const lookupPk = col.lookup_pk ?? 'id'
+  return ok(col.name) && ok(col.lookup_table) && ok(col.lookup_label_column) && ok(lookupPk)
+}
+
 export async function resolveEntity(
   entity: SegmentDataEntity,
   params: Record<string, any>,
@@ -153,6 +181,18 @@ export async function resolveEntity(
     if (val === null || val === undefined || val === '') continue
     const col = entity.columns.find((c) => c.name === key && c.filterable)
     if (!col || !ok(col.name)) continue // fora da whitelist — ignorado silenciosamente
+
+    if (hasValidLookup(col)) {
+      // Coluna FK com lookup: o LLM sempre manda o NOME (ex.: "bangalô"), nunca o id — casa por
+      // subquery contra a tabela de lookup. Isso é o que torna o filtro real: se não existir
+      // nenhuma linha daquele tipo/status/finalidade, o resultado vem genuinamente vazio, em vez
+      // do LLM ter que adivinhar ou (pior) assumir que qualquer linha retornada combina.
+      const lookupPk = col.lookup_pk ?? 'id'
+      args.push(`%${val}%`)
+      where.push(`e.${col.name} IN (SELECT ${lookupPk} FROM ${col.lookup_table} WHERE ${col.lookup_label_column} ILIKE $${args.length})`)
+      continue
+    }
+
     // Coerção server-side: o schema das ferramentas expõe todo filtro como string (LLMs
     // mandam "3" onde se esperaria 3, e providers estritos rejeitam a tool call por isso).
     // Aqui convertemos ao tipo real da coluna e descartamos valores que não coagem.
@@ -174,7 +214,10 @@ export async function resolveEntity(
     .map((r) => buildRelationSubquery(r, 'e'))
     .filter((s): s is string => s !== null)
 
-  const projection = [...selectableCols.map((c) => `e.${c.name}`), ...relationCols].join(', ')
+  const projection = [
+    ...selectableCols.map((c) => buildColumnProjection(c, 'e') ?? `e.${c.name}`),
+    ...relationCols,
+  ].join(', ')
 
   const maxRows = Math.min(Math.max(entity.maxRows || 5, 1), 20)
   const sql = `SELECT ${projection}
@@ -190,7 +233,9 @@ function buildParamsSchema(columns: EntityColumn[]): LlmToolDef['parameters'] {
   for (const c of columns.filter((c) => c.filterable)) {
     // Todo parâmetro é exposto como string — providers de tool-use validam o schema com
     // rigor variável (número vs string), e a coerção real acontece server-side no resolver.
-    const kind = c.type === 'number' ? 'número' : c.type === 'boolean' ? 'booleano (true/false)' : 'texto'
+    // Coluna com lookup: sempre "texto" pro LLM, mesmo se o `type` interno for número — o valor
+    // esperado é o NOME (ex.: "bangalô"), nunca o id bruto da chave estrangeira.
+    const kind = hasValidLookup(c) ? 'texto' : c.type === 'number' ? 'número' : c.type === 'boolean' ? 'booleano (true/false)' : 'texto'
     properties[c.name] = {
       type: 'string',
       description: `${c.description || c.name} — ${kind}`,

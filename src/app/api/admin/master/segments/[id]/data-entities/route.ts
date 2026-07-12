@@ -30,6 +30,9 @@ interface EntityColumnInput {
   selectable?: boolean;
   filterable?: boolean;
   is_group_header?: boolean;
+  lookup_table?: string;
+  lookup_pk?: string;
+  lookup_label_column?: string;
 }
 interface EntityRelationInput {
   name: string;
@@ -106,6 +109,10 @@ function validateEntities(entities: EntityInput[]): string | null {
     for (const c of e.columns || []) {
       if (!c.name?.trim() || !IDENT_RE.test(c.name.trim())) {
         return `Nome de coluna inválido em "${e.entityName}": "${c.name}"`;
+      }
+      const lookupFields = [c.lookup_table, c.lookup_pk, c.lookup_label_column].filter((v): v is string => !!v);
+      for (const f of lookupFields) {
+        if (!IDENT_RE.test(f)) return `Identificador de lookup inválido na coluna "${c.name}" de "${e.entityName}": "${f}"`;
       }
     }
     for (const r of e.relations || []) {

@@ -1,8 +1,59 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-11 (bot: cartões premium por item + fix contradição consulta vazia)
+> **Atualizado em:** 2026-07-11 (bot: colunas FK com lookup — fix "bangalô" inexistente)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-11 (continuação) — Colunas FK com lookup no resolver genérico ✅
+
+**Bug real reportado:** perguntado "tem imóveis de bangalô na Imbiribeira?", o bot respondeu "sim"
+e listou 5 imóveis reais descrevendo cada um como "Este bangalô tem...". Nenhum é bangalô de
+verdade — `tipo_fk=90` (bangalô) não existe em nenhuma linha de `imoveis`. Causa raiz: `tipo_fk`
+estava com `selectable:false, filterable:false` — o bot não tinha como filtrar por tipo; mesmo se
+fosse filterable, o valor bruto é um número (id) e o LLM só sabe o texto "bangalô", sem saber o id.
+Sem filtro real, a tool call só filtrou por bairro, trouxe imóveis de qualquer tipo, e o LLM
+**assumiu** que eram bangalôs — alucinação por ausência de capacidade, não por regra mal seguida.
+
+**Diagnóstico do usuário, confirmado e generalizado:** o gap é estrutural — qualquer coluna que é
+**chave estrangeira** (`tipo_fk→tipos_imovel.id`, `status_fk→status_imovel.id`,
+`finalidade_fk→finalidades_imovel.id`) só podia ser número cru ou ficava de fora.
+
+**Implementado — novo tipo de coluna "com lookup" no resolver genérico** (`genericResolver.ts`):
+`EntityColumn` ganha `lookup_table`/`lookup_pk`/`lookup_label_column` opcionais (mesmo espírito do
+`is_image`/`is_group_header` — presença = capacidade ativada, dirigido 100% por config, zero
+hardcoded, funciona pra qualquer FK de qualquer segmento).
+- `buildColumnProjection()` — projeta o NOME legível via subquery em vez do id cru
+  (`tipo_fk: "Apartamento"` em vez de `tipo_fk: 5`). Config inválida cai no comportamento antigo,
+  nunca quebra.
+- Filtro: coluna com lookup válido nunca usa a coerção número/texto normal — sempre casa o valor
+  do LLM (texto, ex. "bangalô") contra o nome via `IN (SELECT id FROM tabela WHERE nome ILIKE ...)`.
+  Isso é o que torna o filtro **real**: sem nenhuma linha daquele tipo, o resultado vem vazio de
+  verdade (cai no aviso "nenhum resultado" já existente), em vez do LLM inventar.
+- `buildParamsSchema`: coluna com lookup sempre descrita como "texto" pro LLM, mesmo com `type`
+  interno `number` — o valor esperado é o nome, não o id.
+- UI (`SegmentDataEntitiesModal.tsx`) — 2ª linha por coluna: "tabela de lookup" / "coluna do nome"
+  / "PK", mesma mecânica visual já usada nas relations. `data-entities/route.ts` valida os 3 novos
+  identificadores com o mesmo `IDENT_RE` das relations.
+- `prisma/migration-2026-07-11-mensageria-bot-fk-lookup.sql` — ativa em `tipo_fk`, `status_fk`,
+  `finalidade_fk` da entidade `imovel` (as 3 colunas de classificação que um visitante pergunta por
+  nome). **Fora de escopo deliberado:** `corretor_fk`/`proprietario_uuid` não entraram — identidade
+  de corretor/proprietário é dado sensível, não exposto por padrão sem pedido explícito.
+
+**Testado ponta a ponta:** SQL direto confirma "bangalô" → 0 linhas reais (nenhum imóvel é bangalô)
+e um tipo real ("apartamento") → 6 linhas com `tipo_fk` já resolvido pro nome · reproduzido o
+cenário EXATO reportado via API do bot — agora responde "não encontrei nenhum imóvel de bangalô...
+posso ajustar os critérios?" em vez de inventar 5 imóveis · contraste com tipo real (apartamento) →
+encontra corretamente e monta os cartões premium · regressão dos cartões (sessão anterior)
+confirmada sem quebra · round-trip real dos 3 novos campos via `PUT /data-entities` sobrevive ·
+`npx tsc --noEmit` limpo.
+
+---
+
+## Penúltima tarefa concluída
 
 ---
 
