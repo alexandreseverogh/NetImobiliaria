@@ -1,12 +1,32 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (preco_iptu nunca esteve exposto ao bot — IPTU era 100% inventado)
+> **Atualizado em:** 2026-07-14 (badge de campos elegíveis pra comparação na UI Dados do Bot)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-14 (continuação) — Badge "campos elegíveis para comparação" no Dados do Bot ✅
+
+Usuário pediu visibilidade da nova ferramenta `comparar_<entidade>` (sessão anterior) na tela
+Master. Como a capacidade é 100% derivada de metadado já existente (nenhum campo novo de config),
+adicionado só um indicador visual: `comparableFieldNames()` em
+`SegmentDataEntitiesModal.tsx` espelha a mesma regra do backend
+(`isComparableNumericColumn` em `genericResolver.ts` — número + selecionável + sem lookup) e
+renderiza um aviso âmbar acima da lista de colunas de cada entidade: "N campos elegíveis para
+comparação: preco, preco_iptu, quartos, ...". Zero API nova — só leitura do state já carregado.
+
+**Testado:** `npx tsc --noEmit` limpo. Verificação visual no navegador não foi possível — mesma
+limitação de cookie/middleware Master já documentada repetidamente nesta sessão (confirmado mais
+uma vez: navegação pra `/admin/master/segments` com cookie injetado via JS foi redirecionada).
+Confiança na correção via inspeção de código (lógica é uma cópia 1:1 do filtro já testado e
+validado no backend) — pendente confirmação visual do usuário.
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-14 — preco_iptu exposto ao bot + comparação exclui colunas FK ✅
 

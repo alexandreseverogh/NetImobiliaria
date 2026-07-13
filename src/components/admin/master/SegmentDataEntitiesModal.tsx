@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { XMarkIcon, CheckCircleIcon, PlusIcon, TrashIcon, QuestionMarkCircleIcon, CircleStackIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CheckCircleIcon, PlusIcon, TrashIcon, QuestionMarkCircleIcon, CircleStackIcon, ArrowDownTrayIcon, CalculatorIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
 
 interface Column {
@@ -64,6 +64,16 @@ const emptyEntity = (): Entity => ({
   entityName: '', tableName: '', description: '', tenantColumn: 'tenant_id', defaultFilter: 'ativo = true',
   maxRows: 5, isActive: true, identityColumn: 'id', columns: [emptyColumn()], relations: [],
 });
+
+// Mesma regra de elegibilidade do backend (genericResolver.ts: isComparableNumericColumn) —
+// número + selecionável, sem lookup (uma coluna com lookup é tecnicamente number no banco, mas
+// o valor que o bot vê é o NOME resolvido, ex. "Apartamento", não uma quantidade somável).
+function comparableFieldNames(columns: Column[]): string[] {
+  return columns
+    .filter((c) => c.type === 'number' && c.selectable && !c.lookup_table?.trim())
+    .map((c) => c.name)
+    .filter(Boolean);
+}
 
 function HelpPanel() {
   return (
@@ -380,6 +390,18 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
                         {loadingColumnsFor === ei ? 'Carregando...' : 'Carregar colunas da tabela'}
                       </button>
                     </div>
+                    {(() => {
+                      const cmp = comparableFieldNames(e.columns);
+                      return cmp.length > 0 ? (
+                        <p
+                          className="flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mb-1.5"
+                          title="O bot ganha automaticamente uma ferramenta de comparação/ranking (ex.: 'qual tem o menor preço somando X e Y') usando esses campos — sem nenhuma configuração extra."
+                        >
+                          <CalculatorIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span><strong>{cmp.length}</strong> campo{cmp.length === 1 ? '' : 's'} elegíve{cmp.length === 1 ? 'l' : 'is'} para comparação: <span className="font-mono">{cmp.join(', ')}</span></span>
+                        </p>
+                      ) : null;
+                    })()}
                     <div className="space-y-1.5">
                       {e.columns.map((c, ci) => (
                         <div key={ci} className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
