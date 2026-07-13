@@ -76,6 +76,21 @@ export interface SegmentDataEntity {
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/
 const ok = (s: unknown): s is string => typeof s === 'string' && IDENT_RE.test(s)
 
+// Escapa metacaracteres de regex antes de embutir texto livre (vindo do LLM) num padrão ~*.
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Padrão de "palavra inteira" (não substring) — usado no filtro de colunas com lookup. Sem isso,
+// "disponível" bate como SUBSTRING dentro de "Indisponível" (significado oposto!) via ILIKE
+// normal, e o filtro casa contra a categoria errada. `\y` (fronteira de palavra do Postgres)
+// resolve isso: "disponível" não tem fronteira de palavra logo após o "in" de "indisponível"
+// (ambos são caracteres de palavra), então não bate — mas ainda bate normalmente em "Bangalô",
+// "Apartamento" etc.
+function wordBoundaryPattern(val: string): string {
+  return `\\y${escapeRegex(val)}\\y`
+}
+
 export async function loadEntitiesForSegment(segmentId: string | null, tenantId: string): Promise<SegmentDataEntity[]> {
   const { rows } = await pool.query(
     `SELECT id, entity_name, table_name, description, columns, relations, tenant_column, default_filter, max_rows, identity_column, tenant_id, segment_id
@@ -188,12 +203,35 @@ export async function resolveEntity(
 
     if (hasValidLookup(col)) {
       // Coluna FK com lookup: o LLM sempre manda o NOME (ex.: "bangalô"), nunca o id — casa por
-      // subquery contra a tabela de lookup. Isso é o que torna o filtro real: se não existir
-      // nenhuma linha daquele tipo/status/finalidade, o resultado vem genuinamente vazio, em vez
-      // do LLM ter que adivinhar ou (pior) assumir que qualquer linha retornada combina.
+      // subquery contra a tabela de lookup. Isso é o que torna o filtro real: se a categoria
+      // EXISTE no catálogo mas nenhuma linha usa ela, o resultado vem genuinamente vazio (ex.:
+      // "bangalô" existe em tipos_imovel, mas nenhum imóvel é desse tipo — filtro correto).
+      //
+      // Mas se o valor não corresponde a NENHUMA categoria real do catálogo DESTE TENANT, ele
+      // não é um filtro legítimo — é o LLM generalizando/inventando (bug real observado:
+      // pergunta genérica com "disponível" virou status_fk="disponível" que não existe no
+      // catálogo deste tenant — o real é "Ativo" — mesmo a descrição pedindo pra não fazer
+      // isso). Ignora o filtro nesse caso, em vez de forçar "nenhum resultado" incorreto —
+      // instrução de texto sozinha não segura 100% dos casos, a checagem entra no código.
+      //
+      // CRÍTICO: catálogos de lookup (tipos_imovel, status_imovel, etc.) são por-tenant — a
+      // checagem E o filtro têm que ser escopados pelo tenant, senão uma categoria de OUTRO
+      // tenant (ex.: outro cliente também tem "Disponível" no catálogo dele) engana a checagem
+      // de existência, e depois o filtro casa contra ids de catálogo de outro tenant — retorna
+      // vazio pra este tenant mesmo quando a categoria equivalente dele (ex. "Ativo") é real.
+      // Convenção: a tabela de lookup usa o MESMO nome de coluna de tenant da entidade base
+      // (`entity.tenantColumn`, ex. 'tenant_id') — já validado como identificador seguro acima.
+      // Palavra inteira (~*), não substring (ILIKE) — "disponível" não pode bater dentro de
+      // "Indisponível" (ver wordBoundaryPattern acima).
       const lookupPk = col.lookup_pk ?? 'id'
-      args.push(`%${val}%`)
-      where.push(`e.${col.name} IN (SELECT ${lookupPk} FROM ${col.lookup_table} WHERE ${col.lookup_label_column} ILIKE $${args.length})`)
+      const pattern = wordBoundaryPattern(String(val))
+      const categoryExists = await pool.query(
+        `SELECT 1 FROM ${col.lookup_table} WHERE ${col.lookup_label_column} ~* $1 AND ${entity.tenantColumn} = $2 LIMIT 1`,
+        [pattern, ctx.tenantId],
+      )
+      if (categoryExists.rows.length === 0) continue // valor não bate com nenhuma categoria real deste tenant — ignora
+      args.push(pattern, ctx.tenantId)
+      where.push(`e.${col.name} IN (SELECT ${lookupPk} FROM ${col.lookup_table} WHERE ${col.lookup_label_column} ~* $${args.length - 1} AND ${entity.tenantColumn} = $${args.length})`)
       continue
     }
 

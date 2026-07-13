@@ -54,10 +54,15 @@ async function loadContact(conversationId: string): Promise<ConversationContact 
 }
 
 async function loadHistory(conversationId: string): Promise<LlmMessage[]> {
+  // Inclui 'card' junto com 'text' — os cartões (agrupamento por item) carregam o dado real
+  // (bairro, preço, IPTU etc.) no `content`; excluí-los da história deixava o LLM sem nenhuma
+  // memória do que "esses imóveis" significava no turno seguinte, forçando-o a pedir
+  // esclarecimento em vez de reaproveitar/calcular sobre o que já tinha mostrado. Mensagens de
+  // imagem pura (`content IS NULL`) continuam fora — não têm texto útil pro contexto.
   const { rows } = await pool.query(
     `SELECT direction, sender_type, content
        FROM ${SCHEMA}.messages
-      WHERE conversation_id = $1 AND is_private = false AND content_type = 'text' AND content IS NOT NULL
+      WHERE conversation_id = $1 AND is_private = false AND content_type IN ('text', 'card') AND content IS NOT NULL
       ORDER BY created_at DESC
       LIMIT $2`,
     [conversationId, MAX_HISTORY],
@@ -154,11 +159,13 @@ async function buildCards(
 ): Promise<{ intro: string | null; outro: string | null; cards: BotCard[] } | null> {
   const keys = items.map((it) => it.key)
   const instruction =
-    `Formate a resposta final AGRUPADA POR ITEM. Para CADA um destes itens (identificados pela chave): ${keys.join(', ')}, ` +
-    `escreva um texto curto e natural com as informações que o visitante pediu sobre aquele item — SEM repetir o nome/cabeçalho do item e SEM nenhum link ou URL de foto. ` +
+    `Analise a pergunta mais recente do visitante e os dados reais de cada item abaixo (identificados pela chave): ${keys.join(', ')}. ` +
+    `Se a pergunta pedir uma LISTAGEM geral (ex.: "quais imóveis vocês têm", "mostre os imóveis disponíveis"), inclua TODOS os itens, um cabeçalho+texto cada. ` +
+    `Se a pergunta pedir uma COMPARAÇÃO, CÁLCULO ou SELEÇÃO entre os itens (ex.: "qual tem o menor preço", "qual é mais barato somando preço e IPTU", "qual tem mais quartos") — calcule/compare usando os valores REAIS de cada item (nunca estime) e inclua card SOMENTE do(s) item(ns) que respondem à pergunta (pode ser 1 só, ou vários em caso de empate exato) — nesse caso "_intro" é OBRIGATÓRIO e deve explicar o cálculo/critério usado e citar os valores comparados. ` +
+    `Para cada item que você decidir incluir, escreva um texto curto e natural com as informações relevantes — SEM repetir o nome/cabeçalho do item e SEM nenhum link ou URL de foto. ` +
     `Responda SOMENTE com um objeto JSON, sem nenhum texto fora dele, no formato: ` +
-    `{"_intro": "<frase de abertura opcional>", "<chave>": "<texto do item>", "_outro": "<frase de fechamento opcional>"}. ` +
-    `Use exatamente as chaves fornecidas. "_intro" e "_outro" são opcionais.`
+    `{"_intro": "<frase de abertura>", "<chave>": "<texto do item>", "_outro": "<frase de fechamento opcional>"}. ` +
+    `Inclua no JSON APENAS as chaves dos itens que você decidiu manter — NÃO inclua chave de item que você descartou da resposta.`
 
   let raw = ''
   try {
@@ -172,11 +179,15 @@ async function buildCards(
   const parsed = parseJsonObject(raw)
   if (!parsed) return null
 
-  const cards: BotCard[] = items.map((it) => ({
-    header: it.header || 'Item',
-    text: typeof parsed[it.key] === 'string' ? parsed[it.key] : '',
-    images: it.images,
-  }))
+  // Só vira card o item que o LLM de fato incluiu no JSON — uma pergunta de comparação/seleção
+  // (ex.: "qual tem o menor preço?") deve resultar em 1 (ou poucos) cards, não um por item
+  // retornado pela ferramenta. Sem esse filtro, a resposta sempre mostrava TODOS os itens, mesmo
+  // quando o visitante pediu uma escolha específica entre eles.
+  const cards: BotCard[] = items
+    .filter((it) => typeof parsed[it.key] === 'string' && parsed[it.key].trim())
+    .map((it) => ({ header: it.header || 'Item', text: parsed[it.key].trim(), images: it.images }))
+  if (cards.length === 0) return null // formatação não selecionou nada válido → cai no fluxo plano
+
   const intro = typeof parsed._intro === 'string' && parsed._intro.trim() ? parsed._intro.trim() : null
   const outro = typeof parsed._outro === 'string' && parsed._outro.trim() ? parsed._outro.trim() : null
   return { intro, outro, cards }

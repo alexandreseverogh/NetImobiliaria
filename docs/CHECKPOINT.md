@@ -1,12 +1,74 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-13 (bot não contradiz mais em consulta vazia após assunto não relacionado)
+> **Atualizado em:** 2026-07-13 (3 bugs reais no filtro por lookup + seleção de cartões; comparação matemática ainda não confiável)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-13 (continuação) — Cartões seletivos + 2 bugs reais no filtro FK + capacidade de comparação ainda não confiável ✅⚠️
+
+**Pergunta original do usuário:** conversa real mostrou o bot listando TODOS os 5 imóveis em
+cartões quando perguntado "qual desses tem o valor menor somando valor+IPTU?" — sem fazer conta
+nenhuma. Perguntou se era só ajuste de prompt.
+
+**Resposta: não, era um bug de arquitetura real.** `buildCards()` em `botAdapter.ts` fazia
+`items.map(...)` incondicional — todo item retornado pela ferramenta virava cartão, não importava
+o que o LLM decidisse no JSON de formatação. Corrigido: `items.filter(...)` só inclui a chave que
+o LLM de fato retornou no JSON; instrução reescrita pra pedir cálculo/comparação real e seleção
+explícita do(s) item(ns) que respondem à pergunta (não mais "um card por item sempre").
+
+**Durante o reteste, 2 bugs reais e mais sérios encontrados nas colunas FK com lookup
+(`tipo_fk`/`status_fk`/`finalidade_fk`, sessão anterior):**
+
+1. **Vazamento de tenant no filtro por nome.** Testei "quais imóveis vocês têm disponíveis?" — o
+   LLM às vezes filtrava `status_fk="disponível"` (palavra genérica, minha própria descrição da
+   coluna sugeria esse exemplo errado — corrigido primeiro, não resolveu sozinho). Investigação
+   mais funda: a checagem de existência de categoria que eu tinha acabado de adicionar (pra não
+   forçar resultado vazio quando o LLM inventa um valor) **não era escopada por tenant** —
+   `status_imovel` é catálogo por-tenant, e outro tenant TEM "Disponível" no catálogo dele. A
+   checagem via "existe globalmente" deixava passar, o filtro real então casava contra ids de
+   OUTRO tenant, e a busca voltava vazia pra este tenant mesmo com "Ativo" sendo a categoria real
+   equivalente. Corrigido: checagem de existência E filtro real agora escopados por
+   `entity.tenantColumn` (convenção: catálogo de lookup usa a mesma coluna de tenant da entidade
+   base).
+2. **Colisão de substring em palavras com prefixo de negação.** Mesmo com o escopo por tenant
+   corrigido, "disponível" ainda batia via `ILIKE '%disponível%'` dentro de "**In**disponível" —
+   significado oposto! Corrigido: troca de `ILIKE` por `~*` com fronteira de palavra Postgres
+   (`\ydisponível\y`) — "disponível" não bate dentro de "indisponível" (sem fronteira de palavra
+   entre "in" e "disponível", ambos caracteres de palavra), mas continua batendo normalmente em
+   "Bangalo"/"Apartamento". Valor do LLM sempre escapado (`escapeRegex`) antes de virar padrão.
+
+**Testado exaustivamente (múltiplas rodadas, LLM é probabilístico):** "quais imóveis disponíveis"
+→ 6/6 sucessos depois do fix completo (vs. falhas intermitentes antes) · bangalô continua
+corretamente negativo (regressão OK) · tipo real (apartamento) continua funcionando.
+
+**⚠️ Capacidade de comparação matemática AINDA NÃO É CONFIÁVEL — reportado com honestidade, não
+resolvido:** testei "qual tem o valor menor somando valor+IPTU" 3x depois do fix arquitetural de
+seleção de cartões. Resultado: 1x correto, 2x errado — numa delas o LLM literalmente inventou
+"IPTU aproximado" (violando a instrução explícita de nunca estimar), selecionou itens de valor
+ALTO (não baixo), e o texto final citou um total que não bate com nenhum cartão exibido nem com a
+soma real. **Avaliação honesta:** pedir que o mesmo LLM (numa única chamada de formatação) faça
+aritmética entre vários itens, selecione o(s) correto(s) E monte JSON estrito é pedir demais de
+uma vez — o padrão "sinal explícito nos dados" que funcionou pros bugs anteriores não é suficiente
+aqui porque o problema não é falta de dado, é confiabilidade de cálculo multi-etapa do próprio
+modelo. **Recomendação pra próxima sessão:** mover o cálculo pra fora do LLM — código faz a soma/
+comparação/ranking real (quando a pergunta claramente pede isso e os campos numéricos existem) e
+passa o resultado JÁ CALCULADO pro LLM só formatar em texto natural, em vez de pedir que ele
+calcule. Não implementado ainda — decisão de escopo pra conversar com o usuário antes.
+
+**Arquivos tocados:** `src/lib/mensageria/botAdapter.ts` (buildCards seletivo, loadHistory inclui
+`content_type='card'` — bug relacionado: cartões ficavam invisíveis no histórico de turnos
+seguintes, fazendo o bot "esquecer" itens já mostrados e pedir esclarecimento desnecessário),
+`src/lib/mensageria/tools/genericResolver.ts` (escopo por tenant + fronteira de palavra no filtro
+de lookup). `prisma/migration-2026-07-13-mensageria-bot-status-fk-desc-fix.sql`. `npx tsc --noEmit`
+limpo em todos.
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-13 — Filtro contaminado por assunto anterior não relacionado ✅
 
