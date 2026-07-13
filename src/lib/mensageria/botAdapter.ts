@@ -12,7 +12,7 @@ import { resolvePromptTemplate } from '@/lib/intelligence/promptResolver'
 import { renderPrompt } from '@/lib/intelligence/promptRenderer'
 import { getLlmClientForCampaigns } from '@/lib/marketing/services/llmClient'
 import type { LlmMessage } from '@/lib/marketing/services/llmClient'
-import { getToolsForSegment, resolveEntity, type SegmentDataEntity } from '@/lib/mensageria/tools/genericResolver'
+import { getToolsForSegment, resolveEntity, compareEntity, type SegmentDataEntity } from '@/lib/mensageria/tools/genericResolver'
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import { sendEvolutionMessage, sendEvolutionMedia, type EvolutionInboxConfig } from '@/lib/mensageria/channels/evolutionSend'
 
@@ -201,7 +201,7 @@ async function runBotReply(
 ): Promise<BotReply> {
   const segment = await resolveSegment(tenantId, clientId)
   const persona = await resolvePersona(tenantId, segment?.id ?? null)
-  const { tools, entities } = await getToolsForSegment(segment?.id ?? null, tenantId)
+  const { tools, entities, compareEntities } = await getToolsForSegment(segment?.id ?? null, tenantId)
   const history = await loadHistory(conversationId)
   const llm = await getLlmClientForCampaigns()
 
@@ -224,16 +224,36 @@ async function runBotReply(
 
     for (const call of toolCalls) {
       const entity = entities.get(call.name)
+      const cmpEntity = compareEntities.get(call.name)
+      const activeEntity = entity ?? cmpEntity
       let resultText: string
       try {
-        const rows = entity ? await resolveEntity(entity, call.input, { tenantId }) : []
-        let resultPayload: any = rows
+        let rows: any[]
+        let compareInfo: { camposUsados: string[]; operacao: string; criterio: string } | null = null
+
         if (entity) {
-          const imageFields = entity.relations.filter((r) => r.is_image).map((r) => r.name)
+          rows = await resolveEntity(entity, call.input, { tenantId })
+        } else if (cmpEntity) {
+          // Comparação/ranking: a aritmética roda em compareEntity() (código, não LLM) — o
+          // resultado já vem com o(s) item(ns) vencedor(es) e o campo _total_calculado pronto.
+          const cmp = await compareEntity(cmpEntity, call.input, { tenantId })
+          if ('error' in cmp) {
+            messages.push({ role: 'tool_result', toolCallId: call.id, content: JSON.stringify({ aviso: cmp.error }) })
+            continue
+          }
+          rows = cmp.rows
+          compareInfo = { camposUsados: cmp.camposUsados, operacao: cmp.operacao, criterio: cmp.criterio }
+        } else {
+          rows = []
+        }
+
+        let resultPayload: any = rows
+        if (activeEntity) {
+          const imageFields = activeEntity.relations.filter((r) => r.is_image).map((r) => r.name)
           // Cabeçalho/rótulo do item: coluna marcada is_group_header; fallback = 1ª coluna texto
           // selecionável. Tudo dirigido por config — genérico p/ qualquer segmento.
-          const headerCol = entity.columns.find((c) => c.is_group_header)?.name
-            ?? entity.columns.find((c) => c.selectable && c.type === 'text')?.name
+          const headerCol = activeEntity.columns.find((c) => c.is_group_header)?.name
+            ?? activeEntity.columns.find((c) => c.selectable && c.type === 'text')?.name
 
           let idx = 0
           let foundImagesInCall = false
@@ -241,7 +261,7 @@ async function runBotReply(
             idx++
             const urls = collectRowImages(row, imageFields)
             if (urls.length > 0) { anyImages = true; foundImagesInCall = true }
-            const key = String(row?.[entity.identityColumn] ?? (headerCol ? row?.[headerCol] : undefined) ?? `item_${idx}`)
+            const key = String(row?.[activeEntity.identityColumn] ?? (headerCol ? row?.[headerCol] : undefined) ?? `item_${idx}`)
             if (!itemsByKey.has(key)) {
               const header = headerCol && row?.[headerCol] != null ? String(row[headerCol]) : ''
               itemsByKey.set(key, { header, images: urls })
@@ -261,12 +281,18 @@ async function runBotReply(
             // e responder "sim, temos" contradizendo o zero resultados.
             avisos.push('A consulta não retornou nenhum resultado com esses critérios. NÃO afirme que existe o que foi pedido; diga com clareza que não encontrou nada que combine e ofereça ajustar os critérios da busca.')
           } else {
+            if (compareInfo) {
+              // O item já foi selecionado pelo CÓDIGO — o LLM só narra, nunca recalcula.
+              avisos.push(
+                `O(s) item(ns) abaixo JÁ FORAM selecionados pelo sistema como resultado da comparação pedida (campo(s): ${compareInfo.camposUsados.join(' + ')}; critério: ${compareInfo.criterio}). O campo "_total_calculado" já traz o valor real somado/combinado de cada item — CITE esse valor exatamente como veio, NUNCA recalcule, arredonde ou estime por conta própria.`,
+              )
+            }
             if (imageFields.length > 0 && !foundImagesInCall) {
               avisos.push('Nenhum dos itens abaixo tem foto disponível no momento. Diga, de forma natural, que não há fotos DESSES itens disponíveis agora. NUNCA diga que você "não pode exibir imagens" ou "não tem acesso a imagens" — você PODE mostrar fotos (a plataforma envia automaticamente quando existem); é só que estes itens específicos não têm foto agora.')
             }
             const availableFields = [
-              ...entity.columns.filter((c) => c.selectable).map((c) => c.name),
-              ...entity.relations.map((r) => r.name),
+              ...activeEntity.columns.filter((c) => c.selectable).map((c) => c.name),
+              ...activeEntity.relations.map((r) => r.name),
             ]
             avisos.push(
               `Os únicos campos disponíveis nestes dados são: ${availableFields.join(', ')}. Se o visitante perguntar algo fora dessa lista, diga claramente que não tem essa informação disponível no momento e sugira falar com um atendente — nunca estime, calcule ou invente um valor pra um campo que não veio aqui.`,

@@ -278,6 +278,63 @@ export async function resolveEntity(
   return rows
 }
 
+/**
+ * Compara/ordena os resultados de uma entidade por 1+ campos numéricos e retorna só o(s)
+ * item(ns) no extremo (menor ou maior) — a aritmética roda aqui, em código, nunca no LLM.
+ *
+ * Por quê: pedir pro LLM somar/comparar valores reais de vários itens numa resposta de texto
+ * livre é a categoria de tarefa onde ele mais erra (chegou a inventar "IPTU aproximado" em vez
+ * de usar o valor real disponível). Aqui ele só extrai QUAIS campos e QUAL operação a pergunta
+ * pede — uma tarefa de classificação, que já faz bem — e o código faz a conta de verdade.
+ *
+ * Genérico por construção: `campos` só aceita nomes que já estão em
+ * `entity.columns` com `type==='number' && selectable===true` — nenhum nome de campo/segmento
+ * fixo. Reaproveita `resolveEntity` pra buscar as linhas candidatas (mesmos filtros normais,
+ * mesmo escopo de tenant, mesmo maxRows — os parâmetros campos/operacao/criterio não batem
+ * contra nenhuma coluna real e já são ignorados silenciosamente pelo loop de filtro existente).
+ */
+export async function compareEntity(
+  entity: SegmentDataEntity,
+  params: Record<string, any>,
+  ctx: { tenantId: string },
+): Promise<{ rows: any[]; camposUsados: string[]; operacao: string; criterio: string } | { error: string }> {
+  const numericCols = new Set(entity.columns.filter((c) => c.type === 'number' && c.selectable).map((c) => c.name))
+  const campos = String(params.campos || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((c) => numericCols.has(c))
+
+  if (campos.length === 0) {
+    return { error: 'Nenhum campo numérico válido foi especificado para a comparação.' }
+  }
+
+  const operacao = params.operacao === 'subtracao' || params.operacao === 'media' ? params.operacao : 'soma'
+  const criterio = params.criterio === 'maior' ? 'maior' : 'menor'
+
+  const rows = await resolveEntity(entity, params, ctx)
+
+  const withTotal = rows
+    .map((r) => {
+      const vals = campos.map((c) => Number(r[c]))
+      if (vals.some((v) => !Number.isFinite(v))) return null // linha sem dado suficiente — não estima, descarta
+      let total: number
+      if (operacao === 'subtracao') total = vals.reduce((a, b) => a - b)
+      else if (operacao === 'media') total = vals.reduce((a, b) => a + b, 0) / vals.length
+      else total = vals.reduce((a, b) => a + b, 0)
+      return { ...r, _total_calculado: total }
+    })
+    .filter((r): r is any => r !== null)
+
+  if (withTotal.length === 0) return { rows: [], camposUsados: campos, operacao, criterio }
+
+  const totals = withTotal.map((r) => r._total_calculado as number)
+  const best = criterio === 'menor' ? Math.min(...totals) : Math.max(...totals)
+  const EPS = 0.005 // tolerância de arredondamento monetário — evita falso-empate por ponto flutuante
+  const winners = withTotal.filter((r) => Math.abs((r._total_calculado as number) - best) < EPS)
+
+  return { rows: winners, camposUsados: campos, operacao, criterio }
+}
+
 function buildParamsSchema(columns: EntityColumn[]): LlmToolDef['parameters'] {
   const properties: Record<string, any> = {}
   for (const c of columns.filter((c) => c.filterable)) {
@@ -294,17 +351,59 @@ function buildParamsSchema(columns: EntityColumn[]): LlmToolDef['parameters'] {
   return { type: 'object', properties, required: [] }
 }
 
+/**
+ * Schema da ferramenta de comparação — os mesmos filtros de busca normais + campos/operacao/
+ * critério. `campos` lista dinamicamente os nomes numéricos REAIS da entidade na descrição, pro
+ * LLM saber quais valores são válidos sem ter que adivinhar.
+ */
+function buildCompareParamsSchema(columns: EntityColumn[]): LlmToolDef['parameters'] {
+  const base = buildParamsSchema(columns)
+  const numericNames = columns.filter((c) => c.type === 'number' && c.selectable).map((c) => c.name)
+  return {
+    type: 'object',
+    properties: {
+      ...base.properties,
+      campos: {
+        type: 'string',
+        description: `Campo(s) numérico(s) a comparar, separados por vírgula se for mais de um. Valores válidos: ${numericNames.join(', ')}.`,
+      },
+      operacao: {
+        type: 'string',
+        description: `Como combinar os campos quando houver mais de um: "soma" (padrão), "subtracao" (1º campo menos os demais) ou "media".`,
+      },
+      criterio: {
+        type: 'string',
+        description: `"menor" (padrão) ou "maior" — qual extremo selecionar.`,
+      },
+    },
+    required: ['campos'],
+  }
+}
+
 /** 1 entidade ativa → 1 ferramenta do LLM, gerada a partir do registro — sem tocar em código. */
 export async function getToolsForSegment(
   segmentId: string | null,
   tenantId: string,
-): Promise<{ tools: LlmToolDef[]; entities: Map<string, SegmentDataEntity> }> {
+): Promise<{ tools: LlmToolDef[]; entities: Map<string, SegmentDataEntity>; compareEntities: Map<string, SegmentDataEntity> }> {
   const entities = await loadEntitiesForSegment(segmentId, tenantId)
   const entityMap = new Map(entities.map((e) => [`buscar_${e.entityName}`, e]))
-  const tools: LlmToolDef[] = entities.map((e) => ({
-    name: `buscar_${e.entityName}`,
-    description: e.description || `Consulta dados de ${e.entityName}`,
-    parameters: buildParamsSchema(e.columns),
-  }))
-  return { tools, entities: entityMap }
+
+  // Ganha a ferramenta de comparação só quem tem pelo menos 1 coluna numérica selecionável —
+  // derivado 100% de metadado já existente, nenhuma config nova, funciona pra qualquer segmento.
+  const comparableEntities = entities.filter((e) => e.columns.some((c) => c.type === 'number' && c.selectable))
+  const compareMap = new Map(comparableEntities.map((e) => [`comparar_${e.entityName}`, e]))
+
+  const tools: LlmToolDef[] = [
+    ...entities.map((e) => ({
+      name: `buscar_${e.entityName}`,
+      description: e.description || `Consulta dados de ${e.entityName}`,
+      parameters: buildParamsSchema(e.columns),
+    })),
+    ...comparableEntities.map((e) => ({
+      name: `comparar_${e.entityName}`,
+      description: `Compara/ordena os resultados de "${e.entityName}" por um ou mais campos numéricos (somados, subtraídos ou em média) e retorna só o(s) item(ns) com o MENOR ou MAIOR valor. Use quando o visitante pedir uma comparação, ranking ou seleção entre vários itens (ex.: "qual tem o menor preço somando X e Y", "qual tem mais quartos") — a conta é feita de verdade pelo sistema, NUNCA calcule isso sozinho na sua resposta.`,
+      parameters: buildCompareParamsSchema(e.columns),
+    })),
+  ]
+  return { tools, entities: entityMap, compareEntities: compareMap }
 }

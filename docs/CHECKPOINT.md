@@ -1,12 +1,58 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-13 (3 bugs reais no filtro por lookup + seleção de cartões; comparação matemática ainda não confiável)
+> **Atualizado em:** 2026-07-13 (ferramenta comparar_<entidade> — cálculo sai do LLM, entra no código; teste ao vivo bloqueado por cota do provider)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-13 (continuação 2) — Ferramenta genérica `comparar_<entidade>` — cálculo sai do LLM ✅⚠️
+
+**Motivação:** sessão anterior mostrou que pedir pro LLM (na mesma chamada de formatação de
+cartões) fazer aritmética entre vários itens e escolher o vencedor não é confiável — chegou a
+inventar "IPTU aproximado". Usuário questionou se a correção generalizaria pra outros segmentos
+(carro, saúde) sem hardcode de nome de campo. Resposta: a ideia original ("código já sabe quais
+campos somar") NÃO generalizava — o código não pode saber de antemão que "valor+IPTU" é a soma
+certa pra UMA pergunta específica. Desenho corrigido: separar "quais campos + qual operação" (LLM
+extrai — tarefa que ele faz bem) de "executar a conta e escolher o vencedor" (código faz — 100%
+determinístico), numa ferramenta nova derivada só de metadado já existente.
+
+**Implementado:**
+1. `genericResolver.ts` — `compareEntity(entity, params, ctx)`: reaproveita `resolveEntity` pra
+   buscar as linhas candidatas (mesmos filtros/tenant/maxRows de sempre); calcula em JS
+   (`Number()` real, nunca texto) soma/subtração/média dos `campos` pedidos; encontra o extremo
+   (menor/maior, com tolerância de arredondamento) e retorna só a(s) linha(s) vencedora(s) com
+   `_total_calculado` anexado. `campos` só aceita nomes que já são
+   `entity.columns` com `type==='number' && selectable===true` — zero config nova, zero nome de
+   campo/segmento fixo.
+2. `getToolsForSegment` — qualquer entidade com ≥1 coluna numérica selecionável ganha
+   automaticamente a ferramenta `comparar_<entidade>` (ao lado de `buscar_<entidade>`, que
+   continua igual). Já vale pro imóvel hoje (preco, preco_iptu, quartos etc. já são
+   number+selectable) e valeria pra carro/saúde/qualquer segmento assim que tiverem colunas
+   numéricas cadastradas — sem código novo.
+3. `botAdapter.ts` — loop de tool-use reconhece `comparar_*` além de `buscar_*`; resultado
+   (já ranqueado pelo código) passa pelo MESMO pipeline de sanitização/fotos/cartões que já
+   existia; aviso extra explícito: "o item já foi selecionado pelo sistema, _total_calculado já
+   é real, NUNCA recalcule".
+
+**Verificado (nível código, sem LLM — 100% determinístico):** SQL direto confirma o cálculo real
+de `preco+preco_iptu` pra todos os imóveis ativos do tenant de teste — imóvel 2 (R$400.000,00,
+sem IPTU) é o menor hoje. `npx tsc --noEmit` limpo.
+
+**⚠️ Teste end-to-end via LLM real BLOQUEADO nesta sessão** — não por bug, mas porque a cota diária
+do provider Groq (`llama-4-scout-17b-16e-instruct`, config LLM global da plataforma) esgotou
+(500.000 tokens/dia) pelo volume de testes ao vivo feitos ao longo de toda a sessão. Erro `429`
+capturado corretamente pelo try/catch já existente (fallback de robustez de sessão anterior) —
+sem crash, sem silêncio, mensagem de desculpa exibida como projetado. **Pendência real pra próxima
+sessão:** retestar "qual desses tem o valor menor somando valor+IPTU?" repetidas vezes assim que a
+cota resetar (ou com outro provider configurado), esperando agora 100% de consistência já que o
+cálculo em si não depende mais do LLM — só a extração de campos/operação varia por chamada.
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-13 (continuação) — Cartões seletivos + 2 bugs reais no filtro FK + capacidade de comparação ainda não confiável ✅⚠️
 
