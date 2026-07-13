@@ -1,12 +1,36 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-13 (ferramenta comparar_<entidade> — cálculo sai do LLM, entra no código; teste ao vivo bloqueado por cota do provider)
+> **Atualizado em:** 2026-07-14 (preco_iptu nunca esteve exposto ao bot — IPTU era 100% inventado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-14 — preco_iptu exposto ao bot + comparação exclui colunas FK ✅
+
+**Achado crítico, checando a UI de "Dados do Bot":** `preco_iptu` estava com `selectable:false` —
+**nunca esteve exposto ao bot em nenhum momento desta sessão**. Todo valor de IPTU que o bot
+mostrou (inclusive no relato original do bug de comparação, "R$ 1.100,00" pro imóvel 1) era
+**inventado** — confirmado comparando com o dado real (`preco_iptu` do imóvel 1 = R$ 2.200,00,
+não bate com o que o bot disse). Não era "estimativa imprecisa", era alucinação total por falta
+de acesso ao dado. Corrigido: `preco_iptu` agora `selectable:true` (mesmo padrão do fix de
+`preco_condominio`, sessão anterior).
+
+**2º bug achado no mesmo processo:** a ferramenta `comparar_<entidade>` (sessão anterior)
+considerava `type:'number' && selectable:true` como critério de elegibilidade — mas colunas FK
+com lookup (`tipo_fk`, `status_fk`, `finalidade_fk`) também são `type:'number'` no banco (são
+FKs), só que o valor que o bot vê é o NOME resolvido (ex.: "Apartamento"), não um número somável.
+Nova função `isComparableNumericColumn()` exclui colunas com lookup válido da elegibilidade —
+usada nos 3 lugares que antes repetiam a checagem inline.
+
+**Testado:** `npx tsc --noEmit` limpo · lista de campos elegíveis pra comparação reconferida via
+SQL — `preco_iptu` entrou, `tipo_fk`/`status_fk`/`finalidade_fk` saíram.
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-13 (continuação 2) — Ferramenta genérica `comparar_<entidade>` — cálculo sai do LLM ✅⚠️
 

@@ -179,6 +179,16 @@ function hasValidLookup(col: EntityColumn): boolean {
   return ok(col.name) && ok(col.lookup_table) && ok(col.lookup_label_column) && ok(lookupPk)
 }
 
+/**
+ * Coluna elegível pra soma/subtração/média na ferramenta de comparação: numérica, selecionável,
+ * e SEM lookup. Uma coluna com lookup (ex.: tipo_fk) é `type:'number'` no banco (é uma FK), mas
+ * o valor que o LLM e o bot enxergam é o NOME resolvido (ex.: "Apartamento") — somar/comparar
+ * isso não faz sentido nenhum, mesmo sendo tecnicamente numérica na origem.
+ */
+function isComparableNumericColumn(col: EntityColumn): boolean {
+  return col.type === 'number' && !!col.selectable && !hasValidLookup(col)
+}
+
 export async function resolveEntity(
   entity: SegmentDataEntity,
   params: Record<string, any>,
@@ -298,7 +308,7 @@ export async function compareEntity(
   params: Record<string, any>,
   ctx: { tenantId: string },
 ): Promise<{ rows: any[]; camposUsados: string[]; operacao: string; criterio: string } | { error: string }> {
-  const numericCols = new Set(entity.columns.filter((c) => c.type === 'number' && c.selectable).map((c) => c.name))
+  const numericCols = new Set(entity.columns.filter(isComparableNumericColumn).map((c) => c.name))
   const campos = String(params.campos || '')
     .split(',')
     .map((s) => s.trim())
@@ -358,7 +368,7 @@ function buildParamsSchema(columns: EntityColumn[]): LlmToolDef['parameters'] {
  */
 function buildCompareParamsSchema(columns: EntityColumn[]): LlmToolDef['parameters'] {
   const base = buildParamsSchema(columns)
-  const numericNames = columns.filter((c) => c.type === 'number' && c.selectable).map((c) => c.name)
+  const numericNames = columns.filter(isComparableNumericColumn).map((c) => c.name)
   return {
     type: 'object',
     properties: {
@@ -390,7 +400,7 @@ export async function getToolsForSegment(
 
   // Ganha a ferramenta de comparação só quem tem pelo menos 1 coluna numérica selecionável —
   // derivado 100% de metadado já existente, nenhuma config nova, funciona pra qualquer segmento.
-  const comparableEntities = entities.filter((e) => e.columns.some((c) => c.type === 'number' && c.selectable))
+  const comparableEntities = entities.filter((e) => e.columns.some(isComparableNumericColumn))
   const compareMap = new Map(comparableEntities.map((e) => [`comparar_${e.entityName}`, e]))
 
   const tools: LlmToolDef[] = [
