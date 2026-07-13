@@ -1,12 +1,41 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-11 (auditoria de hardcode + coluna de identidade configurável)
+> **Atualizado em:** 2026-07-13 (bot não contradiz mais em consulta vazia após assunto não relacionado)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-13 — Filtro contaminado por assunto anterior não relacionado ✅
+
+**Bug reportado (via conversa real, não teste):** sequência real "boa noite" → "estou precisando de
+um consórcio" (bot respondeu corretamente que não tem info sobre consórcio) → "em quais bairros tem
+imoveis?" → bot respondeu "não encontrei nenhum imóvel disponível", mesmo havendo imóveis reais
+cadastrados em múltiplos bairros (Imbiribeira, Boa Viagem).
+
+**Investigação:** localizei a conversa real no banco (`mensageria.messages`) e reproduzi a sequência
+exata via `/api/admin/mensageria/bot/test` — **não reproduziu de forma determinística** (5/5
+tentativas isoladas + a sequência exata replayada funcionaram corretamente, retornando os imóveis
+reais). Conclusão: falha intermitente do LLM, não um bug de código — hipótese mais provável é o
+turno anterior sobre "consórcio" (assunto sem relação com critério de busca) ocasionalmente
+contaminando o filtro da chamada seguinte à ferramenta.
+
+**Reforçada a persona** (`mensageria_bot_persona`, segmento Imobiliário) — nova regra explícita:
+só usar na ferramenta os critérios que a pergunta ATUAL pede, nunca reaproveitar valor de um assunto
+anterior não relacionado; perguntas genéricas/exploratórias ("em quais bairros vocês têm imóveis")
+devem chamar a ferramenta SEM filtro nenhum, nunca inventando um critério.
+`prisma/migration-2026-07-13-mensageria-bot-persona-filtro-nao-contamina.sql`.
+
+**Testado:** retest da sequência exata "boa noite" → "consórcio" → "bairros" 5x seguidas após o
+reforço — 5/5 corretas (imóveis reais retornados, sem falso "não encontrei"). Não é prova
+estatística definitiva (comportamento de LLM é probabilístico, a falha original também não era
+100% reprodutível antes do fix), mas consistente com a hipótese e sem nenhuma regressão observada.
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-11 (continuação 3) — Auditoria de hardcode + coluna de identidade configurável ✅
 
