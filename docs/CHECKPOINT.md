@@ -1,8 +1,32 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (guard-rail: nunca dizer "não posso exibir foto" + sempre reconsultar quando perguntado sobre foto)
+> **Atualizado em:** 2026-07-14 (ORDER BY determinístico no resolver — resolve inconsistência entre chamadas repetidas na mesma conversa)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-14 (continuação 8) — Resolvido o "caso residual": LIMIT sem ORDER BY ✅
+
+**Causa raiz real do achado residual da tarefa anterior:** `resolveEntity()` (`genericResolver.ts`)
+montava `SELECT ... LIMIT N` **sem `ORDER BY`**. Postgres não garante ordem nem conjunto estável
+de linhas em `LIMIT` sem `ORDER BY` — duas chamadas idênticas na MESMA conversa (ex.: listar
+imóveis, depois perguntar "tem fotos?", cada uma disparando uma nova consulta ao `buscar_imovel`)
+podiam devolver amostras de até 5 itens DIFERENTES entre si, mesmo com os mesmos filtros. Isso
+explicava o bot "esquecer"/contradizer o que tinha acabado de listar — não era o LLM inventando,
+era o BANCO devolvendo dados diferentes pra a mesma pergunta.
+
+**Corrigido:** `ORDER BY e.<identityColumn>` adicionado à query — determinístico, genérico (usa a
+mesma coluna de identidade já configurada por entidade, funciona pra qualquer segmento), sem
+custo de configuração nova.
+
+**Testado:** SQL direto confirma `ORDER BY id LIMIT 5` devolvendo os MESMOS 5 registros em
+execuções repetidas · reproduzida a sequência exata do achado residual ("quais imóveis vocês
+têm?" → "tem fotos?") 3x seguidas — nas 3, o 2º turno confirmou fotos EXATAMENTE dos mesmos 5
+imóveis citados no 1º turno (Imóvel 1, 2, 3, 4, 6), zero inconsistência, contra o comportamento
+instável de antes. `npx tsc --noEmit` limpo.
 
 ---
 
