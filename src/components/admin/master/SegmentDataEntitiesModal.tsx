@@ -418,6 +418,12 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
                             <input value={c.description} onChange={(ev) => updateColumn(ei, ci, { description: ev.target.value })}
                               placeholder="descrição pro LLM"
                               className="flex-1 text-xs text-gray-500 focus:outline-none" />
+                            {c.type === 'number' && c.selectable && !c.lookup_table?.trim() && (
+                              <CalculatorIcon
+                                className="h-3.5 w-3.5 text-amber-500 shrink-0"
+                                title="Elegível para a ferramenta de comparação/ranking do bot (número, mostra, sem lookup)"
+                              />
+                            )}
                             <label className="flex items-center gap-1 text-[10px] text-gray-500 shrink-0">
                               <input type="checkbox" checked={c.selectable} onChange={(ev) => updateColumn(ei, ci, { selectable: ev.target.checked })} />
                               mostra

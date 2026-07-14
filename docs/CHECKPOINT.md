@@ -1,12 +1,29 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (badge de campos elegíveis pra comparação na UI Dados do Bot)
+> **Atualizado em:** 2026-07-14 (ícone de comparação por linha de coluna, confirmado pelo usuário via print real)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-14 (continuação 2) — Ícone de comparação por coluna ✅
+
+Usuário confirmou via print real que o badge agregado (sessão anterior) renderiza corretamente
+("9 campos elegíveis... id, quartos, banheiros..."), mas pediu o indicador também **por linha de
+coluna** — não só no resumo do topo. Adicionado `CalculatorIcon` (mesmo import já usado no badge)
+inline em cada linha de coluna, condicionado à mesma regra (`type==='number' && selectable &&
+!lookup_table`) — aparece só nas colunas realmente elegíveis, ao lado da descrição.
+
+**Testado:** `npx tsc --noEmit` limpo. Verificação visual desta vez confirmada pelo usuário
+(primeira vez nesta sessão que uma verificação visual do módulo Master foi confirmada por print
+real, não só inferência de código — a limitação de cookie/middleware Master continua valendo pra
+verificação MINHA própria, mas o usuário consegue ver a tela normalmente pela sessão dele).
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-14 (continuação) — Badge "campos elegíveis para comparação" no Dados do Bot ✅
 
