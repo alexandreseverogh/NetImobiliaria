@@ -1,12 +1,46 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (3 correções na comparação: cabeçalho único, id excluído, flag `is_comparable` explícita)
+> **Atualizado em:** 2026-07-14 (segregação moeda × quantidade na ferramenta de comparação do bot)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-14 (continuação 4) — Segregação moeda × quantidade em `comparar_<entidade>` ✅
+
+**Motivação:** usuário apontou um risco real depois do fix anterior (flag `is_comparable`): nada
+impedia o bot de somar campos de NATUREZAS diferentes — ex. `preco + quartos` — já que
+`is_comparable` só marca "este campo é elegível pra comparação", não "este campo pode ser somado
+com aquele outro". Descartei a 1ª ideia (unidade em texto livre, o Master digitaria "R$"/"m²"/etc)
+depois que o usuário perguntou como escolheria essas unidades — texto livre é frágil e sem
+necessidade real, já que o único caso de negócio genuíno é somar campos de DINHEIRO entre si
+(preço + condomínio + IPTU = custo total); somar quantidades entre si (quartos + banheiros) nunca
+é uma pergunta real.
+
+**Implementado:** novo campo `comparison_kind: 'moeda' | 'quantidade'` em `EntityColumn`
+(`genericResolver.ts`) — só relevante quando `is_comparable=true`; default seguro `'quantidade'`
+quando ausente. `compareEntity` passa a rejeitar (com erro explícito, não calcula) qualquer
+`campos` com 2+ itens a menos que TODOS sejam `moeda` — combinação de quantidade com quantidade,
+ou quantidade com moeda, é sempre recusada; ranking de 1 campo só nunca precisa dessa checagem
+(sempre seguro). Descrição da ferramenta (`buildCompareParamsSchema`) já avisa o LLM quais campos
+são combináveis. UI ganhou um dropdown "quantidade"/"moeda" ao lado do checkbox "comparável" (só
+2 opções — Master não digita nada). `prisma/migration-2026-07-14-mensageria-bot-comparison-kind.sql`
+marca `preco`/`preco_condominio`/`preco_iptu` como `moeda` e `quartos`/`banheiros`/
+`vagas_garagem`/`area_total` como `quantidade`.
+
+**Testado ao vivo** (rate-limit do Groq já tinha resetado): "somando preço + condomínio + IPTU"
+(3 campos moeda) → bot respondeu corretamente "Imóvel 1, R$ 433.300,00" — conferido via SQL direto
+que bate exatamente com a soma real · "somando preço com quantidade de quartos" (moeda + quantidade
+misturados) → bot recusou explicitamente ("não é permitido combinar campos de moeda com campos de
+quantidade") e ofereceu a alternativa sensata (menor preço isolado) em vez de inventar um total
+sem sentido — exatamente o comportamento pretendido. `npx tsc --noEmit` limpo nos 3 arquivos
+tocados. SQL confirma os 7 campos com `comparison_kind` correto (3 moeda, 4 quantidade).
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-14 (continuação 3) — Cabeçalho único, id excluído, flag `is_comparable` explícita ✅
 
