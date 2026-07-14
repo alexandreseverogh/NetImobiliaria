@@ -1,8 +1,43 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (guard-rail contra chamada de ferramenta "no chute" + descrição mais restritiva em tipo_imovel)
+> **Atualizado em:** 2026-07-14 (guard-rail: nunca dizer "não posso exibir foto" + sempre reconsultar quando perguntado sobre foto)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-14 (continuação 7) — Bot dizendo "não posso exibir fotos" numa pergunta de acompanhamento ✅⚠️
+
+**Bug real reportado via conversa colada:** depois de já ter listado imóveis (sem foto pedida),
+perguntado "tem fotos dos imóveis?", o bot respondeu "não posso exibir as fotos diretamente
+aqui... posso transferir você para um atendente" — contradizendo diretamente a regra da persona
+de que a plataforma sempre envia foto real como mensagem separada quando existe.
+
+**Diagnóstico:** a regra "nunca diga que não pode exibir imagens" só existia DENTRO do aviso
+injetado no `tool_result` de uma chamada de ferramenta (mecanismo de sessão anterior) — se o LLM
+decide não chamar nenhuma ferramenta naquele turno (respondendo só de memória do histórico), essa
+proteção nunca chega a ele. Tentei reproduzir a sequência exata 4x antes do fix — funcionou
+corretamente todas as vezes (LLM é probabilístico, não consegui forçar a falha de forma
+determinística), então a correção foi feita preventivamente com base no diagnóstico da causa raiz,
+não confirmada por reprodução direta do erro relatado.
+
+**Implementado:** novo guard-rail genérico (`PHOTO_FOLLOWUP_GUARDRAIL`, `botAdapter.ts`,
+`resolvePersona`) — regra permanente (fora do ciclo de tool-use, vale em qualquer turno):
+sempre chamar a ferramenta de novo quando o visitante perguntar sobre foto, mesmo sobre itens já
+mencionados antes sem foto; proíbe explicitamente a frase "não posso exibir/mostrar imagens".
+Aplica a todos os segmentos automaticamente, sem exigir edição de persona por segmento.
+
+**Testado:** 5 tentativas de reprodução com frases variadas (`"tem fotos dos imoveis?"`,
+`"tem fotos?"`) — 0/5 repetiram a frase proibida depois do fix; 2/5 enviaram fotos reais como
+anexo corretamente. **Achado residual, honestamente registrado, NÃO é o mesmo bug relatado:** numa
+pergunta bem genérica sem bairro ("quais imóveis vocês têm?"), uma das rodadas disse "não
+encontrei fotos" pra um item que na verdade TEM foto real no banco (Imóvel 1) — indício de que a
+amostra de até 5 imóveis retornada pela ferramenta pode variar entre chamadas na mesma conversa
+(sem filtro de bairro pra fixar o conjunto), então o 2º check de foto pode acabar batendo em itens
+diferentes do que foram citados no texto. Fica registrado como risco a observar, não corrigido
+nesta rodada. `npx tsc --noEmit` limpo.
 
 ---
 
