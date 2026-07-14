@@ -1,8 +1,49 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (fotos só quando pedidas explicitamente na pergunta atual — parâmetro `incluir_fotos` decidido pelo LLM)
+> **Atualizado em:** 2026-07-14 (guard-rail contra chamada de ferramenta "no chute" + descrição mais restritiva em tipo_imovel)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-14 (continuação 6) — Ferramenta chamada por engano em pergunta sem relação real ✅
+
+**Bug real reportado:** perguntado deliberadamente algo sem correspondência com nenhum dado
+mapeado ("você tem o estatudo de imoveis?" — estatuto, não um campo/entidade real), o bot chamou
+a ferramenta `tipo_imovel` e respondeu com a lista de tipos (Casa, Apartamento, etc.) — um dado
+real, mas sem nenhuma relação com a pergunta. Pior que "não sei", porque parece resposta certa.
+
+**Restrição do usuário:** sem hardcode de palavra-chave em código — só via instrução de prompt,
+e válido pra **todos os segmentos**, não só Imobiliário.
+
+**Implementado em 2 camadas:**
+1. **Guard-rail genérico em código** (`botAdapter.ts`, `resolvePersona`) — texto fixo
+   (`TOOL_GUARDRAIL`) concatenado a QUALQUER persona resolvida (segmento específico, fallback
+   global, ou hardcoded de emergência), pedindo pro LLM só chamar ferramenta quando a pergunta
+   corresponder claramente à descrição dela, nunca "no chute" por semelhança solta. Aplica
+   automaticamente a todo segmento presente e futuro, sem exigir que o Master repita a regra em
+   cada template de persona.
+2. **Descrição da ferramenta mais restritiva** (dado, não código — `mensageria.segment_data_
+   entities`, entidade `tipo_imovel`) — a descrição antiga ("use pra responder o que a empresa
+   oferece") era ampla demais e pesava na decisão de tool-calling tanto ou mais que a persona.
+   Reescrita com critério explícito de quando NÃO usar (documentos/contratos/estatuto/política) —
+   mesmo padrão já usado em `status_fk` numa sessão anterior.
+   `prisma/migration-2026-07-14-mensageria-bot-tipo-imovel-desc-fix.sql`.
+
+**Testado:** só o guard-rail (camada 1) sozinho NÃO foi suficiente — reproduzi o bug de novo
+mesmo com ele presente, confirmando mais uma vez que instrução textual genérica tem baixa adesão
+sozinha. Com a descrição da entidade reescrita (camada 2) somada ao guard-rail, retestei a EXATA
+pergunta reportada 3x seguidas — 3/3 corretas ("não tenho acesso a informações sobre o estatuto
+de imóveis..."), sem chamar a ferramenta · regressão checada: "quais tipos de imóveis vocês
+trabalham?" (pergunta legítima) continua chamando a ferramenta normalmente e listando os tipos
+reais. `npx tsc --noEmit` limpo.
+
+**Nota de generalização:** a camada 1 (guard-rail em código) já vale automaticamente pra qualquer
+segmento. A camada 2 (descrição mais restritiva) foi aplicada só em `tipo_imovel` — outros
+segmentos/entidades que sofrerem do mesmo tipo de confusão precisam do mesmo tratamento na
+descrição de CADA entidade, feito pelo Master na tela "Dados do Bot" (sem código novo).
 
 ---
 
