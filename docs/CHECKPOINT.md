@@ -1,12 +1,57 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (ícone de comparação por linha de coluna, confirmado pelo usuário via print real)
+> **Atualizado em:** 2026-07-14 (3 correções na comparação: cabeçalho único, id excluído, flag `is_comparable` explícita)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-14 (continuação 3) — Cabeçalho único, id excluído, flag `is_comparable` explícita ✅
+
+**Contexto:** usuário fez 3 perguntas de design sobre a tela "Dados do Bot" (Master → Segmentos),
+cada uma revelando um gap real (não hipotético):
+1. "cabeçalho" (`is_group_header`) permitia marcar várias colunas na UI, mas `botAdapter.ts` só
+   usa a primeira (`.find()`) — as demais ficavam marcadas sem efeito, enganoso.
+2. `id` (PK, numérica) entrava como campo elegível pra soma/comparação — sem sentido de negócio
+   nenhum (chave arbitrária, não quantidade).
+3. Campos como `andar`/`vagas_garagem` são posição/quantidade, não "valor" — marcar QUALQUER
+   numérico selecionável como comparável (comportamento anterior) permitia somas sem sentido
+   (ex.: andar + vagas de garagem). Faltava curadoria explícita, no mesmo padrão de `is_image`/
+   `is_group_header` (flag que o Master ativa deliberadamente, não inferência automática por tipo).
+
+**Corrigido (3 partes, plano aprovado em `bright-herding-minsky.md`):**
+1. **Cabeçalho exclusivo** — `SegmentDataEntitiesModal.tsx`: `updateColumn` agora desmarca
+   `is_group_header` em todas as outras colunas da mesma entidade quando uma é marcada.
+2. **Identidade sempre excluída** — `genericResolver.ts`: `isComparableNumericColumn` passa a
+   receber `identityColumn` e excluir sempre essa coluna (estrutural, sem flag — nenhuma entidade
+   de nenhum segmento deveria comparar por PK). Atualizados os 3 call sites (`compareEntity`,
+   `buildCompareParamsSchema`, `getToolsForSegment`) + espelho no frontend.
+3. **Flag explícita `is_comparable`** — nova propriedade em `EntityColumn`/`EntityColumnInput`;
+   `isComparableNumericColumn` agora exige `is_comparable===true` além de number/selectable/sem
+   lookup/não-identidade. UI ganhou checkbox "comparável" (mesmo padrão visual de "cabeçalho") ao
+   lado de cada coluna numérica; badge agregado e ícone por linha passam a refletir o flag real em
+   vez de inferir do `type` cru. `prisma/migration-2026-07-14-mensageria-bot-is-comparable.sql`
+   marca `is_comparable:true` em `preco`, `preco_condominio`, `preco_iptu`, `quartos`, `banheiros`,
+   `vagas_garagem`, `area_total` — deixa `andar` e `id` de fora deliberadamente (Master pode
+   ajustar livremente depois, é exatamente o ponto de virar curadoria).
+
+**Testado:** `npx tsc --noEmit` limpo (só erros pré-existentes de baseline, nenhum nos 4 arquivos
+tocados) · SQL confirma os 7 campos com `is_comparable:true`, ausente em `andar`/`id`/demais ·
+round-trip real `GET/PUT /api/admin/master/segments/[id]/data-entities` confirma o flag
+sobrevivendo ao ciclo salvar-pela-tela · teste ao vivo do bot (pergunta de comparação real, mesmo
+cenário do bug original) bateu no rate-limit diário do Groq (429, "Used 499711/500000") — confirmado
+via logging temporário de stack trace (adicionado e revertido nesta sessão, `botAdapter.ts` com
+diff líquido zero) que é o MESMO bloqueio ambiental já documentado antes nesta sessão, não um bug
+introduzido pelas mudanças — o try/catch existente tratou graciosamente com a mensagem de fallback.
+Retestar o `comparar_imovel` ao vivo fica pendente até o quota resetar. Exclusividade do cabeçalho
+verificada por leitura de código (mutual-exclusion no `updateColumn`), não interação real no
+navegador — mesma limitação de cookie/middleware Master já documentada repetidamente nesta sessão.
+
+---
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-14 (continuação 2) — Ícone de comparação por coluna ✅
 
