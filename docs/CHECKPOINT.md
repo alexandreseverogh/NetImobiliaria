@@ -1,8 +1,44 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (segregação moeda × quantidade na ferramenta de comparação do bot)
+> **Atualizado em:** 2026-07-14 (fotos só quando pedidas explicitamente na pergunta atual — parâmetro `incluir_fotos` decidido pelo LLM)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-14 (continuação 5) — Fotos enviadas sem pedido explícito (todo turno com dado de imóvel) ✅
+
+**Bug real reportado via conversa colada pelo usuário:** toda resposta que tocava linhas com foto
+real mandava as fotos automaticamente — inclusive "em quais bairros vocês têm imóveis?", "qual tem
+o valor mais baixo?", "qual a média de valor?" — nenhuma dessas perguntas pedia foto, mas cada uma
+disparou 1-4 mensagens de imagem depois do texto. Causa: `collectRowImages`/`itemsByKey` em
+`botAdapter.ts` coletava as URLs de TODA linha retornada por qualquer tool call, sem checar se a
+pergunta atual pedia isso.
+
+**Restrição do usuário:** "nada hardcoded, a não ser que possamos instruir o prompt" — ou seja,
+não podia virar uma lista de palavras-chave fixa em código (`if (msg.includes('foto'))`), tinha
+que ser o próprio LLM decidindo, como já acontece com campos/operação/critério da ferramenta de
+comparação.
+
+**Implementado:** novo parâmetro `incluir_fotos` (string "true"/"false") injetado automaticamente
+em QUALQUER ferramenta (`buscar_*`/`comparar_*`) de entidade que tenha ao menos 1 relation
+`is_image` — `addPhotoIntentParam()` em `genericResolver.ts`, dirigido 100% por metadado (nenhum
+segmento/campo fixo). Descrição do parâmetro instrui o LLM a marcar `true` só quando o visitante
+pediu foto NESTA pergunta especificamente. `botAdapter.ts`: `collectRowImages` só roda quando
+`call.input.incluir_fotos` veio `true` nessa chamada — sem pedido, `itemsByKey` guarda `images:[]`
+pra aquele item (sem afetar cabeçalho/agrupamento). O aviso "nenhum item tem foto" também passou a
+só disparar quando `wantsPhotos` é true — antes disparava sempre que havia relation de imagem sem
+foto encontrada, mesmo em perguntas que não tinham nada a ver com fotos.
+
+**Testado ao vivo, 4 cenários seguidos na mesma conversa:** "em quais bairros vocês têm imóveis?"
+→ zero fotos (bug original, confirmado corrigido) · "qual tem os valores mais baixos?" → zero
+fotos · "me manda fotos dos imóveis de Boa Viagem" → pediu foto explicitamente, sistema respondeu
+corretamente "não encontrei fotos disponíveis" (conferido via SQL: os 6 imóveis de Boa Viagem
+deste tenant de teste realmente têm 0 fotos reais — resposta certa, não bug) · "quero ver fotos
+dos imóveis da Imbiribeira" (bairro com fotos reais) → 4 cartões, cada um com 1 foto anexada de
+verdade. `npx tsc --noEmit` limpo nos 2 arquivos tocados.
 
 ---
 
