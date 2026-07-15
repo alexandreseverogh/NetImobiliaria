@@ -1221,7 +1221,7 @@ como sub-fases separadas.
 | **M4.1** | Núcleo do bot: `bot_flows`/`bot_sessions`, `botAdapter`, resposta como `message(sender_type='bot')`, handoff por regra, aba "Bot" em `/mensageria/config` | M0 (ingestMessage) | ✅ |
 | **M4.2** | Tool-use sobre dados do segmento: `segment_data_entities` + resolver genérico + `completeWithTools()` na factory LLM | M4.1 | ✅ |
 | **M4.3** | RAG: pgvector + `knowledge_documents/chunks` + `embed()` — FAQ/políticas em markdown | M4.1 | Não iniciada |
-| **M4.4** | Widget público: canal `webchat` + API pública + `ChatWidget.tsx` embutível nas landings | M4.1 | Não iniciada |
+| **M4.4** | Widget público: canal `webchat` + API pública + `ChatWidget.tsx` embutível nas landings | M4.1 | ✅ (2026-07-15, posicionado na página de detalhe do imóvel — ver `docs/CHECKPOINT.md`) |
 
 **Decisão confirmada com o usuário (2026-07-08):** M4.1 e M4.2 juntos nesta rodada — o bot já nasce
 consultando dados reais do segmento (ex.: imóveis por bairro), não só respondendo texto solto.

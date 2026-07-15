@@ -1,8 +1,65 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-15 (bot mais confiável e genérico — comparação de modelos LLM pra tool-calling)
+> **Atualizado em:** 2026-07-15 (M4.4 concluído — widget de chat público na página de detalhe do imóvel)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-15 (continuação) — M4.4: Widget de chat público na página de imóvel ✅
+
+**Contexto:** próxima fase formal do plano (`docs/PLANO_MENSAGERIA.md` §18.1) depois de várias
+sessões blindando o M4.2. Decisão inicial do usuário ("posicionar na landpaging") revelou um
+conflito de arquitetura real: `/landpaging` agrega imóveis de TODOS os tenants do segmento, sem
+nenhum parâmetro de escopo — colocar o bot lá misturaria a identidade de qual empresa está
+respondendo. Resolvido com o usuário: widget vai na **página de detalhe de 1 imóvel**
+(`/imoveis/[id]`), onde existe um tenant real e único pra escopar.
+
+**Implementado (zero hardcode por segmento — o mesmo componente serviria qualquer vertical):**
+1. `tenant_id` exposto na API de ficha completa (`/api/public/imoveis/[id]/ficha-completa`) —
+   coluna já existia na tabela `imoveis`, só não era selecionada.
+2. `resolveWebchatInbox(tenantId)` em `inboxes.ts` — clone do padrão já usado por
+   `resolveWebformInbox` (cria a inbox lazy na 1ª mensagem real, `channel_type='webchat'`, já
+   previsto no schema desde M0 mas nunca usado até agora).
+3. Novo endpoint público **sem autenticação** `/api/public/mensageria/chat` (GET recarrega
+   histórico, POST envia mensagem) — reaproveita 100% do pipeline existente
+   (`ingestMessage`→`maybeRunBot`, mesmo mecanismo do WhatsApp/`/bot/test`). Identidade do
+   visitante anônimo: UUID gerado no navegador (localStorage), usado como `phone: "web:<uuid>"`
+   — zero mudança na regra de dedupe já existente em `ingest.ts`.
+4. **Rate limit dedicado** (`webchatLimiter`, 15 msg/min por sessão E por IP,
+   `src/lib/security/rate-limiter.ts`) — obrigatório aqui: é a única rota pública da plataforma
+   que dispara uma chamada LLM real sem autenticação nenhuma, risco genuíno de custo/abuso.
+5. Gate por `bot_flows.is_active` ANTES de criar qualquer contato/conversa — tenant sem bot
+   configurado nunca aparece com o widget, sem gerar lixo no banco.
+6. `ChatWidget.tsx` (`src/components/mensageria/ChatWidget.tsx`) — bolha flutuante + painel,
+   parametrizada só por `tenantId` (+ `pageContext` opcional, ver abaixo). Embutida em
+   `src/app/(with-header)/imoveis/[id]/page.tsx`.
+
+**Bug real pego no teste ao vivo, corrigido na mesma rodada — contexto de página:** perguntado
+"quanto custa esse imóvel?" na própria página do imóvel (preço bem visível na tela), o bot
+respondeu que o preço "não foi especificado na pergunta" — ele não tinha nenhuma noção de qual
+imóvel a conversa começou. Corrigido de forma genérica (não amarrado a "imóvel"):
+- `describeEntityRowByIdentity(segmentId, tenantId, entityName, identityValue)` (novo,
+  `genericResolver.ts`) — resolve 1 linha pela coluna de identidade e devolve um resumo em texto
+  natural dos campos selecionáveis reais.
+- `IngestMessageInput.botContext` (novo, `ingest.ts`) — hint textual só pra aquele turno, nunca
+  vira mensagem visível na thread, repassado a `maybeRunBot`→`runBotReply`→apendado à persona.
+- `ChatWidget` ganhou prop `pageContext={{ entity: 'imovel', id }}` — a página de detalhe passa
+  isso, o backend resolve o registro real (preço, quartos, bairro etc.) a cada mensagem (nunca
+  cacheado/obsoleto) e informa o bot que "esse"/"este" se refere a ESTE item específico.
+
+**Testado ao vivo, no navegador de verdade** (não só via curl): bolha aparece na página real do
+imóvel 1 (tenant Imobiliária XYZ, bot ativo) · mensagem enviada pelo painel → resposta do bot
+renderizada em tempo real, sem login, sem cookie · rate limit testado com 17 mensagens rápidas —
+15 passam (HTTP 200), 16ª e 17ª bloqueadas (HTTP 429) · inbox `webchat` criada corretamente no
+banco · após o fix de contexto de página, "quanto custa esse imóvel?" respondeu corretamente
+"R$ 906.000,00" (valor real da tela). `npx tsc --noEmit` limpo em todos os 8 arquivos tocados.
+
+**Fora de escopo desta rodada (documentado, não esquecido):** streaming/SSE no widget (polling
+simples por ora); múltiplos clientes por tenant no widget (`clientId` fica de fora, tenant-only,
+mesmo padrão de `webform`/`manual`); M4.3 (RAG) continua não iniciada.
 
 ---
 
