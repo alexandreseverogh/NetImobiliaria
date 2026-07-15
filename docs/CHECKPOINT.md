@@ -1,8 +1,52 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-15 (M4.4 concluído — widget de chat público na página de detalhe do imóvel)
+> **Atualizado em:** 2026-07-15 (sidebar: removido item duplicado "Chatbot" + coordenação multi-agente com Antigravity)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-15 (continuação) — Coordenação multi-agente + limpeza de sidebar ✅
+
+**Descoberta durante a sessão:** outro agente de IA (Antigravity) está trabalhando em paralelo
+neste mesmo repositório, numa branch própria (`feature/ag-cockpit-camadas`), refatorando o
+dashboard de Campanhas. A branch ativa do diretório principal (`C:\NetImobiliária\net-
+imobiliaria`) mudou de `main` pra essa branch sem eu ter feito isso deliberadamente — meu commit
+de checkpoint do M4.4 acabou indo pra lá por engano.
+
+**Corrigido com segurança, via `git worktree` isolado** (nunca tocando na branch/arquivos não
+commitados do Antigravity):
+1. Cherry-pick do meu commit de volta pra `main` (`d2b6de1`).
+2. Código real do M4.4 movido pra uma branch nova, só minha: `feature/mensageria-webchat`
+   (worktree em `C:\NetImobiliária\netimob-cherrypick`) — pronta pra virar PR.
+3. `CLAUDE.md` ganhou uma nova regra obrigatória: ler `docs/AI_SYNC.md` no início de toda sessão,
+   nunca trocar de branch/rodar operação destrutiva num diretório com trabalho não commitado de
+   outro agente, preferir worktree separado. Aplicada em `main` (`c7cfd2f`) e localmente no
+   diretório original (não commitada lá — push nessa branch foi bloqueado pelo verificador de
+   segurança por ser branch de outro agente, decisão respeitada).
+4. `docs/AI_SYNC.md` — registrado um novo log de atividade do Claude, avisando o Antigravity do
+   que foi feito e confirmando que nenhum arquivo dele foi tocado.
+
+**Limpeza de sidebar:** usuário notou 2 itens ("Chatbot", "Base de Conhecimento") cadastrados
+desde a fase antiga de registro de acesso (antes do bot existir), ambos apontando pra URLs sem
+página real (404). Investigado: "Chatbot" (`/mensageria/config/chatbot`) é puro duplicado — a
+config real do bot já vive em "Configurações" → aba "Bot". "Base de Conhecimento"
+(`/mensageria/config/conhecimento`) corresponde ao M4.3 (RAG), genuinamente não iniciado — não
+mexido, só documentado como pendência real.
+
+**Ação:** `system_features.is_active = false` pro id=113 (`mensageria-chatbot`) —
+`prisma/migration-2026-07-15-mensageria-remove-chatbot-sidebar-duplicate.sql`. Desativado, não
+deletado (reversível, mesmo padrão já usado em toda a plataforma pra esconder item da sidebar
+sem apagar histórico/permissões associadas). Confirmado via SQL: `is_active=f`.
+
+**Pendências reais do módulo Mensageria, levantadas nesta sessão:**
+- M4.3 (RAG/Base de Conhecimento) — não iniciado.
+- Merge de `feature/mensageria-webchat` em `main` (via PR) — código pronto, testado, só falta
+  integrar oficialmente.
+- Item "Base de Conhecimento" da sidebar continua apontando pra URL sem página — decisão de
+  desativar ou construir fica pra quando M4.3 for atacado.
 
 ---
 
