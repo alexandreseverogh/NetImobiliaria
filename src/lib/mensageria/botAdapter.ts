@@ -12,7 +12,7 @@ import { resolvePromptTemplate } from '@/lib/intelligence/promptResolver'
 import { renderPrompt } from '@/lib/intelligence/promptRenderer'
 import { getLlmClientForCampaigns } from '@/lib/marketing/services/llmClient'
 import type { LlmMessage } from '@/lib/marketing/services/llmClient'
-import { getToolsForSegment, resolveEntity, compareEntity, type SegmentDataEntity } from '@/lib/mensageria/tools/genericResolver'
+import { getToolsForSegment, resolveEntity, compareEntity, aggregateEntity, type SegmentDataEntity } from '@/lib/mensageria/tools/genericResolver'
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import { sendEvolutionMessage, sendEvolutionMedia, type EvolutionInboxConfig } from '@/lib/mensageria/channels/evolutionSend'
 
@@ -74,6 +74,26 @@ async function loadHistory(conversationId: string): Promise<LlmMessage[]> {
   ))
 }
 
+// Guarda-chuva de plataforma contra chamar ferramenta "no chute" — aplicado em CÓDIGO, não em
+// texto de persona por segmento, pra valer automaticamente em TODO segmento (presente e futuro)
+// sem depender de o Master lembrar de repetir essa regra em cada template. Bug real que motivou
+// isso: perguntado algo sem relação real com nenhuma ferramenta (ex.: "estatuto de imóveis" —
+// nada a ver com tipos/preço/bairro), o bot ainda assim chamou uma ferramenta por semelhança
+// solta com a descrição dela ("o que a empresa oferece") e respondeu com um dado real, mas que
+// não respondia a pergunta feita — pior que "não sei", porque parece uma resposta certa.
+const TOOL_GUARDRAIL =
+  '\n\n- Antes de chamar qualquer ferramenta de consulta, confirme que a pergunta do visitante corresponde CLARAMENTE ao que aquela ferramenta cobre (conforme a descrição dela). Se a pergunta usar um termo que você não reconhece, for ambígua, ou não tiver uma correspondência clara e direta com nenhuma ferramenta disponível, NÃO chame nenhuma ferramenta baseado num palpite — diga que não entendeu ou que não tem essa informação, e peça ao visitante para explicar melhor o que ele quer saber. Nunca responda com o dado de uma ferramenta que só parece relacionado por semelhança solta com a pergunta.'
+
+// Bug real: perguntado sobre fotos numa pergunta de acompanhamento ("tem fotos dos imóveis?",
+// depois de já ter listado alguns itens sem foto antes), o bot NÃO chamou a ferramenta de novo —
+// respondeu só de memória da conversa, e como o aviso "nunca diga que não pode exibir imagens"
+// só existe DENTRO do resultado de uma chamada de ferramenta (injetado por chamada, não é uma
+// regra permanente), esse turno sem chamada nenhuma ficou sem essa proteção — o modelo caiu no
+// comportamento padrão dele e disse que "não pode exibir fotos diretamente aqui", contradizendo
+// a regra real da plataforma. Reforço permanente, fora do ciclo de tool-use, pra cobrir esse caso.
+const PHOTO_FOLLOWUP_GUARDRAIL =
+  '\n\n- Se o visitante perguntar sobre foto(s)/imagem(ns) a qualquer momento da conversa — mesmo sobre itens já mencionados antes sem foto —, sempre chame de novo a ferramenta de consulta pedindo a foto explicitamente; nunca responda sobre fotos só de memória do histórico, sem confirmar via ferramenta. Você NUNCA deve dizer que "não pode exibir imagens" ou "não pode mostrar fotos diretamente aqui" — isso é falso: quando existir foto real, a plataforma sempre envia ela de verdade como mensagem separada, automaticamente. Se, depois de consultar, não houver foto disponível, diga isso claramente — nunca invente uma desculpa sobre a sua própria capacidade de mostrar imagem.'
+
 // Persona é 100% dirigida por segmento, editada em /admin/master/prompts (template
 // `mensageria_bot_persona`): resolvePromptTemplate faz segmento → fallback global.
 // Não há override por tenant — o prompt por segmento é a única fonte (decisão do usuário).
@@ -82,8 +102,8 @@ async function resolvePersona(tenantId: string, segmentId: string | null): Promi
   const tenantName = rows[0]?.name || 'nossa empresa'
 
   const template = await resolvePromptTemplate('mensageria_bot_persona', segmentId)
-  if (!template) return DEFAULT_PERSONA_FALLBACK
-  return renderPrompt(template, { tenant_name: tenantName })
+  const base = template ? renderPrompt(template, { tenant_name: tenantName }) : DEFAULT_PERSONA_FALLBACK
+  return base + TOOL_GUARDRAIL + PHOTO_FOLLOWUP_GUARDRAIL
 }
 
 interface BotCard {
@@ -201,7 +221,7 @@ async function runBotReply(
 ): Promise<BotReply> {
   const segment = await resolveSegment(tenantId, clientId)
   const persona = await resolvePersona(tenantId, segment?.id ?? null)
-  const { tools, entities, compareEntities } = await getToolsForSegment(segment?.id ?? null, tenantId)
+  const { tools, entities, compareEntities, aggregateEntities } = await getToolsForSegment(segment?.id ?? null, tenantId)
   const history = await loadHistory(conversationId)
   const llm = await getLlmClientForCampaigns()
 
@@ -225,14 +245,48 @@ async function runBotReply(
     for (const call of toolCalls) {
       const entity = entities.get(call.name)
       const cmpEntity = compareEntities.get(call.name)
+      const aggEntity = aggregateEntities.get(call.name)
       const activeEntity = entity ?? cmpEntity
+
+      if (aggEntity) {
+        // Agrupamento/contagem: não é uma listagem de itens (sem foto, sem cabeçalho de cartão,
+        // sem paginação — GROUP BY já cobre 100% das categorias reais numa chamada só). Ramo
+        // próprio, separado do fluxo de linhas normal.
+        try {
+          const agg = await aggregateEntity(aggEntity, call.input, { tenantId })
+          if ('error' in agg) {
+            messages.push({ role: 'tool_result', toolCallId: call.id, content: JSON.stringify({ aviso: agg.error }) })
+          } else if (agg.grupos.length === 0) {
+            messages.push({
+              role: 'tool_result', toolCallId: call.id,
+              content: JSON.stringify({ aviso: 'Nenhuma categoria encontrada com esses critérios. NÃO afirme que existe o que foi pedido; diga com clareza que não encontrou nada.' }),
+            })
+          } else {
+            messages.push({
+              role: 'tool_result', toolCallId: call.id,
+              content: JSON.stringify({
+                aviso: `Contagem real por "${agg.campo}", cobrindo TODAS as categorias que existem (não é uma amostra). Cite os valores exatamente como vieram — NUNCA invente uma categoria que não está nesta lista, nem omita uma que está.`,
+                grupos: agg.grupos,
+              }),
+            })
+          }
+        } catch (err) {
+          messages.push({ role: 'tool_result', toolCallId: call.id, content: JSON.stringify({ error: 'Falha ao consultar os dados.' }) })
+          console.error('[mensageria/botAdapter] falha na ferramenta', call.name, err)
+        }
+        continue
+      }
+
       let resultText: string
       try {
         let rows: any[]
         let compareInfo: { camposUsados: string[]; operacao: string; criterio: string } | null = null
+        let pagingInfo: { totalCount: number; page: number; pageSize: number } | null = null
 
         if (entity) {
-          rows = await resolveEntity(entity, call.input, { tenantId })
+          const resolved = await resolveEntity(entity, call.input, { tenantId })
+          rows = resolved.rows
+          pagingInfo = { totalCount: resolved.totalCount, page: resolved.page, pageSize: resolved.pageSize }
         } else if (cmpEntity) {
           // Comparação/ranking: a aritmética roda em compareEntity() (código, não LLM) — o
           // resultado já vem com o(s) item(ns) vencedor(es) e o campo _total_calculado pronto.
@@ -250,6 +304,10 @@ async function runBotReply(
         let resultPayload: any = rows
         if (activeEntity) {
           const imageFields = activeEntity.relations.filter((r) => r.is_image).map((r) => r.name)
+          // Intenção do visitante pra ESTA pergunta, extraída pelo LLM (nunca hardcoded por
+          // palavra-chave) — ver addPhotoIntentParam. Sem pedido explícito, não coleta/envia
+          // nenhuma foto, mesmo que a entidade tenha relations de imagem disponíveis.
+          const wantsPhotos = call.input?.incluir_fotos === true || call.input?.incluir_fotos === 'true'
           // Cabeçalho/rótulo do item: coluna marcada is_group_header; fallback = 1ª coluna texto
           // selecionável. Tudo dirigido por config — genérico p/ qualquer segmento.
           const headerCol = activeEntity.columns.find((c) => c.is_group_header)?.name
@@ -259,7 +317,7 @@ async function runBotReply(
           let foundImagesInCall = false
           for (const row of rows) {
             idx++
-            const urls = collectRowImages(row, imageFields)
+            const urls = wantsPhotos ? collectRowImages(row, imageFields) : []
             if (urls.length > 0) { anyImages = true; foundImagesInCall = true }
             const key = String(row?.[activeEntity.identityColumn] ?? (headerCol ? row?.[headerCol] : undefined) ?? `item_${idx}`)
             if (!itemsByKey.has(key)) {
@@ -287,8 +345,16 @@ async function runBotReply(
                 `O(s) item(ns) abaixo JÁ FORAM selecionados pelo sistema como resultado da comparação pedida (campo(s): ${compareInfo.camposUsados.join(' + ')}; critério: ${compareInfo.criterio}). O campo "_total_calculado" já traz o valor real somado/combinado de cada item — CITE esse valor exatamente como veio, NUNCA recalcule, arredonde ou estime por conta própria.`,
               )
             }
-            if (imageFields.length > 0 && !foundImagesInCall) {
+            if (imageFields.length > 0 && wantsPhotos && !foundImagesInCall) {
               avisos.push('Nenhum dos itens abaixo tem foto disponível no momento. Diga, de forma natural, que não há fotos DESSES itens disponíveis agora. NUNCA diga que você "não pode exibir imagens" ou "não tem acesso a imagens" — você PODE mostrar fotos (a plataforma envia automaticamente quando existem); é só que estes itens específicos não têm foto agora.')
+            }
+            if (pagingInfo && pagingInfo.totalCount > pagingInfo.page * pagingInfo.pageSize) {
+              // Resultado cortado por paginação — o LLM precisa saber o total real pra nunca dar
+              // a entender que isso é tudo que existe, e saber como pedir a próxima leva.
+              const shown = Math.min(pagingInfo.page * pagingInfo.pageSize, pagingInfo.totalCount)
+              avisos.push(
+                `Estes são ${rows.length} de ${pagingInfo.totalCount} resultados reais que combinam com os critérios (mostrando até o item ${shown} de ${pagingInfo.totalCount}). Informe isso ao visitante de forma natural e pergunte se ele quer ver mais — se ele confirmar, chame esta mesma ferramenta de novo com os mesmos critérios e "pagina": "${pagingInfo.page + 1}".`,
+              )
             }
             const availableFields = [
               ...activeEntity.columns.filter((c) => c.selectable).map((c) => c.name),

@@ -30,6 +30,9 @@ interface EntityColumnInput {
   selectable?: boolean;
   filterable?: boolean;
   is_group_header?: boolean;
+  is_comparable?: boolean;
+  comparison_kind?: 'moeda' | 'quantidade';
+  is_groupable?: boolean;
   lookup_table?: string;
   lookup_pk?: string;
   lookup_label_column?: string;

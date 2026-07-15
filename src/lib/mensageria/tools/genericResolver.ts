@@ -23,6 +23,25 @@ export interface EntityColumn {
   selectable?: boolean
   is_group_header?: boolean  // coluna que dá o cabeçalho/rótulo do item no agrupamento premium
                              // (ex.: titulo p/ imóvel, nome p/ clínica) — genérico por segmento
+  // Marca explicitamente que este campo numérico é um VALOR/quantidade de negócio elegível pra
+  // soma/comparação (ex.: preco, quartos) — mesmo padrão de opt-in de is_image/is_group_header.
+  // Sem isso, qualquer coluna numérica selecionável viraria "comparável" por inferência de tipo,
+  // o que produziria combinações sem sentido (ex.: somar andar + vagas de garagem).
+  is_comparable?: boolean
+  // Só relevante quando is_comparable=true. Distingue campos que fazem sentido SOMAR entre si
+  // (moeda: preco+condominio+iptu = custo total) de campos que só fazem sentido comparados
+  // isoladamente (quantidade: "qual tem mais quartos" é válido, "quartos+banheiros" não é).
+  // 'quantidade' é o default seguro quando ausente — bloqueia qualquer combinação multi-campo,
+  // só libera ranking de 1 campo só. Fechado em 2 opções (não texto livre) pra não exigir do
+  // Master inventar/digitar uma "unidade" — só uma escolha binária de comportamento.
+  comparison_kind?: 'moeda' | 'quantidade'
+  // Marca que esta coluna é uma dimensão válida pra AGRUPAR e contar (ex.: bairro no imóvel,
+  // especialidade na saúde, fabricante em carros) — mesmo padrão de opt-in dos outros flags.
+  // Entidade com ≥1 coluna assim ganha automaticamente a ferramenta agrupar_<entidade>, que
+  // resolve perguntas exploratórias tipo "em quais bairros vocês têm imóveis" com um único
+  // SELECT ... GROUP BY, cobrindo TODAS as categorias reais — sem depender de max_rows/paginação
+  // (que só ajudam a listar ITENS individuais, não a enumerar categorias distintas).
+  is_groupable?: boolean
   // Coluna que é chave estrangeira (ex.: tipo_fk → tipos_imovel.id): presença de lookup_table
   // marca a coluna como "com lookup" — na exibição, o valor bruto (id) é resolvido pro nome
   // legível; no filtro, o LLM passa o NOME (texto), nunca o id, e o resolver casa via subquery.
@@ -180,28 +199,57 @@ function hasValidLookup(col: EntityColumn): boolean {
 }
 
 /**
- * Coluna elegível pra soma/subtração/média na ferramenta de comparação: numérica, selecionável,
- * e SEM lookup. Uma coluna com lookup (ex.: tipo_fk) é `type:'number'` no banco (é uma FK), mas
- * o valor que o LLM e o bot enxergam é o NOME resolvido (ex.: "Apartamento") — somar/comparar
- * isso não faz sentido nenhum, mesmo sendo tecnicamente numérica na origem.
+ * Expressão bruta (sem alias) de uma coluna — usada no GROUP BY do agregador. Resolve o NOME
+ * legível quando a coluna tem lookup (ex.: fabricante_fk → fabricantes.nome), senão a coluna
+ * crua. Diferente de `buildColumnProjection` (que só retorna algo quando HÁ lookup, pro caller
+ * cair no `e.<col>` sozinho); aqui sempre retorna uma expressão pronta, com ou sem lookup, porque
+ * o GROUP BY precisa da mesma expressão em dois lugares (SELECT e GROUP BY).
  */
-function isComparableNumericColumn(col: EntityColumn): boolean {
-  return col.type === 'number' && !!col.selectable && !hasValidLookup(col)
+function buildGroupExpr(col: EntityColumn, baseAlias: string): string | null {
+  if (!ok(col.name)) return null
+  if (hasValidLookup(col)) {
+    const lookupPk = col.lookup_pk ?? 'id'
+    return `(SELECT lk.${col.lookup_label_column} FROM ${col.lookup_table} lk WHERE lk.${lookupPk} = ${baseAlias}.${col.name})`
+  }
+  return `${baseAlias}.${col.name}`
 }
 
-export async function resolveEntity(
+/**
+ * Coluna elegível pra soma/subtração/média na ferramenta de comparação: numérica, selecionável,
+ * marcada explicitamente como `is_comparable` (curadoria do Master — evita salada do tipo "somar
+ * andar com vagas de garagem"), SEM lookup (uma coluna com lookup, ex. tipo_fk, é `type:'number'`
+ * no banco por ser FK, mas o valor que o LLM e o bot enxergam é o NOME resolvido, ex.
+ * "Apartamento" — não faz sentido somar/comparar isso), e nunca a coluna de identidade (PK) da
+ * entidade — comparar/somar uma chave arbitrária não tem significado de negócio nenhum.
+ */
+function isComparableNumericColumn(col: EntityColumn, identityColumn: string): boolean {
+  return (
+    col.type === 'number' &&
+    !!col.selectable &&
+    col.is_comparable === true &&
+    !hasValidLookup(col) &&
+    col.name !== identityColumn
+  )
+}
+
+export interface ResolveEntityResult {
+  rows: any[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
+
+/**
+ * Monta a cláusula WHERE (tenant + default_filter + filtros do LLM) compartilhada entre
+ * `resolveEntity` e `aggregateEntity` — extraído pra não duplicar a lógica de coerção/lookup
+ * (inclusive as checagens de segurança de tenant-scoping e fronteira de palavra) em cada consulta
+ * nova que precisar dos mesmos filtros normais.
+ */
+async function buildWhereClause(
   entity: SegmentDataEntity,
   params: Record<string, any>,
   ctx: { tenantId: string },
-): Promise<any[]> {
-  if (!ok(entity.tableName) || !ok(entity.tenantColumn)) {
-    throw new Error(`segment_data_entities: identificador inválido para "${entity.entityName}"`)
-  }
-  const selectableCols = entity.columns.filter((c) => c.selectable && ok(c.name))
-  if (selectableCols.length === 0) {
-    throw new Error(`Entidade "${entity.entityName}" não tem colunas selecionáveis configuradas.`)
-  }
-
+): Promise<{ where: string[]; args: any[] }> {
   const args: any[] = [ctx.tenantId]
   const where: string[] = [`e.${entity.tenantColumn} = $1`]
   if (entity.defaultFilter) where.push(entity.defaultFilter)
@@ -262,6 +310,24 @@ export async function resolveEntity(
     }
   }
 
+  return { where, args }
+}
+
+export async function resolveEntity(
+  entity: SegmentDataEntity,
+  params: Record<string, any>,
+  ctx: { tenantId: string },
+): Promise<ResolveEntityResult> {
+  if (!ok(entity.tableName) || !ok(entity.tenantColumn)) {
+    throw new Error(`segment_data_entities: identificador inválido para "${entity.entityName}"`)
+  }
+  const selectableCols = entity.columns.filter((c) => c.selectable && ok(c.name))
+  if (selectableCols.length === 0) {
+    throw new Error(`Entidade "${entity.entityName}" não tem colunas selecionáveis configuradas.`)
+  }
+
+  const { where, args } = await buildWhereClause(entity, params, ctx)
+
   const relationCols = (entity.relations || [])
     .map((r) => buildRelationSubquery(r, 'e'))
     .filter((s): s is string => s !== null)
@@ -280,12 +346,33 @@ export async function resolveEntity(
   ].join(', ')
 
   const maxRows = Math.min(Math.max(entity.maxRows || 5, 1), 20)
+  // Paginação: "pagina" (1-based) vem do LLM quando o visitante pede pra ver mais além do que já
+  // foi mostrado — genérico pra qualquer entidade, não amarrado a nome de campo/segmento.
+  const page = Math.max(1, parseInt(String(params?.pagina ?? '1'), 10) || 1)
+  const offset = (page - 1) * maxRows
+  // ORDER BY determinístico pela coluna de identidade — sem isso, `LIMIT` sozinho não garante
+  // o mesmo conjunto de linhas entre chamadas repetidas da mesma consulta (Postgres não define
+  // ordem sem ORDER BY). Bug real: numa pergunta genérica sem filtro, uma 2ª chamada na mesma
+  // conversa (ex.: "tem fotos?" depois de já ter listado os imóveis) podia devolver um subconjunto
+  // DIFERENTE dos itens já citados no texto — o bot então checava foto de itens que não eram os
+  // mesmos mencionados antes, gerando respostas inconsistentes ("não achei foto" pra um item que
+  // na verdade tem). Estável e determinístico corrige isso pra qualquer entidade/segmento — e é o
+  // que torna a paginação por página correta (sem ordem estável, página 2 poderia repetir/pular
+  // itens da página 1).
+  const orderClause = ok(identityCol) ? ` ORDER BY e.${identityCol}` : ''
   const sql = `SELECT ${projection}
                  FROM ${entity.tableName} e
-                WHERE ${where.join(' AND ')}
-                LIMIT ${maxRows}`
+                WHERE ${where.join(' AND ')}${orderClause}
+                LIMIT ${maxRows} OFFSET ${offset}`
   const { rows } = await pool.query(sql, args)
-  return rows
+
+  // Total real (sem LIMIT/OFFSET) — é o que permite o bot saber que cortou resultados e oferecer
+  // "mostrar mais" de forma honesta, em vez de silenciosamente esconder que existem mais itens.
+  const countSql = `SELECT count(*)::int AS total FROM ${entity.tableName} e WHERE ${where.join(' AND ')}`
+  const { rows: countRows } = await pool.query(countSql, args)
+  const totalCount = countRows[0]?.total ?? rows.length
+
+  return { rows, totalCount, page, pageSize: maxRows }
 }
 
 /**
@@ -308,7 +395,9 @@ export async function compareEntity(
   params: Record<string, any>,
   ctx: { tenantId: string },
 ): Promise<{ rows: any[]; camposUsados: string[]; operacao: string; criterio: string } | { error: string }> {
-  const numericCols = new Set(entity.columns.filter(isComparableNumericColumn).map((c) => c.name))
+  const numericCols = new Set(
+    entity.columns.filter((c) => isComparableNumericColumn(c, entity.identityColumn)).map((c) => c.name),
+  )
   const campos = String(params.campos || '')
     .split(',')
     .map((s) => s.trim())
@@ -318,10 +407,26 @@ export async function compareEntity(
     return { error: 'Nenhum campo numérico válido foi especificado para a comparação.' }
   }
 
+  // Combinar 2+ campos numa soma/subtração/média só faz sentido de negócio entre campos de
+  // MOEDA (ex.: preço + condomínio + IPTU = custo total). Campos de quantidade (quartos, vagas,
+  // área) não devem ser somados entre si nem com dinheiro — cada um só é comparável sozinho
+  // ("qual tem mais quartos"). Isso não impede o LLM de PEDIR a combinação errada; impede o
+  // CÓDIGO de calcular um número sem sentido quando ele pede.
+  if (campos.length > 1) {
+    const allMoeda = campos.every(
+      (name) => entity.columns.find((c) => c.name === name)?.comparison_kind === 'moeda',
+    )
+    if (!allMoeda) {
+      return {
+        error: `Não é possível somar/subtrair/tirar média entre os campos "${campos.join(', ')}" — só é permitido combinar campos de moeda entre si (ex.: preço + condomínio + IPTU). Campos de quantidade (ex.: quartos, vagas) só podem ser comparados um de cada vez.`,
+      }
+    }
+  }
+
   const operacao = params.operacao === 'subtracao' || params.operacao === 'media' ? params.operacao : 'soma'
   const criterio = params.criterio === 'maior' ? 'maior' : 'menor'
 
-  const rows = await resolveEntity(entity, params, ctx)
+  const { rows } = await resolveEntity(entity, params, ctx)
 
   const withTotal = rows
     .map((r) => {
@@ -345,6 +450,59 @@ export async function compareEntity(
   return { rows: winners, camposUsados: campos, operacao, criterio }
 }
 
+/**
+ * Agrupa e conta os resultados de uma entidade por 1 coluna categórica (ex.: "em quais bairros
+ * vocês têm imóveis"). Resolve o mesmo problema que paginação NÃO resolve: uma pergunta
+ * exploratória sobre QUAIS categorias existem precisa cobrir 100% delas, não uma amostra de
+ * `max_rows` itens — que pode nunca tocar em categorias reais com poucos registros (ex.: um
+ * bairro com só 1 imóvel, cujo id caiu fora da 1ª página).
+ *
+ * Genérico por construção: só aceita `campo` dentre as colunas marcadas `is_groupable` na
+ * entidade — nenhum nome de coluna/segmento fixo. Reaproveita `buildWhereClause` (mesmos filtros,
+ * mesmo escopo de tenant) e `buildGroupExpr` (resolve o nome legível se a coluna for uma FK com
+ * lookup, ex. fabricante_fk → fabricantes.nome).
+ */
+export async function aggregateEntity(
+  entity: SegmentDataEntity,
+  params: Record<string, any>,
+  ctx: { tenantId: string },
+): Promise<{ campo: string; grupos: { valor: string; total: number }[] } | { error: string }> {
+  const groupableCols = entity.columns.filter((c) => c.is_groupable && ok(c.name))
+  if (groupableCols.length === 0) {
+    return { error: 'Esta entidade não tem nenhum campo configurado como agrupável.' }
+  }
+
+  const requested = String(params.campo || '').trim()
+  const col = groupableCols.find((c) => c.name === requested) ?? (groupableCols.length === 1 ? groupableCols[0] : null)
+  if (!col) {
+    return { error: `Campo de agrupamento inválido ou não especificado. Valores válidos: ${groupableCols.map((c) => c.name).join(', ')}.` }
+  }
+
+  const groupExpr = buildGroupExpr(col, 'e')
+  if (!groupExpr) return { error: 'Configuração de agrupamento inválida para este campo.' }
+
+  const { where, args } = await buildWhereClause(entity, params, ctx)
+
+  // Teto de categorias distintas retornadas — protege contra uma coluna mal configurada com
+  // cardinalidade muito alta (ex.: marcar por engano uma coluna quase única como agrupável).
+  // GROUP BY já comprime naturalmente pra qualquer segmento real (dezenas de categorias, no
+  // máximo), então esse teto raramente é atingido — é só uma rede de segurança.
+  const CAP = 30
+  const sql = `SELECT ${groupExpr} AS grupo, count(*)::int AS total
+                 FROM ${entity.tableName} e
+                WHERE ${where.join(' AND ')}
+                GROUP BY ${groupExpr}
+                ORDER BY total DESC
+                LIMIT ${CAP}`
+  const { rows } = await pool.query(sql, args)
+
+  const grupos = rows
+    .filter((r) => r.grupo !== null && String(r.grupo).trim() !== '')
+    .map((r) => ({ valor: String(r.grupo), total: r.total as number }))
+
+  return { campo: col.name, grupos }
+}
+
 function buildParamsSchema(columns: EntityColumn[]): LlmToolDef['parameters'] {
   const properties: Record<string, any> = {}
   for (const c of columns.filter((c) => c.filterable)) {
@@ -366,16 +524,21 @@ function buildParamsSchema(columns: EntityColumn[]): LlmToolDef['parameters'] {
  * critério. `campos` lista dinamicamente os nomes numéricos REAIS da entidade na descrição, pro
  * LLM saber quais valores são válidos sem ter que adivinhar.
  */
-function buildCompareParamsSchema(columns: EntityColumn[]): LlmToolDef['parameters'] {
+function buildCompareParamsSchema(columns: EntityColumn[], identityColumn: string): LlmToolDef['parameters'] {
   const base = buildParamsSchema(columns)
-  const numericNames = columns.filter(isComparableNumericColumn).map((c) => c.name)
+  const comparableCols = columns.filter((c) => isComparableNumericColumn(c, identityColumn))
+  const numericNames = comparableCols.map((c) => c.name)
+  const moedaNames = comparableCols.filter((c) => c.comparison_kind === 'moeda').map((c) => c.name)
+  const combineHint = moedaNames.length > 1
+    ? ` Só é permitido informar mais de um campo em "campos" se todos forem de moeda (${moedaNames.join(', ')}) — campos de quantidade só podem ser comparados um de cada vez.`
+    : ''
   return {
     type: 'object',
     properties: {
       ...base.properties,
       campos: {
         type: 'string',
-        description: `Campo(s) numérico(s) a comparar, separados por vírgula se for mais de um. Valores válidos: ${numericNames.join(', ')}.`,
+        description: `Campo(s) numérico(s) a comparar, separados por vírgula se for mais de um. Valores válidos: ${numericNames.join(', ')}.${combineHint}`,
       },
       operacao: {
         type: 'string',
@@ -390,30 +553,109 @@ function buildCompareParamsSchema(columns: EntityColumn[]): LlmToolDef['paramete
   }
 }
 
+/**
+ * Schema da ferramenta de agrupamento/contagem — os mesmos filtros normais de busca + `campo`,
+ * que lista dinamicamente os nomes reais das colunas marcadas `is_groupable` na descrição, pro
+ * LLM saber quais valores são válidos sem adivinhar (mesmo padrão de `campos` no comparador).
+ */
+function buildAggregateParamsSchema(columns: EntityColumn[]): LlmToolDef['parameters'] {
+  const base = buildParamsSchema(columns)
+  const groupableNames = columns.filter((c) => c.is_groupable).map((c) => c.name)
+  return {
+    type: 'object',
+    properties: {
+      ...base.properties,
+      campo: {
+        type: 'string',
+        description: groupableNames.length > 1
+          ? `Qual campo usar pra agrupar/contar. Valores válidos: ${groupableNames.join(', ')}.`
+          : `Campo usado pra agrupar/contar (fixo: "${groupableNames[0] ?? ''}").`,
+      },
+    },
+    required: groupableNames.length > 1 ? ['campo'] : [],
+  }
+}
+
+/**
+ * Adiciona o parâmetro `incluir_fotos` só em entidades que têm ao menos 1 relation `is_image` —
+ * genérico, dirigido por metadado (nenhum segmento/campo fixo). Quem decide o valor é o LLM, a
+ * cada chamada, guiado pela descrição — é assim que a intenção do visitante ("quero ver foto" vs.
+ * "só preço/localização") entra no sistema sem regra de palavra-chave hardcoded em código: a
+ * classificação continua sendo tarefa do modelo, igual campos/operação/critério já são.
+ */
+function addPhotoIntentParam(schema: LlmToolDef['parameters'], entity: SegmentDataEntity): LlmToolDef['parameters'] {
+  if (!entity.relations.some((r) => r.is_image)) return schema
+  return {
+    ...schema,
+    properties: {
+      ...schema.properties,
+      incluir_fotos: {
+        type: 'string',
+        description: 'Marque "true" SOMENTE se o visitante pediu explicitamente por foto/imagem NESTA pergunta (ex.: "manda foto", "quero ver imagens desse"). Para qualquer outra pergunta — localização, preço, comparação, cálculo, características, listagem geral — deixe "false". NÃO envie fotos sem pedido explícito na pergunta atual, mesmo que já tenha enviado fotos desses itens antes na conversa.',
+      },
+    },
+  }
+}
+
+/**
+ * Adiciona o parâmetro `pagina` só na ferramenta de BUSCA (nunca na de comparação — comparar
+ * precisa varrer o conjunto de candidatos inteiro dentro do limite normal, paginar quebraria a
+ * conta). Genérico: toda entidade ganha isso automaticamente, sem config nova.
+ */
+function addPaginationParam(schema: LlmToolDef['parameters']): LlmToolDef['parameters'] {
+  return {
+    ...schema,
+    properties: {
+      ...schema.properties,
+      pagina: {
+        type: 'string',
+        description: 'Número da página de resultados, começando em "1". Use "2", "3" etc. SOMENTE quando o visitante pedir explicitamente para ver mais itens além dos que você já mostrou nesta mesma busca (ex.: "mostra mais", "tem outros?"). Não informe este campo na primeira consulta.',
+      },
+    },
+  }
+}
+
 /** 1 entidade ativa → 1 ferramenta do LLM, gerada a partir do registro — sem tocar em código. */
 export async function getToolsForSegment(
   segmentId: string | null,
   tenantId: string,
-): Promise<{ tools: LlmToolDef[]; entities: Map<string, SegmentDataEntity>; compareEntities: Map<string, SegmentDataEntity> }> {
+): Promise<{
+  tools: LlmToolDef[]
+  entities: Map<string, SegmentDataEntity>
+  compareEntities: Map<string, SegmentDataEntity>
+  aggregateEntities: Map<string, SegmentDataEntity>
+}> {
   const entities = await loadEntitiesForSegment(segmentId, tenantId)
   const entityMap = new Map(entities.map((e) => [`buscar_${e.entityName}`, e]))
 
   // Ganha a ferramenta de comparação só quem tem pelo menos 1 coluna numérica selecionável —
   // derivado 100% de metadado já existente, nenhuma config nova, funciona pra qualquer segmento.
-  const comparableEntities = entities.filter((e) => e.columns.some(isComparableNumericColumn))
+  const comparableEntities = entities.filter((e) =>
+    e.columns.some((c) => isComparableNumericColumn(c, e.identityColumn)),
+  )
   const compareMap = new Map(comparableEntities.map((e) => [`comparar_${e.entityName}`, e]))
+
+  // Ganha a ferramenta de agrupamento/contagem só quem tem pelo menos 1 coluna marcada
+  // `is_groupable` — mesmo mecanismo, zero código por segmento.
+  const groupableEntities = entities.filter((e) => e.columns.some((c) => c.is_groupable))
+  const aggregateMap = new Map(groupableEntities.map((e) => [`agrupar_${e.entityName}`, e]))
 
   const tools: LlmToolDef[] = [
     ...entities.map((e) => ({
       name: `buscar_${e.entityName}`,
       description: e.description || `Consulta dados de ${e.entityName}`,
-      parameters: buildParamsSchema(e.columns),
+      parameters: addPaginationParam(addPhotoIntentParam(buildParamsSchema(e.columns), e)),
     })),
     ...comparableEntities.map((e) => ({
       name: `comparar_${e.entityName}`,
       description: `Compara/ordena os resultados de "${e.entityName}" por um ou mais campos numéricos (somados, subtraídos ou em média) e retorna só o(s) item(ns) com o MENOR ou MAIOR valor. Use quando o visitante pedir uma comparação, ranking ou seleção entre vários itens (ex.: "qual tem o menor preço somando X e Y", "qual tem mais quartos") — a conta é feita de verdade pelo sistema, NUNCA calcule isso sozinho na sua resposta.`,
-      parameters: buildCompareParamsSchema(e.columns),
+      parameters: addPhotoIntentParam(buildCompareParamsSchema(e.columns, e.identityColumn), e),
+    })),
+    ...groupableEntities.map((e) => ({
+      name: `agrupar_${e.entityName}`,
+      description: `Agrupa e conta os resultados de "${e.entityName}" por categoria, cobrindo TODAS as categorias reais (não uma amostra). Use SOMENTE pra perguntas exploratórias sobre QUAIS categorias existem ou QUANTOS itens há por categoria (ex.: "em quais bairros vocês têm imóveis", "quantos imóveis por bairro") — NÃO use pra ver os itens individuais de uma categoria (nesse caso use buscar_${e.entityName} com o filtro correspondente).`,
+      parameters: buildAggregateParamsSchema(e.columns),
     })),
   ]
-  return { tools, entities: entityMap, compareEntities: compareMap }
+  return { tools, entities: entityMap, compareEntities: compareMap, aggregateEntities: aggregateMap }
 }

@@ -17,6 +17,9 @@ interface Column {
   selectable: boolean;
   filterable: boolean;
   is_group_header: boolean;
+  is_comparable: boolean;
+  comparison_kind: 'moeda' | 'quantidade';
+  is_groupable: boolean;
   lookup_table: string;
   lookup_pk: string;
   lookup_label_column: string;
@@ -54,7 +57,7 @@ interface Props {
   onClose: () => void;
 }
 
-const emptyColumn = (): Column => ({ name: '', type: 'text', description: '', selectable: true, filterable: false, is_group_header: false, lookup_table: '', lookup_pk: 'id', lookup_label_column: '' });
+const emptyColumn = (): Column => ({ name: '', type: 'text', description: '', selectable: true, filterable: false, is_group_header: false, is_comparable: false, comparison_kind: 'quantidade', is_groupable: false, lookup_table: '', lookup_pk: 'id', lookup_label_column: '' });
 const emptyRelation = (): Relation => ({
   name: '', description: '', bridge_table: '', bridge_fk: '', base_pk: 'id',
   lookup_table: '', lookup_fk: '', lookup_pk: 'id', select_column: '', agg: 'array', max: 25,
@@ -66,13 +69,13 @@ const emptyEntity = (): Entity => ({
 });
 
 // Mesma regra de elegibilidade do backend (genericResolver.ts: isComparableNumericColumn) —
-// número + selecionável, sem lookup (uma coluna com lookup é tecnicamente number no banco, mas
-// o valor que o bot vê é o NOME resolvido, ex. "Apartamento", não uma quantidade somável).
-function comparableFieldNames(columns: Column[]): string[] {
-  return columns
-    .filter((c) => c.type === 'number' && c.selectable && !c.lookup_table?.trim())
-    .map((c) => c.name)
-    .filter(Boolean);
+// número + selecionável + marcado explicitamente como "comparável" pelo Master, sem lookup (uma
+// coluna com lookup é tecnicamente number no banco, mas o valor que o bot vê é o NOME resolvido,
+// ex. "Apartamento", não uma quantidade somável), e nunca a coluna de identidade (PK).
+function comparableFieldNames(columns: Column[], identityColumn: string): Column[] {
+  return columns.filter(
+    (c) => c.type === 'number' && c.selectable && c.is_comparable && !c.lookup_table?.trim() && c.name !== identityColumn && c.name.trim(),
+  );
 }
 
 function HelpPanel() {
@@ -94,6 +97,65 @@ function HelpPanel() {
           <span className="font-semibold">Relações</span> trazem dado de tabelas correlacionadas — inclusive
           via uma tabela-ponte + uma tabela de nomes (ex.: imóvel → `imovel_amenidades` → `amenidades.nome`).
           Use "array" pra listas (várias amenidades), "count" pra contagem (nº de fotos), "first" pra 1 valor só.
+        </p>
+      </div>
+      <div>
+        <p className="font-black text-gray-900 mb-1">Coluna de identidade</p>
+        <p className="text-xs text-gray-600">
+          A PK da entidade (default <span className="font-mono">id</span>) — usada pra casar cada linha
+          com seus cartões/fotos quando o bot agrupa vários resultados. Sempre entra na consulta, mesmo
+          se você não marcar "mostra", e nunca pode ser marcada como comparável (não faz sentido
+          somar/comparar uma chave arbitrária).
+        </p>
+      </div>
+      <div>
+        <p className="font-black text-gray-900 mb-1">Cabeçalho</p>
+        <p className="text-xs text-gray-600">
+          Marca qual coluna dá o título/rótulo do item quando o bot agrupa vários resultados em cartões
+          (ex.: <span className="font-mono">titulo</span> no imóvel). É exclusivo por entidade — marcar
+          uma coluna desmarca automaticamente qualquer outra da mesma tabela (só uma pode ser o
+          cabeçalho). Entidades diferentes podem ter cada uma o seu, sem conflito.
+        </p>
+      </div>
+      <div>
+        <p className="font-black text-gray-900 mb-1">Comparável — moeda × quantidade</p>
+        <p className="text-xs text-gray-600">
+          Marcar "comparável" numa coluna numérica libera o bot a ranqueá-la ("qual tem o menor preço",
+          "qual tem mais quartos"). O tipo ao lado controla se ela pode ser <span className="font-semibold">somada
+          com outros campos</span>: <span className="font-mono">moeda</span> pode ser combinada com outros
+          campos moeda (ex.: preço + condomínio + IPTU = custo total); <span className="font-mono">quantidade</span> só
+          é comparada sozinha — o bot nunca soma um campo de quantidade com outro campo, nem entre si nem
+          com dinheiro (evita contas sem sentido, como quartos + vagas de garagem).
+        </p>
+      </div>
+      <div>
+        <p className="font-black text-gray-900 mb-1">Agrupável</p>
+        <p className="text-xs text-gray-600">
+          Marca uma coluna como dimensão pra o bot agrupar e contar (ex.: <span className="font-mono">bairro</span> no
+          imóvel, especialidade numa clínica, fabricante numa loja de carros). Entidade com pelo menos 1
+          coluna assim marcada ganha automaticamente a ferramenta de agrupamento, usada em perguntas
+          exploratórias tipo "em quais bairros vocês têm imóveis" — cobre <span className="font-semibold">100%
+          das categorias reais</span> numa única consulta, diferente de uma busca normal (que só traz uma
+          amostra limitada por "Máx. resultados" e pode não tocar em categorias com poucos itens).
+        </p>
+      </div>
+      <div>
+        <p className="font-black text-gray-900 mb-1">Lista de imagem</p>
+        <p className="text-xs text-gray-600">
+          Em relações do tipo "array", marque quando a lista trazida é de URLs de foto (ex.:
+          <span className="font-mono"> fotos</span>). O LLM nunca recebe a URL crua — só um aviso de
+          "tem foto"/"não tem foto" — e cada imagem é enviada de verdade como mensagem separada, nunca
+          como link colado no texto. Não marque em listas de texto (ex.: nomes de amenidades) — a caixa
+          aparece em toda relação "array" porque o sistema não tem como saber sozinho se o conteúdo é
+          imagem ou texto; é uma escolha sua.
+        </p>
+      </div>
+      <div>
+        <p className="font-black text-gray-900 mb-1">Chave estrangeira (FK) com lookup</p>
+        <p className="text-xs text-gray-600">
+          Se uma coluna numérica é uma FK (ex.: <span className="font-mono">tipo_fk</span>), preencha
+          "tabela de lookup" + "coluna do nome" pra o bot exibir e filtrar pelo NOME legível (ex.:
+          "Apartamento") em vez do id cru — e pra que o LLM sempre mande texto, nunca o número da chave.
         </p>
       </div>
       <div>
@@ -138,6 +200,9 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
           columns: (e.columns ?? []).map((c: any) => ({
             name: c.name ?? '', type: c.type ?? 'text', description: c.description ?? '',
             selectable: !!c.selectable, filterable: !!c.filterable, is_group_header: !!c.is_group_header,
+            is_comparable: !!c.is_comparable,
+            comparison_kind: c.comparison_kind === 'moeda' ? 'moeda' : 'quantidade',
+            is_groupable: !!c.is_groupable,
             lookup_table: c.lookup_table ?? '', lookup_pk: c.lookup_pk ?? 'id', lookup_label_column: c.lookup_label_column ?? '',
           })),
           relations: (e.relations ?? []).map((r: any) => ({
@@ -162,7 +227,16 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
 
   const updateColumn = (ei: number, ci: number, patch: Partial<Column>) =>
     setEntities((prev) => prev.map((e, idx) => idx === ei
-      ? { ...e, columns: e.columns.map((c, cj) => (cj === ci ? { ...c, ...patch } : c)) } : e));
+      ? {
+          ...e,
+          columns: e.columns.map((c, cj) => {
+            if (cj === ci) return { ...c, ...patch };
+            // "cabeçalho" é exclusivo — só a 1ª coluna marcada é usada de fato
+            // (botAdapter.ts usa .find()), então marcar uma desmarca as demais.
+            if (patch.is_group_header === true) return { ...c, is_group_header: false };
+            return c;
+          }),
+        } : e));
   const addColumn = (ei: number) =>
     setEntities((prev) => prev.map((e, idx) => (idx === ei ? { ...e, columns: [...e.columns, emptyColumn()] } : e)));
   const removeColumn = (ei: number, ci: number) =>
@@ -186,7 +260,7 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
         const existingNames = new Set(e.columns.map((c) => c.name));
         const toAdd = real
           .filter((r) => !existingNames.has(r.name))
-          .map((r) => ({ name: r.name, type: r.type, description: '', selectable: false, filterable: false, is_group_header: false, lookup_table: '', lookup_pk: 'id', lookup_label_column: '' }));
+          .map((r) => ({ name: r.name, type: r.type, description: '', selectable: false, filterable: false, is_group_header: false, is_comparable: false, comparison_kind: 'quantidade' as const, is_groupable: false, lookup_table: '', lookup_pk: 'id', lookup_label_column: '' }));
         return { ...e, columns: [...e.columns, ...toAdd] };
       }));
     } catch (e: any) {
@@ -391,16 +465,23 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
                       </button>
                     </div>
                     {(() => {
-                      const cmp = comparableFieldNames(e.columns);
-                      return cmp.length > 0 ? (
+                      const cmp = comparableFieldNames(e.columns, e.identityColumn);
+                      if (cmp.length === 0) return null;
+                      const moeda = cmp.filter((c) => c.comparison_kind === 'moeda').map((c) => c.name);
+                      const qtd = cmp.filter((c) => c.comparison_kind !== 'moeda').map((c) => c.name);
+                      return (
                         <p
-                          className="flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mb-1.5"
-                          title="O bot ganha automaticamente uma ferramenta de comparação/ranking (ex.: 'qual tem o menor preço somando X e Y') usando esses campos — sem nenhuma configuração extra."
+                          className="flex items-start gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mb-1.5"
+                          title="O bot ganha automaticamente uma ferramenta de comparação/ranking usando esses campos — sem nenhuma configuração extra. Só campos de moeda podem ser somados entre si; campos de quantidade só são comparados um de cada vez."
                         >
-                          <CalculatorIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span><strong>{cmp.length}</strong> campo{cmp.length === 1 ? '' : 's'} elegíve{cmp.length === 1 ? 'l' : 'is'} para comparação: <span className="font-mono">{cmp.join(', ')}</span></span>
+                          <CalculatorIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                          <span>
+                            <strong>{cmp.length}</strong> campo{cmp.length === 1 ? '' : 's'} elegíve{cmp.length === 1 ? 'l' : 'is'} para comparação
+                            {moeda.length > 0 && <> — <span className="font-mono">moeda</span> (somáveis entre si): <span className="font-mono">{moeda.join(', ')}</span></>}
+                            {qtd.length > 0 && <> {moeda.length > 0 ? '· ' : '— '}<span className="font-mono">quantidade</span> (só individual): <span className="font-mono">{qtd.join(', ')}</span></>}
+                          </span>
                         </p>
-                      ) : null;
+                      );
                     })()}
                     <div className="space-y-1.5">
                       {e.columns.map((c, ci) => (
@@ -418,10 +499,10 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
                             <input value={c.description} onChange={(ev) => updateColumn(ei, ci, { description: ev.target.value })}
                               placeholder="descrição pro LLM"
                               className="flex-1 text-xs text-gray-500 focus:outline-none" />
-                            {c.type === 'number' && c.selectable && !c.lookup_table?.trim() && (
+                            {c.type === 'number' && c.selectable && c.is_comparable && !c.lookup_table?.trim() && c.name !== e.identityColumn && (
                               <CalculatorIcon
                                 className="h-3.5 w-3.5 text-amber-500 shrink-0"
-                                title="Elegível para a ferramenta de comparação/ranking do bot (número, mostra, sem lookup)"
+                                title="Elegível para a ferramenta de comparação/ranking do bot (número, mostra, marcado como comparável, sem lookup)"
                               />
                             )}
                             <label className="flex items-center gap-1 text-[10px] text-gray-500 shrink-0">
@@ -432,9 +513,30 @@ export function SegmentDataEntitiesModal({ segment, onClose }: Props) {
                               <input type="checkbox" checked={c.filterable} onChange={(ev) => updateColumn(ei, ci, { filterable: ev.target.checked })} />
                               filtra
                             </label>
-                            <label className="flex items-center gap-1 text-[10px] text-emerald-600 shrink-0" title="Usa esta coluna como cabeçalho/rótulo do item quando o bot agrupa vários resultados">
+                            <label className="flex items-center gap-1 text-[10px] text-emerald-600 shrink-0" title="Usa esta coluna como cabeçalho/rótulo do item quando o bot agrupa vários resultados (só uma coluna por entidade — marcar esta desmarca as outras)">
                               <input type="checkbox" checked={c.is_group_header} onChange={(ev) => updateColumn(ei, ci, { is_group_header: ev.target.checked })} />
                               cabeçalho
+                            </label>
+                            {c.type === 'number' && (
+                              <label className="flex items-center gap-1 text-[10px] text-amber-600 shrink-0" title="Permite que o bot compare/ranqueie este campo (ex.: 'qual tem o menor preço'). Marque só campos de VALOR/quantidade de negócio — não posições como 'andar' nem a chave de identidade.">
+                                <input type="checkbox" checked={c.is_comparable} onChange={(ev) => updateColumn(ei, ci, { is_comparable: ev.target.checked })} />
+                                comparável
+                              </label>
+                            )}
+                            {c.type === 'number' && c.is_comparable && (
+                              <select
+                                value={c.comparison_kind}
+                                onChange={(ev) => updateColumn(ei, ci, { comparison_kind: ev.target.value as Column['comparison_kind'] })}
+                                title={'"moeda": pode ser somado/subtraído com outros campos de moeda (ex.: preço + condomínio + IPTU). "quantidade": só comparável sozinho — o bot nunca soma este campo com nenhum outro.'}
+                                className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-1 py-0.5 shrink-0 focus:outline-none"
+                              >
+                                <option value="quantidade">quantidade</option>
+                                <option value="moeda">moeda</option>
+                              </select>
+                            )}
+                            <label className="flex items-center gap-1 text-[10px] text-sky-600 shrink-0" title="Permite que o bot agrupe e conte por este campo (ex.: 'em quais bairros vocês têm imóveis'), cobrindo TODAS as categorias reais numa única consulta — diferente de uma busca normal, que só traz uma amostra limitada de itens.">
+                              <input type="checkbox" checked={c.is_groupable} onChange={(ev) => updateColumn(ei, ci, { is_groupable: ev.target.checked })} />
+                              agrupável
                             </label>
                             <button onClick={() => removeColumn(ei, ci)} className="text-gray-300 hover:text-red-500 shrink-0">
                               <XMarkIcon className="h-3.5 w-3.5" />

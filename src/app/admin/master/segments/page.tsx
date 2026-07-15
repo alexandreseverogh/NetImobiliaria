@@ -281,6 +281,13 @@ export default function MasterSegmentsPage() {
                   <td className="px-4 py-4 text-right whitespace-nowrap">
                     <div className="inline-flex items-center gap-1.5">
                       <button
+                        onClick={() => setTenantsSegment(segment)}
+                        className="p-2 rounded-lg text-sky-600 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors"
+                        title="Empresas deste segmento"
+                      >
+                        <BuildingOffice2Icon className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => setAnglesSegment(segment)}
                         className="p-2 rounded-lg text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 transition-colors"
                         title="Ângulos & Demanda (IA)"
@@ -307,13 +314,6 @@ export default function MasterSegmentsPage() {
                         title="Dados do Bot (tabelas/colunas que o bot pode consultar)"
                       >
                         <CircleStackIcon className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => setTenantsSegment(segment)}
-                        className="p-2 rounded-lg text-sky-600 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors"
-                        title="Empresas deste segmento"
-                      >
-                        <BuildingOffice2Icon className="h-4 w-4" />
                       </button>
                       <UpdateGuard resource="master-segments">
                         <button
