@@ -246,14 +246,28 @@ async function runBotReply(
   let anyImages = false
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-    const { content, toolCalls } = await llm.completeWithTools(persona, messages, tools, 1024)
+    const { content, toolCalls: rawToolCalls } = await llm.completeWithTools(persona, messages, tools, 1024)
 
-    if (toolCalls.length === 0) {
+    if (rawToolCalls.length === 0) {
       finalText = content
       break
     }
 
-    messages.push({ role: 'assistant', content, toolCalls })
+    // Defesa contra nome de ferramenta inventado/com erro de digitação (ex.: "agrupart_imovel"
+    // em vez de "agrupar_imovel") — bug real observado com modelo Groq gpt-oss-120b: ecoar essa
+    // chamada de volta no histórico faz a PRÓXIMA chamada à API falhar com 400 ("tool call
+    // validation failed"), porque o nome não existe em `tools`. Filtra ANTES de ecoar — o
+    // histórico nunca carrega uma referência a ferramenta que não existe.
+    const validNames = new Set<string>(
+      Array.from(entities.keys()).concat(Array.from(compareEntities.keys()), Array.from(aggregateEntities.keys())),
+    )
+    const toolCalls = rawToolCalls.filter((c) => validNames.has(c.name))
+    const invalidCalls = rawToolCalls.filter((c) => !validNames.has(c.name))
+    if (invalidCalls.length > 0) {
+      console.error('[mensageria/botAdapter] ferramenta inexistente chamada pelo LLM, descartada:', invalidCalls.map((c) => c.name))
+    }
+
+    messages.push({ role: 'assistant', content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined })
 
     for (const call of toolCalls) {
       const entity = entities.get(call.name)

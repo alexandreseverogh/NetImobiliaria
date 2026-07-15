@@ -40,6 +40,30 @@ export interface LlmClient {
   completeWithTools(system: string, messages: LlmMessage[], tools: LlmToolDef[], maxTokens?: number): Promise<LlmToolResponse>;
 }
 
+/**
+ * Fallback defensivo: alguns modelos (ex.: llama-3.3-70b no Groq) não usam o campo estruturado
+ * de tool-calling da API — escrevem a "chamada" como texto solto no content, algo como
+ * `<function.agrupar_imovel '{"campo": "estado_fk"}'</function>`. Isso não é um bug do NOSSO
+ * código (a API já devolve `tool_calls` vazio nesse caso) — é o modelo não sendo fine-tuned pra
+ * usar o formato certo. Detecta e recupera esse padrão como se fossem tool_calls reais, só
+ * quando a API não retornou nenhum tool_call estruturado — nunca interfere no caminho normal.
+ */
+function parsePseudoToolCalls(content: string): LlmToolCall[] {
+  const calls: LlmToolCall[] = [];
+  const re = /<function\.([a-zA-Z_]\w*)\s*'?(\{[\s\S]*?\})'?\s*<\/function>/g;
+  let match: RegExpExecArray | null;
+  let i = 0;
+  while ((match = re.exec(content)) !== null) {
+    try {
+      const input = JSON.parse(match[2]);
+      calls.push({ id: `pseudo-${Date.now()}-${i++}`, name: match[1], input });
+    } catch {
+      // JSON malformado dentro do pseudo-bloco — ignora esse trecho, não derruba o turno inteiro.
+    }
+  }
+  return calls;
+}
+
 // Pool isolado para consultas de settings/modelos
 let _pool: Pool | null = null;
 function getPool(): Pool {
@@ -174,13 +198,31 @@ async function makeOpenAICompatibleClient(
       // tools omitido quando vazio — mesma razão do branch Anthropic (rodada final do loop).
       const req: any = { model, max_tokens: maxTokens, messages: oaMessages };
       if (tools.length > 0) req.tools = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+
+      // Nota: cheguei a testar um fallback aqui — se a API rejeitar por "tool call validation"
+      // (ex.: Groq gpt-oss-120b gerando nome de ferramenta com caractere Unicode parecido mas
+      // diferente, tipo "а"/"р" cirílicos em vez de latinos), repetir a MESMA chamada sem `tools`
+      // pra pelo menos devolver algo. Testado ao vivo e REVERTIDO: sem tools, o modelo às vezes
+      // responde com dado 100% inventado (chegou a citar "São Paulo" pra um tenant que só tem
+      // imóveis em Pernambuco) de forma confiante — pior que a mensagem de desculpa genérica, que
+      // pelo menos é honesta sobre a falha. Deixa o erro subir normalmente (tratado no chamador).
       const res = await client.chat.completions.create(req);
 
       const choice = res.choices[0]?.message;
-      const toolCalls: LlmToolCall[] = (choice?.tool_calls ?? []).map((tc: any) => ({
+      let toolCalls: LlmToolCall[] = (choice?.tool_calls ?? []).map((tc: any) => ({
         id: tc.id, name: tc.function.name, input: JSON.parse(tc.function.arguments || '{}'),
       }));
-      return { content: choice?.content ?? '', toolCalls };
+      let content = choice?.content ?? '';
+
+      if (toolCalls.length === 0 && content) {
+        const pseudo = parsePseudoToolCalls(content);
+        if (pseudo.length > 0) {
+          toolCalls = pseudo;
+          content = ''; // texto bruto da pseudo-chamada nunca deve chegar ao visitante
+        }
+      }
+
+      return { content, toolCalls };
     },
   };
 }
