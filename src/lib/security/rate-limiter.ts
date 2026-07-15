@@ -76,6 +76,15 @@ export const publicLimiter = createLimiter({
   duration: 60,
 })
 
+// 15 mensagens/min por sessão do widget de chat público (M4.4) — bem mais restrito que o
+// publicLimiter genérico porque cada mensagem dispara uma chamada real ao LLM (custo real,
+// endpoint sem autenticação — qualquer visitante da internet pode chamar).
+export const webchatLimiter = createLimiter({
+  keyPrefix: 'rl:webchat',
+  points: 15,
+  duration: 60,
+})
+
 // ============================================================
 // Extrator de identificador do cliente
 // ============================================================
@@ -164,6 +173,22 @@ export async function applyPublicRateLimit(
   const ip = getClientId(request)
   const { blocked, response } = await checkRateLimit(publicLimiter, `public:${ip}`)
   return blocked ? response! : null
+}
+
+/**
+ * Aplica rate limit ao widget de chat público (M4.4) — chave dupla (sessão + IP), o que vier
+ * primeiro bloqueia: impede tanto 1 visitante martelando o bot quanto 1 IP abrindo várias
+ * sessões novas pra contornar o limite por sessão.
+ */
+export async function applyWebchatRateLimit(
+  request: NextRequest,
+  sessionId: string,
+): Promise<NextResponse | null> {
+  const bySession = await checkRateLimit(webchatLimiter, `webchat:session:${sessionId}`)
+  if (bySession.blocked) return bySession.response!
+  const byIp = await checkRateLimit(webchatLimiter, `webchat:ip:${getClientId(request)}`)
+  if (byIp.blocked) return byIp.response!
+  return null
 }
 
 /**

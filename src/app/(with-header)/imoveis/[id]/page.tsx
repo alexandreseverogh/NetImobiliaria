@@ -36,6 +36,7 @@ import VideoModal from '@/components/admin/wizard/VideoModal'
 import MapaModal from '@/components/property/MapaModal'
 import SafeImage from '@/components/common/SafeImage'
 import TenhoInteresseButton from '@/components/TenhoInteresseButton'
+import ChatWidget from '@/components/mensageria/ChatWidget'
 
 export default function ImovelDetalhes() {
   const params = useParams()
@@ -735,6 +736,12 @@ export default function ImovelDetalhes() {
         longitude={dadosBasicos?.longitude}
         titulo={dadosBasicos?.titulo}
         endereco={dadosBasicos ? `${dadosBasicos.endereco}, ${dadosBasicos.numero}${dadosBasicos.complemento ? ', ' + dadosBasicos.complemento : ''} - ${dadosBasicos.bairro}, ${dadosBasicos.cidade_fk} - ${dadosBasicos.estado_fk}` : ''}
+      />
+
+      {/* Chat público (M4.4) — só aparece se o tenant dono deste imóvel tiver bot ativo */}
+      <ChatWidget
+        tenantId={dadosBasicos?.tenant_id}
+        pageContext={dadosBasicos ? { entity: 'imovel', id: dadosBasicos.id } : null}
       />
     </div>
   )

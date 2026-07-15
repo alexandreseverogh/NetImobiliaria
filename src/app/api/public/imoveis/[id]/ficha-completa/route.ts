@@ -25,6 +25,7 @@ export async function GET(
     const query = `
       SELECT 
         i.id,
+        i.tenant_id,
         i.codigo,
         i.titulo,
         i.descricao,
@@ -102,6 +103,7 @@ export async function GET(
     // Montar objeto de resposta base
     const imovelResponse = {
       id: imovel.id,
+      tenant_id: imovel.tenant_id,
       codigo: imovel.codigo,
       titulo: imovel.titulo,
       descricao: imovel.descricao,
