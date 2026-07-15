@@ -1,8 +1,54 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (paginação real no bot — "mostrar mais" via parâmetro `pagina`, sem depender de página externa)
+> **Atualizado em:** 2026-07-14 (ferramenta genérica `agrupar_<entidade>` — cálculo sai do LLM)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-14 (continuação 10) — Ferramenta genérica de agrupamento/contagem ✅
+
+**Contexto:** conversa real mostrou o bot listando só 4 dos 7 bairros reais desse tenant
+("em quais cidades e bairros vocês têm imóveis?"), sempre os mesmos, porque `buscar_imovel`
+(`max_rows=5`, mesmo com paginação) só enumera categorias que aparecem nos primeiros IDs — um
+bairro como Piedade (6 imóveis, ids mais altos) nunca surgia, mesmo tendo mais itens que Estância
+(1 imóvel). Paginação resolve "ver mais itens", não "enumerar todas as categorias distintas" — são
+problemas diferentes.
+
+**Desafio do usuário:** resolver isso genericamente pra QUALQUER segmento (saúde, carros,
+produtos...) sem nenhuma linha hardcoded — o "campo agrupador" muda por segmento (bairro, marca,
+especialidade, categoria) e o código nunca pode saber esse nome de antemão.
+
+**Implementado — mesmo padrão de opt-in já usado em `is_comparable`/`is_image`/`is_group_header`:**
+1. Novo flag `is_groupable` em `EntityColumn` (`genericResolver.ts`) — Master marca por coluna,
+   em qualquer entidade de qualquer segmento. O código só filtra pela flag, nunca lê o nome da
+   coluna.
+2. `aggregateEntity()` — nova função que roda `SELECT <campo>, count(*) GROUP BY <campo> ORDER BY
+   count DESC LIMIT 30` sobre a entidade, reaproveitando os MESMOS filtros/escopo de tenant já
+   usados em `resolveEntity` (extraído pra `buildWhereClause()` compartilhado). Resolve o nome
+   legível via `buildGroupExpr()` quando o campo é uma FK com lookup (ex.: fabricante_fk →
+   fabricantes.nome) — mesma mecânica já usada pra colunas normais.
+3. `getToolsForSegment` — qualquer entidade com ≥1 coluna `is_groupable` ganha automaticamente a
+   ferramenta `agrupar_<entidade>`, ao lado de `buscar_`/`comparar_` — zero código novo por
+   segmento. Descrição da ferramenta orienta o LLM a usá-la só pra perguntas exploratórias
+   ("em quais X vocês têm"), não pra ver itens individuais (aí é `buscar_`).
+4. `botAdapter.ts` — novo ramo no loop de tool-use pra `agrupar_*`, separado do fluxo de linhas
+   normal (sem foto/cabeçalho/paginação, que não fazem sentido pra uma contagem por categoria).
+
+**Migração:** `prisma/migration-2026-07-14-mensageria-bot-is-groupable.sql` marca `bairro` como
+`is_groupable:true` na entidade `imovel` — único campo aplicado nesta rodada; outros segmentos
+precisam da mesma curadoria (Master marca o campo relevante deles) quando forem ativados.
+
+**Testado ao vivo, tenant real (37 imóveis, 7 bairros):** pergunta exata reportada ("em quais
+cidades e bairros vocês têm imóveis?") → bot listou os 7 bairros reais com as contagens EXATAS
+(Imbiribeira 20, Piedade 6, Boa Viagem 6, Ipsep 2, Estância 1, Madalena 1, Cordeiro 1) —
+conferido via SQL direto, bate 100% · Piedade e Cordeiro, que nunca apareciam antes, agora
+aparecem corretamente · drill-down testado em seguida ("me mostra os imóveis de Piedade") →
+`buscar_imovel` funcionando normalmente, achou os 6 imóveis reais de Piedade (bairro que antes
+era invisível pro bot) · round-trip real `GET/PUT /data-entities` confirma o flag sobrevivendo ao
+ciclo salvar-pela-tela · `npx tsc --noEmit` limpo nos 4 arquivos tocados.
 
 ---
 
