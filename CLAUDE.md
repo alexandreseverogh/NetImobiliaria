@@ -20,6 +20,30 @@ ao fim de cada sessão — mas depende de Claude ter atualizado o arquivo durant
 
 ---
 
+## ⚠️ Regra Obrigatória — Coordenação com outros agentes de IA (`docs/AI_SYNC.md`)
+
+Este repositório pode ter **mais de um agente de IA trabalhando em paralelo** (Claude, Antigravity,
+etc.), possivelmente cada um numa branch/diretório de trabalho diferente.
+
+**No início de TODA sessão**, antes de qualquer edição de código:
+1. Ler `docs/AI_SYNC.md` por completo — ele registra qual agente está ativo, em qual branch, e
+   quais arquivos/áreas do código estão sendo mexidos por outro agente naquele momento.
+2. Rodar `git branch --show-current` e `git status --short` — nunca assumir que a branch/estado
+   atual é o mesmo do início da sessão anterior; a branch pode ter sido trocada por outro agente
+   ou pelo usuário fora desta sessão.
+3. Se `AI_SYNC.md` indicar que outro agente está ativo numa área do código, evitar tocar nela —
+   e, se for inevitável, avisar o usuário antes de prosseguir.
+4. Ao concluir uma tarefa relevante pra coordenação (nova branch criada, área do código que passa
+   a estar "livre"), atualizar `docs/AI_SYNC.md` com um novo registro de atividade, no mesmo
+   formato dos registros existentes.
+
+**Nunca** trocar de branch (`git checkout`/`git switch`) nem rodar operações destrutivas
+(`reset --hard`, `clean`, force-push) num diretório onde outro agente possa ter alterações não
+commitadas — preferir um `git worktree` separado pra qualquer operação que precise de uma branch
+diferente da que já está checked-out no diretório atual.
+
+---
+
 ## Documentação de referência
 
 @docs/CHECKPOINT.md — Estado atual do projeto: última tarefa, em andamento, próximos passos.
