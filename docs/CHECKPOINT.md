@@ -1,8 +1,49 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (ORDER BY determinístico no resolver — resolve inconsistência entre chamadas repetidas na mesma conversa)
+> **Atualizado em:** 2026-07-14 (paginação real no bot — "mostrar mais" via parâmetro `pagina`, sem depender de página externa)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-14 (continuação 9) — Paginação genérica no bot ("mostrar mais") ✅
+
+**Contexto:** investigando uma conversa real onde o bot só citava 1 imóvel por bairro com dados
+pobres, achamos a causa: o tenant tem 37 imóveis reais em 7 bairros, mas `max_rows` da entidade
+`imovel` é 5 — toda consulta sem filtro específico só via 5 linhas no total. Cogitamos um link pra
+uma página pública externa ("ver todos aqui"), mas investigação revelou que a única página pública
+existente (`/landpaging`) agrega TODOS os tenants do segmento junto, sem parâmetro de escopo por
+tenant — mandar o visitante pra lá vazaria imóveis de concorrentes. Descartado por ora; decisão do
+usuário: implementar só paginação dentro do próprio chat.
+
+**Implementado — genérico, zero hardcode por segmento:**
+1. `resolveEntity()` (`genericResolver.ts`) — passa a aceitar `pagina` (1-based, vindo do LLM) e
+   retorna `{ rows, totalCount, page, pageSize }` em vez de array cru. `totalCount` vem de um
+   `COUNT(*)` companheiro (mesmo WHERE, sem LIMIT/OFFSET) — é o que permite o bot saber que existem
+   mais resultados além dos mostrados. `OFFSET` usa a MESMA `ORDER BY` determinística da sessão
+   anterior — sem isso, a página 2 poderia repetir ou pular itens da página 1.
+2. Novo parâmetro `pagina` injetado automaticamente em toda ferramenta `buscar_<entidade>`
+   (`addPaginationParam`) — deliberadamente NÃO adicionado em `comparar_<entidade>` (comparação
+   precisa varrer o conjunto de candidatos inteiro pra achar o vencedor real; paginar quebraria a
+   conta).
+3. `botAdapter.ts` — quando `totalCount` > o que foi mostrado, injeta um aviso explícito no
+   `tool_result` com a contagem real e instrução de perguntar se o visitante quer ver mais,
+   chamando a MESMA ferramenta de novo com `pagina` incrementada.
+4. `compareEntity` ajustado pro novo formato de retorno de `resolveEntity` (`{ rows }` em vez de
+   array direto) — sem mudança de comportamento nele.
+
+**Testado ao vivo, tenant real com 20 imóveis em Imbiribeira:** 1ª pergunta ("quais imóveis vocês
+têm na Imbiribeira?") → 5 imóveis com TODOS os campos (preço, quartos, banheiros, vagas — antes
+vinha só o título) + "Você gostaria de ver mais opções?" · "sim, mostra mais" → 5 imóveis
+COMPLETAMENTE DIFERENTES dos primeiros (página 2 real, sem repetição) + oferece mais de novo,
+confirmando que ainda há mais além da página 2. `npx tsc --noEmit` limpo nos 2 arquivos tocados.
+
+**Nota da 2ª parte do problema original (respostas "pobres"):** não era um bug separado — era
+consequência direta do `max_rows=5` forçando o LLM a resumir muitos bairros numa resposta minúscula.
+Com a paginação, cada resposta agora cobre só 1 bairro/consulta por vez com todos os campos —
+resolvido como efeito colateral, sem mudança nenhuma na lógica de formatação.
 
 ---
 
