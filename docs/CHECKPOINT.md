@@ -1,8 +1,56 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-14 (ferramenta genérica `agrupar_<entidade>` — cálculo sai do LLM)
+> **Atualizado em:** 2026-07-15 (bot mais confiável e genérico — comparação de modelos LLM pra tool-calling)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-15 — Guard-rail "nunca responder sem consultar" + comparação de modelos LLM ⚠️
+
+**Bug real reportado (conversa colada):** na mesma conversa, o bot afirmou corretamente que
+existem imóveis em Piedade (via `agrupar_imovel`) e, pouco depois, negou a existência desses
+mesmos imóveis quando perguntado diretamente ("não encontramos imóveis em Piedade"). Investigação
+com instrumentação temporária (log de `call.name`/`call.input`, revertido depois) confirmou: em
+ambos os casos (o relatado e minha reprodução), a causa é o LLM **simplesmente não chamar
+nenhuma ferramenta** naquele turno específico e responder "não encontramos" do nada — aleatório,
+não ligado a uma pergunta específica.
+
+**Mitigação implementada (código, `botAdapter.ts`):** novo guard-rail permanente
+`NEVER_ANSWER_WITHOUT_TOOL_GUARDRAIL`, complementar ao `TOOL_GUARDRAIL` já existente (que cobre o
+risco oposto — chamar ferramenta sem relação real com a pergunta): proíbe afirmar
+"não encontramos"/"não temos" sem ter acabado de consultar a ferramenta correspondente NESTE
+turno. **Testado honestamente: NÃO resolveu sozinho** — bateria de 3 rodadas (9 perguntas) com o
+guard-rail ativo ainda teve ~4-5 falhas do mesmo tipo. Confirma, com dado concreto, que texto de
+instrução tem um teto real contra esse tipo de falha — não é um problema de prompt mal escrito.
+
+**Comparação de modelos LLM feita ao vivo, mesma bateria de perguntas, todos free-tier:**
+
+| Provider/Modelo | Resultado |
+|---|---|
+| Groq `llama-4-scout-17b` (original) | Às vezes pula a chamada de ferramenta (bug acima) |
+| Groq `llama-3.3-70b-versatile` | NÃO usa tool-calling estruturado da API — escreve a chamada como texto solto (`<function.x>`), pior que o Scout pra esse fim |
+| Groq `openai/gpt-oss-120b` | Inventa nomes de ferramenta com erro de digitação (`agrupart_imovel`) → API rejeita com 400, turno inteiro falha |
+| Groq `moonshotai/kimi-k2-instruct-0905` | Não disponível nesta conta Groq (confirmado via `/v1/models` — retorna vazio pra qualquer termo kimi/moonshot) |
+| Kimi/Moonshot direto (conta internacional do usuário) | Chave válida mas conta suspensa por saldo insuficiente (`platform.moonshot.ai`) — nosso catálogo apontava pro endpoint errado (`.cn`, China), corrigível mas não testado a fundo por causa do saldo |
+| Google `gemini-flash-latest` | Chave já provisionada (`GEMINI_API_KEY`) funciona (`gemini-2.5-flash` e `gemini-2.0-flash-001` falharam por indisponibilidade/cota=0 nesta conta espec[ifica) — mas API do Google retornando `503 UNAVAILABLE` (sobrecarga temporária do lado deles, confirmado 3x direto na origem, sem passar pelo nosso código) no momento do teste — não foi possível concluir a bateria completa |
+
+**Estado final desta sessão:** revertido pra `groq`/`llama-4-scout-17b-16e-instruct` (o mais
+estável dos 3 testados no Groq, apesar do bug original ainda existir probabilisticamente) — chave
+Groq restaurada e conexão reconfirmada. Gemini fica como próximo candidato a retestar quando a
+sobrecarga do Google passar; catálogo (`LlmModel`) já tem `gemini-flash-latest`,
+`moonshotai/kimi-k2-instruct-0905` (Groq) e `openai/gpt-oss-120b` (Groq) cadastrados pra uso
+futuro sem precisar de nova migração.
+
+**Migrações aplicadas:** `migration-2026-07-15-llmmodel-kimi-k2-groq.sql`,
+`migration-2026-07-15-llmmodel-gpt-oss-120b-groq.sql`,
+`migration-2026-07-15-llmmodel-gemini-flash-latest.sql`.
+
+**Nota de segurança:** o usuário colou 2 API keys reais em texto puro no chat durante esta sessão
+(Kimi/Moonshot e Groq) — recomendado ao usuário rotacionar/revogar ambas por precaução, já que
+ficaram registradas na transcrição da conversa.
 
 ---
 
