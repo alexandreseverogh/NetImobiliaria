@@ -15,6 +15,20 @@ const nextConfig = {
   // Configurações de imagens
   images: {
     remotePatterns: [
+      // MinIO local (armazenamento de fotos de imóveis, ver src/lib/storage/s3-client.ts) —
+      // sem isso, o otimizador de imagem do Next bloqueia silenciosamente qualquer foto vinda
+      // de localhost:9000, deixando o card do imóvel com o espaço da imagem em branco (bug real
+      // reportado: fotos existem de verdade no MinIO e carregam via curl, só o Next as recusava).
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '9000',
+      },
+      {
+        protocol: 'http',
+        hostname: '127.0.0.1',
+        port: '9000',
+      },
       // Imagens gerais
       {
         protocol: 'https',
