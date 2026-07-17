@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS mensageria.knowledge_chunks (
   chunk_index int NOT NULL DEFAULT 0,
   heading_path text,                                -- "Vendas > Financiamento" (retrieval contextual)
   chunk_text text NOT NULL,                          -- texto JÁ com o prefixo de heading_path
-  embedding vector(1536),                            -- text-embedding-3-small (dim fixa; trocar modelo de outra dim exige ALTER + re-embed)
+  embedding vector(768),                             -- Gemini gemini-embedding-001 truncado p/ 768 dims (Matryoshka; dim fixa — trocar modelo/dim exige ALTER + re-embed)
   tsv tsvector GENERATED ALWAYS AS (to_tsvector('portuguese', chunk_text)) STORED,
   created_at timestamptz NOT NULL DEFAULT now()
 );

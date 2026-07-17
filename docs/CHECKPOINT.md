@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-16 (M4.3 RAG em andamento — Fase 0 pgvector + Fase 1 schema concluídas)
+> **Atualizado em:** 2026-07-17 (M4.3 RAG em andamento — Fases 0-4 concluídas: schema, embedding, ingestão markdown, busca híbrida + ferramenta do bot testada ao vivo)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -17,8 +17,9 @@ markdown como fonte-da-verdade + import de PDF/DOCX · embedding via API barata
 (`text-embedding-3-small`) · UI editável pelo **admin do tenant** (não Master), com o tenant
 editando a KB dele E a dos clientes sob seu guarda-chuva · escopo tenant/cliente forçado no servidor.
 
-**Fases:** 0 infra pgvector ✅ · 1 schema ✅ · 2 embedding (factory+Settings) · 3 ingestão
-(markdown+PDF→chunk→embed) · 4 recuperação híbrida + ferramenta · 5 UI · 6 testes · 7 deploy VPS.
+**Fases:** 0 infra pgvector ✅ · 1 schema ✅ · 2 embedding (factory+Settings) ✅ · 3 ingestão
+(markdown→chunk→embed) ✅ (PDF/DOCX import fica pra depois) · 4 recuperação híbrida + ferramenta ✅
+· 5 UI (admin do tenant gerenciar a KB) · 6 testes de carga/qualidade · 7 deploy VPS.
 
 - **Fase 0 ✅** — pgvector 0.8.0. Escolhido **build próprio sobre alpine** (`docker/postgres/
   Dockerfile`, `with_llvm=no`) em vez da imagem oficial Debian, pra evitar o gotcha de collation
@@ -27,8 +28,61 @@ editando a KB dele E a dos clientes sob seu guarda-chuva · escopo tenant/client
   branch atualizado pra buildar do Dockerfile. **Pendência VPS:** aplicar o mesmo em
   `docker-compose.vps.yml` + `deploy.sh` (Fase 7).
 - **Fase 1 ✅** — `prisma/migration-2026-07-16-mensageria-rag.sql` aplicada: `knowledge_documents`
-  (fonte editável) + `knowledge_chunks` (vector(1536) + tsv gerado 'portuguese' + índices HNSW/GIN/
-  escopo). Smoke test de distância cosseno OK.
+  (fonte editável) + `knowledge_chunks` (tsv gerado 'portuguese' + índices HNSW/GIN/escopo).
+  Smoke test de distância cosseno OK. **Ajuste nesta rodada:** usuário escolheu **Gemini** como
+  provider de embedding (não `text-embedding-3-small` da OpenAI, cogitado no plano original) — a
+  tabela ainda estava vazia (zero chunks), então a coluna `embedding` foi corrigida direto pra
+  `vector(768)` (dim do Gemini) via `ALTER COLUMN` + o comentário do SQL atualizado, sem migração
+  de dado nenhuma.
+- **Fase 2 ✅** — `embedText(text, tenantId?)` em `llmClient.ts`. **Bug real pego ao vivo, não
+  hipotético:** a 1ª tentativa usou `text-embedding-004` via endpoint OpenAI-compatible do
+  Gemini (mesmo baseURL já usado pro chat) — 404 real (`ListModels` da conta confirmou que esse
+  modelo não existe mais pra essa API key; só `gemini-embedding-001`/`-2-preview`/`-2` disponíveis).
+  Corrigido pra `gemini-embedding-001` via **REST nativo** do Gemini (não o layer OpenAI-compat —
+  ele não expõe `outputDimensionality`), com `outputDimensionality: 768` (truncamento Matryoshka
+  nativo do modelo, não um corte cru do vetor) — confirmado ao vivo via curl direto na API do
+  Google que retorna exatamente 768 valores reais. Cascata de chave: Settings do tenant com
+  `llmProvider='gemini'` → `GEMINI_API_KEY` do `.env` (fallback global) — embedding é uma escolha
+  técnica de infra, deliberadamente independente do provider de CHAT configurado por tenant (que
+  hoje é Groq pra maioria).
+- **Fase 3 ✅ (markdown; PDF/DOCX pendente)** — `src/lib/mensageria/tools/knowledgeBase.ts`:
+  `chunkMarkdown()` quebra por heading (# a ######, pilha de níveis, `heading_path` tipo
+  "Vendas > Financiamento") + teto de 1200 chars por chunk (split por parágrafo, sem cortar
+  palavra no meio); `regenerateChunks(documentId)` apaga+re-gera+re-embeda tudo numa transação,
+  chamado a cada save do documento (POST/PUT). API `src/app/api/admin/mensageria/knowledge/
+  route.ts` + `[id]/route.ts` (CRUD, mesmo padrão de auth/estilo de `labels/route.ts`).
+- **Fase 4 ✅** — `searchKnowledge()`: busca híbrida (`1 - cosine_distance` peso 0.7 +
+  `ts_rank` peso 0.3, capado em 1), escopo tenant+cliente forçado no SQL (`client_id IS NULL OR
+  client_id = $clientId` — herança tenant→cliente igual inboxes/bot_flows; `$clientId` nulo já
+  restringe sozinho a só docs tenant-wide via semântica de NULL do SQL, sem caso especial).
+  `hasKnowledgeBase()` faz a ferramenta `buscar_conhecimento` só aparecer pro LLM quando o
+  tenant/cliente TEM pelo menos 1 documento ativo (mesmo princípio das ferramentas de dados
+  estruturados — nunca oferecer ferramenta sempre vazia). Ramo próprio no loop de tool-use do
+  `botAdapter.ts` (não mexe no fluxo de linhas/fotos/paginação das outras ferramentas), com aviso
+  explícito nos dados pro LLM nunca completar com conhecimento geral quando o trecho não cobrir a
+  pergunta exatamente.
+
+**Testado ao vivo, ponta a ponta** (tenant Marketing Digital, servidor dev do próprio worktree em
+`:3051` — não o `:3002`/App principal, que monta o código do OUTRO agente na `net-imobiliaria`):
+documento real "Política de Garantia" (90 dias + como acionar) → 2 chunks reais gerados, 768 dims
+confirmadas via `vector_dims()` no Postgres · pergunta que a KB cobre ("vocês dão garantia... como
+funciona?") → bot respondeu citando os 90 dias e o fluxo de acionamento exatamente como cadastrado
+· pergunta que a KB NÃO cobre ("reembolso em até 30 dias?") → bot recusou honestamente
+("não tenho certeza... falar com um atendente"), sem inventar uma política · dado de teste
+removido depois (`DELETE`, cascata de chunks confirmada por `COUNT(*) = 0`) · `npx tsc --noEmit`
+limpo em todos os arquivos tocados (erros remanescentes são baseline pré-existente, não relacionados).
+
+**Achado operacional (multi-agente):** `preview_start` com config nomeada do `.claude/launch.json`
+resolve relativo ao diretório principal da sessão (`net-imobiliaria`), não ao worktree onde estou
+trabalhando — mesmo apontando pro `launch.json` certo, o servidor que sobe roda o código do OUTRO
+agente (confirmado por um erro de stack trace apontando pra `net-imobiliaria\.next\...`). Pra
+testar código deste worktree, é preciso subir o `next dev` manualmente nele, numa porta dedicada
+(usei 3051, já que 3050 também está reservado no `launch.json` local e pode colidir).
+
+**Próximos passos:** Fase 5 (UI em `/mensageria/config/conhecimento` pro admin do tenant
+gerenciar a KB — criar/editar/desativar documentos, sem precisar de curl) · avaliar import de
+PDF/DOCX (Fase 3, deixado de fora por ora) · Fase 6 testes de qualidade com mais documentos reais
+· Fase 7 deploy VPS (pgvector na imagem + `GEMINI_API_KEY` no ambiente de produção).
 
 **⚠️ Nota de persistência (dev):** o container roda agora com `netimob-postgres:17-pgvector` (setado
 inline no recreate). Até esta branch mergear em `main`, um `docker compose up` do diretório

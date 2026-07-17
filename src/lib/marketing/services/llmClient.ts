@@ -338,3 +338,59 @@ export async function getAnthropicClient(tenantId?: string | null) {
   const client = await getLlmClient(tenantId);
   return { client: null as any, model: client.model, _llmClient: client };
 }
+
+// 'text-embedding-004' foi descontinuado pelo Google (confirmado ao vivo: 404 no endpoint
+// OpenAI-compatible, ausente do ListModels da conta) — sucessor estável é gemini-embedding-001.
+// outputDimensionality:768 usa a representação Matryoshka do modelo (truncamento nativo, não um
+// corte cru do vetor) pra bater com a coluna vector(768) do schema — confirmado ao vivo (768
+// valores reais retornados). Chamada via REST nativo do Gemini (não o OpenAI-compat layer):
+// é o único jeito de passar outputDimensionality; o endpoint OpenAI-compat não expõe esse campo.
+const GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
+const GEMINI_EMBEDDING_DIMENSIONS = 768;
+
+/**
+ * Gera o embedding vetorial de um texto via Gemini gemini-embedding-001 (768 dims — M4.3 RAG).
+ * Fixo em Gemini independente do provider de CHAT configurado pro tenant (embedding é uma
+ * escolha técnica de infra, não uma preferência de negócio) — cascata de chave: Settings do
+ * tenant com provider='gemini' → GEMINI_API_KEY do .env (fallback global).
+ */
+export async function embedText(text: string, tenantId?: string | null): Promise<number[]> {
+  let apiKey = process.env.GEMINI_API_KEY || '';
+
+  if (tenantId) {
+    try {
+      const res = await getPool().query(
+        `SELECT "llmApiKey" FROM campanhasmarketingdigital."Settings"
+         WHERE tenant_id = $1::uuid AND "llmProvider" = 'gemini' LIMIT 1`,
+        [tenantId]
+      );
+      if (res.rows[0]?.llmApiKey) apiKey = res.rows[0].llmApiKey;
+    } catch {
+      // fallback pro GEMINI_API_KEY do env já atribuído acima
+    }
+  }
+
+  if (!apiKey) {
+    throw new Error('Nenhuma chave Gemini disponível para gerar embeddings (configure GEMINI_API_KEY ou o provider "gemini" nas Configurações do tenant).');
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EMBEDDING_MODEL}:embedContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: { parts: [{ text }] },
+      outputDimensionality: GEMINI_EMBEDDING_DIMENSIONS,
+    }),
+  });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`Gemini embedContent falhou (${res.status}): ${errBody.slice(0, 300)}`);
+  }
+  const json: any = await res.json();
+  const embedding: number[] | undefined = json?.embedding?.values;
+  if (!embedding || embedding.length !== GEMINI_EMBEDDING_DIMENSIONS) {
+    throw new Error(`Embedding Gemini retornou dimensão inesperada (${embedding?.length ?? 0}, esperado ${GEMINI_EMBEDDING_DIMENSIONS}).`);
+  }
+  return embedding;
+}

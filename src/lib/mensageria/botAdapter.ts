@@ -11,8 +11,9 @@ import { resolveSegment } from '@/lib/intelligence/segmentResolver'
 import { resolvePromptTemplate } from '@/lib/intelligence/promptResolver'
 import { renderPrompt } from '@/lib/intelligence/promptRenderer'
 import { getLlmClientForCampaigns } from '@/lib/marketing/services/llmClient'
-import type { LlmMessage } from '@/lib/marketing/services/llmClient'
+import type { LlmMessage, LlmToolDef } from '@/lib/marketing/services/llmClient'
 import { getToolsForSegment, resolveEntity, compareEntity, aggregateEntity, type SegmentDataEntity } from '@/lib/mensageria/tools/genericResolver'
+import { hasKnowledgeBase, searchKnowledge } from '@/lib/mensageria/tools/knowledgeBase'
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import { sendEvolutionMessage, sendEvolutionMedia, type EvolutionInboxConfig } from '@/lib/mensageria/channels/evolutionSend'
 
@@ -235,6 +236,25 @@ async function runBotReply(
   // fica obsoleto). Nunca vira mensagem visível na thread, só é lido pelo LLM.
   if (extraContext) persona += `\n\n- Contexto da página atual: ${extraContext}`
   const { tools, entities, compareEntities, aggregateEntities } = await getToolsForSegment(segment?.id ?? null, tenantId)
+
+  // Ferramenta de RAG (M4.3) — só aparece quando o tenant/cliente TEM alguma base de
+  // conhecimento cadastrada (mesmo princípio das ferramentas de dados estruturados: nada de
+  // ferramenta "sempre presente e sempre vazia", que só engana o LLM a tentar usá-la à toa).
+  const knowledgeAvailable = await hasKnowledgeBase(tenantId, clientId)
+  if (knowledgeAvailable) {
+    tools.push({
+      name: 'buscar_conhecimento',
+      description: 'Busca em políticas, condições comerciais, FAQ e outros textos livres cadastrados pela empresa (regras, prazos, formas de pagamento, garantias etc.) — use para perguntas sobre COMO funciona algo ou QUAIS são as regras/condições, não para dados de itens específicos (isso é outra ferramenta).',
+      parameters: {
+        type: 'object',
+        properties: {
+          pergunta: { type: 'string', description: 'A pergunta do visitante, no formato mais próximo possível do que ele perguntou.' },
+        },
+        required: ['pergunta'],
+      },
+    })
+  }
+
   const history = await loadHistory(conversationId)
   const llm = await getLlmClientForCampaigns()
 
@@ -261,6 +281,7 @@ async function runBotReply(
     const validNames = new Set<string>(
       Array.from(entities.keys()).concat(Array.from(compareEntities.keys()), Array.from(aggregateEntities.keys())),
     )
+    if (knowledgeAvailable) validNames.add('buscar_conhecimento')
     const toolCalls = rawToolCalls.filter((c) => validNames.has(c.name))
     const invalidCalls = rawToolCalls.filter((c) => !validNames.has(c.name))
     if (invalidCalls.length > 0) {
@@ -274,6 +295,34 @@ async function runBotReply(
       const cmpEntity = compareEntities.get(call.name)
       const aggEntity = aggregateEntities.get(call.name)
       const activeEntity = entity ?? cmpEntity
+
+      if (call.name === 'buscar_conhecimento') {
+        // RAG — busca híbrida sobre markdown livre, escopo de tenant/cliente forçado no
+        // servidor (searchKnowledge). Ramo próprio: não tem linhas/fotos/paginação, o
+        // resultado já é o texto pronto pra citar.
+        try {
+          const pergunta = typeof call.input?.pergunta === 'string' ? call.input.pergunta : ''
+          const results = await searchKnowledge(tenantId, clientId, pergunta || '', 5)
+          if (results.length === 0) {
+            messages.push({
+              role: 'tool_result', toolCallId: call.id,
+              content: JSON.stringify({ aviso: 'Nada foi encontrado na base de conhecimento sobre isso. NÃO afirme uma regra/condição que não veio aqui; diga que não tem essa informação e sugira falar com um atendente.' }),
+            })
+          } else {
+            messages.push({
+              role: 'tool_result', toolCallId: call.id,
+              content: JSON.stringify({
+                aviso: 'Use APENAS o texto abaixo pra responder sobre políticas/condições/regras — nunca invente ou complete com conhecimento geral. Se o texto não cobrir exatamente o que foi perguntado, diga que não tem certeza e sugira falar com um atendente.',
+                trechos: results.map((r) => ({ documento: r.documentTitle, secao: r.headingPath, texto: r.text })),
+              }),
+            })
+          }
+        } catch (err) {
+          messages.push({ role: 'tool_result', toolCallId: call.id, content: JSON.stringify({ error: 'Falha ao consultar a base de conhecimento.' }) })
+          console.error('[mensageria/botAdapter] falha na ferramenta', call.name, err)
+        }
+        continue
+      }
 
       if (aggEntity) {
         // Agrupamento/contagem: não é uma listagem de itens (sem foto, sem cabeçalho de cartão,
