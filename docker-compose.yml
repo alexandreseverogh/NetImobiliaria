@@ -21,10 +21,12 @@ services:
       retries: 5
 
   db:
-    # Dica: se o seu banco pré-docker é Postgres 17 (ex.: dump gerado em 17.x),
-    # use POSTGRES_IMAGE=postgres:17-alpine no seu .env / ambiente.
-    # Padronizado: Postgres 17 (mesma versão do schema/backups atuais)
-    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    # Postgres 17 (alpine) + pgvector, buildado de docker/postgres/Dockerfile (M4.3 RAG).
+    # Mantém a base alpine/musl do data-dir existente (sem risco de collation da troca musl→glibc
+    # que a imagem oficial pgvector/pgvector, Debian, traria). POSTGRES_IMAGE ainda permite override.
+    build:
+      context: ./docker/postgres
+    image: ${POSTGRES_IMAGE:-netimob-postgres:17-pgvector}
     container_name: netimobiliaria-db
     restart: unless-stopped
     environment:

@@ -1,8 +1,40 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-15 (sidebar: removido item duplicado "Chatbot" + coordenação multi-agente com Antigravity)
+> **Atualizado em:** 2026-07-16 (M4.3 RAG em andamento — Fase 0 pgvector + Fase 1 schema concluídas)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Tarefa em andamento
+
+### M4.3 — RAG / Base de Conhecimento (branch `feature/mensageria-rag`, worktree `netimob-cherrypick`)
+
+Plano completo discutido e travado com o usuário (`docs/PLANO_MENSAGERIA.md` §14.6-B). Decisões:
+pgvector (não banco vetorial dedicado) · chunking estrutural por cabeçalho + retrieval contextual
+· busca híbrida (vetor + full-text) · KB = mais uma ferramenta do bot (`buscar_conhecimento`) ·
+markdown como fonte-da-verdade + import de PDF/DOCX · embedding via API barata
+(`text-embedding-3-small`) · UI editável pelo **admin do tenant** (não Master), com o tenant
+editando a KB dele E a dos clientes sob seu guarda-chuva · escopo tenant/cliente forçado no servidor.
+
+**Fases:** 0 infra pgvector ✅ · 1 schema ✅ · 2 embedding (factory+Settings) · 3 ingestão
+(markdown+PDF→chunk→embed) · 4 recuperação híbrida + ferramenta · 5 UI · 6 testes · 7 deploy VPS.
+
+- **Fase 0 ✅** — pgvector 0.8.0. Escolhido **build próprio sobre alpine** (`docker/postgres/
+  Dockerfile`, `with_llvm=no`) em vez da imagem oficial Debian, pra evitar o gotcha de collation
+  musl→glibc (que exigiria REINDEX). Container `netimobiliaria-db` recriado reusando o volume
+  `net-imobiliaria_db_data` (dados intactos: 37 imóveis confirmados). `docker-compose.yml` da
+  branch atualizado pra buildar do Dockerfile. **Pendência VPS:** aplicar o mesmo em
+  `docker-compose.vps.yml` + `deploy.sh` (Fase 7).
+- **Fase 1 ✅** — `prisma/migration-2026-07-16-mensageria-rag.sql` aplicada: `knowledge_documents`
+  (fonte editável) + `knowledge_chunks` (vector(1536) + tsv gerado 'portuguese' + índices HNSW/GIN/
+  escopo). Smoke test de distância cosseno OK.
+
+**⚠️ Nota de persistência (dev):** o container roda agora com `netimob-postgres:17-pgvector` (setado
+inline no recreate). Até esta branch mergear em `main`, um `docker compose up` do diretório
+principal (branch do Antigravity, ainda com default `postgres:17-alpine`) reverteria a imagem —
+setar `POSTGRES_IMAGE=netimob-postgres:17-pgvector` no `.env` do docker, ou não recriar o db sem
+essa var, até o merge.
 
 ---
 
