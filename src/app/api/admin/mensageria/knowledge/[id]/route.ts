@@ -17,7 +17,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     [id, payload.tenantId],
   )
   if (rows.length === 0) return NextResponse.json({ error: 'Documento não encontrado' }, { status: 404 })
-  return NextResponse.json({ document: rows[0] })
+  const r = rows[0]
+  return NextResponse.json({
+    document: {
+      id: r.id, clientId: r.client_id, title: r.title, sourceType: r.source_type,
+      rawMarkdown: r.raw_markdown, originalFilename: r.original_filename,
+      isActive: r.is_active, updatedAt: r.updated_at,
+    },
+  })
 }
 
 /** PUT /api/admin/mensageria/knowledge/[id] — atualiza e REGENERA os chunks/embeddings */

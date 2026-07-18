@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   if (!payload?.tenantId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   const { rows } = await pool.query(
-    `SELECT d.id, d.client_id, c.name AS client_name, d.title, d.source_type, d.original_filename,
+    `SELECT d.id, d.client_id, c.nome AS client_name, d.title, d.source_type, d.original_filename,
             d.is_active, d.updated_at,
             (SELECT count(*) FROM mensageria.knowledge_chunks k WHERE k.document_id = d.id) AS chunk_count
        FROM mensageria.knowledge_documents d
@@ -20,7 +20,13 @@ export async function GET(request: NextRequest) {
       ORDER BY d.updated_at DESC`,
     [payload.tenantId],
   )
-  return NextResponse.json({ documents: rows })
+  return NextResponse.json({
+    documents: rows.map((r) => ({
+      id: r.id, clientId: r.client_id, clientName: r.client_name, title: r.title,
+      sourceType: r.source_type, originalFilename: r.original_filename,
+      isActive: r.is_active, updatedAt: r.updated_at, chunkCount: Number(r.chunk_count),
+    })),
+  })
 }
 
 /** POST /api/admin/mensageria/knowledge — cria documento. Body: { title, rawMarkdown, clientId? } */

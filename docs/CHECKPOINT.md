@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-17 (M4.3 RAG em andamento — Fases 0-4 concluídas: schema, embedding, ingestão markdown, busca híbrida + ferramenta do bot testada ao vivo)
+> **Atualizado em:** 2026-07-18 (M4.3 RAG em andamento — Fase 5 concluída: UI de gestão da KB pelo tenant, 2 bugs reais de convenção pegos e corrigidos ao testar)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -79,10 +79,60 @@ agente (confirmado por um erro de stack trace apontando pra `net-imobiliaria\.ne
 testar código deste worktree, é preciso subir o `next dev` manualmente nele, numa porta dedicada
 (usei 3051, já que 3050 também está reservado no `launch.json` local e pode colidir).
 
-**Próximos passos:** Fase 5 (UI em `/mensageria/config/conhecimento` pro admin do tenant
-gerenciar a KB — criar/editar/desativar documentos, sem precisar de curl) · avaliar import de
-PDF/DOCX (Fase 3, deixado de fora por ora) · Fase 6 testes de qualidade com mais documentos reais
-· Fase 7 deploy VPS (pgvector na imagem + `GEMINI_API_KEY` no ambiente de produção).
+**Fase 5 ✅ (UI de gestão da KB)** — nova aba **"Base de Conhecimento"** em `/mensageria/config`
+(mesmo padrão de abas já usado por Inboxes/Times/Etiquetas/SLA/Bot — **não** virou rota própria
+`/mensageria/config/conhecimento` do plano original de 2026-07-08; esse desenho já tinha sido
+abandonado na prática quando "Chatbot" virou a aba "Bot" em vez de feature/rota separada, então
+"Base de Conhecimento" seguiu o padrão real, não o documento desatualizado). CRUD completo:
+criar/editar/ativar-desativar/excluir documento, textarea em markdown monoespaçado, combobox de
+cliente com busca debounced (reaproveita `/clientes-search`, mesmo endpoint do combobox de Nova
+Conversa Manual) — vazio = vale pra todos os clientes do tenant. Lista mostra nº de trechos
+(chunks) e status ativo/inativo por documento. Nota na aba Bot aponta pra esta aba (persona fica
+no Editor de Prompts, regras/FAQ ficam aqui).
+
+**2 bugs reais pegos testando a API por trás da UI (não achados por inspeção, achados rodando de
+verdade)** — nenhum dos dois tinha aparecido nos testes anteriores porque a sessão anterior só
+testava via curl direto comparando com o schema já em `snake_case`, sem passar pelo contrato que o
+componente React realmente espera:
+1. `GET /knowledge` fazia `JOIN public.clientes c` selecionando `c.name` — coluna não existe
+   (schema em português usa `c.nome`). Erro real (`42703`) confirmado no log do dev server ao
+   testar a listagem pela primeira vez. Corrigido.
+2. As 2 rotas (`GET /knowledge` e `GET /knowledge/[id]`) devolviam as linhas **cruas do Postgres**
+   (`client_id`, `source_type`, `is_active` etc., snake_case) mas o componente React (seguindo a
+   convenção já usada em `inboxes/route.ts`) espera `camelCase` (`clientId`, `sourceType`,
+   `isActive`) — sem o mapeamento explícito, a UI exibiria tudo como `undefined`. Corrigido nas
+   duas rotas com mapeamento manual campo-a-campo, no mesmo padrão já usado por `inboxes/route.ts`
+   (`id: r.id, channelType: r.channel_type, ...`). `chunkCount` também precisou de `Number(...)`
+   — `count(*)` do Postgres volta como string via o driver `pg`.
+
+**Testado via API completa (curl), ciclo inteiro:** criar documento sem cliente → listar (campos
+certos, `clientName: null`) → buscar cliente real (`Alexandre Severo Soluções Tecnológicas`) →
+editar vinculando `clientId` → listar de novo (`clientName` populado corretamente) → deletar →
+cascata de chunks confirmada (`COUNT(*) = 0` nas duas tabelas). `npx tsc --noEmit` limpo em todos
+os arquivos tocados (grep filtrado, zero ocorrências).
+
+**Verificação visual no navegador NÃO foi possível nesta rodada** — mesma limitação já registrada
+repetidamente neste projeto (ver sessões de 2026-07-09 a 2026-07-14 no histórico deste arquivo):
+injetar um JWT fabricado localmente (cookie + localStorage) resolve pras rotas de API (que só
+confiam no payload do token), mas a página client-side chama `/api/admin/auth/me`, que faz lookup
+real do usuário no banco — um `userId` fabricado não existe, então a página redireciona pra
+`/admin/login` mesmo com cookie+token "válidos" (assinatura correta, usuário inexistente).
+Confirmado o redirecionamento real via `location.href` no navegador (`/admin/login?callbackUrl=
+%2Fmensageria%2Fconfig`), não um bug — comportamento correto de segurança. Confiança na
+renderização correta vem de: `tsc` limpo + API validada ponta a ponta com os MESMOS campos que o
+componente consome + revisão de código da estrutura JSX (mesmos padrões visuais já usados e
+aprovados nas outras 6 abas desta página).
+
+**Achado operacional (registrado antes, reconfirmado):** durante esta sessão o classificador de
+segurança do harness (Edit/Write/Bash) ficou intermitentemente indisponível por vários minutos
+seguidos — não é um problema do projeto, é uma instabilidade da própria ferramenta. Contornado
+esperando e tentando de novo (sem pular a revisão/teste por causa disso).
+
+**Próximos passos:** avaliar import de PDF/DOCX (Fase 3, deixado de fora por ora) · Fase 6 testes
+de qualidade com mais documentos reais/variados · Fase 7 deploy VPS (pgvector na imagem +
+`GEMINI_API_KEY` no ambiente de produção) · pendência de UX menor: a UI ainda não expõe reordenar/
+visualizar os chunks gerados de um documento (só o total) — suficiente pro MVP, mas útil pra
+depurar recuperação ruim no futuro.
 
 **⚠️ Nota de persistência (dev):** o container roda agora com `netimob-postgres:17-pgvector` (setado
 inline no recreate). Até esta branch mergear em `main`, um `docker compose up` do diretório

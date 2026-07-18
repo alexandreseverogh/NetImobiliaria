@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import {
   InboxStackIcon, UsersIcon, TagIcon, ChatBubbleBottomCenterTextIcon,
   ClockIcon, PlusIcon, TrashIcon, CheckCircleIcon, XCircleIcon, StarIcon, CpuChipIcon,
+  BookOpenIcon, PencilIcon, XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { adminFetch } from '@/lib/auth/adminFetch'
 
-type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla' | 'bot'
+type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla' | 'bot' | 'knowledge'
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'inboxes', label: 'Inboxes', icon: InboxStackIcon },
@@ -17,6 +18,7 @@ const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: st
   { id: 'canned', label: 'Respostas Rápidas', icon: ChatBubbleBottomCenterTextIcon },
   { id: 'sla', label: 'SLA', icon: ClockIcon },
   { id: 'bot', label: 'Bot', icon: CpuChipIcon },
+  { id: 'knowledge', label: 'Base de Conhecimento', icon: BookOpenIcon },
 ]
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -66,6 +68,7 @@ export default function MensageriaConfigPage() {
         {tab === 'canned' && <CannedTab />}
         {tab === 'sla' && <SlaTab />}
         {tab === 'bot' && <BotTab />}
+        {tab === 'knowledge' && <KnowledgeTab />}
       </div>
     </div>
   )
@@ -902,7 +905,8 @@ function BotTab() {
             instruções do bot são definidas por <strong>segmento de negócio</strong> pelo Master, na página{' '}
             <span className="font-mono text-slate-300">Editor de Prompts</span> (template{' '}
             <span className="font-mono text-slate-300">mensageria_bot_persona</span>). Cada segmento tem seu próprio
-            prompt; sem um específico, vale o global de fallback.
+            prompt; sem um específico, vale o global de fallback. Regras/políticas/FAQ ficam na aba{' '}
+            <span className="font-mono text-slate-300">Base de Conhecimento</span>, ao lado.
           </p>
         </div>
 
@@ -1040,6 +1044,242 @@ function BotTab() {
             {testing ? 'Enviando...' : 'Enviar'}
           </PrimaryButton>
         </div>
+      </Card>
+    </div>
+  )
+}
+
+// ============================================================================
+// Base de Conhecimento (M4.3 — RAG) — políticas/FAQ/condições comerciais em markdown,
+// consultadas pelo bot via busca híbrida (ferramenta buscar_conhecimento).
+// ============================================================================
+
+interface KnowledgeDoc {
+  id: string; clientId: string | null; clientName: string | null; title: string
+  sourceType: string; originalFilename: string | null; isActive: boolean; updatedAt: string
+  chunkCount: number
+}
+interface KnowledgeDocDetail {
+  id: string; clientId: string | null; title: string; sourceType: string
+  rawMarkdown: string; originalFilename: string | null; isActive: boolean; updatedAt: string
+}
+interface ClienteOption { id: string; nome: string }
+
+function KnowledgeTab() {
+  const [docs, setDocs] = useState<KnowledgeDoc[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | 'new' | null>(null)
+
+  const [title, setTitle] = useState('')
+  const [rawMarkdown, setRawMarkdown] = useState('')
+  const [isActive, setIsActive] = useState(true)
+  const [clientId, setClientId] = useState<string | null>(null)
+  const [clientName, setClientName] = useState<string | null>(null)
+  const [clientQuery, setClientQuery] = useState('')
+  const [clientMatches, setClientMatches] = useState<ClienteOption[]>([])
+
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [saveWarning, setSaveWarning] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const res = await adminFetch('/api/admin/mensageria/knowledge')
+      setDocs((await res.json()).documents || [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  // Busca de cliente com debounce — mesmo endpoint já usado no combobox de Nova Conversa Manual.
+  useEffect(() => {
+    if (clientQuery.trim().length < 2) { setClientMatches([]); return }
+    const handle = setTimeout(async () => {
+      const res = await adminFetch(`/api/admin/mensageria/clientes-search?q=${encodeURIComponent(clientQuery.trim())}`)
+      const data = await res.json()
+      setClientMatches((data.clientes || []).map((c: any) => ({ id: c.id, nome: c.nome })))
+    }, 350)
+    return () => clearTimeout(handle)
+  }, [clientQuery])
+
+  function resetForm() {
+    setTitle(''); setRawMarkdown(''); setIsActive(true)
+    setClientId(null); setClientName(null); setClientQuery(''); setClientMatches([])
+    setSaveError(''); setSaveWarning('')
+  }
+
+  function startNew() {
+    resetForm()
+    setEditingId('new')
+  }
+
+  async function startEdit(doc: KnowledgeDoc) {
+    resetForm()
+    setEditingId(doc.id)
+    const res = await adminFetch(`/api/admin/mensageria/knowledge/${doc.id}`)
+    const data = await res.json()
+    const d: KnowledgeDocDetail = data.document
+    setTitle(d.title)
+    setRawMarkdown(d.rawMarkdown)
+    setIsActive(d.isActive)
+    setClientId(d.clientId)
+    setClientName(doc.clientName)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    resetForm()
+  }
+
+  async function save() {
+    if (!title.trim() || !rawMarkdown.trim()) return
+    setSaving(true)
+    setSaveError(''); setSaveWarning('')
+    try {
+      const body = JSON.stringify({ title: title.trim(), rawMarkdown: rawMarkdown.trim(), clientId, isActive })
+      const res = editingId === 'new'
+        ? await adminFetch('/api/admin/mensageria/knowledge', { method: 'POST', body })
+        : await adminFetch(`/api/admin/mensageria/knowledge/${editingId}`, { method: 'PUT', body })
+      const data = await res.json()
+      if (!res.ok && res.status !== 207) { setSaveError(data.error || 'Falha ao salvar documento.'); return }
+      if (data.warning) {
+        setSaveWarning(data.warning)
+      } else {
+        setEditingId(null)
+        resetForm()
+      }
+      await load()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function remove(id: string) {
+    setDeletingId(id)
+    try {
+      await adminFetch(`/api/admin/mensageria/knowledge/${id}`, { method: 'DELETE' })
+      if (editingId === id) { setEditingId(null); resetForm() }
+      await load()
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  if (loading) return <Card><p className="text-sm text-slate-500">Carregando...</p></Card>
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <p className="text-xs text-slate-500 mb-3">
+          Políticas, condições comerciais, FAQ e outros textos livres que o bot consulta quando a pergunta
+          é sobre <strong className="text-slate-400">como funciona algo</strong> ou{' '}
+          <strong className="text-slate-400">quais são as regras</strong> — não sobre um item específico
+          (isso é feito pelas ferramentas de dados). Escreva em Markdown; use{' '}
+          <code className="text-[#d4af37]"># títulos</code> para separar seções — o bot recupera o trecho
+          mais relevante, não o documento inteiro. Deixe o campo &quot;cliente&quot; vazio para valer pra
+          todos os clientes sob seu guarda-chuva; escolha um cliente específico para restringir só a ele.
+        </p>
+
+        {editingId === null ? (
+          <PrimaryButton onClick={startNew}><PlusIcon className="w-4 h-4" /> Novo documento</PrimaryButton>
+        ) : (
+          <div className="space-y-2.5 pt-1">
+            <TextInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título (ex: Política de Garantia)" className="w-full" />
+
+            <div className="relative">
+              {clientId ? (
+                <div className="flex items-center justify-between h-9 px-3 rounded-lg bg-[#112240] border border-[#c5a028]/30 text-sm text-[#d4af37]">
+                  <span>Cliente: {clientName || clientId}</span>
+                  <button onClick={() => { setClientId(null); setClientName(null) }} className="text-slate-400 hover:text-white">
+                    <XMarkIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <TextInput
+                    value={clientQuery} onChange={(e) => setClientQuery(e.target.value)}
+                    placeholder="Buscar cliente (deixe vazio = vale pra todos)..."
+                    className="w-full"
+                  />
+                  {clientMatches.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full rounded-lg bg-[#112240] border border-white/10 shadow-xl overflow-hidden">
+                      {clientMatches.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => { setClientId(c.id); setClientName(c.nome); setClientQuery(''); setClientMatches([]) }}
+                          className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-[#c5a028]/10"
+                        >
+                          {c.nome}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <textarea
+              value={rawMarkdown} onChange={(e) => setRawMarkdown(e.target.value)}
+              placeholder={'# Título da seção\n\nTexto da política/regra...\n\n## Subseção\n\nMais detalhes...'}
+              rows={12}
+              className="w-full px-3 py-2 rounded-lg bg-[#112240] border border-white/8 text-sm text-slate-200 outline-none focus:border-[#c5a028] font-mono resize-y transition-colors"
+            />
+
+            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+              <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+              Ativo (visível pro bot)
+            </label>
+
+            {saveError && <p className="text-xs text-rose-400">{saveError}</p>}
+            {saveWarning && <p className="text-xs text-amber-400">{saveWarning}</p>}
+
+            <div className="flex items-center gap-2">
+              <PrimaryButton onClick={save} disabled={saving || !title.trim() || !rawMarkdown.trim()}>
+                {saving ? 'Salvando...' : 'Salvar'}
+              </PrimaryButton>
+              <button onClick={cancelEdit} className="h-9 px-3.5 rounded-lg text-sm text-slate-400 hover:text-slate-200 transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        {docs.length === 0 ? (
+          <EmptyState text="Nenhum documento cadastrado ainda." />
+        ) : (
+          <div className="space-y-2">
+            {docs.map((d) => (
+              <div key={d.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-[#112240] border border-white/8">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{d.title}</p>
+                  <p className="text-xs text-slate-500">
+                    {d.clientName ? `Cliente: ${d.clientName}` : 'Todos os clientes'} · {d.chunkCount} trecho{d.chunkCount === 1 ? '' : 's'}
+                    {' · '}
+                    {d.isActive ? <span className="text-emerald-400">ativo</span> : <span className="text-slate-500">inativo</span>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => startEdit(d)} className="text-slate-500 hover:text-[#d4af37] transition-colors">
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => remove(d.id)}
+                    disabled={deletingId === d.id}
+                    className="text-slate-500 hover:text-rose-400 transition-colors disabled:opacity-40"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   )
