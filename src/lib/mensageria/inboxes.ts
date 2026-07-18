@@ -101,6 +101,27 @@ export async function resolveWebformInbox(tenantId: string): Promise<string> {
 }
 
 /**
+ * Inbox do widget de chat público (M4.4) — visitante anônimo do site conversando direto com o
+ * bot na página de um imóvel. Mesmo padrão de `resolveWebformInbox`: sem credenciais de envio
+ * (o "envio" é a própria resposta HTTP pro widget), criada lazy na 1ª mensagem real.
+ */
+export async function resolveWebchatInbox(tenantId: string): Promise<string> {
+  const { rows } = await pool.query(
+    `SELECT id FROM ${SCHEMA}.inboxes WHERE tenant_id = $1 AND channel_type = 'webchat' LIMIT 1`,
+    [tenantId],
+  )
+  if (rows[0]) return rows[0].id
+
+  const { rows: created } = await pool.query(
+    `INSERT INTO ${SCHEMA}.inboxes (tenant_id, name, channel_type, provider, config)
+     VALUES ($1, 'Chat do Site', 'webchat', 'internal', '{}'::jsonb)
+     RETURNING id`,
+    [tenantId],
+  )
+  return created[0].id
+}
+
+/**
  * Inbox de conversas iniciadas manualmente por um atendente (não veio de canal externo).
  */
 export async function resolveManualInbox(tenantId: string): Promise<string> {

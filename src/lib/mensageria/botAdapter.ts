@@ -11,8 +11,9 @@ import { resolveSegment } from '@/lib/intelligence/segmentResolver'
 import { resolvePromptTemplate } from '@/lib/intelligence/promptResolver'
 import { renderPrompt } from '@/lib/intelligence/promptRenderer'
 import { getLlmClientForCampaigns } from '@/lib/marketing/services/llmClient'
-import type { LlmMessage } from '@/lib/marketing/services/llmClient'
+import type { LlmMessage, LlmToolDef } from '@/lib/marketing/services/llmClient'
 import { getToolsForSegment, resolveEntity, compareEntity, aggregateEntity, type SegmentDataEntity } from '@/lib/mensageria/tools/genericResolver'
+import { hasKnowledgeBase, searchKnowledge } from '@/lib/mensageria/tools/knowledgeBase'
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import { sendEvolutionMessage, sendEvolutionMedia, type EvolutionInboxConfig } from '@/lib/mensageria/channels/evolutionSend'
 
@@ -84,6 +85,14 @@ async function loadHistory(conversationId: string): Promise<LlmMessage[]> {
 const TOOL_GUARDRAIL =
   '\n\n- Antes de chamar qualquer ferramenta de consulta, confirme que a pergunta do visitante corresponde CLARAMENTE ao que aquela ferramenta cobre (conforme a descrição dela). Se a pergunta usar um termo que você não reconhece, for ambígua, ou não tiver uma correspondência clara e direta com nenhuma ferramenta disponível, NÃO chame nenhuma ferramenta baseado num palpite — diga que não entendeu ou que não tem essa informação, e peça ao visitante para explicar melhor o que ele quer saber. Nunca responda com o dado de uma ferramenta que só parece relacionado por semelhança solta com a pergunta.'
 
+// Bug real: perguntado algo que CLARAMENTE deveria consultar uma ferramenta (ex.: "quais imóveis
+// vocês têm no bairro X"), o modelo às vezes simplesmente NÃO chama nenhuma ferramenta naquele
+// turno e responde "não encontramos" do nada — negando a existência de algo real sem ter
+// consultado. É o oposto do risco que o TOOL_GUARDRAIL acima cobre (chamar ferramenta "no chute"
+// sem relação com a pergunta) — aqui o problema é o modelo deixar de chamar quando deveria.
+const NEVER_ANSWER_WITHOUT_TOOL_GUARDRAIL =
+  '\n\n- Para qualquer pergunta que peça um dado concreto e verificável (localização, disponibilidade, preço, características, existência de um item específico), você DEVE chamar a ferramenta de consulta correspondente ANTES de responder — mesmo que a pergunta pareça repetir algo já discutido antes na conversa. NUNCA afirme "não encontramos" ou "não temos" algo sem ter acabado de consultar a ferramenta NESTE turno — uma negação sem ter consultado é pior que não responder, porque pode negar algo que existe de verdade.'
+
 // Bug real: perguntado sobre fotos numa pergunta de acompanhamento ("tem fotos dos imóveis?",
 // depois de já ter listado alguns itens sem foto antes), o bot NÃO chamou a ferramenta de novo —
 // respondeu só de memória da conversa, e como o aviso "nunca diga que não pode exibir imagens"
@@ -103,7 +112,7 @@ async function resolvePersona(tenantId: string, segmentId: string | null): Promi
 
   const template = await resolvePromptTemplate('mensageria_bot_persona', segmentId)
   const base = template ? renderPrompt(template, { tenant_name: tenantName }) : DEFAULT_PERSONA_FALLBACK
-  return base + TOOL_GUARDRAIL + PHOTO_FOLLOWUP_GUARDRAIL
+  return base + TOOL_GUARDRAIL + NEVER_ANSWER_WITHOUT_TOOL_GUARDRAIL + PHOTO_FOLLOWUP_GUARDRAIL
 }
 
 interface BotCard {
@@ -218,10 +227,34 @@ async function runBotReply(
   conversationId: string,
   tenantId: string,
   clientId: string | null,
+  extraContext?: string | null,
 ): Promise<BotReply> {
   const segment = await resolveSegment(tenantId, clientId)
-  const persona = await resolvePersona(tenantId, segment?.id ?? null)
+  let persona = await resolvePersona(tenantId, segment?.id ?? null)
+  // Contexto de página (M4.4 — widget público embutido numa página de item específico, ex.:
+  // detalhe de imóvel) — hint textual só pra ESTE turno, resolvido fresco a cada chamada (nunca
+  // fica obsoleto). Nunca vira mensagem visível na thread, só é lido pelo LLM.
+  if (extraContext) persona += `\n\n- Contexto da página atual: ${extraContext}`
   const { tools, entities, compareEntities, aggregateEntities } = await getToolsForSegment(segment?.id ?? null, tenantId)
+
+  // Ferramenta de RAG (M4.3) — só aparece quando o tenant/cliente TEM alguma base de
+  // conhecimento cadastrada (mesmo princípio das ferramentas de dados estruturados: nada de
+  // ferramenta "sempre presente e sempre vazia", que só engana o LLM a tentar usá-la à toa).
+  const knowledgeAvailable = await hasKnowledgeBase(tenantId, clientId)
+  if (knowledgeAvailable) {
+    tools.push({
+      name: 'buscar_conhecimento',
+      description: 'Busca em políticas, condições comerciais, FAQ e outros textos livres cadastrados pela empresa (regras, prazos, formas de pagamento, garantias etc.) — use para perguntas sobre COMO funciona algo ou QUAIS são as regras/condições, não para dados de itens específicos (isso é outra ferramenta).',
+      parameters: {
+        type: 'object',
+        properties: {
+          pergunta: { type: 'string', description: 'A pergunta do visitante, no formato mais próximo possível do que ele perguntou.' },
+        },
+        required: ['pergunta'],
+      },
+    })
+  }
+
   const history = await loadHistory(conversationId)
   const llm = await getLlmClientForCampaigns()
 
@@ -233,20 +266,63 @@ async function runBotReply(
   let anyImages = false
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-    const { content, toolCalls } = await llm.completeWithTools(persona, messages, tools, 1024)
+    const { content, toolCalls: rawToolCalls } = await llm.completeWithTools(persona, messages, tools, 1024)
 
-    if (toolCalls.length === 0) {
+    if (rawToolCalls.length === 0) {
       finalText = content
       break
     }
 
-    messages.push({ role: 'assistant', content, toolCalls })
+    // Defesa contra nome de ferramenta inventado/com erro de digitação (ex.: "agrupart_imovel"
+    // em vez de "agrupar_imovel") — bug real observado com modelo Groq gpt-oss-120b: ecoar essa
+    // chamada de volta no histórico faz a PRÓXIMA chamada à API falhar com 400 ("tool call
+    // validation failed"), porque o nome não existe em `tools`. Filtra ANTES de ecoar — o
+    // histórico nunca carrega uma referência a ferramenta que não existe.
+    const validNames = new Set<string>(
+      Array.from(entities.keys()).concat(Array.from(compareEntities.keys()), Array.from(aggregateEntities.keys())),
+    )
+    if (knowledgeAvailable) validNames.add('buscar_conhecimento')
+    const toolCalls = rawToolCalls.filter((c) => validNames.has(c.name))
+    const invalidCalls = rawToolCalls.filter((c) => !validNames.has(c.name))
+    if (invalidCalls.length > 0) {
+      console.error('[mensageria/botAdapter] ferramenta inexistente chamada pelo LLM, descartada:', invalidCalls.map((c) => c.name))
+    }
+
+    messages.push({ role: 'assistant', content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined })
 
     for (const call of toolCalls) {
       const entity = entities.get(call.name)
       const cmpEntity = compareEntities.get(call.name)
       const aggEntity = aggregateEntities.get(call.name)
       const activeEntity = entity ?? cmpEntity
+
+      if (call.name === 'buscar_conhecimento') {
+        // RAG — busca híbrida sobre markdown livre, escopo de tenant/cliente forçado no
+        // servidor (searchKnowledge). Ramo próprio: não tem linhas/fotos/paginação, o
+        // resultado já é o texto pronto pra citar.
+        try {
+          const pergunta = typeof call.input?.pergunta === 'string' ? call.input.pergunta : ''
+          const results = await searchKnowledge(tenantId, clientId, pergunta || '', 5)
+          if (results.length === 0) {
+            messages.push({
+              role: 'tool_result', toolCallId: call.id,
+              content: JSON.stringify({ aviso: 'Nada foi encontrado na base de conhecimento sobre isso. NÃO afirme uma regra/condição que não veio aqui; diga que não tem essa informação e sugira falar com um atendente.' }),
+            })
+          } else {
+            messages.push({
+              role: 'tool_result', toolCallId: call.id,
+              content: JSON.stringify({
+                aviso: 'Use APENAS o texto abaixo pra responder sobre políticas/condições/regras — nunca invente ou complete com conhecimento geral. Se o texto não cobrir exatamente o que foi perguntado, diga que não tem certeza e sugira falar com um atendente.',
+                trechos: results.map((r) => ({ documento: r.documentTitle, secao: r.headingPath, texto: r.text })),
+              }),
+            })
+          }
+        } catch (err) {
+          messages.push({ role: 'tool_result', toolCallId: call.id, content: JSON.stringify({ error: 'Falha ao consultar a base de conhecimento.' }) })
+          console.error('[mensageria/botAdapter] falha na ferramenta', call.name, err)
+        }
+        continue
+      }
 
       if (aggEntity) {
         // Agrupamento/contagem: não é uma listagem de itens (sem foto, sem cabeçalho de cartão,
@@ -461,7 +537,7 @@ async function handoffToHuman(
  * Resolve se existe bot_flow ativo pra essa conversa e, se sim, roda uma rodada:
  * ou responde (com tool-use quando aplicável) ou transfere pra fila humana.
  */
-export async function maybeRunBot(conversationId: string, tenantId: string): Promise<void> {
+export async function maybeRunBot(conversationId: string, tenantId: string, extraContext?: string | null): Promise<void> {
   const { rows: convRows } = await pool.query(
     `SELECT c.id, c.client_id, c.assignee_id, c.inbox_id, ib.channel_type, ib.config, ct.phone
        FROM ${SCHEMA}.conversations c
@@ -533,7 +609,7 @@ export async function maybeRunBot(conversationId: string, tenantId: string): Pro
   // que ele está ativo e convida a tentar de novo).
   let reply: BotReply | null = null
   try {
-    reply = await runBotReply(conversationId, tenantId, conv.client_id)
+    reply = await runBotReply(conversationId, tenantId, conv.client_id, extraContext)
   } catch (err) {
     console.error('[mensageria/botAdapter] falha ao gerar resposta do bot:', err)
   }

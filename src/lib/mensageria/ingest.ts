@@ -39,6 +39,7 @@ export interface IngestMessageInput {
   attachments?: any[]
   externalId?: string | null         // id da mensagem no provider — garante idempotência
   isPrivate?: boolean
+  botContext?: string | null         // hint textual pro bot NESTE turno (ex.: contexto de página do widget público) — nunca vira mensagem visível, só é lido pelo LLM
 }
 
 export interface IngestResult {
@@ -131,7 +132,7 @@ async function findOrCreateConversation(
  */
 export async function ingestMessage(input: IngestMessageInput): Promise<IngestResult> {
   const { tenantId, clientId = null, inboxId, contact, direction, senderType, senderId, content,
-          contentType = 'text', attachments = [], externalId = null, isPrivate = false } = input
+          contentType = 'text', attachments = [], externalId = null, isPrivate = false, botContext = null } = input
 
   if (externalId) {
     const { rows: dup } = await pool.query(
@@ -204,7 +205,7 @@ export async function ingestMessage(input: IngestMessageInput): Promise<IngestRe
   // ingestMessage() como outbound/bot, então nunca recursa infinitamente. Best-effort: uma
   // falha do bot nunca deve derrubar a ingestão da mensagem original do contato.
   if (direction === 'inbound' && senderType === 'contact') {
-    await maybeRunBot(conversationId, tenantId).catch((err) => {
+    await maybeRunBot(conversationId, tenantId, botContext).catch((err) => {
       console.error('[mensageria/ingest] falha ao rodar o bot:', err)
     })
   }

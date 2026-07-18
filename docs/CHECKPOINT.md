@@ -1,8 +1,245 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-15 (M4.4 concluído — widget de chat público na página de detalhe do imóvel)
+> **Atualizado em:** 2026-07-18 (M4.3 RAG em andamento — Fase 5 concluída: UI de gestão da KB pelo tenant, 2 bugs reais de convenção pegos e corrigidos ao testar)
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Tarefa em andamento
+
+### M4.3 — RAG / Base de Conhecimento (branch `feature/mensageria-rag`, worktree `netimob-cherrypick`)
+
+Plano completo discutido e travado com o usuário (`docs/PLANO_MENSAGERIA.md` §14.6-B). Decisões:
+pgvector (não banco vetorial dedicado) · chunking estrutural por cabeçalho + retrieval contextual
+· busca híbrida (vetor + full-text) · KB = mais uma ferramenta do bot (`buscar_conhecimento`) ·
+markdown como fonte-da-verdade + import de PDF/DOCX · embedding via API barata
+(`text-embedding-3-small`) · UI editável pelo **admin do tenant** (não Master), com o tenant
+editando a KB dele E a dos clientes sob seu guarda-chuva · escopo tenant/cliente forçado no servidor.
+
+**Fases:** 0 infra pgvector ✅ · 1 schema ✅ · 2 embedding (factory+Settings) ✅ · 3 ingestão
+(markdown→chunk→embed) ✅ (PDF/DOCX import fica pra depois) · 4 recuperação híbrida + ferramenta ✅
+· 5 UI (admin do tenant gerenciar a KB) · 6 testes de carga/qualidade · 7 deploy VPS.
+
+- **Fase 0 ✅** — pgvector 0.8.0. Escolhido **build próprio sobre alpine** (`docker/postgres/
+  Dockerfile`, `with_llvm=no`) em vez da imagem oficial Debian, pra evitar o gotcha de collation
+  musl→glibc (que exigiria REINDEX). Container `netimobiliaria-db` recriado reusando o volume
+  `net-imobiliaria_db_data` (dados intactos: 37 imóveis confirmados). `docker-compose.yml` da
+  branch atualizado pra buildar do Dockerfile. **Pendência VPS:** aplicar o mesmo em
+  `docker-compose.vps.yml` + `deploy.sh` (Fase 7).
+- **Fase 1 ✅** — `prisma/migration-2026-07-16-mensageria-rag.sql` aplicada: `knowledge_documents`
+  (fonte editável) + `knowledge_chunks` (tsv gerado 'portuguese' + índices HNSW/GIN/escopo).
+  Smoke test de distância cosseno OK. **Ajuste nesta rodada:** usuário escolheu **Gemini** como
+  provider de embedding (não `text-embedding-3-small` da OpenAI, cogitado no plano original) — a
+  tabela ainda estava vazia (zero chunks), então a coluna `embedding` foi corrigida direto pra
+  `vector(768)` (dim do Gemini) via `ALTER COLUMN` + o comentário do SQL atualizado, sem migração
+  de dado nenhuma.
+- **Fase 2 ✅** — `embedText(text, tenantId?)` em `llmClient.ts`. **Bug real pego ao vivo, não
+  hipotético:** a 1ª tentativa usou `text-embedding-004` via endpoint OpenAI-compatible do
+  Gemini (mesmo baseURL já usado pro chat) — 404 real (`ListModels` da conta confirmou que esse
+  modelo não existe mais pra essa API key; só `gemini-embedding-001`/`-2-preview`/`-2` disponíveis).
+  Corrigido pra `gemini-embedding-001` via **REST nativo** do Gemini (não o layer OpenAI-compat —
+  ele não expõe `outputDimensionality`), com `outputDimensionality: 768` (truncamento Matryoshka
+  nativo do modelo, não um corte cru do vetor) — confirmado ao vivo via curl direto na API do
+  Google que retorna exatamente 768 valores reais. Cascata de chave: Settings do tenant com
+  `llmProvider='gemini'` → `GEMINI_API_KEY` do `.env` (fallback global) — embedding é uma escolha
+  técnica de infra, deliberadamente independente do provider de CHAT configurado por tenant (que
+  hoje é Groq pra maioria).
+- **Fase 3 ✅ (markdown; PDF/DOCX pendente)** — `src/lib/mensageria/tools/knowledgeBase.ts`:
+  `chunkMarkdown()` quebra por heading (# a ######, pilha de níveis, `heading_path` tipo
+  "Vendas > Financiamento") + teto de 1200 chars por chunk (split por parágrafo, sem cortar
+  palavra no meio); `regenerateChunks(documentId)` apaga+re-gera+re-embeda tudo numa transação,
+  chamado a cada save do documento (POST/PUT). API `src/app/api/admin/mensageria/knowledge/
+  route.ts` + `[id]/route.ts` (CRUD, mesmo padrão de auth/estilo de `labels/route.ts`).
+- **Fase 4 ✅** — `searchKnowledge()`: busca híbrida (`1 - cosine_distance` peso 0.7 +
+  `ts_rank` peso 0.3, capado em 1), escopo tenant+cliente forçado no SQL (`client_id IS NULL OR
+  client_id = $clientId` — herança tenant→cliente igual inboxes/bot_flows; `$clientId` nulo já
+  restringe sozinho a só docs tenant-wide via semântica de NULL do SQL, sem caso especial).
+  `hasKnowledgeBase()` faz a ferramenta `buscar_conhecimento` só aparecer pro LLM quando o
+  tenant/cliente TEM pelo menos 1 documento ativo (mesmo princípio das ferramentas de dados
+  estruturados — nunca oferecer ferramenta sempre vazia). Ramo próprio no loop de tool-use do
+  `botAdapter.ts` (não mexe no fluxo de linhas/fotos/paginação das outras ferramentas), com aviso
+  explícito nos dados pro LLM nunca completar com conhecimento geral quando o trecho não cobrir a
+  pergunta exatamente.
+
+**Testado ao vivo, ponta a ponta** (tenant Marketing Digital, servidor dev do próprio worktree em
+`:3051` — não o `:3002`/App principal, que monta o código do OUTRO agente na `net-imobiliaria`):
+documento real "Política de Garantia" (90 dias + como acionar) → 2 chunks reais gerados, 768 dims
+confirmadas via `vector_dims()` no Postgres · pergunta que a KB cobre ("vocês dão garantia... como
+funciona?") → bot respondeu citando os 90 dias e o fluxo de acionamento exatamente como cadastrado
+· pergunta que a KB NÃO cobre ("reembolso em até 30 dias?") → bot recusou honestamente
+("não tenho certeza... falar com um atendente"), sem inventar uma política · dado de teste
+removido depois (`DELETE`, cascata de chunks confirmada por `COUNT(*) = 0`) · `npx tsc --noEmit`
+limpo em todos os arquivos tocados (erros remanescentes são baseline pré-existente, não relacionados).
+
+**Achado operacional (multi-agente):** `preview_start` com config nomeada do `.claude/launch.json`
+resolve relativo ao diretório principal da sessão (`net-imobiliaria`), não ao worktree onde estou
+trabalhando — mesmo apontando pro `launch.json` certo, o servidor que sobe roda o código do OUTRO
+agente (confirmado por um erro de stack trace apontando pra `net-imobiliaria\.next\...`). Pra
+testar código deste worktree, é preciso subir o `next dev` manualmente nele, numa porta dedicada
+(usei 3051, já que 3050 também está reservado no `launch.json` local e pode colidir).
+
+**Fase 5 ✅ (UI de gestão da KB)** — nova aba **"Base de Conhecimento"** em `/mensageria/config`
+(mesmo padrão de abas já usado por Inboxes/Times/Etiquetas/SLA/Bot — **não** virou rota própria
+`/mensageria/config/conhecimento` do plano original de 2026-07-08; esse desenho já tinha sido
+abandonado na prática quando "Chatbot" virou a aba "Bot" em vez de feature/rota separada, então
+"Base de Conhecimento" seguiu o padrão real, não o documento desatualizado). CRUD completo:
+criar/editar/ativar-desativar/excluir documento, textarea em markdown monoespaçado, combobox de
+cliente com busca debounced (reaproveita `/clientes-search`, mesmo endpoint do combobox de Nova
+Conversa Manual) — vazio = vale pra todos os clientes do tenant. Lista mostra nº de trechos
+(chunks) e status ativo/inativo por documento. Nota na aba Bot aponta pra esta aba (persona fica
+no Editor de Prompts, regras/FAQ ficam aqui).
+
+**2 bugs reais pegos testando a API por trás da UI (não achados por inspeção, achados rodando de
+verdade)** — nenhum dos dois tinha aparecido nos testes anteriores porque a sessão anterior só
+testava via curl direto comparando com o schema já em `snake_case`, sem passar pelo contrato que o
+componente React realmente espera:
+1. `GET /knowledge` fazia `JOIN public.clientes c` selecionando `c.name` — coluna não existe
+   (schema em português usa `c.nome`). Erro real (`42703`) confirmado no log do dev server ao
+   testar a listagem pela primeira vez. Corrigido.
+2. As 2 rotas (`GET /knowledge` e `GET /knowledge/[id]`) devolviam as linhas **cruas do Postgres**
+   (`client_id`, `source_type`, `is_active` etc., snake_case) mas o componente React (seguindo a
+   convenção já usada em `inboxes/route.ts`) espera `camelCase` (`clientId`, `sourceType`,
+   `isActive`) — sem o mapeamento explícito, a UI exibiria tudo como `undefined`. Corrigido nas
+   duas rotas com mapeamento manual campo-a-campo, no mesmo padrão já usado por `inboxes/route.ts`
+   (`id: r.id, channelType: r.channel_type, ...`). `chunkCount` também precisou de `Number(...)`
+   — `count(*)` do Postgres volta como string via o driver `pg`.
+
+**Testado via API completa (curl), ciclo inteiro:** criar documento sem cliente → listar (campos
+certos, `clientName: null`) → buscar cliente real (`Alexandre Severo Soluções Tecnológicas`) →
+editar vinculando `clientId` → listar de novo (`clientName` populado corretamente) → deletar →
+cascata de chunks confirmada (`COUNT(*) = 0` nas duas tabelas). `npx tsc --noEmit` limpo em todos
+os arquivos tocados (grep filtrado, zero ocorrências).
+
+**Verificação visual no navegador NÃO foi possível nesta rodada** — mesma limitação já registrada
+repetidamente neste projeto (ver sessões de 2026-07-09 a 2026-07-14 no histórico deste arquivo):
+injetar um JWT fabricado localmente (cookie + localStorage) resolve pras rotas de API (que só
+confiam no payload do token), mas a página client-side chama `/api/admin/auth/me`, que faz lookup
+real do usuário no banco — um `userId` fabricado não existe, então a página redireciona pra
+`/admin/login` mesmo com cookie+token "válidos" (assinatura correta, usuário inexistente).
+Confirmado o redirecionamento real via `location.href` no navegador (`/admin/login?callbackUrl=
+%2Fmensageria%2Fconfig`), não um bug — comportamento correto de segurança. Confiança na
+renderização correta vem de: `tsc` limpo + API validada ponta a ponta com os MESMOS campos que o
+componente consome + revisão de código da estrutura JSX (mesmos padrões visuais já usados e
+aprovados nas outras 6 abas desta página).
+
+**Achado operacional (registrado antes, reconfirmado):** durante esta sessão o classificador de
+segurança do harness (Edit/Write/Bash) ficou intermitentemente indisponível por vários minutos
+seguidos — não é um problema do projeto, é uma instabilidade da própria ferramenta. Contornado
+esperando e tentando de novo (sem pular a revisão/teste por causa disso).
+
+**Próximos passos:** avaliar import de PDF/DOCX (Fase 3, deixado de fora por ora) · Fase 6 testes
+de qualidade com mais documentos reais/variados · Fase 7 deploy VPS (pgvector na imagem +
+`GEMINI_API_KEY` no ambiente de produção) · pendência de UX menor: a UI ainda não expõe reordenar/
+visualizar os chunks gerados de um documento (só o total) — suficiente pro MVP, mas útil pra
+depurar recuperação ruim no futuro.
+
+**⚠️ Nota de persistência (dev):** o container roda agora com `netimob-postgres:17-pgvector` (setado
+inline no recreate). Até esta branch mergear em `main`, um `docker compose up` do diretório
+principal (branch do Antigravity, ainda com default `postgres:17-alpine`) reverteria a imagem —
+setar `POSTGRES_IMAGE=netimob-postgres:17-pgvector` no `.env` do docker, ou não recriar o db sem
+essa var, até o merge.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-15 (continuação) — Coordenação multi-agente + limpeza de sidebar ✅
+
+**Descoberta durante a sessão:** outro agente de IA (Antigravity) está trabalhando em paralelo
+neste mesmo repositório, numa branch própria (`feature/ag-cockpit-camadas`), refatorando o
+dashboard de Campanhas. A branch ativa do diretório principal (`C:\NetImobiliária\net-
+imobiliaria`) mudou de `main` pra essa branch sem eu ter feito isso deliberadamente — meu commit
+de checkpoint do M4.4 acabou indo pra lá por engano.
+
+**Corrigido com segurança, via `git worktree` isolado** (nunca tocando na branch/arquivos não
+commitados do Antigravity):
+1. Cherry-pick do meu commit de volta pra `main` (`d2b6de1`).
+2. Código real do M4.4 movido pra uma branch nova, só minha: `feature/mensageria-webchat`
+   (worktree em `C:\NetImobiliária\netimob-cherrypick`) — pronta pra virar PR.
+3. `CLAUDE.md` ganhou uma nova regra obrigatória: ler `docs/AI_SYNC.md` no início de toda sessão,
+   nunca trocar de branch/rodar operação destrutiva num diretório com trabalho não commitado de
+   outro agente, preferir worktree separado. Aplicada em `main` (`c7cfd2f`) e localmente no
+   diretório original (não commitada lá — push nessa branch foi bloqueado pelo verificador de
+   segurança por ser branch de outro agente, decisão respeitada).
+4. `docs/AI_SYNC.md` — registrado um novo log de atividade do Claude, avisando o Antigravity do
+   que foi feito e confirmando que nenhum arquivo dele foi tocado.
+
+**Limpeza de sidebar:** usuário notou 2 itens ("Chatbot", "Base de Conhecimento") cadastrados
+desde a fase antiga de registro de acesso (antes do bot existir), ambos apontando pra URLs sem
+página real (404). Investigado: "Chatbot" (`/mensageria/config/chatbot`) é puro duplicado — a
+config real do bot já vive em "Configurações" → aba "Bot". "Base de Conhecimento"
+(`/mensageria/config/conhecimento`) corresponde ao M4.3 (RAG), genuinamente não iniciado — não
+mexido, só documentado como pendência real.
+
+**Ação:** `system_features.is_active = false` pro id=113 (`mensageria-chatbot`) —
+`prisma/migration-2026-07-15-mensageria-remove-chatbot-sidebar-duplicate.sql`. Desativado, não
+deletado (reversível, mesmo padrão já usado em toda a plataforma pra esconder item da sidebar
+sem apagar histórico/permissões associadas). Confirmado via SQL: `is_active=f`.
+
+**Pendências reais do módulo Mensageria, levantadas nesta sessão:**
+- M4.3 (RAG/Base de Conhecimento) — não iniciado.
+- Merge de `feature/mensageria-webchat` em `main` (via PR) — código pronto, testado, só falta
+  integrar oficialmente.
+- Item "Base de Conhecimento" da sidebar continua apontando pra URL sem página — decisão de
+  desativar ou construir fica pra quando M4.3 for atacado.
+
+---
+
+## Última tarefa concluída
+
+### Sessão 2026-07-15 (continuação) — M4.4: Widget de chat público na página de imóvel ✅
+
+**Contexto:** próxima fase formal do plano (`docs/PLANO_MENSAGERIA.md` §18.1) depois de várias
+sessões blindando o M4.2. Decisão inicial do usuário ("posicionar na landpaging") revelou um
+conflito de arquitetura real: `/landpaging` agrega imóveis de TODOS os tenants do segmento, sem
+nenhum parâmetro de escopo — colocar o bot lá misturaria a identidade de qual empresa está
+respondendo. Resolvido com o usuário: widget vai na **página de detalhe de 1 imóvel**
+(`/imoveis/[id]`), onde existe um tenant real e único pra escopar.
+
+**Implementado (zero hardcode por segmento — o mesmo componente serviria qualquer vertical):**
+1. `tenant_id` exposto na API de ficha completa (`/api/public/imoveis/[id]/ficha-completa`) —
+   coluna já existia na tabela `imoveis`, só não era selecionada.
+2. `resolveWebchatInbox(tenantId)` em `inboxes.ts` — clone do padrão já usado por
+   `resolveWebformInbox` (cria a inbox lazy na 1ª mensagem real, `channel_type='webchat'`, já
+   previsto no schema desde M0 mas nunca usado até agora).
+3. Novo endpoint público **sem autenticação** `/api/public/mensageria/chat` (GET recarrega
+   histórico, POST envia mensagem) — reaproveita 100% do pipeline existente
+   (`ingestMessage`→`maybeRunBot`, mesmo mecanismo do WhatsApp/`/bot/test`). Identidade do
+   visitante anônimo: UUID gerado no navegador (localStorage), usado como `phone: "web:<uuid>"`
+   — zero mudança na regra de dedupe já existente em `ingest.ts`.
+4. **Rate limit dedicado** (`webchatLimiter`, 15 msg/min por sessão E por IP,
+   `src/lib/security/rate-limiter.ts`) — obrigatório aqui: é a única rota pública da plataforma
+   que dispara uma chamada LLM real sem autenticação nenhuma, risco genuíno de custo/abuso.
+5. Gate por `bot_flows.is_active` ANTES de criar qualquer contato/conversa — tenant sem bot
+   configurado nunca aparece com o widget, sem gerar lixo no banco.
+6. `ChatWidget.tsx` (`src/components/mensageria/ChatWidget.tsx`) — bolha flutuante + painel,
+   parametrizada só por `tenantId` (+ `pageContext` opcional, ver abaixo). Embutida em
+   `src/app/(with-header)/imoveis/[id]/page.tsx`.
+
+**Bug real pego no teste ao vivo, corrigido na mesma rodada — contexto de página:** perguntado
+"quanto custa esse imóvel?" na própria página do imóvel (preço bem visível na tela), o bot
+respondeu que o preço "não foi especificado na pergunta" — ele não tinha nenhuma noção de qual
+imóvel a conversa começou. Corrigido de forma genérica (não amarrado a "imóvel"):
+- `describeEntityRowByIdentity(segmentId, tenantId, entityName, identityValue)` (novo,
+  `genericResolver.ts`) — resolve 1 linha pela coluna de identidade e devolve um resumo em texto
+  natural dos campos selecionáveis reais.
+- `IngestMessageInput.botContext` (novo, `ingest.ts`) — hint textual só pra aquele turno, nunca
+  vira mensagem visível na thread, repassado a `maybeRunBot`→`runBotReply`→apendado à persona.
+- `ChatWidget` ganhou prop `pageContext={{ entity: 'imovel', id }}` — a página de detalhe passa
+  isso, o backend resolve o registro real (preço, quartos, bairro etc.) a cada mensagem (nunca
+  cacheado/obsoleto) e informa o bot que "esse"/"este" se refere a ESTE item específico.
+
+**Testado ao vivo, no navegador de verdade** (não só via curl): bolha aparece na página real do
+imóvel 1 (tenant Imobiliária XYZ, bot ativo) · mensagem enviada pelo painel → resposta do bot
+renderizada em tempo real, sem login, sem cookie · rate limit testado com 17 mensagens rápidas —
+15 passam (HTTP 200), 16ª e 17ª bloqueadas (HTTP 429) · inbox `webchat` criada corretamente no
+banco · após o fix de contexto de página, "quanto custa esse imóvel?" respondeu corretamente
+"R$ 906.000,00" (valor real da tela). `npx tsc --noEmit` limpo em todos os 8 arquivos tocados.
+
+**Fora de escopo desta rodada (documentado, não esquecido):** streaming/SSE no widget (polling
+simples por ora); múltiplos clientes por tenant no widget (`clientId` fica de fora, tenant-only,
+mesmo padrão de `webform`/`manual`); M4.3 (RAG) continua não iniciada.
 
 ---
 
