@@ -1075,8 +1075,9 @@ function KnowledgeTab() {
   const [isActive, setIsActive] = useState(true)
   const [clientId, setClientId] = useState<string | null>(null)
   const [clientName, setClientName] = useState<string | null>(null)
+  const [allClients, setAllClients] = useState<ClienteOption[]>([])
   const [clientQuery, setClientQuery] = useState('')
-  const [clientMatches, setClientMatches] = useState<ClienteOption[]>([])
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -1086,8 +1087,14 @@ function KnowledgeTab() {
   async function load() {
     setLoading(true)
     try {
-      const res = await adminFetch('/api/admin/mensageria/knowledge')
-      setDocs((await res.json()).documents || [])
+      const [docsRes, clientsRes] = await Promise.all([
+        adminFetch('/api/admin/mensageria/knowledge'),
+        adminFetch('/api/admin/campanhas/clients?limit=200'),
+      ])
+      setDocs((await docsRes.json()).documents || [])
+      const clientsData = await clientsRes.json()
+      // /campanhas/clients já devolve ORDER BY nome ASC — lista pronta pro dropdown.
+      setAllClients((Array.isArray(clientsData) ? clientsData : []).map((c: any) => ({ id: c.id, nome: c.name })))
     } finally {
       setLoading(false)
     }
@@ -1095,20 +1102,21 @@ function KnowledgeTab() {
 
   useEffect(() => { load() }, [])
 
-  // Busca de cliente com debounce — mesmo endpoint já usado no combobox de Nova Conversa Manual.
-  useEffect(() => {
-    if (clientQuery.trim().length < 2) { setClientMatches([]); return }
-    const handle = setTimeout(async () => {
-      const res = await adminFetch(`/api/admin/mensageria/clientes-search?q=${encodeURIComponent(clientQuery.trim())}`)
-      const data = await res.json()
-      setClientMatches((data.clientes || []).map((c: any) => ({ id: c.id, nome: c.nome })))
-    }, 350)
-    return () => clearTimeout(handle)
-  }, [clientQuery])
+  // Range Unicode dos diacríticos combinantes (0x0300-0x036f) montado via charCode pra evitar
+  // caracteres literais de acento na fonte (mesmo range usado em normalizeText do botAdapter.ts).
+  const DIACRITICS_RE = new RegExp(`[${String.fromCharCode(0x0300)}-${String.fromCharCode(0x036f)}]`, 'g')
+
+  function normalize(s: string): string {
+    return s.normalize('NFD').replace(DIACRITICS_RE, '').toLowerCase()
+  }
+
+  const filteredClients = clientQuery.trim()
+    ? allClients.filter((c) => normalize(c.nome).includes(normalize(clientQuery.trim())))
+    : allClients
 
   function resetForm() {
     setTitle(''); setRawMarkdown(''); setIsActive(true)
-    setClientId(null); setClientName(null); setClientQuery(''); setClientMatches([])
+    setClientId(null); setClientName(null); setClientQuery(''); setClientDropdownOpen(false)
     setSaveError(''); setSaveWarning('')
   }
 
@@ -1201,21 +1209,30 @@ function KnowledgeTab() {
               ) : (
                 <>
                   <TextInput
-                    value={clientQuery} onChange={(e) => setClientQuery(e.target.value)}
-                    placeholder="Buscar cliente (deixe vazio = vale pra todos)..."
+                    value={clientQuery}
+                    onChange={(e) => { setClientQuery(e.target.value); setClientDropdownOpen(true) }}
+                    onFocus={() => setClientDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setClientDropdownOpen(false), 150)}
+                    placeholder="Todos os clientes (clique para escolher um específico)..."
                     className="w-full"
                   />
-                  {clientMatches.length > 0 && (
-                    <div className="absolute z-10 mt-1 w-full rounded-lg bg-[#112240] border border-white/10 shadow-xl overflow-hidden">
-                      {clientMatches.map((c) => (
-                        <button
-                          key={c.id}
-                          onClick={() => { setClientId(c.id); setClientName(c.nome); setClientQuery(''); setClientMatches([]) }}
-                          className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-[#c5a028]/10"
-                        >
-                          {c.nome}
-                        </button>
-                      ))}
+                  {clientDropdownOpen && (
+                    <div className="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto rounded-lg bg-[#112240] border border-white/10 shadow-xl">
+                      {filteredClients.length === 0 ? (
+                        <p className="px-3 py-2 text-sm text-slate-500">Nenhum cliente encontrado.</p>
+                      ) : (
+                        filteredClients.map((c) => (
+                          <button
+                            key={c.id}
+                            // onMouseDown (não onClick) dispara antes do onBlur do input, senão a lista
+                            // fecha (por causa do blur) antes do clique ser registrado.
+                            onMouseDown={() => { setClientId(c.id); setClientName(c.nome); setClientQuery(''); setClientDropdownOpen(false) }}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-[#c5a028]/10"
+                          >
+                            {c.nome}
+                          </button>
+                        ))
+                      )}
                     </div>
                   )}
                 </>
