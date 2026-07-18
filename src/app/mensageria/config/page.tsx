@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   InboxStackIcon, UsersIcon, TagIcon, ChatBubbleBottomCenterTextIcon,
   ClockIcon, PlusIcon, TrashIcon, CheckCircleIcon, XCircleIcon, StarIcon, CpuChipIcon,
-  BookOpenIcon, PencilIcon, XMarkIcon,
+  BookOpenIcon, PencilIcon, XMarkIcon, ChevronDownIcon,
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { adminFetch } from '@/lib/auth/adminFetch'
@@ -1064,6 +1064,7 @@ interface KnowledgeDocDetail {
   rawMarkdown: string; originalFilename: string | null; isActive: boolean; updatedAt: string
 }
 interface ClienteOption { id: string; nome: string }
+interface KnowledgeChunk { chunkIndex: number; headingPath: string | null; chunkText: string }
 
 function KnowledgeTab() {
   const [docs, setDocs] = useState<KnowledgeDoc[]>([])
@@ -1083,6 +1084,14 @@ function KnowledgeTab() {
   const [saveError, setSaveError] = useState('')
   const [saveWarning, setSaveWarning] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [expandedChunksId, setExpandedChunksId] = useState<string | null>(null)
+  const [chunksByDoc, setChunksByDoc] = useState<Record<string, KnowledgeChunk[]>>({})
+  const [chunksLoadingId, setChunksLoadingId] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -1177,6 +1186,45 @@ function KnowledgeTab() {
     }
   }
 
+  async function handleImportFile(file: File) {
+    setImporting(true)
+    setImportError('')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await adminFetch('/api/admin/mensageria/knowledge/import', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok && res.status !== 207) { setImportError(data.error || 'Falha ao importar o arquivo.'); return }
+      // Abre direto em modo de edição com o texto extraído — o import não é "definitivo" até o
+      // usuário revisar (extração de PDF/DOCX pode trazer ruído: cabeçalho/rodapé repetido,
+      // numeração de página etc.) e confirmar com "Salvar".
+      resetForm()
+      setEditingId(data.id)
+      setTitle(data.title || '')
+      setRawMarkdown(data.rawMarkdown || '')
+      if (data.warning) setSaveWarning(data.warning)
+      await load()
+    } catch {
+      setImportError('Falha ao importar o arquivo.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  async function toggleChunks(docId: string) {
+    if (expandedChunksId === docId) { setExpandedChunksId(null); return }
+    setExpandedChunksId(docId)
+    if (chunksByDoc[docId]) return // já carregado — não refetch a cada toggle
+    setChunksLoadingId(docId)
+    try {
+      const res = await adminFetch(`/api/admin/mensageria/knowledge/${docId}/chunks`)
+      const data = await res.json()
+      setChunksByDoc((prev) => ({ ...prev, [docId]: data.chunks || [] }))
+    } finally {
+      setChunksLoadingId(null)
+    }
+  }
+
   if (loading) return <Card><p className="text-sm text-slate-500">Carregando...</p></Card>
 
   return (
@@ -1193,7 +1241,30 @@ function KnowledgeTab() {
         </p>
 
         {editingId === null ? (
-          <PrimaryButton onClick={startNew}><PlusIcon className="w-4 h-4" /> Novo documento</PrimaryButton>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <PrimaryButton onClick={startNew}><PlusIcon className="w-4 h-4" /> Novo documento</PrimaryButton>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-[#112240] border border-white/10 text-slate-200 text-sm font-medium disabled:opacity-40 hover:border-[#c5a028]/40 transition-colors"
+              >
+                <BookOpenIcon className="w-4 h-4" /> {importing ? 'Importando...' : 'Importar arquivo (PDF/DOCX)'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleImportFile(file)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+            {importError && <p className="text-xs text-rose-400 mt-2">{importError}</p>}
+          </div>
         ) : (
           <div className="space-y-2.5 pt-1">
             <TextInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título (ex: Política de Garantia)" className="w-full" />
@@ -1272,27 +1343,56 @@ function KnowledgeTab() {
         ) : (
           <div className="space-y-2">
             {docs.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-[#112240] border border-white/8">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{d.title}</p>
-                  <p className="text-xs text-slate-500">
-                    {d.clientName ? `Cliente: ${d.clientName}` : 'Todos os clientes'} · {d.chunkCount} trecho{d.chunkCount === 1 ? '' : 's'}
-                    {' · '}
-                    {d.isActive ? <span className="text-emerald-400">ativo</span> : <span className="text-slate-500">inativo</span>}
-                  </p>
+              <div key={d.id} className="rounded-lg bg-[#112240] border border-white/8 overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{d.title}</p>
+                    <p className="text-xs text-slate-500">
+                      {d.clientName ? `Cliente: ${d.clientName}` : 'Todos os clientes'} · {d.chunkCount} trecho{d.chunkCount === 1 ? '' : 's'}
+                      {' · '}
+                      {d.isActive ? <span className="text-emerald-400">ativo</span> : <span className="text-slate-500">inativo</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => toggleChunks(d.id)}
+                      disabled={d.chunkCount === 0}
+                      title="Ver trechos gerados (o que o bot realmente recupera)"
+                      className="text-slate-500 hover:text-[#d4af37] transition-colors disabled:opacity-30 disabled:hover:text-slate-500"
+                    >
+                      <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedChunksId === d.id ? 'rotate-180' : ''}`} />
+                    </button>
+                    <button onClick={() => startEdit(d)} className="text-slate-500 hover:text-[#d4af37] transition-colors">
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => remove(d.id)}
+                      disabled={deletingId === d.id}
+                      className="text-slate-500 hover:text-rose-400 transition-colors disabled:opacity-40"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => startEdit(d)} className="text-slate-500 hover:text-[#d4af37] transition-colors">
-                    <PencilIcon className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => remove(d.id)}
-                    disabled={deletingId === d.id}
-                    className="text-slate-500 hover:text-rose-400 transition-colors disabled:opacity-40"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
-                </div>
+
+                {expandedChunksId === d.id && (
+                  <div className="border-t border-white/8 bg-[#0a192f] px-3.5 py-2.5 space-y-2">
+                    {chunksLoadingId === d.id ? (
+                      <p className="text-xs text-slate-500">Carregando trechos...</p>
+                    ) : (chunksByDoc[d.id] || []).length === 0 ? (
+                      <p className="text-xs text-slate-500">Nenhum trecho gerado ainda.</p>
+                    ) : (
+                      (chunksByDoc[d.id] || []).map((c) => (
+                        <div key={c.chunkIndex} className="rounded-lg bg-[#112240] border border-white/8 px-3 py-2">
+                          {c.headingPath && (
+                            <p className="text-[10px] uppercase tracking-wide text-[#d4af37] mb-1">{c.headingPath}</p>
+                          )}
+                          <p className="text-xs text-slate-300 whitespace-pre-wrap font-mono leading-relaxed">{c.chunkText}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

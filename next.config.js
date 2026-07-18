@@ -196,6 +196,13 @@ const nextConfig = {
   // que afeta muitas páginas admin no build de produção (Next.js 14.1+)
   experimental: {
     missingSuspenseWithCSRBailout: false,
+    // pdf-parse (baseado em pdf.js) e mammoth fazem require/import dinâmico interno que o
+    // bundler do webpack do Next quebra ao tentar empacotar (erro real observado: "Object.
+    // defineProperty called on non-object" — funcionava isolado via Node puro, só falhava
+    // dentro da API route). Tratar como pacote externo faz o Next usar o require nativo do
+    // Node em runtime em vez de tentar empacotar — padrão já documentado pra libs pdf.js em
+    // Next.js. M4.3 RAG — import de PDF/DOCX na Base de Conhecimento.
+    serverComponentsExternalPackages: ['pdf-parse', 'mammoth'],
   },
 
   // Configurações de ambiente

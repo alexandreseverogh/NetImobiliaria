@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-18 (M4.3 RAG em andamento — Fase 5 concluída: UI de gestão da KB pelo tenant, 2 bugs reais de convenção pegos e corrigidos ao testar)
+> **Atualizado em:** 2026-07-18 (continuação) — combobox de cliente alfabético + import de PDF/DOCX + visualizador de trechos, todos testados ao vivo
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -128,11 +128,57 @@ segurança do harness (Edit/Write/Bash) ficou intermitentemente indisponível po
 seguidos — não é um problema do projeto, é uma instabilidade da própria ferramenta. Contornado
 esperando e tentando de novo (sem pular a revisão/teste por causa disso).
 
-**Próximos passos:** avaliar import de PDF/DOCX (Fase 3, deixado de fora por ora) · Fase 6 testes
-de qualidade com mais documentos reais/variados · Fase 7 deploy VPS (pgvector na imagem +
-`GEMINI_API_KEY` no ambiente de produção) · pendência de UX menor: a UI ainda não expõe reordenar/
-visualizar os chunks gerados de um documento (só o total) — suficiente pro MVP, mas útil pra
-depurar recuperação ruim no futuro.
+**Próximos passos:** Fase 6 testes de qualidade com mais documentos reais/variados · Fase 7 deploy
+VPS (pgvector na imagem + `GEMINI_API_KEY` no ambiente de produção) · a branch ainda não virou PR
+pra `main`.
+
+---
+
+### Sessão 2026-07-18 (continuação 2) — combobox de cliente + import PDF/DOCX + visualizador de trechos ✅
+
+Pedido direto do usuário (2 itens da lista de pendências da rodada anterior).
+
+**1. Combobox de cliente alfabético com filtro incremental** — trocado o campo de busca
+debounced (mín. 2 letras, só top 8, via `/clientes-search`) por um combobox de verdade: carrega
+a lista completa do tenant **uma vez** — `/api/admin/campanhas/clients?limit=200` já devolve
+`ORDER BY nome ASC` — e filtra 100% no cliente conforme o usuário digita (sem round-trip por
+letra). `onMouseDown` no lugar de `onClick` nas opções (dispara antes do `onBlur` do input, senão
+o dropdown fecha antes do clique ser registrado).
+
+**2. Import de PDF/DOCX** (Fase 3, item que tinha ficado de fora): `documentImport.ts`
+(`extractMarkdownFromFile`) — PDF via `pdf-parse` (`PDFParse.getText()`, sem heading, degrada pra
+chunking por parágrafo no `chunkMarkdown` já existente — mesmo código, sem branch especial);
+DOCX via `mammoth.convertToHtml()` + conversão HTML→Markdown por regex (segura aqui porque a
+entrada é SEMPRE a saída flat e previsível do mammoth, nunca HTML arbitrário) — preserva a
+hierarquia real de Heading 1/2/3 do Word, alimentando o `heading_path` contextual do chunking.
+Nova rota `POST /knowledge/import` (multipart/form-data) reaproveita o MESMO `regenerateChunks()`
+de sempre; documento importado abre direto em modo de edição na UI (extração pode trazer ruído —
+cabeçalho/rodapé repetido, numeração de página — revisão antes de confirmar "Salvar" é o desenho
+certo, não um passo opcional).
+
+**Bug real pego ao testar (não hipotético):** `pdf-parse`/`mammoth` funcionavam isolados via Node
+puro, mas quebravam dentro da API route do Next com `"Object.defineProperty called on non-object"`
+— erro genérico do webpack tentando empacotar o require dinâmico interno do pdf.js. Corrigido com
+`experimental.serverComponentsExternalPackages: ['pdf-parse', 'mammoth']` no `next.config.js`
+(trata como pacote externo, usa `require` nativo do Node em runtime — padrão conhecido pra libs
+baseadas em pdf.js dentro do Next). **2º bug real:** `pdf-parse` insere um separador
+`-- N of M --` entre páginas no texto extraído — vazava pro markdown como se fosse conteúdo real;
+removido por regex antes do texto entrar no pipeline.
+
+**3. Visualizador de trechos (chunks)** — nova rota `GET /knowledge/[id]/chunks` (só leitura,
+nunca expõe o vetor de embedding) + botão de expandir (chevron) em cada linha da lista, mostrando
+`heading_path` + `chunk_text` de cada trecho gerado — exatamente o que o bot recupera de verdade,
+não só a contagem. Carregado sob demanda (1ª vez que expande), cacheado em memória depois.
+
+**Testado ao vivo, ponta a ponta** (via curl multipart, servidor dedicado do worktree — não o
+`:3000` compartilhado): PDF hand-crafted (estrutura válida, xref com offsets reais calculados) →
+extraído texto real, "-- 1 of 1 --" limpo · DOCX real (fixture do próprio mammoth, lista
+`<ul><li>`) → convertido corretamente pra `- Apple\n- Banana` · `GET .../chunks` retornou o chunk
+gerado de cada import corretamente · dados de teste removidos depois, cascata confirmada
+(`COUNT(*) = 0` em documents e chunks). `npx tsc --noEmit` limpo em todos os arquivos tocados.
+
+**Dependências novas:** `pdf-parse@^2.4.5`, `mammoth@^1.12.0` (instaladas com
+`--legacy-peer-deps`, mesma convenção já documentada no projeto por causa do `react-leaflet@5`).
 
 **⚠️ Nota de persistência (dev):** o container roda agora com `netimob-postgres:17-pgvector` (setado
 inline no recreate). Até esta branch mergear em `main`, um `docker compose up` do diretório
