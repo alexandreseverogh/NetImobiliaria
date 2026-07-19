@@ -3,15 +3,22 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/marketing-utils';
+import type { Creative } from '@/lib/marketing-api';
 import type { GoogleCampaignInput } from '@/lib/marketing/networks/types';
 
 interface GoogleAiMaxWizardProps {
   onClose: () => void;
   onLaunch: (payload: GoogleCampaignInput) => Promise<void>;
   initialData?: Partial<GoogleCampaignInput>;
+  /** Imagens já selecionadas na página (mesmo picker de pasta usado pelo wizard Meta) —
+   *  ver docs/PLANO_GOOGLE_TIKTOK.md. `img.path` é o mesmo blob URL que o CampaignWizard
+   *  (Meta) já usa hoje — limitação pré-existente e compartilhada (blob: só existe no
+   *  navegador, não chega ao adapter server-side), não introduzida agora só pro Google. */
+  selectedImages?: Creative[];
 }
 
-export function GoogleAiMaxWizard({ onClose, onLaunch, initialData }: GoogleAiMaxWizardProps) {
+export function GoogleAiMaxWizard({ onClose, onLaunch, initialData, selectedImages: selectedImagesProp }: GoogleAiMaxWizardProps) {
+  const selectedImages = selectedImagesProp ?? [];
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [isLaunching, setIsLaunching] = useState(false);
 
@@ -53,7 +60,7 @@ export function GoogleAiMaxWizard({ onClose, onLaunch, initialData }: GoogleAiMa
             name: 'Asset Group 1',
             headlines: headlines.filter(h => h.trim() !== ''),
             descriptions: descriptions.filter(d => d.trim() !== ''),
-            images: [], // mock for now
+            images: selectedImages.map(img => img.path),
             finalUrl: finalUrl || 'https://exemplo.com',
           }
         ],
@@ -95,8 +102,31 @@ export function GoogleAiMaxWizard({ onClose, onLaunch, initialData }: GoogleAiMa
           {step === 1 && (
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">1. Ativos (Assets)</h3>
-              <p className="text-sm text-slate-500">O Google usará esses títulos e descrições para montar os anúncios dinamicamente.</p>
-              
+              <p className="text-sm text-slate-500">O Google usará esses títulos e descrições — e as imagens selecionadas na etapa anterior — para montar os anúncios dinamicamente.</p>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  Imagens ({selectedImages.length})
+                </label>
+                {selectedImages.length === 0 ? (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 rounded-xl p-3">
+                    Nenhuma imagem selecionada. Volte e escolha uma pasta de criativos antes de lançar —
+                    o Performance Max precisa de pelo menos 1 imagem por Asset Group.
+                  </p>
+                ) : (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {selectedImages.map(img => (
+                      <img
+                        key={img.name}
+                        src={img.path}
+                        alt={img.name}
+                        className="w-16 h-16 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Nome da Campanha</label>
                 <input 
@@ -276,9 +306,10 @@ export function GoogleAiMaxWizard({ onClose, onLaunch, initialData }: GoogleAiMa
               Avançar
             </button>
           ) : (
-            <button 
+            <button
               onClick={handleLaunch}
-              disabled={isLaunching}
+              disabled={isLaunching || selectedImages.length === 0}
+              title={selectedImages.length === 0 ? 'Selecione ao menos 1 imagem antes de lançar' : undefined}
               className="px-8 py-2.5 rounded-xl text-sm font-black bg-emerald-600 text-white disabled:opacity-50 flex items-center gap-2"
             >
               {isLaunching ? 'Lançando...' : 'LANÇAR CAMPANHA PMAX'}

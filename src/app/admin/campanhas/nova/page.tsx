@@ -252,6 +252,7 @@ export default function NovaCampanhaPage() {
   if (showGoogleWizard) {
     return (
       <GoogleAiMaxWizard
+        selectedImages={selected}
         onClose={() => setShowGoogleWizard(false)}
         onLaunch={async (payload) => {
           try {
