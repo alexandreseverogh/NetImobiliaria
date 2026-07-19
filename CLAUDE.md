@@ -20,27 +20,39 @@ ao fim de cada sessão — mas depende de Claude ter atualizado o arquivo durant
 
 ---
 
-## ⚠️ Regra Obrigatória — Coordenação com outros agentes de IA (`docs/AI_SYNC.md`)
+## ⚠️ Regra Obrigatória — Múltiplas Frentes em Paralelo (Worktrees)
 
-Este repositório pode ter **mais de um agente de IA trabalhando em paralelo** (Claude, Antigravity,
-etc.), possivelmente cada um numa branch/diretório de trabalho diferente.
+**Encerrada em 2026-07-19 a colaboração com o agente Antigravity** — que trabalhava em paralelo
+neste repositório. Todo o trabalho dele em `feature/ag-cockpit-camadas` foi puxado (commitado +
+WIP não commitado) para um worktree isolado, auditado, corrigido (vários bugs reais encontrados)
+e incorporado à implementação do plano Google Ads/TikTok. O diretório principal foi limpo de
+qualquer resquício não commitado dele. Detalhe completo em `docs/CHECKPOINT.md` e no histórico
+de `docs/AI_SYNC.md` (mantido só como registro histórico — não é mais lido no início da sessão).
+
+Isso **não elimina a necessidade de cuidado com múltiplas frentes** — o projeto continua com
+várias frentes de trabalho em paralelo, cada uma em seu próprio `git worktree`, e é fácil uma
+sessão nova perder o contexto de qual branch/worktree é o certo pra continuar uma tarefa.
 
 **No início de TODA sessão**, antes de qualquer edição de código:
-1. Ler `docs/AI_SYNC.md` por completo — ele registra qual agente está ativo, em qual branch, e
-   quais arquivos/áreas do código estão sendo mexidos por outro agente naquele momento.
-2. Rodar `git branch --show-current` e `git status --short` — nunca assumir que a branch/estado
-   atual é o mesmo do início da sessão anterior; a branch pode ter sido trocada por outro agente
-   ou pelo usuário fora desta sessão.
-3. Se `AI_SYNC.md` indicar que outro agente está ativo numa área do código, evitar tocar nela —
-   e, se for inevitável, avisar o usuário antes de prosseguir.
-4. Ao concluir uma tarefa relevante pra coordenação (nova branch criada, área do código que passa
-   a estar "livre"), atualizar `docs/AI_SYNC.md` com um novo registro de atividade, no mesmo
-   formato dos registros existentes.
+1. Rodar `git branch --show-current` e `git status --short` no diretório atual — nunca assumir
+   que a branch/estado é o mesmo do início da sessão anterior.
+2. Rodar `git worktree list` para ver todas as frentes ativas (a tabela abaixo é um snapshot —
+   pode estar desatualizada; o comando é a fonte de verdade).
+3. Confirmar que está no worktree/branch certo pra tarefa pedida antes de editar código.
+
+**Worktrees ativos (snapshot 2026-07-19):**
+
+| Diretório | Branch | Frente |
+|-----------|--------|--------|
+| `net-imobiliaria` (este) | `feature/ag-cockpit-camadas` | Diretório principal — histórico geral do projeto |
+| `netimob-google` | `feature/google-ads-implementation` | Google Ads + TikTok — plano em `docs/PLANO_GOOGLE_TIKTOK.md` |
+| `netimob-cherrypick` | `feature/mensageria-rag` | Mensageria M4.3 (RAG/Base de Conhecimento) — plano em `docs/PLANO_MENSAGERIA.md` |
+| `netimob-imgfix` | `fix/next-image-minio-localhost` | Fix pontual — fotos de imóveis via MinIO |
 
 **Nunca** trocar de branch (`git checkout`/`git switch`) nem rodar operações destrutivas
-(`reset --hard`, `clean`, force-push) num diretório onde outro agente possa ter alterações não
-commitadas — preferir um `git worktree` separado pra qualquer operação que precise de uma branch
-diferente da que já está checked-out no diretório atual.
+(`reset --hard`, `clean`, force-push) num diretório que tenha alterações não commitadas de
+outra frente em andamento — preferir um `git worktree` separado pra qualquer trabalho que
+precise de uma branch diferente da que já está checked-out no diretório atual.
 
 ---
 

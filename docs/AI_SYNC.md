@@ -1,9 +1,15 @@
 # Diário de Bordo da Inteligência Artificial (AI Sync)
 
-> **CRITICAL RULE PARA AGENTES:** 
-> Todo agente (Claude, Antigravity, etc.) **DEVE LER O CONTEÚDO DESTE ARQUIVO** antes de iniciar o trabalho, para entender o contexto arquitetural atual e em qual branch o outro agente está trabalhando.
+> **ENCERRADO em 2026-07-19.** Este arquivo documenta a colaboração multi-agente (Claude +
+> Antigravity) que existiu neste repositório até essa data. A decisão do usuário foi encerrar
+> essa colaboração: todo o trabalho do Antigravity foi puxado para o worktree isolado
+> `netimob-google` (branch `feature/google-ads-implementation`), auditado, corrigido e
+> incorporado à implementação do plano Google Ads/TikTok — ver `docs/CHECKPOINT.md` para o
+> detalhe completo. O diretório principal foi limpo de qualquer resquício não commitado dele.
+> Este arquivo permanece só como **registro histórico** — não é mais lido no início de sessão
+> (ver `CLAUDE.md`, seção "Múltiplas Frentes em Paralelo").
 
-## Contexto Atual do Projeto
+## Contexto Atual do Projeto (histórico, até 2026-07-19)
 Estamos em processo de refatoração do Módulo de Campanhas Digitais para comportar o Google Ads sem causar "Sobrecarga Cognitiva" no usuário. O painel está sendo dividido em 3 camadas: Visão Executiva (Command Center), Análise, e Inteligência Profunda.
 
 ---
