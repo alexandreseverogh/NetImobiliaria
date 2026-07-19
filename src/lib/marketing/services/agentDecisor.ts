@@ -232,22 +232,12 @@ export async function executeAction(
     let budgetChange: { before: number; after: number } | null = null;
 
     if (action.type === 'ADD_NEGATIVE_KEYWORD') {
-      // Google-only — negativa o termo real na conta e registra em GoogleNegativeKeyword
-      // (memória pra não propor de novo) + marca o GoogleSearchTerm como tratado.
-      if (externalId && tenantId && networkCode === 'google') {
-        const networkService = await getNetworkServiceForTenant(tenantId, networkCode) as any;
-        if (typeof networkService.addNegativeKeyword === 'function') {
-          await networkService.addNegativeKeyword(externalId, action.negativeTerm, action.negativeMatchType);
-        }
-        await prisma.googleNegativeKeyword.upsert({
-          where: { tenantId_campaignId_term: { tenantId, campaignId: action.campaignId, term: action.negativeTerm } },
-          update: { matchType: action.negativeMatchType, addedBy: 'agent' },
-          create: { tenantId, campaignId: action.campaignId, term: action.negativeTerm, matchType: action.negativeMatchType, addedBy: 'agent' },
-        });
-        await prisma.googleSearchTerm.updateMany({
-          where: { tenantId, campaignId: action.campaignId, searchTerm: action.negativeTerm },
-          data: { status: 'negated' },
-        });
+      // Google-only — mecânica real (chamada à API + memória) vive em googleNegationCore.ts,
+      // compartilhada com a rota de negativação MANUAL (evita import circular com
+      // googleNegationService.ts, que já importa executeAction deste arquivo).
+      if (tenantId && networkCode === 'google') {
+        const { applyNegation } = await import('./googleNegationCore');
+        await applyNegation(tenantId, action.campaignId, externalId, action.negativeTerm, action.negativeMatchType, 'agent');
       }
 
       await prisma.$executeRaw`

@@ -45,6 +45,7 @@ const PALETTE_LIGHT = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#
 import { CommandCenterView } from '@/components/marketing/dashboard/CommandCenterView';
 import { AnalyticsView } from '@/components/marketing/dashboard/AnalyticsView';
 import { DeepDiveView } from '@/components/marketing/dashboard/DeepDiveView';
+import { GoogleAdsView } from '@/components/marketing/dashboard/GoogleAdsView';
 import { CampaignsTable } from '@/components/marketing/dashboard/CampaignsTable';
 import { PeriodBadge } from '@/components/marketing/dashboard/PeriodBadge';
 import { FarolSection } from '@/components/marketing/dashboard/FarolSection';
@@ -70,7 +71,7 @@ export function DashboardPage() {
   const [generatingBriefing, setGeneratingBriefing] = useState(false);
   const [showBriefingHistory, setShowBriefingHistory] = useState(false);
   const [isDark, setIsDark]                 = useState(true); // dark by default
-  const [activeLayer, setActiveLayer]       = useState<'COMMAND' | 'ANALYTICS' | 'DEEP_DIVE'>('COMMAND');
+  const [activeLayer, setActiveLayer]       = useState<'COMMAND' | 'ANALYTICS' | 'DEEP_DIVE' | 'GOOGLE'>('COMMAND');
 
   const [dateRange, setDateRange]           = useState('1'); // 'Hoje' como padrão
   const [startDate, setStartDate]           = useState('');
@@ -601,12 +602,22 @@ export function DashboardPage() {
           >
              Análise de Dados
           </button>
-          <button 
+          <button
              onClick={() => setActiveLayer('DEEP_DIVE')}
              className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all', activeLayer === 'DEEP_DIVE' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
           >
              Inteligência Profunda
           </button>
+          {/* FASE 1 (Google Ads) A7 — só aparece se houver dado real de rede Google
+              (não empilhar KPI Google no painel pra quem não usa a rede) */}
+          {data?.cplByNetwork?.google && (
+            <button
+               onClick={() => setActiveLayer('GOOGLE')}
+               className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all', activeLayer === 'GOOGLE' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+            >
+               Google Ads
+            </button>
+          )}
         </div>
 
         {activeLayer === 'COMMAND' && (
@@ -710,6 +721,10 @@ export function DashboardPage() {
         )}
         {/* Fecha activeLayer !== COMMAND */}
         </>
+        )}
+
+        {(activeLayer as string) === 'GOOGLE' && (
+          <GoogleAdsView isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
         )}
         {/* Fecha {activeSegment && <> ... </>} */}
         </>}
