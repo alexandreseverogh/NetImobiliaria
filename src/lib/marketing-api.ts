@@ -367,6 +367,8 @@ export interface DashboardFullData {
   adSets: { id: string; name: string; campaignId: string; campaignName: string }[];
   dailyLeads: { date: string; count: number }[];
   leadsByNetwork?: Record<string, number>;
+  // FASE 1 (Google Ads) A7 — comparativo CPL por rede (meta/google/...)
+  cplByNetwork?: Record<string, { spend: number; leads: number; cpl: number | null }>;
   funnelData: FunnelData;
 }
 

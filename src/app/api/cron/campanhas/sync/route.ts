@@ -16,10 +16,13 @@ export async function POST(request: NextRequest) {
   try {
     const { syncMetrics, getActiveTenants } = await import('@/lib/marketing/services/agentMonitor');
     const { runDecisor } = await import('@/lib/marketing/services/agentDecisor');
+    // FASE 1 (Google Ads) A6 — agente de negativação (só age em tenants com campanhas Google)
+    const { runNegationAgent } = await import('@/lib/marketing/services/googleNegationService');
 
     await syncMetrics();
     const tenants = await getActiveTenants();
     await Promise.allSettled(tenants.map((tid: string) => runDecisor(tid)));
+    await Promise.allSettled(tenants.map((tid: string) => runNegationAgent(tid)));
 
     return NextResponse.json({ ok: true, tenants: tenants.length });
   } catch (error: any) {

@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import prisma from '../prisma';
 import { getNetworkServiceForTenant } from '../networks/factory';
 import type { NetworkCode } from '../networks/types';
+import { GoogleAdsAdapter } from '../networks/google/GoogleAdsAdapter';
 import { runDecisor } from './agentDecisor';
 import { generateStrategicBriefing } from './strategicBriefing';
 import { notifyWhatsApp, notifySlack } from './agentNotificador';
@@ -230,6 +231,16 @@ export async function syncMetrics() {
         console.error(`Erro ao sincronizar campanha ${campaign.id} (${networkCode}):`, err);
       }
 
+      // FASE 1 (Google Ads) A4 — coletor de Search Terms (só Google; sustenta a negativação
+      // automática, ver docs/PLANO_GOOGLE_TIKTOK.md A6). Falha isolada, não afeta o resto do sync.
+      if (networkCode === 'google' && networkService instanceof GoogleAdsAdapter) {
+        try {
+          await collectGoogleSearchTerms(networkService, campaign.id, campaign.tenantId, externalId, since, until);
+        } catch (err) {
+          console.error(`[collectGoogleSearchTerms] Erro na campanha ${campaign.id}:`, err);
+        }
+      }
+
       // FASE 4 — infere lifecycle após sync (falha silenciosa)
       try {
         await inferLifecycleStatus(campaign.id);
@@ -237,5 +248,52 @@ export async function syncMetrics() {
         console.error(`[Lifecycle] Erro ao inferir status da campanha ${campaign.id}:`, err);
       }
     }
+  }
+}
+
+/** FASE 1 (Google Ads) A4 — grava os termos de busca reais no grão próprio (GoogleSearchTerm,
+ *  não cabe em Insight que é campanha-dia). Preserva o `status` já setado por uma negativação
+ *  anterior (agente ou humano) — o upsert nunca reseta pra 'none' num termo já tratado. */
+async function collectGoogleSearchTerms(
+  adapter: GoogleAdsAdapter,
+  campaignId: string,
+  tenantId: string | null,
+  externalId: string,
+  since: string,
+  until: string,
+) {
+  if (!tenantId) return; // GoogleSearchTerm.tenantId é NOT NULL
+
+  const terms = await adapter.fetchSearchTerms(externalId, { since, until });
+  for (const t of terms) {
+    await prisma.googleSearchTerm.upsert({
+      where: {
+        tenantId_campaignId_searchTerm_date: {
+          tenantId,
+          campaignId,
+          searchTerm: t.searchTerm,
+          date: new Date(t.date),
+        },
+      },
+      update: {
+        matchType:   t.matchType,
+        impressions: t.impressions,
+        clicks:      t.clicks,
+        cost:        t.cost,
+        conversions: t.conversions,
+        // status NÃO é atualizado aqui — preserva 'negated'/'added_as_keyword' de rodadas anteriores
+      },
+      create: {
+        tenantId,
+        campaignId,
+        searchTerm:  t.searchTerm,
+        matchType:   t.matchType,
+        date:        new Date(t.date),
+        impressions: t.impressions,
+        clicks:      t.clicks,
+        cost:        t.cost,
+        conversions: t.conversions,
+      },
+    });
   }
 }

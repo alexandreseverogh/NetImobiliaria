@@ -7,6 +7,7 @@ import {
 } from './agentNotificador';
 import { invokeForContext } from '../../intelligence/llmInvoker';
 import { getNetworkServiceForTenant } from '../networks/factory';
+import type { NetworkCode } from '../networks/types';
 import { transitionCampaign } from './campaignStateMachine';
 import { getAngleInsights } from './angleInsightsService';
 import { resolveCampaignSegment, computeBudgetPlan } from './budgetPlanner';
@@ -16,7 +17,9 @@ const CONFIDENCE_THRESHOLD = parseFloat(process.env.AGENT_CONFIDENCE_THRESHOLD |
 const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'http://localhost:3001';
 
 // Ações defensivas: executam automaticamente sem aprovação humana
-const DEFENSIVE_TYPES = ['PAUSE', 'DOWNSCALE'];
+// FASE 1 (Google Ads) A6 — ADD_NEGATIVE_KEYWORD é defensiva (baixo risco, só remove tráfego
+// ruim já comprovado sem conversão) — mesmo tratamento de PAUSE/DOWNSCALE.
+const DEFENSIVE_TYPES = ['PAUSE', 'DOWNSCALE', 'ADD_NEGATIVE_KEYWORD'];
 // Ações ofensivas: exigem aprovação via WhatsApp/Slack
 const OFFENSIVE_TYPES = ['SCALE', 'REFRESH_CREATIVE', 'ADJUST_AUDIENCE', 'REALLOCATE_BUDGET'];
 
@@ -215,10 +218,46 @@ export async function executeAction(
 ): Promise<{ before: number; after: number } | null> {
   try {
     const campaign = await prisma.campaign.findUnique({ where: { id: action.campaignId } }) as any;
-    const externalId = campaign?.external_id || campaign?.metaCampaignId;
-    const networkCode = (campaign?.networkCode as any) || 'meta';
+    // FIX: campaign.networkCode/external_id nunca existiram (schema real é networkId/externalId
+    // camelCase) — toda campanha caía silenciosamente no fallback 'meta', mesmo sendo Google.
+    const externalId = campaign?.externalId || campaign?.metaCampaignId;
+    let networkCode: NetworkCode = 'meta';
+    if (campaign?.networkId) {
+      const netRows = await prisma.$queryRaw<{ code: string }[]>`
+        SELECT code FROM public.ad_networks WHERE id = ${campaign.networkId}::uuid LIMIT 1
+      `;
+      if (netRows[0]?.code) networkCode = netRows[0].code as NetworkCode;
+    }
 
     let budgetChange: { before: number; after: number } | null = null;
+
+    if (action.type === 'ADD_NEGATIVE_KEYWORD') {
+      // Google-only — negativa o termo real na conta e registra em GoogleNegativeKeyword
+      // (memória pra não propor de novo) + marca o GoogleSearchTerm como tratado.
+      if (externalId && tenantId && networkCode === 'google') {
+        const networkService = await getNetworkServiceForTenant(tenantId, networkCode) as any;
+        if (typeof networkService.addNegativeKeyword === 'function') {
+          await networkService.addNegativeKeyword(externalId, action.negativeTerm, action.negativeMatchType);
+        }
+        await prisma.googleNegativeKeyword.upsert({
+          where: { tenantId_campaignId_term: { tenantId, campaignId: action.campaignId, term: action.negativeTerm } },
+          update: { matchType: action.negativeMatchType, addedBy: 'agent' },
+          create: { tenantId, campaignId: action.campaignId, term: action.negativeTerm, matchType: action.negativeMatchType, addedBy: 'agent' },
+        });
+        await prisma.googleSearchTerm.updateMany({
+          where: { tenantId, campaignId: action.campaignId, searchTerm: action.negativeTerm },
+          data: { status: 'negated' },
+        });
+      }
+
+      await prisma.$executeRaw`
+        UPDATE campanhasmarketingdigital."AgentAction"
+        SET status = 'EXECUTED', "executedAt" = now()
+        WHERE id = ${action.id}
+      `;
+      if (!skipNotify) await notifyExecuted({ ...action, budget: null }, auto);
+      return null;
+    }
 
     if (action.type === 'PAUSE') {
       if (externalId && tenantId) {

@@ -96,7 +96,16 @@ export function CommandCenterView({
               : undefined
           }
         />
-        <KpiCard isDark={isDark} label="CPL Médio" value={formatCurrencyCompact(cpl)} fullValue={formatCurrency(cpl)} color={isDark ? 'text-teal-400' : 'text-teal-600'} />
+        <KpiCard isDark={isDark} label="CPL Médio" value={formatCurrencyCompact(cpl)} fullValue={formatCurrency(cpl)} color={isDark ? 'text-teal-400' : 'text-teal-600'}
+          breakdown={
+            data.cplByNetwork && Object.keys(data.cplByNetwork).length > 1
+              ? Object.entries(data.cplByNetwork).map(([net, v]) => ({
+                  label: net === 'meta' ? 'Meta Ads' : 'Google Ads',
+                  value: v.cpl !== null ? formatCurrencyCompact(v.cpl) : '—',
+                }))
+              : undefined
+          }
+        />
         {hookRate !== null ? (
           <HookRateKpiCard isDark={isDark} value={hookRate} color={isDark ? 'text-amber-400' : 'text-amber-600'} benchmarks={hookRateBenchmarks} />
         ) : (
