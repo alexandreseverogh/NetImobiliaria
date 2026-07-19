@@ -8,6 +8,28 @@
 
 ## Tarefa em andamento
 
+### Plano Google Ads + TikTok (2026-07-19 — Documentação concluída, pronto para fase paralela)
+
+**Status:** Planejamento completo documentado em `docs/PLANO_GOOGLE_TIKTOK.md`.
+
+**Escopo:** Extensão multi-rede do sistema de campanhas de marketing digital. Duas fases:
+- **FASE 1 — Google Ads:** Completar adapter (tirar do mock), adicionar negativação automática, métricas de IS, regra de SCALE/KILL
+- **FASE 2 — TikTok:** Adapter via SDK oficial, reuso de métricas de vídeo já existentes (criadas em FASE 5), template de vídeo
+
+**Dependência crítica de tempo:** Developer Token Google Ads API (5–15 dias de aprovação). **Ação imediata:** Solicitar.
+
+**Coordenação:** Outro agente em `feature/ag-cockpit-camadas` já ~40% iniciada em Google. Este plano audita + completa + tira do mock, registrado em `docs/AI_SYNC.md`.
+
+**Princípios inegociáveis:**
+- Portão do KPI: nenhum dado sem decisão amarrada
+- Multi-segmento por config (JSONB `network_defaults`)
+- Reuso máximo (30+ agentes existentes, dashboard consolidado, fila de aprovação)
+- Fora de escopo: SEO, Quality Score passivo, hashtags/sounds do TikTok
+
+**Próxima ação:** Assim que Developer Token tiver perspectiva, iniciar Passo 2 (Migrations).
+
+---
+
 ### M4.3 — RAG / Base de Conhecimento (branch `feature/mensageria-rag`, worktree `netimob-cherrypick`)
 
 Plano completo discutido e travado com o usuário (`docs/PLANO_MENSAGERIA.md` §14.6-B). Decisões:
