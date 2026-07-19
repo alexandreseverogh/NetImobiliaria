@@ -21,6 +21,11 @@ const CampaignWizard = dynamic(
   { ssr: false },
 );
 
+const GoogleAiMaxWizard = dynamic(
+  () => import('@/components/marketing/GoogleAiMaxWizard').then(m => m.GoogleAiMaxWizard),
+  { ssr: false },
+);
+
 /* ── helpers ─────────────────────────────────────────────── */
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif']);
 function isImage(name: string) {
@@ -75,6 +80,7 @@ export default function NovaCampanhaPage() {
 
   /* ── Phase 2: wizard ────────────────────────────────── */
   const [showWizard, setShowWizard] = useState(false);
+  const [showGoogleWizard, setShowGoogleWizard] = useState(false);
 
   /* ── Consultar campanhas modal ──────────────────────── */
   const [showConsultarModal, setShowConsultarModal] = useState(false);
@@ -239,6 +245,39 @@ export default function NovaCampanhaPage() {
             ? { body: prefillBody || undefined, headline: prefillHeadline || undefined, hookText: prefillHookText || undefined }
             : undefined
         }
+      />
+    );
+  }
+
+  if (showGoogleWizard) {
+    return (
+      <GoogleAiMaxWizard
+        onClose={() => setShowGoogleWizard(false)}
+        onLaunch={async (payload) => {
+          try {
+            const assetIds = await uploadPromiseRef.current;
+            const res = await adminFetch('/api/admin/campanhas/google', {
+              method: 'POST',
+              body: JSON.stringify({
+                payload,
+                clientId: effectiveClientId,
+                assetIds,
+              }),
+            });
+            if (!res.ok) {
+              const err = await res.json();
+              throw new Error(err.error || 'Erro na criação');
+            }
+            alert('Campanha PMax criada com sucesso e pendente de revisão (DRAFT)!');
+            setShowGoogleWizard(false);
+            router.push('/admin/campanhas/iniciativas');
+          } catch (e: any) {
+            alert('Falha ao criar campanha Google AI Max: ' + e.message);
+          }
+        }}
+        initialData={{
+          name: prefillHeadline || 'Nova PMax',
+        }}
       />
     );
   }
@@ -618,19 +657,31 @@ export default function NovaCampanhaPage() {
             )}
           </div>
 
-          <button
-            onClick={() => {
-              // Inicia uploads em paralelo; promise resolvida antes do submit do wizard
-              uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
-              setShowWizard(true);
-            }}
-            disabled={!contextReady}
-            className="inline-flex items-center gap-2 px-7 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: contextReady ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#94a3b8' }}
-          >
-            <RocketLaunchIcon className="h-4 w-4" />
-            Configurar Campanha
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
+                setShowWizard(true);
+              }}
+              disabled={!contextReady}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: contextReady ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#94a3b8' }}
+            >
+              <RocketLaunchIcon className="h-4 w-4" />
+              Meta Ads
+            </button>
+            <button
+              onClick={() => {
+                uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
+                setShowGoogleWizard(true);
+              }}
+              disabled={!contextReady}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700"
+            >
+              <img src="/google-logo.png" alt="Google" className="h-4 w-4 filter brightness-0 invert opacity-90" onError={e => e.currentTarget.style.display='none'} />
+              Google AI Max
+            </button>
+          </div>
         </div>
 
       </div>

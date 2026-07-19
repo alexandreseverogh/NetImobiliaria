@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import prisma from '../prisma';
 import { getNetworkServiceForTenant } from '../networks/factory';
+import type { NetworkCode } from '../networks/types';
 import { runDecisor } from './agentDecisor';
 import { generateStrategicBriefing } from './strategicBriefing';
 import { notifyWhatsApp, notifySlack } from './agentNotificador';
@@ -132,9 +133,25 @@ export function startAgentMonitor() {
 
 export async function syncMetrics() {
   const campaigns = await prisma.campaign.findMany({
-    where: { metaCampaignId: { not: null } },
-    select: { id: true, tenantId: true, metaCampaignId: true },
+    where: {
+      OR: [
+        { metaCampaignId: { not: null } },
+        { AND: [{ networkId: { not: null } }, { externalId: { not: null } }] },
+      ],
+    },
+    select: { id: true, tenantId: true, metaCampaignId: true, externalId: true, networkId: true },
   });
+
+  // Resolve networkId → code (public.ad_networks) para as redes distintas encontradas
+  const networkIds = Array.from(new Set(campaigns.map(c => c.networkId).filter(Boolean))) as string[];
+  const networkCodeById = new Map<string, string>();
+  if (networkIds.length > 0) {
+    const rows = await prisma.$queryRawUnsafe<{ id: string; code: string }[]>(
+      `SELECT id, code FROM public.ad_networks WHERE id = ANY($1::uuid[])`,
+      networkIds,
+    );
+    for (const r of rows) networkCodeById.set(r.id, r.code);
+  }
 
   const byTenant = new Map<string, typeof campaigns>();
   for (const c of campaigns) {
@@ -149,17 +166,23 @@ export async function syncMetrics() {
   for (const [tenantId, tenantCampaigns] of Array.from(byTenant.entries())) {
     if (tenantId === '__global__') continue;
 
-    let networkService: Awaited<ReturnType<typeof getNetworkServiceForTenant>>;
-    try {
-      networkService = await getNetworkServiceForTenant(tenantId, 'meta');
-    } catch {
-      continue;
-    }
-
     for (const campaign of tenantCampaigns) {
-      if (!campaign.metaCampaignId) continue;
+      // networkId ausente = campanha legada anterior ao FK (sempre Meta, via metaCampaignId)
+      const networkCode = ((campaign.networkId ? networkCodeById.get(campaign.networkId) : null) || 'meta') as NetworkCode;
+      const externalId = networkCode === 'meta' ? (campaign.metaCampaignId || campaign.externalId) : campaign.externalId;
+
+      if (!externalId) continue;
+
+      let networkService: Awaited<ReturnType<typeof getNetworkServiceForTenant>>;
       try {
-        const insights = await networkService.fetchInsights(campaign.metaCampaignId, { since, until });
+        networkService = await getNetworkServiceForTenant(tenantId, networkCode);
+      } catch (e) {
+        console.warn(`[syncMetrics] Configuração da rede ${networkCode} ausente para o tenant ${tenantId}`);
+        continue;
+      }
+
+      try {
+        const insights = await networkService.fetchInsights(externalId, { since, until });
         for (const day of insights) {
           const insightId = `${campaign.id}-${day.date}`;
           const insightBase = {
@@ -185,6 +208,11 @@ export async function syncMetrics() {
             conversionRateRanking: day.conversionRateRanking ?? null,
             firstImpressionRatio:  day.firstImpressionRatio  ?? null,
             breakdowns:       (day as any).breakdowns ?? {},
+            // FASE 1 (Google Ads) — Impression Share + ROAS
+            searchImpressionShare: day.searchImpressionShare ?? 0,
+            searchBudgetLostIs:    day.searchBudgetLostIs    ?? 0,
+            searchRankLostIs:      day.searchRankLostIs      ?? 0,
+            conversionsValue:      day.conversionsValue      ?? 0,
           };
           await prisma.insight.upsert({
             where: { id: insightId },
@@ -199,7 +227,7 @@ export async function syncMetrics() {
           });
         }
       } catch (err) {
-        console.error(`Erro ao sincronizar campanha ${campaign.id}:`, err);
+        console.error(`Erro ao sincronizar campanha ${campaign.id} (${networkCode}):`, err);
       }
 
       // FASE 4 — infere lifecycle após sync (falha silenciosa)

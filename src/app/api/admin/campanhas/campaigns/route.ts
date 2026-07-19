@@ -159,6 +159,15 @@ export async function POST(request: NextRequest) {
       validInitiativeId = initiativeId;
     }
 
+    // Resolve network_id (tabela genérica public.ad_networks) — fecha um gap pré-existente:
+    // toda campanha criada até aqui ficava com network_id NULL, quebrando silenciosamente a
+    // agregação "Distribuição por Rede" do dashboard. Ver docs/PLANO_GOOGLE_TIKTOK.md.
+    const networkRes = await pool.query(
+      `SELECT id FROM public.ad_networks WHERE code = $1 LIMIT 1`,
+      [networkCode],
+    );
+    const resolvedNetworkId = networkRes.rows[0]?.id || null;
+
     // 1. Criar campanha
     const campaign = await prisma.campaign.create({
       data: {
@@ -170,6 +179,7 @@ export async function POST(request: NextRequest) {
         status: 'PAUSED',
         declaredAngle: normalizeAngle(declaredAngle),  // FASE 14
         initiativeId: validInitiativeId,               // vínculo opcional à iniciativa
+        networkId: resolvedNetworkId,
       },
     });
 
@@ -260,8 +270,8 @@ export async function POST(request: NextRequest) {
           ageMin: adSet.ageMin,
           ageMax: adSet.ageMax,
           genders: adSet.genders || [],
-          locations: adSet.locations,
-          interests: adSet.interests || [],
+          locations: adSet.locations as Record<string, any>,
+          interests: (adSet.interests || []) as any[],
           scheduleDays: adSet.scheduleDays || [],
           scheduleStartHour: adSet.scheduleStartHour || undefined,
           scheduleEndHour: adSet.scheduleEndHour || undefined,

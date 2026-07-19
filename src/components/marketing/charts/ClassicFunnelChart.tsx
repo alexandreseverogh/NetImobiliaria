@@ -38,8 +38,8 @@ const STAGES = [
   },
 ];
 
-function fmt(n: number): string {
-  if (n <= 0)          return '—';
+function fmt(n?: number | null): string {
+  if (n === undefined || n === null || isNaN(n) || n <= 0) return '—';
   if (n >= 1_000_000)  return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000)      return `${(n / 1_000).toFixed(1)}K`;
   return n.toLocaleString('pt-BR');

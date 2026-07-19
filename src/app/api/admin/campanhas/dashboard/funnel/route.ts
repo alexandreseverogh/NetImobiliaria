@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startStr       = searchParams.get('startDate');
     const endStr         = searchParams.get('endDate');
-    const clientId        = searchParams.get('clientId');
+    let clientId         = searchParams.get('clientId');
+    if (clientId === 'segment' || clientId === 'all') clientId = null;
     const segmentId       = searchParams.get('segmentId');
     const campaignId      = searchParams.get('campaignId');
     const objectiveFilter = searchParams.get('objectiveFilter');

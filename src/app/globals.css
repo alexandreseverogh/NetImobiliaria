@@ -24,6 +24,13 @@
 /* Importar estilos do Leaflet */
 @import '../styles/leaflet.css';
 
+/* Fix for Leaflet white lines on fractional zoom / subpixel rendering */
+.leaflet-container .leaflet-tile {
+  margin: -1px !important;
+  width: calc(256px + 2px) !important;
+  height: calc(256px + 2px) !important;
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;

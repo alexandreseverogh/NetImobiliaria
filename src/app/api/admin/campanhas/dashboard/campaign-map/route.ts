@@ -111,7 +111,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const clientId  = searchParams.get('clientId')  || null;
+    let clientId  = searchParams.get('clientId')  || null;
+    if (clientId === 'segment' || clientId === 'all') clientId = null;
     const segmentId = searchParams.get('segmentId') || null;
     const startDate = searchParams.get('startDate') || null;
     const endDate   = searchParams.get('endDate')

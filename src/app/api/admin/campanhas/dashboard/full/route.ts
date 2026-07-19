@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
     const startStr        = searchParams.get('startDate');
     const endStr          = searchParams.get('endDate');
     const campaignId      = searchParams.get('campaignId');
-    const clientId        = searchParams.get('clientId');
+    let clientId          = searchParams.get('clientId');
+    if (clientId === 'segment' || clientId === 'all') clientId = null;
     const segmentId       = searchParams.get('segmentId');
     const objectiveFilter = searchParams.get('objectiveFilter');
     const statusFilter    = searchParams.get('statusFilter');
@@ -104,11 +105,18 @@ export async function GET(request: NextRequest) {
       const impressions = insights.reduce((s, i) => s + i.impressions, 0);
       const reach = insights.reduce((s, i) => s + i.reach, 0);
       const conversions = insights.reduce((s, i) => s + i.conversions, 0);
+      
+      const spendByNetwork = insights.reduce((acc, i) => {
+        acc[i.adNetwork] = (acc[i.adNetwork] || 0) + i.spend;
+        return acc;
+      }, {} as Record<string, number>);
+
       return {
         spend, clicks, impressions, reach, conversions,
         ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
         cpc: clicks > 0 ? spend / clicks : 0,
         cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
+        spendByNetwork
       };
     }
 
@@ -158,6 +166,21 @@ export async function GET(request: NextRequest) {
       leads: currentLeadCount,
       conversions: currentTotals.conversions,
     };
+    const leadsByNetworkRaw: any[] = await prisma.$queryRaw`
+      SELECT c.network_id as network, COUNT(l.id)::int as count
+      FROM campanhasmarketingdigital."Lead" l
+      JOIN campanhasmarketingdigital."Campaign" c ON l."campaignId" = c.id
+      WHERE l."tenant_id" = ${payload.tenantId}::uuid
+        AND l."campaignId" = ANY(${campaignIdsQuery})
+        AND l."clickedAt" >= ${startDate}::timestamp
+        AND l."clickedAt" <= ${endDate}::timestamp
+      GROUP BY c.network_id
+    `;
+
+    const leadsByNetwork = leadsByNetworkRaw.reduce((acc, row) => {
+      acc[row.network] = Number(row.count);
+      return acc;
+    }, {} as Record<string, number>);
 
     return NextResponse.json({
       currentPeriod: { insights: currentInsights, totals: currentTotals, leadCount: currentLeadCount },
@@ -166,6 +189,7 @@ export async function GET(request: NextRequest) {
       campaigns,
       adSets: allAdSets,
       dailyLeads: normalizedDailyLeads,
+      leadsByNetwork,
       funnelData,
     });
   } catch (error: any) {

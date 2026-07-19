@@ -38,7 +38,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const campaignId      = searchParams.get('campaignId');
-    const clientId        = searchParams.get('clientId');
+    let clientId          = searchParams.get('clientId');
+    if (clientId === 'segment' || clientId === 'all') clientId = null;
     const segmentId       = searchParams.get('segmentId');
     const objectiveFilter = searchParams.get('objectiveFilter');
     const statusFilter    = searchParams.get('statusFilter');

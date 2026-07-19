@@ -356,6 +356,7 @@ export interface DashboardTotals {
   ctr: number;
   cpc: number;
   cpm: number;
+  spendByNetwork?: Record<string, number>;
 }
 
 export interface DashboardFullData {
@@ -365,6 +366,7 @@ export interface DashboardFullData {
   campaigns: Campaign[];
   adSets: { id: string; name: string; campaignId: string; campaignName: string }[];
   dailyLeads: { date: string; count: number }[];
+  leadsByNetwork?: Record<string, number>;
   funnelData: FunnelData;
 }
 

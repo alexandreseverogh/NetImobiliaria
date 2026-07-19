@@ -25,6 +25,7 @@ interface Props {
   segmentId?: string | null;
   startDate?: string;
   endDate?: string;
+  className?: string;
 }
 
 // ── SVG campaign pin icon ──────────────────────────────────────────────────────
@@ -53,7 +54,7 @@ function makeCampaignIcon(count: number, isDark: boolean): string {
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
-export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endDate }: Props) {
+export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endDate, className }: Props) {
   const [locations, setLocations] = useState<MapLocation[]>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
@@ -207,9 +208,26 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
       }
 
       leafletRef.current = map;
+
+      // Invalidate size on window resize to prevent white lines
+      const handleResize = () => {
+        if (leafletRef.current) {
+          leafletRef.current.invalidateSize();
+        }
+      };
+      window.addEventListener('resize', handleResize);
+
+      // Delay initial invalidateSize
+      setTimeout(() => {
+        if (leafletRef.current) {
+          leafletRef.current.invalidateSize();
+        }
+      }, 300);
+
     });
 
     return () => {
+      window.removeEventListener('resize', () => {});
       if (leafletRef.current) {
         leafletRef.current.remove();
         leafletRef.current = null;
@@ -226,7 +244,7 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
-      className={`rounded-2xl p-6 flex flex-col ${cardCls}`}
+      className={`rounded-2xl p-6 flex flex-col ${cardCls} ${className || ''}`}
     >
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-3 mb-4">
