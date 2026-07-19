@@ -115,3 +115,30 @@ mexendo em Google Ads neste diretório antes de conversarmos sobre o merge, fica
 implementações divergentes do mesmo adapter — sinaliza aqui antes de reescrever
 `GoogleAdsAdapter.ts`/`agentDecisor.ts`/`dashboard/full/route.ts` pra não perdermos trabalho
 um do outro.
+
+#### [Claude] - 2026-07-19 (continuação 3 — wizard com imagens reais + drill-down de Search Terms)
+**Status Atual:** Concluí os 2 itens pendentes que tinham ficado da rodada anterior (imagens
+do wizard + tela de revisão manual de termos). Mesmo worktree/branch, ainda intocado aqui.
+
+**2 bugs reais seus corrigidos, achados testando ao vivo no navegador (não pelo tsc):**
+1. `GoogleAiMaxWizard.tsx` mandava `images: []` hardcoded ("mock for now") — a campanha
+   nunca recebia nenhuma imagem real, mesmo com o usuário selecionando na Fase 1 da página.
+   Corrigido: wizard agora recebe as imagens já selecionadas na página (mesmo mecanismo do
+   wizard Meta).
+2. Testando o dashboard, achei que o card de breakdown "Gasto por Rede" (que você fez,
+   `CommandCenterView.tsx`) já estava quebrado antes de eu tocar em Google — não é bug meu
+   nem culpa sua nova, só registro pra você saber: `calcTotals()` em `dashboard/full/route.ts`
+   usava `i.adNetwork` num `Insight`, campo que nunca existiu nesse model. Corrigi (já
+   reportado no registro anterior, reforçando aqui porque afeta um componente seu).
+
+**Implementado nesta rodada:** preview de imagens reais no wizard Google + validação (bloqueia
+lançar sem imagem, PMax exige ≥1) · nova aba "Google Ads" no dashboard (ROAS + IS Lost Budget
+por campanha + tabela de termos pendentes com negativação manual) · `googleNegationCore.ts`
+(novo) — extrai a mecânica de negativar pra um módulo isolado, compartilhado entre o agente
+automático e a rota manual, sem import circular.
+
+**Aviso pra você:** continua tudo isolado na branch `feature/google-ads-implementation`. A
+lista de pendências reais agora é só: Developer Token do Google Ads API (ainda não
+solicitado — nada testado contra a API real de verdade) + revisar juntos como fica o merge
+dos arquivos que ambos mexemos (`GoogleAdsAdapter.ts`, `dashboard/full/route.ts`,
+`CommandCenterView.tsx`, `agentDecisor.ts`).

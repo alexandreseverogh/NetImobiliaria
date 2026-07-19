@@ -83,12 +83,48 @@ em `docs/PLANO_GOOGLE_TIKTOK.md`, seção "Auditoria + Decisões de Arquitetura"
 baseline pré-existente, nada novo) · `npx prisma generate` limpo em ambos os commits desta
 sessão.
 
-**Pendente (próxima sessão):** drill-down dedicado de Search Terms na UI (hoje só o agente
-automático de negativação cobre isso, sem tela de revisão manual) · `GoogleAiMaxWizard.tsx`
-ainda manda `images: []` hardcoded (comentário "mock for now" do próprio Antigravity, não
-mexido — wizard completo é trabalho de UI à parte) · **Developer Token Google Ads API ainda
-não solicitado** — nenhum destes fluxos foi testado contra a API real, só via leitura de tipos/
-protobuf da lib `google-ads-api`/`google-ads-node` e revisão de código.
+**Sessão 2026-07-19 (continuação 2) — wizard com imagens reais + drill-down de Search Terms:**
+
+- **Wizard do Google usa imagens reais** — `GoogleAiMaxWizard.tsx` mandava `images: []`
+  hardcoded (comentário "mock for now" do próprio Antigravity), ignorando o que o usuário
+  selecionava na Fase 1 da página `/nova`. Corrigido: `selectedImages` (mesmo tipo `Creative`
+  do wizard Meta) passado de `nova/page.tsx`, preview de thumbnails + aviso quando 0 imagens
+  + botão "Lançar" desabilitado nesse caso (Performance Max exige ≥1 imagem por Asset Group).
+  **Nota:** `img.path` é um blob URL — mesma limitação pré-existente e compartilhada com o
+  wizard Meta (não é regressão nova), documentada como "Opção A pendente" há várias sessões.
+- **Drill-down de Search Terms na UI** — nova aba "Google Ads" no dashboard (só aparece
+  quando há dado real de rede Google): cards de ROAS + IS Lost (Budget) por campanha, e
+  tabela de termos pendentes de revisão com botão "Negativar" manual (complementa o agente
+  automático da A6). Novo módulo `googleNegationCore.ts` — extrai a mecânica real de
+  negativar (chamada API + memória) pra um lugar único, evitando import circular entre
+  `agentDecisor.ts` e `googleNegationService.ts` (ambos agora chamam o mesmo helper).
+
+**2 bugs reais encontrados testando ao vivo no navegador (nenhum pego pelo `tsc`):**
+1. Query de resumo (ROAS/IS Lost) usava `"tenantId"` (camelCase) numa coluna do `Insight`
+   que na verdade é `tenant_id` (snake_case) — erro Postgres 42703, só aparece em runtime.
+2. O bloco JSX da aba "Google Ads" ficou, por engano, **aninhado dentro** do bloco
+   condicional `{activeLayer === 'DEEP_DIVE' && (...)}` — nunca renderizava quando a aba
+   selecionada era `'GOOGLE'` (mutuamente exclusivo com `'DEEP_DIVE'`). JSX sintaticamente
+   válido, então o `tsc` não acusa nada — só descoberto clicando na aba de verdade e vendo
+   que nada acontecia.
+
+**Ajuste de UX:** o erro do negativar usava `alert()` nativo — trocado por banner inline
+(mesmo padrão de erro já usado no projeto), tanto por consistência quanto porque o dialog
+nativo travava a automação de teste do navegador usada nesta sessão.
+
+**Testado ao vivo, ponta a ponta** (servidor dev dedicado porta 3071, dados de teste
+temporários inseridos e removidos depois): wizard do Google com 0 imagens → aviso + botão
+desabilitado confirmado via DOM · com 1 imagem real (injetada via `DataTransfer`, sem
+precisar do picker nativo de pasta) → thumbnail renderiza, botão habilitado · aba "Google
+Ads" aparece só com campanha Google real · cards ROAS 3.00x / IS Lost 25.00% corretos ·
+tabela com 2 termos de teste, cores corretas (conversões=0 em vermelho) · clique em
+"Negativar" → chamada real, falha corretamente (sem credenciais Google no tenant de teste),
+erro mostrado em banner inline sem travar a página nem remover a linha.
+
+**Pendente (próxima sessão): Developer Token Google Ads API ainda não solicitado** —
+nenhum fluxo foi testado contra a API real do Google (só via a lib `google-ads-api`/
+`google-ads-node`, revisão de código e os testes de UI/banco acima). É o item que trava
+testar `createCampaign`/`addNegativeKeyword`/`fetchInsights` reais.
 
 ---
 
