@@ -51,6 +51,8 @@ const BENCHMARK_KEYS = [
   'scale_budget_pct', 'downscale_budget_pct',
   // Cálculo proporcional de escala (substituem scale_budget_pct quando configurados)
   'scale_budget_base_pct', 'scale_budget_max_pct', 'scale_ratio_cap',
+  // FASE 1 (Google Ads) — regra IMPRESSION_SHARE_OPPORTUNITY
+  'is_lost_budget_scale_min',
 ];
 
 /**
@@ -86,6 +88,9 @@ interface CampaignData {
   // FASE 5 — Video Metrics
   hasVideoMetrics: boolean;
   avgHookRate: number;  // video_views_3s / impressions * 100
+  // FASE 1 (Google Ads) — Impression Share (só > 0 em campanhas Google Search)
+  avgSearchImpressionShare: number;
+  avgSearchBudgetLostIs: number;
 }
 
 interface InsightRule {
@@ -212,6 +217,27 @@ const RULES: InsightRule[] = [
     confidence: (d, b) => {
       const gap = b.ctr_min - d.avgCtr;
       return Math.min(0.88, 0.62 + gap * 0.08);
+    },
+  },
+  // FASE 1 (Google Ads) A6 — IMPRESSION_SHARE_OPPORTUNITY: IS perdido por orçamento alto
+  // + CPL já bom → oportunidade real de aumentar verba (só dispara em campanhas Google Search,
+  // que são as únicas com search_impression_share > 0; Meta sempre fica em 0/default).
+  {
+    check: (d, b) =>
+      d.avgSearchImpressionShare > 0 &&
+      d.avgSearchBudgetLostIs > (b.is_lost_budget_scale_min ?? 20) &&
+      d.leads > 0 &&
+      d.totalSpend > 0 &&
+      (d.totalSpend / d.leads) < b.cpl_ideal,
+    type: 'SCALE',
+    title: 'Impression Share perdido por orçamento — oportunidade de escalar',
+    description: (d, b) => {
+      const cpl = d.totalSpend / d.leads;
+      return `A campanha "${d.campaignName}" está perdendo ${d.avgSearchBudgetLostIs.toFixed(1)}% de Impression Share por falta de orçamento (limite: ${b.is_lost_budget_scale_min ?? 20}%), com CPL R$${cpl.toFixed(2)} já abaixo do ideal (R$${b.cpl_ideal}). Aumentar o orçamento tende a trazer mais leads no mesmo CPL.`;
+    },
+    confidence: (d, b) => {
+      const gap = d.avgSearchBudgetLostIs - (b.is_lost_budget_scale_min ?? 20);
+      return Math.min(0.9, 0.65 + gap * 0.01);
     },
   },
 ];
@@ -410,6 +436,10 @@ export async function generateAiInsights(
       ? (totalVideoViews3s / totalImpressions) * 100
       : 0;
 
+    // FASE 1 (Google Ads) — só > 0 em campanhas Search reais (0 é o default de campanhas Meta)
+    const avgSearchImpressionShare = insights.reduce((s, i) => s + (i.searchImpressionShare || 0), 0) / insights.length;
+    const avgSearchBudgetLostIs    = insights.reduce((s, i) => s + (i.searchBudgetLostIs    || 0), 0) / insights.length;
+
     const data: CampaignData = {
       campaignId: campaign.id,
       campaignName: campaign.name,
@@ -423,6 +453,8 @@ export async function generateAiInsights(
       daysRunning: insights.length,
       hasVideoMetrics,
       avgHookRate,
+      avgSearchImpressionShare,
+      avgSearchBudgetLostIs,
     };
 
     // Lagging rules (FASE 5 e anteriores)

@@ -1,9 +1,64 @@
 # PLANO — Google Ads + TikTok (Recorte: Gera Decisão)
 
-> **Status:** 2026-07-19 — Planejamento documentado, pronto para implementação em fase paralela
+> **Status:** 2026-07-19 — Planejamento documentado; implementação iniciada em worktree isolado
+> (`C:\NetImobiliária\netimob-google`, branch `feature/google-ads-implementation`, criada a
+> partir do estado completo — commitado + não commitado — de `feature/ag-cockpit-camadas`).
 > **Escopo:** Extensão multi-rede do sistema de campanhas de marketing digital
 > **Coordenação:** Feature `ag-cockpit-camadas` (outro agente) já ~40% iniciada em Google Ads
 > Ver `docs/AI_SYNC.md` seção "Frentes de IA em andamento"
+
+---
+
+## Auditoria + Decisões de Arquitetura (2026-07-19)
+
+Antes de continuar a implementação, o trabalho em progresso do Antigravity (branch
+`feature/ag-cockpit-camadas`, commitado + não commitado) foi "puxado" integralmente para um
+worktree isolado (`netimob-google`), sem tocar no diretório original dele — via `git diff` +
+`git apply` (arquivos modificados) e cópia direta (arquivos novos/untracked). O diretório
+original permanece 100% intacto, ele pode seguir trabalhando nele sem qualquer interferência.
+
+**2 conflitos arquiteturais encontrados na auditoria, resolvidos com o usuário:**
+
+### 1. Identificador de rede — `network_id` (existente) vs `ad_network` (novo, do Antigravity)
+
+- Já existe uma infraestrutura madura: tabela `public.ad_networks` (Meta/Google/LinkedIn/TikTok
+  já cadastrados, com `capabilities` JSONB por rede) + `Campaign.network_id` (FK) — já usada em
+  Configurações→Redes, no dashboard (agregação "Distribuição por Rede") e nas credenciais Meta.
+- O Antigravity tinha criado, em paralelo, uma coluna nova `Campaign.ad_network VARCHAR(20)`
+  (migração `migration-2026-07-fase17-multi-network.sql`, **nunca aplicada no banco**) — mas
+  **nenhum lugar do código a referenciava**. Código exploratório abandonado.
+- **Achado colateral, bug real pré-existente (independente deste plano):** a rota de criação de
+  campanha nunca setava `network_id` — as 24 campanhas existentes tinham todas `network_id =
+  NULL`. A agregação "Distribuição por Rede" do dashboard já estava quebrada silenciosamente.
+- **Decisão do usuário:** reusar `network_id` + `ad_networks`. Descartada a coluna `ad_network`
+  (migração removida, nunca chegou a ser aplicada). **Corrigido de brinde:** `campaigns/route.ts`
+  agora resolve `ad_networks.id` pelo `networkCode` e seta `network_id` na criação de QUALQUER
+  campanha (não só Google) — fecha o bug pré-existente.
+- **Schema drift corrigido:** `network_id`, mesmo já existindo na tabela `Campaign` do banco,
+  nunca tinha sido mapeado no `schema.marketing.prisma` (por isso o código já usava `pool.query`
+  bruto para `external_id`, evitando o Prisma achar o schema desatualizado). Campo `networkId`
+  adicionado ao model `Campaign`; `external_id`/`network_metadata` continuam via raw SQL (mesmo
+  padrão de sempre, sem necessidade de mexer agora).
+
+### 2. Credenciais do Google — tabela dedicada (`GoogleAdsConfig`) vs genérica (`tenant_network_credentials`)
+
+- Meta já usa `public.tenant_network_credentials` (JSONB `credentials` + `account_id`, join com
+  `ad_networks`) — desenhada desde o início para ser multi-rede (LinkedIn/TikTok também usariam).
+- O Antigravity tinha criado um model Prisma dedicado `GoogleAdsConfig` (schema
+  `campanhasmarketingdigital`, chave só `tenantId`) — **mas nunca escreveu a migração SQL**; a
+  tabela não existia no banco. A tela de configuração que ele criou (`/admin/configuracoes/
+  google-ads`) quebraria em runtime na primeira chamada real.
+- **Decisão do usuário:** consolidar em `tenant_network_credentials`, eliminando `GoogleAdsConfig`
+  — alinhado ao princípio "zero código por vertical" do próprio plano: LinkedIn/TikTok herdam o
+  mesmo mecanismo sem precisar de tabela nova quando chegar a vez deles.
+- **Implementado:** model `GoogleAdsConfig` removido do `schema.marketing.prisma` · `factory.ts`
+  (branch `google` de `getNetworkServiceForTenant`) e `/api/admin/configuracoes/google-ads/route.ts`
+  (GET/POST) reescritos para ler/gravar em `tenant_network_credentials` via `pool.query`, no mesmo
+  padrão já usado pela rota genérica `/api/admin/campanhas/configuracoes/redes/route.ts` (que já
+  era 100% agnóstica de rede e não precisou de nenhuma mudança).
+
+**Estado após os fixes:** `npx prisma generate` limpo · nenhuma referência restante a
+`googleAdsConfig` no código · `npx tsc --noEmit` em verificação.
 
 ---
 

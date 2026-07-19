@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const campaignId = searchParams.get('campaignId') || undefined;
-    const clientId   = searchParams.get('clientId')   || undefined;
+    let clientId   = searchParams.get('clientId')   || undefined;
+    if (clientId === 'segment' || clientId === 'all') clientId = undefined;
     const segmentId  = searchParams.get('segmentId')  || undefined;
 
     // Filtro de campanhas

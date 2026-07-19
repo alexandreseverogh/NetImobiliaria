@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
     const startStr        = searchParams.get('startDate');
     const endStr          = searchParams.get('endDate');
     const campaignId      = searchParams.get('campaignId');
-    const clientId        = searchParams.get('clientId');
+    let clientId          = searchParams.get('clientId');
+    if (clientId === 'segment' || clientId === 'all') clientId = null;
     const segmentId       = searchParams.get('segmentId');
     const objectiveFilter = searchParams.get('objectiveFilter');
     const statusFilter    = searchParams.get('statusFilter');
@@ -73,6 +74,16 @@ export async function GET(request: NextRequest) {
 
     const campaignIds = campaigns.map(c => c.id);
 
+    // FASE 1 (Google Ads) A7 — mapa campaignId → código da rede (meta/google/...), pra
+    // classificar spend/leads por rede sem repetir o JOIN a cada agregação.
+    const networkRows = await prisma.$queryRaw<{ id: string; code: string }[]>`
+      SELECT id, code FROM public.ad_networks
+    `;
+    const networkCodeById = new Map(networkRows.map(r => [r.id, r.code]));
+    const campaignNetworkCode = new Map(
+      campaigns.map(c => [c.id, (c as any).networkId ? (networkCodeById.get((c as any).networkId) || 'meta') : 'meta']),
+    );
+
     const insightWhere: any = {
       tenantId: payload.tenantId,
       campaignId: { in: campaignIds },
@@ -104,11 +115,21 @@ export async function GET(request: NextRequest) {
       const impressions = insights.reduce((s, i) => s + i.impressions, 0);
       const reach = insights.reduce((s, i) => s + i.reach, 0);
       const conversions = insights.reduce((s, i) => s + i.conversions, 0);
+
+      // FIX: Insight não tem coluna adNetwork (nunca existiu) — rede vem de
+      // Campaign.networkId, resolvido via campaignNetworkCode acima.
+      const spendByNetwork = insights.reduce((acc, i) => {
+        const code = campaignNetworkCode.get(i.campaignId) || 'meta';
+        acc[code] = (acc[code] || 0) + i.spend;
+        return acc;
+      }, {} as Record<string, number>);
+
       return {
         spend, clicks, impressions, reach, conversions,
         ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
         cpc: clicks > 0 ? spend / clicks : 0,
         cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
+        spendByNetwork
       };
     }
 
@@ -158,6 +179,37 @@ export async function GET(request: NextRequest) {
       leads: currentLeadCount,
       conversions: currentTotals.conversions,
     };
+    // FASE 1 (Google Ads) A7 — agrupa por CÓDIGO da rede (meta/google/...), não pelo UUID cru
+    // de network_id — o frontend consome direto sem precisar de lookup próprio. Campanha sem
+    // network_id (legado, anterior ao fix em campaigns/route.ts) cai em 'meta' — é o único
+    // valor possível historicamente, nunca houve outra rede antes desta fase.
+    const leadsByNetworkRaw: any[] = await prisma.$queryRaw`
+      SELECT COALESCE(n.code, 'meta') as network, COUNT(l.id)::int as count
+      FROM campanhasmarketingdigital."Lead" l
+      JOIN campanhasmarketingdigital."Campaign" c ON l."campaignId" = c.id
+      LEFT JOIN public.ad_networks n ON n.id = c."network_id"
+      WHERE l."tenant_id" = ${payload.tenantId}::uuid
+        AND l."campaignId" = ANY(${campaignIdsQuery})
+        AND l."clickedAt" >= ${startDate}::timestamp
+        AND l."clickedAt" <= ${endDate}::timestamp
+      GROUP BY COALESCE(n.code, 'meta')
+    `;
+
+    const leadsByNetwork = leadsByNetworkRaw.reduce((acc, row) => {
+      acc[row.network] = Number(row.count);
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Spend + CPL por rede — sustenta o comparativo "CPL Meta × Google" do dashboard.
+    // Reaproveita currentTotals.spendByNetwork (já corrigido acima) — sem query extra.
+    const cplByNetwork = Object.entries(currentTotals.spendByNetwork as Record<string, number>).reduce(
+      (acc, [network, spend]) => {
+        const leads = leadsByNetwork[network] || 0;
+        acc[network] = { spend, leads, cpl: leads > 0 ? spend / leads : null };
+        return acc;
+      },
+      {} as Record<string, { spend: number; leads: number; cpl: number | null }>,
+    );
 
     return NextResponse.json({
       currentPeriod: { insights: currentInsights, totals: currentTotals, leadCount: currentLeadCount },
@@ -166,6 +218,8 @@ export async function GET(request: NextRequest) {
       campaigns,
       adSets: allAdSets,
       dailyLeads: normalizedDailyLeads,
+      leadsByNetwork,
+      cplByNetwork,
       funnelData,
     });
   } catch (error: any) {

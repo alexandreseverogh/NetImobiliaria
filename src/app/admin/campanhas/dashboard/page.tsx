@@ -37,12 +37,18 @@ import { TimeToEventBar }      from '@/components/marketing/charts/TimeToEventBa
 import { SignalTrajectory }    from '@/components/marketing/charts/SignalTrajectory';
 import { DemandRadar }         from '@/components/marketing/charts/DemandRadar';
 import { CampaignMapWidget }   from '@/components/marketing/CampaignMapWidget';
+import { KpiCard, HookRateKpiCard } from '@/components/marketing/dashboard/KpiCard';
 
 // ─── Palettes ─────────────────────────────────────────────────────────────────
 const PALETTE_DARK  = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#60a5fa', '#e879f9'];
 const PALETTE_LIGHT = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899'];
-
-// ═════════════════════════════════════════════════════════════════════════════
+import { CommandCenterView } from '@/components/marketing/dashboard/CommandCenterView';
+import { AnalyticsView } from '@/components/marketing/dashboard/AnalyticsView';
+import { DeepDiveView } from '@/components/marketing/dashboard/DeepDiveView';
+import { GoogleAdsView } from '@/components/marketing/dashboard/GoogleAdsView';
+import { CampaignsTable } from '@/components/marketing/dashboard/CampaignsTable';
+import { PeriodBadge } from '@/components/marketing/dashboard/PeriodBadge';
+import { FarolSection } from '@/components/marketing/dashboard/FarolSection';
 //  MAIN COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
 export function DashboardPage() {
@@ -65,6 +71,7 @@ export function DashboardPage() {
   const [generatingBriefing, setGeneratingBriefing] = useState(false);
   const [showBriefingHistory, setShowBriefingHistory] = useState(false);
   const [isDark, setIsDark]                 = useState(true); // dark by default
+  const [activeLayer, setActiveLayer]       = useState<'COMMAND' | 'ANALYTICS' | 'DEEP_DIVE' | 'GOOGLE'>('COMMAND');
 
   const [dateRange, setDateRange]           = useState('1'); // 'Hoje' como padrão
   const [startDate, setStartDate]           = useState('');
@@ -580,24 +587,78 @@ export function DashboardPage() {
 
         {/* ── Conteúdo — só exibe quando há segmento ativo e NÃO é modo segmento ── */}
         {activeSegment && !isSegmentMode && <>
-        <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8 ${hookRate !== null ? 'xl:[grid-template-columns:repeat(13,minmax(0,1fr))] xl:gap-1.5' : 'xl:grid-cols-12 xl:gap-2'}`}>
-          <KpiCard isDark={isDark} label="Campanhas Ativas" value={String(campaigns.filter(c => c.status === 'ACTIVE').length)} color={isDark ? 'text-emerald-400' : 'text-emerald-600'} tooltip={`${campaigns.length} campanha${campaigns.length !== 1 ? 's' : ''} no total`} />
-          <KpiCard isDark={isDark} label="Gasto"      value={formatCurrencyCompact(t?.spend || 0)}             fullValue={formatCurrency(t?.spend || 0)}                    delta={d?.spend}       color={isDark ? 'text-red-400'     : 'text-red-600'}     invertDelta />
-          <KpiCard isDark={isDark} label="Impressões" value={formatNumber(t?.impressions || 0)}                 delta={d?.impressions} color={isDark ? 'text-blue-400'    : 'text-blue-600'} />
-          <KpiCard isDark={isDark} label="Alcance"    value={formatNumber(t?.reach || 0)}                       delta={d?.reach}       color={isDark ? 'text-cyan-400'    : 'text-cyan-600'} />
-          <KpiCard isDark={isDark} label="Cliques"    value={formatNumber(t?.clicks || 0)}                      delta={d?.clicks}      color={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
-          <KpiCard isDark={isDark} label="CTR"        value={formatPercent(t?.ctr || 0)}                        delta={d?.ctr}         color={isDark ? 'text-amber-400'   : 'text-amber-600'} />
-          <KpiCard isDark={isDark} label="CPC"        value={formatCurrencyCompact(t?.cpc || 0)}                fullValue={formatCurrency(t?.cpc || 0)}                      delta={d?.cpc}         color={isDark ? 'text-orange-400'  : 'text-orange-600'} invertDelta />
-          <KpiCard isDark={isDark} label="CPM"        value={formatCurrencyCompact(t?.cpm || 0)}                fullValue={formatCurrency(t?.cpm || 0)}                      delta={d?.cpm}         color={isDark ? 'text-violet-400'  : 'text-violet-600'} invertDelta />
-          <KpiCard isDark={isDark} label="Conversões" value={formatNumber(t?.conversions || 0)}                 delta={d?.conversions} color={isDark ? 'text-pink-400'    : 'text-pink-600'} />
-          <KpiCard isDark={isDark} label="Leads"      value={formatNumber(data?.currentPeriod.leadCount || 0)}  delta={d?.leads}       color={isDark ? 'text-indigo-400'  : 'text-indigo-600'} />
-          <KpiCard isDark={isDark} label="CPL"        value={formatCurrencyCompact(cpl)}                        fullValue={formatCurrency(cpl)}                              color={isDark ? 'text-teal-400'    : 'text-teal-600'} />
-          <KpiCard isDark={isDark} label="Budget/dia" value={formatCurrencyCompact(campaignSpendData.reduce((s, c) => s + c.value, 0))} fullValue={formatCurrency(campaignSpendData.reduce((s, c) => s + c.value, 0))} color={isDark ? 'text-slate-300' : 'text-slate-800'} />
-          {hookRate !== null && (
-            <HookRateKpiCard isDark={isDark} value={hookRate} color={hookRateColor} benchmarks={hookRateBenchmarks} />
+        
+        {/* ── Layer Navigation (Tabs) ── */}
+        <div className="flex p-1 mb-8 rounded-xl w-fit border transition-all" style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}>
+          <button 
+             onClick={() => setActiveLayer('COMMAND')}
+             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all', activeLayer === 'COMMAND' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+          >
+             Visão Executiva
+          </button>
+          <button 
+             onClick={() => setActiveLayer('ANALYTICS')}
+             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all', activeLayer === 'ANALYTICS' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+          >
+             Análise de Dados
+          </button>
+          <button
+             onClick={() => setActiveLayer('DEEP_DIVE')}
+             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all', activeLayer === 'DEEP_DIVE' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+          >
+             Inteligência Profunda
+          </button>
+          {/* FASE 1 (Google Ads) A7 — só aparece se houver dado real de rede Google
+              (não empilhar KPI Google no painel pra quem não usa a rede) */}
+          {data?.cplByNetwork?.google && (
+            <button
+               onClick={() => setActiveLayer('GOOGLE')}
+               className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all', activeLayer === 'GOOGLE' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+            >
+               Google Ads
+            </button>
           )}
         </div>
 
+        {activeLayer === 'COMMAND' && (
+          <CommandCenterView
+            isDark={isDark} loading={loading} data={data} aiInsights={aiInsights}
+            hookSaturation={hookSaturation} cardBase={cardBase} tx={tx} txMuted={txMuted} txFaint={txFaint}
+            cpl={cpl} hookRate={hookRate} hookRateBenchmarks={hookRateBenchmarks}
+            chartData={chartData} funnelData={funnelData7} periodLabel={periodLabel}
+            activeSegment={activeSegment} clientFilter={clientFilter}
+            segmentPeriodStart={segmentPeriodStart} segmentPeriodEnd={segmentPeriodEnd}
+          />
+        )}
+
+        {activeLayer === 'ANALYTICS' && (
+          <AnalyticsView 
+            isDark={isDark}
+            data={data}
+            funnelData7={funnelData7}
+            cardBase={cardBase}
+            tx={tx}
+            txMuted={txMuted}
+            txFaint={txFaint}
+            periodLabel={periodLabel}
+            periodBadgeLabel={periodBadgeLabel}
+            predColors={predColors}
+            chartData={chartData}
+            cplData={cplData}
+            campaignSpendData={campaignSpendData}
+            campaigns={campaigns}
+            tooltipCss={tooltipCss}
+            cpl={cpl}
+            hookRate={hookRate}
+            hookRateColor={hookRateColor}
+            hookRateBenchmarks={hookRateBenchmarks}
+            clientFilter={clientFilter}
+            loading={loading}
+          />
+        )}
+
+        {activeLayer === 'DEEP_DIVE' && (
+          <>
         {/* ── Content ───────────────────────────────────────────────────────── */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -614,498 +675,56 @@ export function DashboardPage() {
         ) : (
           <>
             {/* ══════════════════════════════════════════════════════════════
-                RETROVISÃO — Performance Histórica
+                DEEP DIVE (Camada 3) — Farol, Briefings, Insights (FASE 8.5/18)
             ══════════════════════════════════════════════════════════════ */}
-            <RetrovisorSection isDark={isDark} periodLabel={periodBadgeLabel}>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {/* Volume: spend (R$) vs cliques — mesma ordem de grandeza */}
-                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                  className={`rounded-2xl p-6 ${cardBase}`}>
-                  <MultiMetricChart isDark={isDark} data={chartData} title="Volume — Gasto × Cliques"
-                    yLeftLabel="Gasto (R$)" yRightLabel="Cliques"
-                    metrics={[
-                      { key: 'spend',  label: 'Gasto (R$)', color: predColors[0], type: 'area' },
-                      { key: 'clicks', label: 'Cliques',    color: predColors[1], type: 'line', yAxisId: 'right' },
-                    ]} />
-                </motion.div>
-                {/* Eficiência: CTR % vs CPC — ambos são valores pequenos, escalas compatíveis */}
-                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-                  className={`rounded-2xl p-6 ${cardBase}`}>
-                  <MultiMetricChart isDark={isDark} data={chartData} title="Eficiência — CTR % × CPC (R$)"
-                    yLeftLabel="CTR %" yRightLabel="CPC (R$)"
-                    metrics={[
-                      { key: 'ctr', label: 'CTR %',    color: predColors[2], type: 'area' },
-                      { key: 'cpc', label: 'CPC (R$)', color: predColors[3], type: 'line', yAxisId: 'right' },
-                    ]} />
-                </motion.div>
-
-                {/* CPL Timeline + Distribuição por Campanha — lado a lado */}
-                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-                  className={`rounded-2xl p-6 ${cardBase}`}>
-                  <h3 className={`text-sm font-black mb-2 ${tx}`}>CPL Timeline</h3>
-                  <CplTimelineChart data={cplData} isDark={isDark} />
-                </motion.div>
-
-                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                  className={`rounded-2xl p-6 ${cardBase}`}>
-                  <h3 className={`text-sm font-black mb-4 ${tx}`}>Distribuição por Campanha</h3>
-                  {campaignSpendData.length > 0 ? (
-                    <>
-                      <ResponsiveContainer width="100%" height={220}>
-                        <PieChart>
-                          <Pie data={campaignSpendData} dataKey="value" nameKey="name"
-                            cx="50%" cy="50%" outerRadius={90} innerRadius={38}
-                            paddingAngle={3}
-                            labelLine={false}
-                            label={({ cx, cy, midAngle, innerRadius, outerRadius, value, percent }: any) => {
-                              if (percent < 0.05) return null;
-                              const RADIAN = Math.PI / 180;
-                              const r = innerRadius + (outerRadius - innerRadius) * 0.55;
-                              const x = cx + r * Math.cos(-midAngle * RADIAN);
-                              const y = cy + r * Math.sin(-midAngle * RADIAN);
-                              const formatted = value >= 1000
-                                ? `R$${(value / 1000).toFixed(1)}k`
-                                : `R$${value.toFixed(0)}`;
-                              return (
-                                <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central"
-                                  style={{ fontSize: 11, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.4)' }}>
-                                  {formatted}
-                                </text>
-                              );
-                            }}>
-                            {campaignSpendData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                          </Pie>
-                          <Tooltip {...tooltipCss} formatter={(v: any) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="flex flex-col gap-1.5 mt-3 px-1">
-                        {(() => {
-                          const total = campaignSpendData.reduce((s, c) => s + c.value, 0);
-                          return (
-                            <>
-                              {campaignSpendData.map((d, i) => (
-                                <div key={i} className="flex items-center gap-2">
-                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                                  <span className={`text-[10px] flex-1 leading-tight ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{d.name}</span>
-                                  <span className={`text-[10px] font-semibold shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    {total > 0 ? ((d.value / total) * 100).toFixed(0) : 0}%
-                                  </span>
-                                  <span className={`text-[10px] font-bold shrink-0 min-w-[64px] text-right ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                                    R$ {d.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </span>
-                                </div>
-                              ))}
-                              {campaignSpendData.length > 1 && (
-                                <div className={`flex items-center gap-2 mt-1 pt-2 border-t ${isDark ? 'border-white/8' : 'border-slate-100'}`}>
-                                  <span className="w-2.5 h-2.5 shrink-0" />
-                                  <span className={`text-[10px] flex-1 font-black uppercase tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total</span>
-                                  <span className={`text-[10px] font-black shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>100%</span>
-                                  <span className={`text-[10px] font-black shrink-0 min-w-[64px] text-right ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </span>
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </>
-                  ) : (
-                    <p className={`text-sm text-center py-12 ${txMuted}`}>Sem dados de campanhas</p>
-                  )}
-                </motion.div>
-              </div>
-
-              {/* ── Funil Clássico + Funil por Estágio — lado a lado ── */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5 items-start">
-                {data.funnelData && (
-                  <ClassicFunnelChart
-                    funnelData={data.funnelData}
-                    leadCount={data.currentPeriod.leadCount}
-                    isDark={isDark}
-                    periodLabel={periodBadgeLabel}
-                    className="mt-0"
-                  />
-                )}
-                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-                  className={`rounded-2xl p-6 ${cardBase}`}>
-                  <h3 className={`text-sm font-black mb-4 ${tx}`}>Funil por Estágio</h3>
-                  {funnelData7 ? (
-                    <StageFunnelWidget
-                      data={funnelData7}
-                      isDark={isDark}
-                      clientId={(clientFilter && clientFilter !== 'own') ? clientFilter as any : undefined}
-                    />
-                  ) : (
-                    <FunnelChart data={data.funnelData} isDark={isDark} />
-                  )}
-                </motion.div>
-              </div>
-            </RetrovisorSection>
-
-            {/* ══════════════════════════════════════════════════════════════
-                FAROL DE MILHA — Sinais Leading & Antecipação (FASE 8.5)
-            ══════════════════════════════════════════════════════════════ */}
-            <FarolSection isDark={isDark} periodLabel={periodBadgeLabel}>
-              {anticipationData.length > 0 ? (
-                <div className="space-y-6">
-                  {/* ── TimeToEvent bars ──────────────────────────────────── */}
-                  {(() => {
-                    const allEvents = anticipationData.flatMap(r =>
-                      r.events.map(e => ({ ...e, campaignId: r.campaignId }))
-                    );
-                    if (allEvents.length === 0) return null;
-                    return (
-                      <div>
-                        <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-cyan-700' : 'text-sky-500'}`}>
-                          Contagem Regressiva de Eventos
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {allEvents.map((e, i) => {
-                            const campName = campaigns.find(c => c.id === e.campaignId)?.name;
-                            return (
-                              <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
-                                <TimeToEventBar event={e as TimeToEvent} campaignName={campName} />
-                              </motion.div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* ── Signal trajectories ───────────────────────────────── */}
-                  {(() => {
-                    const allTraj = anticipationData.flatMap(r => r.trajectories);
-                    if (allTraj.length === 0) return null;
-                    return (
-                      <div>
-                        <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-cyan-700' : 'text-sky-500'}`}>
-                          Trajetória dos Sinais Leading
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {allTraj.map((traj, i) => (
-                            <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
-                              <SignalTrajectory trajectory={traj as Trajectory} />
-                            </motion.div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : null}
-
-              {/* ── Projeções legadas (regressão linear) ─────────────────── */}
-              {predictions && !predictions.insufficientData && (
-                <details className="mt-6 group">
-                  <summary className={cn(
-                    'flex items-center gap-2 cursor-pointer select-none text-[10px] font-black uppercase tracking-widest',
-                    isDark ? 'text-slate-600 hover:text-slate-400' : 'text-slate-400 hover:text-slate-600'
-                  )}>
-                    <span className="transition-transform group-open:rotate-90">▶</span>
-                    Projeções por regressão linear (legado)
-                  </summary>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-4">
-                    {([
-                      { label: 'Gasto Diário (R$)', color: predColors[0], hist: predictions.historical.spend, pred: predictions.spend,  fmt: (v: number) => `R$${v.toFixed(0)}` },
-                      { label: 'Leads Diários',     color: predColors[1], hist: predictions.historical.leads, pred: predictions.leads,  fmt: (v: number) => v.toFixed(0) },
-                      { label: 'CTR (%)',           color: predColors[2], hist: predictions.historical.ctr,   pred: predictions.ctr,    fmt: (v: number) => `${v.toFixed(2)}%` },
-                      { label: 'CPC (R$)',          color: predColors[3], hist: predictions.historical.cpc,   pred: predictions.cpc,    fmt: (v: number) => `R$${v.toFixed(2)}` },
-                    ] as const).map((p, i) => (
-                      <motion.div key={p.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-                        className={`rounded-2xl p-6 ${cardBase}`}>
-                        <PredictionChart isDark={isDark} label={p.label} color={p.color}
-                          historical={predictions.historical.dates.map((dt, j) => ({ date: dt, value: (p.hist as number[])[j] }))}
-                          predictions={p.pred as any} formatter={p.fmt as any}
-                          sigmaMult={predictions.sigmaMult} />
-                      </motion.div>
-                    ))}
-                  </div>
-                </details>
-              )}
-
-              {/* ── Radar de Demanda + Geolocalização ─────────────────── */}
-              <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-                <DemandRadar
-                  isDark={isDark}
-                  clientId={(clientFilter && clientFilter !== 'own') ? clientFilter as string : undefined}
-                  segmentId={activeSegment ?? undefined}
-                  periodDays={parseInt(dateRange) || 30}
-                />
-                <CampaignMapWidget
-                  isDark={isDark}
-                  clientId={clientFilter ?? null}
-                  segmentId={activeSegment ?? null}
-                  startDate={segmentPeriodStart}
-                  endDate={segmentPeriodEnd}
-                />
-              </div>
-            </FarolSection>
-
-            {/* ══════════════════════════════════════════════════════════════
-                TRACKING HEALTH — Saúde do Tracking (FASE 8)
-            ══════════════════════════════════════════════════════════════ */}
-            <div className="mb-8">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${isDark ? 'bg-rose-500/10' : 'bg-rose-50'}`}>
-                    <span className="text-base leading-none">🩺</span>
-                  </div>
-                  <div>
-                    <h2 className={`text-lg font-black ${tx}`}>Tracking Health</h2>
-                    <p className={`text-xs ${txMuted}`}>Score 0-100 — monitoramento automático do tracking e pixel</p>
-                  </div>
-                </div>
-                <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
-              </div>
-              {/* Tracking isolado pelo clientFilter + segmento ativo */}
-              <TrackingHealthWidget
-                clientId={(clientFilter && clientFilter !== 'own' && clientFilter !== 'segment') ? clientFilter as string : null}
-                segmentId={activeSegment ?? null}
-              />
-            </div>
-
-            {/* ── Briefing Estratégico AI ──────────────────────────────────── */}
-            <div className="mb-8">
-              <div className="mb-5">
-                {/* Linha única: ícone + título + botões */}
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-xl ${isDark ? 'bg-violet-500/10' : 'bg-violet-50'}`}>
-                      <SparklesIcon className={`h-5 w-5 ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
-                    </div>
-                    <div>
-                      <h2 className={`text-lg font-black ${tx}`}>Resumo Estratégico provido pela Inteligência Artificial</h2>
-                      <p className={`text-xs ${txMuted}`}>Documento autônomo — período registrado na geração</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setShowBriefingHistory(!showBriefingHistory)}
-                      className={cn(
-                        'flex items-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all',
-                        isDark
-                          ? 'bg-[rgba(255,255,255,0.05)] text-slate-400 hover:bg-[rgba(255,255,255,0.09)] border border-[rgba(255,255,255,0.06)]'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      )}>
-                      <ClockIcon className="h-3.5 w-3.5" />
-                      {showBriefingHistory ? 'Ocultar' : 'Histórico'}
-                    </button>
-                    <ExecuteGuard resource="dashboard-campanhas">
-                      <button onClick={handleGenerateBriefing} disabled={generatingBriefing}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-violet-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-violet-500/20">
-                        {generatingBriefing
-                          ? <><ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Gerando...</>
-                          : <><SparklesIcon className="h-3.5 w-3.5" /> Gerar · {periodBadgeLabel}</>}
-                      </button>
-                    </ExecuteGuard>
-                  </div>
-                </div>
-              </div>
-
-              {briefings.length > 0
-                ? (
-                  <div className="space-y-5">
-                    {briefings.map(b => (
-                      <div key={b.id}>
-                        {b.segmentName && (
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                            <h3 className={`text-sm font-black ${tx}`}>{b.segmentName}</h3>
-                          </div>
-                        )}
-                        <BriefingCard briefing={b} isDark={isDark} />
-                      </div>
-                    ))}
-                  </div>
-                )
-                : (
-                  <div className={`rounded-2xl p-10 text-center ${cardBase}`}>
-                    <p className={`text-sm font-black mb-1 ${tx}`}>Nenhum briefing gerado ainda</p>
-                    <p className={`text-xs ${txMuted}`}>Clique em "Gerar Novo" ou aguarde o envio automático (08h e 18h).</p>
-                  </div>
-                )}
-              {showBriefingHistory && briefingHistory.length > briefings.length && (
-                <div className="mt-4 space-y-3">
-                  <p className={`text-[10px] font-black uppercase tracking-widest ${txFaint}`}>Histórico</p>
-                  {briefingHistory.filter(b => !briefings.some(cur => cur.id === b.id)).map(b => (
-                    <BriefingCard key={b.id} briefing={b} isDark={isDark} compact />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* ── Ângulos Cobertura (FASE 14) ──────────────────────────────── */}
-            <WinningAngleChip
+            <DeepDiveView
               isDark={isDark}
-              period={parseInt(dateRange) || 30}
-              clientId={(clientFilter && clientFilter !== 'own') ? clientFilter : undefined}
+              anticipationData={anticipationData}
+              predictions={predictions}
+              campaigns={campaigns}
+              cardBase={cardBase}
+              tx={tx}
+              txMuted={txMuted}
+              txFaint={txFaint}
+              periodLabel={periodBadgeLabel}
+              periodBadgeLabel={periodBadgeLabel}
+              predColors={isDark ? PALETTE_DARK : PALETTE_LIGHT}
+              activeSegment={activeSegment}
+              clientFilter={clientFilter as string}
+              segmentPeriodStart={segmentPeriodStart}
+              segmentPeriodEnd={segmentPeriodEnd}
+              dateRange={dateRange}
+              briefings={briefings}
+              briefingHistory={briefingHistory}
+              showBriefingHistory={showBriefingHistory}
+              setShowBriefingHistory={setShowBriefingHistory}
+              generatingBriefing={generatingBriefing}
+              handleGenerateBriefing={handleGenerateBriefing}
+              aiInsights={aiInsights}
+              aiInsightsBySegment={aiInsightsBySegment}
+              hookSaturation={hookSaturation}
             />
 
-            {/* ── AI Insights (por segmento — FASE 18.2) ──────────────────── */}
-            {(aiInsights.length > 0 || hookSaturation?.saturationAlert) && (() => {
-              type IS = { border: string; badge: string; dot: string; glow: string };
-              const ds: Record<string, IS> = {
-                PAUSE:            { border: 'border-l-red-500',    badge: 'bg-red-500/10 text-red-400 border border-red-500/20',        dot: 'bg-red-500',    glow: 'shadow-[0_0_24px_rgba(239,68,68,0.07)]'    },
-                SCALE:            { border: 'border-l-emerald-500',badge: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',dot:'bg-emerald-500',glow:'shadow-[0_0_24px_rgba(16,185,129,0.07)]' },
-                OPTIMIZE:         { border: 'border-l-amber-500',  badge: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',   dot: 'bg-amber-500',  glow: 'shadow-[0_0_24px_rgba(245,158,11,0.07)]'  },
-                ALERT:            { border: 'border-l-orange-500', badge: 'bg-orange-500/10 text-orange-400 border border-orange-500/20', dot: 'bg-orange-500', glow: 'shadow-[0_0_24px_rgba(249,115,22,0.07)]'  },
-                CREATIVE_FATIGUE: { border: 'border-l-violet-500', badge: 'bg-violet-500/10 text-violet-400 border border-violet-500/20', dot: 'bg-violet-500', glow: 'shadow-[0_0_24px_rgba(139,92,246,0.07)]'  },
-              };
-              const ls: Record<string, IS> = {
-                PAUSE:            { border: 'border-l-red-500',    badge: 'bg-red-50 text-red-600 border border-red-100',             dot: 'bg-red-500',    glow: '' },
-                SCALE:            { border: 'border-l-emerald-500',badge: 'bg-emerald-50 text-emerald-700 border border-emerald-100', dot: 'bg-emerald-500',glow: '' },
-                OPTIMIZE:         { border: 'border-l-amber-500',  badge: 'bg-amber-50 text-amber-700 border border-amber-100',       dot: 'bg-amber-500',  glow: '' },
-                ALERT:            { border: 'border-l-orange-500', badge: 'bg-orange-50 text-orange-700 border border-orange-100',    dot: 'bg-orange-500', glow: '' },
-                CREATIVE_FATIGUE: { border: 'border-l-violet-500', badge: 'bg-violet-50 text-violet-700 border border-violet-100',    dot: 'bg-violet-500', glow: '' },
-              };
-              const styles = isDark ? ds : ls;
-              // Se o serviço não trouxe bySegment, cai num grupo único.
-              const groups = aiInsightsBySegment.length > 0
-                ? aiInsightsBySegment.filter(g => g.insights.length > 0)
-                : [{ segmentId: null, segmentName: '', insights: aiInsights }];
-
-              const renderCard = (insight: any, i: number) => {
-                const s = styles[insight.type] || styles.ALERT;
-                return (
-                  <motion.div key={i} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
-                    className={cn(`rounded-2xl p-4 border-l-4 ${cardBase} ${s.border} ${s.glow}`)}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide ${s.badge}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{insight.type}
-                      </span>
-                      <span className={`text-[10px] font-bold ${txFaint}`}>
-                        Confiança: {(insight.confidence * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                    <h4 className={`text-sm font-black mb-1 ${tx}`}>{insight.title}</h4>
-                    <p className={`text-xs ${txMuted}`}>{insight.description}</p>
-                  </motion.div>
-                );
-              };
-
-              return (
-                <div className="mb-8">
-                  <div className="flex items-start justify-between gap-3 mb-5">
-                    <div>
-                      <h2 className={`text-lg font-black ${tx} flex items-center gap-2`}>
-                        Insights da IA
-                        <HelpHint term="Insights de IA" isDark={isDark} />
-                      </h2>
-                      <p className={`text-xs mt-0.5 ${txMuted}`}>Análise automática por segmento — benchmark próprio de cada segmento</p>
-                    </div>
-                    <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
-                  </div>
-                  <div className="space-y-6">
-                    {/* Card CREATIVE_FATIGUE — nível de portfólio */}
-                    {hookSaturation?.saturationAlert && (() => {
-                      const hk = hookSaturation;
-                      const s = styles.CREATIVE_FATIGUE;
-                      return (
-                        <motion.div
-                          initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
-                          className={cn(`rounded-2xl p-4 border-l-4 ${cardBase} ${s.border} ${s.glow}`)}>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide ${s.badge}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />CREATIVE_FATIGUE
-                            </span>
-                            <a href="/admin/campanhas/criativos/padroes"
-                              className={`text-[10px] font-bold text-violet-500 hover:underline`}>
-                              Ver análise →
-                            </a>
-                          </div>
-                          <h4 className={`text-sm font-black mb-1 ${tx} flex items-center gap-2`}>
-                            Saturação de Hook Criativo
-                            <HelpHint term="Saúde Criativa & Saturação de Hook" isDark={isDark} />
-                          </h4>
-                          <p className={`text-xs ${txMuted}`}>
-                            {hk.dominantShare}% dos criativos ativos usam o hook "{hk.hookStats[0]?.label}" — risco de fadiga de público.
-                            {hk.suggestion && ` ${hk.suggestion}.`}
-                            {' '}Diversidade criativa: {hk.diversityIndex}/100.
-                          </p>
-                        </motion.div>
-                      );
-                    })()}
-                    {groups.map((g, gi) => (
-                      <div key={g.segmentId ?? gi}>
-                        {g.segmentName && (
-                          <div className="flex items-center gap-2 mb-3">
-                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                            <h3 className={`text-sm font-black ${tx}`}>{g.segmentName}</h3>
-                            <span className={`text-[10px] ${txFaint}`}>· {g.insights.length} insight(s)</span>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {g.insights.map(renderCard)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
             {/* ── Campaigns Table ─────────────────────────────────────────── */}
-            <div className={`rounded-2xl overflow-hidden ${cardBase}`}>
-              <div className={`px-6 py-4 border-b ${divider} flex items-center justify-between`}>
-                <h3 className={`text-sm font-black ${tx}`}>Campanhas</h3>
-                <PeriodBadge label={periodBadgeLabel} isDark={isDark} />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className={isDark ? 'bg-[rgba(255,255,255,0.025)]' : 'bg-slate-50'}>
-                      {['Nome', 'Status', 'Ciclo de Vida', 'Objetivo', 'Budget/dia', 'Criado em'].map((h, idx) => (
-                        <th key={h} className={cn(
-                          `px-6 py-3 text-[10px] font-black uppercase tracking-widest ${txFaint}`,
-                          idx >= 4 ? 'text-right' : 'text-left'
-                        )}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y ${divider}`}>
-                    {campaigns.map(c => (
-                      <tr key={c.id} className={cn('transition-colors',
-                        isDark ? 'hover:bg-[rgba(255,255,255,0.025)]' : 'hover:bg-slate-50')}>
-                        <td className={`px-6 py-4 text-sm font-medium ${tx}`}>{c.name}</td>
-                        <td className="px-6 py-4">
-                          <span className={cn('inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide',
-                            c.status === 'ACTIVE' && (isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'),
-                            c.status === 'PAUSED' && (isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'   : 'bg-amber-50 text-amber-700 border border-amber-100'),
-                          )}>
-                            <span className={cn('w-1.5 h-1.5 rounded-full', c.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-amber-500')} />
-                            {c.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <CampaignLifecycleBadge
-                            campaignId={c.id}
-                            status={(c.lifecycleStatus || 'DRAFT') as LifecycleStatus}
-                            changedAt={c.lifecycleChangedAt ?? undefined}
-                            onTransition={toStatus => handleLifecycleTransition(c.id, toStatus)}
-                          />
-                        </td>
-                        <td className={`px-6 py-4 text-sm ${txMuted}`}>{c.objective.replace('OUTCOME_', '')}</td>
-                        <td className={`px-6 py-4 text-sm font-mono text-right ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                          {c.adSets[0] ? formatCurrency(c.adSets[0].dailyBudget / 100) : '—'}
-                        </td>
-                        <td className={`px-6 py-4 text-xs text-right ${txFaint}`}>
-                          {new Date(c.createdAt).toLocaleDateString('pt-BR')}
-                        </td>
-                      </tr>
-                    ))}
-                    {campaigns.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className={`px-6 py-12 text-center text-sm ${txMuted}`}>
-                          Nenhuma campanha criada ainda
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <CampaignsTable
+              campaigns={campaigns}
+              isDark={isDark}
+              cardBase={cardBase}
+              tx={tx}
+              txMuted={txMuted}
+              txFaint={txFaint}
+              divider={divider}
+              periodBadgeLabel={periodBadgeLabel}
+              onLifecycleTransition={handleLifecycleTransition}
+            />
           </>
+        )}
+        {/* Fecha activeLayer !== COMMAND */}
+        </>
+        )}
+
+        {(activeLayer as string) === 'GOOGLE' && (
+          <GoogleAdsView isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
         )}
         {/* Fecha {activeSegment && <> ... </>} */}
         </>}
@@ -1750,18 +1369,6 @@ function SegmentDashboard({
 // ═════════════════════════════════════════════════════════════════════════════
 
 /* ── Badge de período exibido no canto superior direito de cada seção ── */
-function PeriodBadge({ label, isDark }: { label: string; isDark: boolean }) {
-  return (
-    <span className={cn(
-      'text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest shrink-0',
-      isDark
-        ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-        : 'bg-indigo-50 text-indigo-500 border border-indigo-100',
-    )}>
-      {label}
-    </span>
-  );
-}
 
 function RetrovisorSection({ isDark, children, periodLabel }: { isDark: boolean; children: React.ReactNode; periodLabel?: string }) {
   return (
@@ -1773,7 +1380,9 @@ function RetrovisorSection({ isDark, children, periodLabel }: { isDark: boolean;
     )}>
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
-          <RetrovisorIcon isDark={isDark} />
+          <div className={cn("p-2 rounded-xl", isDark ? "bg-amber-500/10 text-amber-500" : "bg-amber-100 text-amber-600")}>
+            <ClockIcon className="w-5 h-5" />
+          </div>
           <div>
             <p className={`text-[9px] font-black uppercase tracking-[0.35em] mb-0.5 ${isDark ? 'text-amber-700' : 'text-amber-500'}`}>
               Retrovisor
@@ -1793,66 +1402,7 @@ function RetrovisorSection({ isDark, children, periodLabel }: { isDark: boolean;
   );
 }
 
-function FarolSection({ isDark, children, periodLabel }: { isDark: boolean; children: React.ReactNode; periodLabel?: string }) {
-  return (
-    <div className={cn(
-      'rounded-3xl p-6 mb-8 border',
-      isDark
-        ? 'border-[rgba(34,211,238,0.13)] shadow-[0_0_60px_rgba(34,211,238,0.03),inset_0_1px_0_rgba(34,211,238,0.06)] bg-[rgba(7,13,20,0.55)] backdrop-blur-sm'
-        : 'border-sky-200/50 bg-gradient-to-br from-sky-50/50 to-white shadow-[0_4px_24px_rgba(14,165,233,0.05)]',
-    )}>
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div className="flex items-center gap-4">
-          <FarolIcon isDark={isDark} />
-          <div>
-            <p className={`text-[9px] font-black uppercase tracking-[0.35em] mb-0.5 ${isDark ? 'text-cyan-700' : 'text-sky-500'}`}>
-              Farol de Milha
-            </p>
-            <h2 className={`text-base font-black leading-tight ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
-              Sinais Leading & Antecipação
-            </h2>
-            <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
-              Quando / para onde — motor de sinais Meta (FASE 8.5)
-            </p>
-          </div>
-        </div>
-        {periodLabel && <PeriodBadge label={periodLabel} isDark={isDark} />}
-      </div>
-      {children}
-    </div>
-  );
-}
 
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  SVG ICONS
-// ═════════════════════════════════════════════════════════════════════════════
-
-function RetrovisorIcon({ isDark }: { isDark: boolean }) {
-  return (
-    <img
-      src="/retrovisor.png"
-      alt="Retrovisor"
-      width={56}
-      height={56}
-      className={`object-contain shrink-0 ${isDark ? 'opacity-90' : 'opacity-85'}`}
-      style={{ filter: isDark ? 'none' : 'brightness(0.95)' }}
-    />
-  );
-}
-
-function FarolIcon({ isDark }: { isDark: boolean }) {
-  return (
-    <img
-      src="/farol-de-milha.png"
-      alt="Farol de Milha"
-      width={56}
-      height={56}
-      className={`object-contain shrink-0 ${isDark ? 'opacity-90' : 'opacity-85'}`}
-      style={{ filter: isDark ? 'none' : 'brightness(0.95)' }}
-    />
-  );
-}
 
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1951,435 +1501,6 @@ function DateInputPtBR({
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  WINNING ANGLE CHIP (FASE 14)
-// ═════════════════════════════════════════════════════════════════════════════
 
-interface AngleStat {
-  angle: string;
-  label: string;
-  campaigns: number;
-  spend: number;
-  cpl: number | null;
-}
-
-interface AngleChipResult {
-  topAngle:   AngleStat | null;
-  worstAngle: AngleStat | null;
-  angleStats: AngleStat[];
-}
-
-// Cores por ângulo (pill de cobertura)
-const ANGLE_COLORS: Record<string, string> = {
-  investment: 'bg-indigo-500/15 text-indigo-400',
-  lifestyle:  'bg-emerald-500/15 text-emerald-400',
-  family:     'bg-pink-500/15 text-pink-400',
-  price:      'bg-amber-500/15 text-amber-400',
-  urgency:    'bg-red-500/15 text-red-400',
-  social:     'bg-cyan-500/15 text-cyan-400',
-  luxury:     'bg-violet-500/15 text-violet-400',
-  other:      'bg-slate-500/15 text-slate-400',
-};
-const ANGLE_COLORS_LIGHT: Record<string, string> = {
-  investment: 'bg-indigo-50 text-indigo-600',
-  lifestyle:  'bg-emerald-50 text-emerald-600',
-  family:     'bg-pink-50 text-pink-600',
-  price:      'bg-amber-50 text-amber-600',
-  urgency:    'bg-red-50 text-red-600',
-  social:     'bg-cyan-50 text-cyan-600',
-  luxury:     'bg-violet-50 text-violet-600',
-  other:      'bg-slate-50 text-slate-500',
-};
-
-function WinningAngleChip({ isDark, period, clientId }: {
-  isDark: boolean;
-  period: number;
-  clientId?: string;
-}) {
-  const [data, setData]       = useState<AngleChipResult | null>(null);
-  const [chipLoading, setChipLoading] = useState(true);
-
-  useEffect(() => {
-    setChipLoading(true);
-    const params = new URLSearchParams({ period: String(period) });
-    if (clientId && clientId !== 'all') params.set('clientId', clientId);
-    adminFetch(`/api/admin/campanhas/portfolio/angle-insights?${params}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setData(d ? {
-        topAngle:   d.topAngle   ?? null,
-        worstAngle: d.worstAngle ?? null,
-        angleStats: (d.angleStats ?? []) as AngleStat[],
-      } : null))
-      .catch(() => setData(null))
-      .finally(() => setChipLoading(false));
-  }, [period, clientId]);
-
-  const classified = (data?.angleStats ?? []).filter(a => a.angle !== 'unknown' && a.campaigns > 0);
-
-  // Oculta só quando sem nenhum dado (nem ângulos classificados nem CPL)
-  if (!chipLoading && !data?.topAngle && classified.length === 0) return null;
-
-  const bar = isDark
-    ? 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.07)]'
-    : 'bg-white border border-slate-100 shadow-sm';
-  const txLabel  = isDark ? 'text-slate-500' : 'text-slate-400';
-  const txMain   = isDark ? 'text-slate-300' : 'text-slate-700';
-  const txFaint  = isDark ? 'text-slate-500' : 'text-slate-400';
-
-  if (chipLoading) {
-    return (
-      <div className={`rounded-2xl px-5 py-3 mb-6 flex items-center gap-4 ${bar} animate-pulse`}>
-        <div className={`h-3 w-28 rounded ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`} />
-        <div className={`h-3 w-20 rounded ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`} />
-      </div>
-    );
-  }
-
-  const hasCpl = !!data?.topAngle;
-  // Modo cobertura: top 4 ângulos por nº de campanhas (quando sem CPL)
-  const coverageAngles = classified
-    .sort((a, b) => b.campaigns - a.campaigns)
-    .slice(0, 4);
-
-  return (
-    <div className={`rounded-2xl px-5 py-3 mb-6 flex items-center gap-5 flex-wrap ${bar}`}>
-      <span className={`text-[10px] font-black uppercase tracking-widest shrink-0 ${txLabel}`}>
-        {hasCpl ? `Ângulo · ${period}d` : `Ângulos · cobertura`}
-      </span>
-
-      {/* ── Modo CPL: vencedor / pior ── */}
-      {hasCpl && (
-        <>
-          <span className="flex items-center gap-2">
-            <span className="text-base leading-none">🏆</span>
-            <span className={`text-xs font-black ${txMain}`}>
-              {angleLabel(data!.topAngle!.angle)}
-            </span>
-            {data!.topAngle!.cpl != null && (
-              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
-                isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
-              }`}>
-                {formatCurrency(data!.topAngle!.cpl)} CPL
-              </span>
-            )}
-          </span>
-
-          {data?.worstAngle && (
-            <>
-              <span className={`text-[10px] ${txFaint}`}>vs</span>
-              <span className="flex items-center gap-2">
-                <span className={`text-xs font-medium ${txFaint}`}>
-                  ↓ {angleLabel(data.worstAngle.angle)}
-                </span>
-                {data.worstAngle.cpl != null && (
-                  <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
-                    isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-500'
-                  }`}>
-                    {formatCurrency(data.worstAngle.cpl)} CPL
-                  </span>
-                )}
-              </span>
-            </>
-          )}
-        </>
-      )}
-
-      {/* ── Modo cobertura: pills por ângulo ── */}
-      {!hasCpl && coverageAngles.map(a => {
-        const colorClass = isDark
-          ? (ANGLE_COLORS[a.angle] ?? ANGLE_COLORS.other)
-          : (ANGLE_COLORS_LIGHT[a.angle] ?? ANGLE_COLORS_LIGHT.other);
-        return (
-          <span
-            key={a.angle}
-            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${colorClass}`}
-          >
-            {a.label}
-            <span className="opacity-60 font-normal">{a.campaigns}×</span>
-          </span>
-        );
-      })}
-
-      {/* Dica quando não há CPL ainda */}
-      {!hasCpl && (
-        <span className={`text-[10px] italic ${txFaint}`}>
-          CPL disponível após sincronização de métricas
-        </span>
-      )}
-
-      {/* Link para análise completa */}
-      <a
-        href="/admin/campanhas/portfolio/cross-insights"
-        className={`ml-auto text-[10px] font-black uppercase tracking-widest transition-colors shrink-0 ${
-          isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'
-        }`}
-      >
-        Ver análise →
-      </a>
-    </div>
-  );
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  KPI CARD
-// ═════════════════════════════════════════════════════════════════════════════
-
-function KpiCard({ isDark, label, value, fullValue, color, delta, invertDelta, tooltip }: {
-  isDark: boolean; label: string; value: string; fullValue?: string; color: string;
-  delta?: number; invertDelta?: boolean; tooltip?: string;
-}) {
-  let deltaColor = isDark ? 'text-slate-600' : 'text-gray-400';
-  let deltaIcon  = '';
-  let deltaBg    = '';
-  let deltaTitle = '';
-
-  if (delta !== undefined && Math.abs(delta) > 0.5) {
-    const isPositive = delta > 0;
-    const isGood     = invertDelta ? !isPositive : isPositive;
-
-    // Cores: verde = bom, vermelho = ruim
-    deltaColor = isGood
-      ? (isDark ? 'text-emerald-400' : 'text-emerald-700')
-      : (isDark ? 'text-red-400'     : 'text-red-600');
-    deltaBg = isGood
-      ? (isDark ? 'bg-emerald-500/10' : 'bg-emerald-50')
-      : (isDark ? 'bg-red-500/10'     : 'bg-red-50');
-
-    // Seta: sempre ↑ quando bom, ↓ quando ruim — direção semântica, não matemática
-    // (ex: CPC caiu 58% → performance melhorou → seta verde ↑)
-    deltaIcon = isGood ? '↑' : '↓';
-
-    // Tooltip: mostra o que realmente aconteceu + interpretação
-    const realDir  = isPositive ? 'subiu'  : 'caiu';
-    const goodText = isGood ? 'performance melhorou ✓' : 'requer atenção ⚠';
-    deltaTitle = `${label} ${realDir} ${Math.abs(delta).toFixed(1)}% vs período anterior — ${goodText}`;
-  }
-
-  // Tooltip do card: usa o tooltip explícito ou o tooltip do delta
-  const cardTitle = tooltip || (fullValue ? `${label}: ${fullValue}` : undefined);
-
-  return (
-    <div
-      title={cardTitle}
-      className={cn(
-        'group rounded-2xl border p-3.5 flex flex-col gap-1.5 min-w-0 overflow-hidden transition-all duration-200 cursor-default',
-        isDark
-          ? 'bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(99,102,241,0.4)] hover:shadow-[0_0_24px_rgba(99,102,241,0.12)] hover:-translate-y-0.5'
-          : 'bg-white border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.09)] hover:-translate-y-0.5',
-      )}
-    >
-      {/* Label */}
-      <span className={`text-[9px] font-black uppercase tracking-widest leading-none truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-        {label}
-      </span>
-
-      {/* Valor — versão compacta para caber no card */}
-      <span
-        className={cn('text-sm font-black font-mono leading-tight', color)}
-        style={{ wordBreak: 'keep-all', overflowWrap: 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
-        title={fullValue ?? value}
-      >
-        {value}
-      </span>
-
-      {/* Delta — seta semântica: ↑ verde = melhorou, ↓ vermelho = piorou */}
-      {delta !== undefined && deltaIcon && (
-        <span
-          title={deltaTitle}
-          className={cn(
-            'self-start text-[9px] font-black px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap cursor-help',
-            deltaColor, deltaBg,
-          )}
-        >
-          {deltaIcon} {Math.abs(delta).toFixed(1)}%
-        </span>
-      )}
-      {/* Variação insignificante */}
-      {delta !== undefined && Math.abs(delta) <= 0.5 && (
-        <span className={cn('text-[8px] font-bold', isDark ? 'text-slate-700' : 'text-slate-300')}>
-          = estável
-        </span>
-      )}
-    </div>
-  );
-}
-
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  HOOK RATE KPI CARD — com tabela de referência de benchmarks no canto
-// ═════════════════════════════════════════════════════════════════════════════
-
-function HookRateKpiCard({ isDark, value, color, benchmarks: bm }: {
-  isDark: boolean; value: number; color: string;
-  benchmarks: { hook_rate_critical: number; hook_rate_min: number; hook_rate_good: number };
-}) {
-  const [showRef, setShowRef] = React.useState(false);
-  const { hook_rate_critical: crit, hook_rate_min: min, hook_rate_good: good } = bm;
-
-  // Tabela de referência construída dinamicamente a partir dos benchmarks do banco
-  const benchmarks = [
-    { range: `≥ ${good}%`,           label: 'Excelente', cls: 'text-emerald-400' },
-    { range: `${min}–${good - 1}%`,  label: 'Bom',       cls: 'text-emerald-500' },
-    { range: `${crit}–${min - 1}%`,  label: 'Atenção',   cls: 'text-amber-400' },
-    { range: `< ${crit}%`,           label: 'Crítico',   cls: 'text-red-400' },
-  ];
-
-  return (
-    <div className={cn(
-      'group relative rounded-2xl border p-3.5 flex flex-col gap-1.5 min-w-0 overflow-visible transition-all duration-200',
-      isDark
-        ? 'bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(99,102,241,0.4)] hover:shadow-[0_0_24px_rgba(99,102,241,0.12)] hover:-translate-y-0.5'
-        : 'bg-white border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.09)] hover:-translate-y-0.5',
-    )}>
-      {/* Label + ícone de referência */}
-      <div className="flex items-center justify-between gap-1">
-        <span className={`text-[9px] font-black uppercase tracking-widest leading-none ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-          Hook Rate
-        </span>
-        <button
-          type="button"
-          onClick={() => setShowRef(v => !v)}
-          title="Ver referência de benchmarks"
-          className={cn(
-            'flex-shrink-0 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-black leading-none transition-colors',
-            showRef
-              ? 'bg-indigo-500 text-white'
-              : isDark ? 'bg-slate-700 text-slate-400 hover:bg-indigo-500/30 hover:text-indigo-300' : 'bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600',
-          )}
-        >
-          i
-        </button>
-      </div>
-
-      {/* Valor */}
-      <span
-        className={cn('text-sm font-black font-mono leading-tight', color)}
-        style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
-        title={`Hook Rate: ${value.toFixed(2)}% — views 3s / impressões × 100`}
-      >
-        {value.toFixed(1)}%
-      </span>
-
-      {/* Tabela de referência — aparece ao clicar no ⓘ, anchorada no canto direito do card */}
-      {showRef && (
-        <div className={cn(
-          'absolute top-full right-0 mt-1.5 z-50 rounded-xl border shadow-xl p-3 min-w-[160px]',
-          isDark
-            ? 'bg-[#0d1421] border-[rgba(255,255,255,0.1)]'
-            : 'bg-white border-slate-200',
-        )}>
-          <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            Referência Hook Rate
-          </p>
-          <p className={`text-[9px] mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            views 3s ÷ impressões × 100
-          </p>
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className={isDark ? 'text-slate-600' : 'text-slate-400'}>
-                <th className="text-left font-black pb-1">Faixa</th>
-                <th className="text-right font-black pb-1">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[rgba(255,255,255,0.04)]">
-              {benchmarks.map(b => (
-                <tr key={b.range}>
-                  <td className={`py-1 font-mono font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{b.range}</td>
-                  <td className={`py-1 text-right font-black ${b.cls}`}>{b.label}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  BRIEFING CARD
-// ═════════════════════════════════════════════════════════════════════════════
-
-function BriefingCard({ briefing, isDark, compact }: {
-  briefing: StrategicBriefingData; isDark: boolean; compact?: boolean;
-}) {
-  const c         = briefing.content;
-  const typeLabel = briefing.type === 'morning' ? 'Matinal' : briefing.type === 'closing' ? 'Fechamento' : 'Manual';
-  const date      = new Date(briefing.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  const periodLabel = briefing.periodDays != null
-    ? (briefing.periodDays === 1 ? 'Hoje' : `${briefing.periodDays}d`)
-    : null;
-
-  const cardCls = isDark
-    ? 'bg-[rgba(13,20,33,0.92)] backdrop-blur-sm border border-[rgba(255,255,255,0.07)] shadow-[0_2px_16px_rgba(0,0,0,0.5)]'
-    : 'bg-white border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06)]';
-  const tx      = isDark ? 'text-slate-300' : 'text-slate-900';
-  const txMuted = isDark ? 'text-slate-400' : 'text-slate-500';
-  const txFaint = isDark ? 'text-slate-500' : 'text-slate-400';
-  const badge   = isDark
-    ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
-    : 'bg-violet-50 text-violet-700 border border-violet-100';
-  const periodBadge = isDark
-    ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-    : 'bg-indigo-50 text-indigo-500 border border-indigo-100';
-
-  return (
-    <div className={cn(`rounded-2xl p-5 ${cardCls}`, compact && 'opacity-70')}>
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2">
-          <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide ${badge}`}>{typeLabel}</span>
-          <span className={`text-xs ${txFaint}`}>{date}</span>
-        </div>
-        {periodLabel && (
-          <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest shrink-0 ${periodBadge}`}>
-            {periodLabel}
-          </span>
-        )}
-      </div>
-      {c.urgentAlerts?.length > 0 && (
-        <div className="mb-3 space-y-1">
-          {c.urgentAlerts.map((a, idx) => (
-            <p key={idx} className={`text-sm font-medium ${isDark ? 'text-red-400' : 'text-red-600'}`}>⚠ {a}</p>
-          ))}
-        </div>
-      )}
-      {c.performanceSummary && (
-        <p className={cn(`text-sm leading-relaxed mb-3 ${txMuted}`, compact && 'line-clamp-2')}>{c.performanceSummary}</p>
-      )}
-      {!compact && c.campaignAnalysis?.length > 0 && (
-        <div className="mb-3">
-          <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${txFaint}`}>Campanhas</p>
-          <div className="space-y-1.5">
-            {c.campaignAnalysis.map((ca, idx) => (
-              <div key={idx} className="flex items-start gap-2 text-sm">
-                <span>{ca.status === 'critical' ? '🔴' : ca.status === 'warning' ? '🟡' : '🟢'}</span>
-                <span className={`font-black ${tx}`}>{ca.campaignName}:</span>
-                <span className={txMuted}>{ca.recommendation}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {!compact && c.budgetRecommendations?.length > 0 && (
-        <div className="mb-3">
-          <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Budget</p>
-          {c.budgetRecommendations.map((r, idx) => <p key={idx} className={`text-sm ${txMuted}`}>• {r}</p>)}
-        </div>
-      )}
-      {!compact && c.actionItems?.length > 0 && (
-        <div className="mb-3">
-          <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Ações</p>
-          {c.actionItems.map((a, idx) => <p key={idx} className={`text-sm ${txMuted}`}>• {a}</p>)}
-        </div>
-      )}
-      {!compact && c.tomorrowPlan && (
-        <div>
-          <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Plano Amanhã</p>
-          <p className={`text-sm ${txMuted}`}>{c.tomorrowPlan}</p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default DashboardPage;

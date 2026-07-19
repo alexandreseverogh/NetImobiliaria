@@ -1,6 +1,8 @@
 import cron from 'node-cron';
 import prisma from '../prisma';
 import { getNetworkServiceForTenant } from '../networks/factory';
+import type { NetworkCode } from '../networks/types';
+import { GoogleAdsAdapter } from '../networks/google/GoogleAdsAdapter';
 import { runDecisor } from './agentDecisor';
 import { generateStrategicBriefing } from './strategicBriefing';
 import { notifyWhatsApp, notifySlack } from './agentNotificador';
@@ -132,9 +134,25 @@ export function startAgentMonitor() {
 
 export async function syncMetrics() {
   const campaigns = await prisma.campaign.findMany({
-    where: { metaCampaignId: { not: null } },
-    select: { id: true, tenantId: true, metaCampaignId: true },
+    where: {
+      OR: [
+        { metaCampaignId: { not: null } },
+        { AND: [{ networkId: { not: null } }, { externalId: { not: null } }] },
+      ],
+    },
+    select: { id: true, tenantId: true, metaCampaignId: true, externalId: true, networkId: true },
   });
+
+  // Resolve networkId → code (public.ad_networks) para as redes distintas encontradas
+  const networkIds = Array.from(new Set(campaigns.map(c => c.networkId).filter(Boolean))) as string[];
+  const networkCodeById = new Map<string, string>();
+  if (networkIds.length > 0) {
+    const rows = await prisma.$queryRawUnsafe<{ id: string; code: string }[]>(
+      `SELECT id, code FROM public.ad_networks WHERE id = ANY($1::uuid[])`,
+      networkIds,
+    );
+    for (const r of rows) networkCodeById.set(r.id, r.code);
+  }
 
   const byTenant = new Map<string, typeof campaigns>();
   for (const c of campaigns) {
@@ -149,17 +167,23 @@ export async function syncMetrics() {
   for (const [tenantId, tenantCampaigns] of Array.from(byTenant.entries())) {
     if (tenantId === '__global__') continue;
 
-    let networkService: Awaited<ReturnType<typeof getNetworkServiceForTenant>>;
-    try {
-      networkService = await getNetworkServiceForTenant(tenantId, 'meta');
-    } catch {
-      continue;
-    }
-
     for (const campaign of tenantCampaigns) {
-      if (!campaign.metaCampaignId) continue;
+      // networkId ausente = campanha legada anterior ao FK (sempre Meta, via metaCampaignId)
+      const networkCode = ((campaign.networkId ? networkCodeById.get(campaign.networkId) : null) || 'meta') as NetworkCode;
+      const externalId = networkCode === 'meta' ? (campaign.metaCampaignId || campaign.externalId) : campaign.externalId;
+
+      if (!externalId) continue;
+
+      let networkService: Awaited<ReturnType<typeof getNetworkServiceForTenant>>;
       try {
-        const insights = await networkService.fetchInsights(campaign.metaCampaignId, { since, until });
+        networkService = await getNetworkServiceForTenant(tenantId, networkCode);
+      } catch (e) {
+        console.warn(`[syncMetrics] Configuração da rede ${networkCode} ausente para o tenant ${tenantId}`);
+        continue;
+      }
+
+      try {
+        const insights = await networkService.fetchInsights(externalId, { since, until });
         for (const day of insights) {
           const insightId = `${campaign.id}-${day.date}`;
           const insightBase = {
@@ -185,6 +209,11 @@ export async function syncMetrics() {
             conversionRateRanking: day.conversionRateRanking ?? null,
             firstImpressionRatio:  day.firstImpressionRatio  ?? null,
             breakdowns:       (day as any).breakdowns ?? {},
+            // FASE 1 (Google Ads) — Impression Share + ROAS
+            searchImpressionShare: day.searchImpressionShare ?? 0,
+            searchBudgetLostIs:    day.searchBudgetLostIs    ?? 0,
+            searchRankLostIs:      day.searchRankLostIs      ?? 0,
+            conversionsValue:      day.conversionsValue      ?? 0,
           };
           await prisma.insight.upsert({
             where: { id: insightId },
@@ -199,7 +228,17 @@ export async function syncMetrics() {
           });
         }
       } catch (err) {
-        console.error(`Erro ao sincronizar campanha ${campaign.id}:`, err);
+        console.error(`Erro ao sincronizar campanha ${campaign.id} (${networkCode}):`, err);
+      }
+
+      // FASE 1 (Google Ads) A4 — coletor de Search Terms (só Google; sustenta a negativação
+      // automática, ver docs/PLANO_GOOGLE_TIKTOK.md A6). Falha isolada, não afeta o resto do sync.
+      if (networkCode === 'google' && networkService instanceof GoogleAdsAdapter) {
+        try {
+          await collectGoogleSearchTerms(networkService, campaign.id, campaign.tenantId, externalId, since, until);
+        } catch (err) {
+          console.error(`[collectGoogleSearchTerms] Erro na campanha ${campaign.id}:`, err);
+        }
       }
 
       // FASE 4 — infere lifecycle após sync (falha silenciosa)
@@ -209,5 +248,52 @@ export async function syncMetrics() {
         console.error(`[Lifecycle] Erro ao inferir status da campanha ${campaign.id}:`, err);
       }
     }
+  }
+}
+
+/** FASE 1 (Google Ads) A4 — grava os termos de busca reais no grão próprio (GoogleSearchTerm,
+ *  não cabe em Insight que é campanha-dia). Preserva o `status` já setado por uma negativação
+ *  anterior (agente ou humano) — o upsert nunca reseta pra 'none' num termo já tratado. */
+async function collectGoogleSearchTerms(
+  adapter: GoogleAdsAdapter,
+  campaignId: string,
+  tenantId: string | null,
+  externalId: string,
+  since: string,
+  until: string,
+) {
+  if (!tenantId) return; // GoogleSearchTerm.tenantId é NOT NULL
+
+  const terms = await adapter.fetchSearchTerms(externalId, { since, until });
+  for (const t of terms) {
+    await prisma.googleSearchTerm.upsert({
+      where: {
+        tenantId_campaignId_searchTerm_date: {
+          tenantId,
+          campaignId,
+          searchTerm: t.searchTerm,
+          date: new Date(t.date),
+        },
+      },
+      update: {
+        matchType:   t.matchType,
+        impressions: t.impressions,
+        clicks:      t.clicks,
+        cost:        t.cost,
+        conversions: t.conversions,
+        // status NÃO é atualizado aqui — preserva 'negated'/'added_as_keyword' de rodadas anteriores
+      },
+      create: {
+        tenantId,
+        campaignId,
+        searchTerm:  t.searchTerm,
+        matchType:   t.matchType,
+        date:        new Date(t.date),
+        impressions: t.impressions,
+        clicks:      t.clicks,
+        cost:        t.cost,
+        conversions: t.conversions,
+      },
+    });
   }
 }

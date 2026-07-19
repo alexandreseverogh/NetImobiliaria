@@ -356,6 +356,7 @@ export interface DashboardTotals {
   ctr: number;
   cpc: number;
   cpm: number;
+  spendByNetwork?: Record<string, number>;
 }
 
 export interface DashboardFullData {
@@ -365,6 +366,9 @@ export interface DashboardFullData {
   campaigns: Campaign[];
   adSets: { id: string; name: string; campaignId: string; campaignName: string }[];
   dailyLeads: { date: string; count: number }[];
+  leadsByNetwork?: Record<string, number>;
+  // FASE 1 (Google Ads) A7 — comparativo CPL por rede (meta/google/...)
+  cplByNetwork?: Record<string, { spend: number; leads: number; cpl: number | null }>;
   funnelData: FunnelData;
 }
 
@@ -662,5 +666,38 @@ export const getCrossInsights = (params?: { period?: number }) =>
 
 export const generateCrossInsightsNarrative = (params?: { period?: number }) =>
   api.post<CrossInsightsData>('/campanhas/portfolio/cross-insights', params ?? {}).then(r => r.data);
+
+/* ──────────────────────────────────────────────────────────────
+   FASE 1 (Google Ads) A7 — drill-down de Search Terms
+────────────────────────────────────────────────────────────── */
+
+export interface GoogleSearchTermRow {
+  campaignId: string;
+  searchTerm: string;
+  matchType: string;
+  status: string;
+  impressions: number;
+  clicks: number;
+  cost: number;
+  conversions: number;
+}
+
+export interface GoogleCampaignSummary {
+  id: string;
+  name: string;
+  avgSearchBudgetLostIs: number;
+  roas: number | null;
+}
+
+export interface GoogleSearchTermsData {
+  campaigns: GoogleCampaignSummary[];
+  terms: GoogleSearchTermRow[];
+}
+
+export const getGoogleSearchTerms = (params?: { campaignId?: string; status?: string; windowDays?: number }) =>
+  api.get<GoogleSearchTermsData>('/google/search-terms', { params }).then(r => r.data);
+
+export const negateGoogleSearchTerm = (data: { campaignId: string; searchTerm: string; matchType: string }) =>
+  api.post<{ ok: boolean }>('/google/search-terms/negate', data).then(r => r.data);
 
 export default api;

@@ -1,6 +1,8 @@
 import { Pool } from 'pg';
 import { MetaAdsAdapter, MetaCredentials } from './meta/metaAdsAdapter';
+import { GoogleAdsAdapter, GoogleCredentials } from './google';
 import type { AdNetworkService, NetworkCode, NetworkCredentials } from './types';
+import prisma from '../prisma';
 
 let _pool: Pool | null = null;
 function getPool(): Pool {
@@ -30,6 +32,14 @@ export function buildNetworkService(
       } as MetaCredentials);
 
     case 'google':
+      return new GoogleAdsAdapter({
+        developer_token: credentials.developer_token || '',
+        client_id:       credentials.client_id || '',
+        client_secret:   credentials.client_secret || '',
+        refresh_token:   credentials.refresh_token || '',
+        customer_id:     credentials.customer_id || '',
+      } as GoogleCredentials);
+
     case 'linkedin':
     case 'tiktok':
       throw new Error(`Rede "${code}" ainda não está implementada. Disponível na FASE 11.`);
@@ -91,6 +101,29 @@ export async function getNetworkServiceForTenant(
         page_id:            t?.meta_page_id || creds.page_id || '',
         pixel_id:           t?.meta_pixel_id || creds.pixel_id || '',
         instagram_actor_id: t?.meta_instagram_actor_id || creds.instagram_actor_id || '',
+      };
+    }
+  } else if (networkCode === 'google') {
+    // Mesmo padrão do Meta: credenciais em public.tenant_network_credentials,
+    // join por public.ad_networks.code = 'google'. Ver docs/PLANO_GOOGLE_TIKTOK.md
+    // (decisão de consolidação 2026-07-19 — não usar tabela dedicada GoogleAdsConfig).
+    const credsRes = await pool.query(
+      `SELECT tnc.credentials, tnc.account_id
+       FROM public.tenant_network_credentials tnc
+       JOIN public.ad_networks n ON n.id = tnc.network_id
+       WHERE tnc.tenant_id = $1::uuid AND n.code = 'google' AND tnc.is_active = true
+       LIMIT 1`,
+      [tenantId],
+    );
+    const row = credsRes.rows[0];
+    const creds = row?.credentials || {};
+    if (row && creds.developer_token) {
+      baseCredentials = {
+        developer_token: creds.developer_token,
+        client_id:       creds.client_id || '',
+        client_secret:   creds.client_secret || '',
+        refresh_token:   creds.refresh_token || '',
+        customer_id:     row.account_id || creds.customer_id || '',
       };
     }
   } else {

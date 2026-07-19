@@ -109,6 +109,11 @@ model Campaign {
   funnelStage         String    @default("TOF") @map("funnel_stage") @db.VarChar(20)
   // FASE 14 — ângulo de comunicação declarado no lançamento (opcional; taxonomia compartilhada)
   declaredAngle       String?   @map("declared_angle") @db.VarChar(50)
+  // Multi-rede (Meta/Google/LinkedIn/TikTok) — FK para public.ad_networks; ambas as colunas já
+  // existiam no banco sem estar mapeadas aqui (schema drift). network_metadata continua via
+  // raw SQL (pool.query), sem necessidade de mexer agora.
+  networkId           String?   @map("network_id") @db.Uuid
+  externalId           String?  @map("external_id") @db.VarChar(100)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -213,10 +218,58 @@ model Insight {
   learningConversions    Int?     @map("learning_conversions")
   firstImpressionRatio   Float?   @map("first_impression_ratio")
   breakdowns       Json?
+  // FASE 1 (Google Ads) — Impression Share + ROAS (grão campanha-dia)
+  searchImpressionShare  Float    @default(0) @map("search_impression_share")
+  searchBudgetLostIs     Float    @default(0) @map("search_budget_lost_is")
+  searchRankLostIs       Float    @default(0) @map("search_rank_lost_is")
+  conversionsValue       Float    @default(0) @map("conversions_value")
   createdAt        DateTime @default(now())
 
   @@index([campaignId, date])
   @@index([tenantId])
+}
+
+// FASE 1 (Google Ads) — grão termo de busca (não cabe em Insight, que é campanha-dia)
+model GoogleSearchTerm {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  campaignId  String   @map("campaign_id")
+  adNetwork   String   @default("google") @map("ad_network") @db.VarChar(20)
+
+  searchTerm  String   @map("search_term") @db.VarChar(255)
+  matchType   String   @map("match_type") @db.VarChar(20)
+
+  date        DateTime @db.Date
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  cost        Float    @default(0)
+  conversions Int      @default(0)
+
+  status      String   @default("none") @db.VarChar(20)  // 'none' | 'negated' | 'added_as_keyword'
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([tenantId, campaignId, searchTerm, date])
+  @@index([campaignId, date])
+  @@index([tenantId])
+  @@map("GoogleSearchTerm")
+}
+
+// FASE 1 (Google Ads) — memória do que já foi negativado (evita o agente propor 2x)
+model GoogleNegativeKeyword {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  campaignId String   @map("campaign_id")
+
+  term       String   @db.VarChar(255)
+  matchType  String   @map("match_type") @db.VarChar(20)
+  addedBy    String   @map("added_by") @db.VarChar(20)  // 'agent' | 'human'
+  addedAt    DateTime @default(now()) @map("added_at")
+
+  @@unique([tenantId, campaignId, term])
+  @@index([campaignId])
+  @@map("GoogleNegativeKeyword")
 }
 
 // FASE 8.5 — Snapshot de calibração (cache do painel + auditoria)
@@ -513,3 +566,7 @@ model CreativeGenerationJob {
   @@index([sourceAssetId])
   @@map("CreativeGenerationJob")
 }
+
+// Credenciais do Google Ads (e demais redes) vivem em public.tenant_network_credentials
+// (mesmo padrão já usado pelo Meta) — ver docs/PLANO_GOOGLE_TIKTOK.md, decisão de consolidação
+// 2026-07-19. Não há model dedicado para isso; acesso via pool.query (schema public).

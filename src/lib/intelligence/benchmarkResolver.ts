@@ -38,6 +38,8 @@ export const SEGMENT_SEED_DEFAULTS: Record<string, { value: number; label: strin
   pressure_w_engagement: { value: 0.40, label: 'Peso Engagement (Pressão)', unit: 'NUM', description: 'Peso do engagement_rate_ranking no índice de pressão' },
   pressure_w_conversion: { value: 0.35, label: 'Peso Conversão (Pressão)',  unit: 'NUM', description: 'Peso do conversion_rate_ranking no índice de pressão' },
   pressure_w_quality:    { value: 0.25, label: 'Peso Qualidade (Pressão)',  unit: 'NUM', description: 'Peso do quality_ranking no índice de pressão' },
+  // FASE 1 (Google Ads) — regra IMPRESSION_SHARE_OPPORTUNITY
+  is_lost_budget_scale_min: { value: 20, label: 'IS Lost Budget p/ Escalar (%)', unit: 'PCT', description: 'IS perdido por orçamento acima disso + CPL bom → oportunidade real de aumentar verba' },
 };
 
 /**
