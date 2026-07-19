@@ -8,25 +8,49 @@
 
 ## Tarefa em andamento
 
-### Plano Google Ads + TikTok (2026-07-19 — Documentação concluída, pronto para fase paralela)
+### Plano Google Ads + TikTok — FASE 1/A2 implementada em worktree isolado (2026-07-19)
 
-**Status:** Planejamento completo documentado em `docs/PLANO_GOOGLE_TIKTOK.md`.
+**Branch/worktree:** `feature/google-ads-implementation`, em `C:\NetImobiliária\netimob-google`
+(worktree separado — **não** o diretório principal `net-imobiliaria`, que segue com o Antigravity
+trabalhando em `feature/ag-cockpit-camadas`, intocado).
 
-**Escopo:** Extensão multi-rede do sistema de campanhas de marketing digital. Duas fases:
-- **FASE 1 — Google Ads:** Completar adapter (tirar do mock), adicionar negativação automática, métricas de IS, regra de SCALE/KILL
-- **FASE 2 — TikTok:** Adapter via SDK oficial, reuso de métricas de vídeo já existentes (criadas em FASE 5), template de vídeo
+**Como o trabalho do Antigravity foi herdado (sem interferir nele):** todo o estado dele em
+`feature/ag-cockpit-camadas` — commitado + modificações/arquivos novos não commitados (39
+mudanças) — foi "puxado" via `git diff`+`git apply` (arquivos rastreados) e cópia direta
+(arquivos novos) para dentro do worktree isolado. O diretório original dele ficou
+byte-a-byte intacto (confirmado via `git status` antes/depois).
 
-**Dependência crítica de tempo:** Developer Token Google Ads API (5–15 dias de aprovação). **Ação imediata:** Solicitar.
+**Auditoria encontrou 2 conflitos arquiteturais, resolvidos com o usuário** (detalhes completos
+em `docs/PLANO_GOOGLE_TIKTOK.md`, seção "Auditoria + Decisões de Arquitetura"):
+1. **Identificador de rede:** decidido reusar `ad_networks` + `Campaign.network_id` (infra
+   madura já existente) em vez da coluna nova `ad_network` que o Antigravity tinha criado mas
+   nunca usava em lugar nenhum do código. **Bug de brinde corrigido:** `network_id` nunca era
+   setado na criação de campanha — as 24 campanhas existentes tinham todas `NULL`, quebrando
+   silenciosamente a agregação "Distribuição por Rede" do dashboard.
+2. **Credenciais Google:** decidido consolidar em `public.tenant_network_credentials` (mesma
+   tabela genérica já usada pelo Meta) em vez da tabela dedicada `GoogleAdsConfig` que ele
+   tinha modelado no Prisma mas nunca migrado no banco (quebraria em runtime).
 
-**Coordenação:** Outro agente em `feature/ag-cockpit-camadas` já ~40% iniciada em Google. Este plano audita + completa + tira do mock, registrado em `docs/AI_SYNC.md`.
+**Implementado nesta sessão (tudo com `npx tsc --noEmit` e `npx prisma generate` limpos):**
+- Schema drift corrigido: `Campaign.networkId`/`externalId` existiam no banco sem estar
+  mapeados no Prisma (por isso o código evitava usá-los, com raw SQL) — agora mapeados.
+- `factory.ts`, `configuracoes/google-ads/route.ts`, `campanhas/google/route.ts` reescritos
+  para usar `tenant_network_credentials` + `network_id` (nada de tabela/coluna dedicada).
+- `admin/configuracoes/google-ads/page.tsx` reescrita — usava componentes shadcn/ui
+  (`@/components/ui/card` etc.) que não existem neste projeto; agora Tailwind puro no mesmo
+  padrão visual da aba "Identidade Meta" já existente.
+- **A2 do plano aplicada no banco:** 4 colunas novas em `Insight` (search_impression_share,
+  search_budget_lost_is, search_rank_lost_is, conversions_value) + 2 tabelas novas
+  (`GoogleSearchTerm`, `GoogleNegativeKeyword`) — migração
+  `prisma/migration-2026-07-19-google-ads-a2.sql`.
+- **A3 parcial:** `GoogleAdsAdapter.fetchInsights` agora busca Impression Share/ROAS reais da
+  Google Ads API (antes eram campos mockados); `agentMonitor.ts` persiste os 4 campos novos.
 
-**Princípios inegociáveis:**
-- Portão do KPI: nenhum dado sem decisão amarrada
-- Multi-segmento por config (JSONB `network_defaults`)
-- Reuso máximo (30+ agentes existentes, dashboard consolidado, fila de aprovação)
-- Fora de escopo: SEO, Quality Score passivo, hashtags/sounds do TikTok
-
-**Próxima ação:** Assim que Developer Token tiver perspectiva, iniciar Passo 2 (Migrations).
+**Pendente (próxima sessão):** completar `createCampaign` (Asset Group real) e `uploadCreative`
+(hoje mock) · `addNegativeKeyword` (método novo) · A4 coletor de Search Terms · A5
+`network_defaults.google` por segmento (≥2 segmentos) · A6 agente de Negativação + regra IS ·
+A7 dashboard (filtro rede + CPL/rede) · **Developer Token Google Ads API ainda não solicitado**
+(prazo real 5-15 dias, é o item que trava testes end-to-end).
 
 ---
 

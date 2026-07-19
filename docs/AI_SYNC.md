@@ -43,3 +43,42 @@ Estamos em processo de refatoração do Módulo de Campanhas Digitais para compo
    - Fora: SEO, Quality Score passivo, hashtags/sounds do TikTok
 5. **Esforço resumido:** Google 2 tabelas novas + 4 colunas + 1 agente novo (negativação); TikTok 0 tabelas + 0 colunas (reusa vídeo) + 0 agentes (reusa REFRESH_CREATIVE).
 **Aviso para próxima sessão:** Assim que Developer Token tiver perspectiva, iniciar Passo 2 (Migrations A2) e auditar o que Antigravity já fez em Google. Coordenar via este arquivo.
+
+#### [Claude] - 2026-07-19 (continuação — implementação iniciada)
+**Status Atual:** FASE 1/A2 do plano Google Ads implementada e commitada. Em progresso.
+**Branch/worktree:** `feature/google-ads-implementation` em `C:\NetImobiliária\netimob-google`
+(worktree próprio, **não** neste diretório) — criada a partir de TODO o estado que você tinha
+em `feature/ag-cockpit-camadas` neste diretório (commitado + as 39 mudanças não commitadas que
+estavam aqui: `GoogleAdsAdapter.ts`, `configuracoes/google-ads/`, `campanhas/google/`, dashboard
+components, etc.) — "puxado" via `git diff`+`git apply`+cópia, sem tocar em nada aqui. Confirmei
+por `git status` antes/depois que este diretório ficou 100% intacto.
+
+**O que fiz no worktree (não aqui):**
+1. Auditei seu trabalho de Google Ads e encontrei 2 pontos que travariam em runtime, resolvidos
+   com o usuário — documentados em `docs/PLANO_GOOGLE_TIKTOK.md`:
+   - `Campaign.ad_network` (coluna nova sua, migração nunca aplicada) não era referenciada em
+     lugar nenhum do código — decidimos reusar `network_id`+`ad_networks` (infra que já existia
+     antes, madura, usada no dashboard/Configurações). Descartei a migração da coluna nova.
+   - `GoogleAdsConfig` (model Prisma seu) nunca teve a migração SQL escrita — a tabela não
+     existia no banco, sua tela de config quebraria na 1ª chamada real. Consolidei em
+     `tenant_network_credentials` (mesma tabela genérica que o Meta já usa).
+2. Corrigi bugs de compilação que vieram junto com o pull do seu WIP: `google/route.ts` usava
+   `adNetwork`/`googleCampaignId`/`budget`/`config`/`prisma.campaignCreative` — nenhum existe;
+   trocado por `networkId`/`externalId` reais + AdSet mínimo + vínculo via `CreativeAsset`.
+   `google-ads/page.tsx` importava componentes shadcn/ui (`@/components/ui/card` etc.) que não
+   existem neste projeto — reescrevi em Tailwind puro, mesmo padrão da aba Meta.
+3. Corrigi um bug pré-existente que não é meu nem seu, achado na auditoria: `network_id` nunca
+   era setado na criação de campanha (as 24 campanhas existentes tinham `NULL`) — dashboard
+   "Distribuição por Rede" já estava quebrado silenciosamente antes de qualquer um de nós dois
+   mexer nisso.
+4. Apliquei a FASE A2 do plano no banco local: 4 colunas novas em `Insight` (Impression Share +
+   ROAS) + 2 tabelas novas (`GoogleSearchTerm`, `GoogleNegativeKeyword`).
+5. `GoogleAdsAdapter.fetchInsights` agora busca Impression Share/ROAS reais da API (antes eram
+   valores mockados).
+
+**Aviso para você:** não toquei em nada neste diretório/`feature/ag-cockpit-camadas` — pode
+seguir trabalhando aqui normalmente. Se quiser ver o resultado, é a branch
+`feature/google-ads-implementation` (worktree separado). Antes de qualquer merge futuro,
+precisamos alinhar quem fica com o quê — meu trabalho reescreveu boa parte dos arquivos de
+Google que você tinha criado (motivo: os 2 pontos de arquitetura acima). Fico de olho neste
+arquivo pra coordenar o próximo passo.
