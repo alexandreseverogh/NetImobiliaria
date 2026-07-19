@@ -68,13 +68,77 @@ export function CommandCenterView({
   const d = data.deltas;
   const activeCampaigns = (data.campaigns || []).filter(c => c.status === 'ACTIVE').length;
 
-  // Calculando o Health Score (Mockado simples por enquanto, baseado no Hook Rate e CPL delta)
-  let healthScore = 85;
-  let healthTone = 'good'; // 'good', 'warning', 'critical'
-  if (hookRate && hookRate < hookRateBenchmarks.hook_rate_min) healthScore -= 15;
-  if (d?.leads && d.leads < 0) healthScore -= 10;
+  // Health Score — Hook Rate (vídeo) + tendência REAL de CPL, calculada em cima da MESMA série
+  // que o gráfico "Evolução (Gasto vs Leads)" já mostra (chartData: spend + conversions por
+  // dia) — antes usava a contagem de Lead da tabela separada, uma fonte DIFERENTE da que o
+  // gráfico plota, o que já é uma inconsistência à parte.
+  //
+  // Dois sinais complementares, porque cada um pega um tipo de problema diferente:
+  //   1. Tendência de METADE do período (mesmo padrão de calculateTrend() em aiInsights.ts) —
+  //      pega uma piora sustentada ao longo do mês inteiro.
+  //   2. Janela CURTA recente vs. a janela imediatamente anterior — pega uma virada abrupta
+  //      nos últimos dias que uma média de metade do período dilui (poucos dias ruins não
+  //      movem muito uma média de 15 dias).
+  // Antes, a única regra era "d.leads < 0 ? -10 : nada" — um delta médio do período inteiro
+  // que escondia justamente a virada nos últimos dias, que é o problema mais urgente.
+  let healthScore = 100;
+  let healthTone: 'good' | 'warning' | 'critical' = 'good';
+  const healthReasons: string[] = [];
+
+  if (hookRate && hookRate < hookRateBenchmarks.hook_rate_min) {
+    healthScore -= 15;
+    healthReasons.push('Hook Rate de vídeo abaixo do benchmark');
+  }
+
+  const daysWithData = (chartData || [])
+    .filter((x: any) => x.spend > 0 || x.conversions > 0)
+    .map((x: any) => ({ spend: x.spend as number, conv: (x.conversions as number) || 0 }));
+
+  const aggCpl = (rows: { spend: number; conv: number }[]) => {
+    const spend = rows.reduce((s, x) => s + x.spend, 0);
+    const conv = rows.reduce((s, x) => s + x.conv, 0);
+    return { spend, conv, cpl: conv > 0 ? spend / conv : null };
+  };
+
+  // Sinal 1 — tendência de metade do período
+  if (daysWithData.length >= 4) {
+    const mid = Math.floor(daysWithData.length / 2);
+    const older = aggCpl(daysWithData.slice(0, mid));
+    const recent = aggCpl(daysWithData.slice(mid));
+
+    if (recent.spend > 0 && recent.conv === 0 && older.conv > 0) {
+      healthScore -= 35;
+      healthReasons.push('Gasto continua mas os leads zeraram na metade mais recente do período');
+    } else if (older.cpl !== null && recent.cpl !== null) {
+      const change = (recent.cpl - older.cpl) / older.cpl; // > 0 = CPL piorou
+      if (change > 0.15) {
+        healthScore -= Math.min(30, Math.round(change * 50));
+        healthReasons.push(`CPL piorou ${Math.round(change * 100)}% na metade mais recente do período`);
+      }
+    }
+  }
+
+  // Sinal 2 — queda abrupta nos últimos dias (janela curta vs. a janela imediatamente anterior)
+  if (daysWithData.length >= 6) {
+    const w = Math.min(4, Math.max(2, Math.floor(daysWithData.length * 0.15)));
+    const lastWindow = aggCpl(daysWithData.slice(-w));
+    const priorWindow = aggCpl(daysWithData.slice(-(w * 2), -w));
+
+    if (lastWindow.spend > 0 && lastWindow.conv === 0 && priorWindow.conv > 0) {
+      healthScore -= 25;
+      healthReasons.push(`Últimos ${w} dias sem nenhum lead, mesmo com gasto ativo`);
+    } else if (priorWindow.cpl !== null && lastWindow.cpl !== null) {
+      const change = (lastWindow.cpl - priorWindow.cpl) / priorWindow.cpl;
+      if (change > 0.25) {
+        healthScore -= Math.min(35, Math.round(change * 55));
+        healthReasons.push(`CPL dos últimos ${w} dias está ${Math.round(change * 100)}% pior que os dias anteriores`);
+      }
+    }
+  }
+
+  healthScore = Math.max(0, Math.min(100, healthScore));
   if (healthScore < 70) healthTone = 'warning';
-  if (healthScore < 50) healthTone = 'critical';
+  if (healthScore < 45) healthTone = 'critical';
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -166,10 +230,14 @@ export function CommandCenterView({
               <span className={cn('text-3xl font-black', tx)}>{healthScore}</span>
             </div>
           </div>
-          <p className={cn('text-xs mt-2', txMuted)}>
-            {healthTone === 'good' ? 'Ecossistema saudável e performando bem.' : 
-             healthTone === 'warning' ? 'Algumas métricas requerem sua atenção.' : 
-             'Problemas críticos detectados no ecossistema.'}
+          <p className={cn('text-xs mt-2 text-center px-2', txMuted)}>
+            {healthTone === 'good'
+              ? 'Ecossistema saudável e performando bem.'
+              : healthReasons.length > 0
+              ? healthReasons.join(' · ')
+              : healthTone === 'warning'
+              ? 'Algumas métricas requerem sua atenção.'
+              : 'Problemas críticos detectados no ecossistema.'}
           </p>
         </div>
       </div>
