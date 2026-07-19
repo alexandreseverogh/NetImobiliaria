@@ -1,12 +1,69 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-18 (continuação) — combobox de cliente alfabético + import de PDF/DOCX + visualizador de trechos, todos testados ao vivo
+> **Atualizado em:** 2026-07-19 (continuação 4) — colaboração com Antigravity encerrada,
+> Google Ads + Mensageria RAG consolidados de volta em `net-imobiliaria`, dados de teste
+> persistentes criados pra validação minuciosa.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Tarefa em andamento
+
+### Consolidação — fim da colaboração multi-agente, merge de tudo em net-imobiliaria (2026-07-19)
+
+**Decisão do usuário:** abandonar a colaboração paralela com o Antigravity e passar a trabalhar
+sempre a partir do diretório principal (`net-imobiliaria`), unificando as duas frentes que
+estavam em worktrees isolados.
+
+**1. Limpeza do diretório principal** — as 39 mudanças não commitadas do Antigravity que ainda
+estavam soltas em `net-imobiliaria` foram removidas (`git checkout -- .` + `git clean -fd`),
+**só depois de verificar item a item** que todas (exceto 1 migração deliberadamente descartada,
+já documentada) estavam commitadas e corrigidas no worktree `netimob-google`.
+
+**2. Merge do Google Ads** — `feature/google-ads-implementation` mergeado em
+`feature/ag-cockpit-camadas` (branch atual de `net-imobiliaria`). **Zero conflitos** — as duas
+branches tinham divergido em conjuntos de arquivos completamente disjuntos (uma só mexeu em
+`CLAUDE.md`/`docs/AI_SYNC.md`/`docs/CHECKPOINT.md`, a outra só em código). `npx tsc --noEmit`
+confirmado limpo depois (65 linhas = mesma baseline de sempre, nada novo).
+
+**3. Mensageria RAG já estava dentro** — `feature/mensageria-rag` já era ancestral de
+`feature/ag-cockpit-camadas` (merges anteriores já tinham trazido o código pra lá) — confirmado
+via `git merge-base --is-ancestor`, nenhuma ação necessária.
+
+**4. CLAUDE.md atualizado** — seção "Coordenação com outros agentes de IA" substituída por
+"Múltiplas Frentes em Paralelo": mantém a disciplina de checar `git branch`/`git status`/
+`git worktree list` no início de sessão (ainda útil — o projeto segue com múltiplos worktrees
+em paralelo), mas sem mais coordenação com outro agente. `docs/AI_SYNC.md` marcado como
+histórico/encerrado.
+
+**5. Dados de teste PERSISTENTES criados** (diferente de rodadas anteriores — **não** foram
+removidos depois, ficam no banco pra você testar à vontade):
+- **Google Ads:** campanha real `google-test-imoveis-sp-001` ("Google Search — Apartamentos SP"),
+  14 dias de `Insight` (ROAS 3.35x, IS Lost Budget médio 26.4% — dispara a regra
+  IMPRESSION_SHARE_OPPORTUNITY), 42 `Lead`s, 6 `GoogleSearchTerm` (3 com conversão, 3 sem —
+  candidatos reais de negativação). Script salvo em `prisma/seed-demo-google-ads.sql`
+  (idempotente, `ON CONFLICT DO NOTHING` — pode rodar de novo sem duplicar).
+- **Mensageria RAG:** 2 documentos reais criados via API (embeddings reais do Gemini, não
+  fabricados) no tenant Marketing Digital — "Financiamento Imobiliário — Condições" (5 trechos)
+  e "Agendamento de Visitas e Política de Reserva" (4 trechos). Visíveis em `/mensageria/config`
+  → aba "Base de Conhecimento", e o bot já responde perguntas relacionadas (bot_flow ativo
+  nesse tenant).
+
+**Testado ao vivo, ponta a ponta, no servidor real do usuário (porta 3000, não um worktree
+isolado):** dev server reiniciado (Prisma Client mudou com o merge) · dashboard → segmento
+Imobiliário → aba "GOOGLE ADS" aparece e mostra ROAS 3.35x / IS Lost 26.39% reais · tabela de
+Search Terms populada, botão "Negativar" presente · KPIs da Visão Executiva (Gasto Total, CPL
+Médio) já mostram breakdown Meta × Google combinado · `/mensageria/config` → Base de Conhecimento
+mostra os 2 documentos com contagem de trechos correta.
+
+**Próximos passos reais:** Developer Token Google Ads API ainda não solicitado (nada testado
+contra a API real do Google) · Mensageria RAG: Fase 6 (testes de qualidade com mais documentos)
+e Fase 7 (deploy VPS — pgvector na imagem de produção) seguem pendentes.
+
+---
+
+### Plano Google Ads + TikTok — FASE 1/A2 implementada em worktree isolado (2026-07-19, histórico)
 
 ### Plano Google Ads + TikTok — FASE 1/A2 implementada em worktree isolado (2026-07-19)
 
