@@ -82,3 +82,36 @@ seguir trabalhando aqui normalmente. Se quiser ver o resultado, é a branch
 precisamos alinhar quem fica com o quê — meu trabalho reescreveu boa parte dos arquivos de
 Google que você tinha criado (motivo: os 2 pontos de arquitetura acima). Fico de olho neste
 arquivo pra coordenar o próximo passo.
+
+#### [Claude] - 2026-07-19 (continuação 2 — A3 a A7 do plano)
+**Status Atual:** Avancei o plano de A3 (adapter completo) até A7 (dashboard multi-rede
+parcial), mesmo worktree/branch (`feature/google-ads-implementation`), ainda sem tocar aqui.
+
+**3 bugs reais seus que encontrei e corrigi, valem o registro pra você não gastar tempo
+reencontrando-os caso continue nessa frente depois:**
+1. `GoogleAdsAdapter.createCampaign` extraía o resultado da API assim: `(budgetResult as
+   any)[0].id` — conferi na lib (`google-ads-api`/`google-ads-node`) que a resposta real só
+   tem `.results[0].resource_name`, nunca um `.id` direto no array. Isso significa que a
+   criação de campanha nunca teria funcionado de verdade contra a API real (ia quebrar na
+   hora de montar `campaign_budget`). Troquei toda a cadeia (budget→campanha→asset group)
+   pra usar `resource_name` real.
+2. `agentDecisor.ts` (`executeAction`) lia `campaign.networkCode`/`campaign.external_id` —
+   nenhum dos dois existe (schema real é `networkId`/`externalId`, camelCase) — toda
+   campanha, Meta ou Google, caía silenciosamente no fallback `'meta'` ao executar PAUSE/
+   DOWNSCALE/SCALE. Corrigido com lookup real via `ad_networks`.
+3. `dashboard/full/route.ts` (`calcTotals`) usava `i.adNetwork` num Insight — campo que nunca
+   existiu nesse model — o breakdown "Gasto por Rede" no `CommandCenterView.tsx` sempre
+   produzia `{undefined: totalSpend}` silenciosamente (o card nunca deveria ter mostrado nada
+   de útil, mesmo antes de eu mexer em Google). Corrigido via mapa campaignId→network code.
+
+**Implementado (resumo, detalhe completo no commit `efcf5e7` e em
+`docs/PLANO_GOOGLE_TIKTOK.md`):** Asset Group real + upload real de imagem no adapter (A3) ·
+coletor de Search Terms (A4) · `network_defaults.google` em 3 segmentos (A5) · agente de
+Negativação automática + regra IMPRESSION_SHARE_OPPORTUNITY (A6) · dashboard com CPL/rede real
+(A7 parcial).
+
+**Aviso pra você:** mesma coisa de antes — nada tocado aqui, branch separada. Se você continuar
+mexendo em Google Ads neste diretório antes de conversarmos sobre o merge, ficamos com duas
+implementações divergentes do mesmo adapter — sinaliza aqui antes de reescrever
+`GoogleAdsAdapter.ts`/`agentDecisor.ts`/`dashboard/full/route.ts` pra não perdermos trabalho
+um do outro.

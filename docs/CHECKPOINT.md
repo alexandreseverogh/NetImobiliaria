@@ -46,11 +46,49 @@ em `docs/PLANO_GOOGLE_TIKTOK.md`, seção "Auditoria + Decisões de Arquitetura"
 - **A3 parcial:** `GoogleAdsAdapter.fetchInsights` agora busca Impression Share/ROAS reais da
   Google Ads API (antes eram campos mockados); `agentMonitor.ts` persiste os 4 campos novos.
 
-**Pendente (próxima sessão):** completar `createCampaign` (Asset Group real) e `uploadCreative`
-(hoje mock) · `addNegativeKeyword` (método novo) · A4 coletor de Search Terms · A5
-`network_defaults.google` por segmento (≥2 segmentos) · A6 agente de Negativação + regra IS ·
-A7 dashboard (filtro rede + CPL/rede) · **Developer Token Google Ads API ainda não solicitado**
-(prazo real 5-15 dias, é o item que trava testes end-to-end).
+**Sessão 2026-07-19 (continuação) — A3 a A7 implementadas, mesmo worktree/branch:**
+
+- **A3 completa** — `GoogleAdsAdapter.createCampaign` agora cria Asset Group real (Assets de
+  texto + imagem via `customer.assets.create`, vinculados via `AssetGroupAsset` com
+  `field_type` correto) em vez do stub anterior que pulava essa etapa. `uploadCreative` faz
+  upload real de imagem (antes mock). Novo método `addNegativeKeyword` (Google-only). Novo
+  método `fetchSearchTerms` (GAQL `search_term_view`). **Bug real corrigido:** a extração de
+  `resource_name` da resposta da API usava `(result as any)[0].id` — a resposta real só tem
+  `.results[0].resource_name`, então toda a cadeia budget→campanha→asset group dependia de um
+  valor sempre `undefined`.
+- **A4 completa** — `collectGoogleSearchTerms()` em `agentMonitor.ts`, disparado só para
+  campanhas Google dentro do mesmo loop de `syncMetrics`, grava em `GoogleSearchTerm` sem
+  nunca resetar o status de um termo já tratado numa rodada anterior.
+- **A5 completa** — `network_defaults.google` em 3 segmentos (Imobiliário, Carros, Geral):
+  `campaign_types`, `bidding_strategy`, limites de headline/description, `negative_seed_terms`,
+  `impression_share_target`, `negation_spend_threshold_pct`. Zero código por vertical.
+- **A6 completa** — `googleNegationService.ts` (novo): lê `GoogleSearchTerm`, agrega por termo,
+  propõe negativo quando gasto > X% do total da campanha sem conversão (X do segmento via A5).
+  Nova ação `ADD_NEGATIVE_KEYWORD` (defensiva, auto-executa) + nova regra
+  `IMPRESSION_SHARE_OPPORTUNITY` (SCALE quando IS Lost Budget alto + CPL já bom) em
+  `aiInsights.ts`, com benchmark `is_lost_budget_scale_min` no mesmo padrão de 4 camadas já
+  usado por `cpl_ideal`/`hook_rate_*`. **Bug real corrigido em `executeAction()`:** usava
+  `campaign.networkCode`/`external_id` — campos que **nunca existiram** (schema real é
+  `networkId`/`externalId` camelCase) — toda campanha, Google inclusive, caía silenciosamente
+  no fallback `'meta'` ao pausar/reduzir budget/etc. Cron `/api/cron/campanhas/sync` agora
+  dispara `runNegationAgent()` por tenant.
+- **A7 parcial** — `dashboard/full/route.ts`: `leadsByNetwork` agrupa por código de rede (join
+  `ad_networks`), não pelo UUID cru. **Bug real corrigido:** `calcTotals().spendByNetwork` usava
+  `i.adNetwork` — campo que nunca existiu em `Insight` — sempre produzia `{undefined: total}`.
+  Novo `cplByNetwork` no response (CPL Meta × Google lado a lado). Card "CPL Médio" no
+  `CommandCenterView.tsx` ganha breakdown por rede (mesmo padrão visual dos cards de
+  Gasto/Leads, só quando há ≥2 redes com dado real — sem empilhar card novo).
+
+**Verificado:** `npx tsc --noEmit` limpo em todos os arquivos tocados (62 erros = mesma
+baseline pré-existente, nada novo) · `npx prisma generate` limpo em ambos os commits desta
+sessão.
+
+**Pendente (próxima sessão):** drill-down dedicado de Search Terms na UI (hoje só o agente
+automático de negativação cobre isso, sem tela de revisão manual) · `GoogleAiMaxWizard.tsx`
+ainda manda `images: []` hardcoded (comentário "mock for now" do próprio Antigravity, não
+mexido — wizard completo é trabalho de UI à parte) · **Developer Token Google Ads API ainda
+não solicitado** — nenhum destes fluxos foi testado contra a API real, só via leitura de tipos/
+protobuf da lib `google-ads-api`/`google-ads-node` e revisão de código.
 
 ---
 
