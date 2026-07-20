@@ -143,10 +143,14 @@ agente propor ≥ 1 negativo de verdade.
 
 | Item | Implementar? | Esforço |
 |------|-------------|---------|
-| **D1** — rede vira filtro + Search Terms migra pra Inteligência Profunda | ✅ Sim | UI (médio) |
-| **D2** — regra "não blendar ROAS/IS/Hook Rate" | ⚠️ Guarda de design | Quase nenhum código (hoje não blenda) |
-| **D3** — rótulo de rede no "Resumo do Ciclo" (WhatsApp) | ✅ Sim | Pequeno (`agentNotificador.ts`) |
+| **D1** — rede vira filtro + Search Terms migra pra Inteligência Profunda | ✅ **Implementado (2026-07-20)** | UI (médio) |
+| **D2** — regra "não blendar ROAS/IS/Hook Rate" | ✅ **Confirmado — já era o comportamento real** | Zero código |
+| **D3** — rótulo de rede no "Resumo do Ciclo" (WhatsApp) | ✅ **Implementado (2026-07-20)** | Pequeno (`agentNotificador.ts`) |
 | ~~D4~~ — abas já cobrem Google | ❌ **Não** (confirmação) | Zero — ver nota ao final |
+
+**D1/D3 testados ao vivo** (filtro de rede cascateando no dashboard, GoogleAdsView migrando pra
+dentro da Inteligência Profunda, rótulo `[Google]`/`[Meta]` validado nos 2 cenários — multi-rede e
+mono-rede). Commit `d62b20e`.
 
 ### D1. Rede vira FILTRO, não aba *(refactor de UI)*
 
