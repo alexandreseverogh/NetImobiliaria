@@ -172,7 +172,7 @@ export const syncInsights = () =>
 export const getAiInsights = (params?: {
   campaignId?: string; clientId?: ClientFilter; segmentId?: string;
   objectiveFilter?: string; statusFilter?: string; adSetId?: string;
-  startDate?: string; endDate?: string;
+  startDate?: string; endDate?: string; network?: string;
 }) => api.get('/insights/ai', { params }).then(r => r.data);
 
 // ─── Leads ────────────────────────────────────────────────────────────────────
@@ -437,6 +437,7 @@ export interface FunnelData7 {
 export const getFunnelData = (params?: {
   startDate?: string; endDate?: string; clientId?: ClientFilter; segmentId?: string;
   campaignId?: string; objectiveFilter?: string; statusFilter?: string; adSetId?: string;
+  network?: string;
 }) => api.get<FunnelData7>('/dashboard/funnel', { params }).then(r => r.data);
 
 export const generateFunnelDiagnosis = (body: {
@@ -465,7 +466,7 @@ export const getDashboardFull = (params?: {
 export const getDashboardPredictions = (params?: {
   campaignId?: string; clientId?: ClientFilter; segmentId?: string; days?: number;
   objectiveFilter?: string; statusFilter?: string; adSetId?: string;
-  startDate?: string; endDate?: string;
+  startDate?: string; endDate?: string; network?: string;
 }) => api.get<PredictionData>('/dashboard/predictions', { params }).then(r => r.data);
 
 /* ──────────────────────────────────────────────────────────────
@@ -585,6 +586,7 @@ export const getAnticipation = (params?: {
   clientId?: ClientFilter;
   segmentId?: string;
   campaignId?: string;
+  network?: string;
 }) => api.get<AnticipationResult[]>('/dashboard/anticipation', { params }).then(r => r.data);
 
 export const getCalibrationInsights = (params?: {

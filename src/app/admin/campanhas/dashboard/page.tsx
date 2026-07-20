@@ -180,9 +180,9 @@ export function DashboardPage() {
       if (clientFilter)      params.clientId        = clientFilter;
       // Segmento sempre presente — garante isolamento
       if (activeSegment)     params.segmentId       = activeSegment;
-      // PARTE D1 — filtro de rede; só afeta /dashboard/full (Visão Executiva, Análise de Dados e
-      // tabela de campanhas derivam todas dele). Predições/funil/insights de IA ainda não têm
-      // filtro de rede no backend — não enviado ali para não dar falsa impressão de que filtram.
+      // PARTE D1 — filtro de rede, agora propagado a TODOS os endpoints do dashboard (correção:
+      // antes só /dashboard/full respeitava; Actionable Alerts e Funil por Estágio continuavam
+      // trazendo dado de todas as redes mesmo com o filtro ativo — enganoso, não só incompleto).
       if (networkFilter)     params.network         = networkFilter;
 
       // Parâmetros compartilhados por todos os endpoints
@@ -195,6 +195,7 @@ export function DashboardPage() {
         ...(statusFilter     && { statusFilter }),
         ...(adSetFilter      && { adSetId:         adSetFilter }),
         ...(clientFilter     && { clientId:        clientFilter }),
+        ...(networkFilter    && { network:         networkFilter }),
       };
 
       const [dashData, predData, funData, hrbData] = await Promise.all([
@@ -223,6 +224,7 @@ export function DashboardPage() {
         getAnticipation({
           ...(clientFilter && { clientId: clientFilter as string }),
           ...(activeSegment && { segmentId: activeSegment }),
+          ...(networkFilter && { network: networkFilter }),
         }).catch(() => []),
         adminFetch(`/api/admin/campanhas/criativos/hook-saturation?${hookSatQs}`)
           .then(r => r.ok ? r.json() : null).catch(() => null),

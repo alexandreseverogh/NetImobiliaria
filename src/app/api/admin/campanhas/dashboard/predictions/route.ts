@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
+import { filterCampaignsByNetwork } from '@/lib/marketing/networkFilterUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest) {
     const startDateStr    = searchParams.get('startDate');
     const endDateStr      = searchParams.get('endDate');
     const projectionDays  = parseInt(searchParams.get('days') || '30');
+    const network         = searchParams.get('network');
 
     // Janela histórica: usa o período selecionado (mínimo 14 dias para regressão)
     const histEnd   = endDateStr
@@ -77,7 +79,10 @@ export async function GET(request: NextRequest) {
       delete campaignWhere.clientId;
     }
 
-    const campaigns = await prisma.campaign.findMany({ where: campaignWhere });
+    let campaigns = await prisma.campaign.findMany({ where: campaignWhere });
+    // PARTE D1 (correção) — predições continuavam projetando gasto/leads de todas as redes
+    // mesmo com o filtro do dashboard ativo.
+    campaigns = await filterCampaignsByNetwork(campaigns as any, network);
     const campaignIds = campaigns.map(c => c.id);
 
     if (campaignIds.length === 0) {

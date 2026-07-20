@@ -10,6 +10,7 @@ import { getTokenPayload }           from '@/lib/auth/jwt-node';
 import { prisma }                    from '@/lib/marketing/prisma';
 import { computeAnticipation }       from '@/lib/marketing/services/anticipationEngine';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
+import { filterCampaignsByNetwork } from '@/lib/marketing/networkFilterUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
     let clientId   = searchParams.get('clientId')   || undefined;
     if (clientId === 'segment' || clientId === 'all') clientId = undefined;
     const segmentId  = searchParams.get('segmentId')  || undefined;
+    const network    = searchParams.get('network')    || undefined;
 
     // Filtro de campanhas
     const campaignFilter: any = {
@@ -48,11 +50,14 @@ export async function GET(request: NextRequest) {
       campaignFilter.clientId = clientId;
     }
 
-    const campaigns = await prisma.campaign.findMany({
+    let campaigns = await prisma.campaign.findMany({
       where:   campaignFilter,
-      select:  { id: true, clientId: true },
+      select:  { id: true, clientId: true, networkId: true },
       take:    20,                           // limite razoável por dashboard
     });
+    // PARTE D1 (correção) — Farol de Milha/antecipação continuava computando sinais de todas
+    // as redes mesmo com o filtro do dashboard ativo.
+    campaigns = await filterCampaignsByNetwork(campaigns, network);
 
     if (campaigns.length === 0) {
       return NextResponse.json([]);

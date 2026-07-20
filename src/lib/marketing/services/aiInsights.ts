@@ -3,6 +3,7 @@ import pool from '@/lib/database/connection';
 import { resolveBenchmarks, BenchmarkMap } from '../../intelligence/benchmarkResolver';
 import { computeSignalsForCampaign, type NormalizedSignals } from './signalEngine';
 import { resolveCampaignIdsBySegment } from '../segmentUtils';
+import { filterCampaignsByNetwork } from '../networkFilterUtils';
 
 const S = 'campanhasmarketingdigital';
 
@@ -336,6 +337,8 @@ interface AiInsightFilters {
   startDate?: string;
   endDate?: string;
   segmentId?: string;
+  // PARTE D1 (correção) — código de rede (meta/google/tiktok...)
+  network?: string;
 }
 
 export async function generateAiInsights(
@@ -365,7 +368,11 @@ export async function generateAiInsights(
     where.clientId = clientId;
   }
 
-  const campaigns = await prisma.campaign.findMany({ where });
+  let campaigns = await prisma.campaign.findMany({ where });
+  // PARTE D1 (correção) — sem isso, Insights da IA / Actionable Alerts continuavam citando
+  // campanha de outra rede mesmo com o filtro do dashboard ativo (ex.: Google com "Meta"
+  // selecionado) — pior que incompleto, era enganoso.
+  campaigns = await filterCampaignsByNetwork(campaigns as any, filters?.network);
 
   // FASE 18.2 — Benchmarks POR SEGMENTO (nunca aplicar 1 segmento a todos).
   // Mapeia cada campanha ao seu segmento e resolve benchmarks por segmento.

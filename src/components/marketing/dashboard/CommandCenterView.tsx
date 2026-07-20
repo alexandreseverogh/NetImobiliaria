@@ -82,7 +82,7 @@ export function CommandCenterView({
   // Antes, a única regra era "d.leads < 0 ? -10 : nada" — um delta médio do período inteiro
   // que escondia justamente a virada nos últimos dias, que é o problema mais urgente.
   let healthScore = 100;
-  let healthTone: 'good' | 'warning' | 'critical' = 'good';
+  let healthTone: 'good' | 'warning' | 'critical' | 'no_data' = 'good';
   const healthReasons: string[] = [];
 
   if (hookRate && hookRate < hookRateBenchmarks.hook_rate_min) {
@@ -93,6 +93,11 @@ export function CommandCenterView({
   const daysWithData = (chartData || [])
     .filter((x: any) => x.spend > 0 || x.conversions > 0)
     .map((x: any) => ({ spend: x.spend as number, conv: (x.conversions as number) || 0 }));
+
+  // CORREÇÃO — sem dado real no escopo (filtro de rede zerando o período, por exemplo), o score
+  // ficava travado em 100 "saudável" por AUSÊNCIA de sinal de problema, não por saúde comprovada
+  // — enganoso. Distingue explicitamente "sem dado suficiente" de "saudável de verdade".
+  const hasScopeData = daysWithData.length > 0;
 
   const aggCpl = (rows: { spend: number; conv: number }[]) => {
     const spend = rows.reduce((s, x) => s + x.spend, 0);
@@ -139,6 +144,9 @@ export function CommandCenterView({
   healthScore = Math.max(0, Math.min(100, healthScore));
   if (healthScore < 70) healthTone = 'warning';
   if (healthScore < 45) healthTone = 'critical';
+  // Sem dado real no escopo — nenhum sinal de piora RODOU (não é que não achou problema, é que
+  // não teve como avaliar). Sobrepõe qualquer tom calculado acima, mesmo o default 'good'.
+  if (!hasScopeData) healthTone = 'no_data';
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -202,36 +210,44 @@ export function CommandCenterView({
           </div>
         </div>
 
-        {/* Unified Health Score */}
-        <div className={cn('p-6 rounded-3xl border flex flex-col items-center justify-center text-center', cardBase, 
+        {/* Índice de Saúde */}
+        <div className={cn('p-6 rounded-3xl border flex flex-col items-center justify-center text-center', cardBase,
           healthTone === 'good' ? (isDark ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-emerald-200 bg-emerald-50/50') :
           healthTone === 'warning' ? (isDark ? 'border-amber-500/20 bg-amber-500/5' : 'border-amber-200 bg-amber-50/50') :
+          healthTone === 'no_data' ? (isDark ? 'border-white/10 bg-white/[0.02]' : 'border-slate-200 bg-slate-50/50') :
           (isDark ? 'border-red-500/20 bg-red-500/5' : 'border-red-200 bg-red-50/50')
         )}>
           <div className="flex items-center gap-2 mb-2">
-            <HeartIcon className={cn('w-5 h-5', 
+            <HeartIcon className={cn('w-5 h-5',
               healthTone === 'good' ? 'text-emerald-500' :
-              healthTone === 'warning' ? 'text-amber-500' : 'text-red-500'
+              healthTone === 'warning' ? 'text-amber-500' :
+              healthTone === 'no_data' ? (isDark ? 'text-slate-500' : 'text-slate-400') : 'text-red-500'
             )} />
-            <h3 className={cn('text-sm font-black uppercase tracking-widest', tx)}>Health Score</h3>
+            <h3 className={cn('text-sm font-black uppercase tracking-widest', tx)}>Índice de Saúde</h3>
           </div>
           <div className="relative flex items-center justify-center mt-4 mb-2">
             <svg className="w-32 h-32 transform -rotate-90">
               <circle cx="64" cy="64" r="56" fill="transparent" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'} strokeWidth="12" />
-              <circle cx="64" cy="64" r="56" fill="transparent" 
-                stroke={healthTone === 'good' ? '#10b981' : healthTone === 'warning' ? '#f59e0b' : '#ef4444'} 
-                strokeWidth="12" 
-                strokeDasharray={351.8} 
-                strokeDashoffset={351.8 - (351.8 * healthScore) / 100} 
-                strokeLinecap="round" 
-                className="transition-all duration-1000 ease-out" />
+              {healthTone !== 'no_data' && (
+                <circle cx="64" cy="64" r="56" fill="transparent"
+                  stroke={healthTone === 'good' ? '#10b981' : healthTone === 'warning' ? '#f59e0b' : '#ef4444'}
+                  strokeWidth="12"
+                  strokeDasharray={351.8}
+                  strokeDashoffset={351.8 - (351.8 * healthScore) / 100}
+                  strokeLinecap="round"
+                  className="transition-all duration-1000 ease-out" />
+              )}
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className={cn('text-3xl font-black', tx)}>{healthScore}</span>
+              <span className={cn('text-3xl font-black', healthTone === 'no_data' ? txFaint : tx)}>
+                {healthTone === 'no_data' ? '—' : healthScore}
+              </span>
             </div>
           </div>
           <p className={cn('text-xs mt-2 text-center px-2', txMuted)}>
-            {healthTone === 'good'
+            {healthTone === 'no_data'
+              ? 'Sem dados suficientes no período ou filtro selecionado para avaliar a saúde.'
+              : healthTone === 'good'
               ? 'Ecossistema saudável e performando bem.'
               : healthReasons.length > 0
               ? healthReasons.join(' · ')
@@ -269,7 +285,7 @@ export function CommandCenterView({
               <SparklesIcon className="w-5 h-5" />
             </div>
             <div>
-              <h3 className={cn('text-base font-black', tx)}>Actionable Alerts</h3>
+              <h3 className={cn('text-base font-black', tx)}>Alertas Acionáveis</h3>
               <p className={cn('text-xs', txMuted)}>Decisões estratégicas recomendadas pela IA</p>
             </div>
           </div>
@@ -277,9 +293,19 @@ export function CommandCenterView({
           <div className="flex-1 space-y-3">
             {aiInsights.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-8 text-center">
-                <CheckCircleIcon className="w-10 h-10 text-emerald-500 mb-2 opacity-50" />
-                <p className={cn('text-sm font-medium', tx)}>Tudo tranquilo por enquanto.</p>
-                <p className={cn('text-xs mt-1', txMuted)}>A IA não detectou gargalos urgentes nas últimas horas.</p>
+                {hasScopeData ? (
+                  <>
+                    <CheckCircleIcon className="w-10 h-10 text-emerald-500 mb-2 opacity-50" />
+                    <p className={cn('text-sm font-medium', tx)}>Tudo tranquilo por enquanto.</p>
+                    <p className={cn('text-xs mt-1', txMuted)}>A IA não detectou gargalos urgentes nas últimas horas.</p>
+                  </>
+                ) : (
+                  <>
+                    <ExclamationTriangleIcon className={cn('w-10 h-10 mb-2 opacity-40', txFaint)} />
+                    <p className={cn('text-sm font-medium', tx)}>Sem dados no período ou filtro selecionado.</p>
+                    <p className={cn('text-xs mt-1', txMuted)}>Ajuste o período ou a rede pra ver alertas reais.</p>
+                  </>
+                )}
               </div>
             ) : (
               aiInsights.slice(0, 3).map((insight, idx) => (

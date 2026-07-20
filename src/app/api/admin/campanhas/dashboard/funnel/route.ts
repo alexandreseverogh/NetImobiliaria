@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const objectiveFilter = searchParams.get('objectiveFilter');
     const statusFilter   = searchParams.get('statusFilter');
     const adSetId        = searchParams.get('adSetId');
+    const network         = searchParams.get('network');
 
     const endDate   = endStr
       ? (endStr.length === 10 ? new Date(endStr + 'T23:59:59.999Z') : new Date(endStr))
@@ -82,6 +83,12 @@ export async function GET(request: NextRequest) {
       );
       qParams.push(adSetId);
     }
+    // PARTE D1 (correção) — Funil por Estágio continuava somando todas as redes mesmo com o
+    // filtro do dashboard ativo. COALESCE(n.code,'meta') = mesmo fallback de dashboard/full.
+    if (network) {
+      extraWhere.push(`AND COALESCE(n.code, 'meta') = $${pi++}`);
+      qParams.push(network);
+    }
 
     const whereExtra = extraWhere.join(' ');
 
@@ -107,6 +114,7 @@ export async function GET(request: NextRequest) {
         ON i."campaignId" = c.id
         AND i.date >= $2::timestamp
         AND i.date <= $3::timestamp
+      LEFT JOIN public.ad_networks n ON n.id = c."network_id"
       WHERE c.tenant_id = $1::uuid
         ${whereExtra}
       GROUP BY 1
@@ -126,6 +134,7 @@ export async function GET(request: NextRequest) {
         COUNT(*)::int AS total_leads
       FROM campanhasmarketingdigital."Lead" l
       JOIN campanhasmarketingdigital."Campaign" c ON c.id = l."campaignId"
+      LEFT JOIN public.ad_networks n ON n.id = c."network_id"
       WHERE c.tenant_id = $1::uuid
         AND l."clickedAt" >= $2::timestamp
         AND l."clickedAt" <= $3::timestamp
