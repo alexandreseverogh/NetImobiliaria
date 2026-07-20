@@ -10,6 +10,12 @@ import bcrypt from 'bcryptjs'
 // INTERFACES E TIPOS
 // ========================================
 
+// D2 (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §4/§9.2) — discriminador explícito do que hoje é
+// uma tabela sobrecarregada com 3 conceitos distintos: 'conta_gerenciada' (empresa-cliente-da-
+// agência, tem segment_id/pixel/page/whatsapp — o client_id que perpassa Campanhas/CRM),
+// 'comprador_pj' e 'consumidor_pf' (pessoa física que virou lead/comprador).
+export type TipoCliente = 'conta_gerenciada' | 'comprador_pj' | 'consumidor_pf'
+
 export interface Cliente {
   uuid: string
   nome: string
@@ -25,6 +31,7 @@ export interface Cliente {
   cidade_fk?: string
   cep?: string
   origem_cadastro?: string
+  tipo_cliente: TipoCliente
   tenant_id: string
   created_at: Date
   created_by?: string
@@ -46,6 +53,7 @@ export interface CreateClienteData {
   cidade_fk?: string
   cep?: string
   origem_cadastro?: string
+  tipo_cliente?: TipoCliente
   tenant_id: string
   created_by?: string
 }
@@ -63,6 +71,7 @@ export interface UpdateClienteData {
   estado_fk?: string
   cidade_fk?: string
   cep?: string
+  tipo_cliente?: TipoCliente
   updated_by?: string
 }
 
@@ -73,6 +82,7 @@ export interface ClienteFilters {
   estado?: string
   cidade?: string
   bairro?: string
+  tipo_cliente?: TipoCliente
   tenant_id: string
 }
 
@@ -200,18 +210,24 @@ export async function findClientesPaginated(
       queryParams.push(`%${filters.bairro}%`)
     }
 
+    if (filters.tipo_cliente) {
+      paramCount++
+      whereConditions.push(`tipo_cliente = $${paramCount}`)
+      queryParams.push(filters.tipo_cliente)
+    }
+
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
-    
+
     // Query para contar total de clientes com filtros
     const countQuery = `
       SELECT COUNT(*) as total
       FROM clientes
       ${whereClause}
     `
-    
+
     // Query para buscar clientes com paginação e filtros
     const dataQuery = `
-      SELECT 
+      SELECT
         uuid,
         nome,
         cpf,
@@ -225,6 +241,7 @@ export async function findClientesPaginated(
         estado_fk,
         cidade_fk,
         cep,
+        tipo_cliente,
         tenant_id,
         created_at,
         created_by,
@@ -277,6 +294,7 @@ export async function findClienteByUuid(uuid: string): Promise<Cliente | null> {
           cep,
           tenant_id,
           origem_cadastro,
+          tipo_cliente,
           logo_url,
           created_at,
           created_by,
@@ -320,12 +338,17 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
     // Hash da senha
     const hashedPassword = await bcrypt.hash(data.password || 'Net123456', 10)
     
+    // Sem tipo_cliente explícito, deriva da mesma regra do backfill (D2): 'Plataforma' é sempre
+    // conta-da-agência (o único fluxo real que hoje cria cliente por aqui), 'Publico' é consumidor.
+    const origemCadastro = data.origem_cadastro || 'Plataforma'
+    const tipoCliente = data.tipo_cliente || (origemCadastro === 'Publico' ? 'consumidor_pf' : 'conta_gerenciada')
+
     const result = await pool.query(`
       INSERT INTO clientes (
         nome, cpf, telefone, endereco, numero, bairro, complemento,
-        password, email, estado_fk, cidade_fk, cep, 
-        origem_cadastro, created_by, tenant_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        password, email, estado_fk, cidade_fk, cep,
+        origem_cadastro, tipo_cliente, created_by, tenant_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
     `, [
       data.nome,
@@ -340,7 +363,8 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
       data.estado_fk || null,
       data.cidade_fk || null,
       data.cep,
-      data.origem_cadastro || 'Plataforma',
+      origemCadastro,
+      tipoCliente,
       data.created_by || 'system',
       data.tenant_id
     ])
@@ -445,7 +469,12 @@ export async function updateClienteByUuid(uuid: string, tenantId: string, data: 
       fields.push(`cep = $${++paramCount}`)
       values.push(data.cep)
     }
-    
+
+    if (data.tipo_cliente !== undefined) {
+      fields.push(`tipo_cliente = $${++paramCount}`)
+      values.push(data.tipo_cliente)
+    }
+
     if (data.password !== undefined) {
       const hashedPassword = await bcrypt.hash(data.password, 10)
       fields.push(`password = $${++paramCount}`)

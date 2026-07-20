@@ -84,7 +84,9 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { nome, cpf, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, updated_by } = body
+    const { nome, cpf, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, updated_by, tipo_cliente } = body
+    const tipoClienteValido = (['conta_gerenciada', 'comprador_pj', 'consumidor_pf'] as const)
+      .find(t => t === tipo_cliente)
     
     // Validação de campos obrigatórios
     if (!nome || !cpf || !telefone || !email || !estado_fk || !cidade_fk || !endereco || !bairro || !numero) {
@@ -107,6 +109,7 @@ export async function PUT(
       estado_fk: estado_fk || undefined,
       cidade_fk: cidade_fk || undefined,
       cep,
+      tipo_cliente: tipoClienteValido,
       updated_by
     })
     

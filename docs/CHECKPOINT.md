@@ -1,13 +1,72 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-20 — unificação de leads entre Campanhas/CRM/Mensageria concluída
-> e commitada (D1/D3 de docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md).
+> **Atualizado em:** 2026-07-20 — D2 (discriminador `tipo_cliente`) de
+> docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md implementado e verificado.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-20 (continuação) — D2: discriminador `tipo_cliente` em `public.clientes` ✅
+
+**Contexto:** próximo item da lista de pendências reais do plano de unificação (D1/D3 já
+implementados e commitados na mesma sessão, ver entrada abaixo). D2 resolve a sobrecarga
+semântica de `public.clientes` (mistura cliente-da-agência PJ, comprador PJ e consumidor PF)
+com um discriminador aditivo, sem tabela nova — decisão já tomada e documentada em
+`docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` §4/§9.2.
+
+**Investigação antes de implementar:** conferidos os 10 registros reais — confirmado que
+`origem_cadastro='Plataforma'` sempre corresponde a empresa-cliente-da-agência (tem
+`segment_id`, é o que os seletores de cliente do módulo de Campanhas/Mensageria usam pra
+`Campaign.client_id`) e `origem_cadastro='Publico'` sempre corresponde a pessoa física
+auto-cadastrada (sem `segment_id`). Backfill do discriminador seguiu exatamente essa regra,
+confirmada nos dados reais antes de escrever o UPDATE — não foi suposição.
+
+**Implementado:**
+1. `prisma/migration-2026-07-20-clientes-tipo-cliente.sql` — coluna `tipo_cliente VARCHAR(20)
+   NOT NULL DEFAULT 'consumidor_pf'` + CHECK (`conta_gerenciada`/`comprador_pj`/`consumidor_pf`)
+   + índice `(tenant_id, tipo_cliente)`. Aditiva — nenhuma das 7 FKs reais que apontam pra
+   `clientes.uuid` foi tocada (confirmado via `information_schema` antes de migrar).
+2. `src/lib/database/clientes.ts` — `Cliente`/`CreateClienteData`/`UpdateClienteData`/
+   `ClienteFilters` ganham `tipo_cliente`; `createCliente` deriva o tipo de `origem_cadastro`
+   quando não informado explicitamente (mesma regra do backfill).
+3. `src/app/api/admin/clientes/route.ts` (GET filtro + POST sempre cria `conta_gerenciada`,
+   já que este formulário é exclusivamente pra cadastro de cliente-da-agência) e `[id]/route.ts`
+   (PUT aceita `tipo_cliente`) atualizados.
+4. **UI — 4 páginas de `src/app/admin/clientes/`:** lista (badge colorido + filtro dropdown);
+   `novo` (banner informativo — este formulário sempre cria conta gerenciada, não é seletor,
+   já que consumidor PF nasce do fluxo público de leads, não daqui); `[id]/editar` (seletor
+   editável, com nota de que só "Conta Gerenciada" aparece nos seletores de Campanhas/
+   Mensageria e ganha a aba "Config. Meta" — aba escondida quando o tipo não é esse);
+   `[id]` detalhe (badge de tipo + mesma condicional na aba "Configurações Meta").
+5. **`src/app/api/admin/campanhas/clients/route.ts`** — `WHERE tipo_cliente = 'conta_gerenciada'`
+   adicionado. Confirmado (grep) que este é o ÚNICO endpoint por trás do componente
+   `ClientSelector.tsx` compartilhado por todo o módulo de Campanhas E também consumido por
+   `mensageria/config/page.tsx` — um fix cobre os dois módulos.
+
+**Testado via API real (JWT com userId real, tenant Marketing Digital):**
+`GET /api/admin/campanhas/clients` retorna só os 7 clientes reais deste tenant, todos
+`conta_gerenciada` (nenhum dos 2 `consumidor_pf` do outro tenant vazou, e nenhum apareceria
+mesmo que estivesse no mesmo tenant) · `GET /api/admin/clientes` retorna `tipo_cliente`
+correto em cada linha. `npx tsc --noEmit`: 55 erros, mesma baseline pré-existente (nenhum novo
+nos 9 arquivos tocados — o único erro que toca `clientes.ts` é o default `{}` de
+`ClienteFilters` em `findClientesPaginated`, que já existia antes desta sessão).
+
+**Verificação visual no navegador NÃO foi possível** — mesma limitação de sempre já registrada
+dezenas de vezes neste projeto (cookie+JWT válido, inclusive com `userId` real desta vez, ainda
+assim `useAuth`/`/me` client-side redireciona pra `/admin/login` em navegação completa).
+Confiança na renderização correta vem da API real batendo exatamente com o que os componentes
+consomem + revisão de código dos 4 JSX tocados.
+
+**Pendências reais do plano de unificação, ainda não atacadas:** F2-F7 do plano de migração
+(funis "várias visões", plano de testes rigoroso das 7 combinações de módulos contratados,
+Match Engine, CRM agnóstico de domínio) — ver `docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` §6.
+
+---
+
+## Última tarefa concluída
 
 ### Sessão 2026-07-20 — Unificação de leads: tabela "Lead" → CtaInteraction (D1/D3) ✅
 

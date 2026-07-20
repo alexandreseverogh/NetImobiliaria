@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
     const estado = searchParams.get('estado') || undefined
     const cidade = searchParams.get('cidade') || undefined
     const bairro = searchParams.get('bairro') || undefined
-    
+    const tipoClienteParam = searchParams.get('tipo_cliente') || undefined
+    const tipo_cliente = (['conta_gerenciada', 'comprador_pj', 'consumidor_pf'] as const)
+      .find(t => t === tipoClienteParam)
+
     // Obter tenantId do token
     const token = getTokenFromRequest(request)
     const decoded = token ? await verifyToken(token) : null
@@ -27,13 +30,14 @@ export async function GET(request: NextRequest) {
     if (!tenantId) {
       return NextResponse.json({ error: 'Tenant não identificado' }, { status: 401 })
     }
-    
+
     const result = await findClientesPaginated(page, limit, {
       nome,
       cpf,
       estado,
       cidade,
       bairro,
+      tipo_cliente,
       tenant_id: tenantId
     })
     
@@ -63,7 +67,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { nome, cpf, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by } = body
+    const { nome, cpf, telefone, email, endereco, numero, bairro, estado_fk, cidade_fk, cep, created_by, tipo_cliente } = body
+    const tipoClienteValido = (['conta_gerenciada', 'comprador_pj', 'consumidor_pf'] as const)
+      .find(t => t === tipo_cliente)
     
     // Validação temporariamente desabilitada para testar IP
     // const validator = createValidator('clients', '/api/admin/clientes')
@@ -102,6 +108,7 @@ export async function POST(request: NextRequest) {
       cidade_fk: cidade_fk || undefined,
       cep,
       origem_cadastro: 'Plataforma',
+      tipo_cliente: tipoClienteValido || 'conta_gerenciada',
       created_by: created_by || 'system',
       tenant_id: tenantId
     })

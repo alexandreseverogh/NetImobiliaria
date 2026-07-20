@@ -10,6 +10,8 @@ import EstadoSelect from '@/components/shared/EstadoSelect'
 import ClientCampaignSettings from '@/components/admin/clientes/ClientCampaignSettings'
 import ClientAvatar from '@/components/admin/ClientAvatar'
 
+type TipoCliente = 'conta_gerenciada' | 'comprador_pj' | 'consumidor_pf'
+
 interface Cliente {
   uuid: string
   nome: string
@@ -24,6 +26,7 @@ interface Cliente {
   cidade_fk?: string
   cep?: string
   origem_cadastro?: string
+  tipo_cliente?: TipoCliente
   logo_url?: string | null
 }
 
@@ -62,7 +65,8 @@ export default function EditarClientePage() {
     bairro: '',
     numero: '',
     complemento: '',
-    origem_cadastro: ''
+    origem_cadastro: '',
+    tipo_cliente: 'conta_gerenciada' as TipoCliente
   })
 
   const [errors, setErrors] = useState<ValidationErrors>({})
@@ -132,7 +136,8 @@ export default function EditarClientePage() {
           bairro: clienteData.bairro || '',
           numero: clienteData.numero || '',
           complemento: clienteData.complemento || '',
-          origem_cadastro: clienteData.origem_cadastro || 'Plataforma'
+          origem_cadastro: clienteData.origem_cadastro || 'Plataforma',
+          tipo_cliente: clienteData.tipo_cliente || 'conta_gerenciada'
         })
 
         // Guardar CEP inicial para evitar busca automática no carregamento
@@ -659,6 +664,7 @@ export default function EditarClientePage() {
           estado_fk: formData.estado ? estadosCidades.estados.find(e => e.id === formData.estado)?.sigla || null : null,
           cidade_fk: formData.cidade ? estadosCidades.municipios.find(m => m.id === formData.cidade)?.nome || null : null,
           cep: formData.cep,
+          tipo_cliente: formData.tipo_cliente,
           updated_by: user?.nome || 'system'
         })
       })
@@ -790,22 +796,24 @@ export default function EditarClientePage() {
           >
             👤 Dados do Cliente
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('meta')}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
-              ${activeTab === 'meta'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-          >
-            📣 Config. Meta
-          </button>
+          {formData.tipo_cliente === 'conta_gerenciada' && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('meta')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all
+                ${activeTab === 'meta'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+            >
+              📣 Config. Meta
+            </button>
+          )}
         </div>
       </div>
 
       {/* ── ABA: CONFIGURAÇÕES META ── */}
-      {activeTab === 'meta' && cliente && (
+      {activeTab === 'meta' && cliente && formData.tipo_cliente === 'conta_gerenciada' && (
         <div className="max-w-3xl">
           <ClientCampaignSettings clientId={cliente.uuid} />
         </div>
@@ -896,6 +904,27 @@ export default function EditarClientePage() {
           />
           <p className="text-xs text-gray-500 mt-1">
             {formData.origem_cadastro === 'Publico' ? 'Cadastrado pelo site público' : 'Cadastrado pela plataforma admin'}
+          </p>
+        </div>
+
+        {/* Tipo de Cliente — discriminador D2 (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §4/§9.2) */}
+        <div>
+          <label htmlFor="tipo_cliente" className="block text-sm font-medium text-gray-700 mb-2">
+            Tipo de Cliente
+          </label>
+          <select
+            id="tipo_cliente"
+            value={formData.tipo_cliente}
+            onChange={(e) => setFormData(prev => ({ ...prev, tipo_cliente: e.target.value as TipoCliente }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="conta_gerenciada">Conta Gerenciada (empresa-cliente-da-agência)</option>
+            <option value="comprador_pj">Comprador PJ</option>
+            <option value="consumidor_pf">Consumidor PF</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Só "Conta Gerenciada" aparece nos seletores de cliente do módulo de Campanhas e ganha
+            configuração de pixel/página/WhatsApp (aba "Config. Meta").
           </p>
         </div>
 

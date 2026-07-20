@@ -10,6 +10,8 @@ import EstadoSelect from '@/components/shared/EstadoSelect'
 import { useApi } from '@/hooks/useApi'
 import { CreateGuard, UpdateGuard, DeleteGuard } from '@/components/admin/PermissionGuard'
 
+type TipoCliente = 'conta_gerenciada' | 'comprador_pj' | 'consumidor_pf'
+
 interface Cliente {
   uuid: string
   nome: string
@@ -22,7 +24,20 @@ interface Cliente {
   estado_fk?: number
   cidade_fk?: number
   cep?: string
+  tipo_cliente: TipoCliente
   created_at: string
+}
+
+const TIPO_CLIENTE_LABEL: Record<TipoCliente, string> = {
+  conta_gerenciada: 'Conta Gerenciada',
+  comprador_pj: 'Comprador PJ',
+  consumidor_pf: 'Consumidor PF',
+}
+
+const TIPO_CLIENTE_BADGE_CLASS: Record<TipoCliente, string> = {
+  conta_gerenciada: 'bg-indigo-100 text-indigo-800',
+  comprador_pj: 'bg-amber-100 text-amber-800',
+  consumidor_pf: 'bg-teal-100 text-teal-800',
 }
 
 interface PaginatedResponse {
@@ -46,7 +61,8 @@ export default function ClientesPage() {
     cpf: '',
     estado: '',
     cidade: '',
-    bairro: ''
+    bairro: '',
+    tipo_cliente: ''
   })
   const filtersRef = useRef(filters)
 
@@ -105,7 +121,8 @@ export default function ClientesPage() {
       }
       
       if (filtersToUse.bairro) queryParams.append('bairro', filtersToUse.bairro)
-      
+      if (filtersToUse.tipo_cliente) queryParams.append('tipo_cliente', filtersToUse.tipo_cliente)
+
       const response = await get(`/api/admin/clientes?${queryParams}`)
       
       if (!response.ok) {
@@ -176,7 +193,8 @@ export default function ClientesPage() {
       cpf: '',
       estado: '',
       cidade: '',
-      bairro: ''
+      bairro: '',
+      tipo_cliente: ''
     })
     setCurrentPage(1)
   }
@@ -340,6 +358,23 @@ export default function ClientesPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
               />
             </div>
+
+          {/* Tipo de Cliente */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tipo
+            </label>
+            <select
+              value={filters.tipo_cliente}
+              onChange={(e) => handleFilterChange('tipo_cliente', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            >
+              <option value="">Todos os tipos</option>
+              <option value="conta_gerenciada">Conta Gerenciada</option>
+              <option value="comprador_pj">Comprador PJ</option>
+              <option value="consumidor_pf">Consumidor PF</option>
+            </select>
+          </div>
         </form>
         
         {/* Botões de ação dos filtros */}
@@ -392,13 +427,18 @@ export default function ClientesPage() {
               >
                 {/* Header do Card */}
                 <div className="bg-slate-700 rounded-lg p-3 -m-1 mb-4">
-                  {/* Primeira linha: Nome completo */}
-                  <div className="mb-2">
+                  {/* Primeira linha: Nome completo + badge de tipo */}
+                  <div className="mb-2 flex items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold text-white truncate">
                       {cliente.nome}
                     </h3>
+                    {cliente.tipo_cliente && (
+                      <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${TIPO_CLIENTE_BADGE_CLASS[cliente.tipo_cliente]}`}>
+                        {TIPO_CLIENTE_LABEL[cliente.tipo_cliente]}
+                      </span>
+                    )}
                   </div>
-                  
+
                   {/* Segunda linha: ID + data à esquerda, botões à direita */}
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-gray-200 font-medium">

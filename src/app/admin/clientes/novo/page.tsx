@@ -644,6 +644,15 @@ export default function NovoClientePage() {
         {/* ── ABA: DADOS DO CLIENTE ── */}
         {activeTab === 'dados' && <div className="bg-white rounded-xl shadow-lg border border-gray-200">
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            {/* Tipo de cliente — este formulário sempre cria conta gerenciada (empresa-cliente-
+                da-agência, com config. Meta na sequência); registros "consumidor_pf" nascem do
+                fluxo público de leads, não daqui. Informativo, não editável nesta tela. */}
+            <div className="rounded-lg bg-indigo-50 border border-indigo-100 px-4 py-3 text-sm text-indigo-800">
+              <span className="font-semibold">Tipo: Conta Gerenciada</span> — empresa para quem
+              esta imobiliária gerencia campanhas/CRM. Consumidores (pessoa física) nascem
+              automaticamente ao virar lead — nada a fazer aqui.
+            </div>
+
             {/* Nome */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

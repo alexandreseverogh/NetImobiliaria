@@ -15,7 +15,14 @@ interface Cliente {
   uuid: string; nome: string; cpf: string; telefone: string; email: string
   endereco?: string; numero?: string; complemento?: string; bairro?: string
   estado_fk?: string; cidade_fk?: string; cep?: string; origem_cadastro?: string
+  tipo_cliente?: 'conta_gerenciada' | 'comprador_pj' | 'consumidor_pf'
   created_at: string; created_by?: string; updated_at: string; updated_by?: string
+}
+
+const TIPO_CLIENTE_LABEL: Record<string, string> = {
+  conta_gerenciada: 'Conta Gerenciada',
+  comprador_pj: 'Comprador PJ',
+  consumidor_pf: 'Consumidor PF',
 }
 
 // ─── página principal ──────────────────────────────────────────────────────────
@@ -73,7 +80,9 @@ export default function VisualizarClientePage() {
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'dados',    label: 'Dados do Cliente',    icon: UserIcon },
-    { id: 'campanha', label: 'Configurações Meta',  icon: MegaphoneIcon },
+    ...(cliente.tipo_cliente !== 'conta_gerenciada' ? [] : [
+      { id: 'campanha' as Tab, label: 'Configurações Meta',  icon: MegaphoneIcon },
+    ]),
   ]
 
   return (
@@ -185,6 +194,14 @@ export default function VisualizarClientePage() {
                       {cliente.origem_cadastro === 'Publico' ? '🌐 Site Público' : '🖥️ Plataforma'}
                     </span>
                   </div>
+                  {cliente.tipo_cliente && (
+                    <div>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Tipo</p>
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
+                        {TIPO_CLIENTE_LABEL[cliente.tipo_cliente] || cliente.tipo_cliente}
+                      </span>
+                    </div>
+                  )}
                   <div>
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Criado em</p>
                     <p className="text-sm font-medium text-gray-900">{new Date(cliente.created_at).toLocaleDateString('pt-BR')}</p>

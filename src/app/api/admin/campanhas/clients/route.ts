@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
        FROM public.clientes c
        LEFT JOIN public.system_segments ss ON ss.id = c.segment_id
        WHERE c.tenant_id = $1::uuid
+         AND c.tipo_cliente = 'conta_gerenciada'
        ${extraClauses.join(' ')}
        ORDER BY c.nome ASC
        LIMIT ${limitParam}`,
