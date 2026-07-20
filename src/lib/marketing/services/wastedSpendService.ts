@@ -75,9 +75,9 @@ export async function calculateWastedSpend(
       _avg: { frequency: true },
       _count: { id: true },
     }),
-    prisma.lead.groupBy({
+    prisma.ctaInteraction.groupBy({
       by: ['campaignId'],
-      where: { campaignId: { in: campaignIds }, clickedAt: { gte: since } },
+      where: { campaignId: { in: campaignIds }, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } },
       _count: { id: true },
     }),
   ]);

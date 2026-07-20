@@ -45,7 +45,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       : null;
 
     const leadsCount = campaignIds.length > 0
-      ? await prisma.lead.count({ where: { campaignId: { in: campaignIds } } })
+      ? await prisma.ctaInteraction.count({ where: { campaignId: { in: campaignIds }, eventType: 'WHATSAPP_CLICK' } })
       : 0;
 
     return NextResponse.json({

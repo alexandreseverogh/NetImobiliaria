@@ -47,7 +47,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           })
         : null,
       campaignIds.length > 0
-        ? prisma.lead.count({ where: { campaignId: { in: campaignIds } } })
+        ? prisma.ctaInteraction.count({ where: { campaignId: { in: campaignIds }, eventType: 'WHATSAPP_CLICK' } })
         : 0,
     ]);
 

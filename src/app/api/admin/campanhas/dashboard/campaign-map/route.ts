@@ -159,11 +159,11 @@ export async function GET(request: NextRequest) {
     let leadsDateFilter = '';
     if (startDate) {
       params.push(startDate);
-      leadsDateFilter += ` AND l."clickedAt" >= $${params.length}::timestamptz`;
+      leadsDateFilter += ` AND l.created_at >= $${params.length}::timestamptz`;
     }
     if (endDate) {
       params.push(endDate);
-      leadsDateFilter += ` AND l."clickedAt" <= $${params.length}::timestamptz`;
+      leadsDateFilter += ` AND l.created_at <= $${params.length}::timestamptz`;
     }
 
     // DISTINCT ON (c.id, a.id) prevents duplicate rows when campaign has multiple
@@ -186,10 +186,10 @@ export async function GET(request: NextRequest) {
         GROUP BY "campaignId"
       ) sp ON sp."campaignId" = c.id
       LEFT JOIN (
-        SELECT "campaignId", COUNT(*) AS leads
-        FROM campanhasmarketingdigital."Lead" l
-        WHERE 1=1 ${leadsDateFilter}
-        GROUP BY "campaignId"
+        SELECT campaign_id AS "campaignId", COUNT(*) AS leads
+        FROM campanhasmarketingdigital."CtaInteraction" l
+        WHERE l.event_type = 'WHATSAPP_CLICK' ${leadsDateFilter}
+        GROUP BY campaign_id
       ) lc ON lc."campaignId" = c.id
       WHERE ${whereClause}
         AND a.locations IS NOT NULL

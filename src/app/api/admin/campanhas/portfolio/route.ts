@@ -130,9 +130,10 @@ export async function GET(request: NextRequest) {
       lead_count: string;
     }>(`
       SELECT client_id, COUNT(*)::int AS lead_count
-      FROM campanhasmarketingdigital."Lead"
+      FROM campanhasmarketingdigital."CtaInteraction"
       WHERE tenant_id = $1::uuid
-        AND "clickedAt" >= NOW() - ($2 || ' days')::INTERVAL
+        AND event_type = 'WHATSAPP_CLICK'
+        AND created_at >= NOW() - ($2 || ' days')::INTERVAL
       GROUP BY client_id
     `, [payload.tenantId, period]);
 
@@ -173,12 +174,13 @@ export async function GET(request: NextRequest) {
       campaign_id: string;
       lead_count:  string;
     }>(`
-      SELECT "campaignId" AS campaign_id, COUNT(*)::int AS lead_count
-      FROM campanhasmarketingdigital."Lead"
+      SELECT campaign_id, COUNT(*)::int AS lead_count
+      FROM campanhasmarketingdigital."CtaInteraction"
       WHERE tenant_id = $1::uuid
-        AND "clickedAt" >= NOW() - ($2 || ' days')::INTERVAL
-        AND "campaignId" IS NOT NULL
-      GROUP BY "campaignId"
+        AND event_type = 'WHATSAPP_CLICK'
+        AND created_at >= NOW() - ($2 || ' days')::INTERVAL
+        AND campaign_id IS NOT NULL
+      GROUP BY campaign_id
     `, [payload.tenantId, period]);
 
     const leadsByCampaignMap = new Map<string, number>();

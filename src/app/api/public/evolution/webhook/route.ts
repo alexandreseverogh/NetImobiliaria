@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
-import { logInteraction, insertSubmission, linkSubmissionLead } from '@/lib/cta/service'
-import { ingestMessage } from '@/lib/mensageria/ingest'
-import { resolveWhatsAppInbox } from '@/lib/mensageria/inboxes'
+import { processInboundWhatsAppMessage } from '@/lib/whatsapp/inboundProcessor'
 
 export const dynamic = 'force-dynamic'
-
-const SCHEMA = 'campanhasmarketingdigital'
 
 /**
  * POST https://artemis4.com.br/api/public/evolution/webhook?token={evolution_webhook_secret}
  *
- * Recebe eventos MESSAGES_UPSERT da Evolution API (WhatsApp Business).
- * Quando uma mensagem chega de um CTA WhatsApp (contém [ref:slug]),
- * cria automaticamente CtaSubmission + lead no CRM.
+ * Adaptador FINO da Evolution API (WhatsApp Business) — só autentica a requisição e normaliza
+ * o payload específico da Evolution. Toda a lógica de negócio (atribuição de CTA/campanha,
+ * criação de lead no CRM, ligação com a Mensageria) vive em processInboundWhatsAppMessage
+ * (src/lib/whatsapp/inboundProcessor.ts), agnóstica de provider — pra plugar outro provider
+ * (ex.: Meta WhatsApp Cloud API oficial) no futuro, basta escrever outro adaptador fino igual
+ * a este chamando a mesma função. Ver docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §9.3.
  *
- * Para mensagens sem [ref:], cria o lead de origem genérica 'whatsapp_organico'.
+ * Recebe eventos MESSAGES_UPSERT da Evolution API. Quando a mensagem contém [ref:xxx] (campanha
+ * real desta plataforma ou mecanismo de CTA externo), a atribuição é resolvida automaticamente.
+ * Sem [ref:], o lead nasce como WhatsApp orgânico.
  *
  * Autenticação: query param ?token= mapeia para tenants.evolution_webhook_secret
  *               (ou clientes.evolution_webhook_secret, se o cliente tiver número próprio —
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'instância não corresponde' }, { status: 403 })
   }
 
-  // 3. Extrair dados da mensagem
+  // 3. Extrair dados da mensagem (formato específico da Evolution API)
   // Evolution v2 pode mandar array em data ou objeto único
   const entries: any[] = Array.isArray(body?.data) ? body.data : body?.data ? [body.data] : []
   if (entries.length === 0) return NextResponse.json({ ok: true, ignored: true })
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     // Extrair número limpo: "5511999998888@s.whatsapp.net" → "5511999998888"
     const phone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '')
-    const pushName: string = entry?.pushName || null
+    const pushName: string | null = entry?.pushName || null
 
     // Extrair texto da mensagem (suporta conversation, extendedText, imageCaption)
     const msgText: string =
@@ -97,107 +98,18 @@ export async function POST(request: NextRequest) {
 
     if (!msgText && !phone) continue
 
-    // 4. Detectar [ref:slug] para rastrear origem de CTA
-    const refMatch = msgText.match(/\[ref:([^\]]+)\]/)
-    const ctaSlug = refMatch?.[1] || null
-
-    let dest: { id: string; client_id: string | null; cta_type: string | null } | null = null
-    if (ctaSlug) {
-      const destRes = await pool.query(
-        `SELECT id, client_id, cta_type FROM ${SCHEMA}."CtaDestination"
-          WHERE slug = $1 AND tenant_id = $2 AND is_active = true LIMIT 1`,
-        [ctaSlug, tenant.id],
-      )
-      dest = destRes.rows[0] || null
-    }
-
-    // Cliente dono do número físico (ownerClientId, resolvido na autenticação) é mais
-    // confiável que o [ref:slug] da campanha pra decidir ONDE a mensagem cai no Mensageria —
-    // a mensagem chegou fisicamente naquele número. [ref:slug] continua sendo a fonte de
-    // verdade pra atribuição de campanha (CTA/lead abaixo), propositalmente não misturado.
-    const mensageriaClientId = ownerClientId ?? dest?.client_id ?? null
-
-    // 5.a Ingestão no Mensageria (thread unificada) — roda em paralelo ao fluxo de
-    // CTA/lead abaixo; falha aqui NUNCA deve derrubar a captação de lead existente.
-    const mensageriaResult = await (async () => {
-      try {
-        const inboxId = await resolveWhatsAppInbox(tenant.id, mensageriaClientId)
-        return await ingestMessage({
-          tenantId: tenant.id,
-          clientId: mensageriaClientId,
-          inboxId,
-          contact: { name: pushName, phone },
-          direction: 'inbound',
-          senderType: 'contact',
-          content: msgText || null,
-          externalId: entry?.key?.id ?? null,
-        })
-      } catch (err) {
-        console.error('[evolution-webhook] falha na ingestão Mensageria (não bloqueante):', err)
-        return null
-      }
-    })()
-
-    // 5. Logar interação (SUBMIT pois veio uma mensagem real)
-    const interactionId = await logInteraction({
+    // 4. Normaliza e delega toda a lógica de negócio (atribuição + lead + Mensageria) pro
+    // processador agnóstico de provider.
+    await processInboundWhatsAppMessage({
       tenantId: tenant.id,
-      clientId: dest?.client_id ?? null,
-      destinationId: dest?.id ?? null,
-      ctaType: dest?.cta_type ?? 'WHATSAPP',
-      eventType: 'SUBMIT',
-      utm: { source: 'whatsapp', medium: ctaSlug ? 'cta' : 'organico' },
-    }).catch(() => '')
-
-    // 6. Gravar submissão com os dados da conversa
-    const submissionId = await insertSubmission({
-      tenantId: tenant.id,
-      clientId: dest?.client_id ?? null,
-      destinationId: dest?.id ?? null,
-      interactionId,
-      ctaType: dest?.cta_type ?? 'WHATSAPP',
-      payload: { phone, pushName, message: msgText, remoteJid },
-      name: pushName,
+      ownerClientId,
       phone,
-      utm: { source: 'whatsapp', medium: ctaSlug ? 'cta' : 'organico' },
-    }).catch(() => '')
-
-    // 7. Criar lead no CRM
-    try {
-      const baseUrl = process.env.INTERNAL_BASE_URL || 'http://localhost:3000'
-      const crmRes = await fetch(`${baseUrl}/api/crm/leads`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenant_id: tenant.id,
-          client_id: dest?.client_id ?? null,
-          nome: pushName || `WhatsApp ${phone}`,
-          telefone: phone,
-          email: null,
-          utm_source: 'whatsapp',
-          utm_medium: ctaSlug ? 'cta' : 'organico',
-          utm_campaign: ctaSlug ?? null,
-          origem: ctaSlug ? 'cta_whatsapp' : 'whatsapp_organico',
-          mensagem_inicial: msgText || null,
-          payload_extra: { remoteJid, pushName, cta_slug: ctaSlug },
-        }),
-      })
-      if (crmRes.ok) {
-        const crmData = await crmRes.json()
-        const leadUuid = crmData.leadUuid ?? crmData.lead_uuid ?? null
-        if (leadUuid && submissionId) {
-          await linkSubmissionLead(submissionId, leadUuid).catch(() => {})
-        }
-        // Liga o lead ao contato do Mensageria — ponte de desacoplamento (soft link, sem FK físico)
-        if (leadUuid && mensageriaResult?.contactId) {
-          await pool.query(
-            `UPDATE mensageria.contacts SET lead_uuid = $1 WHERE id = $2 AND lead_uuid IS NULL`,
-            [leadUuid, mensageriaResult.contactId],
-          ).catch(() => {})
-        }
-      }
-    } catch {
-      // best-effort — submissão já foi salva
-    }
+      pushName,
+      text: msgText || null,
+      externalMessageId: entry?.key?.id ?? null,
+    }).catch((err) => {
+      console.error('[evolution-webhook] processInboundWhatsAppMessage falhou:', err)
+    })
   }
 
   // Evolution espera resposta rápida (< 5s)

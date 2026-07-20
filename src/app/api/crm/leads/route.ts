@@ -33,6 +33,11 @@ export async function POST(request: NextRequest) {
   try {
     const data = await request.json()
     const { nome, email, telefone, tag_sonho, raw_json, utm_params, imovel_id } = data
+    // ID real de campanhasmarketingdigital."Campaign" — só vem preenchido quando o lead se
+    // origina de uma campanha lançada por esta plataforma (resolveCtaRef via Ad.trackingId).
+    // Mecanismos externos/formulário/orgânico continuam sem esse valor — ver
+    // docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §9.
+    const campaignId: string | null = data.campaign_id || null
 
     // Aceita UTMs tanto como objeto aninhado (utm_params) quanto como campos flat (utm_source, etc.)
     const resolvedUtmParams = utm_params ?? (data.utm_source ? {
@@ -150,8 +155,8 @@ export async function POST(request: NextRequest) {
       const marketingQuery = `
         INSERT INTO marketing_eventos (
           lead_uuid, utm_source, utm_medium, utm_campaign, utm_content,
-          fbclid, gclid, plataforma, tenant_id, client_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          fbclid, gclid, plataforma, tenant_id, client_id, campaign_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       `
       await pool.query(marketingQuery, [
         leadUuid,
@@ -163,7 +168,8 @@ export async function POST(request: NextRequest) {
         resolvedUtmParams.gclid,
         resolvedUtmParams.platform || 'cta',
         leadTenantId,
-        leadClientId
+        leadClientId,
+        campaignId
       ])
     }
 

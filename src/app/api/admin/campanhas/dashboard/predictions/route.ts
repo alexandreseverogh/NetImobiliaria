@@ -154,13 +154,14 @@ export async function GET(request: NextRequest) {
     });
 
     const leadsRaw: any[] = await prisma.$queryRaw`
-      SELECT DATE("clickedAt") as date, COUNT(*)::int as count
-      FROM campanhasmarketingdigital."Lead"
-      WHERE "tenant_id" = ${payload.tenantId}::uuid
-        AND "campaignId" = ANY(${campaignIds})
-        AND "clickedAt" >= ${histStart}::timestamp
-        AND "clickedAt" <= ${histEnd}::timestamp
-      GROUP BY DATE("clickedAt")
+      SELECT DATE(created_at) as date, COUNT(*)::int as count
+      FROM campanhasmarketingdigital."CtaInteraction"
+      WHERE tenant_id = ${payload.tenantId}::uuid
+        AND campaign_id = ANY(${campaignIds})
+        AND event_type = 'WHATSAPP_CLICK'
+        AND created_at >= ${histStart}::timestamp
+        AND created_at <= ${histEnd}::timestamp
+      GROUP BY DATE(created_at)
       ORDER BY date ASC
     `;
 

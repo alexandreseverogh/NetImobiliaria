@@ -111,11 +111,11 @@ export async function GET(request: NextRequest) {
       prisma.insight.findMany({
         where: prevInsightWhere,
       }),
-      prisma.lead.count({
-        where: { tenantId: payload.tenantId, campaignId: { in: campaignIds }, clickedAt: { gte: startDate, lte: endDate } },
+      prisma.ctaInteraction.count({
+        where: { tenantId: payload.tenantId, campaignId: { in: campaignIds }, eventType: 'WHATSAPP_CLICK', createdAt: { gte: startDate, lte: endDate } },
       }),
-      prisma.lead.count({
-        where: { tenantId: payload.tenantId, campaignId: { in: campaignIds }, clickedAt: { gte: prevStart, lt: prevEnd } },
+      prisma.ctaInteraction.count({
+        where: { tenantId: payload.tenantId, campaignId: { in: campaignIds }, eventType: 'WHATSAPP_CLICK', createdAt: { gte: prevStart, lt: prevEnd } },
       }),
     ]);
 
@@ -168,13 +168,14 @@ export async function GET(request: NextRequest) {
     const campaignIdsQuery = campaignIds.length > 0 ? campaignIds : ['00000000-0000-0000-0000-000000000000'];
 
     const dailyLeadsRaw: any[] = await prisma.$queryRaw`
-      SELECT DATE("clickedAt") as date, COUNT(*)::int as count
-      FROM campanhasmarketingdigital."Lead"
-      WHERE "tenant_id" = ${payload.tenantId}::uuid
-        AND "campaignId" = ANY(${campaignIdsQuery})
-        AND "clickedAt" >= ${startDate}::timestamp
-        AND "clickedAt" <= ${endDate}::timestamp
-      GROUP BY DATE("clickedAt")
+      SELECT DATE(created_at) as date, COUNT(*)::int as count
+      FROM campanhasmarketingdigital."CtaInteraction"
+      WHERE tenant_id = ${payload.tenantId}::uuid
+        AND campaign_id = ANY(${campaignIdsQuery})
+        AND event_type = 'WHATSAPP_CLICK'
+        AND created_at >= ${startDate}::timestamp
+        AND created_at <= ${endDate}::timestamp
+      GROUP BY DATE(created_at)
       ORDER BY date ASC
     `;
 
@@ -188,16 +189,17 @@ export async function GET(request: NextRequest) {
     // Insight/Lead, agregados). Sempre renderizava R$ 0,00 / 0 leads pra QUALQUER campanha, em
     // qualquer filtro — bug pré-existente, não específico de hoje nem de nenhuma rede.
     const leadsByCampaignRaw: any[] = await prisma.$queryRaw`
-      SELECT "campaignId", COUNT(*)::int as count
-      FROM campanhasmarketingdigital."Lead"
-      WHERE "tenant_id" = ${payload.tenantId}::uuid
-        AND "campaignId" = ANY(${campaignIdsQuery})
-        AND "clickedAt" >= ${startDate}::timestamp
-        AND "clickedAt" <= ${endDate}::timestamp
-      GROUP BY "campaignId"
+      SELECT campaign_id, COUNT(*)::int as count
+      FROM campanhasmarketingdigital."CtaInteraction"
+      WHERE tenant_id = ${payload.tenantId}::uuid
+        AND campaign_id = ANY(${campaignIdsQuery})
+        AND event_type = 'WHATSAPP_CLICK'
+        AND created_at >= ${startDate}::timestamp
+        AND created_at <= ${endDate}::timestamp
+      GROUP BY campaign_id
     `;
     const leadsByCampaign = leadsByCampaignRaw.reduce((acc, row) => {
-      acc[row.campaignId] = Number(row.count);
+      acc[row.campaign_id] = Number(row.count);
       return acc;
     }, {} as Record<string, number>);
 
@@ -213,13 +215,14 @@ export async function GET(request: NextRequest) {
     // valor possível historicamente, nunca houve outra rede antes desta fase.
     const leadsByNetworkRaw: any[] = await prisma.$queryRaw`
       SELECT COALESCE(n.code, 'meta') as network, COUNT(l.id)::int as count
-      FROM campanhasmarketingdigital."Lead" l
-      JOIN campanhasmarketingdigital."Campaign" c ON l."campaignId" = c.id
+      FROM campanhasmarketingdigital."CtaInteraction" l
+      JOIN campanhasmarketingdigital."Campaign" c ON l.campaign_id = c.id
       LEFT JOIN public.ad_networks n ON n.id = c."network_id"
-      WHERE l."tenant_id" = ${payload.tenantId}::uuid
-        AND l."campaignId" = ANY(${campaignIdsQuery})
-        AND l."clickedAt" >= ${startDate}::timestamp
-        AND l."clickedAt" <= ${endDate}::timestamp
+      WHERE l.tenant_id = ${payload.tenantId}::uuid
+        AND l.campaign_id = ANY(${campaignIdsQuery})
+        AND l.event_type = 'WHATSAPP_CLICK'
+        AND l.created_at >= ${startDate}::timestamp
+        AND l.created_at <= ${endDate}::timestamp
       GROUP BY COALESCE(n.code, 'meta')
     `;
 

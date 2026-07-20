@@ -320,9 +320,10 @@ export async function GET(request: NextRequest) {
 
     const leadsQuery = await pool.query<{ client_id: string | null; lead_count: string }>(`
       SELECT client_id, COUNT(*)::int AS lead_count
-      FROM campanhasmarketingdigital."Lead"
+      FROM campanhasmarketingdigital."CtaInteraction"
       WHERE tenant_id = $1::uuid
-        AND "clickedAt" >= NOW() - ($2 || ' days')::INTERVAL
+        AND event_type = 'WHATSAPP_CLICK'
+        AND created_at >= NOW() - ($2 || ' days')::INTERVAL
       GROUP BY client_id
     `, [payload.tenantId, period]);
 

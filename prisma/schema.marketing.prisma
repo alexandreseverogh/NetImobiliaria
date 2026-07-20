@@ -303,25 +303,34 @@ model WhatsAppConfig {
   @@index([tenantId])
 }
 
-model Lead {
-  id           String   @id @default(uuid())
-  tenantId     String?  @map("tenant_id") @db.Uuid
-  clientId     String?  @map("client_id") @db.Uuid
-  campaignId   String?
-  adId         String?
-  phoneClicked String
-  sourceUrl    String?
-  utmSource    String?
-  utmMedium    String?
-  utmCampaign  String?
-  utmContent   String?
-  ipAddress    String?
-  userAgent    String?
-  clickedAt    DateTime @default(now())
+/// Fonte única de cliques/atribuição de CTA (substitui o antigo model "Lead", que só cobria
+/// cliques em anúncios lançados por esta plataforma, sem atribuição real na resposta do
+/// WhatsApp). Populada por /api/r/[trackingId] (clique em anúncio) e pelo processador de
+/// mensagens WhatsApp entrantes (resposta atribuída via "[ref:...]"). "Lead" de verdade
+/// (fonte canônica multi-módulo) continua sendo public.leads_staging — ver
+/// docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §9.1.
+model CtaInteraction {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id") @db.Uuid
+  clientId      String?  @map("client_id") @db.Uuid
+  destinationId String?  @map("destination_id") @db.Uuid
+  campaignId    String?  @map("campaign_id")
+  adId          String?  @map("ad_id")
+  ctaType       String?  @map("cta_type")
+  eventType     String   @default("VIEW") @map("event_type")
+  utmSource     String?  @map("utm_source")
+  utmMedium     String?  @map("utm_medium")
+  utmCampaign   String?  @map("utm_campaign")
+  utmContent    String?  @map("utm_content")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  referrer      String?
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  @@index([campaignId, clickedAt])
-  @@index([tenantId])
-  @@index([clientId])
+  @@index([campaignId, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([destinationId, createdAt])
+  @@map("CtaInteraction")
 }
 
 model AiInsight {

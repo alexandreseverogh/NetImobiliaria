@@ -132,12 +132,13 @@ export async function GET(request: NextRequest) {
           END
         ) AS stage,
         COUNT(*)::int AS total_leads
-      FROM campanhasmarketingdigital."Lead" l
-      JOIN campanhasmarketingdigital."Campaign" c ON c.id = l."campaignId"
+      FROM campanhasmarketingdigital."CtaInteraction" l
+      JOIN campanhasmarketingdigital."Campaign" c ON c.id = l.campaign_id
       LEFT JOIN public.ad_networks n ON n.id = c."network_id"
       WHERE c.tenant_id = $1::uuid
-        AND l."clickedAt" >= $2::timestamp
-        AND l."clickedAt" <= $3::timestamp
+        AND l.event_type = 'WHATSAPP_CLICK'
+        AND l.created_at >= $2::timestamp
+        AND l.created_at <= $3::timestamp
         ${whereExtra}
       GROUP BY 1
     `, qParams);

@@ -167,10 +167,10 @@ async function checkTrackingEndpoint(baseUrl?: string): Promise<CheckResult> {
 async function checkLeads24h(
   tenantId: string, clientId?: string | null, since: Date = new Date(0),
 ): Promise<CheckResult> {
-  const where: any = { tenantId, clickedAt: { gte: since } };
+  const where: any = { tenantId, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } };
   if (clientId) where.clientId = clientId;
 
-  const count = await prisma.lead.count({ where });
+  const count = await prisma.ctaInteraction.count({ where });
 
   let status: CheckStatus;
   let detail: string;
@@ -202,15 +202,16 @@ async function checkDuplicateRate(
   // Busca leads recentes com ipAddress preenchido
   const where: any = {
     tenantId,
-    clickedAt: { gte: since },
+    eventType: 'WHATSAPP_CLICK',
+    createdAt: { gte: since },
     ipAddress: { not: null },
   };
   if (clientId) where.clientId = clientId;
 
-  const leads = await prisma.lead.findMany({
+  const leads = await prisma.ctaInteraction.findMany({
     where,
-    select: { ipAddress: true, clickedAt: true },
-    orderBy: { clickedAt: 'asc' },
+    select: { ipAddress: true, createdAt: true },
+    orderBy: { createdAt: 'asc' },
   });
 
   if (leads.length < 2) {
@@ -224,7 +225,7 @@ async function checkDuplicateRate(
   // Contar pares duplicados (mesmo IP em janela de 30s)
   let dupes = 0;
   const sorted = [...leads].sort(
-    (a, b) => a.clickedAt.getTime() - b.clickedAt.getTime(),
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
   );
 
   for (let i = 1; i < sorted.length; i++) {
@@ -232,7 +233,7 @@ async function checkDuplicateRate(
     const curr = sorted[i];
     if (
       prev.ipAddress === curr.ipAddress &&
-      curr.clickedAt.getTime() - prev.clickedAt.getTime() <= 30_000
+      curr.createdAt.getTime() - prev.createdAt.getTime() <= 30_000
     ) {
       dupes++;
     }
@@ -382,15 +383,13 @@ async function checkAccessToken(
 async function checkLeadLatency(
   tenantId: string, clientId?: string | null, since: Date = new Date(0),
 ): Promise<CheckResult> {
-  // Lead.clickedAt IS o created_at — não temos "horário do click real"
-  // Como proxy: verificamos se há leads com menos de 60s entre dois registros
-  // consecutivos, que indica captura rápida. Se o banco responde rápido,
-  // estamos bem. Vamos medir o tempo de query como proxy de latência.
+  // CtaInteraction.createdAt IS o horário de registro — não temos "horário do click real"
+  // separado. Como proxy: medimos o tempo de query como proxy de latência de captura.
   const start = Date.now();
-  const where: any = { tenantId, clickedAt: { gte: since } };
+  const where: any = { tenantId, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } };
   if (clientId) where.clientId = clientId;
 
-  await prisma.lead.count({ where });
+  await prisma.ctaInteraction.count({ where });
   const latencyMs = Date.now() - start;
 
   let status: CheckStatus;
@@ -417,14 +416,14 @@ async function checkLeadLatency(
 async function checkOrphanLeads(
   tenantId: string, clientId?: string | null, since: Date = new Date(0),
 ): Promise<CheckResult> {
-  const whereAll: any  = { tenantId, clickedAt: { gte: since } };
+  const whereAll: any  = { tenantId, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } };
   if (clientId) whereAll.clientId = clientId;
 
   const whereOrphan: any = { ...whereAll, OR: [{ campaignId: null }, { campaignId: '' }] };
 
   const [total, orphans] = await Promise.all([
-    prisma.lead.count({ where: whereAll }),
-    prisma.lead.count({ where: whereOrphan }),
+    prisma.ctaInteraction.count({ where: whereAll }),
+    prisma.ctaInteraction.count({ where: whereOrphan }),
   ]);
 
   if (total === 0) {

@@ -143,12 +143,12 @@ export async function gatherBriefingContext(
       where: { campaignId: campaign.id, date: { gte: prevStartDate, lt: startDate } },
     });
 
-    const leads = await prisma.lead.count({
-      where: { tenantId: tenantId || undefined, campaignId: campaign.id, clickedAt: { gte: startDate, lte: endDateObj } },
+    const leads = await prisma.ctaInteraction.count({
+      where: { tenantId: tenantId || undefined, campaignId: campaign.id, eventType: 'WHATSAPP_CLICK', createdAt: { gte: startDate, lte: endDateObj } },
     });
 
-    const prevLeadCount = await prisma.lead.count({
-      where: { tenantId: tenantId || undefined, campaignId: campaign.id, clickedAt: { gte: prevStartDate, lt: startDate } },
+    const prevLeadCount = await prisma.ctaInteraction.count({
+      where: { tenantId: tenantId || undefined, campaignId: campaign.id, eventType: 'WHATSAPP_CLICK', createdAt: { gte: prevStartDate, lt: startDate } },
     });
 
     if (insights.length === 0 && leads === 0) continue;

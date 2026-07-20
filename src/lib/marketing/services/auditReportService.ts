@@ -315,8 +315,8 @@ async function collectCampaignMetrics(
         _avg: { ctr: true, frequency: true },
         _count: { id: true },
       }),
-      prisma.lead.count({
-        where: { campaignId: { in: ids }, clickedAt: { gte: since } },
+      prisma.ctaInteraction.count({
+        where: { campaignId: { in: ids }, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } },
       }),
     ]);
 
@@ -379,8 +379,8 @@ async function collectFunnelMetrics(
         where: { campaignId: { in: ids }, date: { gte: since } },
         _sum: { impressions: true, clicks: true, spend: true },
       });
-      const leads = await prisma.lead.count({
-        where: { campaignId: { in: ids }, clickedAt: { gte: since } },
+      const leads = await prisma.ctaInteraction.count({
+        where: { campaignId: { in: ids }, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } },
       });
       return {
         impressions: agg._sum.impressions ?? 0,

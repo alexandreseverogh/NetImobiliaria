@@ -191,11 +191,12 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      const leads = await prisma.lead.count({
+      const leads = await prisma.ctaInteraction.count({
         where: {
           tenantId,
           campaignId: { in: campaignIds },
-          clickedAt: { gte: startDate, lte: endDate },
+          eventType: 'WHATSAPP_CLICK',
+          createdAt: { gte: startDate, lte: endDate },
         },
       });
 
@@ -221,13 +222,14 @@ export async function GET(request: NextRequest) {
 
       // Daily leads
       const { rows: dailyLeadsRows } = await pool.query(
-        `SELECT DATE("clickedAt")::text AS date, COUNT(*)::int AS count
-         FROM ${S}."Lead"
+        `SELECT DATE(created_at)::text AS date, COUNT(*)::int AS count
+         FROM ${S}."CtaInteraction"
          WHERE tenant_id = $1::uuid
-           AND "campaignId" = ANY($2::text[])
-           AND "clickedAt" >= $3::timestamp
-           AND "clickedAt" <= $4::timestamp
-         GROUP BY DATE("clickedAt")`,
+           AND campaign_id = ANY($2::text[])
+           AND event_type = 'WHATSAPP_CLICK'
+           AND created_at >= $3::timestamp
+           AND created_at <= $4::timestamp
+         GROUP BY DATE(created_at)`,
         [payload.tenantId, campaignIds, startDate, endDate],
       );
       const leadsByDate = new Map<string, number>(

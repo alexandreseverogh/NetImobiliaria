@@ -182,8 +182,8 @@ async function buildAnglesSummary(
          FROM ${S}."Insight" GROUP BY "campaignId"
        ) ins ON ins."campaignId" = cam.id
        LEFT JOIN (
-         SELECT "campaignId", COUNT(*) AS leads
-         FROM ${S}."Lead" GROUP BY "campaignId"
+         SELECT campaign_id AS "campaignId", COUNT(*) AS leads
+         FROM ${S}."CtaInteraction" WHERE event_type = 'WHATSAPP_CLICK' GROUP BY campaign_id
        ) lds ON lds."campaignId" = cam.id
        LEFT JOIN public.clientes cl ON cl.uuid = cam.client_id
        LEFT JOIN public.tenants  t  ON t.id    = cam.tenant_id

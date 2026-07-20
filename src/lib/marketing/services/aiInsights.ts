@@ -425,9 +425,9 @@ export async function generateAiInsights(
       take: 14,
     });
 
-    const leadWhere: any = { campaignId: campaign.id };
+    const leadWhere: any = { campaignId: campaign.id, eventType: 'WHATSAPP_CLICK' };
     if (tenantId) leadWhere.tenantId = tenantId;
-    const leads = await prisma.lead.count({ where: leadWhere });
+    const leads = await prisma.ctaInteraction.count({ where: leadWhere });
 
     if (insights.length === 0) continue;
 

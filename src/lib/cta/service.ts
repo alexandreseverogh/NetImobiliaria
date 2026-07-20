@@ -55,6 +55,67 @@ export async function getDestinationBySlug(slug: string): Promise<CtaDestination
   return (rows[0] as CtaDestination) || null
 }
 
+export interface ResolvedCtaRef {
+  clientId: string | null
+  campaignId: string | null
+  adId: string | null
+  destinationId: string | null
+  ctaType: string | null
+  /** nome legível pra usar como utm_campaign de exibição — nome real da campanha ou do mecanismo */
+  campaignName: string | null
+}
+
+/**
+ * Resolve um ref extraído de "[ref:xxx]" (embutido na mensagem de WhatsApp) pra sua origem real.
+ * Unifica os dois sistemas de atribuição que existiam paralelos e desconectados — ver
+ * docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §9.3:
+ *
+ *   1. Ad.trackingId — campanha REAL lançada por esta plataforma (Sistema A, o wizard de
+ *      campanhas). Já é o mesmo identificador usado por /api/r/[trackingId] pro redirect —
+ *      reaproveitado aqui como o ref, sem precisar criar um CtaDestination por anúncio.
+ *   2. CtaDestination.slug — mecanismo de CTA criado manualmente em /admin/campanhas/mecanismos,
+ *      pra campanhas geridas fora da plataforma (Sistema B, o que já funcionava ponta a ponta).
+ *
+ * Tenta (1) primeiro porque carrega atribuição mais rica (campaignId + adId reais); cai pra (2)
+ * se não achar. Retorna null se o ref não corresponder a nada (mensagem sem CTA reconhecível).
+ */
+export async function resolveCtaRef(ref: string, tenantId: string): Promise<ResolvedCtaRef | null> {
+  const adRows = await pool.query(
+    `SELECT a.id AS ad_id, c.id AS campaign_id, c.name AS campaign_name, c.client_id AS client_id
+       FROM ${SCHEMA}."Ad" a
+       JOIN ${SCHEMA}."AdSet" s ON s.id = a."adSetId"
+       JOIN ${SCHEMA}."Campaign" c ON c.id = s."campaignId"
+      WHERE a."trackingId" = $1 AND c.tenant_id = $2::uuid
+      LIMIT 1`,
+    [ref, tenantId],
+  )
+  if (adRows.rows[0]) {
+    const r = adRows.rows[0]
+    return {
+      clientId: r.client_id ?? null,
+      campaignId: r.campaign_id,
+      adId: r.ad_id,
+      destinationId: null,
+      ctaType: 'WHATSAPP_MESSAGE',
+      campaignName: r.campaign_name ?? null,
+    }
+  }
+
+  const dest = await getDestinationBySlug(ref)
+  if (dest && dest.tenant_id === tenantId) {
+    return {
+      clientId: dest.client_id,
+      campaignId: null,
+      adId: null,
+      destinationId: dest.id,
+      ctaType: dest.cta_type,
+      campaignName: dest.name,
+    }
+  }
+
+  return null
+}
+
 export interface InteractionInput {
   tenantId: string
   clientId?: string | null
