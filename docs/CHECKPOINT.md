@@ -1,13 +1,84 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-19 (continuação 5) — bot de mensageria consertado: 3 bugs reais
-> encadeados impediam qualquer resposta (LLM errado, API key errada, thought_signature do Gemini).
+> **Atualizado em:** 2026-07-20 — unificação de leads entre Campanhas/CRM/Mensageria concluída
+> e commitada (D1/D3 de docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md).
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-20 — Unificação de leads: tabela "Lead" → CtaInteraction (D1/D3) ✅
+
+**Contexto:** ao investigar por que "Onde está o Dinheiro?" mostrava R$ 0,00 pra uma campanha real
+do Google (fix anterior desta mesma sessão, commit `d6f2fd8`), o usuário levantou uma questão
+arquitetural maior: Campanhas e CRM liam "lead" de tabelas completamente diferentes e
+desconectadas, quebrando a exigência de "única fonte da verdade" entre módulos que, apesar de
+integrados, são **comercializados separadamente** (um tenant pode contratar só Campanhas, sem
+CRM nem Mensageria). Isso motivou uma investigação profunda seguida de um documento estratégico
+completo: `docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` (v1.1, commits `e3d7654`/`33c9b73`), com
+4 decisões (D1-D4) e um plano de migração de 7 fases (F0-F7) + plano de testes rigoroso cobrindo
+as 7 combinações de contratação dos 3 módulos.
+
+**Descoberta central durante a implementação:** existiam DOIS sistemas paralelos e desconectados
+de atribuição de clique/lead — Sistema A (campanhas lançadas pelo próprio wizard desta
+plataforma, via `Ad.trackingId` + `/api/r/[trackingId]`, gravando na tabela `Lead` sem atribuição
+real na resposta do WhatsApp) e Sistema B (campanhas geridas externamente no Meta Ads Manager,
+via mecanismo de CTA em `/admin/campanhas/mecanismos` → `CtaDestination`/`CtaInteraction`/
+`CtaSubmission`, que **já funcionava ponta a ponta** via tag `[ref:slug]` reconhecida no webhook
+da Evolution, mas sem `Campaign.id` real, só `utm_campaign` em texto livre). `resolveCtaRef`
+(`src/lib/cta/service.ts`) unifica os dois: tenta `Ad.trackingId` primeiro (atribuição mais rica),
+cai para `CtaDestination.slug` depois.
+
+**Requisito explícito do usuário incorporado durante a implementação:** a API do WhatsApp
+(Evolution, hoje) deve ficar desacoplada da lógica de negócio, pra permitir trocar por outro
+provider (ex.: API oficial do Meta) no futuro sem duplicar código. Resolvido extraindo
+`src/lib/whatsapp/inboundProcessor.ts` (`processInboundWhatsAppMessage`, agnóstico de provider) —
+`evolution/webhook/route.ts` virou um adaptador fino (só autentica + normaliza o payload
+específico da Evolution), no mesmo padrão já usado pra redes de anúncio
+(`AdNetworkService`/`buildNetworkService`).
+
+**Implementado (D1 — migração `Lead` → `CtaInteraction`; D3 — atribuição desacoplada):**
+1. `prisma/migration-2026-07-20-marketing-eventos-campaign-id.sql` — `marketing_eventos` ganha
+   `campaign_id TEXT` real (antes só `utm_campaign` texto livre).
+2. `resolveCtaRef` (novo, `cta/service.ts`) — bridge entre os 2 sistemas de atribuição.
+3. `src/lib/whatsapp/inboundProcessor.ts` (novo) — lógica de negócio do WhatsApp entrante
+   (atribuição + lead no CRM + ingestão na Mensageria) extraída, agnóstica de provider.
+4. `evolution/webhook/route.ts` reescrito como adaptador fino.
+5. `/api/r/[trackingId]/route.ts` reescrito: grava clique como `CtaInteraction` (WHATSAPP_CLICK)
+   e embute `[ref:{trackingId}]` na mensagem de WhatsApp — fecha o loop clique → resposta → lead.
+6. `/api/crm/leads` passa a aceitar e persistir `campaign_id` real em `marketing_eventos`.
+7. Prisma schema (`schema.marketing.prisma`): model `CtaInteraction` adicionado, model `Lead`
+   removido. `npx prisma generate` limpo.
+8. **~15 pontos de leitura migrados** de `Lead` para `CtaInteraction` (dashboards full/funnel/
+   predictions/segment/campaign-map, portfolio + cross-insights, `aiInsights.ts`,
+   `trackingHealthService.ts`, `wastedSpendService.ts`, `strategicBriefing.ts`,
+   `auditReportService.ts`, `segmentIntelligenceService.ts`, iniciativas + briefing) — todos
+   filtrando `eventType = 'WHATSAPP_CLICK'` pra preservar a semântica original de "1 lead = 1
+   clique com interesse real" (a filosofia do usuário: "houve interesse — trabalhem agora pra
+   transformar isso em vendas"), já que `CtaInteraction` agora também guarda eventos `SUBMIT`/
+   `VIEW`/`REDIRECT` que não devem ser contados como leads nos dashboards de Campanhas.
+
+**Testado ponta a ponta, com dados reais (não hipotético):** clique real em `trackingId` de teste
+existente (`demo-track-001`, campanha "Alto Padrão — Alphaville") → `CtaInteraction`
+(WHATSAPP_CLICK) gravado com `campaign_id`/`ad_id` corretos · redirect real pro WhatsApp confirma
+`[ref:demo-track-001]` embutido na mensagem · webhook da Evolution simulado com essa mesma tag →
+`CtaInteraction` (SUBMIT) + `CtaSubmission` linkado ao lead → lead real criado em
+`leads_staging`/`marketing_eventos` com `campaign_id` real e `utm_campaign` = nome real da
+campanha (não mais texto solto) · contato da Mensageria linkado ao `lead_uuid` corretamente ·
+dados de teste desta verificação removidos depois. `npx tsc --noEmit`: 55 erros, mesma baseline
+pré-existente (nenhum novo nos 22 arquivos tocados). Commit `dd1c0da`.
+
+**Pendências reais, não atacadas nesta sessão (ver `docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md`):**
+- D2 (discriminador na tabela `clientes` pra distinguir conta_gerenciada/comprador_pj/
+  consumidor_pf) — decidido, não implementado.
+- Fases F2-F7 do plano de migração (funis "várias visões", plano de testes rigoroso das 7
+  combinações de módulos contratados, etc.) — pendentes.
+- Placeholder `'sua_chave_aqui'` em `tenants.anthropic_api_key` (registrado como pendência há
+  duas sessões) — ainda não limpo.
+
+---
 
 ### Sessão 2026-07-19 (continuação 5) — Bot de mensageria não respondia nada — 4 bugs reais ✅
 
