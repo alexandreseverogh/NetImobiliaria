@@ -1,6 +1,7 @@
 # PLANO ESTRATÉGICO — Unificação de Leads entre Campanhas, CRM e Mensageria
 
-> **Status:** v1.0 (2026-07-20) — Documento estratégico de arquitetura-alvo, para revisão.
+> **Status:** v1.1 (2026-07-20) — Arquitetura-alvo + **4 decisões tomadas** (§8) e seu **impacto
+> técnico detalhado** (§9). Pendente só confirmação final do D3 (token vs. telefone).
 > **Autor da análise:** Claude (sessão de reconciliação holística dos 3 módulos).
 > **Natureza:** Definição de alto nível (executiva, comercial, estratégica) + arquitetura técnica
 > detalhada + plano de testes por cenário de contratação. **Nenhum código foi alterado para
@@ -392,19 +393,104 @@ funil**.
 
 ---
 
-## 8. DECISÕES PENDENTES (para validar antes da fase técnica)
+## 8. DECISÕES TOMADAS (2026-07-20)
 
-1. **`campanhasmarketingdigital."Lead"`**: deprecar como "lead" e renomear para "cliques/interações",
-   ou migrar para `CtaInteraction`? (recomendo migrar/consolidar em `CtaInteraction`.)
-2. **Separação da `clientes`**: nova tabela `managed_accounts` para o cliente-da-agência PJ, ou
-   discriminador `tipo_registro` na mesma tabela? (recomendo separar — mais limpo, porém migração
-   maior.)
-3. **Token de rastreio no WhatsApp**: formato e ponto de parse (no bot da Mensageria vs. no webhook
-   Evolution bruto). (recomendo no `ingestMessage`, para valer a qualquer canal.)
-4. **Ordem de execução**: F1 (unificar leitura) é barata e de alto valor imediato — começar por ela
-   mesmo antes de decidir 1–3?
+As quatro decisões da §8 foram validadas com o usuário. Ficam registradas aqui; o **impacto
+técnico detalhado de cada uma está na §9**.
+
+| # | Decisão | Escolha do usuário |
+|---|---------|--------------------|
+| **D1** | Destino da tabela de cliques `campanhasmarketingdigital."Lead"` | **Migrar para `CtaInteraction`** (event_type='CLICK'). A tabela `Lead` deixa de existir como "lead" |
+| **D2** | Sobrecarga da `clientes` | **Manter tabela única** + coluna discriminadora de tipo + ajuste na UI de clientes (sem tabela nova) |
+| **D3** | Atribuição do WhatsApp-CTA | **Token de rastreio parseado no `ingestMessage`** (vale para qualquer canal da Mensageria, não só WhatsApp) — *pendente confirmação final do usuário sobre usar token vs. match por telefone* |
+| **D4** | Ordem de execução | **Começar pela F1** (unificar leitura de "lead" no módulo de Campanhas) — pré-requisito natural da migração D1 |
 
 ---
 
-**Documento:** `docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` v1.0 (2026-07-20)
-**Próxima revisão:** Após validação das decisões pendentes (§8) e priorização das fases (§6).
+## 9. IMPACTO TÉCNICO DAS DECISÕES
+
+Verificação feita direto no schema + código (2026-07-20). Esta seção é o insumo da fase de
+implementação — ainda **nenhum código foi alterado**.
+
+### 9.1. D1 — Migração `Lead` → `CtaInteraction`
+
+`CtaInteraction` é um **superset** de `Lead`. Mapa de campos:
+
+| `Lead` (hoje) | → `CtaInteraction` | Observação |
+|---------------|--------------------|------------|
+| `id` (text) | `id` (uuid) | muda o tipo |
+| `campaignId` | `campaign_id` | ✓ |
+| `adId` | `ad_id` | ✓ |
+| `phoneClicked` (NOT NULL) | *(descartado)* | era sempre o número da **empresa** — dado inútil, sem perda |
+| `sourceUrl` | `referrer` | ✓ |
+| `utmSource/Medium/Campaign/Content` | `utm_source/medium/campaign/content` | ✓ |
+| `ipAddress` / `userAgent` | `ip_address` / `user_agent` | ✓ |
+| `clickedAt` | `created_at` | ✓ |
+| `tenant_id` / `client_id` | `tenant_id` / `client_id` | ✓ |
+| *(não existe)* | **`event_type`** (VIEW/CLICK/SUBMIT) | o clique vira `event_type='CLICK'` |
+| *(não existe)* | **`destination_id`** / **`cta_type`** | liga ao mecanismo de CTA |
+
+**Pontos de código impactados:**
+- **1 escrita:** `/api/r/[trackingId]` passa a gravar `CtaInteraction` (event_type='CLICK').
+- **~16 leituras** (todas analytics do módulo de Campanhas): `dashboard/full`, `dashboard/funnel`,
+  `dashboard/predictions`, `dashboard/segment`, `dashboard/campaign-map`, `portfolio`,
+  `portfolio/cross-insights`, `iniciativas/[id]`, `iniciativas/[id]/briefing`, e os serviços
+  `aiInsights`, `wastedSpendService`, `trackingHealthService`, `strategicBriefing`,
+  `auditReportService`, `segmentIntelligenceService`. Dessas, ~11 usam `prisma.lead.*` (viram
+  `prisma.ctaInteraction.*` + filtro `event_type='CLICK'`) e ~9 são SQL cru (troca de nome de
+  tabela/colunas + o mesmo filtro).
+- **Prisma:** model `Lead` (schema.marketing.prisma linha 306) substituído por model
+  `CtaInteraction` (hoje a tabela só é acessada via SQL cru).
+- **NÃO afeta** a página `/admin/campanhas/leads` — já lê a fonte canônica (`leads_staging`).
+
+**Acoplamento com a F1:** ao virar "interações", os KPIs/funil hoje rotulados **"Leads"** passam a
+contar **cliques**. Logo, a reetiquetagem (Cliques/Interesses × Leads identificados) **tem que sair
+junto** — a migração D1 e a F1 são a mesma entrega. Risco: baixo conceitual, mecânico e espalhado
+(16 arquivos), 100% confinado ao módulo de Campanhas.
+
+### 9.2. D2 — Discriminador de tipo na `clientes`
+
+Escolha **aditiva** — não quebra nenhuma das **7 FKs** que apontam para `clientes` (`Campaign`,
+`Lead`, `MarketingInitiative`, `StrategicBriefing`, `client_benchmark_overrides`,
+`imovel_prospects`×2).
+
+**Banco:**
+- 1 coluna nova `tipo_cliente` (valores sugeridos: `'conta_gerenciada'` = PJ cliente-da-agência;
+  `'comprador_pj'`; `'consumidor_pf'`).
+- Backfill: origem `'Plataforma'` → `conta_gerenciada`; origem `'Publico'` → `consumidor_pf`.
+
+**UI (`src/app/admin/clientes/` — 4 páginas):** lista (badge + filtro por tipo); `novo`/`[id]/editar`
+(seletor de tipo + campos condicionais — pixel/page/whatsapp só para `conta_gerenciada`);
+`[id]` (detalhe).
+
+**Nos 121 pontos que citam `clientes`:** a maioria **não muda**. Ganho de integridade real: os
+seletores de cliente do módulo de Campanhas (`client_id` da campanha) passam a filtrar **só
+`conta_gerenciada`** — hoje poderiam, em tese, listar um consumidor PF. Risco: baixo; parte sensível
+é revisar os seletores para filtrar pelo tipo certo.
+
+### 9.3. D3 — Token de rastreio (atribuição do WhatsApp-CTA)
+
+**Mecanismo:** no CTA de WhatsApp, embute-se um código invisível no texto pré-preenchido do
+`wa.me/[empresa]?text=...‹ref:TOKEN›`. Quando a mensagem chega, o token liga a conversa ao clique
+exato — mais confiável que match por telefone (que quebra com número compartilhado/trocado/errado).
+
+**Ponto de parse escolhido: `ingestMessage`** (`src/lib/mensageria/ingest.ts`) — por onde toda
+mensagem passa, de qualquer canal — em vez do webhook Evolution bruto. Assim o mesmo mecanismo vale
+para webchat/Instagram/etc. no futuro.
+
+**Impacto (condicional à Mensageria — só roda nesse caminho):** 2 pontos de toque —
+(1) `/api/r/[trackingId]` gera e embute o token; (2) `ingestMessage` ganha: achou token → chama a
+ingestão canônica (`/api/crm/leads` com atribuição). Tenant sem Mensageria nunca executa isto (usa
+CTA de formulário). **Alternativa** (se o token for recusado): match por telefone, menos confiável.
+*Recomendação mantida: token via `ingestMessage`.*
+
+### 9.4. D4 — F1 primeiro
+
+F1 (unificar a leitura de "lead" no módulo de Campanhas: dashboard e página de leads lendo a mesma
+fonte, com "Cliques" e "Leads identificados" como métricas distintas e nomeadas) é barata, de baixo
+risco e — conforme §9.1 — **é a mesma entrega da migração D1**. É o ponto de partida.
+
+---
+
+**Documento:** `docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` v1.1 (2026-07-20)
+**Próxima revisão:** Confirmação final do D3 (token vs. telefone) e início da F1/D1.
