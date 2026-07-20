@@ -79,17 +79,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 1. MATCH ENGINE (Fase 1): Buscar se lead já existe na Staging (dentro do mesmo tenant)
+    // 1. MATCH ENGINE (F4 — docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6): buscar se o lead já
+    // existe na Staging (dentro do mesmo tenant). Telefone é comparado NORMALIZADO (só dígitos,
+    // últimos 10) em vez de string exata — canais diferentes (WhatsApp/CRM manual/Lead Ads)
+    // gravam o mesmo número em formatos diferentes ("(81) 99800-0047" vs "+5581998000047"),
+    // e comparação exata deixava a mesma pessoa virar 2 leads (bug real confirmado em produção
+    // antes desta correção). Email tem prioridade sobre telefone por ser identificador mais
+    // estável; match_method registra qual critério bateu, para auditoria/rastreabilidade (I1).
     const existingLeadQuery = `
-      SELECT lead_uuid, status 
-      FROM leads_staging 
-      WHERE ((email = $1 AND email IS NOT NULL) 
-         OR (telefone = $2 AND telefone IS NOT NULL))
-         AND tenant_id = $3
+      SELECT lead_uuid, status,
+        CASE
+          WHEN email IS NOT NULL AND email = $1::text THEN 'email'
+          ELSE 'telefone'
+        END AS match_method
+      FROM leads_staging
+      WHERE tenant_id = $3::uuid
+        AND (
+          (email IS NOT NULL AND email = $1::text)
+          OR (
+            telefone IS NOT NULL AND $2::text IS NOT NULL
+            AND RIGHT(regexp_replace(telefone, '\\D', '', 'g'), 10) = RIGHT(regexp_replace($2::text, '\\D', '', 'g'), 10)
+          )
+        )
+      ORDER BY (email IS NOT NULL AND email = $1::text) DESC, created_at DESC
       LIMIT 1
     `
     const { rows: existingRows } = await pool.query(existingLeadQuery, [strEmail, strTelefone, leadTenantId])
     let leadUuid: string
+    const matchMethod: string = existingRows[0]?.match_method || 'novo'
 
     // Se o lead entra pelo CRM Manual, permite gerar MÚLTIPLOS CARDS para o mesmo cliente
     const isManual = data.utm_source === 'CRM Manual';
@@ -99,14 +116,15 @@ export async function POST(request: NextRequest) {
       // Lead já existe e veio automático -> UPDATE (Enriquecer e mesclar via Match Engine)
       leadUuid = existingRows[0].lead_uuid
       const updateQuery = `
-        UPDATE leads_staging 
-        SET 
+        UPDATE leads_staging
+        SET
           nome = COALESCE($1, nome),
           tag_sonho = COALESCE($2, tag_sonho),
           imovel_id = COALESCE($3, imovel_id),
           estado_fk = COALESCE($4, estado_fk),
           cidade_fk = COALESCE($5, cidade_fk),
           raw_json = COALESCE(raw_json || $6::jsonb, $6::jsonb),
+          match_method = $8,
           updated_at = NOW()
         WHERE lead_uuid = $7
         RETURNING lead_uuid
@@ -118,13 +136,14 @@ export async function POST(request: NextRequest) {
         inheritedEstado,
         inheritedCidade,
         JSON.stringify(raw_json || {}),
-        leadUuid
+        leadUuid,
+        matchMethod
       ])
     } else {
       // Lead NOVO -> INSERT
       const insertQuery = `
-        INSERT INTO leads_staging (nome, email, telefone, tag_sonho, raw_json, imovel_id, estado_fk, cidade_fk, utm_campaign, valor_venda, tenant_id, client_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        INSERT INTO leads_staging (nome, email, telefone, tag_sonho, raw_json, imovel_id, estado_fk, cidade_fk, utm_campaign, valor_venda, tenant_id, client_id, match_method)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING lead_uuid
       `
       const { rows: insertRows } = await pool.query(insertQuery, [
@@ -139,7 +158,8 @@ export async function POST(request: NextRequest) {
         data.utm_campaign || null,
         data.valor_venda || 0,
         leadTenantId,
-        leadClientId
+        leadClientId,
+        isManual ? 'manual' : 'novo'
       ])
       leadUuid = insertRows[0].lead_uuid
 

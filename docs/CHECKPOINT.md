@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-20 — D2 (discriminador `tipo_cliente`) de
+> **Atualizado em:** 2026-07-21 — F4 (Match Engine) de
 > docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md implementado e verificado.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
@@ -8,6 +8,56 @@
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-21 — F4: Match Engine real (telefone normalizado + `match_method`) ✅
+
+**Contexto:** próxima fase do plano de unificação depois de D1/D2/D3 (ver entradas abaixo).
+F4 pede "dedupe real por telefone/email contra leads/contatos existentes, gravando
+match_method" — o dedupe que já existia em `/api/crm/leads` (POST) comparava telefone por
+**string exata**, o que é frágil entre canais que formatam o número de forma diferente.
+
+**Bug real confirmado em produção antes de implementar (não hipotético):** encontrada a MESMA
+pessoa (`alexandreseverog@gmail.com`) com 2 linhas em `leads_staging` — telefone gravado como
+`"(81) 99800-0047"` numa linha e `"+5581998000047"` noutra (mesmo número, formato diferente).
+Nesse caso específico o `tenant_id` de uma das linhas também está `NULL` (registro legado de
+antes do multi-tenant), então não teria casado de qualquer forma — mas confirma que o padrão
+"mesmo número, formatos diferentes entre canais" é real, não um cenário forçado.
+
+**Implementado:**
+1. `prisma/migration-2026-07-21-leads-staging-match-engine.sql` — coluna `match_method
+   VARCHAR(20)` em `leads_staging` (audita COMO o match aconteceu: `email`/`telefone`/`novo`/
+   `manual`) + índice funcional em `(tenant_id, RIGHT(regexp_replace(telefone,'\D','','g'),10))`
+   pra comparar telefone normalizado com performance de índice.
+2. `src/app/api/crm/leads/route.ts` — query de match reescrita: telefone comparado pelos
+   últimos 10 dígitos normalizados (só números, ignora `+55`/DDI/formatação) em vez de string
+   exata; email continua tendo prioridade sobre telefone quando ambos batem;
+   `match_method` gravado tanto no INSERT (lead novo) quanto no UPDATE (lead enriquecido).
+
+**Bug de escaping pego ao testar ao vivo (não hipotético, corrigido na mesma rodada):** a 1ª
+versão da query usava `'\D'` (uma barra) dentro do template string TypeScript — em JS,
+`\D` dentro de uma string não é um escape reconhecido, então a barra é **descartada em
+runtime**, e o Postgres recebia só `'D'` como padrão de regex (removeria a letra D do
+telefone, não os não-dígitos) — silencioso, sem erro, resultado errado. Corrigido pra `\\D`
+(a barra dupla em TS produz `\D` de verdade na string enviada ao Postgres). Só foi pego porque
+testei a query de verdade contra o banco em vez de confiar na leitura do código.
+
+**Testado ao vivo, ponta a ponta, via `POST /api/crm/leads` real** (tenant Marketing Digital,
+dados de teste prefixados `TESTE MATCH ENGINE` e removidos depois, cascata confirmada — 0
+linhas restantes): telefone com formatação diferente do mesmo número (`(81) 91234-5678` vs
+`+5581912345678`) → **mesmo `lead_uuid`** nas 2 chamadas, `match_method='telefone'` (bug
+original confirmado corrigido) · mesmo email com telefone totalmente diferente → mesmo
+`lead_uuid`, `match_method='email'` (prioridade de email preservada) · telefone/email sem
+nenhuma correspondência → novo `lead_uuid`, `match_method='novo'`. `npx tsc --noEmit`: 55
+erros, mesma baseline pré-existente (nenhum novo).
+
+**Pendências reais do plano de unificação, ainda não atacadas:** F2/F3 (CTA de formulário no
+wizard), F5 (funil unificado/CPA-ROAS real), F6 (CRM agnóstico de domínio), F7 (matriz formal
+dos 9 cenários de teste + degradação graciosa) — ver
+`docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` §6.
+
+---
+
+## Última tarefa concluída
 
 ### Sessão 2026-07-20 (continuação) — D2: discriminador `tipo_cliente` em `public.clientes` ✅
 
