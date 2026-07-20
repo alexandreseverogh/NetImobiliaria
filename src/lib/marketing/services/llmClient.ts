@@ -19,6 +19,13 @@ export interface LlmToolCall {
   id: string;
   name: string;
   input: Record<string, any>;
+  /**
+   * Passthrough opaco pro provider re-hidratar a MESMA chamada num turno seguinte — ex.: o
+   * `extra_content.google.thought_signature` do Gemini, que a API exige de volta em cada
+   * functionCall echoado no histórico (senão rejeita com 400 "missing thought_signature").
+   * Nunca lido/interpretado fora do provider que o gerou.
+   */
+  providerExtra?: unknown;
 }
 
 /** Histórico normalizado do loop de tool-use — provider-agnóstico (ver completeWithTools). */
@@ -156,6 +163,28 @@ async function makeAnthropicClient(apiKey: string, model: string): Promise<LlmCl
   };
 }
 
+/**
+ * POST cru contra o endpoint /chat/completions — usado no lugar do SDK `openai` porque o
+ * pacote quebra de forma reproduzível (400 "no body", nunca chega a expor o erro real) quando
+ * roda dentro do runtime RSC do Next.js/webpack, especificamente contra o shim OpenAI-compat do
+ * Gemini. Confirmado isolando a variável: o MESMO request via `fetch()` nativo, no MESMO processo
+ * do dev server, sempre funciona; via `openai` SDK, sempre falha. `fetch` nativo é suficiente
+ * (não precisamos de streaming/upload nem de nenhum outro recurso do SDK aqui).
+ */
+async function postChatCompletion(baseURL: string, apiKey: string, body: Record<string, unknown>): Promise<any> {
+  const url = `${baseURL.replace(/\/+$/, '')}/chat/completions`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`LLM request failed (${res.status}): ${text.slice(0, 500) || '(corpo vazio)'}`);
+  }
+  return JSON.parse(text);
+}
+
 /** Cria cliente OpenAI-compatible (openai, gemini, groq, deepseek, kimi, openrouter, qwen) */
 async function makeOpenAICompatibleClient(
   apiKey: string,
@@ -163,14 +192,11 @@ async function makeOpenAICompatibleClient(
   baseURL: string,
   provider: string
 ): Promise<LlmClient> {
-  const { default: OpenAI } = await import('openai');
-  const client = new OpenAI({ apiKey, baseURL });
-
   return {
     provider,
     model,
     async complete(prompt: string, maxTokens = 2000): Promise<string> {
-      const res = await client.chat.completions.create({
+      const res = await postChatCompletion(baseURL, apiKey, {
         model,
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }],
@@ -187,7 +213,12 @@ async function makeOpenAICompatibleClient(
             role: 'assistant',
             content: m.content || null,
             tool_calls: (m.toolCalls?.length ?? 0) > 0
-              ? m.toolCalls!.map((tc) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) } }))
+              ? m.toolCalls!.map((tc) => ({
+                  id: tc.id,
+                  type: 'function',
+                  function: { name: tc.name, arguments: JSON.stringify(tc.input) },
+                  ...(tc.providerExtra ? { extra_content: tc.providerExtra } : {}),
+                }))
               : undefined,
           });
         } else if (m.role === 'tool_result') {
@@ -206,11 +237,12 @@ async function makeOpenAICompatibleClient(
       // responde com dado 100% inventado (chegou a citar "São Paulo" pra um tenant que só tem
       // imóveis em Pernambuco) de forma confiante — pior que a mensagem de desculpa genérica, que
       // pelo menos é honesta sobre a falha. Deixa o erro subir normalmente (tratado no chamador).
-      const res = await client.chat.completions.create(req);
+      const res = await postChatCompletion(baseURL, apiKey, req);
 
       const choice = res.choices[0]?.message;
       let toolCalls: LlmToolCall[] = (choice?.tool_calls ?? []).map((tc: any) => ({
         id: tc.id, name: tc.function.name, input: JSON.parse(tc.function.arguments || '{}'),
+        providerExtra: tc.extra_content,
       }));
       let content = choice?.content ?? '';
 
@@ -286,29 +318,37 @@ export async function getLlmClient(tenantId?: string | null): Promise<LlmClient>
   let model    = 'claude-sonnet-4-5';
   let apiKey   = '';
 
+  // Config real do tenant (Settings — provider/model/key escolhidos em Configurações → IA) tem
+  // prioridade sobre o campo legado `tenants.anthropic_api_key`. Bug real corrigido aqui: a ordem
+  // antiga lia `anthropic_api_key` PRIMEIRO e só usava `cfg.llmApiKey` se esse campo estivesse
+  // vazio — mas TODOS os tenants têm esse campo preenchido com o placeholder literal do seed
+  // ("sua_chave_aqui"), então a chave real do provider configurado (ex.: Gemini) nunca era usada;
+  // a API rejeitava com "Please pass a valid API key" e o bot de mensageria falhava pra qualquer
+  // tenant configurado com provider != anthropic.
   if (tenantId) {
+    const cfg = await getTenantLlmConfig(tenantId);
+    if (cfg?.llmProvider) provider = cfg.llmProvider;
+    if (cfg?.llmModel)    model    = cfg.llmModel;
+    if (cfg?.llmApiKey)   apiKey   = cfg.llmApiKey;
+  }
+
+  if (provider === 'anthropic' && !apiKey) {
     try {
       const tenantRes = await getPool().query(
         `SELECT anthropic_api_key FROM public.tenants WHERE id = $1::uuid LIMIT 1`,
         [tenantId]
       );
-      if (tenantRes.rows[0]?.anthropic_api_key) {
-        apiKey = tenantRes.rows[0].anthropic_api_key;
-      }
+      const key = tenantRes.rows[0]?.anthropic_api_key;
+      if (key && key !== 'sua_chave_aqui') apiKey = key;
     } catch {}
-  }
-
-  if (tenantId) {
-    const cfg = await getTenantLlmConfig(tenantId);
-    if (cfg?.llmProvider) provider = cfg.llmProvider;
-    if (cfg?.llmModel)    model    = cfg.llmModel;
-    if (cfg?.llmApiKey && !apiKey)   apiKey = cfg.llmApiKey;
   }
 
   if (provider === 'anthropic' && !apiKey) {
     try {
       const res = await getPool().query(
-        `SELECT anthropic_api_key FROM public.tenants ORDER BY slug = 'master' DESC, id LIMIT 1`
+        `SELECT anthropic_api_key FROM public.tenants
+         WHERE anthropic_api_key IS NOT NULL AND anthropic_api_key <> 'sua_chave_aqui'
+         ORDER BY slug = 'master' DESC, id LIMIT 1`
       );
       if (res.rows[0]?.anthropic_api_key) {
         apiKey = res.rows[0].anthropic_api_key;

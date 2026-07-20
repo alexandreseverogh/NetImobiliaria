@@ -1,10 +1,71 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-19 (continuação 4) — colaboração com Antigravity encerrada,
-> Google Ads + Mensageria RAG consolidados de volta em `net-imobiliaria`, dados de teste
-> persistentes criados pra validação minuciosa.
+> **Atualizado em:** 2026-07-19 (continuação 5) — bot de mensageria consertado: 3 bugs reais
+> encadeados impediam qualquer resposta (LLM errado, API key errada, thought_signature do Gemini).
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
+
+---
+
+## Tarefa em andamento
+
+### Sessão 2026-07-19 (continuação 5) — Bot de mensageria não respondia nada — 4 bugs reais ✅
+
+**Sintoma reportado:** `/mensageria/config` → aba Bot, "boa noite"/"boa tarde" sempre devolviam
+o fallback genérico "Desculpe, tive um problema para processar sua mensagem agora". Investigação
+achou uma cadeia de 4 bugs reais e independentes — cada um mascarando o próximo, só visíveis um de
+cada vez conforme o anterior era corrigido:
+
+1. **`botAdapter.ts` chamava `getLlmClientForCampaigns()` (config GLOBAL da plataforma) em vez de
+   `getLlmClient(tenantId)` (config do TENANT)** — o bot de mensageria é por-tenant (cada empresa
+   escolhe provider/modelo em Configurações → IA), mas ignorava essa escolha e sempre caía no
+   Groq global. Corrigido o import e o call site.
+2. **Modelo Groq global (`meta-llama/llama-4-scout-17b-16e-instruct`) foi removido pela Groq** —
+   confirmado via `GET /v1/models` da própria conta (não aparece mais na lista). Atualizado pra
+   `llama-3.3-70b-versatile` (disponível, confirmado). Afeta também os motores de campanha
+   (`getLlmClientForCampaigns`, que usa a MESMA linha global da tabela `Settings`).
+3. **`gemini-2.0-flash` (modelo configurado pra este tenant) tem cota ZERO** nesta API key —
+   confirmado via curl direto na API do Google (`429 RESOURCE_EXHAUSTED`, `limit: 0`). Trocado
+   pra `gemini-flash-latest` (mesma chave, testado real, 200 OK).
+4. **Bug real, mais sério, achado depois — `getLlmClient()` sempre usava o valor placeholder da
+   migração/seed (`tenants.anthropic_api_key = 'sua_chave_aqui'`, presente em TODOS os 4 tenants)
+   em vez da chave real configurada em `Settings.llmApiKey`** — a ordem antiga lia o campo legado
+   primeiro e só usava a chave real do provider escolhido (`cfg.llmApiKey`) se esse campo
+   estivesse vazio; como o placeholder nunca é vazio, a API real (Gemini, no caso) sempre recebia
+   `"sua_chave_aqui"` como Bearer token e rejeitava com "Please pass a valid API key". Esse bug
+   afeta **qualquer tenant configurado com provider ≠ anthropic** — reordenado pra usar sempre a
+   config do tenant primeiro; o campo legado só é lido como fallback quando o provider realmente É
+   anthropic E não placeholder.
+5. **Bug de infraestrutura, achado por último — o pacote npm `openai` retorna `400 status code
+   (no body)` de forma reproduzível quando roda dentro do runtime RSC/webpack do Next.js contra o
+   shim OpenAI-compat do Gemini** — isolado com certeza: o MESMO request via `fetch()` nativo, no
+   MESMO processo do dev server, sempre funciona; via SDK `openai`, sempre falha (testado repetido,
+   inclusive depois de restart completo do servidor — não é conexão persa/keep-alive). Substituído
+   `makeOpenAICompatibleClient()` inteiro pra usar `fetch()` cru em vez do SDK — `postChatCompletion()`
+   novo em `llmClient.ts`. Sem perda de funcionalidade (só usávamos `chat.completions.create`, sem
+   streaming/upload).
+6. **Último bug, só visível depois do #5 corrigido — Gemini exige o campo
+   `extra_content.google.thought_signature` de volta em cada `functionCall` echoado no histórico**
+   (multi-turno de tool-use) — sem isso, rejeita com 400 "missing thought_signature". `LlmToolCall`
+   ganhou campo opaco `providerExtra?: unknown`; capturado do `tc.extra_content` na resposta e
+   reenviado no próximo turno. Outros providers (Groq etc.) não têm esse campo — passthrough
+   condicional, zero efeito neles.
+
+**Testado ao vivo, ponta a ponta, via `/mensageria/config` → Bot → "Testar conversa com o bot"**
+(tenant Marketing Digital): "boa noite" → resposta correta em português · pergunta com tool-use
+real ("tem apartamento em Imbiribeira?") → chamou `buscar_imovel`, resposta coerente
+("Não encontrei nenhum apartamento... ") — confirmado via SQL que este tenant tem **0** imóveis
+cadastrados, então a resposta é honesta, não um bug. `npx tsc --noEmit` limpo nos 3 arquivos
+tocados (`llmClient.ts`, `botAdapter.ts` só o import, `Settings`/`tenants` via SQL direto).
+
+**Arquivos tocados:** `src/lib/marketing/services/llmClient.ts` (reescrita de
+`makeOpenAICompatibleClient` + fix de ordem em `getLlmClient`), `src/lib/mensageria/botAdapter.ts`
+(1 linha — import/call site do client certo). SQL direto (não migração versionada — são valores de
+config, não schema): `Settings.llmModel` do tenant Marketing Digital e da linha global corrigidos.
+
+**Pendência:** o placeholder `'sua_chave_aqui'` continua presente nos 4 tenants em
+`tenants.anthropic_api_key` — inofensivo agora que `getLlmClient()` o ignora explicitamente, mas
+vale limpar/nulificar numa próxima sessão pra não confundir leitura direta do banco.
 
 ---
 

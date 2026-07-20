@@ -10,8 +10,8 @@ import pool from '@/lib/database/connection'
 import { resolveSegment } from '@/lib/intelligence/segmentResolver'
 import { resolvePromptTemplate } from '@/lib/intelligence/promptResolver'
 import { renderPrompt } from '@/lib/intelligence/promptRenderer'
-import { getLlmClientForCampaigns } from '@/lib/marketing/services/llmClient'
-import type { LlmMessage, LlmToolDef } from '@/lib/marketing/services/llmClient'
+import { getLlmClient } from '@/lib/marketing/services/llmClient'
+import type { LlmClient, LlmMessage, LlmToolDef } from '@/lib/marketing/services/llmClient'
 import { getToolsForSegment, resolveEntity, compareEntity, aggregateEntity, type SegmentDataEntity } from '@/lib/mensageria/tools/genericResolver'
 import { hasKnowledgeBase, searchKnowledge } from '@/lib/mensageria/tools/knowledgeBase'
 import { ingestMessage } from '@/lib/mensageria/ingest'
@@ -181,7 +181,7 @@ function parseJsonObject(raw: string): Record<string, any> | null {
  * frágil de prosa livre). Retorna null se o JSON não vier válido → chamador cai no fluxo plano.
  */
 async function buildCards(
-  llm: Awaited<ReturnType<typeof getLlmClientForCampaigns>>,
+  llm: LlmClient,
   persona: string,
   messages: LlmMessage[],
   items: { key: string; header: string; images: string[] }[],
@@ -256,7 +256,10 @@ async function runBotReply(
   }
 
   const history = await loadHistory(conversationId)
-  const llm = await getLlmClientForCampaigns()
+  // Bot é por-tenant (cada empresa escolhe seu provider/modelo em Configurações → IA), não a
+  // config global de campanhas — usava getLlmClientForCampaigns() por engano (bug real: sempre
+  // caía no modelo Groq global, ignorando o Gemini configurado pra este tenant especificamente).
+  const llm = await getLlmClient(tenantId)
 
   const messages: LlmMessage[] = [...history]
   let finalText = ''
