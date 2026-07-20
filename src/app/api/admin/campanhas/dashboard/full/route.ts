@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     const objectiveFilter = searchParams.get('objectiveFilter');
     const statusFilter    = searchParams.get('statusFilter');
     const adSetId         = searchParams.get('adSetId');
+    const networkFilter   = searchParams.get('network'); // código da rede (meta/google/tiktok) — PARTE D1
 
     // Se vier só YYYY-MM-DD (sem horário), expande para 23:59:59.999 UTC para cobrir o dia inteiro.
     const endDate = endStr
@@ -72,8 +73,6 @@ export async function GET(request: NextRequest) {
       campaigns = campaigns.filter(c => c.id === campaignId);
     }
 
-    const campaignIds = campaigns.map(c => c.id);
-
     // FASE 1 (Google Ads) A7 — mapa campaignId → código da rede (meta/google/...), pra
     // classificar spend/leads por rede sem repetir o JOIN a cada agregação.
     const networkRows = await prisma.$queryRaw<{ id: string; code: string }[]>`
@@ -83,6 +82,17 @@ export async function GET(request: NextRequest) {
     const campaignNetworkCode = new Map(
       campaigns.map(c => [c.id, (c as any).networkId ? (networkCodeById.get((c as any).networkId) || 'meta') : 'meta']),
     );
+
+    // PARTE D1 — redes disponíveis no escopo ATUAL (antes do filtro de rede em si), pra alimentar
+    // o seletor "Todas / Meta / Google / TikTok" no topo do dashboard sem colapsar as opções
+    // quando o usuário já tiver escolhido uma rede específica.
+    const availableNetworks = Array.from(new Set(campaigns.map(c => campaignNetworkCode.get(c.id) || 'meta'))).sort();
+
+    if (networkFilter) {
+      campaigns = campaigns.filter(c => (campaignNetworkCode.get(c.id) || 'meta') === networkFilter);
+    }
+
+    const campaignIds = campaigns.map(c => c.id);
 
     const insightWhere: any = {
       tenantId: payload.tenantId,
@@ -220,6 +230,7 @@ export async function GET(request: NextRequest) {
       dailyLeads: normalizedDailyLeads,
       leadsByNetwork,
       cplByNetwork,
+      availableNetworks,
       funnelData,
     });
   } catch (error: any) {

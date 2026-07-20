@@ -42,6 +42,8 @@ import { KpiCard, HookRateKpiCard } from '@/components/marketing/dashboard/KpiCa
 // ─── Palettes ─────────────────────────────────────────────────────────────────
 const PALETTE_DARK  = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#60a5fa', '#e879f9'];
 const PALETTE_LIGHT = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899'];
+// PARTE D1 — rótulo amigável por código de rede (ad_networks.code)
+const NETWORK_LABELS: Record<string, string> = { meta: 'Meta', google: 'Google', tiktok: 'TikTok', linkedin: 'LinkedIn' };
 import { CommandCenterView } from '@/components/marketing/dashboard/CommandCenterView';
 import { AnalyticsView } from '@/components/marketing/dashboard/AnalyticsView';
 import { DeepDiveView } from '@/components/marketing/dashboard/DeepDiveView';
@@ -71,7 +73,9 @@ export function DashboardPage() {
   const [generatingBriefing, setGeneratingBriefing] = useState(false);
   const [showBriefingHistory, setShowBriefingHistory] = useState(false);
   const [isDark, setIsDark]                 = useState(true); // dark by default
-  const [activeLayer, setActiveLayer]       = useState<'COMMAND' | 'ANALYTICS' | 'DEEP_DIVE' | 'GOOGLE'>('COMMAND');
+  // PARTE D1 — "GOOGLE" deixou de ser uma aba paralela; rede agora é filtro (ver networkFilter
+  // abaixo). As 3 camadas de profundidade voltam a ser o único eixo de navegação.
+  const [activeLayer, setActiveLayer]       = useState<'COMMAND' | 'ANALYTICS' | 'DEEP_DIVE'>('COMMAND');
 
   const [dateRange, setDateRange]           = useState('1'); // 'Hoje' como padrão
   const [startDate, setStartDate]           = useState('');
@@ -80,6 +84,9 @@ export function DashboardPage() {
   const [objectiveFilter, setObjectiveFilter]   = useState('');
   const [statusFilter, setStatusFilter]         = useState('');
   const [adSetFilter, setAdSetFilter]           = useState('');
+  // PARTE D1 — filtro de rede (Todas / Meta / Google / TikTok...), agnóstico de qual camada
+  // está ativa; opções vêm de availableNetworks (só redes com dado real no escopo).
+  const [networkFilter, setNetworkFilter]       = useState('');
 
   // Período calculado para passar ao hook de segmentos (filtra por atividade real)
   const segmentPeriodStart = startDate || new Date(Date.now() - parseInt(dateRange || '30') * 86400000).toISOString().split('T')[0];
@@ -154,7 +161,7 @@ export function DashboardPage() {
     loadData();
   },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dateRange, startDate, endDate, selectedCampaign, objectiveFilter, statusFilter, adSetFilter, clientFilter, activeSegment]);
+    [dateRange, startDate, endDate, selectedCampaign, objectiveFilter, statusFilter, adSetFilter, clientFilter, activeSegment, networkFilter]);
 
   async function loadData() {
     setLoading(true);
@@ -173,6 +180,10 @@ export function DashboardPage() {
       if (clientFilter)      params.clientId        = clientFilter;
       // Segmento sempre presente — garante isolamento
       if (activeSegment)     params.segmentId       = activeSegment;
+      // PARTE D1 — filtro de rede; só afeta /dashboard/full (Visão Executiva, Análise de Dados e
+      // tabela de campanhas derivam todas dele). Predições/funil/insights de IA ainda não têm
+      // filtro de rede no backend — não enviado ali para não dar falsa impressão de que filtram.
+      if (networkFilter)     params.network         = networkFilter;
 
       // Parâmetros compartilhados por todos os endpoints
       const sharedFilters: any = {
@@ -291,6 +302,10 @@ export function DashboardPage() {
   const d         = data?.deltas;
   const campaigns = data?.campaigns || [];
   const adSets    = data?.adSets || [];
+  // PARTE D1 — Google "está no escopo" quando o usuário filtrou por ela explicitamente, ou
+  // quando não há filtro de rede (Todas) e existe dado real de Google no período. Controla o
+  // drill-down de Search Terms/IS dentro da Inteligência Profunda (não é mais aba paralela).
+  const googleInScope = networkFilter === 'google' || (networkFilter === '' && !!data?.cplByNetwork?.google);
   const cpl       = t && data?.currentPeriod.leadCount && data.currentPeriod.leadCount > 0
     ? t.spend / data.currentPeriod.leadCount : 0;
 
@@ -487,6 +502,19 @@ export function DashboardPage() {
                 <option value="PAUSED">Pausado</option>
               </select>
             </div>
+            {/* PARTE D1 — só aparece quando há ≥2 redes com dado real no escopo; senão é ruído */}
+            {(data?.availableNetworks?.length ?? 0) > 1 && (
+              <div className="min-w-[110px]">
+                <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Rede</label>
+                <select value={networkFilter} onChange={e => setNetworkFilter(e.target.value)}
+                  style={selectStyle} className={selectBase}>
+                  <option value="">Todas</option>
+                  {data!.availableNetworks!.map(n => (
+                    <option key={n} value={n}>{NETWORK_LABELS[n] ?? (n.charAt(0).toUpperCase() + n.slice(1))}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="min-w-[140px]">
               <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Ad Set</label>
               <select value={adSetFilter} onChange={e => setAdSetFilter(e.target.value)}
@@ -608,16 +636,6 @@ export function DashboardPage() {
           >
              Inteligência Profunda
           </button>
-          {/* FASE 1 (Google Ads) A7 — só aparece se houver dado real de rede Google
-              (não empilhar KPI Google no painel pra quem não usa a rede) */}
-          {data?.cplByNetwork?.google && (
-            <button
-               onClick={() => setActiveLayer('GOOGLE')}
-               className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all', activeLayer === 'GOOGLE' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
-            >
-               Google Ads
-            </button>
-          )}
         </div>
 
         {activeLayer === 'COMMAND' && (
@@ -705,6 +723,13 @@ export function DashboardPage() {
               hookSaturation={hookSaturation}
             />
 
+            {/* PARTE D1 — Search Terms/IS Lost do Google deixou de ser aba paralela; é
+                drill-down tático dentro da Inteligência Profunda, só quando Google está no
+                escopo (filtro de rede = Google, ou "Todas" com dado real de Google no período). */}
+            {googleInScope && (
+              <GoogleAdsView isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
+            )}
+
             {/* ── Campaigns Table ─────────────────────────────────────────── */}
             <CampaignsTable
               campaigns={campaigns}
@@ -721,10 +746,6 @@ export function DashboardPage() {
         )}
         {/* Fecha activeLayer !== COMMAND */}
         </>
-        )}
-
-        {(activeLayer as string) === 'GOOGLE' && (
-          <GoogleAdsView isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
         )}
         {/* Fecha {activeSegment && <> ... </>} */}
         </>}

@@ -289,6 +289,9 @@ export interface DigestItem {
   clientName: string;
   actionId: string;
   description: string;
+  // PARTE D3 — código da rede (meta/google/tiktok...) resolvido via ad_networks pelo chamador.
+  // Só vira rótulo visível na mensagem quando o ciclo mistura mais de uma rede (ver notifyDigest).
+  network?: string | null;
   pin?: string | null;
   budget?: {
     current?: number;
@@ -304,6 +307,11 @@ export interface DigestItem {
 
 // Rótulo do grupo "sem cliente" (campanhas próprias do tenant)
 const OWN_GROUP = '__own__';
+
+// PARTE D3 — rótulo curto por rede, usado no "Resumo do Ciclo" só quando o ciclo mistura
+// mais de uma rede (ver hasMultiNetwork em notifyDigest). Sem multi-rede, nenhuma linha muda.
+const NETWORK_TAG: Record<string, string> = { meta: 'Meta', google: 'Google', tiktok: 'TikTok', linkedin: 'LinkedIn' };
+const networkTag = (network: string | null | undefined) => `[${NETWORK_TAG[network ?? 'meta'] ?? 'Meta'}] `;
 
 export async function notifyDigest(tenantId: string, items: DigestItem[]) {
   if (items.length === 0) return;
@@ -328,6 +336,12 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
   const tenantLine = tenantName ? ` — ${tenantName}` : '';
   let hasScales = false;
 
+  // PARTE D3 — com Google (e futuramente TikTok) no ar, uma ação "escalar" do Google e uma do
+  // Meta apareciam misturadas no mesmo resumo sem dizer de qual rede — reduzia a clareza da
+  // decisão no celular. Só rotula rede quando o ciclo de fato mistura mais de uma; ciclo
+  // mono-rede (a maioria dos tenants hoje) continua idêntico a antes.
+  const hasMultiNetwork = new Set(items.map(i => i.network ?? 'meta')).size > 1;
+
   // Monta um bloco de texto por cliente. WhatsApp mobile não renderiza balões
   // muito longos (>~3000 chars somem na tela), então enviamos 1 mensagem por cliente.
   const blocks: string[] = [];
@@ -349,7 +363,7 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
 
     // 📈 Escalas (precisam de aprovação)
     for (const s of scales) {
-      b += `📈 *${s.campaignName}*\n`;
+      b += `📈 ${hasMultiNetwork ? networkTag(s.network) : ''}*${s.campaignName}*\n`;
       if (s.budget?.current != null && s.budget?.proposed != null) {
         b += `   💰 ${fmtBRL(s.budget.current)} -> *${fmtBRL(s.budget.proposed)}*`;
         if (s.budget.pct != null) b += ` (+${s.budget.pct.toFixed(0)}%)`;
@@ -362,7 +376,7 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
 
     // ⏸️ Pausadas automaticamente
     for (const p of pauses) {
-      b += `⏸️ ${p.campaignName}`;
+      b += `⏸️ ${hasMultiNetwork ? networkTag(p.network) : ''}${p.campaignName}`;
       if (p.pauseBudget != null) b += `  (${fmtBRL(p.pauseBudget)}/dia)`;
       b += '\n';
       if (p.description) b += `   ${p.description}\n`;
@@ -370,7 +384,7 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
 
     // 📉 Orçamento reduzido
     for (const d of downscales) {
-      b += `📉 ${d.campaignName}\n`;
+      b += `📉 ${hasMultiNetwork ? networkTag(d.network) : ''}${d.campaignName}\n`;
       if (d.budget?.before != null && d.budget?.after != null) {
         b += `   💰 ${fmtBRL(d.budget.before)} -> ${fmtBRL(d.budget.after)}\n`;
       }
@@ -378,7 +392,7 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
 
     // ⚡ Outras ações
     for (const o of others) {
-      b += `⚡ ${o.campaignName}\n`;
+      b += `⚡ ${hasMultiNetwork ? networkTag(o.network) : ''}${o.campaignName}\n`;
       if (o.description) b += `   ${o.description}\n`;
     }
 

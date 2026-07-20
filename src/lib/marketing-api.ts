@@ -369,6 +369,8 @@ export interface DashboardFullData {
   leadsByNetwork?: Record<string, number>;
   // FASE 1 (Google Ads) A7 — comparativo CPL por rede (meta/google/...)
   cplByNetwork?: Record<string, { spend: number; leads: number; cpl: number | null }>;
+  // PARTE D1 — redes com dado real no escopo atual (antes do filtro de rede), alimenta o seletor
+  availableNetworks?: string[];
   funnelData: FunnelData;
 }
 
@@ -457,6 +459,7 @@ export const getDashboardFull = (params?: {
   objectiveFilter?: string;
   statusFilter?: string;
   adSetId?: string;
+  network?: string;
 }) => api.get<DashboardFullData>('/dashboard/full', { params }).then(r => r.data);
 
 export const getDashboardPredictions = (params?: {

@@ -16,6 +16,17 @@ import { resolveBenchmarks } from '../../intelligence/benchmarkResolver';
 const CONFIDENCE_THRESHOLD = parseFloat(process.env.AGENT_CONFIDENCE_THRESHOLD || '0.85');
 const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'http://localhost:3001';
 
+// PARTE D3 — resolve o código de rede (meta/google/tiktok...) de uma campanha via ad_networks.
+// Extraído do fix de executeAction (schema real é networkId, não networkCode) pra ser
+// reaproveitado também no digest do WhatsApp, que precisa rotular a rede por ação.
+async function resolveNetworkCode(networkId: string | null | undefined): Promise<NetworkCode> {
+  if (!networkId) return 'meta';
+  const netRows = await prisma.$queryRaw<{ code: string }[]>`
+    SELECT code FROM public.ad_networks WHERE id = ${networkId}::uuid LIMIT 1
+  `;
+  return (netRows[0]?.code as NetworkCode) ?? 'meta';
+}
+
 // Ações defensivas: executam automaticamente sem aprovação humana
 // FASE 1 (Google Ads) A6 — ADD_NEGATIVE_KEYWORD é defensiva (baixo risco, só remove tráfego
 // ruim já comprovado sem conversão) — mesmo tratamento de PAUSE/DOWNSCALE.
@@ -63,6 +74,8 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
     const campaign = await prisma.campaign.findUnique({ where: { id: insight.campaignId } });
     const resolvedTenantId = tenantId ?? campaign?.tenantId ?? null;
     if (resolvedTenantId && !resolvedTenantForDigest) resolvedTenantForDigest = resolvedTenantId;
+    // PARTE D3 — rede da campanha, pra rotular no digest do WhatsApp quando o ciclo misturar redes
+    const networkCode = await resolveNetworkCode((campaign as any)?.networkId);
 
     // Nome do cliente para o digest (campanha própria → client_id nulo → '')
     const clientRow = await prisma.$queryRaw<{ nome: string }[]>`
@@ -131,6 +144,7 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
         clientName,
         actionId:     action.id,
         description:  action.description ?? '',
+        network:      networkCode,
         budget:       budgetChange ? { before: budgetChange.before, after: budgetChange.after } : null,
         pauseBudget,
       });
@@ -148,6 +162,7 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
         clientName,
         actionId:     action.id,
         description:  action.description ?? '',
+        network:      networkCode,
         pin,
         budget,
         approveUrl: `${PUBLIC_DOMAIN}/api/agent/approve/${action.id}`,
@@ -162,6 +177,7 @@ export async function runDecisor(tenantId?: string): Promise<{ actionsCreated: n
         clientName,
         actionId:     action.id,
         description:  action.description ?? '',
+        network:      networkCode,
       });
       await prisma.$executeRaw`UPDATE campanhasmarketingdigital."AgentAction" SET status = 'NOTIFIED' WHERE id = ${action.id}`;
     }
@@ -221,13 +237,7 @@ export async function executeAction(
     // FIX: campaign.networkCode/external_id nunca existiram (schema real é networkId/externalId
     // camelCase) — toda campanha caía silenciosamente no fallback 'meta', mesmo sendo Google.
     const externalId = campaign?.externalId || campaign?.metaCampaignId;
-    let networkCode: NetworkCode = 'meta';
-    if (campaign?.networkId) {
-      const netRows = await prisma.$queryRaw<{ code: string }[]>`
-        SELECT code FROM public.ad_networks WHERE id = ${campaign.networkId}::uuid LIMIT 1
-      `;
-      if (netRows[0]?.code) networkCode = netRows[0].code as NetworkCode;
-    }
+    const networkCode = await resolveNetworkCode(campaign?.networkId);
 
     let budgetChange: { before: number; after: number } | null = null;
 
