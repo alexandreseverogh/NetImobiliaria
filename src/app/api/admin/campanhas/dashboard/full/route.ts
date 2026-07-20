@@ -183,6 +183,24 @@ export async function GET(request: NextRequest) {
       count: Number(r.count)
     }));
 
+    // Leads REAIS por campanha — "Onde está o Dinheiro?" (Visão Executiva) lia c.spend/c.leads
+    // direto do objeto Campaign, campos que nunca existiram nesse model (spend/leads vivem em
+    // Insight/Lead, agregados). Sempre renderizava R$ 0,00 / 0 leads pra QUALQUER campanha, em
+    // qualquer filtro — bug pré-existente, não específico de hoje nem de nenhuma rede.
+    const leadsByCampaignRaw: any[] = await prisma.$queryRaw`
+      SELECT "campaignId", COUNT(*)::int as count
+      FROM campanhasmarketingdigital."Lead"
+      WHERE "tenant_id" = ${payload.tenantId}::uuid
+        AND "campaignId" = ANY(${campaignIdsQuery})
+        AND "clickedAt" >= ${startDate}::timestamp
+        AND "clickedAt" <= ${endDate}::timestamp
+      GROUP BY "campaignId"
+    `;
+    const leadsByCampaign = leadsByCampaignRaw.reduce((acc, row) => {
+      acc[row.campaignId] = Number(row.count);
+      return acc;
+    }, {} as Record<string, number>);
+
     const funnelData = {
       impressions: currentTotals.impressions,
       clicks: currentTotals.clicks,
@@ -229,6 +247,7 @@ export async function GET(request: NextRequest) {
       adSets: allAdSets,
       dailyLeads: normalizedDailyLeads,
       leadsByNetwork,
+      leadsByCampaign,
       cplByNetwork,
       availableNetworks,
       funnelData,

@@ -68,6 +68,17 @@ export function CommandCenterView({
   const d = data.deltas;
   const activeCampaigns = (data.campaigns || []).filter(c => c.status === 'ACTIVE').length;
 
+  // CORREÇÃO — "Onde está o Dinheiro?" lia c.spend/c.leads direto do objeto Campaign, campos que
+  // nunca existiram nesse model (spend/leads vivem em Insight/Lead, agregados à parte) — sempre
+  // renderizava R$ 0,00 / 0 leads pra qualquer campanha, em qualquer filtro. Gasto real agregado
+  // a partir de currentPeriod.insights (mesma fonte do gráfico "Evolução"); leads reais de
+  // leadsByCampaign (Lead table, mesmo padrão já usado por leadsByNetwork).
+  const spendByCampaign = (data.currentPeriod.insights || []).reduce((acc: Record<string, number>, ins: any) => {
+    acc[ins.campaignId] = (acc[ins.campaignId] || 0) + (ins.spend || 0);
+    return acc;
+  }, {});
+  const leadsByCampaign = data.leadsByCampaign || {};
+
   // Health Score — Hook Rate (vídeo) + tendência REAL de CPL, calculada em cima da MESMA série
   // que o gráfico "Evolução (Gasto vs Leads)" já mostra (chartData: spend + conversions por
   // dia) — antes usava a contagem de Lead da tabela separada, uma fonte DIFERENTE da que o
@@ -345,7 +356,7 @@ export function CommandCenterView({
           </div>
           <div className="flex-1 overflow-y-auto space-y-3 pr-1">
             {[...(data.campaigns || [])]
-              .sort((a, b) => ((b as any).spend || 0) - ((a as any).spend || 0))
+              .sort((a, b) => (spendByCampaign[b.id] || 0) - (spendByCampaign[a.id] || 0))
               .slice(0, 5)
               .map((c: any, idx: number) => (
                 <div key={c.id} className={cn('flex items-center justify-between p-3 rounded-2xl border', isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100')}>
@@ -364,8 +375,8 @@ export function CommandCenterView({
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className={cn('text-sm font-black text-amber-500')}>{formatCurrency(c.spend || 0)}</p>
-                    <p className={cn('text-[10px] mt-0.5', txMuted)}>{c.leads || 0} leads</p>
+                    <p className={cn('text-sm font-black text-amber-500')}>{formatCurrency(spendByCampaign[c.id] || 0)}</p>
+                    <p className={cn('text-[10px] mt-0.5', txMuted)}>{leadsByCampaign[c.id] || 0} leads</p>
                   </div>
                 </div>
             ))}
