@@ -94,6 +94,13 @@ export async function GET(request: NextRequest) {
          COUNT(*) FILTER (WHERE cs.first_response_breached OR cs.resolution_breached)::int AS sla_estourado,
          COUNT(*) FILTER (WHERE c.resolved_at IS NOT NULL AND ${period.clause})::int AS resolvidas_no_periodo_para_bot,
          COUNT(*) FILTER (WHERE c.resolved_at IS NOT NULL AND c.handled_by_bot AND ${period.clause})::int AS resolvidas_bot,
+         -- T3 (docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md): quantas conversas novas do período
+         -- vieram de um clique de campanha real (via ct.lead_uuid -> marketing_eventos), pra
+         -- dar visibilidade disso no dashboard de Mensageria mesmo sem o módulo de Campanhas.
+         COUNT(*) FILTER (WHERE ${period.clause} AND EXISTS (
+           SELECT 1 FROM public.marketing_eventos me
+            WHERE me.lead_uuid = ct.lead_uuid AND me.campaign_id IS NOT NULL
+         ))::int AS de_campanha,
          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (c.first_response_at - c.created_at)))
            FILTER (WHERE c.first_response_at IS NOT NULL AND ${period.clause}) AS mediana_primeira_resposta_seg,
          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (c.resolved_at - c.created_at)))
@@ -201,6 +208,8 @@ export async function GET(request: NextRequest) {
       taxaResolucaoBotPct: k.resolvidas_no_periodo_para_bot > 0
         ? Math.round((k.resolvidas_bot / k.resolvidas_no_periodo_para_bot) * 1000) / 10
         : 0,
+      deCampanha: k.de_campanha ?? 0,
+      deCampanhaPct: novas > 0 ? Math.round(((k.de_campanha ?? 0) / novas) * 1000) / 10 : 0,
     },
     porCanal: canalRows.rows.map((r) => ({
       channelType: r.channel_type,

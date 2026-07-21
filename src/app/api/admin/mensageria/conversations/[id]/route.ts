@@ -27,11 +27,24 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
             ct.id AS contact_id, ct.name AS contact_name, ct.phone AS contact_phone,
             ct.email AS contact_email, ct.avatar_url AS contact_avatar_url, ct.lead_uuid,
             ib.id AS inbox_id, ib.channel_type, ib.name AS inbox_name,
-            u.nome AS assignee_name
+            u.nome AS assignee_name,
+            attr.campaign_id, attr.utm_source, attr.utm_medium, attr.utm_campaign, camp.name AS campaign_name
        FROM mensageria.conversations c
        JOIN mensageria.contacts ct ON ct.id = c.contact_id
        JOIN mensageria.inboxes ib ON ib.id = c.inbox_id
        LEFT JOIN public.users u ON u.id = c.assignee_id
+       -- Atribuição de campanha (T3 — docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md): o dado já
+       -- existe via ct.lead_uuid -> marketing_eventos, mas nenhuma tela de Mensageria mostrava
+       -- isso. Pega o toque mais recente do lead (nem sempre é o que abriu ESTA conversa
+       -- específica, mas é a melhor aproximação sem um vínculo direto conversa->evento).
+       LEFT JOIN LATERAL (
+         SELECT me.campaign_id, me.utm_source, me.utm_medium, me.utm_campaign
+           FROM public.marketing_eventos me
+          WHERE me.lead_uuid = ct.lead_uuid
+          ORDER BY me.created_at DESC
+          LIMIT 1
+       ) attr ON ct.lead_uuid IS NOT NULL
+       LEFT JOIN campanhasmarketingdigital."Campaign" camp ON camp.id = attr.campaign_id
       WHERE c.id = $1 AND c.tenant_id = $2${scopeClause}`,
     args,
   )
@@ -83,6 +96,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         email: conv.contact_email,
         avatarUrl: conv.contact_avatar_url,
         leadUuid: conv.lead_uuid,
+        // null quando o lead não tem nenhum toque de marketing (ex.: WhatsApp 100% orgânico,
+        // sem nenhuma campanha/CtaInteraction envolvida) — distingue de "não sabemos".
+        attribution: conv.utm_source ? {
+          campaignId: conv.campaign_id,
+          campaignName: conv.campaign_name,
+          utmSource: conv.utm_source,
+          utmMedium: conv.utm_medium,
+          utmCampaign: conv.utm_campaign,
+        } : null,
       },
       labels,
       sla: sla ? {
