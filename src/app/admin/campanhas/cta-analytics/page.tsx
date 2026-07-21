@@ -14,6 +14,7 @@ import { adminFetch } from '@/lib/auth/adminFetch'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import DayHourHeatmap from '@/components/marketing/charts/DayHourHeatmap'
 import HourlyVolumeBar from '@/components/marketing/charts/HourlyVolumeBar'
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
 
 const CTA_LABELS: Record<string, string> = {
   WHATSAPP_MESSAGE: 'WhatsApp', LEARN_MORE: 'Saiba Mais', SHOP_NOW: 'Comprar Agora',
@@ -54,6 +55,7 @@ export default function CtaAnalyticsPage() {
   const [destinos, setDestinos] = useState<any[]>([])
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('cta-analytics')
 
   function handleQuickPick(d: number) {
     setActiveDays(d)
@@ -82,13 +84,16 @@ export default function CtaAnalyticsPage() {
     setLoading(true)
     const qs = new URLSearchParams({ from: fromDate.toISOString(), to: toDate.toISOString() })
     if (segmentId) qs.set('segmentId', segmentId)
+    // segmentId tem precedência sobre clientId na API — só envia clientId quando não há
+    // segmento selecionado (evita mandar um filtro que a API já sabe que vai ignorar).
+    else if (clientFilter && clientFilter !== 'segment') qs.set('clientId', clientFilter)
     if (destinationId) qs.set('destinationId', destinationId)
     if (ctaType) qs.set('ctaType', ctaType)
     adminFetch(`/api/admin/campanhas/cta-analytics?${qs}`)
       .then(r => r.json())
       .then(d => setData(d))
       .finally(() => setLoading(false))
-  }, [dateFrom, dateTo, segmentId, destinationId, ctaType])
+  }, [dateFrom, dateTo, segmentId, clientFilter, destinationId, ctaType])
 
   const k = data?.kpis
   const segments: any[] = data?.segments || []
@@ -112,6 +117,19 @@ export default function CtaAnalyticsPage() {
 
           {/* Period controls — items-end alinha pills e date fields pela base */}
           <div className="flex items-end gap-3 flex-wrap justify-end">
+            {/* Seletor Minha Empresa / Para um Cliente — ignorado pela API quando há segmento ativo */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs select-none invisible">_</span>
+              <ClientSelector
+                value={clientFilter}
+                onChange={setClientFilter}
+                clients={clients}
+                loading={clientsLoading}
+                storageKey="cta-analytics"
+                variant="toggle"
+                allowSegment={false}
+              />
+            </div>
             {/* Wrapper com espaçador invisível para igualar altura dos labels De/Até */}
             <div className="flex flex-col gap-1">
               <span className="text-xs select-none invisible">_</span>

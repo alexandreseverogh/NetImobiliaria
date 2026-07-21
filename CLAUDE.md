@@ -329,12 +329,14 @@ O tenant gerencia campanhas **próprias** e de seus **clientes**. O parâmetro `
 
 Implementado nas APIs: `campaigns`, `insights`, `leads`, `leads/stats`, `dashboard/full`, `dashboard/predictions`, `insights/ai`, `briefings`. O tipo `ClientFilter = string | 'own' | undefined` está em `marketing-api.ts`.
 
-### ⚠️ TODO — Seletor de Cliente nas UIs (PENDENTE — ALTA PRIORIDADE)
+### Seletor de Cliente nas UIs — ✅ concluído
 
-As interfaces ainda **não expõem o seletor de cliente**. Todas as páginas do módulo precisam:
-1. Dropdown "Todas as campanhas / Próprias / <nome do cliente>" usando `GET /clients`
-2. Passar `clientId` em todos os `loadData()` e chamadas de `marketing-api.ts`
-3. Persistir seleção no estado local de cada página
+Todas as páginas do módulo com dado por-cliente já usam `ClientSelector`/`useClientSelector`
+(`src/components/marketing/ClientSelector.tsx`): `dashboard`, `leads`, `criativos`,
+`criativos/padroes`, `iniciativas`, `desperdicio`, `portfolio`, `auditoria`, `publicacoes`,
+`cta-analytics`. Páginas sem seletor são assim por design (config global/tenant, fila de
+aprovação já agrupada por cliente, comparação cross-cliente por segmento, ou o picker
+próprio do `CampaignWizard` pra escolher o destino de uma campanha nova).
 
 ---
 
@@ -449,14 +451,7 @@ VALUES ('Nova Página', 'IconName', '/admin/campanhas/nova', 110, 5, true);
 
 ## Pendências e Próximos Passos
 
-### 1. Seletor de Cliente nas UIs (ALTA PRIORIDADE)
-
-O backend já filtra por `clientId` em todos os endpoints. As interfaces precisam de:
-- Componente `ClientSelector` compartilhado (dropdown: "Todas / Próprias / <nome>")
-- Integração em `dashboard/page.tsx`, `leads/page.tsx`
-- Passagem de `clientId` como parâmetro nas chamadas `marketing-api.ts`
-
-### 2. Redesign Premium — Ativar skill `impeccable`
+### 1. Redesign Premium — Ativar skill `impeccable`
 
 As interfaces atuais são funcionais mas convencionais. Para elevar o nível visual:
 ```
@@ -464,7 +459,7 @@ As interfaces atuais são funcionais mas convencionais. Para elevar o nível vis
 ```
 Revisar com foco em: `dashboard/page.tsx`, `leads/page.tsx`, `criativos/page.tsx`, `configuracoes/page.tsx`, `src/components/marketing/` (charts + CampaignWizard).
 
-### 3. Outras Pendências
+### 2. Outras Pendências
 
 - **Sync Meta real**: validar `POST /insights/sync` com token de produção e campanhas reais
 - **Fluxo completo do CampaignWizard**: publicação no Meta após upload de criativos
