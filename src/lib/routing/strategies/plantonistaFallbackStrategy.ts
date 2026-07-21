@@ -1,22 +1,42 @@
 import type { DistributionStrategy, DistributionStrategyContext, DistributionStrategyResult } from './types'
 
+const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+
 /**
- * Nível 4 — fallback final: corretor de plantão (is_plantonista=true), priorizando quem
- * atua na mesma área do lead quando existir, senão o de menor carga globalmente. Sempre
+ * Nível 4 — fallback final: corretor/atendente de plantão (is_plantonista=true), priorizando
+ * quem atua na mesma área do lead quando existir, senão o de menor carga globalmente. Sempre
  * roda por último e sempre com atribuição definitiva (sem expiração) — é o "ninguém mais
  * disponível, alguém tem que ficar responsável" da cascata.
+ *
+ * config opcional (mesmos campos e defaults de geoAreaStrategy — só usado aqui pra
+ * desempate de prioridade, não como filtro obrigatório):
+ *   { sellerAreaTable, sellerAreaFk, sellerEstadoColumn, sellerCidadeColumn }
  */
 export const plantonistaFallbackStrategy: DistributionStrategy = {
   key: 'plantonista_fallback',
 
   async findCandidate(ctx: DistributionStrategyContext): Promise<DistributionStrategyResult | null> {
+    const {
+      sellerAreaTable = 'atendente_area_atuacao',
+      sellerAreaFk = 'corretor_fk',
+      sellerEstadoColumn = 'estado_fk',
+      sellerCidadeColumn = 'cidade_fk',
+    } = ctx.config || {}
+
+    for (const ident of [sellerAreaTable, sellerAreaFk, sellerEstadoColumn, sellerCidadeColumn]) {
+      if (!IDENT_RE.test(ident)) {
+        console.warn(`[plantonistaFallbackStrategy] identificador inválido na config: "${ident}"`)
+        return null
+      }
+    }
+
     const q = `
       SELECT u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista
       FROM public.users u
       INNER JOIN public.user_tenant_membership utm ON u.id = utm.user_id
       INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
       INNER JOIN public.user_roles ur ON ura.role_id = ur.id
-      LEFT JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
+      LEFT JOIN public."${sellerAreaTable}" caa ON caa."${sellerAreaFk}" = u.id
       LEFT JOIN (
          SELECT corretor_fk, created_at FROM public.imovel_prospect_atribuicoes
          UNION ALL
@@ -27,9 +47,9 @@ export const plantonistaFallbackStrategy: DistributionStrategy = {
         AND ur.name = $5
         AND COALESCE(u.is_plantonista, false) = true
         AND (CASE WHEN array_length($1::uuid[], 1) > 0 THEN u.id != ALL($1::uuid[]) ELSE true END)
-      GROUP BY u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista, u.created_at, caa.estado_fk, caa.cidade_fk
+      GROUP BY u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista, u.created_at, caa."${sellerEstadoColumn}", caa."${sellerCidadeColumn}"
       ORDER BY
-        (CASE WHEN caa.estado_fk = $2 AND caa.cidade_fk = $3 THEN 0 ELSE 1 END) ASC,
+        (CASE WHEN caa."${sellerEstadoColumn}" = $2 AND caa."${sellerCidadeColumn}" = $3 THEN 0 ELSE 1 END) ASC,
         COUNT(a.corretor_fk) ASC,
         MAX(a.created_at) ASC NULLS FIRST,
         u.created_at ASC

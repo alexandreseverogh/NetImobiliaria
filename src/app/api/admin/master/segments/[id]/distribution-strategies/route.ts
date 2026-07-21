@@ -73,6 +73,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   const IDENT_FIELDS_BY_STRATEGY: Record<string, string[]> = {
     owner_of_asset: ['targetTable', 'targetIdColumn', 'ownerColumn', 'estadoColumn', 'cidadeColumn'],
     geo_area: ['sellerAreaTable', 'sellerAreaFk', 'sellerEstadoColumn', 'sellerCidadeColumn'],
+    plantonista_fallback: ['sellerAreaTable', 'sellerAreaFk', 'sellerEstadoColumn', 'sellerCidadeColumn'],
   };
 
   for (const s of strategies) {

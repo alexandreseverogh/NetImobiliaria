@@ -9,7 +9,7 @@ const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/
  *     partir de parametros_imoveis, tenant-wide)
  *   { sellerAreaTable, sellerAreaFk, sellerEstadoColumn, sellerCidadeColumn }  (opcionais —
  *     de qual tabela/colunas vem a área de atuação do vendedor; default preserva o
- *     comportamento histórico: corretor_areas_atuacao/corretor_fk/estado_fk/cidade_fk)
+ *     comportamento histórico: atendente_area_atuacao/corretor_fk/estado_fk/cidade_fk)
  * Sem estado_fk/cidade_fk no contexto do lead, a estratégia é pulada.
  */
 export const geoAreaStrategy: DistributionStrategy = {
@@ -20,7 +20,7 @@ export const geoAreaStrategy: DistributionStrategy = {
 
     const {
       limitExternal = 3, limitInternal = 3, slaExterno = 5, slaInterno = 15,
-      sellerAreaTable = 'corretor_areas_atuacao',
+      sellerAreaTable = 'atendente_area_atuacao',
       sellerAreaFk = 'corretor_fk',
       sellerEstadoColumn = 'estado_fk',
       sellerCidadeColumn = 'cidade_fk',

@@ -88,6 +88,7 @@ export function SegmentDistributionModal({ segment, onClose }: Props) {
   const IDENT_FIELDS_BY_STRATEGY: Record<string, string[]> = {
     owner_of_asset: ['targetTable', 'targetIdColumn', 'ownerColumn', 'estadoColumn', 'cidadeColumn'],
     geo_area: ['sellerAreaTable', 'sellerAreaFk', 'sellerEstadoColumn', 'sellerCidadeColumn'],
+    plantonista_fallback: ['sellerAreaTable', 'sellerAreaFk', 'sellerEstadoColumn', 'sellerCidadeColumn'],
   };
 
   function validate(): string | null {
@@ -246,14 +247,14 @@ export function SegmentDistributionModal({ segment, onClose }: Props) {
                             </div>
                           </div>
                         )}
-                        {s.strategyKey === 'geo_area' && (
+                        {(s.strategyKey === 'geo_area' || s.strategyKey === 'plantonista_fallback') && (
                           <div className="mt-2.5 space-y-1.5">
                             <p className="text-[10px] text-gray-400">
-                              Opcional — de qual tabela vem a área de atuação do vendedor. Deixe em branco pra usar o padrão (corretor_areas_atuacao):
+                              Opcional — de qual tabela vem a área de atuação do vendedor. Deixe em branco pra usar o padrão (atendente_area_atuacao):
                             </p>
                             <div className="grid grid-cols-2 gap-2">
                               <input
-                                type="text" placeholder="tabela (padrão: corretor_areas_atuacao)"
+                                type="text" placeholder="tabela (padrão: atendente_area_atuacao)"
                                 value={s.config.sellerAreaTable || ''}
                                 onChange={(e) => updateConfig(s.strategyKey, 'sellerAreaTable', e.target.value)}
                                 className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"

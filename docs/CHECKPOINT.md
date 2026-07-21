@@ -1,14 +1,60 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — `geo_area` e o fallback de geografia em `/api/crm/leads`
-> deixam de ter tabela/coluna hardcoded, virando config por segmento (mesmo espírito do
-> `owner_of_asset`).
+> **Atualizado em:** 2026-07-21 — `corretor_areas_atuacao` renomeada pra
+> `atendente_area_atuacao` (banco + código), e `plantonistaFallbackStrategy.ts` generalizado
+> no mesmo padrão do `geo_area`.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-21 (continuação 8) — Rename `corretor_areas_atuacao` → `atendente_area_atuacao` ✅
+
+**Contexto:** pergunta original do usuário (bem no início desta frente de trabalho) que tinha
+ficado pendente enquanto investigávamos o worker duplicado e generalizávamos o `geo_area`.
+Com as duas coisas resolvidas, o impacto real do rename caiu de 44 arquivos (levantamento
+original) pra só 5 em `src/` — a maior parte do resto eram scripts de debug/migrations
+históricas, fora de escopo.
+
+**Decisões confirmadas com o usuário:** nome final `atendente_area_atuacao`; generalizar
+`plantonistaFallbackStrategy.ts` (ainda hardcoded) na mesma leva, já que ficava barato.
+
+**Implementado:**
+1. `prisma/migration-2026-07-21-rename-corretor-areas-atuacao.sql` — `ALTER TABLE ... RENAME`
+   + os 4 índices + 4 constraints de FK + a sequence, tudo renomeado junto (metadado, sem
+   cópia de dado). Confirmado antes: nenhum segmento tinha `sellerAreaTable` explícito em
+   `segment_distribution_strategies.config` (todos usando o default do código), então nenhum
+   dado de config precisou migrar.
+2. `geoAreaStrategy.ts` — só o default (`sellerAreaTable = 'atendente_area_atuacao'`).
+3. `plantonistaFallbackStrategy.ts` — generalizado no mesmo padrão do `geo_area` (config
+   opcional `sellerAreaTable`/`sellerAreaFk`/`sellerEstadoColumn`/`sellerCidadeColumn`,
+   defaults idênticos ao comportamento de sempre) — antes só usava a tabela hardcoded como
+   critério de desempate.
+4. `src/lib/database/users.ts` (limpeza ao deletar usuário) e
+   `src/app/api/public/corretor/areas-atuacao/route.ts` (API pública onde o corretor
+   cadastra sua própria área — GET/POST/DELETE) atualizados pro nome novo.
+5. `SegmentDistributionModal.tsx` + API de validação — textos/placeholders atualizados,
+   `plantonista_fallback` ganha os mesmos campos de config que `geo_area` (mesmo bloco de UI,
+   reaproveitado pelas duas estratégias).
+
+**Testado ao vivo:** `POST /api/crm/leads` (geo_area + plantonista_fallback contra a tabela
+renomeada, sem erro) · `GET/POST/DELETE /api/public/corretor/areas-atuacao` (a API pública real
+que o corretor usa) — ciclo completo testado com token real de um corretor de verdade,
+confirmado no banco que a linha foi escrita/lida/removida em `atendente_area_atuacao`. `npx tsc
+--noEmit`: 55 erros, mesma baseline pré-existente (os 4 erros que aparecem no arquivo de
+`areas-atuacao` já existiam antes — mismatch de tipo em `getLoggedUser`, não relacionado às
+mudanças de nome de tabela). Dado de teste removido depois.
+
+**Fora de escopo, deliberado:** a URL pública `/corretor/areas-atuacao` (a página que o corretor
+acessa) não foi renomeada — é uma decisão independente do nome da tabela, e mudar a URL
+quebraria links/favoritos salvos por corretores reais. Scripts de debug (~25 arquivos) e
+migrations históricas mantidos com o nome antigo, como já era o combinado.
+
+---
+
+## Última tarefa concluída
 
 ### Sessão 2026-07-21 (continuação 7) — `geo_area` sem tabela hardcoded + fallback de geografia genérico ✅
 

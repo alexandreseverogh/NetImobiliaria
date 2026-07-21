@@ -49,8 +49,8 @@ export async function GET(request: NextRequest) {
     }
 
     const query = `
-      SELECT id, estado_fk, cidade_fk, created_at 
-      FROM public.corretor_areas_atuacao 
+      SELECT id, estado_fk, cidade_fk, created_at
+      FROM public.atendente_area_atuacao
       WHERE corretor_fk = $1::uuid AND (tenant_id = $2 OR $2 IS NULL)
       ORDER BY estado_fk, cidade_fk
     `
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar se já existe no contexto deste tenant
     const checkQuery = `
-      SELECT id FROM public.corretor_areas_atuacao 
+      SELECT id FROM public.atendente_area_atuacao
       WHERE corretor_fk = $1::uuid AND estado_fk = $2 AND cidade_fk = $3 AND (tenant_id = $4 OR $4 IS NULL)
     `
     const checkResult = await pool.query(checkQuery, [userId, estado_fk, cidade_fk, tenantId || null])
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     const tenantIdToUse = tenantId || '00000000-0000-0000-0000-000000000001'
 
     const insertQuery = `
-      INSERT INTO public.corretor_areas_atuacao (corretor_fk, estado_fk, cidade_fk, created_by, tenant_id)
+      INSERT INTO public.atendente_area_atuacao (corretor_fk, estado_fk, cidade_fk, created_by, tenant_id)
       VALUES ($1::uuid, $2, $3, $1::uuid, $4)
       RETURNING id, estado_fk, cidade_fk, created_at
     `
@@ -168,7 +168,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const query = `
-      DELETE FROM public.corretor_areas_atuacao 
+      DELETE FROM public.atendente_area_atuacao
       WHERE id = $1 AND corretor_fk = $2::uuid AND (tenant_id = $3 OR $3 IS NULL)
       RETURNING id
     `

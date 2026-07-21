@@ -447,7 +447,7 @@ export async function deleteUser(id: string): Promise<boolean> {
 
     try {
       await pool.query('DELETE FROM corretor_scores WHERE user_id = $1', [id])
-      await pool.query('DELETE FROM corretor_areas_atuacao WHERE corretor_fk = $1', [id])
+      await pool.query('DELETE FROM atendente_area_atuacao WHERE corretor_fk = $1', [id])
       await pool.query('DELETE FROM user_sessions WHERE user_id = $1', [id])
       await pool.query('DELETE FROM login_logs WHERE user_id = $1', [id])
       await pool.query('DELETE FROM audit_2fa_logs WHERE user_id = $1', [id])
