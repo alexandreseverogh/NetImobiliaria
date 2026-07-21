@@ -87,6 +87,7 @@ export async function routeProspectAndNotify(
       ip.mensagem,
       i.id as imovel_id,
       i.corretor_fk,
+      i.tenant_id,
       i.codigo,
       i.titulo,
       i.descricao,
@@ -162,7 +163,7 @@ export async function routeProspectAndNotify(
     source_owner_id: p.corretor_fk, // Dono da captação
     estado_fk: estado,
     cidade_fk: cidade,
-    domain_id: 1 // Imobiliário
+    tenant_id: p.tenant_id,
   }, excludeIds, runner);
 
   if (!result) {

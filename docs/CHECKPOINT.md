@@ -1,14 +1,104 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — F7 (CRM agnóstico de domínio) de
-> docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md implementado e verificado. Todas as fases F0-F7 do
-> plano de migração e as 4 decisões D1-D4 estão concluídas.
+> **Atualizado em:** 2026-07-21 — motor de distribuição de leads virou orquestrador de
+> estratégias plugáveis por segmento (evolução do F7, docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md
+> §6), a pedido do usuário depois de questionar se o F7 original escalava de verdade pra
+> "dezenas de segmentos, zero hardcoded em tudo".
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-21 (continuação 4) — Motor de distribuição: cascata fixa → estratégias plugáveis ✅
+
+**Contexto:** ao reportar o F7 concluído (extração do acoplamento a "imóvel" do
+`DistributionEngine` pras 4 colunas de `system_segments`), o usuário questionou se isso
+realmente escalava pra "dezenas de segmentos... zero hardcoded em TUDO". Resposta honesta: não
+totalmente — o F7 tirou os 2 hardcodes mais graves (nome do role, busca do dono do ativo), mas
+a CASCATA em si (dono → geográfico externo → geográfico interno → plantonista) continuava fixa
+no código, igual pra todo segmento. Isso é errado de verdade pra várias verticais reais (Saúde
+importa mais especialidade que geografia; B2B nacional não tem geografia nenhuma). Documento
+explicado ao usuário antes de implementar: cada segmento passa a declarar sua PRÓPRIA lista
+ordenada de estratégias, não só os parâmetros de uma cascata única — mesmo padrão adapter já
+usado na plataforma pra redes de anúncio (`AdNetworkService`) e provedores de LLM
+(`getLlmClient`). Usuário também perguntou sobre UI: confirmado que segue o padrão já
+estabelecido (botão por linha na lista de segmentos, sem item novo na sidebar — mesmo molde de
+Ângulos/Interesses/Benchmarks/Dados do Bot/Empresas).
+
+**Implementado:**
+1. `prisma/migration-2026-07-21-segment-distribution-strategies.sql` — nova tabela
+   `public.segment_distribution_strategies` (segment_id, strategy_key, priority, is_active,
+   config jsonb, UNIQUE(segment_id, strategy_key)). Migra os dados do F7: Imobiliário ganha
+   `owner_of_asset` (com o config `imoveis`/`id`/`corretor_fk` que já estava hardcoded) +
+   `geo_area` + `plantonista_fallback`; todo outro segmento ganha `geo_area` +
+   `plantonista_fallback` — preserva o comportamento EXATO que cada um já tinha (a cascata
+   sempre rodou pra todos, só o Nível 1 nunca disparava fora do Imobiliário). As 3 colunas do
+   F7 (`distribution_target_table/target_id_column/owner_column`) são removidas — foram
+   adicionadas nesta mesma sessão, sem nenhum outro código dependendo delas, então não é uma
+   migração destrutiva no sentido do CLAUDE.md. `distribution_role_name` fica (parâmetro
+   transversal, usado por todas as estratégias, não específico de uma etapa).
+2. `src/lib/routing/strategies/` (novo diretório) — 4 módulos, cada um um algoritmo isolado
+   implementando a interface `DistributionStrategy`: `ownerOfAssetStrategy` (o Nível 1 do F7,
+   generalizado — aceita tanto `sourceOwnerId` já resolvido pelo chamador quanto resolve
+   sozinho via `config.targetTable/targetIdColumn/ownerColumn`), `geoAreaStrategy` (Nível 2/3
+   de sempre, extraído sem mudança de lógica), `roundRobinStrategy` (**novo** — fila pura, sem
+   geografia nem dono, pra segmentos como B2B nacional/SaaS), `plantonistaFallbackStrategy`
+   (Nível 4 de sempre). `index.ts` — catálogo (`DISTRIBUTION_STRATEGIES`/
+   `DISTRIBUTION_STRATEGY_CATALOG`), mesmo espírito do catálogo de redes de anúncio: o
+   vocabulário é código, mas quais se aplicam a cada segmento e em que ordem é 100% dado.
+3. `DistributionEngine.findBestCandidate` virou orquestrador — resolve o segmento do tenant,
+   busca a lista ordenada de `segment_distribution_strategies` ativas, itera chamando cada
+   módulo até achar candidato. `/api/crm/leads/route.ts` simplificado (removida a resolução
+   manual de `sourceOwnerId`/`seller_role_name` que eu tinha acabado de adicionar no F7 — o
+   engine resolve tudo sozinho agora).
+4. **Bug real de pré-multi-tenant encontrado e corrigido durante a extração** (não introduzido
+   por mim, preexistente): `transbordo/route.ts` (cron) e `prospectRouter.ts` NUNCA passavam
+   `tenant_id` pro `DistributionEngine` — sempre caía no tenant master por padrão. Isso não
+   quebrava nada enquanto a cascata era fixa e igual pra todo mundo, mas quebraria silenciosamente
+   agora (resolveria o segmento errado, perderia a config de `owner_of_asset` do Imobiliário).
+   Corrigido: `i.tenant_id`/`stgLead.tenant_id` adicionados às queries já existentes e passados
+   pro engine — fix de causa raiz, não workaround.
+5. `GET/PUT /api/admin/master/segments/[id]/distribution-strategies` — replace-all
+   transacional, valida `strategyKey` contra o catálogo real e identificadores de
+   `config.targetTable/targetIdColumn/ownerColumn` (mesmo padrão de `data-entities/route.ts`).
+6. `SegmentDistributionModal.tsx` (novo) — lista reordenável (setas ↑↓, sem lib de drag-and-drop
+   nova), toggle ativo/inativo, remover, adicionar do catálogo de estratégias disponíveis,
+   formulário de config específico por `strategy_key`. Botão novo (`UserGroupIcon`, rosa) na
+   linha de cada segmento em `/admin/master/segments`, mesmo padrão dos outros 5 botões — sem
+   item novo na sidebar. Removidos os 3 campos obsoletos do formulário principal do segmento
+   (ficou só `distribution_role_name`, que continua fazendo sentido ali).
+
+**Testado ao vivo, ponta a ponta, com dado real** (segmento Imobiliário, tenant Imobiliaria
+XYZ): `GET .../distribution-strategies` retornou as 3 estratégias migradas corretamente com o
+config real do owner_of_asset · `POST /api/crm/leads` com `imovel_id` real → orquestrador
+executou sem erro (mesmo resultado do teste de regressão do F7 original) · **teste decisivo do
+round_robin**: adicionado temporariamente como prioridade 1 no segmento Imobiliário, criado um
+lead SEM `imovel_id` e sem geografia (que antes não tinha absolutamente NENHUM candidato
+possível) → round_robin encontrou corretamente o único "Corretor" ativo do tenant (Juliana
+Carvalho, que não tem área geográfica cadastrada nem é plantonista — inelegível pras outras 3
+estratégias, mas elegível pra fila pura) — prova concreta de que uma estratégia nova resolve um
+caso que a cascata fixa nunca resolveria · validação de identificador (`targetTable: "imoveis;
+DROP TABLE users;--"`) e de `strategyKey` inventada → ambas rejeitadas com 400, estado do
+segmento intacto depois · segmento revertido ao estado original (3 estratégias) depois do teste.
+**Lição registrada:** a limpeza do teste de round_robin fez um `DELETE FROM corretor_scores
+WHERE user_id = ...` sem escopar por período/lead — funcionou porque confirmei via 3 queries
+cruzadas (leads_staging_atribuicoes/leads_staging/imovel_prospect_atribuicoes, todas count=0
+pra esse usuário) que a linha não tinha histórico anterior, mas o `DELETE` em si foi mais largo
+do que deveria — da próxima vez, decrementar em vez de apagar, ou checar o estado antes/depois.
+`npx tsc --noEmit`: 55 erros, mesma baseline pré-existente (zero novos em qualquer arquivo
+tocado nesta rodada).
+
+**Pendências reais do plano de unificação, ainda não atacadas:** matriz formal de testes (§7 —
+9 cenários de contratação + degradação graciosa + integridade da fonte única). A estratégia
+`specialty_match` (casar especialidade do lead com especialidade do vendedor) foi discutida mas
+deliberadamente NÃO implementada — exigiria uma tabela nova (`user_specialties`) sem nenhum
+segmento real pedindo isso ainda; fica pra quando houver um caso concreto.
+
+---
+
+## Última tarefa concluída
 
 ### Sessão 2026-07-21 (continuação 3) — F7: CRM agnóstico de domínio ✅
 

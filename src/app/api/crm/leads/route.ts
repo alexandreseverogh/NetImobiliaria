@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { DistributionEngine } from '@/lib/routing/distributionEngine'
-import { resolveSegment } from '@/lib/intelligence/segmentResolver'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
-
-const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/
 
 function getCurrentUser(request: NextRequest): { userId: string, tenantId?: string, is_system_role?: boolean } | null {
   try {
@@ -209,38 +206,16 @@ export async function POST(request: NextRequest) {
       [qualification.tag_sonho, qualification.resumo_ia, qualification.score_prontidao * 10, leadUuid]
     )
 
-    // 4. MOTOR DE DISTRIBUIÇÃO INTELIGENTE — dono do ativo (Nível 1) e nome do role de
-    // vendedor resolvidos via configuração do segmento do tenant, não mais hardcoded pra
-    // "imoveis.corretor_fk"/"Corretor" (F7 — docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6).
-    // Segmento ainda sem essa config (Master não configurou) simplesmente pula o Nível 1 —
-    // cai pro roteamento geográfico, que já era 100% agnóstico de domínio.
-    const segment = await resolveSegment(leadTenantId, leadClientId).catch(() => null)
-
-    let sourceOwnerId: string | undefined
-    if (
-      imovel_id &&
-      segment?.distribution_target_table && IDENT_RE.test(segment.distribution_target_table) &&
-      segment?.distribution_target_id_column && IDENT_RE.test(segment.distribution_target_id_column) &&
-      segment?.distribution_owner_column && IDENT_RE.test(segment.distribution_owner_column)
-    ) {
-      const ownerRes = await pool.query(
-        `SELECT "${segment.distribution_owner_column}" AS owner_id
-           FROM public."${segment.distribution_target_table}"
-          WHERE "${segment.distribution_target_id_column}" = $1`,
-        [imovel_id]
-      )
-      sourceOwnerId = ownerRes.rows[0]?.owner_id ?? undefined
-    }
-
+    // 4. MOTOR DE DISTRIBUIÇÃO INTELIGENTE — resolve sozinho o segmento do tenant, a lista de
+    // estratégias configuradas (Master, /admin/master/segments) e o dono do ativo quando
+    // aplicável. Nada hardcoded pra "imóvel" aqui — ver src/lib/routing/distributionEngine.ts
+    // e src/lib/routing/strategies/ (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6, F7).
     const routed = await DistributionEngine.findBestCandidate({
        lead_id: leadUuid,
        target_id: imovel_id,
-       source_owner_id: sourceOwnerId,
        estado_fk: inheritedEstado,
        cidade_fk: inheritedCidade,
-       domain_id: 1, // Imobiliário — legado, hoje só usado em log; roteamento real é por segmento
        tenant_id: leadTenantId,
-       seller_role_name: segment?.distribution_role_name,
     })
 
     if (routed) {

@@ -141,7 +141,7 @@ export async function GET(request: Request) {
 
         // --- BLOCO 2: TRANSBORDO CRM (LEADS STAGING) ---
         const stgExpiredQuery = `
-          SELECT lead_uuid, imovel_id, estado_fk, cidade_fk, corretor_atribuido_id as current_corretor
+          SELECT lead_uuid, imovel_id, estado_fk, cidade_fk, corretor_atribuido_id as current_corretor, tenant_id
           FROM leads_staging
           WHERE atribuicao_expira_em < NOW() AND corretor_atribuido_id IS NOT NULL
           FOR UPDATE SKIP LOCKED
@@ -172,7 +172,7 @@ export async function GET(request: Request) {
                     source_owner_id: ownerId,
                     estado_fk: stgLead.estado_fk,
                     cidade_fk: stgLead.cidade_fk,
-                    domain_id: 1
+                    tenant_id: stgLead.tenant_id,
                 }, exclude, client);
 
                 if (newRouted) {

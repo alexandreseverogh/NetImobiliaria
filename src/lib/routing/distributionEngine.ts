@@ -1,22 +1,28 @@
 import pool from '@/lib/database/connection'
+import { DISTRIBUTION_STRATEGIES } from './strategies'
+import type { DistributionStrategyContext, DistributionStrategyResult } from './strategies/types'
 
 /**
  * 🛰️ MOTOR DE DISTRIBUIÇÃO UNIFICADO (CRM v2.0)
- * Arquitetura Agnóstica: Funciona para Imóveis, Saúde, Educação, etc.
- * Objetivo: Decidir quem recebe o lead com base em Hierarquia, Área e SLA.
+ *
+ * Orquestrador de estratégias plugáveis por segmento (public.segment_distribution_strategies,
+ * configurado pelo Master em /admin/master/segments) — cada segmento declara sua própria lista
+ * ORDENADA de estratégias (dono do ativo, área geográfica, fila, plantonista...), o engine
+ * itera essa lista e para na primeira que encontrar um candidato. Ver src/lib/routing/
+ * strategies/ pras implementações e docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6 (F7) pro
+ * histórico da extração do acoplamento a "imóvel" que este desenho substitui.
  */
 
 export interface LeadDistributionContext {
   lead_id: string | number; // UUID (Staging) ou ID (Prospect)
   target_id?: string | number; // Ex: ID do Imóvel, ID do Curso, ID do Exame
-  source_owner_id?: string; // UUID do Dono do Ativo (se houver)
+  /** Dono já resolvido pelo chamador (opcional — quando ausente, a estratégia owner_of_asset
+   *  resolve sozinha via config.targetTable/targetIdColumn/ownerColumn do segmento). */
+  source_owner_id?: string;
   estado_fk?: string;
   cidade_fk?: string;
-  domain_id?: number; // Para multi-inquilino / multi-垂直 (SaaS)
-  tenant_id?: string; // NOVO: Isolamento Multi-Tenant
-  /** F7 — nome do role de vendedor pra este segmento (default 'Corretor', o valor histórico
-   *  hardcoded). Vem de system_segments.distribution_role_name — ver segmentResolver.ts. */
-  seller_role_name?: string;
+  domain_id?: number; // Legado — não influencia mais o roteamento, mantido só pra log/telemetria
+  tenant_id?: string;
 }
 
 export interface RoutedBroker {
@@ -39,193 +45,98 @@ export class DistributionEngine {
     excludeIds: string[] = [],
     dbClient: any = pool
   ): Promise<RoutedBroker | null> {
-    console.log(`[DistributionEngine] Iniciando busca para lead ${ctx.lead_id}. Domínio: ${ctx.domain_id || 1}`);
-
     const tenantId = ctx.tenant_id || '00000000-0000-0000-0000-000000000001';
-    const sellerRoleName = ctx.seller_role_name || 'Corretor';
+    console.log(`[DistributionEngine] Iniciando busca para lead ${ctx.lead_id}. Tenant: ${tenantId}`);
 
-    // 1. Buscar Parâmetros de SLA e Limites (Garantindo Zero Hardcoding)
+    // 1. Resolve o segmento do tenant (fallback: slug='geral' quando o tenant não tem
+    // segmento próprio) — usa o MESMO dbClient do chamador (pode ser um client de transação
+    // de cron), não um pool separado.
+    const segmentRes = await dbClient.query(
+      `SELECT ss.id, ss.distribution_role_name
+         FROM public.system_segments ss
+         JOIN public.tenants t ON t.segment_id = ss.id
+        WHERE t.id = $1 AND ss.is_active = true
+        LIMIT 1`,
+      [tenantId],
+    );
+    let segment = segmentRes.rows[0];
+    if (!segment) {
+      const fallbackRes = await dbClient.query(
+        `SELECT id, distribution_role_name FROM public.system_segments WHERE slug = 'geral' AND is_active = true LIMIT 1`,
+      );
+      segment = fallbackRes.rows[0];
+    }
+    if (!segment) {
+      console.warn(`[DistributionEngine] Nenhum segmento resolvido (tenant ${tenantId}, sem fallback 'geral') — abortando roteamento.`);
+      return null;
+    }
+
+    const sellerRoleName = segment.distribution_role_name || 'Corretor';
+
+    // 2. Buscar Parâmetros de SLA e Limites (Garantindo Zero Hardcoding) — tenant-wide,
+    // reaproveitados por qualquer estratégia que precise (geo_area, round_robin).
     const paramsRes = await dbClient.query('SELECT * FROM public.parametros_imoveis WHERE tenant_id = $1 LIMIT 1', [tenantId]);
     const params = paramsRes.rows[0] || {};
-    
-    const limitExternal = parseInt(params.proximos_corretores_recebem_leads) || 3;
-    const limitInternal = parseInt(params.proximos_corretores_recebem_leads_internos) || 3;
-    const slaExterno = parseInt(params.sla_minutos_aceite_lead) || 5;
-    const slaInterno = parseInt(params.sla_minutos_aceite_lead_interno) || 15;
+    const slaDefaults = {
+      limitExternal: parseInt(params.proximos_corretores_recebem_leads) || 3,
+      limitInternal: parseInt(params.proximos_corretores_recebem_leads_internos) || 3,
+      slaExterno: parseInt(params.sla_minutos_aceite_lead) || 5,
+      slaInterno: parseInt(params.sla_minutos_aceite_lead_interno) || 15,
+    };
 
-    // --- NÍVEL 1: DONO DO IMÓVEL (Direct/Owner) ---
-    // Regra: Se o imóvel tem um corretor fixo (corretor_fk), ele recebe o lead automaticamente.
-    // Esta atribuição é definitiva (expira_em = NULL).
-    if (ctx.source_owner_id && !excludeIds.includes(ctx.source_owner_id)) {
-      const ownerRes = await dbClient.query(
-        `SELECT u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista 
-         FROM users u
-         INNER JOIN user_tenant_membership utm ON u.id = utm.user_id
-         WHERE u.id = $1 AND u.ativo = true AND utm.tenant_id = $2`,
-        [ctx.source_owner_id, tenantId]
-      );
-      
-      if (ownerRes.rows.length > 0) {
-        const row = ownerRes.rows[0];
-        console.log(`✅ [DistributionEngine] Nível 1: Dono do Imóvel selecionado: ${row.nome}`);
+    // 3. Buscar a lista ordenada de estratégias ativas deste segmento
+    const strategiesRes = await dbClient.query(
+      `SELECT strategy_key, config
+         FROM public.segment_distribution_strategies
+        WHERE segment_id = $1 AND is_active = true
+        ORDER BY priority ASC`,
+      [segment.id],
+    );
+
+    if (strategiesRes.rows.length === 0) {
+      console.warn(`[DistributionEngine] Segmento ${segment.id} sem nenhuma estratégia de distribuição configurada.`);
+      return null;
+    }
+
+    const baseCtx: Omit<DistributionStrategyContext, 'config'> = {
+      tenantId,
+      targetId: ctx.target_id,
+      sourceOwnerId: ctx.source_owner_id,
+      estadoFk: ctx.estado_fk,
+      cidadeFk: ctx.cidade_fk,
+      sellerRoleName,
+      excludeIds,
+      dbClient,
+    };
+
+    for (const row of strategiesRes.rows) {
+      const strategy = DISTRIBUTION_STRATEGIES[row.strategy_key];
+      if (!strategy) {
+        console.warn(`[DistributionEngine] strategy_key desconhecida: "${row.strategy_key}" (segmento ${segment.id}) — pulando.`);
+        continue;
+      }
+
+      const result: DistributionStrategyResult | null = await strategy.findCandidate({
+        ...baseCtx,
+        config: { ...slaDefaults, ...(row.config || {}) },
+      });
+
+      if (result) {
+        console.log(`✅ [DistributionEngine] "${row.strategy_key}" selecionou: ${result.nome} (${result.motivo_atribuicao})`);
         return {
-          id: row.id,
-          nome: row.nome,
-          email: row.email,
-          tipo_corretor: row.tipo_corretor,
-          is_plantonista: row.is_plantonista,
-          sla_minutos: 0,
-          motivo_atribuicao: 'dono_ativo',
-          expira_em: null as any // Atribuição definitiva conforme regra do usuário
+          id: result.id,
+          nome: result.nome,
+          email: result.email,
+          tipo_corretor: result.tipo_corretor,
+          is_plantonista: result.is_plantonista,
+          sla_minutos: result.sla_minutos,
+          motivo_atribuicao: result.motivo_atribuicao,
+          expira_em: result.expira_em as any,
         };
       }
     }
 
-    // --- NÍVEL 2: ROTEAMENTO GEOGRÁFICO - CORRETORES EXTERNOS ---
-    // Regra: Se não houver dono, prioridade para corretores externos da área.
-    if (ctx.estado_fk && ctx.cidade_fk) {
-      const externalRes = await this.queryBrokersByArea(
-        ctx.estado_fk, ctx.cidade_fk, 'Externo', excludeIds, limitExternal, tenantId, dbClient, sellerRoleName
-      );
-      if (externalRes) {
-        console.log(`✅ [DistributionEngine] Nível 2: Corretor Externo por Área: ${externalRes.nome}`);
-        return this.formatResult(externalRes, 'area_match_externo', slaExterno, slaInterno);
-      }
-
-      // --- NÍVEL 3: ROTEAMENTO GEOGRÁFICO - CORRETORES INTERNOS ---
-      const internalRes = await this.queryBrokersByArea(
-        ctx.estado_fk, ctx.cidade_fk, 'Interno', excludeIds, limitInternal, tenantId, dbClient, sellerRoleName
-      );
-      if (internalRes) {
-        console.log(`✅ [DistributionEngine] Nível 3: Corretor Interno por Área: ${internalRes.nome}`);
-        return this.formatResult(internalRes, 'area_match_interno', slaExterno, slaInterno);
-      }
-    }
-
-    // --- NÍVEL 4: FALLBACK FINAL (Plantonista) ---
-    const plantonistaRes = await this.queryPlantonista(excludeIds, tenantId, dbClient, ctx.estado_fk, ctx.cidade_fk, sellerRoleName);
-    if (plantonistaRes) {
-      console.log(`✅ [DistributionEngine] Nível 4: Fallback Plantonista: ${plantonistaRes.nome}`);
-      return {
-        id: plantonistaRes.id,
-        nome: plantonistaRes.nome,
-        email: plantonistaRes.email,
-        tipo_corretor: plantonistaRes.tipo_corretor,
-        is_plantonista: true,
-        sla_minutos: 0,
-        motivo_atribuicao: 'fallback_plantonista',
-        expira_em: null as any
-      };
-    }
-
-    console.warn(`❌ [DistributionEngine] Nenhum candidato disponível para o lead ${ctx.lead_id}`);
+    console.warn(`❌ [DistributionEngine] Nenhum candidato disponível para o lead ${ctx.lead_id} (segmento ${segment.id}).`);
     return null;
-  }
-
-  /**
-   * Consulta centralizada de corretores por área com Round Robin
-   * Aplica o limite de 'n' corretores que já receberam leads para rotatividade
-   */
-  private static async queryBrokersByArea(
-    estado: string,
-    cidade: string,
-    tipo: 'Externo' | 'Interno',
-    excludeIds: string[],
-    limit: number,
-    tenantId: string,
-    dbClient: any,
-    sellerRoleName: string
-  ): Promise<any | null> {
-    const q = `
-      SELECT
-        u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista,
-        COALESCE(cs.nivel, 0) as nivel,
-        COUNT(a.corretor_fk) AS total_recebidos,
-        MAX(a.created_at) AS ultimo_recebimento
-      FROM public.users u
-      INNER JOIN public.user_tenant_membership utm ON u.id = utm.user_id
-      INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
-      INNER JOIN public.user_roles ur ON ura.role_id = ur.id
-      INNER JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
-      LEFT JOIN public.corretor_scores cs ON cs.user_id = u.id
-      LEFT JOIN (
-        -- Unificamos a contagem para ser agnóstica entre Prospect e Staging
-        SELECT corretor_fk, created_at FROM public.imovel_prospect_atribuicoes
-        UNION ALL
-        SELECT corretor_atribuido_id as corretor_fk, created_at FROM public.leads_staging WHERE corretor_atribuido_id IS NOT NULL
-      ) a ON a.corretor_fk = u.id
-      WHERE u.ativo = true
-        AND utm.tenant_id = $6
-        AND ur.name = $7
-        AND COALESCE(u.is_plantonista, false) = false
-        AND u.tipo_corretor = $1
-        AND caa.estado_fk = $2
-        AND caa.cidade_fk = $3
-        AND (CASE WHEN array_length($4::uuid[], 1) > 0 THEN u.id != ALL($4::uuid[]) ELSE true END)
-      GROUP BY u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista, cs.nivel, u.created_at
-      HAVING COUNT(a.corretor_fk) < $5 -- Aplica o limite parametrizado
-      ORDER BY
-        COUNT(a.corretor_fk) ASC,
-        MAX(a.created_at) ASC NULLS FIRST,
-        COALESCE(cs.nivel, 0) DESC,
-        u.created_at ASC
-      LIMIT 1
-    `;
-    const r = await dbClient.query(q, [tipo, estado, cidade, excludeIds, limit, tenantId, sellerRoleName]);
-    return r.rows[0] || null;
-  }
-
-  /**
-   * Consulta centralizada de Plantonistas
-   */
-  private static async queryPlantonista(excludeIds: string[], tenantId: string, dbClient: any, estado?: string, cidade?: string, sellerRoleName: string = 'Corretor'): Promise<any | null> {
-    // Tenta primeiro plantonista da área, senão global
-    const q = `
-      SELECT u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista
-      FROM public.users u
-      INNER JOIN public.user_tenant_membership utm ON u.id = utm.user_id
-      INNER JOIN public.user_role_assignments ura ON u.id = ura.user_id
-      INNER JOIN public.user_roles ur ON ura.role_id = ur.id
-      LEFT JOIN public.corretor_areas_atuacao caa ON caa.corretor_fk = u.id
-      LEFT JOIN (
-         SELECT corretor_fk, created_at FROM public.imovel_prospect_atribuicoes
-         UNION ALL
-         SELECT corretor_atribuido_id as corretor_fk, created_at FROM public.leads_staging WHERE corretor_atribuido_id IS NOT NULL
-      ) a ON a.corretor_fk = u.id
-      WHERE u.ativo = true
-        AND utm.tenant_id = $4
-        AND ur.name = $5
-        AND COALESCE(u.is_plantonista, false) = true
-        AND (CASE WHEN array_length($1::uuid[], 1) > 0 THEN u.id != ALL($1::uuid[]) ELSE true END)
-      GROUP BY u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista, u.created_at, caa.estado_fk, caa.cidade_fk
-      ORDER BY
-        (CASE WHEN caa.estado_fk = $2 AND caa.cidade_fk = $3 THEN 0 ELSE 1 END) ASC, -- Prioriza área se houver match
-        COUNT(a.corretor_fk) ASC,
-        MAX(a.created_at) ASC NULLS FIRST,
-        u.created_at ASC
-      LIMIT 1
-    `;
-    const r = await dbClient.query(q, [excludeIds, estado || '', cidade || '', tenantId, sellerRoleName]);
-    return r.rows[0] || null;
-  }
-
-  /**
-   * Helper para formatar o resultado com cálculo de SLA dinâmico
-   */
-  private static formatResult(row: any, motivo: string, slaExt: number, slaInt: number): RoutedBroker {
-    const sla = row.tipo_corretor === 'Externo' ? slaExt : slaInt;
-    const expiraEm = new Date();
-    expiraEm.setMinutes(expiraEm.getMinutes() + sla);
-
-    return {
-      id: row.id,
-      nome: row.nome,
-      email: row.email,
-      tipo_corretor: row.tipo_corretor,
-      is_plantonista: row.is_plantonista,
-      sla_minutos: sla,
-      motivo_atribuicao: motivo,
-      expira_em: expiraEm
-    };
   }
 }
