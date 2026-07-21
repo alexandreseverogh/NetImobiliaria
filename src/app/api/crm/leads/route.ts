@@ -3,6 +3,8 @@ import pool from '@/lib/database/connection'
 import { DistributionEngine } from '@/lib/routing/distributionEngine'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 
+const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+
 function getCurrentUser(request: NextRequest): { userId: string, tenantId?: string, is_system_role?: boolean } | null {
   try {
     const token = request.cookies.get('accessToken')?.value ||
@@ -67,15 +69,48 @@ export async function POST(request: NextRequest) {
     let leadTenantId = data.tenant_id || '00000000-0000-0000-0000-000000000001'
     const leadClientId = data.client_id || null  // segmento/cliente (multi-tenant); null = "own"
 
-    if (imovel_id) {
-      const propertyRes = await pool.query(
-        'SELECT estado_fk, cidade_fk, tenant_id FROM imoveis WHERE id = $1',
-        [imovel_id]
-      )
-      if (propertyRes.rows.length > 0) {
-        inheritedEstado = inheritedEstado || propertyRes.rows[0].estado_fk
-        inheritedCidade = inheritedCidade || propertyRes.rows[0].cidade_fk
-        leadTenantId = data.tenant_id || propertyRes.rows[0].tenant_id
+    // Fallback legado: quando tenant_id não vem no payload mas imovel_id vem, infere o tenant
+    // a partir do imóvel — conveniência específica de quando o Imobiliário é o único caminho
+    // real (a maioria dos chamadores desta sessão já manda tenant_id explícito).
+    if (imovel_id && !data.tenant_id) {
+      const ownerTenantRes = await pool.query('SELECT tenant_id FROM imoveis WHERE id = $1', [imovel_id])
+      if (ownerTenantRes.rows[0]?.tenant_id) leadTenantId = ownerTenantRes.rows[0].tenant_id
+    }
+
+    // Fallback de geografia — genérico por segmento (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md
+    // §6, F7): sem estado_fk/cidade_fk explícitos no payload, resolve a partir da MESMA config
+    // que a estratégia "Dono do Ativo" já declara pro segmento deste tenant (targetTable/
+    // targetIdColumn + estadoColumn/cidadeColumn) — não mais hardcoded pra "imoveis".
+    if ((!inheritedEstado || !inheritedCidade) && imovel_id) {
+      try {
+        const cfgRes = await pool.query(
+          `SELECT sds.config
+             FROM public.tenants t
+             JOIN public.system_segments ss ON ss.id = t.segment_id
+             JOIN public.segment_distribution_strategies sds
+               ON sds.segment_id = ss.id AND sds.strategy_key = 'owner_of_asset'
+            WHERE t.id = $1::uuid
+            LIMIT 1`,
+          [leadTenantId]
+        )
+        const cfg = cfgRes.rows[0]?.config || {}
+        const { targetTable, targetIdColumn, estadoColumn, cidadeColumn } = cfg
+        if (
+          targetTable && IDENT_RE.test(targetTable) &&
+          targetIdColumn && IDENT_RE.test(targetIdColumn) &&
+          estadoColumn && IDENT_RE.test(estadoColumn) &&
+          cidadeColumn && IDENT_RE.test(cidadeColumn)
+        ) {
+          const geoRes = await pool.query(
+            `SELECT "${estadoColumn}" AS estado_fk, "${cidadeColumn}" AS cidade_fk
+               FROM public."${targetTable}" WHERE "${targetIdColumn}" = $1`,
+            [imovel_id]
+          )
+          inheritedEstado = inheritedEstado || geoRes.rows[0]?.estado_fk || null
+          inheritedCidade = inheritedCidade || geoRes.rows[0]?.cidade_fk || null
+        }
+      } catch (geoErr) {
+        console.error('[crm/leads] falha ao resolver geografia genérica do ativo:', geoErr)
       }
     }
 

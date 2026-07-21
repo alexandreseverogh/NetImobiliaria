@@ -85,12 +85,19 @@ export function SegmentDistributionModal({ segment, onClose }: Props) {
     setStrategies((prev) => prev.map((s) => (s.strategyKey === key ? { ...s, config: { ...s.config, [field]: value } } : s)));
   }
 
+  const IDENT_FIELDS_BY_STRATEGY: Record<string, string[]> = {
+    owner_of_asset: ['targetTable', 'targetIdColumn', 'ownerColumn', 'estadoColumn', 'cidadeColumn'],
+    geo_area: ['sellerAreaTable', 'sellerAreaFk', 'sellerEstadoColumn', 'sellerCidadeColumn'],
+  };
+
   function validate(): string | null {
     for (const s of strategies) {
-      if (s.strategyKey === 'owner_of_asset') {
-        for (const field of ['targetTable', 'targetIdColumn', 'ownerColumn']) {
-          const v = s.config[field];
-          if (v && !IDENT_RE.test(v)) return `"${field}" em Dono do Ativo tem caractere inválido — só letras, números e underscore.`;
+      const fields = IDENT_FIELDS_BY_STRATEGY[s.strategyKey] || [];
+      for (const field of fields) {
+        const v = s.config[field];
+        if (v && !IDENT_RE.test(v)) {
+          const label = catalog.find((c) => c.key === s.strategyKey)?.label || s.strategyKey;
+          return `"${field}" em ${label} tem caractere inválido — só letras, números e underscore.`;
         }
       }
     }
@@ -199,25 +206,77 @@ export function SegmentDistributionModal({ segment, onClose }: Props) {
                         <p className="text-[11px] text-gray-400 mt-0.5">{meta?.description}</p>
 
                         {s.strategyKey === 'owner_of_asset' && (
-                          <div className="grid grid-cols-3 gap-2 mt-2.5">
-                            <input
-                              type="text" placeholder="tabela (ex: imoveis)"
-                              value={s.config.targetTable || ''}
-                              onChange={(e) => updateConfig(s.strategyKey, 'targetTable', e.target.value)}
-                              className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
-                            />
-                            <input
-                              type="text" placeholder="coluna id (ex: id)"
-                              value={s.config.targetIdColumn || ''}
-                              onChange={(e) => updateConfig(s.strategyKey, 'targetIdColumn', e.target.value)}
-                              className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
-                            />
-                            <input
-                              type="text" placeholder="coluna dono (ex: corretor_fk)"
-                              value={s.config.ownerColumn || ''}
-                              onChange={(e) => updateConfig(s.strategyKey, 'ownerColumn', e.target.value)}
-                              className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
-                            />
+                          <div className="mt-2.5 space-y-1.5">
+                            <div className="grid grid-cols-3 gap-2">
+                              <input
+                                type="text" placeholder="tabela (ex: imoveis)"
+                                value={s.config.targetTable || ''}
+                                onChange={(e) => updateConfig(s.strategyKey, 'targetTable', e.target.value)}
+                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
+                              />
+                              <input
+                                type="text" placeholder="coluna id (ex: id)"
+                                value={s.config.targetIdColumn || ''}
+                                onChange={(e) => updateConfig(s.strategyKey, 'targetIdColumn', e.target.value)}
+                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
+                              />
+                              <input
+                                type="text" placeholder="coluna dono (ex: corretor_fk)"
+                                value={s.config.ownerColumn || ''}
+                                onChange={(e) => updateConfig(s.strategyKey, 'ownerColumn', e.target.value)}
+                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
+                              />
+                            </div>
+                            <p className="text-[10px] text-gray-400">
+                              Opcional — só preencher se este ativo também tiver geografia (usado como fallback pela "Área Geográfica" quando o lead não informa estado/cidade direto):
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="text" placeholder="coluna estado (ex: estado_fk)"
+                                value={s.config.estadoColumn || ''}
+                                onChange={(e) => updateConfig(s.strategyKey, 'estadoColumn', e.target.value)}
+                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
+                              />
+                              <input
+                                type="text" placeholder="coluna cidade (ex: cidade_fk)"
+                                value={s.config.cidadeColumn || ''}
+                                onChange={(e) => updateConfig(s.strategyKey, 'cidadeColumn', e.target.value)}
+                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {s.strategyKey === 'geo_area' && (
+                          <div className="mt-2.5 space-y-1.5">
+                            <p className="text-[10px] text-gray-400">
+                              Opcional — de qual tabela vem a área de atuação do vendedor. Deixe em branco pra usar o padrão (corretor_areas_atuacao):
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="text" placeholder="tabela (padrão: corretor_areas_atuacao)"
+                                value={s.config.sellerAreaTable || ''}
+                                onChange={(e) => updateConfig(s.strategyKey, 'sellerAreaTable', e.target.value)}
+                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
+                              />
+                              <input
+                                type="text" placeholder="coluna FK do vendedor (padrão: corretor_fk)"
+                                value={s.config.sellerAreaFk || ''}
+                                onChange={(e) => updateConfig(s.strategyKey, 'sellerAreaFk', e.target.value)}
+                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
+                              />
+                              <input
+                                type="text" placeholder="coluna estado (padrão: estado_fk)"
+                                value={s.config.sellerEstadoColumn || ''}
+                                onChange={(e) => updateConfig(s.strategyKey, 'sellerEstadoColumn', e.target.value)}
+                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
+                              />
+                              <input
+                                type="text" placeholder="coluna cidade (padrão: cidade_fk)"
+                                value={s.config.sellerCidadeColumn || ''}
+                                onChange={(e) => updateConfig(s.strategyKey, 'sellerCidadeColumn', e.target.value)}
+                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"
+                              />
+                            </div>
                           </div>
                         )}
                         {s.strategyKey === 'round_robin' && (

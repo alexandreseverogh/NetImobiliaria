@@ -67,16 +67,23 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   const body = await request.json().catch(() => null);
   const strategies: StrategyInput[] = Array.isArray(body?.strategies) ? body.strategies : [];
 
+  // Campos de config que, quando presentes, são identificadores SQL (tabela/coluna) e
+  // precisam ser validados antes de qualquer estratégia interpolá-los numa query — mesmo
+  // padrão de data-entities/route.ts.
+  const IDENT_FIELDS_BY_STRATEGY: Record<string, string[]> = {
+    owner_of_asset: ['targetTable', 'targetIdColumn', 'ownerColumn', 'estadoColumn', 'cidadeColumn'],
+    geo_area: ['sellerAreaTable', 'sellerAreaFk', 'sellerEstadoColumn', 'sellerCidadeColumn'],
+  };
+
   for (const s of strategies) {
     if (!s.strategyKey || !VALID_KEYS.has(s.strategyKey)) {
       return NextResponse.json({ error: `strategyKey inválido: "${s.strategyKey}"` }, { status: 400 });
     }
-    if (s.strategyKey === 'owner_of_asset') {
-      const { targetTable, targetIdColumn, ownerColumn } = s.config || {};
-      for (const [field, value] of [['targetTable', targetTable], ['targetIdColumn', targetIdColumn], ['ownerColumn', ownerColumn]] as const) {
-        if (value != null && value !== '' && !IDENT_RE.test(value)) {
-          return NextResponse.json({ error: `config.${field} inválido — use apenas letras, números e underscore` }, { status: 400 });
-        }
+    const identFields = IDENT_FIELDS_BY_STRATEGY[s.strategyKey] || [];
+    for (const field of identFields) {
+      const value = (s.config || {})[field];
+      if (value != null && value !== '' && !IDENT_RE.test(value)) {
+        return NextResponse.json({ error: `config.${field} inválido — use apenas letras, números e underscore` }, { status: 400 });
       }
     }
   }

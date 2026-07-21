@@ -1,14 +1,57 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — aposentado o worker antigo de roteamento de leads
-> (`LeadGuardian`/`lead-router-sla-worker`), duplicado com `transbordo`/`DistributionEngine`.
-> Confirmado: só existia em dev local, produção nunca rodou os dois.
+> **Atualizado em:** 2026-07-21 — `geo_area` e o fallback de geografia em `/api/crm/leads`
+> deixam de ter tabela/coluna hardcoded, virando config por segmento (mesmo espírito do
+> `owner_of_asset`).
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-21 (continuação 7) — `geo_area` sem tabela hardcoded + fallback de geografia genérico ✅
+
+**Contexto:** ao revisar a estratégia `geo_area` recém-criada, o usuário perguntou como a
+aplicação "adivinha" quais campos/tabelas fazem o match de área geográfica entre lead e
+vendedor. Resposta honesta: não adivinhava — tinha 2 pontos hardcoded que sobraram da extração
+do F7 (a tabela do vendedor dentro da estratégia, e o fallback de geografia do lead em
+`/api/crm/leads`, que só sabia buscar em `imoveis`). Consertados os dois agora.
+
+**Implementado:**
+1. `geoAreaStrategy.ts` — `sellerAreaTable`/`sellerAreaFk`/`sellerEstadoColumn`/
+   `sellerCidadeColumn` viram config opcional da estratégia (defaults idênticos ao
+   comportamento de sempre — `corretor_areas_atuacao`/`corretor_fk`/`estado_fk`/`cidade_fk` —
+   zero regressão pra quem não configurar nada). Identificadores validados antes de
+   interpolar na SQL.
+2. `/api/crm/leads/route.ts` — o fallback "sem estado_fk/cidade_fk no payload, busca no
+   imóvel" deixou de ser hardcoded: agora resolve a config `owner_of_asset` do segmento do
+   tenant (reaproveitando `targetTable`/`targetIdColumn`, que já existiam) + 2 campos novos
+   (`estadoColumn`/`cidadeColumn`). Sem esses 2 campos configurados, o fallback é
+   simplesmente pulado (sem erro) — segmento sem essa noção de geografia do ativo não quebra.
+   Fallback de `tenant_id` a partir do imóvel (quando `tenant_id` não vem no payload) mantido
+   como está — é uma conveniência legada separada, fora do escopo desta rodada.
+3. `prisma/migration-2026-07-21-owner-of-asset-geo-columns.sql` — backfill do segmento
+   Imobiliário com `estadoColumn='estado_fk'`/`cidadeColumn='cidade_fk'`, preservando o
+   comportamento exato de hoje.
+4. `SegmentDistributionModal.tsx` + API de estratégias — novos campos expostos na tela do
+   Master (com nota de que são opcionais) e validados tanto no cliente quanto no servidor.
+
+**Testado ao vivo:** `POST /api/crm/leads` com `imovel_id` real e **sem** `estado_fk`/
+`cidade_fk` no payload (tenant Imobiliaria XYZ) → `leads_staging.estado_fk='PE'`,
+`cidade_fk='Recife'` corretamente herdados do imóvel via o novo caminho genérico (não mais a
+query hardcoded, que foi removida). `npx tsc --noEmit`: 55 erros, mesma baseline pré-existente.
+Dado de teste removido depois.
+
+**Pendências reais registradas, ainda não atacadas:** `plantonistaFallbackStrategy.ts` ainda
+usa `corretor_areas_atuacao` hardcoded (só como critério de desempate na ordenação, não como
+filtro obrigatório — impacto bem menor que o do `geo_area`, deliberadamente fora de escopo
+desta rodada). Plano de testes formal (`docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md`) continua
+pendente de execução.
+
+---
+
+## Última tarefa concluída
 
 ### Sessão 2026-07-21 (continuação 6) — Aposentado worker duplicado de roteamento de leads ✅
 
