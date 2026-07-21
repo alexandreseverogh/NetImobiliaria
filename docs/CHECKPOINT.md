@@ -1,10 +1,9 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — iniciando execução da matriz formal de testes (20 cenários) de
-> `docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md`. Antes disso: usuário adicionou `round_robin`
-> (prioridade 4, `slaMinutos:300`) na cascata do Imobiliário — fecha o "lead morto" real que
-> encontramos (nenhum imóvel com `corretor_fk`, zero área cadastrada, único corretor real não é
-> plantonista).
+> **Atualizado em:** 2026-07-21 — matriz formal de testes de unificação de leads concluída:
+> 20/20 cenários passaram, 1 bug real corrigido (`trg_log_kanban_ciclos`), 2 achados de produto
+> registrados (não implementados). Com isso, `docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` está
+> 100% executado (F0-F7 implementados em sessões anteriores + §7 testado nesta sessão).
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -12,7 +11,18 @@
 
 ## Tarefa em andamento
 
-### Sessão 2026-07-21 (continuação 10) — Execução da matriz formal de testes (T1-T9/DG1-4/I1-4/A1-3)
+**Nenhuma tarefa em andamento no momento.** O plano de unificação de leads entre Campanhas/CRM/
+Mensageria (`docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md`) está formalmente concluído e testado.
+Pendências reais, deprioritizadas por instrução explícita do usuário (não atacar sem pedido):
+política de retenção das tabelas de auditoria (BLOCO 0 do `transbordo`), simetria de gamificação
+(XP não é dado no caminho de `imovel_prospects`, só em `leads_staging`), limpeza de código morto
+(`LeadGuardian.ts`/`lead-router-sla-worker.ts`), aviso de UX sobre cliques de WhatsApp sem
+Mensageria contratada (achado no DG2), decisão de produto sobre lead criado via infra
+compartilhada mesmo com só Mensageria contratada (achado no T3).
+
+## Última tarefa concluída
+
+### Sessão 2026-07-21 (continuação 10) — Execução da matriz formal de testes (T1-T9/DG1-4/I1-4/A1-3) ✅
 
 **Contexto:** último item pendente do plano de unificação. Antes de começar, o usuário fechou um
 buraco real que eu tinha levantado ao responder "como seguir": no tenant real Imobiliaria XYZ,
@@ -23,10 +33,52 @@ conseguia achar candidato — os 37 imóveis reais estão todos com `corretor_fk
 (`slaMinutos:"300"`) — confirmado no banco, fecha o risco de lead morto antes de começar os
 testes formais.
 
-**Em andamento:** rodando os 20 cenários de `docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md` na ordem
-do documento (T1→T9→DG1→DG4→I1→I4→A1→A3), atualizando a tabela da seção 5 (Log de Execução)
-conforme cada um roda, corrigindo qualquer bug encontrado antes de seguir pro próximo. Tasks
-#40-#59 criadas pra rastrear progresso.
+**Executado:** os 20 cenários de `docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md`, na ordem do
+documento (T1→T9→DG1→DG4→I1→I4→A1→A3), todos com dado real (nunca mockado) — tenant-bancada
+"Teste RAG — Multi-Segmento" (`tenant_modules`/`tenant_feature_overrides` ligados/desligados por
+cenário e sempre revertidos a zero ao final) pra combos que nenhum tenant real tem hoje (C/R/M/
+C+M/R+M isolados), e os tenants reais Imobiliaria XYZ + Marketing Digital pros combos C+R e
+C+R+M. **20/20 passaram.**
+
+**Bug real encontrado e corrigido (durante T3):** `POST /api/crm/leads` lançava 500 pra qualquer
+tenant sem nenhum `kanban_colunas` ativo (onboarding novo, ou tenant só-Mensageria criando lead
+via infra compartilhada) — o trigger `trg_log_kanban_ciclos` tentava gravar `coluna_id NULL`
+numa coluna NOT NULL de `leads_kanban_ciclos`. `leads_staging` já commitava antes do crash (sem
+perda de dado), mas o caller via erro. Corrigido via
+`prisma/migration-2026-07-21-fix-kanban-ciclos-null-coluna.sql` (trigger pula o registro de
+auditoria quando `coluna_id IS NULL`; zero mudança de comportamento pra tenants com kanban
+configurado — 100% dos tenants reais hoje).
+
+**Achado real sobre o mecanismo de desprovisionamento (durante DG4):** desligar só
+`tenant_modules.is_enabled=false` do módulo `crm` NÃO esconde a categoria CRM da sidebar — a
+função `get_sidebar_menu_for_user` tem uma "NOVA REGRA" (fallback já documentado no próprio
+código da função) que mostra a categoria se a feature tiver `tenant_feature_overrides.is_active=
+true`, independente de `tenant_modules`. Não é bug: é o modelo de provisionamento já documentado
+em `docs/ACCESS_CONTROL.md` — `tenant_feature_overrides` é o ato deliberado de provisionamento (o
+"contrato"), `tenant_modules` é sinal comercial complementar. Confirmado repetindo o teste
+desligando `tenant_feature_overrides` (o mecanismo real que `/admin/master/provisioning` usa) →
+sidebar corretamente escondeu tudo de CRM, `leads_staging`/`leads_kanban` do lead continuaram
+100% intactos; reativado depois (I4) → sidebar voltou, lead não duplicou.
+
+**Achados de produto registrados, não implementados (fora de escopo desta rodada):**
+- **T3:** `processInboundWhatsAppMessage` chama `/api/crm/leads` incondicionalmente — um lead é
+  criado em `leads_staging` mesmo quando o tenant só tem Mensageria contratada (infra
+  compartilhada, por design do D1) — vale uma decisão de produto se isso deve ficar assim.
+- **DG2:** não existe hoje nenhum aviso explícito na UI de Campanhas avisando que cliques de
+  WhatsApp sem o módulo Mensageria contratado não viram lead identificado.
+- **T7 (nuance de enunciado):** `marketing_eventos` não fica literalmente vazio pra lead
+  orgânico do WhatsApp — grava 1 linha honesta (`utm_source='whatsapp', utm_medium='organico'`)
+  com `campaign_id NULL` (zero atribuição falsa, que era o que realmente importava).
+
+**Outras confirmações relevantes:** round_robin (adicionado pelo usuário antes da bateria)
+confirmado funcionando ponta a ponta com dado real no T4 (Juliana Carvalho corretamente
+atribuída); T8/T9 rodaram contra a fixture real "Alto Padrão — Alphaville" (Marketing Digital),
+confirmando Match Engine (1 lead, 2 eventos de atribuição) e Visão 4 (CPA/ROAS reais) sem
+nenhuma regressão.
+
+**Todo dado de teste removido ao final** (incluindo o usuário-bancada temporário criado só pra
+gerar sidebar real via `get_sidebar_menu_for_user`) — confirmado via SQL que não sobrou nenhuma
+linha `TESTE UNIF%` em nenhuma tabela, e o tenant-bancada voltou a zero módulos/features/colunas.
 
 ## Última tarefa concluída
 
