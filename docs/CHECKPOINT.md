@@ -1,12 +1,59 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — auditoria confirmou que o TODO "Seletor de Cliente nas UIs
-> (ALTA PRIORIDADE)" do CLAUDE.md estava desatualizado (9 das 10 páginas já tinham); corrigida
-> a única página real sem seletor (`cta-analytics`) e o texto do CLAUDE.md.
+> **Atualizado em:** 2026-07-21 — resolvidos os 2 achados de produto da bateria de testes de
+> unificação: DG2 confirmado como estratégia de negócio deliberada (não implementar aviso); T3
+> implementado — atribuição de campanha agora aparece na conversa e no analytics de Mensageria.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
+
+## Tarefa em andamento
+
+**Nenhuma tarefa em andamento no momento.**
+
+## Última tarefa concluída
+
+### Sessão 2026-07-21 (continuação 12) — Resolução dos achados DG2/T3 da bateria de testes ✅
+
+**DG2 — decisão de produto, sem implementação:** perguntei ao usuário se valia adicionar um
+aviso na UI de Campanhas dizendo que cliques de WhatsApp sem o módulo Mensageria não viram lead
+identificado. Resposta: **não implementar** — é estratégia de negócio deliberada. O gestor sentir
+a dor de não conseguir gerenciar o pós-clique é o que aumenta a propensão de contratar Mensageria;
+alertar aqui reduziria essa fricção comercial. Registrado como decisão consciente, não pendência.
+
+**T3 — implementado (atribuição de campanha visível na Mensageria):** o usuário esclareceu 2
+coisas importantes antes de eu implementar: (1) a tabela `leads_staging`/`marketing_eventos`
+"deveria estar no schema public porque é compartilhada entre mais de 1 módulo" — conferido
+direto no banco: **já está** em `public` (não em `campanhasmarketingdigital`), então não havia
+nenhuma migração de schema pendente aqui, só um mal-entendido meu ao descrever o achado
+originalmente. (2) Pediu pra eu revisar se um clique de WhatsApp aparece no dashboard de
+Mensageria — investigação confirmou que **não aparecia em lugar nenhum**: o vínculo
+`mensageria.contacts.lead_uuid → public.marketing_eventos` já existia e funcionava (confirmado
+no T6), mas o único uso desse dado em toda a Mensageria era um link "Ver no CRM →" (inútil pra
+quem só tem Mensageria).
+
+**Implementado:**
+1. `GET /api/admin/mensageria/conversations/[id]` — novo `contact.attribution` via
+   `LEFT JOIN LATERAL` em `marketing_eventos` (toque mais recente do lead) +
+   `JOIN campanhasmarketingdigital."Campaign"` pra resolver o nome real. `null` quando o lead
+   não tem nenhum toque de marketing; campos de UTM presentes mas `campaignId: null` quando é
+   orgânico (distingue "não sabemos" de "sabemos que foi orgânico").
+2. `ConversationThread.tsx` — badge no cabeçalho da conversa (📣 nome da campanha real, ou
+   "WhatsApp orgânico"), visível **independente de o tenant ter CRM** — ao contrário do link
+   "Ver no CRM" que já existia.
+3. `GET /api/admin/mensageria/analytics` — novo KPI "Vindas de campanha" (contagem + %) via
+   `EXISTS` correlacionado no `marketing_eventos`, seguindo a mesma disciplina de "cada query
+   com seu próprio array de parâmetros" já usada no resto do arquivo.
+4. `mensageria/analytics/page.tsx` — card do novo KPI ao lado de "Resolvidas pelo bot".
+
+**Testado ao vivo, ponta a ponta, tenant-bancada (campanha+ad reais de teste, C+M):** clique real
+`/api/r/{trackingId}` → resposta simulada com `[ref:...]` → `GET /conversations/[id]` retornou
+`attribution.campaignName` = nome real da campanha · segunda mensagem, mesma conversa, SEM ref
+(orgânica) → `attribution` com `campaignId:null`, badge cairia em "WhatsApp orgânico" · `GET
+/analytics` refletiu corretamente `novas:2, deCampanha:1, deCampanhaPct:50` (só a de campanha
+conta, a orgânica não infla o número). Dado de teste removido depois, confirmado zero resíduo.
+`npx tsc --noEmit`: 55 erros, mesma baseline pré-existente, nenhum novo.
 
 ## Tarefa em andamento
 
