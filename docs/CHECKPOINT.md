@@ -10,6 +10,17 @@
 
 ## Tarefa em andamento
 
+**Nenhuma tarefa em andamento no momento** — próximo passo real e ainda não atacado: executar
+a matriz formal de testes de `docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md` (20 cenários — T1-T9
+combinações de contratação, DG1-DG4 degradação graciosa, I1-I4 integridade da fonte única,
+A1-A3 atribuição), hoje 100% "pendente". Pendências deprioritizadas por instrução explícita do
+usuário (não atacar sem pedido): política de retenção das tabelas de auditoria (BLOCO 0 do
+`transbordo`), simetria de gamificação (XP não é dado no caminho de `imovel_prospects`, só em
+`leads_staging`), limpeza de código morto (`LeadGuardian.ts`/`lead-router-sla-worker.ts` — fontes
+mantidas no repo, só o serviço Docker foi desligado).
+
+## Última tarefa concluída
+
 ### Sessão 2026-07-21 (continuação 9) — UI: diferenciar ajuda de geo_area × plantonista_fallback ✅
 
 **Contexto:** ao revisar (via print real da tela) o modal "Estratégias de Distribuição de
