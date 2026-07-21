@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { getDestinationBySlug, logInteraction } from '@/lib/cta/service'
+import { getDestinationBySlug, logInteraction, resolveCtaRef } from '@/lib/cta/service'
 import CtaFormClient from './CtaFormClient'
 
 export const dynamic = 'force-dynamic'
@@ -44,13 +44,21 @@ export default async function CtaDestinationPage({
   }
   const ip = hdr.get('x-forwarded-for')?.split(',')[0]?.trim() ?? hdr.get('x-real-ip') ?? null
 
+  // "ref" chega quando este /l/{slug} foi alcançado via /api/r/{trackingId} (campanha REAL
+  // lançada por esta plataforma) — resolveCtaRef traduz pro campaignId/adId reais, com
+  // prioridade sobre campaign_id/ad_id manuais na URL (Sistema B, atribuição menos confiável).
+  const ref = sp('ref')
+  const resolved = ref ? await resolveCtaRef(ref, dest.tenant_id).catch(() => null) : null
+  const attributedCampaignId = resolved?.campaignId ?? sp('campaign_id') ?? null
+  const attributedAdId = resolved?.adId ?? sp('ad_id') ?? null
+
   if (dest.type === 'WHATSAPP') {
     await logInteraction({
       tenantId: dest.tenant_id,
       clientId: dest.client_id,
       destinationId: dest.id,
-      campaignId: sp('campaign_id') ?? null,
-      adId: sp('ad_id') ?? null,
+      campaignId: attributedCampaignId,
+      adId: attributedAdId,
       ctaType: dest.cta_type,
       eventType: 'WHATSAPP_CLICK',
       utm: utmCtx,
@@ -59,9 +67,11 @@ export default async function CtaDestinationPage({
       referrer: hdr.get('referer'),
     }).catch(() => {})
     const phone = (dest.config?.phoneNumber || '').replace(/\D/g, '')
-    // [ref:slug] embutido na mensagem para o webhook da Evolution criar o lead automaticamente
+    // [ref:...] embutido na mensagem: prioriza o trackingId real (campanha desta plataforma)
+    // sobre o slug do destino (Sistema B) — o webhook do WhatsApp resolve os dois via
+    // resolveCtaRef quando a resposta chegar.
     const baseMsg = dest.config?.introMessage || 'Olá! Vi o anúncio e quero saber mais.'
-    const msg = encodeURIComponent(`${baseMsg} [ref:${dest.slug}]`)
+    const msg = encodeURIComponent(`${baseMsg} [ref:${ref || dest.slug}]`)
     redirect(`https://wa.me/${phone}?text=${msg}`)
   }
 
@@ -72,8 +82,8 @@ export default async function CtaDestinationPage({
         tenantId: dest.tenant_id,
         clientId: dest.client_id,
         destinationId: dest.id,
-        campaignId: sp('campaign_id') ?? null,
-        adId: sp('ad_id') ?? null,
+        campaignId: attributedCampaignId,
+        adId: attributedAdId,
         ctaType: dest.cta_type,
         eventType: 'REDIRECT',
         utm: utmCtx,

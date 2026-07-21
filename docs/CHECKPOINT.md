@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — F6 (Funil de Receita / Visão 4, CPA-ROAS real) de
+> **Atualizado em:** 2026-07-21 — F2/F3 (rastreio de CTA de formulário no wizard) de
 > docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md implementado e verificado.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
@@ -8,6 +8,63 @@
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-21 (continuação 2) — F2/F3: rastreio real de CTA de formulário no wizard ✅
+
+**Contexto:** próxima fase do plano depois de F6 (ver entrada abaixo). F2/F3 pedem "CTA de
+formulário no wizard + token de rastreio... → CtaInteraction" — o caminho WhatsApp via token já
+tinha sido fechado em D3 (sessão anterior); faltava o equivalente pro caminho de formulário.
+
+**Investigação antes de implementar — descoberta importante:** a infraestrutura de "CTA de
+formulário" já existia quase inteira (`CtaDestination`/`CtaFormClient`/`/l/[slug]`/
+`/api/public/cta/[slug]/submit`, tudo com suporte a ler `campaign_id`/`ad_id` da query string) —
+o wizard já deixava escolher um destino de formulário cadastrado como link do anúncio. **2 gaps
+reais concretos, não hipotéticos, encontrados lendo o código ponta a ponta:**
+1. `campaigns/route.ts` só roteava o link do anúncio por `/api/r/{trackingId}` (o mecanismo de
+   rastreio real) quando `ctaType === 'WHATSAPP_MESSAGE'` — qualquer CTA de formulário ia
+   **direto** pro destino, sem gerar `CtaInteraction` nenhuma e sem carregar o `trackingId` real
+   do `Ad` — o lead resultante nunca tinha como saber de qual campanha/anúncio veio.
+2. Mesmo nos casos em que `campaign_id`/`ad_id` chegavam corretos na query string,
+   `/api/public/cta/[slug]/submit/route.ts` **nunca os repassava** pro `POST /api/crm/leads` —
+   `campaignId` era extraído da URL e depois descartado, `marketing_eventos.campaign_id` ficava
+   sempre `NULL` pra leads de formulário.
+
+**Implementado:**
+1. `campaigns/route.ts` — TODO CTA (não só WhatsApp) agora usa `/api/r/{trackingId}` como link
+   enviado ao Meta; `Ad.linkUrl` no banco passa a guardar o destino real (o que `/api/r` lê pra
+   redirecionar), separado da URL rastreada que vai pro criativo.
+2. `/api/r/[trackingId]/route.ts` generalizado — CTA não-WhatsApp loga `CtaInteraction`
+   (`event_type='REDIRECT'`, `campaignId`/`adId` reais) e redireciona pro `ad.linkUrl` com
+   `?ref={trackingId}` anexado.
+3. `/l/[slug]/page.tsx` e `/api/public/cta/[slug]/submit/route.ts` — resolvem `?ref=` via
+   `resolveCtaRef` (mesmo resolvedor de D3), com prioridade sobre `campaign_id`/`ad_id`
+   manuais na URL; `submit/route.ts` agora de fato repassa `campaign_id` pro `/api/crm/leads`
+   (gap 2 acima).
+
+**Bug adicional pego testando ao vivo (não hipotético):** o `submit/route.ts` mandava
+`utm_campaign` (nome real via `resolveCtaRef`) como campo **flat** no corpo da requisição, mas
+`/api/crm/leads` usa `utm_params` (aninhado) quando presente e **ignora** o campo flat — o nome
+real da campanha nunca chegava em `marketing_eventos.utm_campaign` (ficava vazio). Corrigido
+movendo o valor pra dentro de `utm_params.campaign`. Só foi pego porque testei a submissão de
+verdade contra o banco em vez de confiar na leitura do código.
+
+**Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital, `Ad`/`CtaInteraction`/
+`CtaSubmission` de teste criados e removidos depois; usado o destino `APP_FORM` real
+"Teste Form - Captação" e a campanha real "Alto Padrão — Alphaville"): `GET /api/r/{trackingId}`
+→ redireciona pra `/l/{slug}?ref={trackingId}`, `CtaInteraction` gravada com `campaign_id`/`ad_id`
+reais · `POST /api/public/cta/{slug}/submit?ref={trackingId}` → `marketing_eventos.campaign_id`
+= id real da campanha, `utm_campaign` = "Alto Padrão — Alphaville" (nome real, não mais vazio) ·
+**regressão do caminho WhatsApp confirmada intacta** (`GET /api/r/demo-track-001` continua
+redirecionando pro `wa.me` com `[ref:...]` embutido, idêntico a antes da generalização).
+`npx tsc --noEmit`: 55 erros, mesma baseline pré-existente (zero nos arquivos tocados).
+
+**Pendências reais do plano de unificação, ainda não atacadas:** F7 (CRM agnóstico de domínio —
+extrair o acoplamento a imóvel do motor de distribuição pra um adaptador) e a matriz formal dos
+9 cenários de teste (§7) — ver `docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` §6/§7.
+
+---
+
+## Última tarefa concluída
 
 ### Sessão 2026-07-21 (continuação) — F6: Visão 4 (Funil de Receita — CPA/ROAS real) ✅
 

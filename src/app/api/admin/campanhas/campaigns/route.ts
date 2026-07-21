@@ -205,14 +205,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 3. Tracking link
+    // 3. Tracking link — TODO CTA (WhatsApp ou formulário/URL) passa por /api/r/{trackingId}
+    // antes de chegar no destino real. Isso é o que fecha a atribuição campanha→lead
+    // (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6 F2/F3): sem isso, um clique num anúncio
+    // com CTA de formulário ia direto pro destino sem gerar CtaInteraction nenhuma nem
+    // carregar o trackingId real do Ad — o lead resultante nunca sabia de qual campanha veio.
+    // ad.linkUrl (no banco) guarda o destino REAL (usado pelo /api/r pra saber pra onde
+    // mandar); o que é enviado ao Meta como link do criativo é SEMPRE a URL rastreada.
     const trackingId = `${campaign.id.slice(0, 8)}-${Date.now().toString(36)}`;
-    let finalLinkUrl = linkUrl;
-    if (ctaType === 'WHATSAPP_MESSAGE' && whatsappNumber) {
-      const msg = encodeURIComponent(whatsappMessage || '');
-      const publicDomain = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      finalLinkUrl = `${publicDomain}/api/r/${trackingId}`;
-    }
+    const publicDomain = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const trackedLinkUrl = `${publicDomain}/api/r/${trackingId}`;
 
     // 4. Criar ad
     const ad = await prisma.ad.create({
@@ -224,7 +226,7 @@ export async function POST(request: NextRequest) {
         images: images || [],
         body: adBody || '',
         headline,
-        linkUrl: finalLinkUrl,
+        linkUrl: linkUrl || '',
         ctaType: ctaType || 'LEARN_MORE',
         trackingId,
       },
@@ -283,7 +285,7 @@ export async function POST(request: NextRequest) {
           images: ad.images || [],
           body: ad.body,
           headline: ad.headline || undefined,
-          linkUrl: ad.linkUrl || '',
+          linkUrl: trackedLinkUrl,
           ctaType: ad.ctaType,
         },
         whatsappNumber,

@@ -6,6 +6,7 @@ import {
   insertSubmission,
   linkSubmissionLead,
   normalizeContact,
+  resolveCtaRef,
 } from '@/lib/cta/service'
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import { resolveWebformInbox } from '@/lib/mensageria/inboxes'
@@ -41,8 +42,13 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       campaign: payload._utm_campaign || searchParams.get('utm_campaign') || undefined,
       content: payload._utm_content || searchParams.get('utm_content') || undefined,
     }
-    const campaignId = payload._campaign_id || searchParams.get('campaign_id') || null
-    const adId = payload._ad_id || searchParams.get('ad_id') || null
+    // "ref" chega quando a página foi alcançada via /api/r/{trackingId} (campanha REAL
+    // lançada por esta plataforma) — resolveCtaRef traduz pro campaignId/adId reais, com
+    // prioridade sobre campaign_id/ad_id manuais na URL (Sistema B, menos confiável).
+    const ref = searchParams.get('ref') || payload._ref || null
+    const resolvedRef = ref ? await resolveCtaRef(ref, dest.tenant_id).catch(() => null) : null
+    const campaignId = resolvedRef?.campaignId || payload._campaign_id || searchParams.get('campaign_id') || null
+    const adId = resolvedRef?.adId || payload._ad_id || searchParams.get('ad_id') || null
 
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -133,14 +139,15 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           telefone: phone,
           tenant_id: dest.tenant_id,
           client_id: dest.client_id,
+          campaign_id: campaignId,
           raw_json: { ...cleanPayload, _cta_destination: dest.slug, _cta_submission_id: submissionId },
           mensagem: cleanPayload.mensagem || cleanPayload.message || '',
-          utm_source: utm.source,
-          utm_campaign: utm.campaign,
+          // /api/crm/leads usa utm_params (aninhado) quando presente e ignora o campo flat
+          // utm_campaign — nome real da campanha (via ref) tem prioridade sobre o texto livre.
           utm_params: {
             source: utm.source,
             medium: utm.medium,
-            campaign: utm.campaign,
+            campaign: resolvedRef?.campaignName || utm.campaign,
             content: utm.content,
             platform: 'cta_app_form',
           },
