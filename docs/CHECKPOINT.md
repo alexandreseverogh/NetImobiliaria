@@ -1,8 +1,10 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — texto de ajuda do modal "Estratégias de Distribuição"
-> diferenciado entre Área Geográfica (filtro obrigatório) e Plantonista (critério de
-> desempate) — decisão explícita de NÃO unificar a config das duas estratégias.
+> **Atualizado em:** 2026-07-21 — iniciando execução da matriz formal de testes (20 cenários) de
+> `docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md`. Antes disso: usuário adicionou `round_robin`
+> (prioridade 4, `slaMinutos:300`) na cascata do Imobiliário — fecha o "lead morto" real que
+> encontramos (nenhum imóvel com `corretor_fk`, zero área cadastrada, único corretor real não é
+> plantonista).
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
@@ -10,14 +12,21 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — próximo passo real e ainda não atacado: executar
-a matriz formal de testes de `docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md` (20 cenários — T1-T9
-combinações de contratação, DG1-DG4 degradação graciosa, I1-I4 integridade da fonte única,
-A1-A3 atribuição), hoje 100% "pendente". Pendências deprioritizadas por instrução explícita do
-usuário (não atacar sem pedido): política de retenção das tabelas de auditoria (BLOCO 0 do
-`transbordo`), simetria de gamificação (XP não é dado no caminho de `imovel_prospects`, só em
-`leads_staging`), limpeza de código morto (`LeadGuardian.ts`/`lead-router-sla-worker.ts` — fontes
-mantidas no repo, só o serviço Docker foi desligado).
+### Sessão 2026-07-21 (continuação 10) — Execução da matriz formal de testes (T1-T9/DG1-4/I1-4/A1-3)
+
+**Contexto:** último item pendente do plano de unificação. Antes de começar, o usuário fechou um
+buraco real que eu tinha levantado ao responder "como seguir": no tenant real Imobiliaria XYZ,
+nenhum nível da cascata do Imobiliário (`owner_of_asset`/`geo_area`/`plantonista_fallback`)
+conseguia achar candidato — os 37 imóveis reais estão todos com `corretor_fk NULL`, a tabela
+`atendente_area_atuacao` tem 0 linhas, e a única corretora real (Juliana Carvalho) tem
+`is_plantonista=false`. O usuário adicionou `round_robin` como prioridade 4
+(`slaMinutos:"300"`) — confirmado no banco, fecha o risco de lead morto antes de começar os
+testes formais.
+
+**Em andamento:** rodando os 20 cenários de `docs/TESTES_UNIFICACAO_LEADS_3_MODULOS.md` na ordem
+do documento (T1→T9→DG1→DG4→I1→I4→A1→A3), atualizando a tabela da seção 5 (Log de Execução)
+conforme cada um roda, corrigindo qualquer bug encontrado antes de seguir pro próximo. Tasks
+#40-#59 criadas pra rastrear progresso.
 
 ## Última tarefa concluída
 
