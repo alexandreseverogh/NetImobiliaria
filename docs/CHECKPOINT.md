@@ -1,6 +1,6 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — F4 (Match Engine) de
+> **Atualizado em:** 2026-07-21 — F6 (Funil de Receita / Visão 4, CPA-ROAS real) de
 > docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md implementado e verificado.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
@@ -8,6 +8,64 @@
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-21 (continuação) — F6: Visão 4 (Funil de Receita — CPA/ROAS real) ✅
+
+**Contexto:** próxima fase do plano de unificação depois de F4 (Match Engine, ver entrada
+abaixo). F6 é o "payoff comercial" descrito no plano (§5 Visão 4): atribuir receita real de
+volta à campanha/criativo — CPA **real** (custo por negócio fechado, não por clique) e ROAS
+**real** (receita/investimento) — condicional a C+R (só existe quando o tenant tem Campanhas
+E CRM contratados, já que sem CRM não há `leads_staging`/`leads_kanban` pra saber que um lead
+virou negócio fechado).
+
+**Investigação antes de implementar:** conferido que `kanban_colunas.nome = 'fechamento'` é o
+estágio de negócio ganho (nome fixo interno, `titulo_exibicao` é customizável pelo tenant —
+mesmo padrão já usado em outras partes do código, ex. `entendimento_dor`) e que
+`leads_staging.valor_venda` guarda o valor do negócio. Confirmado que nenhum tenant de teste
+tem negócio fechado real ainda (esperado, ambiente de dev) — validação ponta a ponta feita com
+dado temporário real (não mockado), documentado abaixo.
+
+**Implementado:**
+1. `src/lib/marketing/services/revenueAttributionService.ts` — `hasCrmModule(tenantId)`
+   (checa `tenant_modules`+`system_modules.slug='crm'`) + `getRevenueAttribution(...)`: junta
+   `Insight` (gasto, schema campanhas) + `marketing_eventos` (atribuição, campaign_id) +
+   `leads_staging`+`leads_kanban`+`kanban_colunas` (negócio fechado, schema public) via SQL
+   cru cross-schema, no mesmo padrão já usado em `portfolio/route.ts`. **Metodologia de
+   cohort:** tanto leads identificados quanto negócios fechados são filtrados por
+   `marketing_eventos.created_at` dentro do período (não pela data de fechamento do negócio,
+   que pode ser depois) — evita misturar receita de leads antigos com o gasto de um período
+   recente. Simplificação documentada no código: multi-touch não é fracionado (lead que veio
+   de 2 campanhas conta receita inteira nas duas).
+2. `GET /api/admin/campanhas/dashboard/revenue-attribution` — `available:false` com motivo
+   explícito quando o tenant não tem CRM (degradação graciosa, nunca finge CPA/ROAS que não
+   existe).
+3. `RevenueAttributionWidget.tsx` (novo, self-fetching, mesmo padrão de `CampaignMapWidget`) —
+   KPIs (Receita Real, CPA Real, ROAS Real, Negócios Fechados) + top 5 campanhas por ROAS.
+   Integrado em `CommandCenterView.tsx` (nova prop `periodDays`, passada de
+   `effectivePeriodDays` já existente em `dashboard/page.tsx`).
+
+**Testado ao vivo, ponta a ponta, contra dados reais** (tenant Marketing Digital): sem negócio
+fechado real → `available:true`, todas as campanhas com `dealsWon:0`/`cpaReal:null` (honesto,
+não inventa) · criado 1 lead de teste real via `POST /api/crm/leads` com `campaign_id` de uma
+campanha real com gasto real (R$11.927,02, "Alto Padrão — Alphaville"), movido pro estágio
+`fechamento` com `valor_venda=850000` → endpoint retornou `cpaReal=11927.02` (bate exato com o
+gasto/1 negócio) e `roasReal=71.27` (850000/11927.02, conferido) — matemática correta · gate
+`hasCrmModule` testado contra tenant sem nenhum módulo (Master Platform) →
+`available:false, reason:'crm_not_contracted'`, mensagem explícita · dado de teste removido
+depois, cascata confirmada. `npx tsc --noEmit`: 55 erros, mesma baseline pré-existente (zero
+nos arquivos novos/tocados) · página `/admin/campanhas/dashboard` confirmada compilando sem
+erro via `curl` com cookie de sessão real (HTTP 200) — verificação visual no navegador não foi
+possível, mesma limitação de sempre já registrada dezenas de vezes neste projeto (client-side
+`useAuth`/`/me` redireciona mesmo com JWT+`userId` reais em navegação completa).
+
+**Pendências reais do plano de unificação, ainda não atacadas:** F2/F3 (CTA de formulário no
+wizard — o caminho WhatsApp via token já está fechado desde D3), F7 (CRM agnóstico de domínio,
+extrair o acoplamento a imóvel pra adaptador) e a matriz formal de testes dos 9 cenários — ver
+`docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` §6/§7.
+
+---
+
+## Última tarefa concluída
 
 ### Sessão 2026-07-21 — F4: Match Engine real (telefone normalizado + `match_method`) ✅
 

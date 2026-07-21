@@ -646,6 +646,7 @@ export function DashboardPage() {
             hookSaturation={hookSaturation} cardBase={cardBase} tx={tx} txMuted={txMuted} txFaint={txFaint}
             cpl={cpl} hookRate={hookRate} hookRateBenchmarks={hookRateBenchmarks}
             chartData={chartData} funnelData={funnelData7} periodLabel={periodLabel}
+            periodDays={effectivePeriodDays}
             activeSegment={activeSegment} clientFilter={clientFilter}
             segmentPeriodStart={segmentPeriodStart} segmentPeriodEnd={segmentPeriodEnd}
           />

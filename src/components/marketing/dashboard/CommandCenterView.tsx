@@ -6,6 +6,7 @@ import { KpiCard, HookRateKpiCard } from '@/components/marketing/dashboard/KpiCa
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
 import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelChart';
 import { CampaignMapWidget } from '@/components/marketing/CampaignMapWidget';
+import { RevenueAttributionWidget } from '@/components/marketing/dashboard/RevenueAttributionWidget';
 import type { DashboardFullData, AiInsightData } from '@/lib/marketing-api';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 
@@ -25,6 +26,7 @@ interface CommandCenterViewProps {
   chartData: any[];
   funnelData: any;
   periodLabel: string;
+  periodDays: number;
   activeSegment?: string | null;
   clientFilter?: string | null;
   segmentPeriodStart?: string;
@@ -47,6 +49,7 @@ export function CommandCenterView({
   chartData,
   funnelData,
   periodLabel,
+  periodDays,
   activeSegment,
   clientFilter,
   segmentPeriodStart,
@@ -397,8 +400,19 @@ export function CommandCenterView({
             endDate={segmentPeriodEnd}
           />
         </div>
-        
+
       </div>
+
+      {/* ── LINHA 5: Visão 4 — Funil de Receita (CPA/ROAS real, exige CRM) ── */}
+      <RevenueAttributionWidget
+        isDark={isDark}
+        clientId={clientFilter ?? null}
+        periodDays={periodDays}
+        cardBase={cardBase}
+        tx={tx}
+        txMuted={txMuted}
+        txFaint={txFaint}
+      />
 
     </div>
   );
