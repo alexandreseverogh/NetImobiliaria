@@ -1,15 +1,59 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — matriz formal de testes de unificação de leads concluída:
-> 20/20 cenários passaram, 1 bug real corrigido (`trg_log_kanban_ciclos`), 2 achados de produto
-> registrados (não implementados). Com isso, `docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` está
-> 100% executado (F0-F7 implementados em sessões anteriores + §7 testado nesta sessão).
+> **Atualizado em:** 2026-07-21 — auditoria confirmou que o TODO "Seletor de Cliente nas UIs
+> (ALTA PRIORIDADE)" do CLAUDE.md estava desatualizado (9 das 10 páginas já tinham); corrigida
+> a única página real sem seletor (`cta-analytics`) e o texto do CLAUDE.md.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Tarefa em andamento
+
+**Nenhuma tarefa em andamento no momento.**
+
+## Última tarefa concluída
+
+### Sessão 2026-07-21 (continuação 11) — Auditoria + fix do Seletor de Cliente (`cta-analytics`) ✅
+
+**Contexto:** usuário perguntou quais eram os próximos passos após a conclusão da matriz de
+testes de unificação de leads. O CLAUDE.md tinha um TODO marcado "ALTA PRIORIDADE" dizendo que
+nenhuma página do módulo de Campanhas expunha o seletor de cliente — mas o histórico deste
+mesmo arquivo (`CHECKPOINT.md`) mostrava várias sessões anteriores adicionando `ClientSelector`
+a várias páginas. Delegada uma auditoria (agente `Explore`) pra confirmar o estado real antes de
+implementar qualquer coisa — regra do projeto de nunca recomendar/agir a partir de memória sem
+verificar o estado atual primeiro.
+
+**Achado:** o TODO estava de fato desatualizado. 9 das 10 páginas do módulo já tinham
+`ClientSelector`/`useClientSelector` totalmente funcionais (não cosméticos — `clientId`
+realmente chegava nas chamadas de API): `dashboard`, `leads`, `criativos`, `criativos/padroes`,
+`iniciativas`, `desperdicio`, `portfolio`, `auditoria`, `publicacoes`. A única página realmente
+sem seletor era `cta-analytics` — e o backend (`/api/admin/campanhas/cta-analytics/route.ts`)
+já suportava `clientId` (`own`/`<uuid>`/`all`) desde uma sessão anterior; só faltava a UI.
+
+**Implementado:** `ClientSelector` (variant `toggle`, `allowSegment={false}` já que o filtro de
+Segmento existente na página tem precedência sobre `clientId` na API) adicionado ao header da
+página, ao lado do seletor de período. `clientFilter` entra na querystring só quando não há
+segmento selecionado (evita mandar um parâmetro que a API já ignora). CLAUDE.md corrigido: os 2
+TODOs "ALTA PRIORIDADE" duplicados removidos/atualizados pra refletir o estado real (concluído).
+
+**Verificado:** `npx tsc --noEmit` — 55 erros, mesma baseline pré-existente, nenhum novo.
+Verificação visual no navegador tentada (injeção de cookie JWT real do usuário `admmd`, tenant
+Marketing Digital) — mesma limitação de sempre já documentada dezenas de vezes neste projeto:
+`useAuth`/`/me` client-side redireciona pra `/admin/login` mesmo com JWT+`userId` reais em
+navegação completa. Confiança na correção vem de `tsc` limpo + o componente/hook serem os
+MESMOS já usados e visualmente aprovados nas outras 9 páginas (mesmo padrão, zero código novo
+no componente em si).
+
+**Próximos passos reais, ainda em aberto (levantados na auditoria/conversa, não atacados):**
+- Redesign Premium via skill `impeccable` (item 1 do CLAUDE.md)
+- Sync Meta real, fluxo completo do CampaignWizard, alerta de token Meta expirando, endpoint CPL
+  por período (item 2 do CLAUDE.md)
+- Achados da bateria de testes desta sessão (DG2 — aviso de UX; T3 — decisão de produto sobre
+  lead via Mensageria-só; retenção de tabelas de auditoria; simetria de gamificação; limpeza de
+  código morto `LeadGuardian`/`lead-router-sla-worker`)
+- Outras frentes em worktrees separados: `netimob-google` (Google Ads/TikTok), `netimob-cherrypick`
+  (Mensageria RAG), `netimob-imgfix` (fix de fotos via MinIO)
 
 **Nenhuma tarefa em andamento no momento.** O plano de unificação de leads entre Campanhas/CRM/
 Mensageria (`docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md`) está formalmente concluído e testado.
