@@ -187,16 +187,16 @@ _Preenchido conforme cada teste roda. Formato: resultado, achados, correções._
 | T5 | ✅ passou | Imobiliaria XYZ, Ad WhatsApp de teste, clique real em `/api/r/{trackingId}` sem nenhuma resposta simulada via Mensageria. `CtaInteraction` (WHATSAPP_CLICK) gravada corretamente; `leads_staging` continua em 0 pra esse tenant — nenhum lead criado a partir do clique isolado, como esperado (sem Mensageria pra processar a resposta, não há identidade pra resolver). Redirect caiu no fallback de home por falta de `WhatsAppConfig` no tenant (mesmo comportamento gracioso do T1, não é falha). | — |
 | T6 | ✅ passou | Tenant-bancada (trafego-pago+mensageria, sem crm). Clique real `/api/r/{trackingId}` (Ad WhatsApp de teste) → resposta simulada via webhook Evolution com `[ref:teste-unif-t6-track]`. `CtaInteraction` gravada 2x (WHATSAPP_CLICK + SUBMIT), ambas com `campaign_id`/`ad_id` reais via `resolveCtaRef`. Conversa capturada na Mensageria com `lead_uuid` linkado. Sidebar real mostra "Campanhas de Marketing Digital" + "Central de Mensagens", zero menção a CRM/Kanban. | — |
 | T7 | ✅ passou | Tenant-bancada (crm+mensageria, sem trafego-pago). Webhook Evolution simulado sem `[ref:...]` (mensagem orgânica). Conversa virou lead real no pipeline (`leads_kanban`, coluna `lead_captado`). **Nuance no enunciado do plano:** `marketing_eventos` não fica literalmente vazio — existe 1 linha honesta (`utm_source='whatsapp', utm_medium='organico'`), mas `campaign_id`/`utm_campaign` são `NULL` (zero atribuição falsa, que é o que realmente importava no enunciado). Sidebar real mostra CRM+Mensageria, zero menção a Campanhas. | — |
-| T8 | pendente | | |
-| T9 | pendente | | |
+| T8 | ✅ passou | Marketing Digital (real, C+R+M), fixture real já existente `Ad "Alto Padrão — Principal"` (`trackingId=demo-track-001`) + campanha real "Alto Padrão — Alphaville". Clique real `/api/r/demo-track-001` → redirect pro wa.me com `[ref:demo-track-001]` embutido → webhook Evolution real simulado com essa tag → lead criado com `utm_campaign`/`campaign_id` reais → movido pra `fechamento` com `valor_venda=900000` → `GET /dashboard/revenue-attribution` reflete `dealsWon:1, revenue:900000, cpaReal:35, roasReal:25714` pra essa campanha. Ponta a ponta com dado real, sem nenhum mock. Serve também como reteste formal de A1 e A2. | — |
+| T9 | ✅ passou | Marketing Digital (real). Mesmo telefone chegou via formulário direto (`campaign_id`=Alphaville real) e depois via WhatsApp com `[ref:...]` de uma campanha B de teste diferente. Resultado: **exatamente 1** linha em `leads_staging` (`match_method='telefone'`, Match Engine funcionou), **exatamente 2** linhas em `marketing_eventos`, uma por campanha, sem duplicação nem perda de atribuição. (Nota operacional: usei acento direto num payload curl pra `utm_campaign` e corrompeu o encoding daquela linha de teste — lição já registrada no projeto, sem impacto real pois a linha foi removida na limpeza.) | — |
 | DG1 | pendente | | |
 | DG2 | pendente | | |
 | DG3 | pendente | | |
 | DG4 | pendente | | |
-| I1 | pendente | | |
+| I1 | ✅ passou | Confirmado como parte do T9 — `COUNT(*)` real via SQL deu exatamente 1 pro telefone/email do mesmo lead entrando por 2 canais diferentes. | — |
 | I2 | pendente | | |
 | I3 | pendente | | |
 | I4 | pendente | | |
-| A1 | pendente | | |
-| A2 | pendente | | |
+| A1 | ✅ passou | Confirmado como parte do T8 (mesmo clique `/api/r/demo-track-001` → `[ref:...]` → lead com `campaign_id`/`utm_campaign` reais). | — |
+| A2 | ✅ passou | Confirmado como parte do T8 (mesmo lead movido pra `fechamento` com `valor_venda=900000` → `GET /dashboard/revenue-attribution` retornou `cpaReal`/`roasReal` reais e corretos). | — |
 | A3 | pendente | | |
