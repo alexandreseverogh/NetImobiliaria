@@ -1,14 +1,53 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — `corretor_areas_atuacao` renomeada pra
-> `atendente_area_atuacao` (banco + código), e `plantonistaFallbackStrategy.ts` generalizado
-> no mesmo padrão do `geo_area`.
+> **Atualizado em:** 2026-07-21 — texto de ajuda do modal "Estratégias de Distribuição"
+> diferenciado entre Área Geográfica (filtro obrigatório) e Plantonista (critério de
+> desempate) — decisão explícita de NÃO unificar a config das duas estratégias.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-21 (continuação 9) — UI: diferenciar ajuda de geo_area × plantonista_fallback ✅
+
+**Contexto:** ao revisar (via print real da tela) o modal "Estratégias de Distribuição de
+Leads" depois do rename da tabela + generalização do `plantonistaFallbackStrategy`, o usuário
+perguntou se algo mais precisava mudar na UI. Investigando, o texto de ajuda do bloco de config
+(tabela/coluna FK/estado/cidade do vendedor) era **idêntico** nos blocos de `geo_area` e
+`plantonista_fallback` — risco real de o Master achar que precisa manter as duas configs
+sincronizadas.
+
+**Discussão que resolveu a dúvida (antes de mexer no código):** propus inicialmente unificar
+a config num campo só de segmento; o usuário reagiu com um cenário de negócio real — "e se o
+atendimento é regionalizado no dia a dia, mas no fim de semana um plantonista da MATRIZ (sede
+nacional) cobre todos os estados, sem seguir a regionalização normal?". Isso confirma que as
+duas estratégias **devem poder apontar pra fontes de área diferentes** — não é inconsistência,
+é um requisito de negócio legítimo. Retirei a sugestão de unificar.
+
+**O que já estava certo, só não comunicado:** o código das 2 estratégias já implementa a
+diferença corretamente — `geoAreaStrategy` usa `INNER JOIN` + `WHERE` (filtro obrigatório: só
+considera quem atua exatamente naquele estado/cidade); `plantonistaFallbackStrategy` usa
+`LEFT JOIN` + `ORDER BY CASE` (só prioriza por área, nunca exclui ninguém — um plantonista sem
+área cadastrada, ou de área diferente, continua 100% elegível). Isso já resolve o cenário do
+usuário sem precisar de nenhuma mudança de lógica.
+
+**Implementado — só texto, config/lógica intocadas:**
+`SegmentDistributionModal.tsx` — o parágrafo de ajuda acima dos 4 campos (tabela/coluna FK/
+estado/cidade) agora é condicional por `strategyKey`: para `geo_area` explica que é filtro
+obrigatório; para `plantonista_fallback` explica que é só desempate, que é **independente** do
+bloco de Área Geográfica acima, e dá o exemplo concreto do plantão nacional na sede como razão
+legítima para apontar pra uma fonte diferente.
+
+**Verificado:** `npx tsc --noEmit` — 55 erros, mesma baseline pré-existente, nenhum novo (nenhum
+no arquivo tocado). Mudança é puramente de texto JSX (sem lógica nova, sem migração, sem
+validação nova) — não justifica verificação em navegador (mesma limitação de sempre de
+cookie/middleware Master já documentada repetidamente neste projeto).
+
+---
+
+## Última tarefa concluída
 
 ### Sessão 2026-07-21 (continuação 8) — Rename `corretor_areas_atuacao` → `atendente_area_atuacao` ✅
 
