@@ -3,6 +3,20 @@ import { verifyToken } from '@/lib/auth/jwt';
 import pool from '@/lib/database/connection';
 import { SEGMENT_SEED_DEFAULTS } from '@/lib/intelligence/benchmarkResolver';
 
+// F7 — mesma validação de identificador já usada em data-entities/route.ts: o Master nunca
+// consegue salvar um fragmento de SQL disfarçado de nome de tabela/coluna.
+const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+function validateDistributionIdents(body: any): string | null {
+  for (const field of ['distribution_target_table', 'distribution_target_id_column', 'distribution_owner_column']) {
+    const v = body[field];
+    if (v != null && v !== '' && !IDENT_RE.test(v)) {
+      return `${field} inválido — use apenas letras, números e underscore, começando por letra ou underscore`;
+    }
+  }
+  return null;
+}
+
 /* ── auth helper ─────────────────────────────────────────────────── */
 
 async function requireMaster(request: NextRequest) {
@@ -60,18 +74,29 @@ export async function POST(request: NextRequest) {
       module_ids = [] as string[],
       imagens_por_ia = false as boolean,
       chatbot_max_turns_default = 6 as number,
+      distribution_role_name = 'Corretor' as string,
+      distribution_target_table = null as string | null,
+      distribution_target_id_column = null as string | null,
+      distribution_owner_column = null as string | null,
     } = body;
 
     if (!name || !slug) {
       return NextResponse.json({ error: 'name e slug são obrigatórios' }, { status: 400 });
     }
 
+    const identError = validateDistributionIdents(body);
+    if (identError) return NextResponse.json({ error: identError }, { status: 400 });
+
     const { rows } = await pool.query(`
       INSERT INTO public.system_segments
-        (name, slug, description, icon, color_theme, is_active, imagens_por_ia, chatbot_max_turns_default)
-      VALUES ($1, $2, $3, $4, $5, $6, $7::BOOLEAN, $8)
+        (name, slug, description, icon, color_theme, is_active, imagens_por_ia, chatbot_max_turns_default,
+         distribution_role_name, distribution_target_table, distribution_target_id_column, distribution_owner_column)
+      VALUES ($1, $2, $3, $4, $5, $6, $7::BOOLEAN, $8, $9, $10, $11, $12)
       RETURNING id
-    `, [name, slug, description, icon, color_theme, is_active, imagens_por_ia ?? false, chatbot_max_turns_default || 6]);
+    `, [
+      name, slug, description, icon, color_theme, is_active, imagens_por_ia ?? false, chatbot_max_turns_default || 6,
+      distribution_role_name || 'Corretor', distribution_target_table || null, distribution_target_id_column || null, distribution_owner_column || null,
+    ]);
 
     const newId = rows[0].id;
 
@@ -126,23 +151,37 @@ export async function PUT(request: NextRequest) {
       module_ids = [] as string[],
       imagens_por_ia = false as boolean,
       chatbot_max_turns_default = 6 as number,
+      distribution_role_name = 'Corretor' as string,
+      distribution_target_table = null as string | null,
+      distribution_target_id_column = null as string | null,
+      distribution_owner_column = null as string | null,
     } = body;
 
     if (!id || !name) {
       return NextResponse.json({ error: 'id e name são obrigatórios' }, { status: 400 });
     }
 
+    const identError = validateDistributionIdents(body);
+    if (identError) return NextResponse.json({ error: identError }, { status: 400 });
+
     await pool.query(`
       UPDATE public.system_segments SET
-        name                       = $2,
-        description                = $3,
-        icon                       = $4,
-        color_theme                = $5,
-        is_active                  = $6,
-        imagens_por_ia             = $7::BOOLEAN,
-        chatbot_max_turns_default  = $8
+        name                           = $2,
+        description                    = $3,
+        icon                           = $4,
+        color_theme                    = $5,
+        is_active                      = $6,
+        imagens_por_ia                 = $7::BOOLEAN,
+        chatbot_max_turns_default      = $8,
+        distribution_role_name         = $9,
+        distribution_target_table      = $10,
+        distribution_target_id_column  = $11,
+        distribution_owner_column      = $12
       WHERE id = $1::uuid
-    `, [id, name, description, icon, color_theme, is_active, imagens_por_ia ?? false, chatbot_max_turns_default || 6]);
+    `, [
+      id, name, description, icon, color_theme, is_active, imagens_por_ia ?? false, chatbot_max_turns_default || 6,
+      distribution_role_name || 'Corretor', distribution_target_table || null, distribution_target_id_column || null, distribution_owner_column || null,
+    ]);
 
     // Re-sincronizar módulos: remove todos e reinsere
     await pool.query(

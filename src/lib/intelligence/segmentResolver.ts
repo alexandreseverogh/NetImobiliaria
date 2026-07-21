@@ -18,6 +18,12 @@ export interface Segment {
   primary_kpis: any[];
   imagens_por_ia: boolean;
   chatbot_max_turns_default: number;
+  /** F7 (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6) — configuração de roteamento de leads
+   *  por segmento, consumida por DistributionEngine. Ver src/lib/routing/distributionEngine.ts. */
+  distribution_role_name: string;
+  distribution_target_table: string | null;
+  distribution_target_id_column: string | null;
+  distribution_owner_column: string | null;
 }
 
 export interface SegmentOption {

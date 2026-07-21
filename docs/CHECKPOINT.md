@@ -1,13 +1,76 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — F2/F3 (rastreio de CTA de formulário no wizard) de
-> docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md implementado e verificado.
+> **Atualizado em:** 2026-07-21 — F7 (CRM agnóstico de domínio) de
+> docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md implementado e verificado. Todas as fases F0-F7 do
+> plano de migração e as 4 decisões D1-D4 estão concluídas.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-21 (continuação 3) — F7: CRM agnóstico de domínio ✅
+
+**Contexto:** última fase pendente do plano de migração (F0-F7 completo depois desta entrega —
+ver `docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` §6). Usuário perguntou "F5 já foi implementado?"
+— esclarecido que F5 (§6, "Separar tipos na clientes") é a MESMA entrega já documentada como
+"D2" nesta sessão (a tabela de fases numera F5, a tabela de decisões numera D2 — mesmo código,
+mesmo commit `5f91f93`).
+
+**Investigação antes de implementar:** `DistributionEngine` (`src/lib/routing/
+distributionEngine.ts`) tinha 2 pontos hardcoded pra imóvel: o nome do role de vendedor
+(`ur.name = 'Corretor'`, hardcoded em 2 queries SQL) e a query fixa de "dono do ativo"
+(`/api/crm/leads` sempre fazia `SELECT corretor_fk FROM imoveis WHERE id = $1`, com `domain_id`
+sempre `1`). `parametros_imoveis` (tabela de SLA/limites de roteamento) já era 100%
+tenant-agnóstica na prática (sempre foi `tenant_id`-scoped, funcionaria pra qualquer segmento)
+apesar do nome legado — não precisou de mudança.
+
+**Implementado (aditivo, zero renomeação de tabela — `corretor_areas_atuacao`/
+`imovel_prospect_atribuicoes` continuam com esses nomes, mas suas COLUNAS já eram
+estruturalmente genéricas o bastante pra qualquer segmento reusar):**
+1. `prisma/migration-2026-07-21-segment-distribution-config.sql` — 4 colunas novas em
+   `system_segments`: `distribution_role_name` (default `'Corretor'`, preserva 100% do
+   comportamento atual pra todo segmento existente), `distribution_target_table`,
+   `distribution_target_id_column`, `distribution_owner_column` (as 3 últimas NULL por padrão —
+   Nível 1 do motor de roteamento é pulado graciosamente quando ausentes, cai pro roteamento
+   geográfico que já era agnóstico). Backfill do segmento Imobiliário com
+   `imoveis`/`id`/`corretor_fk` — os valores que já estavam hardcoded no código, zero
+   regressão.
+2. `DistributionEngine.findBestCandidate` ganha `ctx.seller_role_name?` (default `'Corretor'`
+   se ausente) — thread pelas 2 queries que antes tinham `'Corretor'` cravado.
+3. `/api/crm/leads/route.ts` — `domain_id` continua existindo só como legado de log; a busca do
+   "dono do ativo" e o nome do role agora vêm de `resolveSegment(tenantId, clientId)` (helper já
+   existente, reusado — não duplicado) lendo as 4 colunas novas. SQL dinâmico com identificador
+   validado (`IDENT_RE`, mesmo padrão de `data-entities/route.ts`) antes de interpolar
+   tabela/coluna — nunca lê `system_segments` como SQL confiável sem checar.
+4. `POST/PUT /api/admin/master/segments` — aceitam e validam (mesmo `IDENT_RE`) as 4 colunas
+   novas; UI do editor de segmento (`/admin/master/segments`) ganha a seção "Distribuição de
+   Leads" (cargo do vendedor + tabela/coluna de ID/coluna do dono), mesmo padrão visual das
+   seções já existentes (Chatbot, Imagens por IA).
+
+**Testado ao vivo, ponta a ponta, com dado real:** `POST /api/crm/leads` com `imovel_id` real
+(tenant Imobiliaria XYZ) → query dinâmica gerada a partir da config do segmento Imobiliário
+executou sem erro contra a tabela `imoveis` real, motor de distribuição encontrou corretamente
+o único usuário com role "Corretor" deste tenant mas não o roteou (ele não tem
+`corretor_areas_atuacao` cadastrada nem é plantonista — condição real pré-existente dos dados,
+não regressão) — confirma que o filtro por role, agora parametrizado em vez de hardcoded,
+continua batendo exatamente igual a antes · `PUT /api/admin/master/segments` testado com
+payload completo (lição de uma sessão anterior aplicada: nunca mandar payload parcial nesse
+endpoint replace-all) setando `distribution_role_name='Consultor de Saúde'` +
+tabela/colunas de teste pro segmento Saúde → persistiu corretamente, `module_ids` preservado ·
+tentativa de injeção (`distribution_target_table: "exames; DROP TABLE imoveis;--"`) → rejeitada
+com 400 pela validação de identificador · segmento Saúde revertido ao estado original depois.
+`npx tsc --noEmit`: 55 erros, mesma baseline pré-existente (zero nos arquivos tocados).
+
+**Com isso, o plano `docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md` tem F0-F7 e D1-D4 completos.**
+Resta só a matriz formal de testes (§7 — 9 cenários de contratação + degradação graciosa +
+integridade da fonte única), que até agora só foi verificada ad-hoc a cada entrega, não
+executada como suíte formal.
+
+---
+
+## Última tarefa concluída
 
 ### Sessão 2026-07-21 (continuação 2) — F2/F3: rastreio real de CTA de formulário no wizard ✅
 

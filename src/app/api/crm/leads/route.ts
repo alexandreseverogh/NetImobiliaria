@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { DistributionEngine } from '@/lib/routing/distributionEngine'
+import { resolveSegment } from '@/lib/intelligence/segmentResolver'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
+
+const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/
 
 function getCurrentUser(request: NextRequest): { userId: string, tenantId?: string, is_system_role?: boolean } | null {
   try {
@@ -206,12 +209,27 @@ export async function POST(request: NextRequest) {
       [qualification.tag_sonho, qualification.resumo_ia, qualification.score_prontidao * 10, leadUuid]
     )
 
-    // 4. MOTOR DE DISTRIBUIÇÃO INTELIGENTE (NOVO)
-    // Buscamos o dono do imóvel para passar ao motor (Nível 1)
-    let sourceOwnerId = null
-    if (imovel_id) {
-       const ownerRes = await pool.query('SELECT corretor_fk FROM imoveis WHERE id = $1', [imovel_id])
-       sourceOwnerId = ownerRes.rows[0]?.corretor_fk
+    // 4. MOTOR DE DISTRIBUIÇÃO INTELIGENTE — dono do ativo (Nível 1) e nome do role de
+    // vendedor resolvidos via configuração do segmento do tenant, não mais hardcoded pra
+    // "imoveis.corretor_fk"/"Corretor" (F7 — docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6).
+    // Segmento ainda sem essa config (Master não configurou) simplesmente pula o Nível 1 —
+    // cai pro roteamento geográfico, que já era 100% agnóstico de domínio.
+    const segment = await resolveSegment(leadTenantId, leadClientId).catch(() => null)
+
+    let sourceOwnerId: string | undefined
+    if (
+      imovel_id &&
+      segment?.distribution_target_table && IDENT_RE.test(segment.distribution_target_table) &&
+      segment?.distribution_target_id_column && IDENT_RE.test(segment.distribution_target_id_column) &&
+      segment?.distribution_owner_column && IDENT_RE.test(segment.distribution_owner_column)
+    ) {
+      const ownerRes = await pool.query(
+        `SELECT "${segment.distribution_owner_column}" AS owner_id
+           FROM public."${segment.distribution_target_table}"
+          WHERE "${segment.distribution_target_id_column}" = $1`,
+        [imovel_id]
+      )
+      sourceOwnerId = ownerRes.rows[0]?.owner_id ?? undefined
     }
 
     const routed = await DistributionEngine.findBestCandidate({
@@ -220,8 +238,9 @@ export async function POST(request: NextRequest) {
        source_owner_id: sourceOwnerId,
        estado_fk: inheritedEstado,
        cidade_fk: inheritedCidade,
-       domain_id: 1, // Imobiliário
-       tenant_id: leadTenantId
+       domain_id: 1, // Imobiliário — legado, hoje só usado em log; roteamento real é por segmento
+       tenant_id: leadTenantId,
+       seller_role_name: segment?.distribution_role_name,
     })
 
     if (routed) {

@@ -36,6 +36,10 @@ interface Segment {
   imagens_por_ia: boolean
   tenant_count:   number
   chatbot_max_turns_default: number
+  distribution_role_name: string
+  distribution_target_table: string | null
+  distribution_target_id_column: string | null
+  distribution_owner_column: string | null
 }
 
 interface Module {
@@ -67,6 +71,10 @@ export default function MasterSegmentsPage() {
     module_ids: [] as string[],
     imagens_por_ia: false,
     chatbot_max_turns_default: 6,
+    distribution_role_name: 'Corretor',
+    distribution_target_table: '',
+    distribution_target_id_column: '',
+    distribution_owner_column: '',
   })
 
   const fetchSegments = async () => {
@@ -100,7 +108,7 @@ export default function MasterSegmentsPage() {
       if (response.ok) {
         setShowModal(false)
         setEditingSegment(null)
-        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6 })
+        setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, distribution_role_name: 'Corretor', distribution_target_table: '', distribution_target_id_column: '', distribution_owner_column: '' })
         fetchSegments()
       } else {
         const err = await response.json()
@@ -123,6 +131,10 @@ export default function MasterSegmentsPage() {
       module_ids:     (segment.module_ids || []).filter(Boolean),
       imagens_por_ia: segment.imagens_por_ia ?? false,
       chatbot_max_turns_default: segment.chatbot_max_turns_default ?? 6,
+      distribution_role_name: segment.distribution_role_name || 'Corretor',
+      distribution_target_table: segment.distribution_target_table || '',
+      distribution_target_id_column: segment.distribution_target_id_column || '',
+      distribution_owner_column: segment.distribution_owner_column || '',
     })
     setShowModal(true)
   }
@@ -158,7 +170,7 @@ export default function MasterSegmentsPage() {
             <button
               onClick={() => {
                 setEditingSegment(null)
-                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6 })
+                setFormData({ name: '', slug: '', description: '', icon: 'box', color_theme: '#2563eb', is_active: true, module_ids: [], imagens_por_ia: false, chatbot_max_turns_default: 6, distribution_role_name: 'Corretor', distribution_target_table: '', distribution_target_id_column: '', distribution_owner_column: '' })
                 setShowModal(true)
               }}
               className="flex items-center px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95"
@@ -464,6 +476,63 @@ export default function MasterSegmentsPage() {
                       onChange={e => setFormData({...formData, chatbot_max_turns_default: parseInt(e.target.value, 10) || 6})}
                       className="w-24 px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium text-sm"
                     />
+                  </div>
+
+                  {/* Distribuição de Leads (F7 — motor agnóstico de domínio) */}
+                  <div className="p-3.5 rounded-xl border border-dashed border-sky-200 bg-sky-50/50">
+                    <label className="text-sm font-black text-sky-800 flex items-center gap-1.5 mb-1">
+                      <AdjustmentsHorizontalIcon className="h-3.5 w-3.5" />
+                      Distribuição de Leads
+                    </label>
+                    <p className="text-[10px] text-sky-600 mb-2 leading-relaxed">
+                      Nome do cargo de vendedor deste segmento e, opcionalmente, a tabela/coluna
+                      que diz quem é o "dono" do ativo (ex.: corretor do imóvel) — usado pro
+                      Nível 1 do motor de roteamento. Deixe tabela/colunas em branco se este
+                      segmento não tiver essa noção de dono fixo (o roteamento cai direto pra
+                      área geográfica/plantonista).
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <div className="col-span-2">
+                        <label htmlFor="distribution_role_name" className="text-[10px] font-bold text-sky-700 block mb-1">Cargo do vendedor</label>
+                        <input
+                          type="text" id="distribution_role_name"
+                          value={formData.distribution_role_name}
+                          onChange={e => setFormData({...formData, distribution_role_name: e.target.value})}
+                          placeholder="Corretor"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-sky-500 outline-none transition-all font-medium text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="distribution_target_table" className="text-[10px] font-bold text-sky-700 block mb-1">Tabela do ativo</label>
+                        <input
+                          type="text" id="distribution_target_table"
+                          value={formData.distribution_target_table}
+                          onChange={e => setFormData({...formData, distribution_target_table: e.target.value})}
+                          placeholder="imoveis"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-sky-500 outline-none transition-all font-mono text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="distribution_target_id_column" className="text-[10px] font-bold text-sky-700 block mb-1">Coluna de ID</label>
+                        <input
+                          type="text" id="distribution_target_id_column"
+                          value={formData.distribution_target_id_column}
+                          onChange={e => setFormData({...formData, distribution_target_id_column: e.target.value})}
+                          placeholder="id"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-sky-500 outline-none transition-all font-mono text-xs"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label htmlFor="distribution_owner_column" className="text-[10px] font-bold text-sky-700 block mb-1">Coluna do dono (FK pro corretor/vendedor)</label>
+                        <input
+                          type="text" id="distribution_owner_column"
+                          value={formData.distribution_owner_column}
+                          onChange={e => setFormData({...formData, distribution_owner_column: e.target.value})}
+                          placeholder="corretor_fk"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-sky-500 outline-none transition-all font-mono text-xs"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
                 {/* ╚══════════════ FIM COLUNA ESQUERDA ══════════════╝ */}

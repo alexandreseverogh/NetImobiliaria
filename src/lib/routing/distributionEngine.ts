@@ -14,6 +14,9 @@ export interface LeadDistributionContext {
   cidade_fk?: string;
   domain_id?: number; // Para multi-inquilino / multi-垂直 (SaaS)
   tenant_id?: string; // NOVO: Isolamento Multi-Tenant
+  /** F7 — nome do role de vendedor pra este segmento (default 'Corretor', o valor histórico
+   *  hardcoded). Vem de system_segments.distribution_role_name — ver segmentResolver.ts. */
+  seller_role_name?: string;
 }
 
 export interface RoutedBroker {
@@ -39,6 +42,7 @@ export class DistributionEngine {
     console.log(`[DistributionEngine] Iniciando busca para lead ${ctx.lead_id}. Domínio: ${ctx.domain_id || 1}`);
 
     const tenantId = ctx.tenant_id || '00000000-0000-0000-0000-000000000001';
+    const sellerRoleName = ctx.seller_role_name || 'Corretor';
 
     // 1. Buscar Parâmetros de SLA e Limites (Garantindo Zero Hardcoding)
     const paramsRes = await dbClient.query('SELECT * FROM public.parametros_imoveis WHERE tenant_id = $1 LIMIT 1', [tenantId]);
@@ -81,7 +85,7 @@ export class DistributionEngine {
     // Regra: Se não houver dono, prioridade para corretores externos da área.
     if (ctx.estado_fk && ctx.cidade_fk) {
       const externalRes = await this.queryBrokersByArea(
-        ctx.estado_fk, ctx.cidade_fk, 'Externo', excludeIds, limitExternal, tenantId, dbClient
+        ctx.estado_fk, ctx.cidade_fk, 'Externo', excludeIds, limitExternal, tenantId, dbClient, sellerRoleName
       );
       if (externalRes) {
         console.log(`✅ [DistributionEngine] Nível 2: Corretor Externo por Área: ${externalRes.nome}`);
@@ -90,7 +94,7 @@ export class DistributionEngine {
 
       // --- NÍVEL 3: ROTEAMENTO GEOGRÁFICO - CORRETORES INTERNOS ---
       const internalRes = await this.queryBrokersByArea(
-        ctx.estado_fk, ctx.cidade_fk, 'Interno', excludeIds, limitInternal, tenantId, dbClient
+        ctx.estado_fk, ctx.cidade_fk, 'Interno', excludeIds, limitInternal, tenantId, dbClient, sellerRoleName
       );
       if (internalRes) {
         console.log(`✅ [DistributionEngine] Nível 3: Corretor Interno por Área: ${internalRes.nome}`);
@@ -99,7 +103,7 @@ export class DistributionEngine {
     }
 
     // --- NÍVEL 4: FALLBACK FINAL (Plantonista) ---
-    const plantonistaRes = await this.queryPlantonista(excludeIds, tenantId, dbClient, ctx.estado_fk, ctx.cidade_fk);
+    const plantonistaRes = await this.queryPlantonista(excludeIds, tenantId, dbClient, ctx.estado_fk, ctx.cidade_fk, sellerRoleName);
     if (plantonistaRes) {
       console.log(`✅ [DistributionEngine] Nível 4: Fallback Plantonista: ${plantonistaRes.nome}`);
       return {
@@ -129,7 +133,8 @@ export class DistributionEngine {
     excludeIds: string[],
     limit: number,
     tenantId: string,
-    dbClient: any
+    dbClient: any,
+    sellerRoleName: string
   ): Promise<any | null> {
     const q = `
       SELECT
@@ -151,7 +156,7 @@ export class DistributionEngine {
       ) a ON a.corretor_fk = u.id
       WHERE u.ativo = true
         AND utm.tenant_id = $6
-        AND ur.name = 'Corretor'
+        AND ur.name = $7
         AND COALESCE(u.is_plantonista, false) = false
         AND u.tipo_corretor = $1
         AND caa.estado_fk = $2
@@ -159,21 +164,21 @@ export class DistributionEngine {
         AND (CASE WHEN array_length($4::uuid[], 1) > 0 THEN u.id != ALL($4::uuid[]) ELSE true END)
       GROUP BY u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista, cs.nivel, u.created_at
       HAVING COUNT(a.corretor_fk) < $5 -- Aplica o limite parametrizado
-      ORDER BY 
-        COUNT(a.corretor_fk) ASC, 
-        MAX(a.created_at) ASC NULLS FIRST, 
+      ORDER BY
+        COUNT(a.corretor_fk) ASC,
+        MAX(a.created_at) ASC NULLS FIRST,
         COALESCE(cs.nivel, 0) DESC,
         u.created_at ASC
       LIMIT 1
     `;
-    const r = await dbClient.query(q, [tipo, estado, cidade, excludeIds, limit, tenantId]);
+    const r = await dbClient.query(q, [tipo, estado, cidade, excludeIds, limit, tenantId, sellerRoleName]);
     return r.rows[0] || null;
   }
 
   /**
    * Consulta centralizada de Plantonistas
    */
-  private static async queryPlantonista(excludeIds: string[], tenantId: string, dbClient: any, estado?: string, cidade?: string): Promise<any | null> {
+  private static async queryPlantonista(excludeIds: string[], tenantId: string, dbClient: any, estado?: string, cidade?: string, sellerRoleName: string = 'Corretor'): Promise<any | null> {
     // Tenta primeiro plantonista da área, senão global
     const q = `
       SELECT u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista
@@ -189,18 +194,18 @@ export class DistributionEngine {
       ) a ON a.corretor_fk = u.id
       WHERE u.ativo = true
         AND utm.tenant_id = $4
-        AND ur.name = 'Corretor'
+        AND ur.name = $5
         AND COALESCE(u.is_plantonista, false) = true
         AND (CASE WHEN array_length($1::uuid[], 1) > 0 THEN u.id != ALL($1::uuid[]) ELSE true END)
       GROUP BY u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista, u.created_at, caa.estado_fk, caa.cidade_fk
-      ORDER BY 
+      ORDER BY
         (CASE WHEN caa.estado_fk = $2 AND caa.cidade_fk = $3 THEN 0 ELSE 1 END) ASC, -- Prioriza área se houver match
-        COUNT(a.corretor_fk) ASC, 
+        COUNT(a.corretor_fk) ASC,
         MAX(a.created_at) ASC NULLS FIRST,
         u.created_at ASC
       LIMIT 1
     `;
-    const r = await dbClient.query(q, [excludeIds, estado || '', cidade || '', tenantId]);
+    const r = await dbClient.query(q, [excludeIds, estado || '', cidade || '', tenantId, sellerRoleName]);
     return r.rows[0] || null;
   }
 
