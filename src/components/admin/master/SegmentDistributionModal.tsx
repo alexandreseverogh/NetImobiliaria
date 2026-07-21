@@ -250,7 +250,11 @@ export function SegmentDistributionModal({ segment, onClose }: Props) {
                         {(s.strategyKey === 'geo_area' || s.strategyKey === 'plantonista_fallback') && (
                           <div className="mt-2.5 space-y-1.5">
                             <p className="text-[10px] text-gray-400">
-                              Opcional — de qual tabela vem a área de atuação do vendedor. Deixe em branco pra usar o padrão (atendente_area_atuacao):
+                              {s.strategyKey === 'geo_area' ? (
+                                <>Opcional — de qual tabela vem a área de atuação do vendedor (aqui é <strong>filtro obrigatório</strong>: só considera quem atua exatamente no estado/cidade do lead). Deixe em branco pra usar o padrão (atendente_area_atuacao):</>
+                              ) : (
+                                <>Opcional e <strong>independente</strong> da config de "Área Geográfica" acima — aqui a área é só <strong>critério de desempate</strong> (prioriza plantonista da mesma região, mas nunca exclui ninguém). Faz sentido apontar pra uma fonte diferente quando o plantonista não segue a regionalização normal (ex.: plantão nacional na sede, cobrindo todos os estados no fim de semana). Deixe em branco pra usar o padrão:</>
+                              )}
                             </p>
                             <div className="grid grid-cols-2 gap-2">
                               <input
