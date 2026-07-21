@@ -161,36 +161,44 @@ services:
       - /app/node_modules
     command: ["node", "scripts/feed-cron-scheduler.js"]
 
-  # Worker de SLA do Lead Router (expiração + transbordo)
-  lead-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: netimobiliaria-lead-worker
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_NAME: ${DB_NAME:-net_imobiliaria}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      NODE_ENV: development
-      NEXT_TELEMETRY_DISABLED: "1"
-      # URL base para montar o link do painel no e-mail
-      NEXT_PUBLIC_APP_URL: "http://localhost:3002"
-      CHOKIDAR_USEPOLLING: "true"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    command: ["node", "scripts/lead-router-sla-worker.js"]
-    healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # Worker de SLA do Lead Router (expiração + transbordo) — APOSENTADO 2026-07-21.
+  # Redundante com /api/cron/transbordo (rodado pelo serviço "feed" acima, a cada 5 min):
+  # ambos processavam a mesma tabela imovel_prospect_atribuicoes, com lógicas de decisão
+  # DIFERENTES (LeadGuardian aqui vs. DistributionEngine no transbordo), rodando ao mesmo
+  # tempo — risco real de reatribuições divergentes/e-mails duplicados pro mesmo evento.
+  # Nunca existiu em docker-compose.vps.yml — produção sempre rodou só com o transbordo.
+  # Testado ao vivo antes de remover: transbordo→prospectRouter→DistributionEngine cobre
+  # o mesmo caso corretamente (ver docs/CHECKPOINT.md). Código-fonte (scripts/
+  # lead-router-sla-worker.ts, src/lib/guardian/) mantido no repo por ora, só desligado.
+  #
+  # lead-worker:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: netimobiliaria-lead-worker
+  #   restart: unless-stopped
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   environment:
+  #     DB_HOST: db
+  #     DB_PORT: "5432"
+  #     DB_NAME: ${DB_NAME:-net_imobiliaria}
+  #     DB_USER: ${DB_USER:-postgres}
+  #     DB_PASSWORD: ${DB_PASSWORD:-postgres}
+  #     NODE_ENV: development
+  #     NEXT_TELEMETRY_DISABLED: "1"
+  #     NEXT_PUBLIC_APP_URL: "http://localhost:3002"
+  #     CHOKIDAR_USEPOLLING: "true"
+  #   volumes:
+  #     - .:/app
+  #     - /app/node_modules
+  #   command: ["node", "scripts/lead-router-sla-worker.js"]
+  #   healthcheck:
+  #     test: ["CMD", "node", "-e", "process.exit(0)"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   # Evolution API — WhatsApp gateway (local dev)
   # UI de gerenciamento: http://localhost:8081

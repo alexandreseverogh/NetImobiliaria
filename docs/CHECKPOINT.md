@@ -1,15 +1,83 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — motor de distribuição de leads virou orquestrador de
-> estratégias plugáveis por segmento (evolução do F7, docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md
-> §6), a pedido do usuário depois de questionar se o F7 original escalava de verdade pra
-> "dezenas de segmentos, zero hardcoded em tudo".
+> **Atualizado em:** 2026-07-21 — aposentado o worker antigo de roteamento de leads
+> (`LeadGuardian`/`lead-router-sla-worker`), duplicado com `transbordo`/`DistributionEngine`.
+> Confirmado: só existia em dev local, produção nunca rodou os dois.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
 
 ## Tarefa em andamento
+
+### Sessão 2026-07-21 (continuação 6) — Aposentado worker duplicado de roteamento de leads ✅
+
+**Contexto:** ao investigar por que a pergunta "qual campo determina a área geográfica pro
+match de distribuição" não tinha resposta clara na estratégia `geo_area`, o usuário perguntou o
+impacto de renomear `corretor_areas_atuacao` — investigação dessa pergunta revelou um achado bem
+mais sério: **existe um segundo motor de roteamento de leads, completamente separado do
+`DistributionEngine`, rodando ativamente**: `scripts/lead-router-sla-worker.ts` (usa
+`src/lib/guardian/LeadGuardian.ts`, cujo próprio comentário se autodeclara "SINGLE SOURCE OF
+TRUTH") — container Docker próprio (`netimobiliaria-lead-worker`), rodando há 3 dias, processando
+`imovel_prospect_atribuicoes` a cada 1 minuto, **em paralelo** ao `/api/cron/transbordo` (a cada 5
+min, via `netimobiliaria-feed`) — que faz a MESMA coisa (expira SLA + reatribui), com uma lógica
+de decisão DIFERENTE. Risco real: reatribuições divergentes / e-mails duplicados pro mesmo evento,
+sem erro nenhum nos logs — silencioso.
+
+**Investigação de causa raiz confirmou:** `LeadGuardian`/worker foram tocados pela última vez em
+2026-02-02 (5 meses e meio parado); `DistributionEngine`/`prospectRouter` foram tocados ontem
+(refactor de estratégias desta sessão). Cronologia + o próprio comentário do `LeadGuardian` deixam
+claro que o `DistributionEngine` foi construído pra SUBSTITUIR essa classe, mas o corte nunca foi
+finalizado — o worker antigo nunca foi desligado do `docker-compose.yml`.
+
+**Achado que reduziu o risco da decisão:** `docker-compose.vps.yml` (produção) **nunca teve** o
+serviço `lead-worker` — só existe no `docker-compose.yml` de dev local desta máquina. Produção
+roda, desde que existe, só `feed-cron-scheduler.js` → `/api/cron/transbordo` (serviço `prod_feed`,
+`restart: unless-stopped`, com `CRON_SECRET`/dependências corretas). **A duplicação nunca afetou
+produção** — era um problema só deste ambiente de desenvolvimento.
+
+**Decisão do usuário, com 2 exigências explícitas:** (1) priorizar não comprometer a confiabilidade
+da distribuição de leads (a lógica parametrizável por segmento agora tem que sempre rodar, sem
+"leads mortos" por SLA não cumprido) — testar ANTES de desligar a rede de segurança antiga; (2) a
+questão de crescimento das tabelas de auditoria (BLOCO 0 do transbordo, limpeza de 30 dias) fica
+como pendência de estudo, não resolvida agora; (3) gamificação (XP/penalidade) não é prioridade
+agora — só esclarecer o estado real, sem implementar.
+
+**Investigação de paridade (`prospectRouter.ts` lido por completo):** confirmado que o caminho
+novo (`routeProspectAndNotify` → `DistributionEngine`) já cobre tudo que o worker antigo fazia pra
+`imovel_prospect_atribuicoes` — e mais: verifica atribuição ativa duplicada antes de inserir,
+auto-aceite vincula `imoveis.corretor_fk`, e-mails ricos (corretor + notificação ao cliente em
+auto-aceite). **Achado sobre gamificação:** nem o worker antigo nem o `prospectRouter.ts` novo
+premiam XP de quem RECEBE o lead reatribuído de `imovel_prospects` (só o caminho do CRM,
+`leads_staging`, faz isso) — assimetria pré-existente, não é regressão de nada desta sessão. A
+penalização de quem PERDEU o lead por SLA já é feita pelo `transbordo` (BLOCO 1); o worker antigo
+nunca fazia nem isso.
+
+**Testado ao vivo, ponta a ponta, antes de desligar qualquer coisa:** criado `imovel_prospects` +
+`imovel_prospect_atribuicoes` de teste (status='atribuido', `expira_em` no passado) + 1 corretor
+de teste plantonista (única forma de ter um 2º candidato real, já que só existe 1 corretor no
+ambiente de dev hoje) → `POST /api/cron/transbordo` real → confirmado no banco: assignment original
+virou `status='expirado'`, nova assignment criada com `motivo={"type":"fallback_plantonista",
+"engine":"v2"}` (confirma que passou pelo motor NOVO) — cascata completa (dono→geo→plantonista)
+funcionou corretamente. Todo dado de teste removido depois, incluindo reverter `imoveis.corretor_fk`
+que o auto-aceite tinha gravado.
+
+**Ação executada:** container `netimobiliaria-lead-worker` parado e removido (`docker stop` +
+`docker rm`). Serviço `lead-worker` comentado (não apagado) em `docker-compose.yml`, com nota
+explicando o porquê e apontando pra este registro. Confirmado `docker compose config` válido
+depois da edição, demais containers (`feed`, `db`, `app`, `redis`, `translator`, `minio`) intactos.
+Código-fonte (`scripts/lead-router-sla-worker.ts/.js`, `src/lib/guardian/`) mantido no repositório
+por ora — limpeza de código morto fica pra uma próxima sessão, sem pressa.
+
+**Pendências reais registradas, não atacadas:** política de retenção das tabelas de auditoria
+(`leads_staging_atribuicoes`, `imovel_prospect_atribuicoes` — BLOCO 0 do transbordo) — precisa de
+estudo próprio antes de qualquer mudança. Assimetria de gamificação (XP não premiado pro caminho de
+`imovel_prospects`) — registrada, não é prioridade agora. Limpeza de código-fonte morto
+(`LeadGuardian`, worker antigo) — pendente, sem urgência.
+
+---
+
+## Última tarefa concluída
 
 ### Sessão 2026-07-21 (continuação 4) — Motor de distribuição: cascata fixa → estratégias plugáveis ✅
 
