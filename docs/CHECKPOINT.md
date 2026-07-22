@@ -1,12 +1,14 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-22 — ✅ Trilha A (auditoria técnica independente pós-consolidação)
-> concluída, 0 discrepâncias em 14 consumidores + 3 casos de borda — ver
-> `docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`. **⏳ Trilha B (roteiro manual em todas as UIs)
-> pendente — usuário vai executar seguindo o mesmo documento.** Consolidação de leadEvents.ts
-> (16/16 tasks #60-75) segue formalmente concluída desde a rodada anterior; esta é uma segunda
-> verificação independente pedida explicitamente pelo usuário, por precaução, dado o histórico
-> de bugs reais encontrados em sequência antes da consolidação.
+> **Atualizado em:** 2026-07-22 — ✅ Trilha A concluída (0 discrepâncias em 14 consumidores + 3
+> casos de borda — ver `docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`). **Achado adicional do
+> usuário durante a revisão da Trilha A, já corrigido:** Mecanismo C (webhook genérico
+> `/api/public/cta/ingest`) nunca resolvia `campaign_id`, mesmo quando um anúncio real desta
+> plataforma apontava pro site próprio do cliente — corrigido com campo opcional `ref`
+> (retrocompatível). Bug real, dormant, pego DURANTE o teste dessa correção: `resolveCtaRef`
+> hardcodeava `ctaType:'WHATSAPP_MESSAGE'` pra qualquer match via `Ad.trackingId` — corrigido pra
+> ler o `ctaType` real do anúncio. **⏳ Trilha B (roteiro manual em todas as UIs) segue pendente
+> — usuário vai executar seguindo `docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`.**
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar — e também ao retomar após
 > interrupção, antes de continuar, para não repetir o mesmo hiato de documentação.
@@ -17,8 +19,60 @@
 
 **Trilha B do teste rigoroso pós-consolidação** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`)
 — roteiro manual de verificação em todas as telas do módulo de Campanhas, a ser executado pelo
-usuário. Trilha A (técnica) já concluída nesta mesma sessão, 0 discrepâncias. Ao retomar: ler o
-documento, conferir se o usuário já reportou resultado da Trilha B (divergências ou "tudo OK").
+usuário. Trilha A (técnica) já concluída, 0 discrepâncias, mais o fix do Mecanismo C abaixo. Ao
+retomar: ler o documento, conferir se o usuário já reportou resultado da Trilha B (divergências
+ou "tudo OK").
+
+## Última tarefa concluída
+
+### Sessão 2026-07-22 (continuação 19) — Mecanismo C: atribuição de campanha real via `?ref=` ✅
+
+**Contexto:** durante a revisão da Trilha A, o usuário levantou uma preocupação mais ampla: CPL
+computado sem considerar "outros CTAs como formulários, views, etc., pra todas as redes".
+Investigação confirmou que o lado de LEITURA (`leadEvents.ts`) já cobria formulário corretamente
+pro Meta — mas achei um terceiro mecanismo de ESCRITA de lead nunca auditado antes: Mecanismo C
+(`/api/public/cta/ingest`, webhook genérico documentado em `/admin/campanhas/mecanismos`, já
+configurado com API key ativa nos 4 tenants). Esse mecanismo nunca tentava resolver
+`campaign_id` — evidência real (não hipotética): linhas de `CtaSubmission` no banco com
+`lead_uuid` preenchido (leads reais, já matchados no CRM) e `campaign_id NULL`, de testes
+anteriores do próprio mecanismo ("Teste Webhook", "Novo Webhook").
+
+**Discussão de escopo com o usuário (importante, não só técnica):** o usuário reformulou o
+modelo mental certo — CPL do módulo de Campanhas só deveria contar leads com gasto de campanha
+real por trás (visita presencial, lead comprado de terceiro, etc. NÃO deveriam entrar nessa
+conta, mesmo tendo custo/valor — isso é escopo do CRM, não de Campanhas). Isso reduziu o achado
+a uma pergunta mais estreita: existe caso real em que o Mecanismo C recebe lead de um anúncio
+REAL desta plataforma? Usuário confirmou: sim — cliente pode ter site PRÓPRIO (não o `/l/{slug}`
+hospedado aqui) como destino de um anúncio nosso, empurrando o lead pra cá via esse webhook.
+
+**Implementado (aditivo, retrocompatível):**
+1. `/api/public/cta/ingest/route.ts` — aceita campo opcional `ref` (mesmo trackingId que
+   `/api/r/{trackingId}` já anexa como `?ref=` ao redirecionar pro destino do anúncio, mesmo
+   quando esse destino é externo); resolve via `resolveCtaRef` (mesma função do Mecanismo B).
+   Nunca aceita `campaign_id`/`ad_id` crus do chamador externo — só `ref` que resolve de
+   verdade, por segurança (não deixar um integrador arbitrário atribuir lead a qualquer
+   campanha).
+2. `mecanismos/page.tsx` — snippet JS captura `?ref=` da URL no carregamento (guarda em
+   `sessionStorage`), repassa no submit; `curlExample`/documentação atualizados.
+
+**Bug real, pré-existente e dormant, encontrado DURANTE o teste ao vivo (não hipotético):**
+`resolveCtaRef` (`src/lib/cta/service.ts`) hardcodeava `ctaType:'WHATSAPP_MESSAGE'` pra
+QUALQUER match via `Ad.trackingId`, ignorando o `ctaType` real já armazenado na tabela `Ad`.
+Neste banco, todo `Ad` com `trackingId` hoje genuinamente tem `ctaType=WHATSAPP_MESSAGE` (por
+isso o bug nunca se manifestou) — mas quebraria silenciosamente o cenário que o usuário acabou
+de confirmar como real: anúncio com `ctaType=LEARN_MORE` apontando pro site do cliente teria a
+submissão gravada com `cta_type` errado, e `leadEvents.ts` a excluiria (mesmo filtro que existe
+pra não contar 2x o eco de resposta real de WhatsApp) — lead real, com campanha corretamente
+resolvida, mesmo assim invisível no CPL. Corrigido: `resolveCtaRef` agora lê `a."ctaType"` real.
+
+**Testado ao vivo, ponta a ponta** (tenant Marketing Digital, campanha "Alto Padrão —
+Alphaville", trackingId `demo-track-001`, `ctaType` do anúncio temporariamente ajustado pra
+`LEARN_MORE` só durante o teste e revertido depois): `POST /api/public/cta/ingest` com `ref`
+real → `campaign_id` resolvido corretamente em `CtaSubmission`+`marketing_eventos`, `cta_type`
+correto (`LEARN_MORE`), `dashboard/full` refletiu `leadCount=1` atribuído à campanha certa · sem
+`ref` → `campaign_id`/`cta_type` continuam `NULL`, idêntico ao comportamento antigo
+(retrocompatibilidade confirmada). Todo dado de teste removido depois (0 linhas residuais),
+`Ad.ctaType` revertido ao valor original. `npx tsc --noEmit`: zero erros novos. Commit `3990fc2`.
 
 ## Última tarefa concluída
 
