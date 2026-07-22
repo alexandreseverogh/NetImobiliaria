@@ -2,8 +2,8 @@
 
 > **Atualizado em:** 2026-07-22 — EM ANDAMENTO: consolidação de "o que é lead" numa fonte única
 > (`leadEvents.ts`), depois de auditoria de robustez encontrar ~15 arquivos duplicando a mesma
-> lógica incompleta (só WhatsApp) + 1 bug crítico (leads nativos do Meta perdidos). **8 de 16
-> tasks concluídas (#60-63, #68-71); 8 pendentes (#64-67, #72-75) — ver lista exata abaixo.**
+> lógica incompleta (só WhatsApp) + 1 bug crítico (leads nativos do Meta perdidos). **12 de 16
+> tasks concluídas (#60-71); 4 pendentes (#72-75) — ver lista exata abaixo.**
 > Retomada nesta sessão depois de uma interrupção por estouro de cota: o `git status`/`git diff`
 > confirmaram que nenhum trabalho foi perdido, só faltava esta atualização de checkpoint (o
 > próprio motivo desta seção existir). Tasks #60-75 (task tool) espelham exatamente esta lista.
@@ -58,7 +58,7 @@ tabelas); Google/YouTube → `insight_conversions` (campo `Insight.conversions`,
 Todo consumidor deve migrar pra usar isso em vez de reimplementar a própria query — é a causa
 raiz de por que o mesmo bug apareceu 2x seguidas antes desta rodada.
 
-**Progresso — 8 de 16 tasks concluídas (tasks #60-75, rastreadas no task tool):**
+**Progresso — 12 de 16 tasks concluídas (tasks #60-75, rastreadas no task tool):**
 - ✅ #60 `leadEvents.ts` construído (módulo central + `networkLeadSource.ts`)
 - ✅ #61 `cplTimelineService.ts` migrado — testado: totais idênticos antes/depois, zero regressão
 - ✅ #62 `dashboard/full/route.ts` migrado — testado: `currentLeadCount`/`funnelData.leads`/
@@ -82,14 +82,31 @@ raiz de por que o mesmo bug apareceu 2x seguidas antes desta rodada.
   leads agora vêm de `getLeadEvents` separado, merged em JS) — não testado ao vivo ponta a ponta
   (alimenta narrativa LLM sem endpoint isolado simples de testar), mas `tsc --noEmit` limpo +
   mesmas primitivas já provadas ao vivo 4x em outros arquivos
+- ✅ #63 `dashboard/segment/route.ts` migrado (total de leads por cliente + leads por dia,
+  `fetchClientData`) — testado ao vivo: `leads=64, cpl=3825.36`, bate com `dashboard/full`.
+  Commit `d6b6d8b`.
+- ✅ #64 `dashboard/funnel/route.ts` migrado (leads por estágio TOF/MOF/BOF — antes JOIN direto
+  com CtaInteraction agrupado por estágio; agora resolve campanha→estágio e soma leads via
+  `getLeadEvents`+`leadsByCampaign` em JS). Bug real pego no teste ao vivo: a nova query de
+  escopo parou de referenciar `$2`/`$3` (removido o JOIN com Insight), e Postgres rejeita bind
+  com mais parâmetros do que o texto SQL referencia — corrigido com uma referência inócua
+  `$2::timestamp IS NOT NULL AND $3::timestamp IS NOT NULL`. Testado: leads=64 (clientId=own),
+  batendo com os demais. Commit `0bc9d2a`.
+- ✅ #65 `dashboard/predictions/route.ts` migrado (série histórica de leads, base da regressão
+  linear). Testado: soma da série = 64. Commit `c7d495d`.
+- ✅ #66 `dashboard/campaign-map/route.ts` migrado (leads por localização geográfica no mapa;
+  usa `Pool` próprio, não Prisma — leads resolvidos depois da query principal, usando os
+  campaign_id já retornados). Testado: soma de leads deduplicada por campanha = 64.
+  Commit `3d46af0`.
+- ✅ #67 `portfolio/route.ts` + `portfolio/cross-insights/route.ts` migrados — cada um tinha 2
+  queries próprias (leads por cliente + leads por campanha), ambas só WHATSAPP_CLICK; unificadas
+  numa única chamada a `getLeadEvents` por arquivo, agregada por cliente em JS via mapa
+  campanha→client_id. Testado: "Marketing Digital" (own) com leads=64/spend=244823.19/
+  cpl=3825.36 nos dois endpoints — mesmíssimos números de todos os outros já migrados.
+  Commit `7d203a3`.
 
-**⏳ Pendente — 8 tasks, ainda não atacadas, mesma ordem das tasks:**
-- **#64** `dashboard/funnel/route.ts` (`mof.leads`, linha ~139) — ainda usa WHATSAPP_CLICK cru
-- **#65** `dashboard/predictions/route.ts` (linha ~161) — idem
-- **#66** `dashboard/campaign-map/route.ts` (linha ~191) — idem
-- **#67** `portfolio/route.ts` (linhas 135, 180) + `portfolio/cross-insights/route.ts`
-  (linha ~325) — idem
-- **#72** `auditReportService.ts` (linhas 319, 383) — idem
+**⏳ Pendente — 4 tasks, ainda não atacadas, mesma ordem das tasks:**
+- **#72** `auditReportService.ts` (linhas 319, 383) — ainda usa WHATSAPP_CLICK cru
 - **#73** `strategicBriefing.ts` (linhas 147-160) — idem
 - **#74** `iniciativas/[id]/route.ts` (linha 48) + `briefing/route.ts` (linha 50) — idem
 - **#75** Aviso de UX/UI explicando a limitação do Google (achado #4 acima) — **de propósito o
@@ -100,10 +117,11 @@ real (não mockado) comparando resultado antes/depois quando há endpoint isolad
 próprio por arquivo com mensagem explicando o bug/inconsistência resolvida.
 
 **Próximo passo real ao retomar esta frente:** continuar exatamente pela lista de pendentes acima
-(#64 é o próximo), na mesma ordem, com a mesma disciplina de teste+commit por arquivo. Não marcar
-essa frente como concluída até as 16 tasks (#60-75) estarem todas `completed` — **e atualizar
-este checkpoint a cada 2-3 arquivos migrados**, não só no fim da sessão, para que uma
-interrupção por estouro de cota nunca mais exija reconstrução de estado via `git log`/`git diff`.
+(#72 é o próximo — `auditReportService.ts`), na mesma ordem, com a mesma disciplina de
+teste+commit por arquivo. Não marcar essa frente como concluída até as 16 tasks (#60-75)
+estarem todas `completed` — **e atualizar este checkpoint a cada 2-3 arquivos migrados**, não só
+no fim da sessão, para que uma interrupção por estouro de cota nunca mais exija reconstrução de
+estado via `git log`/`git diff`.
 
 ## Tarefa em andamento
 
