@@ -1,12 +1,12 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-22 — EM ANDAMENTO: consolidação de "o que é lead" numa fonte única
+> **Atualizado em:** 2026-07-22 — ✅ CONCLUÍDA: consolidação de "o que é lead" numa fonte única
 > (`leadEvents.ts`), depois de auditoria de robustez encontrar ~15 arquivos duplicando a mesma
-> lógica incompleta (só WhatsApp) + 1 bug crítico (leads nativos do Meta perdidos). **12 de 16
-> tasks concluídas (#60-71); 4 pendentes (#72-75) — ver lista exata abaixo.**
-> Retomada nesta sessão depois de uma interrupção por estouro de cota: o `git status`/`git diff`
-> confirmaram que nenhum trabalho foi perdido, só faltava esta atualização de checkpoint (o
-> próprio motivo desta seção existir). Tasks #60-75 (task tool) espelham exatamente esta lista.
+> lógica incompleta (só WhatsApp) + 1 bug crítico (leads nativos do Meta perdidos). **16 de 16
+> tasks concluídas (#60-75).** Retomada nesta sessão depois de uma interrupção por estouro de
+> cota: o `git status`/`git diff` confirmaram que nenhum trabalho tinha sido perdido, só faltava
+> a atualização deste checkpoint (o próprio motivo desta seção existir) — lição aplicada:
+> atualizado a cada poucos arquivos migrados daqui pra frente, não só no fim da sessão.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar — e também ao retomar após
 > interrupção, antes de continuar, para não repetir o mesmo hiato de documentação.
@@ -15,7 +15,11 @@
 
 ## Tarefa em andamento
 
-### Sessão 2026-07-21/22 (continuação 17+) — Auditoria de robustez de CPL + consolidação em fonte única
+**Nenhuma tarefa em andamento no momento.**
+
+## Última tarefa concluída
+
+### Sessão 2026-07-21/22 (continuação 17+) — Auditoria de robustez de CPL + consolidação em fonte única ✅
 
 **Contexto:** usuário, com razão, ficou seriamente preocupado com a robustez do cálculo de CPL
 (métrica mais importante do negócio) depois de eu ter corrigido 2 bugs reais seguidos na mesma
@@ -36,14 +40,15 @@ completa de TODA forma de gerar lead em TODA rede antes de eu considerar o assun
    `/dashboard/full` continuavam só WhatsApp. **Corrigido e testado ao vivo, commitado.**
 3. **~15 arquivos duplicando a mesma lógica incompleta** (`aiInsights.ts`, `wastedSpendService.ts`,
    `portfolio`, `trackingHealthService`, `briefing`, `funil`, `predições`, `mapa de campanhas`,
-   `segmentIntelligenceService`, `auditReportService` — lista exata de pendentes abaixo).
-   Consequência real: IA podia recomendar pausar uma campanha de Google/formulário achando que
-   tinha 0 leads, quando na verdade tinha leads reais só que num canal que aquela regra
-   específica não sabia olhar. **Em consolidação — ver progresso abaixo.**
+   `segmentIntelligenceService`, `auditReportService`, `iniciativas` — lista completa no
+   progresso abaixo). Consequência real: IA podia recomendar pausar uma campanha de Google/
+   formulário achando que tinha 0 leads, quando na verdade tinha leads reais só que num canal
+   que aquela regra específica não sabia olhar. **Consolidado — todos os 15 migrados.**
 4. **Estrutural, não é bug de código:** `Insight.conversions` do Google é a soma de qualquer
    "ação de conversão" configurada na CONTA do cliente no Google Ads — pode incluir coisas que
-   não são lead. Fica pra um aviso na UI (task #75, **de propósito o ÚLTIMO item da lista**, por
-   instrução explícita do usuário) — não dá pra corrigir só no nosso código.
+   não são lead. **Resolvido com um aviso explícito na UI** (task #75, `GoogleAdsView.tsx`,
+   deixado de propósito como último item por instrução explícita do usuário) — não dava pra
+   corrigir só no nosso código, então a solução foi transparência.
 
 **Decisão de arquitetura (não só patch pontual):** criado
 `src/lib/marketing/services/leadEvents.ts` — fonte ÚNICA de "o que é lead" (ciente de rede e de
@@ -58,7 +63,7 @@ tabelas); Google/YouTube → `insight_conversions` (campo `Insight.conversions`,
 Todo consumidor deve migrar pra usar isso em vez de reimplementar a própria query — é a causa
 raiz de por que o mesmo bug apareceu 2x seguidas antes desta rodada.
 
-**Progresso — 12 de 16 tasks concluídas (tasks #60-75, rastreadas no task tool):**
+**Progresso final — 16 de 16 tasks concluídas (tasks #60-75, rastreadas no task tool):**
 - ✅ #60 `leadEvents.ts` construído (módulo central + `networkLeadSource.ts`)
 - ✅ #61 `cplTimelineService.ts` migrado — testado: totais idênticos antes/depois, zero regressão
 - ✅ #62 `dashboard/full/route.ts` migrado — testado: `currentLeadCount`/`funnelData.leads`/
@@ -82,9 +87,6 @@ raiz de por que o mesmo bug apareceu 2x seguidas antes desta rodada.
   leads agora vêm de `getLeadEvents` separado, merged em JS) — não testado ao vivo ponta a ponta
   (alimenta narrativa LLM sem endpoint isolado simples de testar), mas `tsc --noEmit` limpo +
   mesmas primitivas já provadas ao vivo 4x em outros arquivos
-- ✅ #63 `dashboard/segment/route.ts` migrado (total de leads por cliente + leads por dia,
-  `fetchClientData`) — testado ao vivo: `leads=64, cpl=3825.36`, bate com `dashboard/full`.
-  Commit `d6b6d8b`.
 - ✅ #64 `dashboard/funnel/route.ts` migrado (leads por estágio TOF/MOF/BOF — antes JOIN direto
   com CtaInteraction agrupado por estágio; agora resolve campanha→estágio e soma leads via
   `getLeadEvents`+`leadsByCampaign` em JS). Bug real pego no teste ao vivo: a nova query de
@@ -104,24 +106,34 @@ raiz de por que o mesmo bug apareceu 2x seguidas antes desta rodada.
   campanha→client_id. Testado: "Marketing Digital" (own) com leads=64/spend=244823.19/
   cpl=3825.36 nos dois endpoints — mesmíssimos números de todos os outros já migrados.
   Commit `7d203a3`.
-
-**⏳ Pendente — 4 tasks, ainda não atacadas, mesma ordem das tasks:**
-- **#72** `auditReportService.ts` (linhas 319, 383) — ainda usa WHATSAPP_CLICK cru
-- **#73** `strategicBriefing.ts` (linhas 147-160) — idem
-- **#74** `iniciativas/[id]/route.ts` (linha 48) + `briefing/route.ts` (linha 50) — idem
-- **#75** Aviso de UX/UI explicando a limitação do Google (achado #4 acima) — **de propósito o
-  último item**, é decisão de produto (texto/disclosure), não migração de código
+- ✅ #72 `auditReportService.ts` migrado (`collectCampaignMetrics` + `collectFunnelMetrics.
+  aggStage`, 2 pontos). Testado: relatório de auditoria (score de Performance) retornou
+  "CPL R$3331 crítico" — bate exato com `dashboard/full` na mesma janela
+  (213189.39/64=3331.08). Commit `43be45b`.
+- ✅ #73 `strategicBriefing.ts` migrado (`gatherBriefingContext`, leads do período atual +
+  anterior, por campanha). Testado: briefing gerado recomenda DOWNSCALE + revisão de criativo
+  pra campanha Google real (CPL crítico reconhecido), não mais PAUSE cego por "0 leads".
+  Commit `67d0d6f`.
+- ✅ #74 `iniciativas/[id]/route.ts` + `iniciativas/[id]/briefing/route.ts` migrados. Testado ao
+  vivo com iniciativa de teste temporária vinculada à campanha real do Google: GET retornou
+  totalLeads=64 (spend batendo exato); POST /briefing gerou narrativa citando "64 leads... CPL
+  médio de R$3.330,54" (=213154.39/64). Dado de teste removido depois (0 linhas residuais
+  confirmadas). Commit `48b7d29`.
+- ✅ #75 Aviso de UX adicionado em `GoogleAdsView.tsx` (banner âmbar no topo do drill-down de
+  Google no dashboard) explicando que "conversões"/ROAS do Google vêm de qualquer ação de
+  conversão configurada na CONTA do cliente no Google Ads — pode incluir coisas que não são
+  lead. Puramente textual, sem mudança de lógica. Commit `d9deae7`.
 
 **Disciplina mantida em cada arquivo migrado:** `tsc --noEmit` limpo + teste ao vivo contra dado
 real (não mockado) comparando resultado antes/depois quando há endpoint isolado testável, commit
 próprio por arquivo com mensagem explicando o bug/inconsistência resolvida.
 
-**Próximo passo real ao retomar esta frente:** continuar exatamente pela lista de pendentes acima
-(#72 é o próximo — `auditReportService.ts`), na mesma ordem, com a mesma disciplina de
-teste+commit por arquivo. Não marcar essa frente como concluída até as 16 tasks (#60-75)
-estarem todas `completed` — **e atualizar este checkpoint a cada 2-3 arquivos migrados**, não só
-no fim da sessão, para que uma interrupção por estouro de cota nunca mais exija reconstrução de
-estado via `git log`/`git diff`.
+**Esta frente está formalmente concluída.** Todo consumidor de "quantos leads teve essa
+campanha/cliente/segmento/período" no módulo de Campanhas usa `leadEvents.ts` — nenhum lugar
+reimplementa a própria contagem de lead nem assume que WhatsApp/formulário/Google contam da
+mesma forma. Se um novo arquivo precisar contar leads no futuro, ele deve importar
+`getLeadEvents`/`sumLeads`/`leadsByDay`/`leadsByCampaign`/`leadsByNetwork` de
+`src/lib/marketing/services/leadEvents.ts` em vez de escrever uma query nova.
 
 ## Tarefa em andamento
 
