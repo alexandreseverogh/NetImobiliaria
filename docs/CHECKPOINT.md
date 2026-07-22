@@ -1,12 +1,12 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-22 — ✅ CONCLUÍDA: consolidação de "o que é lead" numa fonte única
-> (`leadEvents.ts`), depois de auditoria de robustez encontrar ~15 arquivos duplicando a mesma
-> lógica incompleta (só WhatsApp) + 1 bug crítico (leads nativos do Meta perdidos). **16 de 16
-> tasks concluídas (#60-75).** Retomada nesta sessão depois de uma interrupção por estouro de
-> cota: o `git status`/`git diff` confirmaram que nenhum trabalho tinha sido perdido, só faltava
-> a atualização deste checkpoint (o próprio motivo desta seção existir) — lição aplicada:
-> atualizado a cada poucos arquivos migrados daqui pra frente, não só no fim da sessão.
+> **Atualizado em:** 2026-07-22 — ✅ Trilha A (auditoria técnica independente pós-consolidação)
+> concluída, 0 discrepâncias em 14 consumidores + 3 casos de borda — ver
+> `docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`. **⏳ Trilha B (roteiro manual em todas as UIs)
+> pendente — usuário vai executar seguindo o mesmo documento.** Consolidação de leadEvents.ts
+> (16/16 tasks #60-75) segue formalmente concluída desde a rodada anterior; esta é uma segunda
+> verificação independente pedida explicitamente pelo usuário, por precaução, dado o histórico
+> de bugs reais encontrados em sequência antes da consolidação.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar — e também ao retomar após
 > interrupção, antes de continuar, para não repetir o mesmo hiato de documentação.
@@ -15,9 +15,52 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento.**
+**Trilha B do teste rigoroso pós-consolidação** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`)
+— roteiro manual de verificação em todas as telas do módulo de Campanhas, a ser executado pelo
+usuário. Trilha A (técnica) já concluída nesta mesma sessão, 0 discrepâncias. Ao retomar: ler o
+documento, conferir se o usuário já reportou resultado da Trilha B (divergências ou "tudo OK").
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-22 (continuação 18) — Trilha A: auditoria técnica independente pós-consolidação ✅
+
+**Contexto:** depois da consolidação de `leadEvents.ts` (16/16 tasks concluídas, ver entrada
+abaixo), o usuário pediu — com razão, dado o histórico de bugs reais achados em sequência —
+uma segunda verificação rigorosa e independente, em 2 trilhas: técnica (minha) + manual em
+todas as UIs (dele). Pedido: "vamos pecar por excesso".
+
+**Metodologia (documentada em `docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`):** verdade
+fundamental calculada por SQL puro, sem passar por nenhuma linha de código da aplicação (nem
+`leadEvents.ts`, nem os endpoints) — é o padrão contra o qual todo consumidor foi comparado.
+
+**Resultado — 14 de 14 consumidores batem com a verdade fundamental (64 leads/R$244.823,19 na
+janela 01/04–21/07/2026, escopo "own"):** `dashboard/full`, `dashboard/segment`,
+`dashboard/funnel`, `dashboard/predictions`, `dashboard/campaign-map`, `portfolio`,
+`cross-insights`, `auditoria` (janela rolling 30d), `briefing estratégico`, `iniciativas`,
+`insights/ai` (Google corretamente DOWNSCALE, não PAUSE falso), `desperdicio` (Google fora de
+ZERO_LEADS_SPEND), `tracking/health` (roda sem erro, leads_24h=0 é honesto — dimensão diferente
+da janela testada, não é bug).
+
+**3 casos de borda testados (não cobertos pelos testes de migração arquivo-por-arquivo):**
+1. **Achado #1 ponta a ponta com a consolidação NOVA** (nunca testado junto antes — o fix é de
+   uma sessão anterior à criação de `leadEvents.ts`): simulado webhook real do Meta Lead Ads
+   (HMAC válido, `ad_id` real) → `CtaSubmission` com `campaign_id` resolvido +`lead_uuid` +
+   `cta_type≠WHATSAPP_MESSAGE` → `dashboard/full` refletiu `leadCount:1` corretamente atribuído
+   à campanha certa. Dado de teste removido (5 tabelas, 0 residual).
+2. **Guarda de deduplicação** (clique de WhatsApp + eco da resposta = 1 lead) reconfirmada
+   contra o código consolidado (tinha sido provada só no código antigo) — `leadCount=1`, não 2.
+3. **Rede órfã** (campanha sem `network_id`) — não precisou sintetizar: 3 das 5 campanhas reais
+   do escopo já não têm `network_id` e a verdade fundamental já confirmou o fallback pra
+   `'meta'` funcionando em produção.
+
+**Nenhuma discrepância encontrada.** Documento completo com a metodologia + tabela de resultados
++ roteiro manual (Trilha B, com números de referência exatos por tela) entregue ao usuário em
+`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`. **Trilha B ainda pendente de execução pelo
+usuário** — ver seção "Tarefa em andamento" acima.
+
+---
+
+### Sessão 2026-07-21/22 (continuação 17+) — Auditoria de robustez de CPL + consolidação em fonte única ✅ (histórico)
 
 ### Sessão 2026-07-21/22 (continuação 17+) — Auditoria de robustez de CPL + consolidação em fonte única ✅
 
