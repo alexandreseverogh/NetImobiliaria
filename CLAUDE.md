@@ -289,6 +289,7 @@ leads/stats               GET
 
 dashboard/full            GET      → totais, insights, leads, campanhas, funil
 dashboard/predictions     GET      → série temporal + previsões lineares
+dashboard/cpl             GET      → CPL por dia (spend/leads agregados por data), reutilizável
 
 briefings                 GET/POST
 briefings/latest          GET
@@ -464,4 +465,3 @@ Revisar com foco em: `dashboard/page.tsx`, `leads/page.tsx`, `criativos/page.tsx
 - **Sync Meta real**: validar `POST /insights/sync` com token de produção e campanhas reais
 - **Fluxo completo do CampaignWizard**: publicação no Meta após upload de criativos
 - **Alerta de token Meta expirando**: `meta_token_expires_at` existe no tenant, falta notificação na UI
-- **Endpoint CPL por período**: não existe — agregar `spend / count(leads)` por intervalo de datas

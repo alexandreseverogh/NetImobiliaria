@@ -1,12 +1,59 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — resolvidos os 2 achados de produto da bateria de testes de
-> unificação: DG2 confirmado como estratégia de negócio deliberada (não implementar aviso); T3
-> implementado — atribuição de campanha agora aparece na conversa e no analytics de Mensageria.
+> **Atualizado em:** 2026-07-21 — implementado `GET /dashboard/cpl` (endpoint reutilizável de
+> CPL por período), pendência do CLAUDE.md. Corrigiu de quebra um bug real de CPL diário
+> inflado quando há 2+ campanhas ativas no mesmo dia.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
+
+## Tarefa em andamento
+
+**Nenhuma tarefa em andamento no momento.**
+
+## Última tarefa concluída
+
+### Sessão 2026-07-21 (continuação 13) — Endpoint reutilizável de CPL por período ✅
+
+**Contexto:** próximo item da lista de pendências levantada após a conclusão da bateria de
+testes. Usuário pediu implementação (CPL é um dos KPIs mais importantes de tráfego pago,
+necessário pra relatórios futuros) depois de eu investigar e reportar que a "falta" não era
+uma lacuna funcional (os gráficos de CPL diário já existiam e funcionavam), mas sim a ausência
+de um endpoint genérico reutilizável — o cálculo estava duplicado (uma vez derivado no cliente,
+outra vez embutido dentro do endpoint de comparação de segmento).
+
+**Implementado:**
+1. `src/lib/marketing/services/cplTimelineService.ts` (novo) — `getCplTimeline(tenantId, opts)`:
+   resolve `campaignIds` no escopo (reaproveita `resolveCampaignIdsBySegment` + filtro de
+   cliente, mesma lógica de `/dashboard/full`), agrega `spend` por dia via `prisma.insight.
+   groupBy` e `leads` por dia via a mesma query de `CtaInteraction` (`WHATSAPP_CLICK`) já usada
+   em `/dashboard/full`, funde os dois num array `{date, spend, leads, cpl}[]`.
+2. `GET /api/admin/campanhas/dashboard/cpl` (novo) — mesmos query params de convenção do
+   dashboard (`startDate`/`endDate`/`clientId`/`segmentId`/`campaignId`).
+3. `marketing-api.ts` — `getCplTimeline()` + tipos `CplTimelinePoint`/`CplTimelineData`.
+4. `dashboard/page.tsx` — `cplData` (consumido por `CplTimelineChart`) passou a vir do novo
+   endpoint em vez de ser derivado no cliente.
+
+**Bug real corrigido de quebra (achado durante a implementação, não hipotético):** a derivação
+antiga no cliente zipava `data.currentPeriod.insights` (1 linha por CAMPANHA por dia, não 1 por
+dia) com o mapa de leads por dia — com 2+ campanhas ativas no mesmo dia, o total de leads
+daquele dia era contado uma vez por linha de campanha, inflando o CPL exibido no gráfico. O
+serviço novo agrega por dia (`GROUP BY`) antes de calcular o CPL, eliminando a duplicação.
+
+**Testado:** resultado do endpoint batido contra `SUM(spend)`/`COUNT(leads)` via SQL direto
+(fonte da verdade, não outro endpoint) pro tenant real Marketing Digital, mesmo escopo/período
+— bateu exato (R$213.154,39 / 1 lead). `npx tsc --noEmit`: 55 erros, mesma baseline
+pré-existente (1 erro novo de compatibilidade de iterador de `Map` corrigido antes do commit
+final — `[...map.keys()]` exige downlevelIteration; trocado por `Array.from(map.keys())`).
+
+**Achado à parte, não corrigido (fora de escopo):** `GET /dashboard/full` lança 500 ("Cannot
+read properties of undefined (reading 'count')") pro tenant Marketing Digital num teste manual
+via curl — pré-existente, arquivo não tocado nesta sessão, não investigado a fundo. Vale
+registrar pra a próxima sessão que mexer nesse endpoint.
+
+**CLAUDE.md atualizado:** item "Endpoint CPL por período" removido da lista de pendências;
+`dashboard/cpl` documentado na tabela de API Routes do módulo.
 
 ## Tarefa em andamento
 
