@@ -1,12 +1,68 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — CPL da Meta agora também conta lead de formulário (não só
-> WhatsApp), com correção de duplicação (resposta de WhatsApp grava CtaSubmission também).
-> Multi-rede confirmado ao vivo com dado 100% real (Google R$213k/64 leads + Meta R$31,7k).
+> **Atualizado em:** 2026-07-21 — EM ANDAMENTO: consolidação de "o que é lead" numa fonte única
+> (`leadEvents.ts`), depois de auditoria de robustez encontrar ~15 arquivos duplicando a mesma
+> lógica incompleta (só WhatsApp) + 1 bug crítico (leads nativos do Meta perdidos). Ver detalhe
+> completo na seção "Tarefa em andamento" abaixo — tasks #60-75 rastreiam o progresso exato.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
+
+## Tarefa em andamento
+
+### Sessão 2026-07-21 (continuação 17) — Auditoria de robustez de CPL + consolidação em fonte única
+
+**Contexto:** usuário, com razão, ficou seriamente preocupado com a robustez do cálculo de CPL
+(métrica mais importante do negócio) depois de eu ter corrigido 2 bugs reais seguidos na mesma
+conversa (Google usando conversões reais, Meta contando lead de formulário). Pediu auditoria
+completa de TODA forma de gerar lead em TODA rede antes de eu considerar o assunto encerrado.
+
+**Auditoria (agente Explore) encontrou 4 achados, por gravidade:**
+1. **CRÍTICO, dado real sendo perdido:** o webhook de Formulário Instantâneo do Meta
+   (`/api/public/meta-leads/webhook`) salvava o lead certinho no CRM, mas nunca resolvia
+   `campaign_id` (só guardava o `ad_id` externo) — como toda métrica de campanha filtra por
+   `campaign_id`, esses leads reais e pagos ficavam invisíveis em CPL/funil/IA. `OUTCOME_LEADS`
+   (objetivo padrão do wizard) é tipicamente usado com Formulário Instantâneo no mundo real —
+   não era caso de borda. **Corrigido e testado ao vivo** (commit com resolução via
+   `Ad.metaAdId → AdSet.campaignId`).
+2. **Inconsistência visível na mesma tela:** `cplByNetwork` já usava a definição completa de
+   lead, mas `currentLeadCount`/`funnelData.leads`/`leadsByCampaign` na MESMA resposta de
+   `/dashboard/full` continuavam só WhatsApp. **Corrigido e testado ao vivo.**
+3. **~15 arquivos duplicando a mesma lógica incompleta** (`aiInsights.ts`, `wastedSpendService.ts`,
+   `portfolio`, `trackingHealthService`, `briefing`, `funil`, `predições`, `mapa de campanhas`,
+   `segmentIntelligenceService`, `auditReportService` — lista completa nas tasks #63-74).
+   Consequência real: IA podia recomendar pausar uma campanha de Google/formulário achando que
+   tinha 0 leads, quando na verdade tinha leads reais só que num canal que aquela regra
+   específica não sabia olhar.
+4. **Estrutural, não é bug de código:** `Insight.conversions` do Google é a soma de qualquer
+   "ação de conversão" configurada na CONTA do cliente no Google Ads — pode incluir coisas que
+   não são lead. Fica pra um aviso na UI (task #75), não dá pra corrigir só no nosso código.
+
+**Decisão de arquitetura (não só patch pontual):** criado
+`src/lib/marketing/services/leadEvents.ts` — fonte ÚNICA de "o que é lead" (ciente de rede e de
+mecanismo de CTA), com helpers de agregação (`sumLeads`/`leadsByDay`/`leadsByCampaign`/
+`leadsByNetwork`). Todo consumidor deve migrar pra usar isso em vez de reimplementar a própria
+query — é a causa raiz de por que o mesmo bug apareceu 2x seguidas antes desta rodada.
+
+**Progresso (tasks #60-75, rastreadas no task tool):**
+- ✅ #60 leadEvents.ts construído
+- ✅ #61 cplTimelineService.ts migrado (testado: totais idênticos antes/depois, zero regressão)
+- ✅ #62 dashboard/full/route.ts migrado (testado: currentLeadCount/funnelData.leads/
+  leadsByNetwork/cplByNetwork agora todos batem — 64 em todos, na mesma resposta)
+- ✅ #68 aiInsights.ts migrado (testado: campanha Google real agora gera SCALE/OPTIMIZE em vez
+  de potencialmente PAUSE incorreto por "0 leads")
+- ⏳ **Pendente, ainda não atacado:** #63 dashboard/segment, #64 dashboard/funnel, #65
+  dashboard/predictions, #66 dashboard/campaign-map, #67 portfolio + cross-insights, #69
+  wastedSpendService, #70 trackingHealthService, #71 segmentIntelligenceService, #72
+  auditReportService, #73 strategicBriefing, #74 iniciativas/[id] + briefing, #75 aviso de UX
+  sobre limitação do Google.
+
+**Disciplina mantida em cada arquivo migrado:** `tsc --noEmit` limpo + teste ao vivo contra dado
+real (não mockado) comparando resultado antes/depois, commit próprio por arquivo.
+
+**Próximo passo real:** continuar a lista de pendências acima, na ordem das tasks. Não marcar
+essa frente como concluída até as 16 tasks (#60-75) estarem todas `completed`.
 
 ## Tarefa em andamento
 
