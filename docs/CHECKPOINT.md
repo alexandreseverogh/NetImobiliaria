@@ -1,22 +1,27 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — EM ANDAMENTO: consolidação de "o que é lead" numa fonte única
+> **Atualizado em:** 2026-07-22 — EM ANDAMENTO: consolidação de "o que é lead" numa fonte única
 > (`leadEvents.ts`), depois de auditoria de robustez encontrar ~15 arquivos duplicando a mesma
-> lógica incompleta (só WhatsApp) + 1 bug crítico (leads nativos do Meta perdidos). Ver detalhe
-> completo na seção "Tarefa em andamento" abaixo — tasks #60-75 rastreiam o progresso exato.
+> lógica incompleta (só WhatsApp) + 1 bug crítico (leads nativos do Meta perdidos). **8 de 16
+> tasks concluídas (#60-63, #68-71); 8 pendentes (#64-67, #72-75) — ver lista exata abaixo.**
+> Retomada nesta sessão depois de uma interrupção por estouro de cota: o `git status`/`git diff`
+> confirmaram que nenhum trabalho foi perdido, só faltava esta atualização de checkpoint (o
+> próprio motivo desta seção existir). Tasks #60-75 (task tool) espelham exatamente esta lista.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
-> **Regra:** atualizar ao final de cada sessão antes de fechar.
+> **Regra:** atualizar ao final de cada sessão antes de fechar — e também ao retomar após
+> interrupção, antes de continuar, para não repetir o mesmo hiato de documentação.
 
 ---
 
 ## Tarefa em andamento
 
-### Sessão 2026-07-21 (continuação 17) — Auditoria de robustez de CPL + consolidação em fonte única
+### Sessão 2026-07-21/22 (continuação 17+) — Auditoria de robustez de CPL + consolidação em fonte única
 
 **Contexto:** usuário, com razão, ficou seriamente preocupado com a robustez do cálculo de CPL
 (métrica mais importante do negócio) depois de eu ter corrigido 2 bugs reais seguidos na mesma
 conversa (Google usando conversões reais, Meta contando lead de formulário). Pediu auditoria
 completa de TODA forma de gerar lead em TODA rede antes de eu considerar o assunto encerrado.
+**Ordem de execução confirmada explicitamente pelo usuário: "#1 → consolidação → #4".**
 
 **Auditoria (agente Explore) encontrou 4 achados, por gravidade:**
 1. **CRÍTICO, dado real sendo perdido:** o webhook de Formulário Instantâneo do Meta
@@ -24,49 +29,85 @@ completa de TODA forma de gerar lead em TODA rede antes de eu considerar o assun
    `campaign_id` (só guardava o `ad_id` externo) — como toda métrica de campanha filtra por
    `campaign_id`, esses leads reais e pagos ficavam invisíveis em CPL/funil/IA. `OUTCOME_LEADS`
    (objetivo padrão do wizard) é tipicamente usado com Formulário Instantâneo no mundo real —
-   não era caso de borda. **Corrigido e testado ao vivo** (commit com resolução via
+   não era caso de borda. **Corrigido e testado ao vivo, commitado** (resolução via
    `Ad.metaAdId → AdSet.campaignId`).
 2. **Inconsistência visível na mesma tela:** `cplByNetwork` já usava a definição completa de
    lead, mas `currentLeadCount`/`funnelData.leads`/`leadsByCampaign` na MESMA resposta de
-   `/dashboard/full` continuavam só WhatsApp. **Corrigido e testado ao vivo.**
+   `/dashboard/full` continuavam só WhatsApp. **Corrigido e testado ao vivo, commitado.**
 3. **~15 arquivos duplicando a mesma lógica incompleta** (`aiInsights.ts`, `wastedSpendService.ts`,
    `portfolio`, `trackingHealthService`, `briefing`, `funil`, `predições`, `mapa de campanhas`,
-   `segmentIntelligenceService`, `auditReportService` — lista completa nas tasks #63-74).
+   `segmentIntelligenceService`, `auditReportService` — lista exata de pendentes abaixo).
    Consequência real: IA podia recomendar pausar uma campanha de Google/formulário achando que
    tinha 0 leads, quando na verdade tinha leads reais só que num canal que aquela regra
-   específica não sabia olhar.
+   específica não sabia olhar. **Em consolidação — ver progresso abaixo.**
 4. **Estrutural, não é bug de código:** `Insight.conversions` do Google é a soma de qualquer
    "ação de conversão" configurada na CONTA do cliente no Google Ads — pode incluir coisas que
-   não são lead. Fica pra um aviso na UI (task #75), não dá pra corrigir só no nosso código.
+   não são lead. Fica pra um aviso na UI (task #75, **de propósito o ÚLTIMO item da lista**, por
+   instrução explícita do usuário) — não dá pra corrigir só no nosso código.
 
 **Decisão de arquitetura (não só patch pontual):** criado
 `src/lib/marketing/services/leadEvents.ts` — fonte ÚNICA de "o que é lead" (ciente de rede e de
-mecanismo de CTA), com helpers de agregação (`sumLeads`/`leadsByDay`/`leadsByCampaign`/
-`leadsByNetwork`). Todo consumidor deve migrar pra usar isso em vez de reimplementar a própria
-query — é a causa raiz de por que o mesmo bug apareceu 2x seguidas antes desta rodada.
+mecanismo de CTA): `getLeadEvents(tenantId, {campaignIds, startDate, endDate})` retorna
+`LeadEvent[]` (`{date, campaignId, network, count}`); helpers de agregação `sumLeads`/
+`leadsByDay`/`leadsByCampaign`/`leadsByNetwork`. Resolve a rede de cada campanha
+(`Campaign.networkId → ad_networks.code`) e escolhe a fonte certa via
+`src/lib/marketing/services/networkLeadSource.ts` (`LEAD_SOURCE_BY_NETWORK`): Meta →
+`cta_engagement` (WHATSAPP_CLICK **ou** CtaSubmission com `lead_uuid` não-nulo, sempre excluindo
+`cta_type='WHATSAPP_MESSAGE'` pra não contar 2x a resposta real de WhatsApp, que grava as duas
+tabelas); Google/YouTube → `insight_conversions` (campo `Insight.conversions`, já real da API).
+Todo consumidor deve migrar pra usar isso em vez de reimplementar a própria query — é a causa
+raiz de por que o mesmo bug apareceu 2x seguidas antes desta rodada.
 
-**Progresso (tasks #60-75, rastreadas no task tool):**
-- ✅ #60 leadEvents.ts construído
-- ✅ #61 cplTimelineService.ts migrado (testado: totais idênticos antes/depois, zero regressão)
-- ✅ #62 dashboard/full/route.ts migrado (testado: currentLeadCount/funnelData.leads/
-  leadsByNetwork/cplByNetwork agora todos batem — 64 em todos, na mesma resposta)
-- ✅ #68 aiInsights.ts migrado (testado: campanha Google real agora gera SCALE/OPTIMIZE em vez
-  de potencialmente PAUSE incorreto por "0 leads")
-- ⏳ **Pendente, ainda não atacado:** #63 dashboard/segment, #64 dashboard/funnel, #65
-  dashboard/predictions, #66 dashboard/campaign-map, #67 portfolio + cross-insights, #69
-  wastedSpendService, #70 trackingHealthService, #71 segmentIntelligenceService, #72
-  auditReportService, #73 strategicBriefing, #74 iniciativas/[id] + briefing, #75 aviso de UX
-  sobre limitação do Google.
+**Progresso — 8 de 16 tasks concluídas (tasks #60-75, rastreadas no task tool):**
+- ✅ #60 `leadEvents.ts` construído (módulo central + `networkLeadSource.ts`)
+- ✅ #61 `cplTimelineService.ts` migrado — testado: totais idênticos antes/depois, zero regressão
+- ✅ #62 `dashboard/full/route.ts` migrado — testado: `currentLeadCount`/`funnelData.leads`/
+  `leadsByNetwork`/`cplByNetwork` agora todos batem (64 em todos, na mesma resposta)
+- ✅ #63 `dashboard/segment/route.ts` migrado (`fetchClientData`: total de leads por cliente +
+  leads por dia, ambos usavam WHATSAPP_CLICK cru) — testado ao vivo (tenant Marketing Digital,
+  segmento Imobiliário, 2026-04-01 a 2026-07-21): `leads=64, cpl=3825.36`, batendo exatamente
+  com `dashboard/full` no mesmo escopo. `tsc --noEmit`: zero erros no arquivo. Commitado
+  (`d6b6d8b`).
+- ✅ #68 `aiInsights.ts` migrado — testado: campanha Google real agora gera SCALE/OPTIMIZE em vez
+  de potencialmente PAUSE incorreto por "0 leads"
+- ✅ #69 `wastedSpendService.ts` migrado — testado ao vivo: campanha Google real deixou de
+  aparecer na categoria `ZERO_LEADS_SPEND` (só as 3 campanhas Meta genuinamente sem lead
+  permaneceram)
+- ✅ #70 `trackingHealthService.ts` migrado (`checkLeads24h`/`checkOrphanLeads`, via 2 helpers
+  novos `countBroadLeads`/`countBroadOrphanLeads`; `checkDuplicateRate`/`checkLeadLatency`
+  deliberadamente NÃO tocados — motivo documentado no código) — testado ao vivo via
+  `POST /tracking/health?clientId=own`, rodou sem erro
+- ✅ #71 `segmentIntelligenceService.ts` migrado (`buildAnglesSummary` — removida a subquery de
+  leads que fazia JOIN junto com spend, risco do mesmo bug de produto cartesiano já visto antes;
+  leads agora vêm de `getLeadEvents` separado, merged em JS) — não testado ao vivo ponta a ponta
+  (alimenta narrativa LLM sem endpoint isolado simples de testar), mas `tsc --noEmit` limpo +
+  mesmas primitivas já provadas ao vivo 4x em outros arquivos
+
+**⏳ Pendente — 8 tasks, ainda não atacadas, mesma ordem das tasks:**
+- **#64** `dashboard/funnel/route.ts` (`mof.leads`, linha ~139) — ainda usa WHATSAPP_CLICK cru
+- **#65** `dashboard/predictions/route.ts` (linha ~161) — idem
+- **#66** `dashboard/campaign-map/route.ts` (linha ~191) — idem
+- **#67** `portfolio/route.ts` (linhas 135, 180) + `portfolio/cross-insights/route.ts`
+  (linha ~325) — idem
+- **#72** `auditReportService.ts` (linhas 319, 383) — idem
+- **#73** `strategicBriefing.ts` (linhas 147-160) — idem
+- **#74** `iniciativas/[id]/route.ts` (linha 48) + `briefing/route.ts` (linha 50) — idem
+- **#75** Aviso de UX/UI explicando a limitação do Google (achado #4 acima) — **de propósito o
+  último item**, é decisão de produto (texto/disclosure), não migração de código
 
 **Disciplina mantida em cada arquivo migrado:** `tsc --noEmit` limpo + teste ao vivo contra dado
-real (não mockado) comparando resultado antes/depois, commit próprio por arquivo.
+real (não mockado) comparando resultado antes/depois quando há endpoint isolado testável, commit
+próprio por arquivo com mensagem explicando o bug/inconsistência resolvida.
 
-**Próximo passo real:** continuar a lista de pendências acima, na ordem das tasks. Não marcar
-essa frente como concluída até as 16 tasks (#60-75) estarem todas `completed`.
+**Próximo passo real ao retomar esta frente:** continuar exatamente pela lista de pendentes acima
+(#64 é o próximo), na mesma ordem, com a mesma disciplina de teste+commit por arquivo. Não marcar
+essa frente como concluída até as 16 tasks (#60-75) estarem todas `completed` — **e atualizar
+este checkpoint a cada 2-3 arquivos migrados**, não só no fim da sessão, para que uma
+interrupção por estouro de cota nunca mais exija reconstrução de estado via `git log`/`git diff`.
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento.**
+**Nenhuma outra tarefa em andamento no momento.**
 
 ## Última tarefa concluída
 
