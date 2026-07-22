@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { Pool } from 'pg';
+import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from '@/lib/marketing/services/leadEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -156,25 +157,16 @@ export async function GET(request: NextRequest) {
       insightDateWhere += ` AND i.date <= $${params.length}::timestamptz`;
     }
 
-    let leadsDateFilter = '';
-    if (startDate) {
-      params.push(startDate);
-      leadsDateFilter += ` AND l.created_at >= $${params.length}::timestamptz`;
-    }
-    if (endDate) {
-      params.push(endDate);
-      leadsDateFilter += ` AND l.created_at <= $${params.length}::timestamptz`;
-    }
-
     // DISTINCT ON (c.id, a.id) prevents duplicate rows when campaign has multiple
     // AdSets with identical locations — spend is aggregated once per campaign in sp CTE.
+    // Leads NÃO vêm mais desta query (era só CtaInteraction.WHATSAPP_CLICK) — resolvidos
+    // depois via getLeadEvents (fonte única, ciente de rede: WhatsApp + formulário + Google).
     const query = `
       SELECT DISTINCT ON (c.id, a.id)
         c.id              AS campaign_id,
         c.name            AS campaign_name,
         c.status          AS campaign_status,
         a.locations       AS locations,
-        COALESCE(lc.leads, 0)  AS leads,
         COALESCE(sp.spend, 0)  AS spend
       FROM campanhasmarketingdigital."Campaign" c
       JOIN campanhasmarketingdigital."AdSet" a ON a."campaignId" = c.id
@@ -185,12 +177,6 @@ export async function GET(request: NextRequest) {
         WHERE spend > 0 ${insightDateWhere}
         GROUP BY "campaignId"
       ) sp ON sp."campaignId" = c.id
-      LEFT JOIN (
-        SELECT campaign_id AS "campaignId", COUNT(*) AS leads
-        FROM campanhasmarketingdigital."CtaInteraction" l
-        WHERE l.event_type = 'WHATSAPP_CLICK' ${leadsDateFilter}
-        GROUP BY campaign_id
-      ) lc ON lc."campaignId" = c.id
       WHERE ${whereClause}
         AND a.locations IS NOT NULL
         AND a.locations::text NOT IN ('null', '[]', '{}')
@@ -198,6 +184,16 @@ export async function GET(request: NextRequest) {
     `;
 
     const result = await pool.query(query, params);
+
+    const scopedCampaignIds = Array.from(new Set(result.rows.map(r => r.campaign_id as string)));
+    const leadEvents = scopedCampaignIds.length > 0
+      ? await getLeadEvents(payload.tenantId, {
+          campaignIds: scopedCampaignIds,
+          startDate: startDate ? new Date(startDate) : new Date(0),
+          endDate:   endDate   ? new Date(endDate)   : new Date(),
+        })
+      : [];
+    const leadsByCampaignMap = groupLeadsByCampaign(leadEvents);
 
     // Group locations — track campaign IDs per location key to avoid double-counting
     const locationMap  = new Map<string, CampaignMapLocation>();
@@ -224,7 +220,7 @@ export async function GET(request: NextRequest) {
         id:     row.campaign_id as string,
         name:   row.campaign_name as string,
         status: row.campaign_status as string,
-        leads:  Number(row.leads),
+        leads:  leadsByCampaignMap.get(row.campaign_id) ?? 0,
         spend:  Number(row.spend),
       };
 
