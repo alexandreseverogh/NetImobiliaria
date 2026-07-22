@@ -375,8 +375,53 @@ o `AgentAction` gerado, e o cliente "TRILHA C — Cliente Teste" em si.
 
 ---
 
+## Trilha D — Validação contra as APIs reais do Meta e do Google (pendente, bloqueada em pré-requisitos)
+
+### Por que existe
+
+A/B/C provam que nosso código calcula certo **dado um payload no formato que o Meta/Google
+documentam enviar**. Nenhuma delas prova que o Meta/Google realmente entregam esse payload nesse
+formato, em condições reais — nem que nosso fluxo de OAuth/webhook funciona contra a infra real
+deles. Isso só se resolve com credenciais reais (não precisa ser "produção" aberta a clientes).
+
+### Duas camadas de custo (Meta)
+
+- **Camada 1, custo zero:** criar campanha real via API com `status: PAUSED` (valida token/API de
+  criação sem nunca rodar) + usar o recurso de "lead de teste" do próprio Meta Ads Manager num
+  Formulário Instantâneo real (valida a entrega real do webhook — HTTPS, assinatura, formato do
+  payload — sem gastar nada).
+- **Camada 2, gasto real pequeno:** só a sincronização real de métricas (`Insight.spend/
+  impressions` de verdade) e um clique real de anúncio exigem anúncio efetivamente rodando —
+  decisão de gasto ainda não tomada pelo usuário, fica em aberto.
+
+### Estado atual dos pré-requisitos (levantado em 2026-07-22)
+
+| Pré-requisito | Status |
+|---|---|
+| Conta Meta Business | ✅ existe |
+| App registrado no Meta for Developers (App ID/App Secret) | ✅ já existe |
+| Deploy de staging na VPS (URL pública HTTPS pro webhook) | ⏳ **usuário quer decidir separadamente — não fazer sem confirmação explícita** |
+| Conta Google Ads | ❌ não existe — precisa ser criada pelo usuário (cadastro com dado da empresa, não é algo que o Claude deva fazer) |
+| Manager Account + conta de teste do Google Ads | ❌ depende do item acima |
+| Developer Token do Google Ads | ❌ depende dos itens acima |
+
+### Próximos passos reais, na ordem, quando o usuário decidir avançar
+
+1. Usuário decide sobre o deploy de staging na VPS (pré-requisito pro webhook real do Meta,
+   Camada 1 e 2).
+2. Usuário cria a conta Google Ads (quando quiser) → Claude ajuda a configurar Manager Account +
+   conta de teste + Developer Token + credenciais em `tenant_network_credentials`.
+3. Com staging no ar: testar Camada 1 do Meta (campanha pausada via API + lead de teste no
+   Formulário Instantâneo) — zero custo.
+4. Decisão de gasto real pequeno pra Camada 2 do Meta (spend sync + clique real) — ainda em
+   aberto, não decidir sem confirmação explícita do usuário.
+
+---
+
 ## Status
 
 **Trilha A: concluída, 0 discrepâncias encontradas** (14 consumidores + 3 casos de borda).
 **Trilha B: pendente — aguardando execução manual pelo usuário.**
 **Trilha C: pendente — roteiro definido, aguardando início (Fase 0 a cargo do Claude).**
+**Trilha D: pendente — bloqueada em pré-requisitos de infraestrutura/conta, decisões do usuário
+ainda em aberto (ver tabela acima). Não avançar nenhum item sem confirmação explícita.**
