@@ -175,6 +175,7 @@ function TabC() {
   -d '{
     "api_key": "${apiKey ?? 'SUA_API_KEY'}",
     "destination_slug": "meu-destino",
+    "ref": "TRACKING_ID_DO_ANUNCIO",
     "name": "João Silva",
     "email": "joao@email.com",
     "phone": "11999998888",
@@ -188,10 +189,21 @@ function TabC() {
   const SLUG = 'meu-destino';  // slug do destino no CTA
   const URL  = '${endpoint}';
 
+  // Captura o "?ref=" da URL (presente quando o visitante chegou aqui através de um
+  // anúncio real lançado por esta plataforma, mesmo que o destino do anúncio seja este
+  // site próprio — /api/r/{trackingId} já anexa "?ref=" ao redirecionar pra cá) e guarda
+  // em sessionStorage, pois o visitante pode navegar por outras páginas antes de preencher
+  // o formulário. Sem "ref" (ex.: tráfego orgânico, lead comprado de terceiro), o lead
+  // continua sendo criado normalmente, só sem atribuição de campanha.
+  var urlRef = new URLSearchParams(window.location.search).get('ref');
+  if (urlRef) { try { sessionStorage.setItem('_cta_ref', urlRef); } catch (e) {} }
+  var storedRef = (function(){ try { return sessionStorage.getItem('_cta_ref'); } catch (e) { return null; } })();
+
   document.querySelectorAll('form[data-cta]').forEach(function(form){
     form.addEventListener('submit', function(e){
       e.preventDefault();
       const data = { api_key: KEY, destination_slug: SLUG };
+      if (storedRef) data.ref = storedRef;
       new FormData(form).forEach((v,k) => { data[k] = v; });
       fetch(URL, {
         method: 'POST',
@@ -209,6 +221,13 @@ function TabC() {
         Envie leads de <strong>qualquer sistema externo</strong> diretamente para o CRM via HTTP POST.
         Use a API Key abaixo para autenticar. Também disponível um snippet JS para capturar formulários
         de sites externos sem back-end.
+        <br /><br />
+        <strong>Atribuição de campanha (opcional):</strong> se este mecanismo estiver recebendo leads
+        de um <strong>site próprio do cliente</strong> que é destino de um anúncio real desta plataforma,
+        inclua o campo <code className="bg-white/50 px-1 rounded">ref</code> — o snippet JS abaixo já
+        captura isso automaticamente. Sem <code className="bg-white/50 px-1 rounded">ref</code> (ex.: lead
+        comprado de terceiro, portal parceiro, tráfego orgânico), o lead é criado normalmente, só sem
+        vínculo a uma campanha — o que é o comportamento certo nesses casos.
       </InfoBox>
 
       {/* API Key */}
@@ -246,6 +265,7 @@ function TabC() {
             {[
               ['api_key', 'obrigatório'],
               ['destination_slug', 'opcional'],
+              ['ref', 'opcional — atribui a uma campanha real (ver acima)'],
               ['name', 'nome do lead'],
               ['email', 'e-mail'],
               ['phone', 'telefone/WhatsApp'],

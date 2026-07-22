@@ -81,7 +81,7 @@ export interface ResolvedCtaRef {
  */
 export async function resolveCtaRef(ref: string, tenantId: string): Promise<ResolvedCtaRef | null> {
   const adRows = await pool.query(
-    `SELECT a.id AS ad_id, c.id AS campaign_id, c.name AS campaign_name, c.client_id AS client_id
+    `SELECT a.id AS ad_id, a."ctaType" AS cta_type, c.id AS campaign_id, c.name AS campaign_name, c.client_id AS client_id
        FROM ${SCHEMA}."Ad" a
        JOIN ${SCHEMA}."AdSet" s ON s.id = a."adSetId"
        JOIN ${SCHEMA}."Campaign" c ON c.id = s."campaignId"
@@ -96,7 +96,12 @@ export async function resolveCtaRef(ref: string, tenantId: string): Promise<Reso
       campaignId: r.campaign_id,
       adId: r.ad_id,
       destinationId: null,
-      ctaType: 'WHATSAPP_MESSAGE',
+      // CTA real do anúncio (não mais hardcoded 'WHATSAPP_MESSAGE') — desde a generalização
+      // de /api/r/{trackingId} pra qualquer CTA (não só WhatsApp), um Ad com trackingId pode
+      // ter ctaType=LEARN_MORE/SIGN_UP/etc. apontando pra formulário hospedado ou site próprio
+      // do cliente. Hardcoded aqui fazia leadEvents.ts excluir esses leads reais (mesmo filtro
+      // que existe pra não contar 2x o eco de uma resposta real de WhatsApp).
+      ctaType: r.cta_type ?? 'WHATSAPP_MESSAGE',
       campaignName: r.campaign_name ?? null,
     }
   }
