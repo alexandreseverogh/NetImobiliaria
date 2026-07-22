@@ -17,6 +17,7 @@ import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import pool from '@/lib/database/connection';
 import { invokeWithTemplate } from '@/lib/intelligence/llmInvoker';
+import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from '@/lib/marketing/services/leadEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -318,16 +319,28 @@ export async function GET(request: NextRequest) {
       GROUP BY camp.client_id
     `, [payload.tenantId, period]);
 
-    const leadsQuery = await pool.query<{ client_id: string | null; lead_count: string }>(`
-      SELECT client_id, COUNT(*)::int AS lead_count
-      FROM campanhasmarketingdigital."CtaInteraction"
-      WHERE tenant_id = $1::uuid
-        AND event_type = 'WHATSAPP_CLICK'
-        AND created_at >= NOW() - ($2 || ' days')::INTERVAL
-      GROUP BY client_id
-    `, [payload.tenantId, period]);
-
-    const leadsMap = new Map(leadsQuery.rows.map(r => [r.client_id ?? '__own__', parseInt(r.lead_count)]));
+    // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+    // CtaInteraction.WHATSAPP_CLICK, subestimando (ou zerando) clientes com campanha de Google
+    // nos insights cruzados de portfólio. getLeadEvents trabalha por campaignId, não client_id,
+    // então resolvemos a lista de campanhas do tenant + seu client_id pra agregar depois.
+    const campaignClientRows = await pool.query<{ id: string; client_id: string | null }>(`
+      SELECT id, client_id FROM campanhasmarketingdigital."Campaign" WHERE tenant_id = $1::uuid
+    `, [payload.tenantId]);
+    const campaignClientKeyMap = new Map<string, string>(
+      campaignClientRows.rows.map(r => [r.id, r.client_id ?? '__own__']),
+    );
+    const periodEnd   = new Date();
+    const periodStart = new Date(periodEnd.getTime() - period * 24 * 60 * 60 * 1000);
+    const allCampaignIds = campaignClientRows.rows.map(r => r.id);
+    const leadEvents = allCampaignIds.length > 0
+      ? await getLeadEvents(payload.tenantId, { campaignIds: allCampaignIds, startDate: periodStart, endDate: periodEnd })
+      : [];
+    const leadsByCampaignMap = groupLeadsByCampaign(leadEvents);
+    const leadsMap = new Map<string, number>();
+    for (const [campId, count] of Array.from(leadsByCampaignMap.entries())) {
+      const key = campaignClientKeyMap.get(campId) ?? '__own__';
+      leadsMap.set(key, (leadsMap.get(key) ?? 0) + count);
+    }
 
     const clientIds = metricsQuery.rows.map(r => r.client_id).filter((id): id is string => id !== null);
 

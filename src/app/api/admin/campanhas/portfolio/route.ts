@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
 import pool from '@/lib/database/connection';
+import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from '@/lib/marketing/services/leadEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -124,24 +125,6 @@ export async function GET(request: NextRequest) {
       GROUP BY camp.client_id
     `, [payload.tenantId, period]);
 
-    /* ── 2. Leads por cliente ────────────────────────────────────── */
-    const leadsQuery = await pool.query<{
-      client_id: string | null;
-      lead_count: string;
-    }>(`
-      SELECT client_id, COUNT(*)::int AS lead_count
-      FROM campanhasmarketingdigital."CtaInteraction"
-      WHERE tenant_id = $1::uuid
-        AND event_type = 'WHATSAPP_CLICK'
-        AND created_at >= NOW() - ($2 || ' days')::INTERVAL
-      GROUP BY client_id
-    `, [payload.tenantId, period]);
-
-    const leadsMap = new Map<string, number>();
-    for (const row of leadsQuery.rows) {
-      leadsMap.set(row.client_id ?? '__own__', parseInt(row.lead_count));
-    }
-
     /* ── 2b. Métricas por campanha individual ───────────────────────── */
     const campaignMetricsQuery = await pool.query<{
       campaign_id:     string;
@@ -169,23 +152,26 @@ export async function GET(request: NextRequest) {
       ORDER BY SUM(i.spend) DESC NULLS LAST
     `, [payload.tenantId, period]);
 
-    /* ── 2c. Leads por campanha ─────────────────────────────────────── */
-    const leadsPerCampaignQuery = await pool.query<{
-      campaign_id: string;
-      lead_count:  string;
-    }>(`
-      SELECT campaign_id, COUNT(*)::int AS lead_count
-      FROM campanhasmarketingdigital."CtaInteraction"
-      WHERE tenant_id = $1::uuid
-        AND event_type = 'WHATSAPP_CLICK'
-        AND created_at >= NOW() - ($2 || ' days')::INTERVAL
-        AND campaign_id IS NOT NULL
-      GROUP BY campaign_id
-    `, [payload.tenantId, period]);
+    /* ── 2c. Leads por campanha (fonte única — WhatsApp + formulário + Google) ── */
+    // Antes eram 2 queries separadas (leads por cliente + leads por campanha), ambas só
+    // CtaInteraction.WHATSAPP_CLICK — campanha de Google real aparecia com 0 leads no
+    // Portfolio mesmo tendo conversões reais. Uma chamada a getLeadEvents cobre as duas
+    // agregações (leadsByCampaignMap direto; leadsMap por cliente derivado logo abaixo).
+    const periodEnd   = new Date();
+    const periodStart = new Date(periodEnd.getTime() - period * 24 * 60 * 60 * 1000);
+    const allCampaignIds = campaignMetricsQuery.rows.map(r => r.campaign_id);
+    const leadEvents = allCampaignIds.length > 0
+      ? await getLeadEvents(payload.tenantId, { campaignIds: allCampaignIds, startDate: periodStart, endDate: periodEnd })
+      : [];
+    const leadsByCampaignMap = groupLeadsByCampaign(leadEvents);
 
-    const leadsByCampaignMap = new Map<string, number>();
-    for (const r of leadsPerCampaignQuery.rows) {
-      leadsByCampaignMap.set(r.campaign_id, parseInt(r.lead_count));
+    const campaignClientKeyMap = new Map<string, string>(
+      campaignMetricsQuery.rows.map(r => [r.campaign_id, r.client_id ?? '__own__']),
+    );
+    const leadsMap = new Map<string, number>();
+    for (const [campId, count] of Array.from(leadsByCampaignMap.entries())) {
+      const key = campaignClientKeyMap.get(campId) ?? '__own__';
+      leadsMap.set(key, (leadsMap.get(key) ?? 0) + count);
     }
 
     /* ── 2d. Agrupar campanhas por cliente ──────────────────────────── */
