@@ -4,6 +4,7 @@ import { resolveBenchmarks, BenchmarkMap } from '../../intelligence/benchmarkRes
 import { computeSignalsForCampaign, type NormalizedSignals } from './signalEngine';
 import { resolveCampaignIdsBySegment } from '../segmentUtils';
 import { filterCampaignsByNetwork } from '../networkFilterUtils';
+import { getLeadEvents, sumLeads } from './leadEvents';
 
 const S = 'campanhasmarketingdigital';
 
@@ -425,9 +426,15 @@ export async function generateAiInsights(
       take: 14,
     });
 
-    const leadWhere: any = { campaignId: campaign.id, eventType: 'WHATSAPP_CLICK' };
-    if (tenantId) leadWhere.tenantId = tenantId;
-    const leads = await prisma.ctaInteraction.count({ where: leadWhere });
+    // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só contava
+    // WHATSAPP_CLICK, o que fazia campanha de Google/formulário parecer "sem lead" pras regras
+    // abaixo (ex.: recomendar PAUSE numa campanha que na verdade está gerando lead real).
+    const leadDateFrom = filters?.startDate ? new Date(filters.startDate) : new Date(0);
+    const leadDateTo   = filters?.endDate   ? new Date(filters.endDate)   : new Date();
+    const leadEvents = tenantId
+      ? await getLeadEvents(tenantId, { campaignIds: [campaign.id], startDate: leadDateFrom, endDate: leadDateTo })
+      : [];
+    const leads = sumLeads(leadEvents);
 
     if (insights.length === 0) continue;
 
