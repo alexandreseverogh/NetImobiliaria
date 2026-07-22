@@ -17,11 +17,15 @@
 
 ## Tarefa em andamento
 
-**Trilha B do teste rigoroso pós-consolidação** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`)
-— roteiro manual de verificação em todas as telas do módulo de Campanhas, a ser executado pelo
-usuário. Trilha A (técnica) já concluída, 0 discrepâncias, mais o fix do Mecanismo C abaixo. Ao
-retomar: ler o documento, conferir se o usuário já reportou resultado da Trilha B (divergências
-ou "tudo OK").
+**Trilhas B e C do teste rigoroso pós-consolidação** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`)
+— Trilha B: roteiro manual de verificação em todas as telas sobre dado já existente, a ser
+executado pelo usuário. Trilha C (adicionada nesta sessão, a pedido do usuário): dado novo, ao
+vivo, atravessando Campanhas+CRM+Mensageria+agentes — 5 cenários de campanha com números
+escolhidos pra forçar SCALE/PAUSE/OPTIMIZE deliberadamente, negócio fechado, lead avulso, WhatsApp
+orgânico. **Fase 0 da Trilha C (semear as campanhas de teste) é a próxima ação real, a cargo do
+Claude, quando o usuário decidir começar.** Trilha A (técnica) já concluída, 0 discrepâncias, mais
+o fix do Mecanismo C. Ao retomar: ler o documento inteiro (agora com 3 trilhas), conferir se o
+usuário já reportou resultado de B e/ou já pediu início da C.
 
 ## Última tarefa concluída
 
