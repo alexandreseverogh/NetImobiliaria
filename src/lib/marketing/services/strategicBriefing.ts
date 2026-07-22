@@ -4,6 +4,7 @@ import { invokeForContext } from '../../intelligence/llmInvoker';
 import { generateAiInsights } from './aiInsights';
 import { getAngleInsights, type AngleInsightsResult } from './angleInsightsService';
 import { getActiveSegmentsForScope } from './segmentTaxonomyService';
+import { getLeadEvents, sumLeads } from './leadEvents';
 
 const S = 'campanhasmarketingdigital';
 
@@ -143,13 +144,16 @@ export async function gatherBriefingContext(
       where: { campaignId: campaign.id, date: { gte: prevStartDate, lt: startDate } },
     });
 
-    const leads = await prisma.ctaInteraction.count({
-      where: { tenantId: tenantId || undefined, campaignId: campaign.id, eventType: 'WHATSAPP_CLICK', createdAt: { gte: startDate, lte: endDateObj } },
-    });
+    // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+    // WHATSAPP_CLICK, fazendo o briefing estratégico subestimar (ou zerar) leads de campanhas
+    // de Google, distorcendo a narrativa gerada pelo LLM.
+    const leads = tenantId
+      ? sumLeads(await getLeadEvents(tenantId, { campaignIds: [campaign.id], startDate, endDate: endDateObj }))
+      : 0;
 
-    const prevLeadCount = await prisma.ctaInteraction.count({
-      where: { tenantId: tenantId || undefined, campaignId: campaign.id, eventType: 'WHATSAPP_CLICK', createdAt: { gte: prevStartDate, lt: startDate } },
-    });
+    const prevLeadCount = tenantId
+      ? sumLeads(await getLeadEvents(tenantId, { campaignIds: [campaign.id], startDate: prevStartDate, endDate: startDate }))
+      : 0;
 
     if (insights.length === 0 && leads === 0) continue;
 
