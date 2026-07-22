@@ -5,6 +5,7 @@ import { invokeForContext } from '@/lib/intelligence/llmInvoker';
 import { resolveBenchmark } from '@/lib/intelligence/benchmarkResolver';
 import { resolveSegment } from '@/lib/intelligence/segmentResolver';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
+import { getLeadEvents, sumLeads } from '@/lib/marketing/services/leadEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +39,10 @@ export async function POST(request: NextRequest, { params }: Params) {
     const campaignIds = initiative.campaigns.map(c => c.id);
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    const [insightAgg, leadsCount] = await Promise.all([
+    // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+    // WHATSAPP_CLICK, zerando leads (e inflando o CPL exibido) de iniciativas com campanha
+    // de Google real vinculada. Sem filtro de data (mesmo comportamento de sempre — all-time).
+    const [insightAgg, leadEvents] = await Promise.all([
       campaignIds.length > 0
         ? prisma.insight.aggregate({
             where: { campaignId: { in: campaignIds }, date: { gte: since } },
@@ -47,9 +51,10 @@ export async function POST(request: NextRequest, { params }: Params) {
           })
         : null,
       campaignIds.length > 0
-        ? prisma.ctaInteraction.count({ where: { campaignId: { in: campaignIds }, eventType: 'WHATSAPP_CLICK' } })
-        : 0,
+        ? getLeadEvents(payload.tenantId, { campaignIds, startDate: new Date(0), endDate: new Date() })
+        : [],
     ]);
+    const leadsCount = sumLeads(leadEvents);
 
     const totalSpend = insightAgg?._sum.spend ?? 0;
     const totalLeads = leadsCount;

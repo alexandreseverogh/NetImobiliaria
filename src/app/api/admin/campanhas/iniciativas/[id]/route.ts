@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { requireApiPermission } from '@/lib/auth/apiPermissions';
+import { getLeadEvents, sumLeads } from '@/lib/marketing/services/leadEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,8 +45,12 @@ export async function GET(request: NextRequest, { params }: Params) {
         })
       : null;
 
+    // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+    // WHATSAPP_CLICK, zerando leads de iniciativas com campanha de Google real vinculada.
+    // Sem filtro de data (mesmo comportamento de sempre — all-time, diferente do since=30d
+    // usado só pra métricas de Insight acima).
     const leadsCount = campaignIds.length > 0
-      ? await prisma.ctaInteraction.count({ where: { campaignId: { in: campaignIds }, eventType: 'WHATSAPP_CLICK' } })
+      ? sumLeads(await getLeadEvents(payload.tenantId, { campaignIds, startDate: new Date(0), endDate: new Date() }))
       : 0;
 
     return NextResponse.json({
