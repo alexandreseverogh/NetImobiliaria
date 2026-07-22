@@ -4,9 +4,10 @@
 > conversões reais; Meta contando lead de formulário) e consolidar TODO o módulo de Campanhas
 > numa fonte única (`src/lib/marketing/services/leadEvents.ts`, 16 arquivos migrados — ver
 > `docs/CHECKPOINT.md`), o usuário pediu uma segunda verificação independente, rigorosa, em
-> duas frentes: uma técnica (feita pelo Claude) e uma manual em todas as telas (feita pelo
-> usuário). Este documento registra a metodologia, os resultados da Trilha A, e o roteiro
-> completo da Trilha B.
+> três frentes: uma técnica sobre dado existente (Trilha A, feita pelo Claude), uma manual em
+> todas as telas sobre dado existente (Trilha B, feita pelo usuário), e uma com dado novo, ao
+> vivo, atravessando os 3 módulos — Campanhas, CRM, Mensageria — incluindo os agentes de IA
+> (Trilha C, colaborativa). Este documento registra a metodologia e o roteiro completo das três.
 
 ---
 
@@ -219,7 +220,163 @@ são sinal real de bug, dado que a Trilha A já confirmou o valor exato via SQL 
 
 ---
 
+## Trilha C — Dado novo, ao vivo, nos 3 módulos (Campanhas + CRM + Mensageria)
+
+### Por que esta trilha existe e como difere de A/B
+
+A/B testam se o **cálculo sobre dado já existente** está certo. A Trilha C testa o **caminho de
+escrita**: um lead novo, de verdade, entrando pelo canal certo, sendo atribuído à campanha certa,
+aparecendo no CRM, na Mensageria (quando aplicável) e nos dashboards de Campanhas — e disparando
+a reação certa dos agentes de IA. É a única das três que efetivamente cria e depois remove dado.
+
+**Divisão de responsabilidade, pra ser honesto sobre o que é possível hoje:** gasto/impressões/
+cliques (`Insight`) só existem via sincronização real com a API do Meta/Google — não há nenhum
+formulário na UI pra digitar "R$500 de gasto" manualmente, então essa parte é semeada por mim via
+SQL (mesmo padrão de todo dado de teste já usado neste projeto, ex. `seed-demo-campaigns.sql`).
+**Tudo que é evento de lead, CRM e Mensageria você pode fazer ao vivo, pela tela real** — e nos
+pontos em que simulo eu mesmo uma chamada (ex.: webhook), você acompanha o dashboard atualizando
+em tempo real, igual fiz nos meus próprios testes da Trilha A.
+
+**Limiares reais do segmento Imobiliário (conferidos no banco, usados pra escolher os números
+abaixo):** CPL ideal R$35 · CPL crítico R$80 · CTR mínimo 0,8% · frequência máxima 3,0x · gasto
+sem lead R$50 · mínimo de leads pra escalar 5 · mínimo de dias rodando 3.
+
+### Cliente de teste (isolamento)
+
+Crie 1 cliente novo em `/admin/clientes/novo`: **"TRILHA C — Cliente Teste"** (herda o segmento
+Imobiliário do tenant). Todos os cenários abaixo usam esse cliente — nunca "Minha Empresa" nem um
+cliente real — pra ficar 100% isolado e fácil de remover no final.
+
+### Visão geral dos cenários (números escolhidos deliberadamente para cada resultado)
+
+| # | Campanha | Rede | Canal de lead | Gasto | Leads | CPL | Resultado esperado |
+|---|---|---|---|---|---|---|---|
+| 1 | TRILHA C · Sucesso | Meta | Clique WhatsApp | R$300 (5d) | 15 | R$20 | **SCALE**, status `ok` |
+| 2 | TRILHA C · Crítico | Meta | — (zero lead) | R$400 (4d) | 0 | — | **PAUSE**, `ZERO_LEADS_SPEND` |
+| 3 | TRILHA C · Atenção | Google | Conversão real (API) | R$520 (4d) | 8 | R$65 | **OPTIMIZE/ALERT**, `ELEVATED_CPL_SPEND` |
+| 4 | TRILHA C · Site Próprio | Meta | Mecanismo C (`ref`) | R$150 (3d) | 3 | R$50 | Atribuição correta (testa o fix do `ref` ao vivo) |
+| 5 *(opcional)* | TRILHA C · Fadiga | Meta | Clique WhatsApp | R$250 (6d) | 2 | R$125 | **ALERT** (frequência > 3x), não confundir com PAUSE |
+
+Cenário 1 fica deliberadamente **bem** abaixo do ideal (não só "ok, na média") pra confirmar que o
+sistema reconhece sucesso genuíno, não só ausência de problema — é comum um teste só cobrir "vai
+dar erro?" e esquecer de provar que o caminho feliz também está correto.
+
+### Fase 0 — Setup (feito por mim, antes de você começar a clicar)
+
+1. Criar as campanhas 1-4 (e 5, se topar o cenário opcional) vinculadas ao cliente de teste, com
+   `Insight` semeado dia a dia batendo os números da tabela acima.
+2. Campanha 3 é a única em rede Google — nova campanha de teste, não reaproveita a fixture
+   antiga, pra também confirmar que uma campanha Google **nova** funciona de ponta a ponta.
+3. Devolvo os IDs reais (campaignId, trackingId de cada Ad) antes de você começar a Fase 1.
+
+### Fase 1 — Gerar o lead de cada cenário (o coração desta trilha)
+
+- [ ] **Cenário 1 (Sucesso):** simulo 15 cliques de WhatsApp reais via `/api/r/{trackingId}`
+  (o mesmo endpoint que um clique real no anúncio usaria), distribuídos ao longo dos 5 dias.
+  Você acompanha o dashboard antes/depois.
+- [ ] **Cenário 2 (Crítico):** nenhum lead — é o ponto do cenário. Só confirme depois que a
+  campanha aparece com **zero** leads em todo lugar, nunca com um número "quase certo" tipo 1 ou 2.
+- [ ] **Cenário 3 (Atenção, Google):** as 8 conversões vêm direto do `Insight.conversions`
+  (mesmo mecanismo real da API do Google) — sem ação de clique necessária, já semeado na Fase 0.
+- [ ] **Cenário 4 (Site Próprio — testa o fix do Mecanismo C ao vivo):** **você mesmo** dispara,
+  via `curl` ou Postman (te passo o comando exato com o `trackingId` real da campanha 4), uma
+  chamada real a `POST /api/public/cta/ingest` com o campo `ref` preenchido — reproduzindo
+  exatamente o cenário "site próprio do cliente" que você descreveu. Repita 3x com dados
+  diferentes (nome/e-mail/telefone) pra gerar os 3 leads.
+- [ ] **Cenário 5 opcional (Fadiga):** simulo o crescimento de frequência dia a dia (2,0x → 3,8x)
+  junto com o gasto semeado na Fase 0.
+
+### Fase 2 — CRM (Kanban, negócio fechado, lead avulso)
+
+- [ ] **Kanban** (`/crm/kanban`): confirme que os leads dos cenários 1, 3 e 4 aparecem
+  corretamente distribuídos (segmento Imobiliário, mesma regra de distribuição já testada antes).
+- [ ] **Negócio Fechado (Visão 4):** pegue **1 lead do Cenário 1** e mova manualmente no Kanban
+  até o estágio "fechamento", com `valor_venda` = **R$450.000**. Depois confira em
+  `/admin/campanhas/dashboard` (Visão 4 — Funil de Receita): CPA real deve ficar em torno de
+  **R$300** (gasto total da campanha ÷ 1 negócio) e ROAS em torno de **1.500x**
+  (450.000 ÷ 300) — números bem redondos de propósito, fáceis de conferir de cabeça.
+- [ ] **Lead avulso / visita presencial (fora do escopo de CPL, de propósito):** crie 1 lead
+  manualmente via `NovoLeadModal` (botão "Novo Lead" no CRM), sem vincular a nenhuma campanha —
+  simulando alguém que visitou o estande presencialmente. Confirme que ele aparece normalmente
+  no Kanban, mas **não aparece em nenhuma tela do módulo de Campanhas** (não deveria — não há
+  gasto de campanha por trás; é exatamente a fronteira discutida antes de eu tocar em código).
+
+### Fase 3 — Mensageria (atribuição e conversa orgânica)
+
+- [ ] **Conversa orgânica de WhatsApp, sem campanha:** mande uma mensagem de WhatsApp de teste
+  sem nenhum clique prévio em anúncio (ex.: número de teste perguntando "Olá, vi um imóvel na
+  região X, ainda está disponível?"). Confirme em `/mensageria`: a conversa aparece com o badge
+  **"WhatsApp orgânico"** (não o nome de nenhuma campanha) — e confirme que esse contato **não**
+  aumenta o contador de leads em nenhuma tela de Campanhas.
+- [ ] **Atribuição real:** abra a conversa do Cenário 1 (se o clique de WhatsApp simulado na
+  Fase 1 gerar resposta) e confirme o badge mostrando o nome real **"TRILHA C · Sucesso"**.
+- [ ] **KPI "Vindas de campanha"** (`/mensageria/analytics`): deve refletir a proporção correta
+  entre a conversa orgânica (não conta) e a conversa atribuída (conta).
+
+### Fase 4 — De volta aos dashboards de Campanhas (o resultado final de tudo acima)
+
+Use o cliente "TRILHA C — Cliente Teste" no seletor em cada tela:
+
+- [ ] **Dashboard → Visão Geral:** 4 campanhas (5 com a opcional), leads totais = 15+0+8+3(+2) =
+  **26** (ou 28 com a opcional), CPL médio combinado.
+- [ ] **Dashboard → CPL por Rede:** Meta e Google devem aparecer separados, cada um com o CPL
+  correto da sua própria campanha (Meta ≈ R$26,15 combinando cenários 1+2+4; Google = R$65).
+- [ ] **Insights da IA:** confira as 3-4 recomendações — **Cenário 1 → SCALE**, **Cenário 2 →
+  PAUSE**, **Cenário 3 → OPTIMIZE/ALERT**, nunca invertidas ou trocadas entre si.
+- [ ] **Desperdício de Verba:** Cenário 2 em `ZERO_LEADS_SPEND` (categoria mais grave); Cenário 3
+  em `ELEVATED_CPL_SPEND`; Cenário 1 em nenhuma categoria de desperdício.
+- [ ] **Portfolio:** linha do cliente teste com status agregado; **atenção a uma nuance real que
+  vale a pena observar, não é bug**: o Cenário 2 (gasto real, zero lead) tende a aparecer como
+  `nodata` no Portfolio (CPL indefinido) mas como o pior caso em Desperdício de Verba — são
+  definições diferentes de "sem dado" em telas diferentes; confirme que isso não parece
+  contraditório/confuso na prática, e se parecer, reporte como achado de UX.
+- [ ] **Auditoria:** rode uma nova auditoria pro cliente teste — score deve refletir a mistura
+  (1 campanha ótima + 1 péssima + 1 mediana), não só a média simples.
+- [ ] **Mapa de Campanhas:** se as campanhas de teste tiverem localização configurada, confirme
+  que aparecem no mapa com os leads corretos.
+
+### Fase 5 — Agentes (decisão automática, aprovação, briefing)
+
+- [ ] Disparo manual do sync/decisor (cron `POST /api/cron/campanhas/sync`, o mesmo que roda
+  sozinho a cada 6h — não dá pra esperar o agendamento real durante o teste).
+- [ ] Confirme em `AgentAction` (posso consultar direto no banco pra você, ou expor numa tela se
+  preferir): uma ação **SCALE** ou **OPTIMIZE** pro Cenário 1 (`PENDING_EXECUTION` — auto-executa;
+  a chamada real à API do Meta vai falhar sem token de produção, mas o **registro da decisão**
+  deve existir e estar correto) e uma ação **PAUSE**/**ALERT** pro Cenário 2
+  (`PENDING_APPROVAL` — deveria gerar notificação, mesmo que o envio real de WhatsApp/Slack falhe
+  sem credenciais configuradas).
+- [ ] Teste os links `GET /api/agent/approve/[id]` e `/reject/[id]` da ação pendente do Cenário 2
+  — confirme que aprovam/rejeitam corretamente (não exigem JWT, só o UUID da ação).
+- [ ] Gere um **Briefing Estratégico** novo pro cliente teste (botão real na UI) — a narrativa
+  deve citar corretamente qual campanha performou bem e qual precisa de atenção, com os números
+  certos (não pode, por exemplo, recomendar pausar o Cenário 1).
+
+### Sequência recomendada (ordem de acesso pelos 3 módulos)
+
+Pensada pra espelhar a jornada real de um lead — mais fácil de acompanhar do que pular entre
+telas soltas:
+
+1. **CRM** → criar o cliente de teste (`/admin/clientes/novo`)
+2. *(eu semeio as campanhas 1-5 — Fase 0)*
+3. **Campanhas** → gerar os leads dos Cenários 1, 3, 4 (Fase 1) — acompanhando o dashboard
+   atualizar a cada passo, não só no final
+4. **CRM** → Kanban: conferir distribuição, mover 1 lead do Cenário 1 até "fechamento" (Fase 2)
+5. **CRM** → criar o lead avulso (visita presencial), confirmar que fica fora de Campanhas
+6. **Mensageria** → conversa orgânica + conferir atribuição real (Fase 3)
+7. **Campanhas** → dashboards completos, agora com todo o dado no lugar (Fase 4)
+8. **Campanhas** → disparar agentes, checar `AgentAction`, aprovar/rejeitar, gerar briefing (Fase 5)
+
+### Limpeza ao final
+
+Antes de considerar a Trilha C encerrada, eu removo (e confirmo 0 linhas residuais, mesmo padrão
+de toda esta auditoria): as 4-5 campanhas de teste + `Insight` associado, os leads/CtaInteraction/
+CtaSubmission/marketing_eventos/leads_kanban de cada cenário, a conversa de Mensageria orgânica,
+o `AgentAction` gerado, e o cliente "TRILHA C — Cliente Teste" em si.
+
+---
+
 ## Status
 
 **Trilha A: concluída, 0 discrepâncias encontradas** (14 consumidores + 3 casos de borda).
 **Trilha B: pendente — aguardando execução manual pelo usuário.**
+**Trilha C: pendente — roteiro definido, aguardando início (Fase 0 a cargo do Claude).**
