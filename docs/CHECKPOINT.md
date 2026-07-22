@@ -1,12 +1,46 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — implementado `GET /dashboard/cpl` (endpoint reutilizável de
-> CPL por período), pendência do CLAUDE.md. Corrigiu de quebra um bug real de CPL diário
-> inflado quando há 2+ campanhas ativas no mesmo dia.
+> **Atualizado em:** 2026-07-21 — investigado e fechado o achado do `GET /dashboard/full`
+> (500 "Cannot read properties of undefined (reading 'count')"): confirmado como singleton do
+> Prisma preso na versão antiga do client em memória do dev server de longuíssima duração desta
+> sessão, não bug de código. Reinício do `npm run dev` resolveu, reconfirmado ao vivo.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
+
+## Tarefa em andamento
+
+**Nenhuma tarefa em andamento no momento.**
+
+## Última tarefa concluída
+
+### Sessão 2026-07-21 (continuação 14) — Investigação do 500 em `GET /dashboard/full` ✅
+
+**Contexto:** achado à parte registrado na tarefa anterior (endpoint de CPL) — `GET /dashboard/
+full` lançava 500 pro tenant Marketing Digital. Usuário pediu investigação.
+
+**Método:** como o servidor dev já estava rodando fora do controle desta sessão (sem acesso ao
+stdout do terminal), instrumentei temporariamente a rota com uma variável `lastStep` exposta na
+resposta de erro (não `console.log`, que seria invisível) pra bisectar exatamente onde o código
+falhava, testei ao vivo, encontrei o ponto exato, e revertive toda a instrumentação
+(`git checkout --`) assim que a causa ficou clara — zero mudança de código permanente.
+
+**Causa raiz confirmada:** o crash acontecia exatamente em `prisma.ctaInteraction.count(...)`
+(linha 114) — só é possível se `prisma.ctaInteraction` (o model gerado) estiver `undefined`.
+Conferido que o client gerado em disco (`node_modules/.prisma/client`) tinha `ctaInteraction`
+normalmente — o problema era a instância do `PrismaClient` presa no singleton global
+(`globalForPrisma.prismaMarketing`, `src/lib/marketing/prisma.ts`) do processo Node de longa
+duração desta sessão, criada antes da última regeneração do client. Explica por que nenhum dos
+dezenas de testes reais desta sessão pegou isso antes: todo o resto do código que grava/lê
+`CtaInteraction` usa SQL cru (`pool.query`), não o model Prisma tipado — essa rota é a única que
+chama `.ctaInteraction.count()` diretamente.
+
+**Resolvido:** usuário reiniciou o `npm run dev`. Reconfirmado ao vivo — `GET /dashboard/full`
+voltou a funcionar (`leadCount:1, spend:213154.39`), batendo exatamente com o que `/dashboard/
+cpl` (implementado na tarefa anterior) e a query SQL direta já mostravam. Mesmo padrão de bug já
+documentado várias vezes no histórico deste arquivo ("Prisma singleton stale") — não é um bug de
+código, é um efeito colateral de sessões de dev muito longas sem restart após regenerar o client.
 
 ## Tarefa em andamento
 
