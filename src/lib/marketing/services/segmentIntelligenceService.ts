@@ -10,6 +10,7 @@
 import pool from '@/lib/database/connection';
 import { invokeWithTemplate } from '../../intelligence/llmInvoker';
 import { generateAiInsights } from './aiInsights';
+import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from './leadEvents';
 import type { SegmentDashboardResponse } from '../../../app/api/admin/campanhas/dashboard/segment/route';
 
 const S = 'campanhasmarketingdigital';
@@ -169,30 +170,35 @@ async function buildAnglesSummary(
     // buscar todos os ângulos das campanhas do segmento no período
     const clientIds = data.clients.map(c => c.id).filter(id => id !== 'own');
 
-    // Insights e Leads agregados em subqueries SEPARADAS por campanha.
-    // Juntá-los no mesmo JOIN causaria produto cartesiano (spend inflado pelo nº de leads).
+    // Spend agregado por campanha (subquery separada — juntar com leads no mesmo JOIN causaria
+    // produto cartesiano, spend inflado pelo nº de leads). Leads vêm de getLeadEvents() abaixo
+    // (fonte única, ciente de rede — WhatsApp + formulário + conversão real do Google), não
+    // mais só WHATSAPP_CLICK: campanha de Google/formulário entrava aqui com leads:0 e
+    // distorcia o CPL médio por ângulo (achado 2026-07-21).
     const { rows } = await pool.query(
-      `SELECT cam.declared_angle          AS angle,
+      `SELECT cam.id                      AS campaign_id,
+              cam.declared_angle          AS angle,
               cam.client_id::text         AS client_id,
-              COALESCE(SUM(ins.spend), 0) AS spend,
-              COALESCE(SUM(lds.leads), 0) AS leads
+              COALESCE(SUM(ins.spend), 0) AS spend
        FROM ${S}."Campaign" cam
        LEFT JOIN (
          SELECT "campaignId", SUM(spend) AS spend
          FROM ${S}."Insight" GROUP BY "campaignId"
        ) ins ON ins."campaignId" = cam.id
-       LEFT JOIN (
-         SELECT campaign_id AS "campaignId", COUNT(*) AS leads
-         FROM ${S}."CtaInteraction" WHERE event_type = 'WHATSAPP_CLICK' GROUP BY campaign_id
-       ) lds ON lds."campaignId" = cam.id
        LEFT JOIN public.clientes cl ON cl.uuid = cam.client_id
        LEFT JOIN public.tenants  t  ON t.id    = cam.tenant_id
        WHERE cam.tenant_id = $1::uuid
          AND cam.declared_angle IS NOT NULL
          AND COALESCE(cl.segment_id, t.segment_id) = $2::uuid
-       GROUP BY cam.declared_angle, cam.client_id`,
+       GROUP BY cam.id, cam.declared_angle, cam.client_id`,
       [tenantId, segmentId],
     );
+
+    const campaignIds = rows.map(r => r.campaign_id as string);
+    const leadEvents = campaignIds.length > 0
+      ? await getLeadEvents(tenantId, { campaignIds, startDate: new Date(0), endDate: new Date() })
+      : [];
+    const leadsByCampaignMap = groupLeadsByCampaign(leadEvents);
 
     // Agrupar por ângulo
     const angleMap = new Map<string, { clients: Set<string>; totalSpend: number; totalLeads: number }>();
@@ -201,7 +207,7 @@ async function buildAnglesSummary(
       const ex  = angleMap.get(key) ?? { clients: new Set(), totalSpend: 0, totalLeads: 0 };
       ex.clients.add(r.client_id ?? 'own');
       ex.totalSpend  += Number(r.spend);
-      ex.totalLeads  += Number(r.leads);
+      ex.totalLeads  += leadsByCampaignMap.get(r.campaign_id) ?? 0;
       angleMap.set(key, ex);
     }
 
