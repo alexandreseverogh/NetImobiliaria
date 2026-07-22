@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
+import { leadSourceForNetwork } from '@/lib/marketing/services/networkLeadSource';
 
 export const dynamic = 'force-dynamic';
 
@@ -231,11 +232,26 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {} as Record<string, number>);
 
+    // Achado 2026-07-21: "lead" não é o mesmo sinal em toda rede — Meta usa clique de WhatsApp
+    // (CtaInteraction acima), mas Google já retorna conversão real da própria API
+    // (Insight.conversions) e não necessariamente gera clique de WhatsApp nenhum. Sem isso,
+    // campanha de Google real aparecia com leads:0 no comparativo por rede. Ver
+    // src/lib/marketing/services/networkLeadSource.ts (mesmo registro usado em cplTimelineService).
+    const conversionsByNetwork = currentInsights.reduce((acc: Record<string, number>, i: any) => {
+      const code = campaignNetworkCode.get(i.campaignId) || 'meta';
+      if (leadSourceForNetwork(code) === 'insight_conversions') {
+        acc[code] = (acc[code] || 0) + i.conversions;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+
     // Spend + CPL por rede — sustenta o comparativo "CPL Meta × Google" do dashboard.
     // Reaproveita currentTotals.spendByNetwork (já corrigido acima) — sem query extra.
     const cplByNetwork = Object.entries(currentTotals.spendByNetwork as Record<string, number>).reduce(
       (acc, [network, spend]) => {
-        const leads = leadsByNetwork[network] || 0;
+        const leads = leadSourceForNetwork(network) === 'insight_conversions'
+          ? (conversionsByNetwork[network] || 0)
+          : (leadsByNetwork[network] || 0);
         acc[network] = { spend, leads, cpl: leads > 0 ? spend / leads : null };
         return acc;
       },

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/marketing/prisma';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
+import { leadSourceForNetwork } from '@/lib/marketing/services/networkLeadSource';
 
 export interface CplTimelinePoint {
   date: string;   // YYYY-MM-DD
@@ -31,6 +32,12 @@ export interface CplTimelineOptions {
  * Diferença importante em relação à derivação antiga do dashboard: `Insight` tem uma linha por
  * CAMPANHA por dia, não uma por dia — somar corretamente por dia (GROUP BY date) é o que evita
  * contar o mesmo total de leads do dia várias vezes (uma por campanha ativa naquele dia).
+ *
+ * Ciente de rede (achado 2026-07-21): "lead" não significa a mesma coisa em toda rede — Meta usa
+ * clique de WhatsApp (CtaInteraction), Google já retorna conversão real da própria API
+ * (Insight.conversions). Contar tudo como clique de WhatsApp fazia campanhas de Google reais
+ * aparecerem com leads:0. Ver src/lib/marketing/services/networkLeadSource.ts pro registro de
+ * qual método cada rede usa — terreno pronto pra novas redes sem mexer aqui.
  */
 export async function getCplTimeline(
   tenantId: string,
@@ -64,24 +71,57 @@ export async function getCplTimeline(
     orderBy: { date: 'asc' },
   });
 
-  const leadsByDayRaw: { date: Date; count: bigint }[] = await prisma.$queryRaw`
-    SELECT DATE(created_at) as date, COUNT(*)::int as count
-    FROM campanhasmarketingdigital."CtaInteraction"
-    WHERE tenant_id = ${tenantId}::uuid
-      AND campaign_id = ANY(${campaignIds})
-      AND event_type = 'WHATSAPP_CLICK'
-      AND created_at >= ${startDate}::timestamp
-      AND created_at <= ${endDate}::timestamp
-    GROUP BY DATE(created_at)
-  `;
+  // Resolve a rede de cada campanha no escopo (mesmo padrão de campaignNetworkCode em
+  // dashboard/full/route.ts) pra decidir, por campanha, qual método de lead usar.
+  const [campaignsWithNetwork, networkRows] = await Promise.all([
+    prisma.campaign.findMany({ where: { id: { in: campaignIds } }, select: { id: true, networkId: true } }),
+    prisma.$queryRaw<{ id: string; code: string }[]>`SELECT id, code FROM public.ad_networks`,
+  ]);
+  const networkCodeById = new Map(networkRows.map(r => [r.id, r.code]));
+  const campaignsByLeadSource = new Map<string, string[]>(); // leadSource -> campaignIds
+  for (const c of campaignsWithNetwork) {
+    const networkCode = (c as any).networkId ? (networkCodeById.get((c as any).networkId) || 'meta') : 'meta';
+    const method = leadSourceForNetwork(networkCode);
+    const list = campaignsByLeadSource.get(method) || [];
+    list.push(c.id);
+    campaignsByLeadSource.set(method, list);
+  }
 
-  const toDateKey = (d: Date) => d.toISOString().split('T')[0];
+  const leadsMap = new Map<string, number>();
+  const addLeads = (date: Date, count: number) => {
+    const key = toDateKey(date);
+    leadsMap.set(key, (leadsMap.get(key) ?? 0) + count);
+  };
+
+  const whatsappCampaignIds = campaignsByLeadSource.get('whatsapp_click') || [];
+  if (whatsappCampaignIds.length > 0) {
+    const leadsByDayRaw: { date: Date; count: bigint }[] = await prisma.$queryRaw`
+      SELECT DATE(created_at) as date, COUNT(*)::int as count
+      FROM campanhasmarketingdigital."CtaInteraction"
+      WHERE tenant_id = ${tenantId}::uuid
+        AND campaign_id = ANY(${whatsappCampaignIds})
+        AND event_type = 'WHATSAPP_CLICK'
+        AND created_at >= ${startDate}::timestamp
+        AND created_at <= ${endDate}::timestamp
+      GROUP BY DATE(created_at)
+    `;
+    for (const row of leadsByDayRaw) addLeads(new Date(row.date), Number(row.count));
+  }
+
+  const conversionsCampaignIds = campaignsByLeadSource.get('insight_conversions') || [];
+  if (conversionsCampaignIds.length > 0) {
+    const conversionsByDay = await prisma.insight.groupBy({
+      by: ['date'],
+      where: { campaignId: { in: conversionsCampaignIds }, date: { gte: startDate, lte: endDate } },
+      _sum: { conversions: true },
+    });
+    for (const row of conversionsByDay) addLeads(row.date, row._sum.conversions ?? 0);
+  }
+
+  function toDateKey(d: Date) { return d.toISOString().split('T')[0]; }
 
   const spendMap = new Map<string, number>();
   for (const row of spendByDay) spendMap.set(toDateKey(row.date), row._sum.spend ?? 0);
-
-  const leadsMap = new Map<string, number>();
-  for (const row of leadsByDayRaw) leadsMap.set(toDateKey(new Date(row.date)), Number(row.count));
 
   const allDates = new Set<string>([...Array.from(spendMap.keys()), ...Array.from(leadsMap.keys())]);
   const data: CplTimelinePoint[] = Array.from(allDates).sort().map(date => {
