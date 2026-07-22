@@ -472,6 +472,16 @@ export const getDashboardPredictions = (params?: {
   startDate?: string; endDate?: string; network?: string;
 }) => api.get<PredictionData>('/dashboard/predictions', { params }).then(r => r.data);
 
+export interface CplTimelinePoint { date: string; spend: number; leads: number; cpl: number }
+export interface CplTimelineData {
+  data: CplTimelinePoint[];
+  totals: { spend: number; leads: number; cpl: number };
+}
+
+export const getCplTimeline = (params?: {
+  startDate?: string; endDate?: string; clientId?: ClientFilter; segmentId?: string; campaignId?: string;
+}) => api.get<CplTimelineData>('/dashboard/cpl', { params }).then(r => r.data);
+
 /* ──────────────────────────────────────────────────────────────
    FASE 8 — Tracking Health Monitor
 ────────────────────────────────────────────────────────────── */

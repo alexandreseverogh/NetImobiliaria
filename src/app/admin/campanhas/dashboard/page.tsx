@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   getDashboardFull, getDashboardPredictions, getLatestBriefing, generateBriefing, getBriefings, syncInsights,
-  getFunnelData, getAnticipation, getHookRateBenchmarks,
+  getFunnelData, getAnticipation, getHookRateBenchmarks, getCplTimeline,
   type DashboardFullData, type PredictionData, type StrategicBriefingData, type AiInsightData,
   type FunnelData7, type AnticipationResult, type TimeToEvent, type Trajectory,
-  type HookRateBenchmarks,
+  type HookRateBenchmarks, type CplTimelineData,
   getAiInsights,
 } from '@/lib/marketing-api';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
@@ -55,6 +55,7 @@ import { FarolSection } from '@/components/marketing/dashboard/FarolSection';
 // ═════════════════════════════════════════════════════════════════════════════
 export function DashboardPage() {
   const [data, setData]                     = useState<DashboardFullData | null>(null);
+  const [cplTimeline, setCplTimeline]       = useState<CplTimelineData | null>(null);
   const [funnelData7, setFunnelData7]       = useState<FunnelData7 | null>(null);
   const [predictions, setPredictions]       = useState<PredictionData | null>(null);
   const [briefings, setBriefings]           = useState<StrategicBriefingData[]>([]);
@@ -198,7 +199,7 @@ export function DashboardPage() {
         ...(networkFilter    && { network:         networkFilter }),
       };
 
-      const [dashData, predData, funData, hrbData] = await Promise.all([
+      const [dashData, predData, funData, hrbData, cplData] = await Promise.all([
         getDashboardFull(params).catch((e) => { console.error('[Dashboard] getDashboardFull:', e); return null; }),
         getDashboardPredictions(sharedFilters).catch(() => null),
         getFunnelData(sharedFilters).catch(() => null),
@@ -206,11 +207,13 @@ export function DashboardPage() {
           clientFilter && clientFilter !== 'segment' ? clientFilter : null,
           activeSegment ?? null,
         ).catch(() => null),
+        getCplTimeline(sharedFilters).catch((e) => { console.error('[Dashboard] getCplTimeline:', e); return null; }),
       ]);
       if (dashData) setData(dashData);
       if (predData) setPredictions(predData);
       if (funData)  setFunnelData7(funData);
       if (hrbData)  setHookRateBenchmarks(hrbData);
+      if (cplData)  setCplTimeline(cplData);
 
       // Para briefing/histórico: filtrar pelo mesmo escopo de cliente ativo.
       // 'segment' é UI-only — sem clientId para buscar o briefing do segmento todo.
@@ -319,13 +322,12 @@ export function DashboardPage() {
       ctr: i.ctr, cpc: i.cpc, cpm: i.cpm, conversions: i.conversions,
     })) || [];
 
-  const dailyLeadsMap = new Map((data?.dailyLeads || []).map(dl => [
-    utcDateLabel(dl.date), dl.count,
-  ]));
-  const cplData = chartData.map(cd => ({
-    date: cd.date, spend: cd.spend,
-    leads: dailyLeadsMap.get(cd.date) || 0,
-    cpl: (dailyLeadsMap.get(cd.date) || 0) > 0 ? cd.spend / (dailyLeadsMap.get(cd.date) || 1) : 0,
+  // CPL por dia vem de /dashboard/cpl (endpoint dedicado, cplTimelineService.ts) — antes era
+  // derivado aqui zipando spend por linha de Insight (1 linha por CAMPANHA por dia) com leads
+  // por dia; com mais de 1 campanha ativa no mesmo dia isso duplicava o total de leads do dia
+  // uma vez por campanha. O endpoint já soma corretamente por dia antes de calcular o CPL.
+  const cplData = (cplTimeline?.data || []).map(p => ({
+    date: utcDateLabel(p.date), spend: p.spend, leads: p.leads, cpl: p.cpl,
   }));
 
   // FASE 5 — Hook Rate (video_views_3s / impressions × 100)
