@@ -3,6 +3,7 @@ import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
 import { filterCampaignsByNetwork } from '@/lib/marketing/networkFilterUtils';
+import { getLeadEvents, leadsByDay } from '@/lib/marketing/services/leadEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,27 +154,12 @@ export async function GET(request: NextRequest) {
       return data.clicks > 0 ? data.spend / data.clicks : 0;
     });
 
-    const leadsRaw: any[] = await prisma.$queryRaw`
-      SELECT DATE(created_at) as date, COUNT(*)::int as count
-      FROM campanhasmarketingdigital."CtaInteraction"
-      WHERE tenant_id = ${payload.tenantId}::uuid
-        AND campaign_id = ANY(${campaignIds})
-        AND event_type = 'WHATSAPP_CLICK'
-        AND created_at >= ${histStart}::timestamp
-        AND created_at <= ${histEnd}::timestamp
-      GROUP BY DATE(created_at)
-      ORDER BY date ASC
-    `;
+    // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+    // WHATSAPP_CLICK, subestimando (ou zerando) a projeção de leads pra campanhas de Google.
+    const leadEvents = await getLeadEvents(payload.tenantId, { campaignIds, startDate: histStart, endDate: histEnd });
+    const leadCountByDay = leadsByDay(leadEvents);
 
-    const normalizedLeads = leadsRaw.map(r => ({
-      date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
-      count: Number(r.count)
-    }));
-
-    const leadValues = sortedDays.map(d => {
-      const found = normalizedLeads.find((l: any) => l.date === d);
-      return found ? found.count : 0;
-    });
+    const leadValues = sortedDays.map(d => leadCountByDay.get(d) ?? 0);
 
     return NextResponse.json({
       spend: predict(spendValues),
