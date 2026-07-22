@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
-import { leadSourceForNetwork } from '@/lib/marketing/services/networkLeadSource';
+import {
+  getLeadEvents, sumLeads, leadsByDay,
+  leadsByCampaign as groupLeadsByCampaign,
+  leadsByNetwork as groupLeadsByNetwork,
+} from '@/lib/marketing/services/leadEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,18 +111,21 @@ export async function GET(request: NextRequest) {
       date: { gte: prevStart, lt: prevEnd }
     };
 
-    const [currentInsights, prevInsights, currentLeadCount, prevLeadCount] = await Promise.all([
+    // Fonte única de "o que é lead" (ciente de rede e de mecanismo de CTA — WhatsApp, formulário
+    // hospedado, Formulário Instantâneo do Meta, conversão real do Google) — ver leadEvents.ts.
+    // Achado 2026-07-21: antes cada métrica desta rota tinha sua PRÓPRIA query só com
+    // WHATSAPP_CLICK, causando o card de KPI "Leads" mostrar um número diferente do
+    // comparativo cplByNetwork na MESMA resposta. Agora tudo deriva do mesmo array de eventos.
+    const [currentInsights, prevInsights, currentLeadEvents, prevLeadEvents] = await Promise.all([
       prisma.insight.findMany({ where: insightWhere, orderBy: { date: 'desc' } }),
       prisma.insight.findMany({
         where: prevInsightWhere,
       }),
-      prisma.ctaInteraction.count({
-        where: { tenantId: payload.tenantId, campaignId: { in: campaignIds }, eventType: 'WHATSAPP_CLICK', createdAt: { gte: startDate, lte: endDate } },
-      }),
-      prisma.ctaInteraction.count({
-        where: { tenantId: payload.tenantId, campaignId: { in: campaignIds }, eventType: 'WHATSAPP_CLICK', createdAt: { gte: prevStart, lt: prevEnd } },
-      }),
+      getLeadEvents(payload.tenantId, { campaignIds, startDate, endDate }),
+      getLeadEvents(payload.tenantId, { campaignIds, startDate: prevStart, endDate: prevEnd }),
     ]);
+    const currentLeadCount = sumLeads(currentLeadEvents);
+    const prevLeadCount = sumLeads(prevLeadEvents);
 
     const calcTotals = (insights: any[]) => {
       const spend = insights.reduce((s, i) => s + i.spend, 0);
@@ -166,43 +173,11 @@ export async function GET(request: NextRequest) {
       campaignName: c.name,
     })));
 
-    const campaignIdsQuery = campaignIds.length > 0 ? campaignIds : ['00000000-0000-0000-0000-000000000000'];
+    const normalizedDailyLeads = Array.from(leadsByDay(currentLeadEvents).entries())
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
 
-    const dailyLeadsRaw: any[] = await prisma.$queryRaw`
-      SELECT DATE(created_at) as date, COUNT(*)::int as count
-      FROM campanhasmarketingdigital."CtaInteraction"
-      WHERE tenant_id = ${payload.tenantId}::uuid
-        AND campaign_id = ANY(${campaignIdsQuery})
-        AND event_type = 'WHATSAPP_CLICK'
-        AND created_at >= ${startDate}::timestamp
-        AND created_at <= ${endDate}::timestamp
-      GROUP BY DATE(created_at)
-      ORDER BY date ASC
-    `;
-
-    const normalizedDailyLeads = dailyLeadsRaw.map(r => ({
-      date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
-      count: Number(r.count)
-    }));
-
-    // Leads REAIS por campanha — "Onde está o Dinheiro?" (Visão Executiva) lia c.spend/c.leads
-    // direto do objeto Campaign, campos que nunca existiram nesse model (spend/leads vivem em
-    // Insight/Lead, agregados). Sempre renderizava R$ 0,00 / 0 leads pra QUALQUER campanha, em
-    // qualquer filtro — bug pré-existente, não específico de hoje nem de nenhuma rede.
-    const leadsByCampaignRaw: any[] = await prisma.$queryRaw`
-      SELECT campaign_id, COUNT(*)::int as count
-      FROM campanhasmarketingdigital."CtaInteraction"
-      WHERE tenant_id = ${payload.tenantId}::uuid
-        AND campaign_id = ANY(${campaignIdsQuery})
-        AND event_type = 'WHATSAPP_CLICK'
-        AND created_at >= ${startDate}::timestamp
-        AND created_at <= ${endDate}::timestamp
-      GROUP BY campaign_id
-    `;
-    const leadsByCampaign = leadsByCampaignRaw.reduce((acc, row) => {
-      acc[row.campaign_id] = Number(row.count);
-      return acc;
-    }, {} as Record<string, number>);
+    const leadsByCampaign = Object.fromEntries(groupLeadsByCampaign(currentLeadEvents));
 
     const funnelData = {
       impressions: currentTotals.impressions,
@@ -210,72 +185,14 @@ export async function GET(request: NextRequest) {
       leads: currentLeadCount,
       conversions: currentTotals.conversions,
     };
-    // FASE 1 (Google Ads) A7 — agrupa por CÓDIGO da rede (meta/google/...), não pelo UUID cru
-    // de network_id — o frontend consome direto sem precisar de lookup próprio. Campanha sem
-    // network_id (legado, anterior ao fix em campaigns/route.ts) cai em 'meta' — é o único
-    // valor possível historicamente, nunca houve outra rede antes desta fase.
-    const leadsByNetworkRaw: any[] = await prisma.$queryRaw`
-      SELECT COALESCE(n.code, 'meta') as network, COUNT(l.id)::int as count
-      FROM campanhasmarketingdigital."CtaInteraction" l
-      JOIN campanhasmarketingdigital."Campaign" c ON l.campaign_id = c.id
-      LEFT JOIN public.ad_networks n ON n.id = c."network_id"
-      WHERE l.tenant_id = ${payload.tenantId}::uuid
-        AND l.campaign_id = ANY(${campaignIdsQuery})
-        AND l.event_type = 'WHATSAPP_CLICK'
-        AND l.created_at >= ${startDate}::timestamp
-        AND l.created_at <= ${endDate}::timestamp
-      GROUP BY COALESCE(n.code, 'meta')
-    `;
 
-    // CTA de WhatsApp e CTA de formulário são mutuamente exclusivos por anúncio (Ad.ctaType só
-    // pode ser um) — somar aqui nunca conta o mesmo lead 2x. Achado 2026-07-21: campanha com
-    // CTA de formulário (ex.: LEARN_MORE) gera lead via CtaSubmission.lead_uuid, sem clique de
-    // WhatsApp nenhum; sem isso, aparecia com leads:0 mesmo tendo submissões reais atribuídas.
-    // cta_type != 'WHATSAPP_MESSAGE' — uma resposta real de WhatsApp também grava uma
-    // CtaSubmission (via inboundProcessor.ts), então incluir CTA de WhatsApp aqui contaria o
-    // mesmo lead 2x (1x em leadsByNetwork acima, 1x aqui). Só formulário conta.
-    const formLeadsByNetworkRaw: any[] = await prisma.$queryRaw`
-      SELECT COALESCE(n.code, 'meta') as network, COUNT(s.id)::int as count
-      FROM campanhasmarketingdigital."CtaSubmission" s
-      JOIN campanhasmarketingdigital."Campaign" c ON s.campaign_id = c.id
-      LEFT JOIN public.ad_networks n ON n.id = c."network_id"
-      WHERE s.tenant_id = ${payload.tenantId}::uuid
-        AND s.campaign_id = ANY(${campaignIdsQuery})
-        AND s.lead_uuid IS NOT NULL
-        AND s.cta_type != 'WHATSAPP_MESSAGE'
-        AND s.created_at >= ${startDate}::timestamp
-        AND s.created_at <= ${endDate}::timestamp
-      GROUP BY COALESCE(n.code, 'meta')
-    `;
-
-    const leadsByNetwork = leadsByNetworkRaw.reduce((acc, row) => {
-      acc[row.network] = Number(row.count);
-      return acc;
-    }, {} as Record<string, number>);
-    for (const row of formLeadsByNetworkRaw) {
-      leadsByNetwork[row.network] = (leadsByNetwork[row.network] || 0) + Number(row.count);
-    }
-
-    // Achado 2026-07-21: "lead" não é o mesmo sinal em toda rede — Meta usa clique de WhatsApp
-    // (CtaInteraction acima), mas Google já retorna conversão real da própria API
-    // (Insight.conversions) e não necessariamente gera clique de WhatsApp nenhum. Sem isso,
-    // campanha de Google real aparecia com leads:0 no comparativo por rede. Ver
-    // src/lib/marketing/services/networkLeadSource.ts (mesmo registro usado em cplTimelineService).
-    const conversionsByNetwork = currentInsights.reduce((acc: Record<string, number>, i: any) => {
-      const code = campaignNetworkCode.get(i.campaignId) || 'meta';
-      if (leadSourceForNetwork(code) === 'insight_conversions') {
-        acc[code] = (acc[code] || 0) + i.conversions;
-      }
-      return acc;
-    }, {} as Record<string, number>);
+    const leadsByNetwork = Object.fromEntries(groupLeadsByNetwork(currentLeadEvents));
 
     // Spend + CPL por rede — sustenta o comparativo "CPL Meta × Google" do dashboard.
     // Reaproveita currentTotals.spendByNetwork (já corrigido acima) — sem query extra.
     const cplByNetwork = Object.entries(currentTotals.spendByNetwork as Record<string, number>).reduce(
       (acc, [network, spend]) => {
-        const leads = leadSourceForNetwork(network) === 'insight_conversions'
-          ? (conversionsByNetwork[network] || 0)
-          : (leadsByNetwork[network] || 0);
+        const leads = leadsByNetwork[network] || 0;
         acc[network] = { spend, leads, cpl: leads > 0 ? spend / leads : null };
         return acc;
       },
