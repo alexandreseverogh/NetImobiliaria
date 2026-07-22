@@ -16,6 +16,60 @@
 
 import { prisma } from '@/lib/marketing/prisma';
 
+const SCHEMA = 'campanhasmarketingdigital';
+
+/**
+ * Contagem ampliada de lead pro monitor de saúde de tracking — WhatsApp click + submissão de
+ * formulário/Formulário Instantâneo do Meta (excluindo cta_type='WHATSAPP_MESSAGE', que é o eco
+ * de uma resposta de WhatsApp já contada como clique — ver networkLeadSource.ts). Não usa
+ * getLeadEvents() porque esses checks são tenant-wide, sem uma lista conhecida de campaignIds —
+ * diferente do resto do módulo, que sempre opera sobre um escopo de campanhas já resolvido.
+ */
+async function countBroadLeads(tenantId: string, clientId: string | null | undefined, since: Date): Promise<number> {
+  const clientClause = clientId ? `AND client_id = $2::uuid` : '';
+  const clickParams: any[] = clientId ? [tenantId, clientId, since] : [tenantId, since];
+  const submissionParams: any[] = clientId ? [tenantId, clientId, since] : [tenantId, since];
+  const sinceIdx = clientId ? 3 : 2;
+
+  const [clicks, submissions] = await Promise.all([
+    prisma.$queryRawUnsafe<{ count: bigint }[]>(
+      `SELECT COUNT(*)::int as count FROM ${SCHEMA}."CtaInteraction"
+        WHERE tenant_id = $1::uuid ${clientClause} AND event_type = 'WHATSAPP_CLICK' AND created_at >= $${sinceIdx}::timestamp`,
+      ...clickParams,
+    ),
+    prisma.$queryRawUnsafe<{ count: bigint }[]>(
+      `SELECT COUNT(*)::int as count FROM ${SCHEMA}."CtaSubmission"
+        WHERE tenant_id = $1::uuid ${clientClause} AND lead_uuid IS NOT NULL AND cta_type != 'WHATSAPP_MESSAGE' AND created_at >= $${sinceIdx}::timestamp`,
+      ...submissionParams,
+    ),
+  ]);
+  return Number(clicks[0]?.count ?? 0) + Number(submissions[0]?.count ?? 0);
+}
+
+/** Mesma contagem ampliada de countBroadLeads, mas só os registros SEM campaign_id. */
+async function countBroadOrphanLeads(tenantId: string, clientId: string | null | undefined, since: Date): Promise<number> {
+  const clientClause = clientId ? `AND client_id = $2::uuid` : '';
+  const clickParams: any[] = clientId ? [tenantId, clientId, since] : [tenantId, since];
+  const submissionParams: any[] = clientId ? [tenantId, clientId, since] : [tenantId, since];
+  const sinceIdx = clientId ? 3 : 2;
+
+  const [clicks, submissions] = await Promise.all([
+    prisma.$queryRawUnsafe<{ count: bigint }[]>(
+      `SELECT COUNT(*)::int as count FROM ${SCHEMA}."CtaInteraction"
+        WHERE tenant_id = $1::uuid ${clientClause} AND event_type = 'WHATSAPP_CLICK' AND created_at >= $${sinceIdx}::timestamp
+          AND (campaign_id IS NULL OR campaign_id = '')`,
+      ...clickParams,
+    ),
+    prisma.$queryRawUnsafe<{ count: bigint }[]>(
+      `SELECT COUNT(*)::int as count FROM ${SCHEMA}."CtaSubmission"
+        WHERE tenant_id = $1::uuid ${clientClause} AND lead_uuid IS NOT NULL AND cta_type != 'WHATSAPP_MESSAGE' AND created_at >= $${sinceIdx}::timestamp
+          AND (campaign_id IS NULL OR campaign_id = '')`,
+      ...submissionParams,
+    ),
+  ]);
+  return Number(clicks[0]?.count ?? 0) + Number(submissions[0]?.count ?? 0);
+}
+
 /* ──────────────────────────────────────────────────────────────
    TIPOS
 ────────────────────────────────────────────────────────────── */
@@ -167,10 +221,10 @@ async function checkTrackingEndpoint(baseUrl?: string): Promise<CheckResult> {
 async function checkLeads24h(
   tenantId: string, clientId?: string | null, since: Date = new Date(0),
 ): Promise<CheckResult> {
-  const where: any = { tenantId, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } };
-  if (clientId) where.clientId = clientId;
-
-  const count = await prisma.ctaInteraction.count({ where });
+  // Fonte ampliada de lead (achado 2026-07-21): antes só WHATSAPP_CLICK — uma campanha com CTA
+  // de formulário ou Formulário Instantâneo do Meta podia estar gerando lead normalmente e este
+  // check ainda acusar "tracking quebrado" por contar só o sinal de WhatsApp.
+  const count = await countBroadLeads(tenantId, clientId, since);
 
   let status: CheckStatus;
   let detail: string;
@@ -416,14 +470,12 @@ async function checkLeadLatency(
 async function checkOrphanLeads(
   tenantId: string, clientId?: string | null, since: Date = new Date(0),
 ): Promise<CheckResult> {
-  const whereAll: any  = { tenantId, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } };
-  if (clientId) whereAll.clientId = clientId;
-
-  const whereOrphan: any = { ...whereAll, OR: [{ campaignId: null }, { campaignId: '' }] };
-
+  // Achado 2026-07-21: este check é exatamente o que teria pego o bug real do webhook de
+  // Formulário Instantâneo do Meta (leads reais gravados sem campaign_id) — mas só olhava
+  // WHATSAPP_CLICK. Ampliado pra CtaSubmission também.
   const [total, orphans] = await Promise.all([
-    prisma.ctaInteraction.count({ where: whereAll }),
-    prisma.ctaInteraction.count({ where: whereOrphan }),
+    countBroadLeads(tenantId, clientId, since),
+    countBroadOrphanLeads(tenantId, clientId, since),
   ]);
 
   if (total === 0) {
