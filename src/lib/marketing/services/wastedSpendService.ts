@@ -1,6 +1,7 @@
 import prisma from '../prisma';
 import { resolveSegment } from '../../intelligence/segmentResolver';
 import { resolveBenchmarks } from '../../intelligence/benchmarkResolver';
+import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from './leadEvents';
 
 // Máscara monetária pt-BR (R$ 99.999,99) para as strings descritivas do relatório
 const fmtBRL = (v: number) =>
@@ -67,7 +68,10 @@ export async function calculateWastedSpend(
 
   const campaignIds = campaigns.map(c => c.id);
 
-  const [insightGroups, leadGroups] = await Promise.all([
+  // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só contava
+  // WHATSAPP_CLICK, o que classificava campanha de Google/formulário como "gasto sem lead"
+  // (categoria ZERO_LEADS_SPEND abaixo) mesmo tendo lead real num canal não observado.
+  const [insightGroups, leadEvents] = await Promise.all([
     prisma.insight.groupBy({
       by: ['campaignId'],
       where: { campaignId: { in: campaignIds }, date: { gte: since } },
@@ -75,18 +79,10 @@ export async function calculateWastedSpend(
       _avg: { frequency: true },
       _count: { id: true },
     }),
-    prisma.ctaInteraction.groupBy({
-      by: ['campaignId'],
-      where: { campaignId: { in: campaignIds }, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } },
-      _count: { id: true },
-    }),
+    getLeadEvents(tenantId, { campaignIds, startDate: since, endDate: new Date() }),
   ]);
 
-  const leadsByCampaign = new Map(
-    leadGroups
-      .filter(g => g.campaignId != null)
-      .map(g => [g.campaignId as string, g._count.id]),
-  );
+  const leadsByCampaign = groupLeadsByCampaign(leadEvents);
   const campaignMap = new Map(campaigns.map(c => [c.id, c.name]));
 
   type Stats = {
