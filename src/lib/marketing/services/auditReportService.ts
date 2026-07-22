@@ -16,6 +16,7 @@ import { runTrackingHealthCheck } from './trackingHealthService';
 import { resolveSegment } from '@/lib/intelligence/segmentResolver';
 import { resolveBenchmarks } from '@/lib/intelligence/benchmarkResolver';
 import { invokeForContext } from '@/lib/intelligence/llmInvoker';
+import { getLeadEvents, sumLeads } from './leadEvents';
 
 // ─────────────────────────────────────────────────────────────
 //  TIPOS PÚBLICOS
@@ -308,17 +309,18 @@ async function collectCampaignMetrics(
     const ids = campaigns.map(c => c.id);
     const activeCampaigns = campaigns.filter(c => c.status === 'ACTIVE').length;
 
-    const [insights, leads] = await Promise.all([
+    const [insights, leadEvents] = await Promise.all([
       prisma.insight.aggregate({
         where: { campaignId: { in: ids }, date: { gte: since } },
         _sum: { spend: true, clicks: true, impressions: true, videoViews3s: true },
         _avg: { ctr: true, frequency: true },
         _count: { id: true },
       }),
-      prisma.ctaInteraction.count({
-        where: { campaignId: { in: ids }, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } },
-      }),
+      // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só
+      // WHATSAPP_CLICK, subestimando o CPL/leads do relatório de auditoria pra campanhas de Google.
+      getLeadEvents(tenantId, { campaignIds: ids, startDate: since, endDate: new Date() }),
     ]);
+    const leads = sumLeads(leadEvents);
 
     const totalSpend = insights._sum.spend ?? 0;
     const totalImpressions = insights._sum.impressions ?? 0;
@@ -379,9 +381,8 @@ async function collectFunnelMetrics(
         where: { campaignId: { in: ids }, date: { gte: since } },
         _sum: { impressions: true, clicks: true, spend: true },
       });
-      const leads = await prisma.ctaInteraction.count({
-        where: { campaignId: { in: ids }, eventType: 'WHATSAPP_CLICK', createdAt: { gte: since } },
-      });
+      const leadEvents = await getLeadEvents(tenantId, { campaignIds: ids, startDate: since, endDate: new Date() });
+      const leads = sumLeads(leadEvents);
       return {
         impressions: agg._sum.impressions ?? 0,
         clicks: agg._sum.clicks ?? 0,
