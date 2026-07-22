@@ -82,6 +82,25 @@ export function GoogleAdsView({ isDark, cardBase, tx, txMuted }: GoogleAdsViewPr
 
   return (
     <div className="space-y-6">
+      {/* Achado #4 da auditoria de robustez de CPL (2026-07-21/22) — estrutural, não corrigível
+          só no nosso código: "conversões" do Google é a soma de qualquer ação de conversão
+          configurada na CONTA do cliente no Google Ads (pode incluir visualização de página,
+          cadastro, ligação etc., nem sempre lead real). Aviso explícito pra não confundir com
+          o lead identificado (WhatsApp/formulário) do restante da plataforma. */}
+      <div className={cn(
+        'rounded-2xl p-4 flex items-start gap-3 border',
+        isDark ? 'bg-amber-500/[0.06] border-amber-500/20' : 'bg-amber-50 border-amber-200',
+      )}>
+        <ExclamationTriangleIcon className={cn('w-5 h-5 shrink-0 mt-0.5', isDark ? 'text-amber-400' : 'text-amber-600')} />
+        <p className={cn('text-xs leading-relaxed', isDark ? 'text-amber-200/90' : 'text-amber-800')}>
+          <span className="font-black">"Conversões" e ROAS aqui vêm direto da conta do Google Ads do
+          cliente</span> — refletem qualquer ação de conversão configurada lá (pode incluir
+          visualização de página, cadastro, ligação, etc.), não necessariamente o mesmo "lead"
+          identificado no restante da plataforma (clique de WhatsApp/formulário). Confira a
+          configuração de conversões no Google Ads do cliente antes de comparar CPL entre redes.
+        </p>
+      </div>
+
       {/* Resumo por campanha — ROAS + IS Lost (Budget) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {data.campaigns.map(c => (
