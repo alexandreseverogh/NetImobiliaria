@@ -315,6 +315,25 @@ O `POST /campaigns` espera **corpo plano** (não nested):
 }
 ```
 
+### Multi-Rede — "Lead" não é o mesmo sinal em toda rede
+
+Cada rede de anúncio suportada tem seu próprio adapter (`src/lib/marketing/networks/factory.ts`,
+`buildNetworkService`): `meta` e `google` estão implementados; `linkedin`/`tiktok` são stub
+(FASE 11). YouTube não é uma rede separada — roda sob o mesmo adapter/credenciais do `google`.
+
+**Métricas compartilhadas reutilizáveis** (checar aqui antes de reimplementar um cálculo):
+- `src/lib/marketing/services/cplTimelineService.ts` — CPL por dia, `GET /dashboard/cpl`.
+- `src/lib/marketing/services/revenueAttributionService.ts` — CPA/ROAS real (Visão 4).
+- `src/lib/marketing/services/wastedSpendService.ts` — desperdício de verba.
+
+Essas métricas dependem de "o que conta como lead", e isso **varia por rede**: Meta usa clique
+de WhatsApp (`CtaInteraction.event_type='WHATSAPP_CLICK'`); Google Ads já retorna conversão real
+da própria API (`Insight.conversions`), sem precisar de clique de WhatsApp nenhum. O mapeamento
+fica em `src/lib/marketing/services/networkLeadSource.ts` (`LEAD_SOURCE_BY_NETWORK`) — **ao
+implementar o adapter real de uma rede nova (LinkedIn/TikTok, FASE 11), adicionar 1 linha lá com
+o método correto de lead daquela rede**; nenhum consumidor (CPL, dashboard, futuros relatórios)
+precisa mudar.
+
 ---
 
 ## Multi-Tenant e Filtro de Clientes

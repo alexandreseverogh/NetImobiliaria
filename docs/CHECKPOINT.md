@@ -1,13 +1,62 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — investigado e fechado o achado do `GET /dashboard/full`
-> (500 "Cannot read properties of undefined (reading 'count')"): confirmado como singleton do
-> Prisma preso na versão antiga do client em memória do dev server de longuíssima duração desta
-> sessão, não bug de código. Reinício do `npm run dev` resolveu, reconfirmado ao vivo.
+> **Atualizado em:** 2026-07-21 — CPL agora ciente de rede: Google usa `Insight.conversions`
+> real em vez de clique de WhatsApp. Registro central `networkLeadSource.ts` deixa o terreno
+> pronto pra LinkedIn/TikTok (FASE 11) — 1 linha nova quando o adapter existir.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
+
+## Tarefa em andamento
+
+**Nenhuma tarefa em andamento no momento.**
+
+## Última tarefa concluída
+
+### Sessão 2026-07-21 (continuação 15) — CPL ciente de rede + terreno pra novas redes ✅
+
+**Contexto:** usuário fez 2 perguntas sobre o endpoint de CPL recém-criado: (1) o cálculo cobre
+todas as redes (Meta/Google/TikTok/YouTube)? (2) como uma feature futura vai "adivinhar" que
+esse cálculo já existe? Investigação da pergunta 1 revelou um achado real, não hipotético.
+
+**Achado:** o gasto (spend) já cobria todas as redes automaticamente (tabela `Insight` é
+agnóstica de rede), mas **leads não** — tanto `cplTimelineService.ts` quanto o `cplByNetwork`
+pré-existente de `dashboard/full/route.ts` só contavam `CtaInteraction.WHATSAPP_CLICK`, que é
+como o Meta sinaliza lead nesta plataforma. O Google Ads não depende de clique de WhatsApp —
+suas conversões reais já vêm da própria API (`GoogleAdsAdapter.fetchInsights` → persiste em
+`Insight.conversions`), campo que nenhum dos dois cálculos lia. Uma campanha de Google real com
+gasto e conversões reais aparecia com `leads:0/cpl:null`, escondendo dado real.
+
+**Implementado:**
+1. `src/lib/marketing/services/networkLeadSource.ts` (novo) — registro central
+   `LEAD_SOURCE_BY_NETWORK` (`meta→whatsapp_click`, `google→insight_conversions`, YouTube cai
+   sob `google` mesmo adapter) + `leadSourceForNetwork()` com fallback seguro pra rede
+   desconhecida. Mesmo espírito do catálogo de estratégias de distribuição e do factory de
+   redes — vocabulário em código, mas 1 linha nova basta quando LinkedIn/TikTok (FASE 11)
+   ganharem adapter real.
+2. `cplTimelineService.ts` — resolve a rede de cada campanha no escopo, separa em 2 grupos
+   (clique de WhatsApp vs conversões do Insight) e soma os leads de cada grupo por dia antes de
+   calcular o CPL.
+3. `dashboard/full/route.ts` — `cplByNetwork` usa o mesmo registro pra decidir, por rede, se lê
+   `leadsByNetwork` (WhatsApp) ou a nova `conversionsByNetwork` (derivada de `currentInsights`,
+   já em memória — sem query extra).
+4. `CLAUDE.md` — nova seção "Multi-Rede" documentando o catálogo de métricas compartilhadas
+   (`cplTimelineService`/`revenueAttributionService`/`wastedSpendService`) e o registro de
+   lead-por-rede, como resposta à pergunta 2 do usuário sobre descoberta futura.
+
+**Testado ao vivo contra dado real persistente** (campanha "Google Search — Apartamentos SP",
+seed da FASE 17, tenant Marketing Digital): conversões reais por dia (4,4,7,5,2) batendo exato
+com `Insight.conversions` via SQL direto; `cplByNetwork.google` passou de `{leads:0,cpl:null}`
+pra `{leads:22,cpl:3613.22}` no período testado · regressão do caminho Meta confirmada: total
+combinado no escopo mais amplo bateu exatamente com a soma das 2 fontes (64 conversões Google +
+1 clique WhatsApp Meta = 65). `npx tsc --noEmit`: zero erros novos nos 3 arquivos tocados/criados.
+
+**Resposta dada ao usuário sobre "como descobrir que já existe" (pergunta 2):** honesta —
+não há mecanismo automático de descoberta. Depende de convenção (pasta `src/lib/marketing/
+services/`) e documentação (`CLAUDE.md`, agora com a seção nova). Sugestão de uma seção
+"Métricas Compartilhadas" catalogando os serviços reutilizáveis foi aceita e incorporada dentro
+da mesma seção "Multi-Rede" (não virou seção separada, ficou mais coeso assim).
 
 ## Tarefa em andamento
 
