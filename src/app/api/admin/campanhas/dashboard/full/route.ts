@@ -227,10 +227,34 @@ export async function GET(request: NextRequest) {
       GROUP BY COALESCE(n.code, 'meta')
     `;
 
+    // CTA de WhatsApp e CTA de formulário são mutuamente exclusivos por anúncio (Ad.ctaType só
+    // pode ser um) — somar aqui nunca conta o mesmo lead 2x. Achado 2026-07-21: campanha com
+    // CTA de formulário (ex.: LEARN_MORE) gera lead via CtaSubmission.lead_uuid, sem clique de
+    // WhatsApp nenhum; sem isso, aparecia com leads:0 mesmo tendo submissões reais atribuídas.
+    // cta_type != 'WHATSAPP_MESSAGE' — uma resposta real de WhatsApp também grava uma
+    // CtaSubmission (via inboundProcessor.ts), então incluir CTA de WhatsApp aqui contaria o
+    // mesmo lead 2x (1x em leadsByNetwork acima, 1x aqui). Só formulário conta.
+    const formLeadsByNetworkRaw: any[] = await prisma.$queryRaw`
+      SELECT COALESCE(n.code, 'meta') as network, COUNT(s.id)::int as count
+      FROM campanhasmarketingdigital."CtaSubmission" s
+      JOIN campanhasmarketingdigital."Campaign" c ON s.campaign_id = c.id
+      LEFT JOIN public.ad_networks n ON n.id = c."network_id"
+      WHERE s.tenant_id = ${payload.tenantId}::uuid
+        AND s.campaign_id = ANY(${campaignIdsQuery})
+        AND s.lead_uuid IS NOT NULL
+        AND s.cta_type != 'WHATSAPP_MESSAGE'
+        AND s.created_at >= ${startDate}::timestamp
+        AND s.created_at <= ${endDate}::timestamp
+      GROUP BY COALESCE(n.code, 'meta')
+    `;
+
     const leadsByNetwork = leadsByNetworkRaw.reduce((acc, row) => {
       acc[row.network] = Number(row.count);
       return acc;
     }, {} as Record<string, number>);
+    for (const row of formLeadsByNetworkRaw) {
+      leadsByNetwork[row.network] = (leadsByNetwork[row.network] || 0) + Number(row.count);
+    }
 
     // Achado 2026-07-21: "lead" não é o mesmo sinal em toda rede — Meta usa clique de WhatsApp
     // (CtaInteraction acima), mas Google já retorna conversão real da própria API
