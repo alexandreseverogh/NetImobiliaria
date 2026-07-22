@@ -1,12 +1,59 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-21 — CPL agora ciente de rede: Google usa `Insight.conversions`
-> real em vez de clique de WhatsApp. Registro central `networkLeadSource.ts` deixa o terreno
-> pronto pra LinkedIn/TikTok (FASE 11) — 1 linha nova quando o adapter existir.
+> **Atualizado em:** 2026-07-21 — CPL da Meta agora também conta lead de formulário (não só
+> WhatsApp), com correção de duplicação (resposta de WhatsApp grava CtaSubmission também).
+> Multi-rede confirmado ao vivo com dado 100% real (Google R$213k/64 leads + Meta R$31,7k).
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar.
 
 ---
+
+## Tarefa em andamento
+
+**Nenhuma tarefa em andamento no momento.**
+
+## Última tarefa concluída
+
+### Sessão 2026-07-21 (continuação 16) — CPL: teste multi-rede real + fix de lead de formulário ✅
+
+**Contexto:** usuário fez 2 perguntas de acompanhamento sobre o fix de CPL ciente de rede da
+tarefa anterior: (1) pediu teste com gasto real em mais de uma rede simultaneamente; (2)
+questionou se "lead = clique de WhatsApp" está certo, já que o CTA de um anúncio pode ser
+formulário também. As duas levaram a achados reais.
+
+**Pergunta 1 — confirmado sem precisar fabricar dado:** achei uma janela de datas
+(2026-04-01 a 2026-07-21) que já cobre o histórico real das duas redes deste tenant
+simultaneamente. `cplByNetwork` retornou `google: {spend:213154.39, leads:64, cpl:3330.54}` +
+`meta: {spend:31668.80, leads:1, cpl:31668.80}`, com o total combinado batendo exatamente a
+soma das duas (R$244.823,19 / 65 leads).
+
+**Pergunta 2 — achado real confirmado com dado ao vivo:** `CtaInteraction.event_type` tem 4
+valores (`VIEW`/`SUBMIT`/`WHATSAPP_CLICK`/`REDIRECT`) — o CTA de um anúncio nem sempre é
+WhatsApp, pode ser formulário (`ctaType='LEARN_MORE'`, redireciona pra `/l/{slug}`). Achei 8
+submissões reais `LEARN_MORE` neste tenant, 7 com `lead_uuid` preenchido — meu cálculo de CPL
+ignorava esse sinal inteiro, mostrando `leads:0` mesmo com leads reais atribuídos.
+
+**Implementado:**
+1. `networkLeadSource.ts` — método renomeado `'whatsapp_click'` → `'cta_engagement'`, cobrindo
+   `CtaInteraction.WHATSAPP_CLICK` **e** `CtaSubmission` (`lead_uuid IS NOT NULL`).
+2. `cplTimelineService.ts` + `dashboard/full/route.ts` — somam as duas fontes por dia/rede.
+
+**Bug pego durante a própria verificação (não hipotético):** uma resposta real de WhatsApp
+TAMBÉM grava uma `CtaSubmission` (via `inboundProcessor.ts`, chamada `insertSubmission`
+incondicional) — somar clique + submissão sem filtro contaria o mesmo lead 2x. Confirmado ao
+vivo: a campanha "Alto Padrão — Alphaville" tinha um `WHATSAPP_CLICK` e uma `CtaSubmission`
+**do mesmo lead**, 25 segundos de diferença (resíduo do meu próprio teste T8 de uma tarefa
+anterior desta sessão, nunca limpo completamente — limpo agora). Corrigido com
+`cta_type != 'WHATSAPP_MESSAGE'` no filtro de submissões — só formulário soma como sinal
+adicional.
+
+**Testado ao vivo com dado sintético controlado e mínimo** (removido logo depois): par
+clique+resposta de WhatsApp (mesmo lead) + 1 lead de formulário genuíno, mesmo dia/campanha →
+endpoint retornou `leads:2` (não 3) — confirma que a correção de duplicação funciona de verdade,
+não só na teoria. `npx tsc --noEmit`: zero erros novos.
+
+**CLAUDE.md atualizado** — seção "Multi-Rede" reflete o método renomeado e o cuidado de não
+duplicar contagem entre clique e submissão de WhatsApp.
 
 ## Tarefa em andamento
 

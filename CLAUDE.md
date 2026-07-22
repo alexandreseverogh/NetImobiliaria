@@ -326,13 +326,19 @@ Cada rede de anúncio suportada tem seu próprio adapter (`src/lib/marketing/net
 - `src/lib/marketing/services/revenueAttributionService.ts` — CPA/ROAS real (Visão 4).
 - `src/lib/marketing/services/wastedSpendService.ts` — desperdício de verba.
 
-Essas métricas dependem de "o que conta como lead", e isso **varia por rede**: Meta usa clique
-de WhatsApp (`CtaInteraction.event_type='WHATSAPP_CLICK'`); Google Ads já retorna conversão real
-da própria API (`Insight.conversions`), sem precisar de clique de WhatsApp nenhum. O mapeamento
-fica em `src/lib/marketing/services/networkLeadSource.ts` (`LEAD_SOURCE_BY_NETWORK`) — **ao
-implementar o adapter real de uma rede nova (LinkedIn/TikTok, FASE 11), adicionar 1 linha lá com
-o método correto de lead daquela rede**; nenhum consumidor (CPL, dashboard, futuros relatórios)
-precisa mudar.
+Essas métricas dependem de "o que conta como lead", e isso **varia por rede**: Meta usa
+`cta_engagement` — clique de WhatsApp (`CtaInteraction.event_type='WHATSAPP_CLICK'`) **ou**
+submissão de formulário (`CtaSubmission.lead_uuid IS NOT NULL AND cta_type != 'WHATSAPP_MESSAGE'`
+— o CTA de um anúncio nem sempre é WhatsApp, pode redirecionar pra `/l/{slug}`); Google Ads já
+retorna conversão real da própria API (`Insight.conversions`), sem depender de nenhum dos dois.
+O mapeamento fica em `src/lib/marketing/services/networkLeadSource.ts`
+(`LEAD_SOURCE_BY_NETWORK`) — **ao implementar o adapter real de uma rede nova (LinkedIn/TikTok,
+FASE 11), adicionar 1 linha lá com o método correto de lead daquela rede**; nenhum consumidor
+(CPL, dashboard, futuros relatórios) precisa mudar.
+
+**Cuidado ao estender:** uma resposta real de WhatsApp também grava `CtaSubmission` (via
+`inboundProcessor.ts`) além do `WHATSAPP_CLICK` — por isso o filtro de submissão exclui
+`cta_type='WHATSAPP_MESSAGE'` explicitamente, senão o mesmo lead conta 2x.
 
 ---
 
