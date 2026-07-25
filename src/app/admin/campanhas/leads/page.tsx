@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, Cell,
 } from 'recharts'
 import {
@@ -80,7 +80,7 @@ export default function LeadsCapturadosPage() {
     return new URLSearchParams(p).toString()
   }, [filters, clientFilter, origemFilter])
 
-  const EMPTY_STATS = { totalLeads: 0, leadsHoje: 0, todayDate: null, mediaDia: '0.0', leadsByDay: [], leadsByOrigem: [], sinalInteresseMeta: 0 }
+  const EMPTY_STATS = { totalLeads: 0, leadsHoje: 0, todayDate: null, mediaDia: '0.0', leadsByDay: [], leadsByOrigem: [], sinalInteresseMeta: 0, sinalByDay: [] }
 
   const loadAll = useCallback(async () => {
     // Validação: data início não pode ser posterior à data fim
@@ -139,9 +139,17 @@ export default function LeadsCapturadosPage() {
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
   const rangeEnd   = Math.min(page * PAGE_SIZE, total)
 
-  const dailyData = [...(stats.leadsByDay ?? [])].reverse().map((d: any) => ({
-    date:  new Date(d.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-    leads: d.count,
+  // Combina "Total Leads" (contato confirmado) e "Sinal de Interesse" (Meta) por dia, pra
+  // visualizar o funil sinal→contato dia a dia — um gap grande num dia específico (ex.: muito
+  // sinal, poucos leads) é um indício de possível ineficiência no atendimento (ou, alternativa
+  // igualmente válida, de leads que nunca responderam de volta).
+  const leadsByDayMap = new Map((stats.leadsByDay ?? []).map((d: any) => [d.date, d.count]))
+  const sinalByDayMap = new Map((stats.sinalByDay ?? []).map((d: any) => [d.date, d.count]))
+  const allDates = Array.from(new Set([...Array.from(leadsByDayMap.keys()), ...Array.from(sinalByDayMap.keys())])).sort()
+  const dailyData = allDates.map((date: any) => ({
+    date:  new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+    leads: leadsByDayMap.get(date) ?? 0,
+    sinal: sinalByDayMap.get(date) ?? 0,
   }))
 
   const origemData = (stats.leadsByOrigem ?? []).map((o: any) => ({
@@ -277,9 +285,13 @@ export default function LeadsCapturadosPage() {
             {/* Gráficos */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <div className={`${CARD} p-6`}>
-                <h3 className="text-sm font-black text-gray-900">Leads por Dia</h3>
+                <h3 className="text-sm font-black text-gray-900">Sinal de Interesse × Total Leads por Dia</h3>
                 <p className="text-[11px] text-gray-400 mb-4">
-                  Total Leads (contato confirmado no CRM) — não é o Sinal de Interesse (Meta).
+                  Um gap grande num dia (muito sinal, poucos leads confirmados) pode indicar
+                  atraso no atendimento — mas também pode ser lead que nunca respondeu de volta.
+                  Sinal só cobre Meta; Total Leads inclui todas as origens (WhatsApp orgânico,
+                  formulário, API), então a comparação é mais precisa quando a maior parte dos
+                  leads vem de campanhas Meta.
                 </p>
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={dailyData} margin={{ top: 4, right: 8, left: -4, bottom: 0 }}>
@@ -287,6 +299,8 @@ export default function LeadsCapturadosPage() {
                     <XAxis dataKey="date" stroke="#6b7280" fontSize={11} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} interval="preserveStartEnd" />
                     <YAxis stroke="#6b7280" fontSize={11} tickLine={false} axisLine={false} width={30} allowDecimals={false} />
                     <Tooltip {...TOOLTIP_STYLE} />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    <Line type="monotone" dataKey="sinal" stroke="#0ea5e9" strokeWidth={2} dot={{ fill: '#0ea5e9', r: 2.5, strokeWidth: 0 }} name="Sinal de Interesse (Meta)" />
                     <Line type="monotone" dataKey="leads" stroke="#6366f1" strokeWidth={2.5} dot={{ fill: '#6366f1', r: 3, strokeWidth: 0 }} name="Total Leads" />
                   </LineChart>
                 </ResponsiveContainer>

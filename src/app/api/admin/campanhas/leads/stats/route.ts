@@ -119,8 +119,42 @@ export async function GET(request: NextRequest) {
       `
   const byDayParams = useZeroFill ? [...params, startDate, endDate] : params
 
+  // "Sinal de Interesse" por dia — mesmo zero-fill de "Leads por Dia", pra viabilizar o gráfico
+  // combinado (Sinal × Total Leads) que mostra o funil sinal→contato dia a dia. 2 queries
+  // separadas (CtaInteraction/CtaSubmission), cada uma reaproveitando o scope já calculado
+  // (ciScope/csScope) + zero-fill próprio; somadas em JS por data (mesma técnica de
+  // "leadEvents.ts" pra evitar reescrever os 2 filtros de escopo numa query só).
+  const buildDayQuery = (
+    alias: string, table: string, extraFilter: string, scope: { where: string; params: unknown[] },
+  ) => {
+    const query = useZeroFill
+      ? `
+          SELECT gs::date AS date, COALESCE(cnt.count, 0)::int AS count
+          FROM generate_series($${scope.params.length + 1}::date, $${scope.params.length + 2}::date, '1 day') AS gs
+          LEFT JOIN (
+            SELECT DATE(${alias}.created_at AT TIME ZONE 'America/Sao_Paulo') AS date, COUNT(*)::int AS count
+            FROM ${S}."${table}" ${alias}
+            WHERE ${scope.where} AND ${extraFilter}
+            GROUP BY 1
+          ) cnt ON cnt.date = gs::date
+          ORDER BY gs DESC
+        `
+      : `
+          SELECT DATE(${alias}.created_at AT TIME ZONE 'America/Sao_Paulo') AS date, COUNT(*)::int AS count
+          FROM ${S}."${table}" ${alias}
+          WHERE ${scope.where} AND ${extraFilter}
+          GROUP BY 1
+          ORDER BY date DESC
+          LIMIT 30
+        `
+    const queryParams = useZeroFill ? [...scope.params, startDate, endDate] : scope.params
+    return { query, params: queryParams }
+  }
+  const ciDayQ = buildDayQuery('ci', 'CtaInteraction', `ci.event_type = 'WHATSAPP_CLICK'`, ciScope)
+  const csDayQ = buildDayQuery('cs', 'CtaSubmission', `cs.lead_uuid IS NOT NULL AND cs.cta_type != 'WHATSAPP_MESSAGE'`, csScope)
+
   try {
-    const [totalRes, todayRes, byDayRes, byOrigemRes, ciCountRes, csCountRes] = await Promise.all([
+    const [totalRes, todayRes, byDayRes, byOrigemRes, ciCountRes, csCountRes, ciDayRes, csDayRes] = await Promise.all([
       pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase}`, params),
       pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase} AND DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo') = '${today}'`, params),
       pool.query(byDayQuery, byDayParams),
@@ -142,11 +176,25 @@ export async function GET(request: NextRequest) {
           WHERE ${csScope.where} AND cs.lead_uuid IS NOT NULL AND cs.cta_type != 'WHATSAPP_MESSAGE'`,
         csScope.params,
       ),
+      pool.query(ciDayQ.query, ciDayQ.params),
+      pool.query(csDayQ.query, csDayQ.params),
     ])
 
     const leadsByDay = byDayRes.rows.map((r) => ({
       date:  r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date),
       count: Number(r.count),
+    }))
+
+    const toDayMap = (rows: any[]) => new Map(rows.map(r => [
+      r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date),
+      Number(r.count),
+    ]))
+    const ciDayMap = toDayMap(ciDayRes.rows)
+    const csDayMap = toDayMap(csDayRes.rows)
+    const sinalDates = new Set([...Array.from(ciDayMap.keys()), ...Array.from(csDayMap.keys())])
+    const sinalByDay = Array.from(sinalDates).sort((a, b) => b.localeCompare(a)).map(date => ({
+      date,
+      count: (ciDayMap.get(date) ?? 0) + (csDayMap.get(date) ?? 0),
     }))
 
     const leadsByOrigem = byOrigemRes.rows.map((r) => ({
@@ -172,6 +220,7 @@ export async function GET(request: NextRequest) {
       leadsByDay,
       leadsByOrigem,
       sinalInteresseMeta,
+      sinalByDay,
     })
   } catch (err: any) {
     console.error('[leads/stats] erro:', err)
