@@ -235,9 +235,15 @@ contra um número escrito neste documento.
   Auditoria (95,2x acima do ideal R$35,00 = 3330,54/35). "Desperdício de Verba" listou a campanha
   Google com **"64 lead(s)"** explícito ao lado do CPL — corretamente na categoria de CPL
   crítico, não na categoria mais grave de zero-lead.
-- [ ] **Briefing Estratégico** (gerar um novo, período = 30 dias): a narrativa deve mencionar os
+- [x] **Briefing Estratégico** (gerar um novo, período = 30 dias): a narrativa deve mencionar os
   leads/CPL da campanha Google de forma coerente com os dados reais da janela de 30 dias atual
   (não "0 leads, recomendo pausar" para a campanha Google).
+  ✅ **Confirmado pelo usuário (2026-07-25):** Google Search — Apartamentos SP recebeu
+  recomendação de DOWNSCALE ("revisar o criativo e considerar a redução do orçamento diário em
+  30%"), nunca "pausar" — enquanto as 3 campanhas Meta genuinamente sem lead (Alto Padrão —
+  Alphaville, MD Premium, MD Financiamento) corretamente receberam "Pausar". Bônus: o chip de
+  Ângulo no rodapé já mostra "Sem ângulo classificado" (não mais "unknown"), confirmando o fix
+  anterior ao vivo no navegador.
 - [ ] **Leads** (`/admin/campanhas/leads`, mesmo período/cliente da Janela A): o total de leads
   listados/estatística deve ser **64**.
 - [ ] **Desperdício de Verba** (`/admin/campanhas/desperdicio`): confirme visualmente que a
