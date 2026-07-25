@@ -244,8 +244,21 @@ contra um número escrito neste documento.
   Alphaville, MD Premium, MD Financiamento) corretamente receberam "Pausar". Bônus: o chip de
   Ângulo no rodapé já mostra "Sem ângulo classificado" (não mais "unknown"), confirmando o fix
   anterior ao vivo no navegador.
-- [ ] **Leads** (`/admin/campanhas/leads`, mesmo período/cliente da Janela A): o total de leads
-  listados/estatística deve ser **64**.
+- [x] **Leads** (`/admin/campanhas/leads`, "Leads Capturados") — **correção deste documento:**
+  esta tela **nunca vai mostrar 64**, e isso é esperado, não bug. Ela lista contatos reais do
+  CRM (`leads_staging` — o próprio subtítulo da página já avisa: "leads com ação real
+  confirmada"), enquanto o 64 do Dashboard/Portfolio/Auditoria vem de `leadEvents.ts`, que pro
+  Google conta `Insight.conversions` — um número agregado reportado pela API do Google Ads,
+  **sem nenhuma identidade de contato anexada** (exigiria integração de Formulário de Lead do
+  Google + webhook, não configurada nesta campanha de teste). As 64 conversões do Google nunca
+  viram uma linha em `leads_staging`, então é estruturalmente impossível essa tela mostrá-las.
+  ✅ **Confirmado pelo usuário (2026-07-25) e verificado no banco:** 7 leads reais (escopo
+  próprio, Janela A) — número bate exato com `COUNT(DISTINCT lead_uuid)` em `leads_staging`
+  direto no banco, tanto em "Minha Empresa" quanto "Todos os Clientes" (os 7 clientes externos
+  não têm nenhum contato real nesse período). **Duas definições de "lead" coexistem no sistema,
+  ambas corretas no seu contexto:** sinal de conversão pra CPL (inclui Google, sem identidade) vs.
+  contato real de CRM (só esta tela) — vale documentar isso como conceito pra evitar confusão
+  futura de quem usa a plataforma.
 - [ ] **Desperdício de Verba** (`/admin/campanhas/desperdicio`): confirme visualmente que a
   campanha Google **não aparece** na categoria "Gasto sem Leads" — se aparecer, é regressão.
 - [ ] **Insights da IA** (cards no dashboard): a recomendação para a campanha Google deve ser
