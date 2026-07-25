@@ -44,8 +44,15 @@ certo; a manual prova que a **tela** reflete esse cálculo sem distorção.
 - **Tenant:** Marketing Digital (`efbf62cf-9e28-4b31-a4f6-82a037412353`), usuário `admmd`.
 - **Escopo:** "Minha Empresa" (campanhas próprias do tenant, `client_id IS NULL`).
 - **Janela A (range customizado, usada na maioria das telas):** `01/04/2026` a `21/07/2026`.
-- **Janela B (últimos 30 dias corridos a partir de hoje — usada em Auditoria/Briefing, que não
-  têm seletor de data customizado):** `22/06/2026` a `22/07/2026`.
+- **Janela B (últimos N dias corridos a partir de HOJE — usada em telas sem seletor de data
+  customizado: Auditoria, Briefing, **Portfolio**): não é uma data fixa — desloca sozinha a
+  cada dia que passa. **Por isso, telas que só suportam "dias corridos" nunca devem ser
+  conferidas contra um número decorado** (ele fica errado no dia seguinte, por definição, não
+  por bug) — devem ser conferidas contra `dashboard/full` pedindo a MESMA janela de N dias a
+  partir de hoje, e os dois têm que bater entre si. Essa foi uma falha real do primeiro rascunho
+  deste documento, encontrada pelo usuário ao testar Portfolio: instruía usar "período = 112
+  dias" (opção que **não existe** no seletor — Portfolio só tem 7/14/30/60/90) e comparar contra
+  um valor absoluto (R$244.823,19, da Janela A) que uma janela rolante nunca poderia reproduzir.
 
 ### Composição real do escopo (5 campanhas próprias)
 
@@ -163,15 +170,21 @@ As demais telas (Portfolio, Auditoria, narrativa de Briefing/Cross-Insights) usa
 vai ver nos cards do Dashboard; a coluna "valor exato" é pra Portfolio/Auditoria/Briefing, **e
 também aparece passando o mouse por cima do número no card** (tooltip nativo do navegador).
 
-| Métrica | Valor exato — Janela A | Formato do card — Janela A | Valor exato — Janela B |
-|---|---|---|---|
-| Leads | **64** | **64** (não abrevia) | **64** |
-| Gasto | **R$ 244.823,19** | **R$ 245K** | **R$ 213.189,39** |
-| Gasto Google | R$ 213.154,39 | R$ 213K | — |
-| Gasto Meta | R$ 31.668,80 | R$ 31,7K | — |
-| CPL | **R$ 3.825,36** | **R$ 3,8K** | **R$ 3.330,54** (arredonda p/ R$3.331 em texto) |
-| CPL Google | R$ 3.330,54 | R$ 3,3K | — |
-| CPL Meta | — (0 leads, indefinido) | — | — |
+| Métrica | Valor exato — Janela A (fixo, sempre válido) | Formato do card — Janela A |
+|---|---|---|
+| Leads | **64** | **64** (não abrevia) |
+| Gasto | **R$ 244.823,19** | **R$ 245K** |
+| Gasto Google | R$ 213.154,39 | R$ 213K |
+| Gasto Meta | R$ 31.668,80 | R$ 31,7K |
+| CPL | **R$ 3.825,36** | **R$ 3,8K** |
+| CPL Google | R$ 3.330,54 | R$ 3,3K |
+| CPL Meta | — (0 leads, indefinido) | — |
+
+**Janela B não tem mais números fixos na tabela** (removidos — ficavam errados a cada dia que
+passava, já que é uma janela rolante "hoje - N dias"). Pras telas que só suportam Janela B
+(Portfolio, Auditoria, Briefing), o método de verificação é sempre: pedir a `dashboard/full` a
+mesma janela de N dias a partir de hoje e confirmar que os dois batem entre si — nunca comparar
+contra um número escrito neste documento.
 | Cliques | 32.734 | — | — |
 | Impressões | 1.138.814 | — | — |
 | CTR | 2,87% | — | — |
@@ -203,17 +216,23 @@ também aparece passando o mouse por cima do número no card** (tooltip nativo d
 - [ ] **Dashboard → aba "Google Ads"** (só aparece se o filtro de rede = Google, ou "Todas" com
   dado real de Google no período): confirme que o **banner âmbar de aviso** aparece no topo,
   explicando que "conversões"/ROAS vêm da própria conta do Google Ads do cliente.
-- [ ] **Portfolio** (`/admin/campanhas/portfolio`, período = 112 dias ou datas equivalentes):
-  linha "Marketing Digital" (própria/tenant) deve mostrar **64 leads**, **R$ 244.823,19**.
-- [ ] **Portfolio → Insights Cruzados** (`/admin/campanhas/portfolio/cross-insights`): a
-  narrativa/dados da própria empresa devem citar CPL **R$ 3.825,36** (ou próximo, dependendo do
-  arredondamento do texto).
-- [ ] **Auditoria** (`/admin/campanhas/auditoria`, período = 30 dias = Janela B): score de
-  Performance deve citar **CPL R$3331 crítico** (ou muito próximo). Confirme que o "Desperdício
-  de Verba" NÃO lista a campanha "Google Search — Apartamentos SP" como zero-lead.
+- [ ] **Portfolio** (`/admin/campanhas/portfolio`) — **atenção: o seletor de período aqui só
+  tem 7/14/30/60/90 dias corridos a partir de hoje, não tem range customizado nem "112 dias"**
+  (correção deste documento — a versão anterior pedia uma opção que não existe). Escolha
+  qualquer preset (ex.: 30 dias) e confira a linha "Marketing Digital" (própria/tenant) contra
+  `dashboard/full?startDate=<hoje-N dias>&endDate=<hoje>&clientId=own` pedido pra você (ou peça
+  pro Claude rodar) com o MESMO N — os dois têm que mostrar exatamente o mesmo leads e gasto.
+  **Não decore um valor fixo aqui** — a janela rolante muda todo dia.
+- [ ] **Portfolio → Insights Cruzados** (`/admin/campanhas/portfolio/cross-insights`): mesma
+  ressalva de janela rolante do item acima. A narrativa/dados da própria empresa devem citar um
+  CPL coerente com o gasto/leads mostrados no Portfolio na mesma janela (spend ÷ leads).
+- [ ] **Auditoria** (`/admin/campanhas/auditoria`, período = 30 dias): mesma ressalva — confira
+  o CPL citado no score de Performance contra `dashboard/full` pedindo os últimos 30 dias a
+  partir de hoje (não contra um valor decorado). Confirme que o "Desperdício de Verba" NÃO lista
+  a campanha "Google Search — Apartamentos SP" como zero-lead.
 - [ ] **Briefing Estratégico** (gerar um novo, período = 30 dias): a narrativa deve mencionar os
-  leads/CPL da campanha Google de forma coerente com a Janela B (não "0 leads, recomendo
-  pausar" para a campanha Google).
+  leads/CPL da campanha Google de forma coerente com os dados reais da janela de 30 dias atual
+  (não "0 leads, recomendo pausar" para a campanha Google).
 - [ ] **Leads** (`/admin/campanhas/leads`, mesmo período/cliente da Janela A): o total de leads
   listados/estatística deve ser **64**.
 - [ ] **Desperdício de Verba** (`/admin/campanhas/desperdicio`): confirme visualmente que a
