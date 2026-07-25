@@ -12,6 +12,7 @@ import {
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
+import { ANGLE_LABELS as SHARED_ANGLE_LABELS } from '@/lib/marketing/angles';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface CreativeAsset {
@@ -48,10 +49,10 @@ const HOOK_LABELS: Record<string, string> = {
   investment: 'Investimento', price: 'Preço', lifestyle: 'Lifestyle',
   family: 'Família', luxury: 'Luxo', social: 'Social',
 };
-const ANGLE_LABELS: Record<string, string> = {
-  investment: 'Investimento', lifestyle: 'Lifestyle', family: 'Família',
-  price: 'Preço', urgency: 'Urgência', social: 'Social', luxury: 'Luxo', other: 'Outro',
-};
+// Fonte única de taxonomia de ângulo (src/lib/marketing/angles.ts) — indexação solta
+// (Record<string,string>) preservada aqui de propósito, pro código existente abaixo (que
+// testa presença de chave por string arbitrária) continuar igual, sem duplicar as traduções.
+const ANGLE_LABELS: Record<string, string> = SHARED_ANGLE_LABELS;
 
 const HOOK_COLORS: Record<string, string> = {
   urgency: 'bg-red-100 text-red-700', curiosity: 'bg-purple-100 text-purple-700',

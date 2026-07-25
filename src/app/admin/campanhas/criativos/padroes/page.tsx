@@ -13,6 +13,7 @@ import { adminFetch } from '@/lib/auth/adminFetch';
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 import { DashboardHelpButton, HelpHint } from '@/components/marketing/DashboardHelpModal';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
+import { ANGLE_LABELS as SHARED_ANGLE_LABELS } from '@/lib/marketing/angles';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Pattern {
@@ -46,10 +47,10 @@ const HOOK_LABELS: Record<string, string> = {
   price: 'Preço', investment: 'Investimento', lifestyle: 'Lifestyle',
   family: 'Família', social: 'Social', luxury: 'Luxo', other: 'Outro',
 };
-const ANGLE_LABELS: Record<string, string> = {
-  investment: 'Investimento', lifestyle: 'Lifestyle', family: 'Família',
-  price: 'Preço', urgency: 'Urgência', social: 'Social', luxury: 'Luxo', other: 'Outro',
-};
+// Fonte única de taxonomia de ângulo (src/lib/marketing/angles.ts) — indexação solta
+// (Record<string,string>) preservada aqui de propósito, pro código existente abaixo (que
+// testa presença de chave por string arbitrária) continuar igual, sem duplicar as traduções.
+const ANGLE_LABELS: Record<string, string> = SHARED_ANGLE_LABELS;
 const TONE_LABELS: Record<string, string> = {
   aspirational: 'Aspiracional', fear: 'Medo', joy: 'Alegria',
   trust: 'Confiança', excitement: 'Empolgação', neutral: 'Neutro',
