@@ -259,6 +259,14 @@ contra um número escrito neste documento.
   ambas corretas no seu contexto:** sinal de conversão pra CPL (inclui Google, sem identidade) vs.
   contato real de CRM (só esta tela) — vale documentar isso como conceito pra evitar confusão
   futura de quem usa a plataforma.
+  ✅ **Implementado (2026-07-25):** a partir da dúvida do usuário ("deveria exibir cliques/
+  interesses gerados pelos CTAs? ou 'sinal de conversão' vs 'contato real'?"), adicionado novo
+  card "Sinal de Interesse (Meta)" nesta página — `CtaInteraction.WHATSAPP_CLICK` +
+  `CtaSubmission` válida (mesmo filtro de dedupe do `leadEvents.ts`), no mesmo escopo tenant/
+  cliente/data da tela. Banner explicativo permanente adicionado acima dos filtros, explicando
+  as duas métricas em texto simples. Testado ao vivo (escopo "own", Janela A):
+  `totalLeads=7` + `sinalInteresseMeta=29` — conferido via SQL direto (1 WHATSAPP_CLICK + 28
+  CtaSubmission = 29). Commit `cbaeece`.
 - [ ] **Desperdício de Verba** (`/admin/campanhas/desperdicio`): confirme visualmente que a
   campanha Google **não aparece** na categoria "Gasto sem Leads" — se aparecer, é regressão.
 - [ ] **Insights da IA** (cards no dashboard): a recomendação para a campanha Google deve ser
