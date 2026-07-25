@@ -156,20 +156,32 @@ de algo a investigar, não arredondamento).
 
 ### Números de referência (decore ou deixe esta tabela aberta em outra aba)
 
-| Métrica | Janela A (01/04–21/07/2026) | Janela B (últimos 30 dias, hoje=22/07/2026) |
-|---|---|---|
-| Leads | **64** | **64** |
-| Gasto | **R$ 244.823,19** | **R$ 213.189,39** |
-| CPL | **R$ 3.825,36** | **R$ 3.330,54** (arredonda p/ R$3.331 em texto) |
-| Cliques | 32.734 | — |
-| Impressões | 1.138.814 | — |
-| CTR | 2,87% | — |
+**Atenção ao formato:** os cards de KPI do topo do Dashboard (`KpiCard`/`formatCurrencyCompact`)
+abreviam valores ≥ R$1.000 em "K" (milhares, 1 casa decimal) — nunca mostram centavos no texto.
+As demais telas (Portfolio, Auditoria, narrativa de Briefing/Cross-Insights) usam
+`formatCurrency` normal, com centavos. A coluna "formato do card" abaixo é o que você realmente
+vai ver nos cards do Dashboard; a coluna "valor exato" é pra Portfolio/Auditoria/Briefing, **e
+também aparece passando o mouse por cima do número no card** (tooltip nativo do navegador).
+
+| Métrica | Valor exato — Janela A | Formato do card — Janela A | Valor exato — Janela B |
+|---|---|---|---|
+| Leads | **64** | **64** (não abrevia) | **64** |
+| Gasto | **R$ 244.823,19** | **R$ 245K** | **R$ 213.189,39** |
+| Gasto Google | R$ 213.154,39 | R$ 213K | — |
+| Gasto Meta | R$ 31.668,80 | R$ 31,7K | — |
+| CPL | **R$ 3.825,36** | **R$ 3,8K** | **R$ 3.330,54** (arredonda p/ R$3.331 em texto) |
+| CPL Google | R$ 3.330,54 | R$ 3,3K | — |
+| CPL Meta | — (0 leads, indefinido) | — | — |
+| Cliques | 32.734 | — | — |
+| Impressões | 1.138.814 | — | — |
+| CTR | 2,87% | — | — |
 
 ### Checklist tela por tela
 
 - [ ] **Dashboard → Visão Geral** (`/admin/campanhas/dashboard`, período = Janela A, cliente =
-  Minha Empresa): card "Leads" = **64**. Card "Gasto Total" = **R$ 244.823,19**. Card "CPL
-  Médio" = **R$ 3.825,36**.
+  Minha Empresa): card "Leads" = **64** (exibido sem abreviação). Card "Gasto Total" = **R$ 245K**
+  (passe o mouse por cima pra conferir o valor exato, R$ 244.823,19, no tooltip). Card "CPL
+  Médio" = **R$ 3,8K** (tooltip: R$ 3.825,36).
 - [ ] **Dashboard → CPL por Rede** (mesmo escopo, mesma tela — seção de breakdown Meta×Google):
   Google deve aparecer com **64 leads**; Meta com **0 leads** nesta janela (não é bug — é o
   dado real deste tenant de teste).
