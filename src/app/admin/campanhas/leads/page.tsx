@@ -277,14 +277,17 @@ export default function LeadsCapturadosPage() {
             {/* Gráficos */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <div className={`${CARD} p-6`}>
-                <h3 className="text-sm font-black text-gray-900 mb-5">Leads por Dia</h3>
+                <h3 className="text-sm font-black text-gray-900">Leads por Dia</h3>
+                <p className="text-[11px] text-gray-400 mb-4">
+                  Total Leads (contato confirmado no CRM) — não é o Sinal de Interesse (Meta).
+                </p>
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={dailyData} margin={{ top: 4, right: 8, left: -4, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                     <XAxis dataKey="date" stroke="#6b7280" fontSize={11} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} interval="preserveStartEnd" />
                     <YAxis stroke="#6b7280" fontSize={11} tickLine={false} axisLine={false} width={30} allowDecimals={false} />
                     <Tooltip {...TOOLTIP_STYLE} />
-                    <Line type="monotone" dataKey="leads" stroke="#10b981" strokeWidth={2.5} dot={{ fill: '#10b981', r: 3, strokeWidth: 0 }} name="Leads" />
+                    <Line type="monotone" dataKey="leads" stroke="#6366f1" strokeWidth={2.5} dot={{ fill: '#6366f1', r: 3, strokeWidth: 0 }} name="Total Leads" />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
