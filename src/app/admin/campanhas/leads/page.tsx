@@ -9,7 +9,7 @@ import {
   UsersIcon, ChartBarIcon, ArrowTrendingUpIcon,
   ChevronLeftIcon, ChevronRightIcon,
   ChevronDoubleLeftIcon, ChevronDoubleRightIcon,
-  FunnelIcon,
+  FunnelIcon, ChatBubbleLeftRightIcon, InformationCircleIcon,
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
@@ -80,7 +80,7 @@ export default function LeadsCapturadosPage() {
     return new URLSearchParams(p).toString()
   }, [filters, clientFilter, origemFilter])
 
-  const EMPTY_STATS = { totalLeads: 0, leadsHoje: 0, mediaDia: '0.0', leadsByDay: [], leadsByOrigem: [] }
+  const EMPTY_STATS = { totalLeads: 0, leadsHoje: 0, mediaDia: '0.0', leadsByDay: [], leadsByOrigem: [], sinalInteresseMeta: 0 }
 
   const loadAll = useCallback(async () => {
     // Validação: data início não pode ser posterior à data fim
@@ -179,6 +179,29 @@ export default function LeadsCapturadosPage() {
           />
         </div>
 
+        {/* Explicação — como interpretar os números */}
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 mb-6 flex gap-3">
+          <InformationCircleIcon className="h-5 w-5 text-sky-600 shrink-0 mt-0.5" />
+          <div className="text-xs text-sky-900 leading-relaxed space-y-1">
+            <p>
+              <strong>Total Leads</strong> conta <strong>contatos reais confirmados no CRM</strong>
+              {' '}(nome, telefone ou e-mail) — de qualquer origem (WhatsApp, formulário, API, etc.).
+              É o número que importa para o follow-up comercial.
+            </p>
+            <p>
+              <strong>Sinal de Interesse (Meta)</strong> conta o <strong>evento bruto de engajamento</strong> em
+              anúncios do Meta (Facebook/Instagram) no mesmo período — clique de WhatsApp ou formulário
+              preenchido — mesmo quando esse clique ainda não virou uma resposta/contato confirmado. Por isso
+              pode ser <strong>maior</strong> que "Total Leads": nem todo clique vira um contato real.
+            </p>
+            <p>
+              As conversões do <strong>Google Ads</strong> não entram nesta página — o Google reporta apenas um
+              número agregado de conversões pela própria API, sem identificar cada pessoa individualmente, então
+              não existe um "contato" para listar aqui. Elas continuam entrando no CPL do Dashboard/Portfolio.
+            </p>
+          </div>
+        </div>
+
         {/* Filtros */}
         <div className={`${CARD} p-5 mb-6`}>
           <div className="flex flex-wrap gap-4 items-end">
@@ -208,9 +231,10 @@ export default function LeadsCapturadosPage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           {[
             { icon: UsersIcon,          label: 'Total Leads',    value: stats.totalLeads ?? 0,   color: 'text-indigo-600',  bg: 'bg-indigo-50' },
+            { icon: ChatBubbleLeftRightIcon, label: 'Sinal de Interesse (Meta)', value: stats.sinalInteresseMeta ?? 0, color: 'text-sky-600', bg: 'bg-sky-50' },
             { icon: ArrowTrendingUpIcon, label: 'Leads Hoje',    value: stats.leadsHoje ?? 0,    color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { icon: ChartBarIcon,        label: 'Média/Dia',     value: stats.mediaDia ?? '0',   color: 'text-violet-600',  bg: 'bg-violet-50' },
             { icon: FunnelIcon,          label: 'Maior Origem',  value: topOrigemLabel,          color: 'text-amber-600',   bg: 'bg-amber-50' },

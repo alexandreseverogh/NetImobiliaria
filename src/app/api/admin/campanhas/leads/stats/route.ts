@@ -49,10 +49,38 @@ export async function GET(request: NextRequest) {
     WHERE ${where}
   `
 
+  // "Sinal de Interesse (Meta)" — mesmo escopo (tenant/cliente/data), mas contando o EVENTO de
+  // engajamento (clique de WhatsApp + formulário preenchido) em vez do contato confirmado no
+  // CRM. CtaInteraction/CtaSubmission só existem pro Meta (Google não grava nessas tabelas — a
+  // conversão dele é só um número agregado da própria API, sem evento individual pra contar
+  // aqui) — por isso este número é implicitamente "só Meta", sem precisar filtrar rede.
+  const S = 'campanhasmarketingdigital'
+  const buildScopeCondition = (alias: string) => {
+    const cond: string[] = [`${alias}.tenant_id = $1`]
+    const p: unknown[] = [payload.tenantId]
+    if (clientId === 'own') {
+      cond.push(`${alias}.client_id IS NULL`)
+    } else if (clientId && clientId !== 'all') {
+      p.push(clientId)
+      cond.push(`${alias}.client_id = $${p.length}::uuid`)
+    }
+    if (startDate) {
+      p.push(new Date(startDate))
+      cond.push(`${alias}.created_at >= $${p.length}`)
+    }
+    if (endDate) {
+      p.push(new Date(endDate + 'T23:59:59'))
+      cond.push(`${alias}.created_at <= $${p.length}`)
+    }
+    return { where: cond.join(' AND '), params: p }
+  }
+  const ciScope = buildScopeCondition('ci')
+  const csScope = buildScopeCondition('cs')
+
   const today = new Date().toISOString().split('T')[0]
 
   try {
-    const [totalRes, todayRes, byDayRes, byOrigemRes] = await Promise.all([
+    const [totalRes, todayRes, byDayRes, byOrigemRes, ciCountRes, csCountRes] = await Promise.all([
       pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase}`, params),
       pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase} AND DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo') = '${today}'`, params),
       pool.query(`
@@ -72,6 +100,16 @@ export async function GET(request: NextRequest) {
         GROUP BY COALESCE(me.plataforma, 'direto')
         ORDER BY count DESC
       `, params),
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM ${S}."CtaInteraction" ci
+          WHERE ${ciScope.where} AND ci.event_type = 'WHATSAPP_CLICK'`,
+        ciScope.params,
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM ${S}."CtaSubmission" cs
+          WHERE ${csScope.where} AND cs.lead_uuid IS NOT NULL AND cs.cta_type != 'WHATSAPP_MESSAGE'`,
+        csScope.params,
+      ),
     ])
 
     const leadsByDay = byDayRes.rows.map((r) => ({
@@ -87,6 +125,7 @@ export async function GET(request: NextRequest) {
 
     const totalLeads = totalRes.rows[0]?.total ?? 0
     const days = leadsByDay.length || 1
+    const sinalInteresseMeta = (ciCountRes.rows[0]?.total ?? 0) + (csCountRes.rows[0]?.total ?? 0)
 
     return NextResponse.json({
       totalLeads,
@@ -94,6 +133,7 @@ export async function GET(request: NextRequest) {
       mediaDia:     (totalLeads / days).toFixed(1),
       leadsByDay,
       leadsByOrigem,
+      sinalInteresseMeta,
     })
   } catch (err: any) {
     console.error('[leads/stats] erro:', err)
