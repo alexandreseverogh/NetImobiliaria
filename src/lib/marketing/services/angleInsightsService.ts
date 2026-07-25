@@ -7,7 +7,7 @@
  */
 
 import pool from '@/lib/database/connection';
-import { ANGLE_LABELS, type CommunicationAngle } from '../angles';
+import { angleLabel } from '../angles';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -118,7 +118,7 @@ export async function getAngleInsights(
 
       return {
         angle,
-        label:       ANGLE_LABELS[angle as CommunicationAngle] ?? angle,
+        label:       angleLabel(angle),
         campaigns:   parseInt(row.campaigns, 10),
         spend,
         clicks,
