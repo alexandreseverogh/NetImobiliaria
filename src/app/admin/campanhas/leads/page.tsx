@@ -242,8 +242,8 @@ export default function LeadsCapturadosPage() {
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           {[
-            { icon: UsersIcon,          label: 'Total Leads',    value: stats.totalLeads ?? 0,   color: 'text-indigo-600',  bg: 'bg-indigo-50' },
             { icon: ChatBubbleLeftRightIcon, label: 'Sinal de Interesse (Meta)', value: stats.sinalInteresseMeta ?? 0, color: 'text-sky-600', bg: 'bg-sky-50' },
+            { icon: UsersIcon,          label: 'Total Leads',    value: stats.totalLeads ?? 0,   color: 'text-indigo-600',  bg: 'bg-indigo-50' },
             { icon: ArrowTrendingUpIcon, label: todayLabel ? `Leads Hoje (${todayLabel})` : 'Leads Hoje', value: stats.leadsHoje ?? 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { icon: ChartBarIcon,        label: 'Média/Dia',     value: stats.mediaDia ?? '0',   color: 'text-violet-600',  bg: 'bg-violet-50' },
             { icon: FunnelIcon,          label: 'Maior Origem',  value: topOrigemLabel,          color: '',                 bg: '', hex: topOrigemColorHex },
