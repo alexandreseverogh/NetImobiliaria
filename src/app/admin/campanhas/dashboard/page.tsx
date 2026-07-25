@@ -81,6 +81,7 @@ export function DashboardPage() {
   const [dateRange, setDateRange]           = useState('1'); // 'Hoje' como padrão
   const [startDate, setStartDate]           = useState('');
   const [endDate, setEndDate]               = useState('');
+  const endDateRef = React.useRef<HTMLInputElement>(null);
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [objectiveFilter, setObjectiveFilter]   = useState('');
   const [statusFilter, setStatusFilter]         = useState('');
@@ -532,11 +533,13 @@ export function DashboardPage() {
               <DateInputPtBR
                 value={startDate}
                 onChange={iso => { setStartDate(iso); setDateRange(''); }}
+                onComplete={() => endDateRef.current?.focus()}
                 style={selectStyle} className={selectBase} />
             </div>
             <div>
               <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Até</label>
               <DateInputPtBR
+                ref={endDateRef}
                 value={endDate}
                 onChange={iso => { setEndDate(iso); setDateRange(''); }}
                 style={selectStyle} className={selectBase} />
@@ -1456,14 +1459,13 @@ function isoToPtBr(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-function DateInputPtBR({
-  value, onChange, style, className,
-}: {
+const DateInputPtBR = React.forwardRef<HTMLInputElement, {
   value: string;
   onChange: (iso: string) => void;
+  onComplete?: () => void;
   style?: React.CSSProperties;
   className?: string;
-}) {
+}>(function DateInputPtBR({ value, onChange, onComplete, style, className }, ref) {
   const [display, setDisplay] = React.useState(isoToPtBr(value));
   const hiddenRef = React.useRef<HTMLInputElement>(null);
 
@@ -1478,7 +1480,10 @@ function DateInputPtBR({
     setDisplay(raw);
     if (raw.length === 10) {
       const iso = ptBrToIso(raw);
-      if (iso) onChange(iso);
+      if (iso) {
+        onChange(iso);
+        onComplete?.();
+      }
     } else if (raw === '') {
       onChange('');
     }
@@ -1495,6 +1500,7 @@ function DateInputPtBR({
   return (
     <div className="relative flex items-center">
       <input
+        ref={ref}
         type="text"
         inputMode="numeric"
         maxLength={10}
@@ -1525,7 +1531,7 @@ function DateInputPtBR({
       </button>
     </div>
   );
-}
+});
 
 
 

@@ -134,7 +134,7 @@ export function DeepDiveView({
 
         {/* ── Projeções legadas (regressão linear) ─────────────────── */}
         {predictions && !predictions.insufficientData && (
-          <details className="mt-6 group">
+          <details className="mt-6 group" open>
             <summary className={cn(
               'flex items-center gap-2 cursor-pointer select-none text-[10px] font-black uppercase tracking-widest',
               isDark ? 'text-slate-600 hover:text-slate-400' : 'text-slate-400 hover:text-slate-600'
