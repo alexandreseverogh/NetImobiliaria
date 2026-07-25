@@ -164,6 +164,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       totalLeads,
       leadsHoje:    todayRes.rows[0]?.total ?? 0,
+      // Data real de "hoje" (America/Sao_Paulo) usada na query acima — independe do período
+      // selecionado no filtro. O frontend usa isso pra deixar o rótulo do card inequívoco
+      // (ex.: "Leads Hoje (25/07)"), já que "hoje" pode estar fora do range filtrado.
+      todayDate:    today,
       mediaDia:     (totalLeads / days).toFixed(1),
       leadsByDay,
       leadsByOrigem,

@@ -80,7 +80,7 @@ export default function LeadsCapturadosPage() {
     return new URLSearchParams(p).toString()
   }, [filters, clientFilter, origemFilter])
 
-  const EMPTY_STATS = { totalLeads: 0, leadsHoje: 0, mediaDia: '0.0', leadsByDay: [], leadsByOrigem: [], sinalInteresseMeta: 0 }
+  const EMPTY_STATS = { totalLeads: 0, leadsHoje: 0, todayDate: null, mediaDia: '0.0', leadsByDay: [], leadsByOrigem: [], sinalInteresseMeta: 0 }
 
   const loadAll = useCallback(async () => {
     // Validação: data início não pode ser posterior à data fim
@@ -152,6 +152,15 @@ export default function LeadsCapturadosPage() {
 
   const topOrigem = stats.leadsByOrigem?.[0]
   const topOrigemLabel = topOrigem ? (ORIGEM_LABEL[topOrigem.origem] ?? topOrigem.origem) : '—'
+  // "Maior Origem" é sempre a 1ª barra de "Leads por Origem" (mesmo array, mesma ordenação por
+  // count DESC) — usa a MESMA cor (BAR_COLORS[0]) pra não parecer duas origens diferentes.
+  const topOrigemColorHex = BAR_COLORS[0]
+
+  // "Leads Hoje" é sempre a data-calendário real (independe do período filtrado no seletor de
+  // datas acima) — o rótulo explicita a data pra não parecer estar preso ao filtro.
+  const todayLabel = stats.todayDate
+    ? new Date(stats.todayDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    : ''
 
   const selectCls = 'bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500'
   const inputCls  = 'bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500'
@@ -235,24 +244,29 @@ export default function LeadsCapturadosPage() {
           {[
             { icon: UsersIcon,          label: 'Total Leads',    value: stats.totalLeads ?? 0,   color: 'text-indigo-600',  bg: 'bg-indigo-50' },
             { icon: ChatBubbleLeftRightIcon, label: 'Sinal de Interesse (Meta)', value: stats.sinalInteresseMeta ?? 0, color: 'text-sky-600', bg: 'bg-sky-50' },
-            { icon: ArrowTrendingUpIcon, label: 'Leads Hoje',    value: stats.leadsHoje ?? 0,    color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { icon: ArrowTrendingUpIcon, label: todayLabel ? `Leads Hoje (${todayLabel})` : 'Leads Hoje', value: stats.leadsHoje ?? 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { icon: ChartBarIcon,        label: 'Média/Dia',     value: stats.mediaDia ?? '0',   color: 'text-violet-600',  bg: 'bg-violet-50' },
-            { icon: FunnelIcon,          label: 'Maior Origem',  value: topOrigemLabel,          color: 'text-amber-600',   bg: 'bg-amber-50' },
+            { icon: FunnelIcon,          label: 'Maior Origem',  value: topOrigemLabel,          color: '',                 bg: '', hex: topOrigemColorHex },
           ].map(k => (
             <div key={k.label} className={`${CARD} p-5`}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{k.label}</p>
-                <div className={`p-2 rounded-xl ${k.bg}`}>
-                  <k.icon className={`h-4 w-4 ${k.color}`} />
+                <div className={`p-2 rounded-xl ${k.bg}`} style={k.hex ? { backgroundColor: `${k.hex}1A` } : undefined}>
+                  <k.icon className={`h-4 w-4 ${k.color}`} style={k.hex ? { color: k.hex } : undefined} />
                 </div>
               </div>
               {loading
                 ? <div className="h-8 w-20 bg-gray-200 rounded animate-pulse" />
-                : <p className={`text-3xl font-black ${k.color} truncate`}>{k.value}</p>
+                : <p className={`text-3xl font-black ${k.color} truncate`} style={k.hex ? { color: k.hex } : undefined}>{k.value}</p>
               }
             </div>
           ))}
         </div>
+        <p className="text-[11px] text-gray-400 -mt-4 mb-6 px-1">
+          "Leads Hoje" usa sempre a data-calendário real de hoje — independe do período "De/Até"
+          selecionado acima. "Maior Origem" usa a mesma cor da barra correspondente em "Leads por
+          Origem", abaixo.
+        </p>
 
         {loading ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
