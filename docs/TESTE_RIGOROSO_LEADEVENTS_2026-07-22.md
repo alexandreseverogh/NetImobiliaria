@@ -3,11 +3,13 @@
 > **Contexto:** depois de encontrar 2 bugs reais seguidos no cálculo de CPL (Google usando
 > conversões reais; Meta contando lead de formulário) e consolidar TODO o módulo de Campanhas
 > numa fonte única (`src/lib/marketing/services/leadEvents.ts`, 16 arquivos migrados — ver
-> `docs/CHECKPOINT.md`), o usuário pediu uma segunda verificação independente, rigorosa, em
-> três frentes: uma técnica sobre dado existente (Trilha A, feita pelo Claude), uma manual em
-> todas as telas sobre dado existente (Trilha B, feita pelo usuário), e uma com dado novo, ao
-> vivo, atravessando os 3 módulos — Campanhas, CRM, Mensageria — incluindo os agentes de IA
-> (Trilha C, colaborativa). Este documento registra a metodologia e o roteiro completo das três.
+> `docs/CHECKPOINT.md`), o usuário pediu uma verificação independente e rigorosa, que cresceu em
+> 5 frentes complementares: técnica sobre dado existente (Trilha A, Claude), manual em todas as
+> telas sobre dado existente (Trilha B, usuário), dado novo ao vivo atravessando os 3 módulos —
+> Campanhas, CRM, Mensageria — incluindo agentes de IA (Trilha C, colaborativa), validação contra
+> as APIs reais do Meta/Google (Trilha D, bloqueada em pré-requisitos de conta/infra) e uma
+> camada de simulação pra testar sem depender de credencial real (Trilha E, escopo ainda em
+> decisão). Este documento registra a metodologia e o roteiro completo das cinco.
 
 ---
 
@@ -418,6 +420,51 @@ deles. Isso só se resolve com credenciais reais (não precisa ser "produção" 
 
 ---
 
+## Trilha E — Camada de simulação (adapter fake, sem depender de credencial real)
+
+### Por que é uma trilha separada da D, não parte dela
+
+D e E resolvem problemas opostos. D valida que a integração real com Meta/Google funciona —
+precisa de credencial real, está bloqueada até o usuário decidir os pré-requisitos. E valida que
+**nossa própria lógica** (dashboards, alertas, agentes) reage corretamente a uma resposta de rede
+— não depende de nada externo, pode rodar agora, e continua útil depois de D estar pronta, como
+ferramenta de regressão rápida e repetível.
+
+### Por que não é só "mais dado semeado" (o que já fazemos)
+
+Dado semeado direto no banco (ex.: `google-test-imoveis-sp-001`) testa só o **lado de leitura**
+— pula inteiramente o código de integração (o cron de sync nunca roda de verdade contra nada, a
+criação de campanha via wizard nunca é exercitada). Um **adapter fake**, implementando a mesma
+interface `AdNetworkService` já usada por `MetaAdsAdapter`/`GoogleAdsAdapter` e plugado na mesma
+fábrica (`buildNetworkService`, `src/lib/marketing/networks/factory.ts`), faz o cron real
+(`agentMonitor.syncMetrics()`) e a criação de campanha real (`POST /campaigns`) rodarem de
+verdade — só a resposta do "outro lado" é simulada. Isso pega uma classe de bug que dado semeado
+nunca pegaria: erro de mapeamento campo-a-campo na resposta do adapter (já aconteceu uma vez
+neste projeto — extração errada de `resource_name` na resposta do Google), comportamento do cron
+quando um tenant falha, o fluxo inteiro de lançamento de campanha ponta a ponta.
+
+### O que isso NÃO substitui
+
+Não testa OAuth real, entrega real de webhook, nem peculiaridades reais de payload que não
+documentamos/imaginamos — se o nosso entendimento da API estiver errado, o simulador "confirma"
+um bug como certo. Não deve tentar replicar fielmente pacing de orçamento/leilão (opaco de
+propósito, não dá pra replicar e não precisamos). Dado simulado deve ficar sempre claramente
+rotulado, nunca se misturar silenciosamente com dado real.
+
+### Escopo — ainda não decidido pelo usuário
+
+Três níveis de esforço/cobertura considerados, aguardando decisão:
+1. **Só `fetchInsights`** (métricas) — cobre cron de sync + agentes/alertas/dashboards, ~90% do
+   que falta testar de verdade, menor esforço.
+2. **Insights + `createCampaign`** — fecha também o fluxo do Wizard ponta a ponta ("Opção A
+   pendente", registrada há tempo no projeto).
+3. **Tudo** (Insights + campanha + `fetchSearchTerms`/`addNegativeKeyword` do Google) —
+   cobertura completa dos métodos usados hoje.
+
+**Nenhum código foi escrito ainda — só a proposta e a metodologia estão registradas.**
+
+---
+
 ## Status
 
 **Trilha A: concluída, 0 discrepâncias encontradas** (14 consumidores + 3 casos de borda).
@@ -425,3 +472,5 @@ deles. Isso só se resolve com credenciais reais (não precisa ser "produção" 
 **Trilha C: pendente — roteiro definido, aguardando início (Fase 0 a cargo do Claude).**
 **Trilha D: pendente — bloqueada em pré-requisitos de infraestrutura/conta, decisões do usuário
 ainda em aberto (ver tabela acima). Não avançar nenhum item sem confirmação explícita.**
+**Trilha E: proposta registrada — aguardando o usuário decidir o escopo (1, 2 ou 3 acima) antes
+de qualquer implementação.**
