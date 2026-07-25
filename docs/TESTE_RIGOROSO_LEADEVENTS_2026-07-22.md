@@ -226,10 +226,15 @@ contra um número escrito neste documento.
 - [ ] **Portfolio → Insights Cruzados** (`/admin/campanhas/portfolio/cross-insights`): mesma
   ressalva de janela rolante do item acima. A narrativa/dados da própria empresa devem citar um
   CPL coerente com o gasto/leads mostrados no Portfolio na mesma janela (spend ÷ leads).
-- [ ] **Auditoria** (`/admin/campanhas/auditoria`, período = 30 dias): mesma ressalva — confira
+- [x] **Auditoria** (`/admin/campanhas/auditoria`, período = 30 dias): mesma ressalva — confira
   o CPL citado no score de Performance contra `dashboard/full` pedindo os últimos 30 dias a
   partir de hoje (não contra um valor decorado). Confirme que o "Desperdício de Verba" NÃO lista
   a campanha "Google Search — Apartamentos SP" como zero-lead.
+  ✅ **Confirmado pelo usuário (2026-07-25):** janela 25/06–25/07/2026. `dashboard/full` retornou
+  spend R$213.154,39 / 64 leads / CPL R$3.330,54 — bate exato com "CPL R$3331 crítico" da
+  Auditoria (95,2x acima do ideal R$35,00 = 3330,54/35). "Desperdício de Verba" listou a campanha
+  Google com **"64 lead(s)"** explícito ao lado do CPL — corretamente na categoria de CPL
+  crítico, não na categoria mais grave de zero-lead.
 - [ ] **Briefing Estratégico** (gerar um novo, período = 30 dias): a narrativa deve mencionar os
   leads/CPL da campanha Google de forma coerente com os dados reais da janela de 30 dias atual
   (não "0 leads, recomendo pausar" para a campanha Google).
