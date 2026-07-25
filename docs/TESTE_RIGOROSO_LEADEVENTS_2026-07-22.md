@@ -192,11 +192,14 @@ também aparece passando o mouse por cima do número no card** (tooltip nativo d
   por regressão linear (legado)" pra expandir**, é um `<details>` recolhido por padrão): dentro,
   o gráfico "Leads Diários" deve ter valores diários reais (não uma linha zerada) — clique em
   qualquer ponto do fim de junho/início de julho e confirme que não é zero.
-- [ ] **Dashboard → Mapa de Campanhas** ("Geolocalização das Campanhas" — aparece tanto em Visão
+- [x] **Dashboard → Mapa de Campanhas** ("Geolocalização das Campanhas" — aparece tanto em Visão
   Executiva quanto em Inteligência Profunda, mesmo componente): **clique** em cada pino do mapa
   (não é hover — o popup do Leaflet abre só com clique) pra ver o nome de cada campanha daquele
   local + leads/gasto agregados do local. Some manualmente os leads de cada pino — deve dar 64
   (sem contar a mesma campanha 2x se ela aparecer em mais de um pino).
+  ✅ **Confirmado pelo usuário (2026-07-25):** Barueri (1 camp., 0 leads, R$11.927,02) + São Paulo
+  (3 camp., 64 leads, R$232.896,17) = **64 leads** e **R$244.823,19** — bate exato com a
+  referência nas duas métricas.
 - [ ] **Dashboard → aba "Google Ads"** (só aparece se o filtro de rede = Google, ou "Todas" com
   dado real de Google no período): confirme que o **banner âmbar de aviso** aparece no topo,
   explicando que "conversões"/ROAS vêm da própria conta do Google Ads do cliente.
