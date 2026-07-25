@@ -267,6 +267,20 @@ contra um número escrito neste documento.
   as duas métricas em texto simples. Testado ao vivo (escopo "own", Janela A):
   `totalLeads=7` + `sinalInteresseMeta=29` — conferido via SQL direto (1 WHATSAPP_CLICK + 28
   CtaSubmission = 29). Commit `cbaeece`.
+  ✅ **Ampliado (2026-07-25):** discussão de UX levou a 3 melhorias na mesma tela — (1) reordem
+  dos cards (Sinal de Interesse primeiro, já que a tela é acessada dentro do módulo de
+  Marketing Digital); (2) rótulo "Leads Hoje" ganhou a data explícita (independe do filtro De/
+  Até); (3) gráfico "Leads por Dia" virou "Sinal de Interesse × Total Leads por Dia" (2 linhas,
+  zero-preenchido) pra visualizar o funil sinal→contato dia a dia. **Achado real durante a
+  implementação:** 24 linhas de `CtaSubmission` (com `lead_uuid` preenchido) em todo o banco
+  eram resíduo órfão de sessões de teste anteriores — apontavam pra `lead_uuid` de leads de
+  teste já apagados do `leads_staging`, mas a própria linha de `CtaSubmission` nunca foi limpa
+  junto (19 no tenant Marketing Digital, 5 no tenant-bancada "Teste RAG"). Isso inflava
+  `sinalInteresseMeta` (29 → 10 após a limpeza) e distorcia o gráfico novo (06/07 mostrava 17
+  sinais/0 leads antes da limpeza; depois, 1 sinal/0 leads — um gap real e pequeno, não mais
+  um artefato de teste). Confirmado sem nenhuma referência pendente em `mensageria.contacts`
+  antes de remover; `DELETE` das 24 linhas órfãs executado, 0 restantes confirmado.
+  `sinalInteresseMeta` atual pra esta janela: **10** (não mais 29).
 - [ ] **Desperdício de Verba** (`/admin/campanhas/desperdicio`): confirme visualmente que a
   campanha Google **não aparece** na categoria "Gasto sem Leads" — se aparecer, é regressão.
 - [ ] **Insights da IA** (cards no dashboard): a recomendação para a campanha Google deve ser
