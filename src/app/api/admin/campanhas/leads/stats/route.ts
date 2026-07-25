@@ -79,11 +79,36 @@ export async function GET(request: NextRequest) {
 
   const today = new Date().toISOString().split('T')[0]
 
-  try {
-    const [totalRes, todayRes, byDayRes, byOrigemRes, ciCountRes, csCountRes] = await Promise.all([
-      pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase}`, params),
-      pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase} AND DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo') = '${today}'`, params),
-      pool.query(`
+  // "Leads por Dia" / "Média por Dia" — a query original só retornava dias com PELO MENOS 1
+  // lead (sem zero-fill) e limitava a 30 linhas. Num período longo e esparso (ex.: 112 dias com
+  // só 2 dias reais de lead), isso produz um gráfico enganoso: o LineChart conecta os 2 pontos
+  // reais espalhando-os por toda a largura do eixo (categoria, não escala de tempo real),
+  // parecendo um "declínio contínuo" que nunca existiu — e a "Média/Dia" saía inflada porque
+  // dividia pelo Nº DE DIAS COM DADO (2), não pelo Nº DE DIAS DO PERÍODO SELECIONADO (112).
+  // Zero-preenchemos o período pedido (com generate_series) pra o gráfico refletir a realidade:
+  // reto em zero, com picos só nos dias reais. Cap de segurança pra não gerar séries enormes.
+  const MAX_ZERO_FILL_DAYS = 200
+  let periodDaySpan: number | null = null
+  if (startDate && endDate) {
+    const spanMs = new Date(endDate + 'T00:00:00').getTime() - new Date(startDate + 'T00:00:00').getTime()
+    periodDaySpan = Math.round(spanMs / 86400000) + 1
+  }
+  const useZeroFill = periodDaySpan !== null && periodDaySpan > 0 && periodDaySpan <= MAX_ZERO_FILL_DAYS
+
+  const byDayQuery = useZeroFill
+    ? `
+        SELECT gs::date AS date, COALESCE(cnt.count, 0)::int AS count
+        FROM generate_series($${params.length + 1}::date, $${params.length + 2}::date, '1 day') AS gs
+        LEFT JOIN (
+          SELECT
+            DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo') AS date,
+            COUNT(DISTINCT ls.lead_uuid)::int AS count
+          ${joinBase}
+          GROUP BY DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo')
+        ) cnt ON cnt.date = gs::date
+        ORDER BY gs DESC
+      `
+    : `
         SELECT
           DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo') AS date,
           COUNT(DISTINCT ls.lead_uuid)::int AS count
@@ -91,7 +116,14 @@ export async function GET(request: NextRequest) {
         GROUP BY DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo')
         ORDER BY date DESC
         LIMIT 30
-      `, params),
+      `
+  const byDayParams = useZeroFill ? [...params, startDate, endDate] : params
+
+  try {
+    const [totalRes, todayRes, byDayRes, byOrigemRes, ciCountRes, csCountRes] = await Promise.all([
+      pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase}`, params),
+      pool.query(`SELECT COUNT(DISTINCT ls.lead_uuid)::int AS total ${joinBase} AND DATE(ls.created_at AT TIME ZONE 'America/Sao_Paulo') = '${today}'`, params),
+      pool.query(byDayQuery, byDayParams),
       pool.query(`
         SELECT
           COALESCE(me.plataforma, 'direto') AS origem,
@@ -124,7 +156,9 @@ export async function GET(request: NextRequest) {
     }))
 
     const totalLeads = totalRes.rows[0]?.total ?? 0
-    const days = leadsByDay.length || 1
+    // Média/dia: divide pelo Nº DE DIAS DO PERÍODO SELECIONADO, nunca pelo Nº de dias com dado
+    // (leadsByDay.length) — senão um período longo e esparso infla a média artificialmente.
+    const days = periodDaySpan ?? (leadsByDay.length || 1)
     const sinalInteresseMeta = (ciCountRes.rows[0]?.total ?? 0) + (csCountRes.rows[0]?.total ?? 0)
 
     return NextResponse.json({
