@@ -11,13 +11,14 @@ export function formatCurrency(value: number): string {
 
 /**
  * Versão compacta para cards KPI — evita truncamento em espaços reduzidos.
- * Mantém precisão para valores pequenos; abrevia a partir de R$ 10.000.
- * Use `formatCurrency` no tooltip/hover para exibir o valor completo.
+ * Mostra o valor completo (com centavos) até R$ 1.000.000; só abrevia em "M" acima
+ * disso, faixa onde o texto ficaria longo demais pro espaço do card. Abreviar já a
+ * partir de R$1.000 escondia os centavos atrás de um tooltip (title=fullValue em
+ * KpiCard.tsx) que não existe em touch/mobile — sem hover, o valor exato ficava
+ * inacessível nesses dispositivos.
  */
 export function formatCurrencyCompact(value: number): string {
   if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 100_000)   return `R$ ${(value / 1_000).toFixed(0)}K`;
-  if (value >= 1_000)     return `R$ ${(value / 1_000).toFixed(1)}K`;
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
