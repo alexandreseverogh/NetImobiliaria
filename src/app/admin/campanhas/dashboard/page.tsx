@@ -700,6 +700,16 @@ export function DashboardPage() {
           </div>
         ) : (
           <>
+            {/* PARTE D1 — Search Terms/IS Lost do Google deixou de ser aba paralela; é
+                drill-down tático dentro da Inteligência Profunda, só quando Google está no
+                escopo (filtro de rede = Google, ou "Todas" com dado real de Google no período).
+                Movido pro topo da aba (antes do Farol de Milha) — é informação acionável
+                (ROAS, orçamento perdido) e ficava enterrada depois da seção de Projeções, que
+                agora abre expandida por padrão. */}
+            {googleInScope && (
+              <GoogleAdsView isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
+            )}
+
             {/* ══════════════════════════════════════════════════════════════
                 DEEP DIVE (Camada 3) — Farol, Briefings, Insights (FASE 8.5/18)
             ══════════════════════════════════════════════════════════════ */}
@@ -730,13 +740,6 @@ export function DashboardPage() {
               aiInsightsBySegment={aiInsightsBySegment}
               hookSaturation={hookSaturation}
             />
-
-            {/* PARTE D1 — Search Terms/IS Lost do Google deixou de ser aba paralela; é
-                drill-down tático dentro da Inteligência Profunda, só quando Google está no
-                escopo (filtro de rede = Google, ou "Todas" com dado real de Google no período). */}
-            {googleInScope && (
-              <GoogleAdsView isDark={isDark} cardBase={cardBase} tx={tx} txMuted={txMuted} />
-            )}
 
             {/* ── Campaigns Table ─────────────────────────────────────────── */}
             <CampaignsTable
