@@ -187,9 +187,11 @@ também aparece passando o mouse por cima do número no card** (tooltip nativo d
   dado real deste tenant de teste).
 - [ ] **Dashboard → Funil por Estágio**: TOF deve concentrar os 64 leads (é onde a campanha
   Google está classificada); MOF e BOF devem aparecer com 0 leads, não com erro/branco.
-- [ ] **Dashboard → Gráfico de Predições/Projeções**: a série histórica de leads deve ter
-  valores diários reais (não uma linha zerada) — clique em qualquer ponto do fim de junho/início
-  de julho e confirme que não é zero.
+- [ ] **Dashboard → Gráfico de Predições/Projeções** (aba **Inteligência Profunda** — não Visão
+  Executiva nem Análise de Dados; role até abaixo do Farol de Milha e **clique em "▸ Projeções
+  por regressão linear (legado)" pra expandir**, é um `<details>` recolhido por padrão): dentro,
+  o gráfico "Leads Diários" deve ter valores diários reais (não uma linha zerada) — clique em
+  qualquer ponto do fim de junho/início de julho e confirme que não é zero.
 - [ ] **Dashboard → Mapa de Campanhas**: passe o mouse nos pontos do mapa — a soma dos leads
   exibidos por campanha, somada manualmente, deve dar 64 (sem contar a mesma campanha 2x em
   raios/localizações sobrepostas).
