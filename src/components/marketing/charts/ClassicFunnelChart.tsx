@@ -106,7 +106,7 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel,
       className={`${className ?? 'mt-5'} rounded-2xl p-6 ${cardCls}`}
     >
       {/* ── Cabeçalho ── */}
-      <div className="flex items-start justify-between gap-3 mb-6">
+      <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-baseline gap-3">
           <h3 className={`text-sm font-black ${tx}`}>Funil do Ciclo de Conversão em Vendas</h3>
           <span className={`text-[9px] font-semibold uppercase tracking-wider ${txFaint}`}>
@@ -123,6 +123,16 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel,
           </span>
         )}
       </div>
+      {/* "Conversões" vem de Insight.conversions — número bruto que a conta de anúncios (Meta OU
+          Google) reporta pra qualquer ação de conversão configurada lá, não necessariamente o
+          mesmo "Lead" (WhatsApp/formulário) do restante da plataforma. Confirmado ao vivo:
+          2 campanhas Meta com 0 leads reais mostravam 427 "conversões" nesta mesma etapa —
+          mesma ambiguidade já sinalizada só pro Google em GoogleAdsView.tsx, generalizada aqui
+          pra ambas as redes. */}
+      <p className={`text-[10px] leading-relaxed mb-4 ${txFaint}`}>
+        ⚠️ "Conversões" reflete a ação de conversão configurada na conta de anúncios (Meta ou
+        Google) — pode não ser o mesmo "Lead" identificado no resto da plataforma.
+      </p>
 
       {/* ── Layout: SVG (≈45%) + Métricas (≈55%) ── */}
       <div className="flex gap-8 items-stretch min-h-0">
