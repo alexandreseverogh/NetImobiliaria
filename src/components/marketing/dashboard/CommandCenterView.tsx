@@ -284,8 +284,8 @@ export function CommandCenterView({
              </div>
            </div>
            <div className="flex-1 mt-4">
-             {funnelData ? (
-               <ClassicFunnelChart funnelData={funnelData} leadCount={data.currentPeriod.leadCount || 0} isDark={isDark} />
+             {funnelData?.totals ? (
+               <ClassicFunnelChart funnelData={funnelData.totals} leadCount={data.currentPeriod.leadCount || 0} isDark={isDark} />
              ) : (
                <div className="flex items-center justify-center h-full opacity-50 text-xs">Sem dados de funil no período.</div>
              )}
