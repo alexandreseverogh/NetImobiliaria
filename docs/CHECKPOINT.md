@@ -1,14 +1,13 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-22 — ✅ Trilha A concluída (0 discrepâncias em 14 consumidores + 3
-> casos de borda — ver `docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`). **Achado adicional do
-> usuário durante a revisão da Trilha A, já corrigido:** Mecanismo C (webhook genérico
-> `/api/public/cta/ingest`) nunca resolvia `campaign_id`, mesmo quando um anúncio real desta
-> plataforma apontava pro site próprio do cliente — corrigido com campo opcional `ref`
-> (retrocompatível). Bug real, dormant, pego DURANTE o teste dessa correção: `resolveCtaRef`
-> hardcodeava `ctaType:'WHATSAPP_MESSAGE'` pra qualquer match via `Ad.trackingId` — corrigido pra
-> ler o `ctaType` real do anúncio. **⏳ Trilha B (roteiro manual em todas as UIs) segue pendente
-> — usuário vai executar seguindo `docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`.**
+> **Atualizado em:** 2026-07-26 — Trilha B do teste rigoroso em andamento (usuário testando
+> manualmente item a item, vários bugs reais achados e corrigidos no processo — ver lista
+> completa na entrada "Sessão 2026-07-25/26" abaixo). Durante a Trilha B (item "Visão 4"), o
+> usuário perguntou por que "Negócios Fechados" nunca sai de zero pra campanha Google — isso
+> levou a uma feature nova, fora do escopo original da Trilha B mas decidida com o usuário:
+> **webhook do Lead Form nativo do Google Ads**, implementado, testado localmente e testado
+> via túnel ngrok real (ponta a ponta, HTTP público → nosso servidor). **Teste com conta real
+> do Google Ads segue pendente do deploy** — ver seção própria abaixo com o passo a passo.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar — e também ao retomar após
 > interrupção, antes de continuar, para não repetir o mesmo hiato de documentação.
@@ -17,17 +16,109 @@
 
 ## Tarefa em andamento
 
-**Trilhas B e C do teste rigoroso pós-consolidação** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`)
-— Trilha B: roteiro manual de verificação em todas as telas sobre dado já existente, a ser
-executado pelo usuário. Trilha C (adicionada nesta sessão, a pedido do usuário): dado novo, ao
-vivo, atravessando Campanhas+CRM+Mensageria+agentes — 5 cenários de campanha com números
-escolhidos pra forçar SCALE/PAUSE/OPTIMIZE deliberadamente, negócio fechado, lead avulso, WhatsApp
-orgânico. **Fase 0 da Trilha C (semear as campanhas de teste) é a próxima ação real, a cargo do
-Claude, quando o usuário decidir começar.** Trilha A (técnica) já concluída, 0 discrepâncias, mais
-o fix do Mecanismo C. Ao retomar: ler o documento inteiro (agora com 3 trilhas), conferir se o
-usuário já reportou resultado de B e/ou já pediu início da C.
+**Trilha B do teste rigoroso** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`) — roteiro manual
+de verificação em todas as telas, usuário testando item a item via screenshot real. Itens já
+confirmados: Dashboard (Visão Executiva com filtro de rede Google), Portfolio, Auditoria, Briefing
+Estratégico, Desperdício de Verba, Insights da IA, Tracking Health, "Todos os Clientes" (Inteligência
+de Segmento), Leads Capturados. **Próximo item real: trocar o filtro de rede pra "Meta"** — leads
+devem cair pra valores próximos de zero (as 4 campanhas Meta genuinamente sem lead na Janela A),
+sem erro nem "undefined". Trilha C (dado novo, cenários de teste extensos) e Trilha D/E (conta real
+Google/simulação) seguem não iniciadas — ver documento completo.
+
+**Pendência real, não-bloqueante, desta sessão:** testar o webhook do Lead Form do Google
+(`/api/public/google-leads/webhook`, ver seção própria abaixo) com uma conta REAL do Google Ads,
+depois que a aplicação estiver publicada (deploy pendente, discutido em sessões anteriores).
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-25/26 — Webhook do Lead Form nativo do Google Ads (recebimento) ✅
+
+**Contexto:** durante a Trilha B, o usuário perguntou por que "Negócios Fechados" (Visão 4 —
+Funil de Receita) nunca sai de zero pra campanha Google real deste tenant. Investigação (ver
+commit `36f96d6` logo antes, que já tinha corrigido a Visão 4 pra respeitar o filtro de rede)
+confirmou algo mais estrutural: `leadsIdentified` da Visão 4 pra essa campanha é **0**, mesmo o
+Dashboard mostrando 64 leads — porque os 64 "leads" do Google vêm de `Insight.conversions` (número
+agregado da API, sem identidade individual), e nenhuma dessas 64 conversões vira uma linha real em
+`marketing_eventos`/`leads_staging`. Sem identidade real, nunca há negócio fechado possível de
+rastrear. Solução discutida e decidida com o usuário: implementar o **Lead Form nativo do Google
+Ads** (formulário preenchido dentro do próprio anúncio, sem sair do Google — equivalente ao
+Formulário Instantâneo do Meta), que captura identidade real (nome/telefone/e-mail).
+
+**Pesquisa feita antes de implementar** (não confiei em memória): documentação oficial do Google
+consultada via WebFetch (`developers.google.com/google-ads/webhook/docs/implementation` +
+`/samples` + suporte `support.google.com/google-ads/answer/16729613`) — confirmou o schema exato
+do payload (`lead_id`, `campaign_id`, `user_column_data[{column_id,string_value}]`, `google_key`),
+que a validação é uma chave compartilhada simples (não HMAC), que a config (URL+chave do webhook)
+é feita pelo CLIENTE direto na tela do Lead Form no Google Ads (sem precisar de Developer Token
+nem chamada nossa à API do Google — correção de uma suposição errada minha anterior), e que
+dedupe é necessário via `lead_id` (Google não garante entrega exatamente-uma-vez).
+
+**Implementado** (mesmo molde do webhook do Meta Lead Ads já existente,
+`/api/public/meta-leads/webhook`):
+1. `prisma/migration-2026-07-25-google-lead-form-webhook.sql` — tabela
+   `campanhasmarketingdigital."GoogleLeadFormSubmission"` (PK=`lead_id`, dedupe idempotente).
+2. `POST /api/public/google-leads/webhook` — resolve tenant/campanha via `Campaign.external_id`
+   (rede google), valida a `google_key` do tenant (reaproveitando
+   `tenant_network_credentials.credentials->>'lead_form_webhook_key'`, 1 chave por tenant),
+   extrai nome/telefone/e-mail (`FULL_NAME`/`FIRST_NAME`+`LAST_NAME`/`EMAIL`/`PHONE_NUMBER`) e
+   chama `/api/crm/leads` com `campaign_id` real. Deliberadamente NÃO usa CtaInteraction/
+   CtaSubmission (mecanismo de redirect — não se aplica, o formulário nunca sai do Google) nem
+   conta como "Sinal de Interesse (Meta)" (explicitamente só-Meta).
+3. `google_lead_form`/`google_lead_form_test` adicionados ao ORIGEM_LABEL/ORIGEM_COLOR de Leads
+   Capturados.
+
+**Testado em 2 camadas, ambas com sucesso:**
+- **Local (localhost direto):** payload sintético válido → lead real criado, `campaign_id`
+  corretamente resolvido, `marketing_eventos.plataforma='google_lead_form'` · reenvio do mesmo
+  `lead_id` → dedupe, sem duplicar · `google_key` errada → 401 · `campaign_id` desconhecido → 200
+  no-op (evita retry infinito do Google por algo irresolvível).
+- **Túnel ngrok real (HTTP público → nosso servidor):** usuário criou conta ngrok, gerou
+  authtoken. 2 percalços resolvidos no processo: (1) instalação via `npx ngrok` baixou o binário
+  errado (Mach-O/macOS em vez de Windows) — corrigido baixando o zip oficial direto de
+  `bin.equinox.io`; (2) Windows Defender bloqueou a extração (falso-positivo comum com ngrok,
+  heurística de C2) — o usuário já tinha o ngrok instalado por conta própria e resolveu isso
+  antes de mandar o comando de configurar o authtoken; (3) o comando do usuário
+  (`ngrok config add-authtoken $2vh0...`) salvou o token com um `$` a mais (erro de digitação/
+  cópia) — corrigido reconfigurando sem o `$`. Túnel subiu (`https://<id>.ngrok-free.app`),
+  requisição POST real confirmada no inspector do ngrok (200 OK) e no banco (lead criado
+  corretamente com `campaign_id` resolvido). **Achado incidental durante esse teste:** o número
+  de telefone de teste usado coincidiu, por acaso, com um lead residual de 2026-07-04/07-21
+  (teste de uma sessão bem anterior, nunca limpo) — Match Engine mesclou corretamente (prova de
+  que F4 continua funcionando), mas expôs resíduo antigo. Limpo (contact da Mensageria
+  desvinculado, marketing_eventos/leads_kanban/leads_staging/GoogleLeadFormSubmission removidos).
+  Todo dado de teste desta sessão (local + ngrok) removido depois, 0 resíduo confirmado. Túnel
+  ngrok encerrado ao final (não deixado aberto sem necessidade).
+
+**npx tsc --noEmit limpo em todos os arquivos tocados.** Commits: `b274b27` (feature).
+
+### Como testar com uma conta REAL do Google Ads, quando a aplicação estiver publicada (deploy)
+
+1. **URL do webhook em produção:** `https://<dominio-de-producao>/api/public/google-leads/webhook`
+   (troca só o domínio — o path é fixo).
+2. **Configurar a chave do tenant** — hoje só via SQL (não existe UI ainda pra isso), escolher
+   uma chave forte e gravar em `tenant_network_credentials.credentials` (rede `google`):
+   ```sql
+   UPDATE public.tenant_network_credentials
+      SET credentials = credentials || '{"lead_form_webhook_key": "<CHAVE-FORTE-AQUI>"}'::jsonb
+    WHERE tenant_id = '<uuid-do-tenant>'::uuid
+      AND network_id = (SELECT id FROM public.ad_networks WHERE code='google');
+   -- Se a linha não existir ainda (tenant nunca configurou Google Ads antes), fazer INSERT
+   -- (ver src/app/api/admin/configuracoes/google-ads/route.ts pro padrão de INSERT/UPSERT).
+   ```
+3. **Cliente configura o Lead Form no Google Ads real:** na conta dele, editor do anúncio com
+   Lead Form → "Exportar leads" → "Other data integration options" → "Webhook integration" →
+   cola a URL (passo 1) + a MESMA chave gravada no passo 2.
+4. **Testar:** botão "Send test data" na própria tela do Google Ads (gera um payload com
+   `is_test:true`, cai como origem `google_lead_form_test` no nosso lado) — confirmar que aparece
+   em `/admin/campanhas/leads` (Leads Capturados) com a campanha certa atribuída. Depois, com o
+   Lead Form realmente publicado e recebendo tráfego real, confirmar leads reais chegando com
+   `origem='google_lead_form'` e, eventualmente, que "Negócios Fechados" na Visão 4 deixa de ser
+   zero assim que um desses leads fechar negócio no CRM.
+5. **Pendência conhecida, não implementada:** UI de configuração da chave (hoje só SQL) — se
+   virar recorrente, vale uma tela simples em `/admin/configuracoes/google-ads` (mesmo padrão já
+   usado pras credenciais da API do Google Ads).
+
+## Penúltima tarefa concluída
 
 ### Sessão 2026-07-22 (continuação 19) — Mecanismo C: atribuição de campanha real via `?ref=` ✅
 
