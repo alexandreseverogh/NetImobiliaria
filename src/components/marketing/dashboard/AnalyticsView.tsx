@@ -28,7 +28,7 @@ interface AnalyticsViewProps {
   campaignSpendData: any[];
   campaigns: any[];
   tooltipCss: any;
-  cpl: number;
+  cpl: number | null;
   hookRate: number | null;
   hookRateColor: string;
   hookRateBenchmarks: any;
@@ -90,7 +90,7 @@ export function AnalyticsView({
         <KpiCard isDark={isDark} label="CPM"        value={formatCurrencyCompact(t?.cpm || 0)}                fullValue={formatCurrency(t?.cpm || 0)}                      delta={d?.cpm}         color={isDark ? 'text-violet-400'  : 'text-violet-600'} invertDelta />
         <KpiCard isDark={isDark} label="Conversões" value={formatNumber(t?.conversions || 0)}                 delta={d?.conversions} color={isDark ? 'text-pink-400'    : 'text-pink-600'} />
         <KpiCard isDark={isDark} label="Leads"      value={formatNumber(data?.currentPeriod.leadCount || 0)}  delta={d?.leads}       color={isDark ? 'text-indigo-400'  : 'text-indigo-600'} />
-        <KpiCard isDark={isDark} label="CPL"        value={formatCurrencyCompact(cpl)}                        fullValue={formatCurrency(cpl)}                              color={isDark ? 'text-teal-400'    : 'text-teal-600'} />
+        <KpiCard isDark={isDark} label="CPL"        value={cpl !== null ? formatCurrencyCompact(cpl) : '—'}  fullValue={cpl !== null ? formatCurrency(cpl) : '—'}         color={isDark ? 'text-teal-400'    : 'text-teal-600'} />
         <KpiCard isDark={isDark} label="Budget/dia" value={formatCurrencyCompact(campaignSpendData.reduce((s, c) => s + c.value, 0))} fullValue={formatCurrency(campaignSpendData.reduce((s, c) => s + c.value, 0))} color={isDark ? 'text-slate-300' : 'text-slate-800'} />
         {hookRate !== null && (
           <HookRateKpiCard isDark={isDark} value={hookRate} color={hookRateColor} benchmarks={hookRateBenchmarks} />

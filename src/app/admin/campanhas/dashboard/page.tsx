@@ -312,8 +312,10 @@ export function DashboardPage() {
   // quando não há filtro de rede (Todas) e existe dado real de Google no período. Controla o
   // drill-down de Search Terms/IS dentro da Inteligência Profunda (não é mais aba paralela).
   const googleInScope = networkFilter === 'google' || (networkFilter === '' && !!data?.cplByNetwork?.google);
-  const cpl       = t && data?.currentPeriod.leadCount && data.currentPeriod.leadCount > 0
-    ? t.spend / data.currentPeriod.leadCount : 0;
+  // null (não 0) quando não há lead — CPL é indefinido sem lead, não "R$ 0,00" (que sugeriria
+  // "lead grátis", o oposto do que aconteceu de verdade quando há gasto sem nenhum lead).
+  const cpl: number | null = t && data?.currentPeriod.leadCount && data.currentPeriod.leadCount > 0
+    ? t.spend / data.currentPeriod.leadCount : null;
 
   const chartData = data?.currentPeriod.insights
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())

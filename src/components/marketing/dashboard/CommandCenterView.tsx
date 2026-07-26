@@ -20,7 +20,7 @@ interface CommandCenterViewProps {
   tx: string;
   txMuted: string;
   txFaint: string;
-  cpl: number;
+  cpl: number | null;
   hookRate: number | null;
   hookRateBenchmarks: any;
   chartData: any[];
@@ -184,7 +184,7 @@ export function CommandCenterView({
               : undefined
           }
         />
-        <KpiCard isDark={isDark} label="CPL Médio" value={formatCurrencyCompact(cpl)} fullValue={formatCurrency(cpl)} color={isDark ? 'text-teal-400' : 'text-teal-600'}
+        <KpiCard isDark={isDark} label="CPL Médio" value={cpl !== null ? formatCurrencyCompact(cpl) : '—'} fullValue={cpl !== null ? formatCurrency(cpl) : '—'} color={isDark ? 'text-teal-400' : 'text-teal-600'}
           breakdown={
             data.cplByNetwork && Object.keys(data.cplByNetwork).length > 1
               ? Object.entries(data.cplByNetwork).map(([net, v]) => ({
