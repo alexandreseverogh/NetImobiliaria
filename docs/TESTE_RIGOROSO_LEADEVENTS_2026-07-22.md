@@ -322,8 +322,22 @@ contra um número escrito neste documento.
   (Conversion API): EXPIRADO" é condição real do ambiente de dev, confirmada via SQL
   (`tenant_network_credentials.expires_at = 2026-07-23`, hoje é 2026-07-25 — token nunca
   renovado neste tenant de teste).
-- [ ] **Trocar o filtro de cliente para "Todos os Clientes"** em qualquer uma das telas acima:
+- [x] **Trocar o filtro de cliente para "Todos os Clientes"** em qualquer uma das telas acima:
   os números devem mudar (ficar maiores, incluindo outros clientes), nunca dar erro ou zerar.
+  ✅ **Corrigida a expectativa deste item** — usuário reportou que as 3 abas (Visão Executiva/
+  Análise de Dados/Inteligência Profunda) somem ao clicar "Todos os Clientes", achando que
+  fosse regressão. Investigado: **é intencional, documentado desde a FASE 18.2** — "Todos os
+  Clientes" seta `clientFilter='segment'`, e a página troca as 3 abas por uma view dedicada
+  ("Inteligência de Segmento") em vez de misturar clientes de segmentos potencialmente
+  diferentes dentro de uma visão de 1-cliente-por-vez. Não era isso que este item do roteiro
+  original previa ("as mesmas abas, números maiores") — corrigido aqui.
+  **Confirmado pelo usuário (2026-07-25) com screenshots completos:** "Inteligência de
+  Segmento · Imobiliário · 2 clientes + Minha Empresa" renderizou por completo — benchmarks
+  medianos do segmento, gráficos comparativos por cliente (Gasto/CPL/CTR/Interessado),
+  Funil por Estágio (Investimento R$309.298,45 = soma exata dos 3 clientes: R$244.823 +
+  R$39.494 + R$24.981; confirma agregação correta), Ranking vs benchmark, Radar de Demanda,
+  Geolocalização, Tracking Health por cliente (3 cards), Insights da IA (26 insights) e a
+  narrativa "Inteligência do Segmento" (LLM) — nada em branco, nada quebrado.
 - [ ] **Trocar o filtro de rede para "Google"** no Dashboard: CPL/leads devem refletir só a
   campanha Google (64 leads, R$ 213.154,39 nesta janela específica de rede).
 - [ ] **Trocar o filtro de rede para "Meta"**: leads devem cair para valores próximos de zero
