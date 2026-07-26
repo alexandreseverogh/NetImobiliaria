@@ -281,8 +281,15 @@ contra um número escrito neste documento.
   um artefato de teste). Confirmado sem nenhuma referência pendente em `mensageria.contacts`
   antes de remover; `DELETE` das 24 linhas órfãs executado, 0 restantes confirmado.
   `sinalInteresseMeta` atual pra esta janela: **10** (não mais 29).
-- [ ] **Desperdício de Verba** (`/admin/campanhas/desperdicio`): confirme visualmente que a
+- [x] **Desperdício de Verba** (`/admin/campanhas/desperdicio`): confirme visualmente que a
   campanha Google **não aparece** na categoria "Gasto sem Leads" — se aparecer, é regressão.
+  ✅ **Confirmado pelo usuário (2026-07-25)**, escopo "Todos os Clientes", 30 dias: "Sem Leads"
+  mostra corretamente `R$ 0,00 / 0 campanha(s)` (Google não está lá); "CPL Crítico" mostra
+  `R$ 210.914,39 / 1 campanha(s)`, com a campanha "Google Search — Apartamentos SP" listada
+  explicitamente em "Top Campanhas com Desperdício": `CPL R$ 3.330,54 vs ideal R$ 35,00 — 64
+  lead(s)` — confirma que o desperdício é reconhecido pelo CPL crítico real (não por falta de
+  lead), e o `64 lead(s)` explícito bate com o valor de referência de sempre da Janela A/janela
+  rolante equivalente.
 - [ ] **Insights da IA** (cards no dashboard): a recomendação para a campanha Google deve ser
   algo como "DOWNSCALE — CPL crítico", **nunca** "PAUSE — gasto sem resultados" (essa frase é
   reservada às 3 campanhas Meta que genuinamente têm 0 leads no período).
