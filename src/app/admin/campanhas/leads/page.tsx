@@ -20,25 +20,29 @@ const PAGE_SIZE = 20
 const BAR_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899']
 
 const ORIGEM_LABEL: Record<string, string> = {
-  cta_app_form:      'Formulário',
-  cta:               'Formulário CTA',
-  cta_whatsapp:      'WhatsApp CTA',
-  cta_api:           'Webhook Externo',
-  whatsapp_organico: 'WhatsApp Orgânico',
-  meta_lead_ads:     'Meta Lead Ads',
-  api_webhook:       'API / Webhook',
-  direto:            'Direto',
+  cta_app_form:          'Formulário',
+  cta:                   'Formulário CTA',
+  cta_whatsapp:          'WhatsApp CTA',
+  cta_api:               'Webhook Externo',
+  whatsapp_organico:     'WhatsApp Orgânico',
+  meta_lead_ads:         'Meta Lead Ads',
+  google_lead_form:      'Google Lead Form',
+  google_lead_form_test: 'Google Lead Form (teste)',
+  api_webhook:           'API / Webhook',
+  direto:                'Direto',
 }
 
 const ORIGEM_COLOR: Record<string, string> = {
-  cta_app_form:      'bg-blue-100 text-blue-700',
-  cta:               'bg-blue-100 text-blue-700',
-  cta_whatsapp:      'bg-emerald-100 text-emerald-700',
-  cta_api:           'bg-violet-100 text-violet-700',
-  whatsapp_organico: 'bg-green-100 text-green-700',
-  meta_lead_ads:     'bg-indigo-100 text-indigo-700',
-  api_webhook:       'bg-violet-100 text-violet-700',
-  direto:            'bg-gray-100 text-gray-600',
+  cta_app_form:          'bg-blue-100 text-blue-700',
+  cta:                   'bg-blue-100 text-blue-700',
+  cta_whatsapp:          'bg-emerald-100 text-emerald-700',
+  cta_api:               'bg-violet-100 text-violet-700',
+  whatsapp_organico:     'bg-green-100 text-green-700',
+  meta_lead_ads:         'bg-indigo-100 text-indigo-700',
+  google_lead_form:      'bg-amber-100 text-amber-700',
+  google_lead_form_test: 'bg-amber-50 text-amber-500',
+  api_webhook:           'bg-violet-100 text-violet-700',
+  direto:                'bg-gray-100 text-gray-600',
 }
 
 const TOOLTIP_STYLE = {

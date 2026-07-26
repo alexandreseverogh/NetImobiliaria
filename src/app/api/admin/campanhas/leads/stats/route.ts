@@ -5,14 +5,16 @@ import { getTokenPayload } from '@/lib/auth/jwt-node'
 export const dynamic = 'force-dynamic'
 
 const ORIGEM_LABEL: Record<string, string> = {
-  cta_app_form:        'Formulário',
-  cta:                 'Formulário CTA',
-  cta_whatsapp:        'WhatsApp CTA',
-  cta_api:             'Webhook Externo',
-  whatsapp_organico:   'WhatsApp Orgânico',
-  meta_lead_ads:       'Meta Lead Ads',
-  api_webhook:         'API / Webhook',
-  direto:              'Direto',
+  cta_app_form:          'Formulário',
+  cta:                   'Formulário CTA',
+  cta_whatsapp:          'WhatsApp CTA',
+  cta_api:               'Webhook Externo',
+  whatsapp_organico:     'WhatsApp Orgânico',
+  meta_lead_ads:         'Meta Lead Ads',
+  google_lead_form:      'Google Lead Form',
+  google_lead_form_test: 'Google Lead Form (teste)',
+  api_webhook:           'API / Webhook',
+  direto:                'Direto',
 }
 
 export async function GET(request: NextRequest) {
