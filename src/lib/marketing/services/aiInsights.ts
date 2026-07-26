@@ -103,6 +103,20 @@ interface InsightRule {
   confidence: (data: CampaignData, b: BenchmarkMap) => number;
 }
 
+// Predicado compartilhado entre a regra de SCALE genérica e a de DOWNSCALE — sem isso, uma
+// campanha com volume/CTR bons mas CPL crítico (ex.: Google com muitas "conversões" agregadas
+// que não são lead de verdade, ver aviso de Insight.conversions na UI) recebia os dois cards ao
+// mesmo tempo ("aumente o orçamento" + "reduza o orçamento" pra mesma campanha).
+function isCplCritical(d: CampaignData, b: BenchmarkMap): boolean {
+  return (
+    d.leads > 0 &&
+    d.totalSpend > 0 &&
+    (d.totalSpend / d.leads) > b.cpl_ideal * 2.5 &&
+    d.totalSpend > b.spend_no_lead * 0.4 &&
+    d.daysRunning >= b.min_days_running
+  );
+}
+
 const RULES: InsightRule[] = [
   {
     check: (d, b) => d.avgCtr < b.ctr_min && d.daysRunning >= b.min_days_running,
@@ -137,7 +151,7 @@ const RULES: InsightRule[] = [
     confidence: (d, b) => Math.min(0.95, 0.75 + d.totalSpend / (b.spend_no_lead * 10)),
   },
   {
-    check: (d, b) => d.leads >= b.min_leads_scale && d.avgCtr >= b.ctr_scale,
+    check: (d, b) => d.leads >= b.min_leads_scale && d.avgCtr >= b.ctr_scale && !isCplCritical(d, b),
     type: 'SCALE',
     title: 'Campanha com bom desempenho',
     description: (d, b) =>
@@ -172,12 +186,7 @@ const RULES: InsightRule[] = [
   },
   // FASE 15 — DOWNSCALE: CPL crítico (>2.5× o ideal) com gasto relevante → defensivo, auto-executa
   {
-    check: (d, b) =>
-      d.leads > 0 &&
-      d.totalSpend > 0 &&
-      (d.totalSpend / d.leads) > b.cpl_ideal * 2.5 &&
-      d.totalSpend > b.spend_no_lead * 0.4 &&
-      d.daysRunning >= b.min_days_running,
+    check: (d, b) => isCplCritical(d, b),
     type: 'DOWNSCALE',
     title: 'CPL crítico — reduzir orçamento',
     description: (d, b) => {
