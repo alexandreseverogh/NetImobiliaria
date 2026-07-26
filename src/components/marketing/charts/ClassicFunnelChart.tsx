@@ -129,7 +129,7 @@ export function ClassicFunnelChart({ funnelData, leadCount, isDark, periodLabel,
           2 campanhas Meta com 0 leads reais mostravam 427 "conversões" nesta mesma etapa —
           mesma ambiguidade já sinalizada só pro Google em GoogleAdsView.tsx, generalizada aqui
           pra ambas as redes. */}
-      <p className={`text-[10px] leading-relaxed mb-4 ${txFaint}`}>
+      <p className={`text-[10px] font-semibold leading-relaxed mb-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
         ⚠️ "Conversões" reflete a ação de conversão configurada na conta de anúncios (Meta ou
         Google) — pode não ser o mesmo "Lead" identificado no resto da plataforma.
       </p>
