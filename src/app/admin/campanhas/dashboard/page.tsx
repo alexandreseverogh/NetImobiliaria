@@ -654,6 +654,7 @@ export function DashboardPage() {
             periodDays={effectivePeriodDays}
             activeSegment={activeSegment} clientFilter={clientFilter}
             segmentPeriodStart={segmentPeriodStart} segmentPeriodEnd={segmentPeriodEnd}
+            network={networkFilter || null}
           />
         )}
 

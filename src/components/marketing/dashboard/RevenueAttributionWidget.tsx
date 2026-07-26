@@ -39,6 +39,7 @@ interface Props {
   tx: string;
   txMuted: string;
   txFaint: string;
+  network?: string | null;
 }
 
 /**
@@ -47,7 +48,7 @@ interface Props {
  * à campanha — só disponível quando o tenant tem Campanhas + CRM (a API resolve isso sozinha e
  * devolve `available:false` com o motivo quando não tem CRM; nunca finge um dado que não existe).
  */
-export function RevenueAttributionWidget({ isDark, clientId, periodDays, cardBase, tx, txMuted, txFaint }: Props) {
+export function RevenueAttributionWidget({ isDark, clientId, periodDays, cardBase, tx, txMuted, txFaint, network }: Props) {
   const [data, setData] = useState<RevenueAttributionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +57,7 @@ export function RevenueAttributionWidget({ isDark, clientId, periodDays, cardBas
     const params = new URLSearchParams();
     if (clientId) params.set('clientId', clientId);
     params.set('period', String(periodDays));
+    if (network) params.set('network', network);
 
     setLoading(true);
     setError(null);
@@ -70,7 +72,7 @@ export function RevenueAttributionWidget({ isDark, clientId, periodDays, cardBas
       })
       .catch(e => setError(e.message ?? 'Erro ao carregar'))
       .finally(() => setLoading(false));
-  }, [clientId, periodDays]);
+  }, [clientId, periodDays, network]);
 
   const borderCls = isDark ? 'border-[rgba(255,255,255,0.05)]' : 'border-slate-200';
 

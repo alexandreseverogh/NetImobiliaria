@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
   const rawClientId = searchParams.get('clientId');
   const clientId = rawClientId === 'own' ? 'own' : (rawClientId || undefined);
   const periodDays = parseInt(searchParams.get('period') || '30', 10);
+  const network = searchParams.get('network') || undefined;
 
   try {
     const crmContratado = await hasCrmModule(payload.tenantId);
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
       tenantId: payload.tenantId,
       clientId,
       periodDays: Number.isFinite(periodDays) ? periodDays : 30,
+      network,
     });
 
     return NextResponse.json({ available: true, ...data });

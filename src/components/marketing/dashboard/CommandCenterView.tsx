@@ -31,6 +31,7 @@ interface CommandCenterViewProps {
   clientFilter?: string | null;
   segmentPeriodStart?: string;
   segmentPeriodEnd?: string;
+  network?: string | null;
 }
 
 export function CommandCenterView({
@@ -54,6 +55,7 @@ export function CommandCenterView({
   clientFilter,
   segmentPeriodStart,
   segmentPeriodEnd,
+  network,
 }: CommandCenterViewProps) {
   if (loading) {
     return (
@@ -408,6 +410,7 @@ export function CommandCenterView({
         isDark={isDark}
         clientId={clientFilter ?? null}
         periodDays={periodDays}
+        network={network ?? null}
         cardBase={cardBase}
         tx={tx}
         txMuted={txMuted}

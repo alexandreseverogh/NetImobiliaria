@@ -64,8 +64,11 @@ export async function getRevenueAttribution(params: {
   /** undefined = todas as campanhas (próprias + clientes); null | 'own' = só próprias; uuid = só daquele cliente */
   clientId?: string | null
   periodDays: number
+  /** código da rede (ex.: 'google', 'meta') — mesmo fallback COALESCE(n.code,'meta') usado em
+   *  dashboard/funnel e dashboard/full, pra campanhas sem network_id (legado) caírem em Meta. */
+  network?: string | null
 }): Promise<RevenueAttributionResult> {
-  const { tenantId, clientId, periodDays } = params
+  const { tenantId, clientId, periodDays, network } = params
   const period = Math.min(Math.max(Math.floor(periodDays) || 30, 1), 365)
 
   const clientClauseParts: string[] = []
@@ -75,6 +78,10 @@ export async function getRevenueAttribution(params: {
   } else if (clientId) {
     values.push(clientId)
     clientClauseParts.push(`AND camp.client_id = $${values.length}::uuid`)
+  }
+  if (network) {
+    values.push(network)
+    clientClauseParts.push(`AND COALESCE(n.code, 'meta') = $${values.length}`)
   }
   const clientClause = clientClauseParts.join(' ')
 
@@ -92,6 +99,7 @@ export async function getRevenueAttribution(params: {
       SELECT camp.id AS campaign_id, camp.name AS campaign_name, camp.client_id,
              COALESCE(SUM(i.spend), 0) AS spend
       FROM campanhasmarketingdigital."Campaign" camp
+      LEFT JOIN public.ad_networks n ON n.id = camp."network_id"
       LEFT JOIN campanhasmarketingdigital."Insight" i
         ON i."campaignId" = camp.id
         AND i.date >= NOW() - ($2 || ' days')::INTERVAL
