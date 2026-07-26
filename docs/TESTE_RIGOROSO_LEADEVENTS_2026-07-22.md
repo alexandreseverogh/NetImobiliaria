@@ -290,9 +290,24 @@ contra um número escrito neste documento.
   lead(s)` — confirma que o desperdício é reconhecido pelo CPL crítico real (não por falta de
   lead), e o `64 lead(s)` explícito bate com o valor de referência de sempre da Janela A/janela
   rolante equivalente.
-- [ ] **Insights da IA** (cards no dashboard): a recomendação para a campanha Google deve ser
+- [x] **Insights da IA** (cards no dashboard): a recomendação para a campanha Google deve ser
   algo como "DOWNSCALE — CPL crítico", **nunca** "PAUSE — gasto sem resultados" (essa frase é
   reservada às 3 campanhas Meta que genuinamente têm 0 leads no período).
+  ✅ **Confirmado pelo usuário (2026-07-25)**, segmento Imobiliário, período 01/04-21/07: card
+  "DOWNSCALE — CPL crítico — reduzir orçamento" pra "Google Search — Apartamentos SP" (CPL
+  R$3.330,54, 95,2× o ideal de R$35) · as 3 campanhas Meta com "PAUSE — Gasto sem resultados"
+  batem exatamente com as 3 que genuinamente têm 0 leads (Alto Padrão — Alphaville, MD
+  Captação Própria Premium, MD Captação Própria Financiamento) — nenhum falso PAUSE pra Google.
+  **Achado secundário, não bloqueante, registrado pra decisão futura:** a MESMA campanha Google
+  também recebeu um card "SCALE — Campanha com bom desempenho" (CTR 4,11%, 64 leads ≥ mínimo de
+  5) — conselho oposto ao DOWNSCALE na mesma tela. Investigado em `aiInsights.ts`: são 2 regras
+  independentes (`RULES`, linhas ~140 e ~181) que avaliam sinais diferentes (volume/engajamento
+  vs. eficiência de custo) sem nenhuma reconciliação entre si — nada impede as duas de disparar
+  juntas pra uma campanha com volume alto mas CPL inflado (exatamente o caso do Google, dado o
+  aviso já existente na UI sobre `Insight.conversions` poder incluir ações que não são lead de
+  verdade). Não corrigido nesta rodada — é uma decisão de produto (priorizar DOWNSCALE quando os
+  dois disparam? mostrar os dois com uma nota de conflito? é intencional mostrar sinais
+  independentes?), a discutir com o usuário antes de mexer no motor de regras.
 - [ ] **Tracking Health** (widget no dashboard): rode a verificação — não deve travar/dar erro.
   O item "Leads 24h" pode legitimamente mostrar crítico/zero (é sobre as últimas 24 horas reais,
   não sobre o período do teste) — isso NÃO é bug.
