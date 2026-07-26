@@ -305,9 +305,12 @@ contra um número escrito neste documento.
   vs. eficiência de custo) sem nenhuma reconciliação entre si — nada impede as duas de disparar
   juntas pra uma campanha com volume alto mas CPL inflado (exatamente o caso do Google, dado o
   aviso já existente na UI sobre `Insight.conversions` poder incluir ações que não são lead de
-  verdade). Não corrigido nesta rodada — é uma decisão de produto (priorizar DOWNSCALE quando os
-  dois disparam? mostrar os dois com uma nota de conflito? é intencional mostrar sinais
-  independentes?), a discutir com o usuário antes de mexer no motor de regras.
+  verdade). ✅ **Corrigido (2026-07-25):** predicado `isCplCritical` extraído da regra DOWNSCALE
+  e negado na condição da regra SCALE genérica — uma campanha com CPL já em zona crítica nunca
+  mais recebe recomendação de escalar orçamento (a regra SCALE de Impression Share não foi
+  afetada, já era mutuamente exclusiva com DOWNSCALE por construção). Testado ao vivo: Google
+  agora retorna só `["DOWNSCALE","OPTIMIZE"]` (sem mais "SCALE"); as 3 campanhas Meta
+  continuam corretamente com PAUSE, sem regressão. Commit `9635b36`.
 - [ ] **Tracking Health** (widget no dashboard): rode a verificação — não deve travar/dar erro.
   O item "Leads 24h" pode legitimamente mostrar crítico/zero (é sobre as últimas 24 horas reais,
   não sobre o período do teste) — isso NÃO é bug.
