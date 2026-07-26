@@ -361,9 +361,22 @@ contra um número escrito neste documento.
   Widget.tsx` → `CommandCenterView.tsx` → `dashboard/page.tsx` (`networkFilter`). Testado ao
   vivo via API: sem filtro → 4 campanhas, spend R$244.823,19; com `network=google` → só
   "Google Search — Apartamentos SP", spend R$213.154,39 (bate exato). Commit `36f96d6`.
-- [ ] **Trocar o filtro de rede para "Meta"**: leads devem cair para valores próximos de zero
+- [x] **Trocar o filtro de rede para "Meta"**: leads devem cair para valores próximos de zero
   neste tenant de teste (as 4 campanhas Meta genuinamente não têm lead na Janela A) — confirme
   que não aparece erro nem "undefined".
+  ✅ **Confirmado pelo usuário (2026-07-26)** via screenshot: 4 campanhas ativas, Gasto Total
+  R$31.668,80, "Leads: —" (sem erro, sem "undefined") · funil confirma "Leads: —" na etapa
+  certa. **2 bugs reais encontrados e corrigidos durante a verificação:**
+  1. "CPL Médio"/"CPL" (2 KPIs, Visão Executiva e Análise de Dados) mostravam "R$ 0,00" com 0
+     leads — matematicamente enganoso (sugeria "lead grátis" quando é o oposto: gasto real sem
+     nenhum resultado). Corrigido: `cpl` vira `null` (não `0`) quando não há lead; os 2 cards
+     mostram "—". Testado ao vivo (`leadCount=0`, `spend=R$31.668,80` via API, batendo com o
+     bug reportado). Commit `a3e71b3`.
+  2. "Conversões: 427" no funil clássico, mesmo com "Leads: —" — confirmado via SQL
+     (162+265=427) que vem de `Insight.conversions` bruto (número que a própria conta de
+     anúncios reporta, sem relação garantida com lead real) — mesma ambiguidade já avisada só
+     pro Google em `GoogleAdsView.tsx`, agora confirmada concretamente também pro Meta. Aviso
+     generalizado adicionado no `ClassicFunnelChart.tsx`. Commit `7823c07`.
 
 ### O que reportar se algo divergir
 
