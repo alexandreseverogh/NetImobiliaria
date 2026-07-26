@@ -338,8 +338,20 @@ contra um número escrito neste documento.
   R$39.494 + R$24.981; confirma agregação correta), Ranking vs benchmark, Radar de Demanda,
   Geolocalização, Tracking Health por cliente (3 cards), Insights da IA (26 insights) e a
   narrativa "Inteligência do Segmento" (LLM) — nada em branco, nada quebrado.
-- [ ] **Trocar o filtro de rede para "Google"** no Dashboard: CPL/leads devem refletir só a
+- [x] **Trocar o filtro de rede para "Google"** no Dashboard: CPL/leads devem refletir só a
   campanha Google (64 leads, R$ 213.154,39 nesta janela específica de rede).
+  ✅ **Confirmado pelo usuário (2026-07-25)** via screenshot: Gasto Total R$213.154,39, Leads
+  64, CPL Médio R$3.330,54, CTR 4,11% — bate exato. Funil (estágio Leads) também mostra 64.
+  Alertas Acionáveis corretos (DOWNSCALE + OPTIMIZE, sem SCALE — confirma o fix anterior).
+  **Bug real encontrado e corrigido durante a verificação:** o card "Funil do Ciclo de
+  Conversão em Vendas" (`ClassicFunnelChart`) mostrava "—" pra Impressões/Cliques/Conversões
+  (só "Leads" aparecia). Causa: `CommandCenterView` passava o objeto `funnelData7` inteiro
+  (formato aninhado `{stages,totals,...}`, pós-FASE 7) pro componente, que espera um objeto
+  flat `{impressions,clicks,leads,conversions}` (formato pré-FASE 7) — `funnelData.impressions`
+  nesse objeto aninhado é sempre `undefined`; só "Leads" renderizava porque vem de um prop
+  totalmente separado. Corrigido: componente agora recebe `funnelData.totals` (que já tem o
+  shape certo). Confirmado via API real (`/dashboard/funnel?network=google` →
+  `totals:{impressions:68364,clicks:2809,leads:64,conversions:64}`). Commit `4986c60`.
 - [ ] **Trocar o filtro de rede para "Meta"**: leads devem cair para valores próximos de zero
   neste tenant de teste (as 4 campanhas Meta genuinamente não têm lead na Janela A) — confirme
   que não aparece erro nem "undefined".
