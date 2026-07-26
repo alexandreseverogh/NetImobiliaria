@@ -352,6 +352,15 @@ contra um número escrito neste documento.
   totalmente separado. Corrigido: componente agora recebe `funnelData.totals` (que já tem o
   shape certo). Confirmado via API real (`/dashboard/funnel?network=google` →
   `totals:{impressions:68364,clicks:2809,leads:64,conversions:64}`). Commit `4986c60`.
+  **2º bug real encontrado e corrigido, mesma verificação:** "Funil de Receita · Visão 4"
+  continuava listando as 4 campanhas (Google + 3 Meta) mesmo com o filtro Rede=Google
+  selecionado. Causa: `network` nunca existia em nenhuma camada dessa feature (F6, sessão
+  anterior à introdução do filtro de rede no resto do Dashboard) — nem no widget, nem na rota,
+  nem no serviço. Corrigido encadeando o filtro (mesmo padrão `COALESCE(n.code,'meta')` já
+  usado em `dashboard/funnel`) por: `revenueAttributionService.ts` → rota → `RevenueAttribution
+  Widget.tsx` → `CommandCenterView.tsx` → `dashboard/page.tsx` (`networkFilter`). Testado ao
+  vivo via API: sem filtro → 4 campanhas, spend R$244.823,19; com `network=google` → só
+  "Google Search — Apartamentos SP", spend R$213.154,39 (bate exato). Commit `36f96d6`.
 - [ ] **Trocar o filtro de rede para "Meta"**: leads devem cair para valores próximos de zero
   neste tenant de teste (as 4 campanhas Meta genuinamente não têm lead na Janela A) — confirme
   que não aparece erro nem "undefined".
