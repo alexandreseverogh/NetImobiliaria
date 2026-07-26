@@ -311,9 +311,17 @@ contra um número escrito neste documento.
   afetada, já era mutuamente exclusiva com DOWNSCALE por construção). Testado ao vivo: Google
   agora retorna só `["DOWNSCALE","OPTIMIZE"]` (sem mais "SCALE"); as 3 campanhas Meta
   continuam corretamente com PAUSE, sem regressão. Commit `9635b36`.
-- [ ] **Tracking Health** (widget no dashboard): rode a verificação — não deve travar/dar erro.
+- [x] **Tracking Health** (widget no dashboard): rode a verificação — não deve travar/dar erro.
   O item "Leads 24h" pode legitimamente mostrar crítico/zero (é sobre as últimas 24 horas reais,
   não sobre o período do teste) — isso NÃO é bug.
+  ✅ **Confirmado pelo usuário (2026-07-25)**: score 34/100, rodou sem travar. "Leads nas
+  últimas 24h = 0" confirmado como esperado. 2 itens vermelhos adicionais investigados e
+  confirmados como NÃO-bug: "Endpoint de Tracking: timeout" foi transitório (reconferido ao
+  vivo logo depois, `GET /api/r/__health_check__` respondeu HTTP 307 em 0,32s — coincidiu com
+  o restart do Docker Desktop de pouco antes, Postgres ainda reconectando); "Token Meta
+  (Conversion API): EXPIRADO" é condição real do ambiente de dev, confirmada via SQL
+  (`tenant_network_credentials.expires_at = 2026-07-23`, hoje é 2026-07-25 — token nunca
+  renovado neste tenant de teste).
 - [ ] **Trocar o filtro de cliente para "Todos os Clientes"** em qualquer uma das telas acima:
   os números devem mudar (ficar maiores, incluindo outros clientes), nunca dar erro ou zerar.
 - [ ] **Trocar o filtro de rede para "Google"** no Dashboard: CPL/leads devem refletir só a
