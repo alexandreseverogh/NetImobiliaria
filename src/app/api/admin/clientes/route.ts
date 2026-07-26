@@ -142,10 +142,14 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Erro ao criar cliente:', error)
     
-    if (error.message === 'CPF já cadastrado' || error.message === 'Email já cadastrado') {
+    // Bug real corrigido: createCliente lança 'CPF já cadastrado nesta imobiliária'/'Email já
+    // cadastrado nesta imobiliária' (com sufixo), mas esta checagem comparava com a string sem
+    // sufixo — nunca batia, e a validação (foreseeable, não uma falha de infra) sempre caía no
+    // 500 genérico abaixo. Usa startsWith pra não depender de manter os textos idênticos.
+    if (error.message?.startsWith('CPF já cadastrado') || error.message?.startsWith('Email já cadastrado') || error.message === 'CPF Inválido') {
       return NextResponse.json(
         { error: error.message },
-        { status: 409 }
+        { status: error.message === 'CPF Inválido' ? 400 : 409 }
       )
     }
     
