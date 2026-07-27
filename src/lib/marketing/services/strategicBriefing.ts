@@ -1,7 +1,7 @@
 import prisma from '../prisma';
 import pool from '@/lib/database/connection';
 import { invokeForContext } from '../../intelligence/llmInvoker';
-import { generateAiInsights } from './aiInsights';
+import { generateAiInsights, expandEndOfDay } from './aiInsights';
 import { getAngleInsights, type AngleInsightsResult } from './angleInsightsService';
 import { getActiveSegmentsForScope } from './segmentTaxonomyService';
 import { getLeadEvents, sumLeads } from './leadEvents';
@@ -107,7 +107,7 @@ export async function gatherBriefingContext(
   const startDate = opts?.startDate
     ? new Date(opts.startDate)
     : new Date(now.getTime() - periodDays * 86400000);
-  const endDateObj = opts?.endDate ? new Date(opts.endDate) : now;
+  const endDateObj = opts?.endDate ? expandEndOfDay(opts.endDate) : now;
   const effectivePeriodDays = Math.max(1,
     Math.ceil((endDateObj.getTime() - startDate.getTime()) / 86400000) + 1,
   );

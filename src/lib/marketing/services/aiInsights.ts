@@ -9,6 +9,17 @@ import { getLeadEvents, sumLeads } from './leadEvents';
 const S = 'campanhasmarketingdigital';
 
 /**
+ * Expande uma data pura "YYYY-MM-DD" pro fim do dia (23:59:59.999 UTC) antes de usar como
+ * limite superior (`lte`) — sem isso, `new Date("2026-07-27")` vira meia-noite UTC e exclui
+ * qualquer lead/evento com timestamp real (created_at) do PRÓPRIO dia final do período, já
+ * que created_at nunca é exatamente meia-noite. Mesma convenção já usada em
+ * dashboard/full/route.ts e outros; strings com horário explícito passam intactas.
+ */
+export function expandEndOfDay(dateStr: string): Date {
+  return dateStr.length === 10 ? new Date(dateStr + 'T23:59:59.999Z') : new Date(dateStr);
+}
+
+/**
  * Mapeia cada campanha ao seu segmento efetivo:
  *   campanha de cliente → clientes.segment_id
  *   campanha própria (client_id NULL) → tenants.segment_id
@@ -426,7 +437,7 @@ export async function generateAiInsights(
     if (filters?.startDate || filters?.endDate) {
       insightWhere.date = {};
       if (filters.startDate) insightWhere.date.gte = new Date(filters.startDate);
-      if (filters.endDate)   insightWhere.date.lte = new Date(filters.endDate);
+      if (filters.endDate)   insightWhere.date.lte = expandEndOfDay(filters.endDate);
     }
 
     const insights = await prisma.insight.findMany({
@@ -439,7 +450,7 @@ export async function generateAiInsights(
     // WHATSAPP_CLICK, o que fazia campanha de Google/formulário parecer "sem lead" pras regras
     // abaixo (ex.: recomendar PAUSE numa campanha que na verdade está gerando lead real).
     const leadDateFrom = filters?.startDate ? new Date(filters.startDate) : new Date(0);
-    const leadDateTo   = filters?.endDate   ? new Date(filters.endDate)   : new Date();
+    const leadDateTo   = filters?.endDate   ? expandEndOfDay(filters.endDate) : new Date();
     const leadEvents = tenantId
       ? await getLeadEvents(tenantId, { campaignIds: [campaign.id], startDate: leadDateFrom, endDate: leadDateTo })
       : [];
