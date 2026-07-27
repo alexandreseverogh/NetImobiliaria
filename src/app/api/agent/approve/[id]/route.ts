@@ -33,7 +33,7 @@ async function getAction(id: string) {
     LEFT JOIN campanhasmarketingdigital."Campaign" cam ON cam.id = a."campaignId"
     LEFT JOIN public.clientes cl ON cl.uuid = cam.client_id
     LEFT JOIN campanhasmarketingdigital."AdSet" ads ON ads."campaignId" = a."campaignId"
-    WHERE a.id = $1::uuid
+    WHERE a.id = $1
     GROUP BY a.id, a.tenant_id, a."campaignId", a."campaignName", a.type, a.title,
              a.description, a.confidence, a.status, a.approval_pin, a.approval_pin_exp,
              a.budget_proposed, a.scale_pct, cl.segment_id, t.segment_id
@@ -124,7 +124,7 @@ export async function POST(
     );
   } catch (err: any) {
     await setStatus(params.id, 'PENDING_APPROVAL');
-    return htmlResponse('❌ Erro na execução', `Houve um erro ao executar: ${err.message}`, 500);
+    return htmlResponse('❌ Erro na execução', `Houve um erro ao executar: ${err?.message ?? String(err)}`, 500);
   }
 }
 
