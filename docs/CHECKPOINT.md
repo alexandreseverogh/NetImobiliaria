@@ -16,25 +16,67 @@
 
 ## Tarefa em andamento
 
-**Trilha C do teste rigoroso** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`) — cenários de
-dado novo com cliente de teste dedicado (`90847892-3328-46c5-973c-c3257a5ac86a`, tenant Marketing
-Digital). **Fase 0 concluída**: 5 campanhas semeadas (`prisma/seed-trilha-c.sql`) — Cenário 1
-Sucesso (Meta, 5 dias, R$300, 0 leads ainda), Cenário 2 Crítico (Meta, 4 dias, R$400, 0 leads
-permanente), Cenário 3 Atenção (Google, 4 dias, R$520, 8 conversões via `Insight.conversions`,
-CPL R$65), Cenário 4 Site Próprio (Meta, CTA `LEARN_MORE`, 3 dias, R$150), Cenário 5 Fadiga (Meta,
-6 dias, R$250, frequência crescente até 3.9x, calibrada pra ficar entre `frequency_max` e
-`frequency_max*1.3` — dispara ALERT simples, não REFRESH_CREATIVE). Confirmado ao vivo via
-`insights/ai` que as 5 disparam exatamente a regra esperada (4x PAUSE "Gasto sem resultados" +
-1x OPTIMIZE CPL + 1x ALERT fadiga, sem nenhuma SCALE ainda — só depois da Fase 1 injetar leads
-reais no Cenário 1).
+**Trilha C do teste rigoroso** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`) — Fases 0-5
+**concluídas e verificadas ao vivo**, tudo com dado real (cliente de teste dedicado
+`90847892-3328-46c5-973c-c3257a5ac86a`, tenant Marketing Digital, 5 campanhas
+`prisma/seed-trilha-c.sql`). **Falta só a limpeza final** (remover as 5 campanhas + todo dado
+gerado nas Fases 1-5 — leads, CtaInteraction/CtaSubmission, contatos/conversas de Mensageria,
+AgentAction, o cliente de teste — confirmando 0 resíduo, mesma disciplina de sempre).
 
-**Próximo passo real: Fase 1** — injetar os leads reais de cada cenário: 15 cliques WhatsApp via
-`/api/r/trilha-c-sucesso-track` (Cenário 1, deve virar SCALE), Cenário 2 fica intocado (0 leads
-de propósito), Cenário 3 já está completo (conversões do Google), 3 submissões via
-`POST /api/public/cta/ingest?ref=trilha-c-site-track` (Cenário 4), 2 cliques WhatsApp via
-`/api/r/trilha-c-fadiga-track` (Cenário 5). Depois: Fase 2 (CRM/Kanban, negócio fechado → Visão
-4), Fase 3 (Mensageria), Fase 4 (dashboards completos), Fase 5 (Agentes/cron/briefing), limpeza
-final (remover as 5 campanhas + todo dado gerado, confirmando 0 resíduo).
+**Achados reais desta rodada (Trilha C), por ordem de descoberta:**
+1. **Bug real, não do seed — `expandEndOfDay` faltando em `aiInsights.ts`/`strategicBriefing.ts`**
+   (corrigido, commit `a411ba4`): `endDate` de data pura ("YYYY-MM-DD") virava meia-noite UTC sem
+   expandir pro fim do dia — excluía qualquer lead com timestamp real (`created_at`) do PRÓPRIO
+   dia final do período, ou seja, todo lead de "hoje" quando o período termina hoje (o caso mais
+   comum de uso real). `dashboard/full/route.ts` já fazia essa expansão corretamente (7+ rotas já
+   seguiam esse padrão) — replicado via `expandEndOfDay()` (exportado de `aiInsights.ts`, reusado
+   em `strategicBriefing.ts`). Achado ao vivo: depois de injetar 15 cliques WhatsApp reais, o
+   dashboard mostrava 15 leads mas Insights da IA continuava recomendando PAUSE por "0 leads" pra
+   essa mesma campanha — a contradição entre os dois endpoints expôs o bug.
+2. **CLAUDE.md desatualizado sobre o Agente Autônomo (corrigido, seção "Agente Autônomo")**: o
+   doc dizia "PAUSE/ALERT → PENDING_APPROVAL, SCALE/OPTIMIZE → PENDING_EXECUTION" — o código real
+   (`DEFENSIVE_TYPES`/`OFFENSIVE_TYPES` em `agentDecisor.ts`) faz o INVERSO, e de forma mais
+   sensata: PAUSE/DOWNSCALE (reduz risco/gasto) executa direto sem aprovação; SCALE (aumenta
+   gasto) exige aprovação humana com PIN. Confirmado ao vivo: PAUSE do Cenário 2 virou `EXECUTED`
+   na hora (`Campaign.status` real mudou pra `PAUSED`); SCALE do Cenário 1 ficou
+   `PENDING_APPROVAL` com PIN de 6 dígitos. Não é bug de código — só o texto do CLAUDE.md que
+   estava errado, corrigido nesta sessão.
+3. **Achado NÃO resolvido, registrado honestamente** — `POST /api/agent/approve/[id]` com PIN
+   correto pra uma ação SCALE retorna **500 com corpo HTTP completamente vazio** (sem o HTML de
+   erro que o código deveria gerar) quando a execução real (chamada à API do Meta pra mudar
+   budget) falha. Confirmado que a lógica de PIN/transição de status FUNCIONA corretamente (a
+   `AgentAction` reverte certinho pra `PENDING_APPROVAL` depois da falha — mesmo padrão do
+   catch), mas a resposta HTTP que o usuário veria (um gestor clicando o link do WhatsApp) fica
+   em branco em vez de mostrar a mensagem de erro amigável que o código constrói. Tentativas de
+   diagnosticar a causa exata (debug inline + escrita em arquivo) não conseguiram capturar o
+   stack real — pode ser efeito colateral de rodar sem credenciais reais de Meta Ads neste
+   ambiente (mesma limitação documentada em várias sessões anteriores: "Sync Meta real" ainda
+   pendente), ou um bug genuíno na formatação da resposta de erro. **Vale investigar numa sessão
+   futura com acesso ao console do servidor** — não é bloqueante pra Trilha C (o REJECT, testado
+   em paralelo, funciona perfeitamente ponta a ponta).
+
+**Confirmado funcionando corretamente, ponta a ponta, com dado real, em todas as 5 fases:**
+- **Fase 1** (leads reais): 15 cliques WhatsApp (Cenário 1) → `CtaInteraction`; 3 submissões via
+  Mecanismo C com `?ref=` (Cenário 4) → `campaign_id`/`cta_type` corretos; 2 cliques (Cenário 5).
+  `dashboard/full` refletiu `leadCount=28`, `cplByNetwork` exatos.
+- **Fase 2** (CRM/Kanban): resposta WhatsApp real simulada (`[ref:trilha-c-sucesso-track]`) →
+  lead criado com `campaign_id` correto; movido pra "fechamento" (`valor_venda=R$450.000`) →
+  Visão 4 (`/dashboard/revenue-attribution`) retornou `cpaReal=300, roasReal=1500` EXATO. Lead
+  "visita presencial" sem campanha criado via `/api/crm/leads` — confirmado que NÃO aparece em
+  `leadCount` de Campanhas (isolamento CRM↔Campanhas correto).
+- **Fase 3** (Mensageria): `contact.attribution` mostra nome real da campanha pra resposta com
+  `[ref:]`; mensagem orgânica (sem ref) mostra `campaignId:null, utmMedium:'organico'`; KPI
+  "Vindas de campanha" em `/mensageria/analytics` refletiu `deCampanha:1, deCampanhaPct:50`
+  exato (1 de 2 conversas do dia).
+- **Fase 4** (dashboards): Desperdício de Verba (`R$865`, categorizado certinho por campanha),
+  Portfolio (Cenário 2 = `health:"nodata"`, nuance confirmada não-contraditória com o
+  `ZERO_LEADS_SPEND` de Desperdício), Auditoria (score 44, mesmos R$865/CPL R$58 batendo com as
+  outras telas), Mapa de Campanhas (5 campanhas, leads exatos) — tudo consistente entre si.
+- **Fase 5** (Agentes): cron `sync` disparado manualmente, `AgentAction` criada corretamente só
+  pras 2 ações com confidence ≥ 0.85 (SCALE 0.90, PAUSE 0.95 — OPTIMIZE/ALERT/DOWNSCALE, todas
+  <0.85, corretamente filtradas, confirma o threshold documentado); reject testado com sucesso;
+  Briefing Estratégico gerado corretamente recomenda escalar o Cenário 1 (nunca confunde com os
+  ruins), reconhece o Cenário 2 já pausado, identifica fadiga+CPL alto no Cenário 5.
 
 **Pendência real, não-bloqueante:** testar o webhook do Lead Form do Google
 (`/api/public/google-leads/webhook`) com uma conta REAL do Google Ads, depois que a aplicação

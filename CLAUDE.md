@@ -411,9 +411,18 @@ agentMonitor.ts (cron a cada 6h)
       → confidence >= 0.85?    filtra
       → enrichWithClaude()     melhora descrição com LLM
       → cria AgentAction
-      → PAUSE/ALERT            → PENDING_APPROVAL → notifica WhatsApp com link
-      → SCALE/OPTIMIZE         → PENDING_EXECUTION → executa direto
+      → DEFENSIVE (PAUSE/DOWNSCALE/ADD_NEGATIVE_KEYWORD) → PENDING_EXECUTION → executa direto,
+        sem aprovação (ação que reduz risco/gasto — protege primeiro, notifica depois no digest)
+      → OFFENSIVE (SCALE/REFRESH_CREATIVE/ADJUST_AUDIENCE/REALLOCATE_BUDGET) → PENDING_APPROVAL
+        → notifica WhatsApp com link + PIN de 6 dígitos (ação que aumenta gasto/risco — exige
+        confirmação humana antes)
+      → demais tipos (ALERT/OPTIMIZE) → NOTIFIED → só aparecem no digest, sem ação nem aprovação
 ```
+
+`DEFENSIVE_TYPES`/`OFFENSIVE_TYPES` em `agentDecisor.ts` são as listas reais que decidem o
+`status` inicial da `AgentAction` — confirmado ao vivo em 2026-07-27 (Trilha C, ver
+`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`): PAUSE virou `EXECUTED` na hora, SCALE ficou
+`PENDING_APPROVAL` com PIN.
 
 Aprovação via links: `GET /api/agent/approve/[id]` e `GET /api/agent/reject/[id]` (sem JWT, autenticados pelo UUID da ação, retornam HTML).
 
