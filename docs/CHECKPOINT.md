@@ -20,7 +20,20 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento.** Trilha E do teste rigoroso
+**Implementação da rede TikTok** (`docs/PLANO_TIKTOK.md`) — plano completo escrito e aprovado
+em 2026-07-27 (auditoria de código encontrou 3 achados que mudam o desenho vs. o esboço antigo
+de `PLANO_GOOGLE_TIKTOK.md` §Fase 2: benchmarks sem dimensão de rede, bug real de rótulo
+meta/google no dashboard, `REALLOCATE_BUDGET` como casca nunca preenchida). **T0 concluído**
+(commit `0b877b3`): `system_benchmarks.network_id` + cascata de 6 camadas no
+`benchmarkResolver`, `aiInsights.ts`/`wastedSpendService.ts` resolvendo benchmark por
+(segmento, rede) da campanha, fix do ternário binário em `CommandCenterView.tsx`. Zero
+regressão confirmada ao vivo contra dado real (Meta+Google). **Próximo passo: T1**
+(`FakeTikTokAdapter` + `networkLeadSource.tiktok` + seed de `network_defaults.tiktok`) — os
+dois pré-requisitos bloqueantes restantes antes de qualquer trabalho de adapter real ou UI.
+
+## Penúltima tarefa concluída
+
+Trilha E do teste rigoroso
 (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`) concluída — camada de simulação (adapters fake
 implementando `AdNetworkService`) escolhida no nível 3 (cobertura completa) pelo usuário.
 
