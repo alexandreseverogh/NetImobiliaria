@@ -616,17 +616,52 @@ um bug como certo. Não deve tentar replicar fielmente pacing de orçamento/leil
 propósito, não dá pra replicar e não precisamos). Dado simulado deve ficar sempre claramente
 rotulado, nunca se misturar silenciosamente com dado real.
 
-### Escopo — ainda não decidido pelo usuário
+### Escopo — Nível 3 (tudo), executado em 2026-07-27
 
-Três níveis de esforço/cobertura considerados, aguardando decisão:
-1. **Só `fetchInsights`** (métricas) — cobre cron de sync + agentes/alertas/dashboards, ~90% do
-   que falta testar de verdade, menor esforço.
-2. **Insights + `createCampaign`** — fecha também o fluxo do Wizard ponta a ponta ("Opção A
-   pendente", registrada há tempo no projeto).
-3. **Tudo** (Insights + campanha + `fetchSearchTerms`/`addNegativeKeyword` do Google) —
-   cobertura completa dos métodos usados hoje.
+Usuário escolheu o nível 3 (cobertura completa: `fetchInsights` + `createCampaign` +
+`fetchSearchTerms`/`addNegativeKeyword` do Google) — os 3 antes propostos como opções ficaram
+todos cobertos numa única rodada.
 
-**Nenhum código foi escrito ainda — só a proposta e a metodologia estão registradas.**
+**Implementado:**
+- `src/lib/marketing/networks/fake/FakeMetaAdapter.ts` — implementa `AdNetworkService`
+  diretamente. `fetchInsights` determinístico (seed = hash do `externalId` + índice do dia — a
+  mesma campanha sempre produz a mesma série, sem `Math.random()`).
+- `src/lib/marketing/networks/fake/FakeGoogleAdapter.ts` — **estende** `GoogleAdsAdapter` (não
+  implementa a interface do zero) porque `agentMonitor.ts` faz
+  `networkService instanceof GoogleAdsAdapter` antes de coletar Search Terms — um fake que só
+  implementasse `AdNetworkService` nunca passaria nesse check e o cron real nunca chamaria
+  `fetchSearchTerms`. O construtor da classe pai só monta objetos de config do SDK do Google
+  (sem chamada de rede), então passar credenciais fake pro `super()` é seguro — nenhum método
+  herdado é chamado, tudo é sobrescrito. `fetchSearchTerms` gera 3 termos fixos por dia, o
+  último deliberadamente sempre com 0 conversões — candidato estável de negativação pros testes.
+- `factory.ts` — roteamento pro fake via **credencial sentinela**
+  (`access_token === '__SIMULATED__'` pro Meta, `developer_token === '__SIMULATED__'` pro
+  Google), nunca por env var global — só um tenant explicitamente configurado com esse valor
+  literal ativa o fake; nenhum tenant real é afetado.
+
+**Testado ao vivo, tenant dedicado (`TRILHA E — Tenant Simulado`), 3 caminhos de código real
+nunca antes exercitados neste ambiente de dev (sempre caíam no branch de erro por falta de
+credencial real):**
+1. **Cron real de sync** (`POST /api/cron/campanhas/sync`) — `Insight` criado via
+   `prisma.insight.upsert` de verdade (não seed direto) pras campanhas Meta e Google de teste,
+   com os números do fake. Bônus: a regra real "Gasto sem resultados" disparou PAUSE de verdade
+   sobre a campanha Google simulada (0 conversões nos dias gerados) — confirma que
+   `agentDecisor`/`aiInsights` reagem corretamente a dado vindo do cron real, não só de seed.
+2. **Agente de negativação** (`runNegationAgent`, parte do mesmo cron) — o termo "comprar
+   apartamento simulado" (sempre 0 conversões, por desenho) foi identificado, uma
+   `AgentAction` tipo `ADD_NEGATIVE_KEYWORD` foi criada e `EXECUTED` automaticamente
+   (`executeAction` → `addNegativeKeyword` do fake, sem lançar erro), `GoogleSearchTerm.status`
+   virou `'negated'`, e `GoogleNegativeKeyword` (memória anti-duplicata) recebeu a linha
+   correta.
+3. **Wizard real** — `POST /api/admin/campanhas/campaigns` (Meta) e
+   `POST /api/admin/campanhas/google` (Google Performance Max, payload `GoogleCampaignInput`
+   com `assetGroups` — formato bem diferente do Meta) confirmados criando `Campaign`/`AdSet`/`Ad`
+   locais E persistindo os IDs externos reais do fake (`external_id`, `metaCampaignId`,
+   `metaAdSetId`, `metaAdId`) — a primeira vez que o caminho de SUCESSO dessas rotas roda de
+   ponta a ponta neste ambiente (sem credencial real, sempre caía no branch `networkError`).
+
+Todo dado de teste (tenant + 4 campanhas + Insight/GoogleSearchTerm/GoogleNegativeKeyword/
+AgentAction) removido depois, 0 resíduo confirmado via SQL em 8 tabelas.
 
 ---
 
@@ -637,5 +672,5 @@ Três níveis de esforço/cobertura considerados, aguardando decisão:
 **Trilha C: pendente — roteiro definido, aguardando início (Fase 0 a cargo do Claude).**
 **Trilha D: pendente — bloqueada em pré-requisitos de infraestrutura/conta, decisões do usuário
 ainda em aberto (ver tabela acima). Não avançar nenhum item sem confirmação explícita.**
-**Trilha E: proposta registrada — aguardando o usuário decidir o escopo (1, 2 ou 3 acima) antes
-de qualquer implementação.**
+**Trilha E: concluída (2026-07-27) — nível 3 (cobertura completa), 0 discrepâncias, dado de
+teste removido.**

@@ -1,8 +1,17 @@
 import { Pool } from 'pg';
 import { MetaAdsAdapter, MetaCredentials } from './meta/metaAdsAdapter';
 import { GoogleAdsAdapter, GoogleCredentials } from './google';
+import { FakeMetaAdapter } from './fake/FakeMetaAdapter';
+import { FakeGoogleAdapter } from './fake/FakeGoogleAdapter';
 import type { AdNetworkService, NetworkCode, NetworkCredentials } from './types';
 import prisma from '../prisma';
+
+/**
+ * Marcador sentinela da Trilha E (docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md) — nunca uma
+ * credencial real. Só ativa o adapter fake quando um tenant de teste tem esse valor literal
+ * gravado como access_token/developer_token — nunca acidental, nunca silencioso.
+ */
+const SIMULATED_MARKER = '__SIMULATED__';
 
 let _pool: Pool | null = null;
 function getPool(): Pool {
@@ -20,6 +29,7 @@ export function buildNetworkService(
 ): AdNetworkService {
   switch (code) {
     case 'meta':
+      if (credentials.access_token === SIMULATED_MARKER) return new FakeMetaAdapter();
       return new MetaAdsAdapter({
         access_token:       credentials.access_token       || '',
         ad_account_id:      credentials.ad_account_id      || '',
@@ -32,6 +42,7 @@ export function buildNetworkService(
       } as MetaCredentials);
 
     case 'google':
+      if (credentials.developer_token === SIMULATED_MARKER) return new FakeGoogleAdapter();
       return new GoogleAdsAdapter({
         developer_token: credentials.developer_token || '',
         client_id:       credentials.client_id || '',

@@ -20,17 +20,30 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento.** Trilha C formalmente concluída (Fases 0-5 + limpeza
-final) — todo dado de teste removido, 0 resíduo confirmado via SQL em 12 tabelas (mensageria.
-contacts/conversations/messages, leads_kanban, marketing_eventos, leads_staging, CtaSubmission,
-CtaInteraction, AgentAction, AuditReport, StrategicBriefing, Insight, Campaign, clientes). O
-cliente de teste (`90847892-3328-46c5-973c-c3257a5ac86a`) e as 5 campanhas (`trilha-c-*`) não
-existem mais no banco. `prisma/seed-trilha-c.sql` mantido no repo (idempotente, `ON CONFLICT DO
-NOTHING`) pra reexecutar a Trilha C no futuro sem precisar redesenhar os 5 cenários do zero.
+**Nenhuma tarefa em andamento no momento.** Trilha E do teste rigoroso
+(`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`) concluída — camada de simulação (adapters fake
+implementando `AdNetworkService`) escolhida no nível 3 (cobertura completa) pelo usuário.
 
-**Próximo passo real, quando retomado:** Trilha D/E do roteiro (`docs/
-TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`) — teste com conta real do Google Ads / simulação —
-ainda não iniciadas.
+**Implementado:** `src/lib/marketing/networks/fake/FakeMetaAdapter.ts` (implementa a interface
+direto) e `FakeGoogleAdapter.ts` (**estende** `GoogleAdsAdapter` de propósito — `agentMonitor.ts`
+faz `instanceof GoogleAdsAdapter` antes de coletar Search Terms, um fake que só implementasse a
+interface nunca passaria nesse check). Roteados na `factory.ts` via credencial sentinela
+(`access_token`/`developer_token === '__SIMULATED__'`) — nunca por env var global, só ativa pra
+um tenant explicitamente configurado assim.
+
+**Testado ao vivo, 3 caminhos de código real NUNCA antes exercitados neste ambiente de dev** (sem
+credencial real, sempre caíam no branch de erro): (1) cron real de sync criando `Insight` via
+`prisma.insight.upsert` de verdade, com bônus de PAUSE real disparando sobre dado do fake; (2)
+agente de negativação do Google identificando e negativando um termo de verdade
+(`AgentAction`/`GoogleNegativeKeyword`/`GoogleSearchTerm.status` todos corretos); (3) Wizard real
+(`POST /campaigns` Meta e `POST /google` Performance Max) persistindo os IDs externos do fake —
+primeira vez que o caminho de SUCESSO dessas 2 rotas roda ponta a ponta neste ambiente. 0
+discrepâncias. Todo dado de teste removido, 0 resíduo confirmado.
+
+**Com isso, Trilhas A, B, C e E do roteiro estão formalmente concluídas.** Só falta a Trilha D
+(validação contra as APIs reais do Meta/Google) — bloqueada em decisões do usuário: deploy de
+staging na VPS, criação de conta Google Ads, decisão sobre gasto real pequeno. Ver seção própria
+no documento do roteiro pra retomar quando fizer sentido.
 
 **Achados reais desta rodada (Trilha C), por ordem de descoberta:**
 1. **Bug real, não do seed — `expandEndOfDay` faltando em `aiInsights.ts`/`strategicBriefing.ts`**
