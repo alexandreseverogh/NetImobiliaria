@@ -144294,3 +144294,8 @@ xecutado.
 [2026-07-15T20:00:16.027Z] Cleanup de histórico (30 dias) executado.
 [2026-07-15T20:00:16.045Z] Found 0 expired prospects
 [2026-07-15T20:00:16.050Z] Found 0 expired staging leads
+[2026-07-20T13:59:38.489Z] GET /api/cron/transbordo called
+[2026-07-21T15:15:34.676Z] GET /api/cron/transbordo called
+[2026-07-21T15:15:35.153Z] Cleanup de histórico (30 dias) executado.
+[2026-07-21T15:15:35.315Z] Found 1 expired prospects
+[2026-07-21T15:15:55.578Z] Found 0 expired staging leads
