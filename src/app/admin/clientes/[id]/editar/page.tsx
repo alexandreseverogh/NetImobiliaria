@@ -46,6 +46,17 @@ export default function EditarClientePage() {
   const [error, setError] = useState<string | null>(null)
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [activeTab, setActiveTab] = useState<'dados' | 'meta'>('dados')
+  // Mesmo gate do "novo cliente": aba "Config. Meta" só faz sentido pra tenant com o módulo de
+  // Campanhas contratado.
+  const [hasCampanhasModule, setHasCampanhasModule] = useState(false)
+
+  useEffect(() => {
+    get('/api/admin/clientes/tem-modulo-campanhas')
+      .then(res => res.ok ? res.json() : { hasModule: false })
+      .then(data => setHasCampanhasModule(!!data.hasModule))
+      .catch(() => setHasCampanhasModule(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Logo do cliente
   const [logoUrl, setLogoUrl]         = useState<string | null>(null)
@@ -796,7 +807,7 @@ export default function EditarClientePage() {
           >
             👤 Dados do Cliente
           </button>
-          {formData.tipo_cliente === 'conta_gerenciada' && (
+          {formData.tipo_cliente === 'conta_gerenciada' && hasCampanhasModule && (
             <button
               type="button"
               onClick={() => setActiveTab('meta')}
@@ -813,7 +824,7 @@ export default function EditarClientePage() {
       </div>
 
       {/* ── ABA: CONFIGURAÇÕES META ── */}
-      {activeTab === 'meta' && cliente && formData.tipo_cliente === 'conta_gerenciada' && (
+      {activeTab === 'meta' && cliente && formData.tipo_cliente === 'conta_gerenciada' && hasCampanhasModule && (
         <div className="max-w-3xl">
           <ClientCampaignSettings clientId={cliente.uuid} />
         </div>

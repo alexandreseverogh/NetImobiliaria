@@ -40,6 +40,17 @@ export default function NovoClientePage() {
   const [saving, setSaving] = useState(false)
   const [createdClientId, setCreatedClientId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'dados' | 'meta'>('dados')
+  // A aba "Config. Meta" só faz sentido pra tenant com o módulo de Campanhas contratado —
+  // sem ele, mostrar pixel/page/instagram depois de criar um cliente não tem propósito nenhum.
+  const [hasCampanhasModule, setHasCampanhasModule] = useState(false)
+
+  useEffect(() => {
+    get('/api/admin/clientes/tem-modulo-campanhas')
+      .then(res => res.ok ? res.json() : { hasModule: false })
+      .then(data => setHasCampanhasModule(!!data.hasModule))
+      .catch(() => setHasCampanhasModule(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [formData, setFormData] = useState<FormData>({
     nome: '',
@@ -546,8 +557,13 @@ export default function NovoClientePage() {
 
       if (response.ok) {
         const created = await response.json()
-        setCreatedClientId(created.uuid)
-        setActiveTab('meta')
+        if (hasCampanhasModule) {
+          // Só faz sentido oferecer a config. Meta pra quem contratou o módulo de Campanhas.
+          setCreatedClientId(created.uuid)
+          setActiveTab('meta')
+        } else {
+          router.push('/admin/clientes')
+        }
       } else {
         const errorData = await response.json()
         alert(`Erro: ${errorData.error}`)
@@ -625,10 +641,8 @@ export default function NovoClientePage() {
 
         {/* ── ABA: CONFIGURAÇÕES META ── */}
         {activeTab === 'meta' && createdClientId && (
-          <div className="space-y-4">
-            <div className="max-w-3xl">
-              <ClientCampaignSettings clientId={createdClientId} />
-            </div>
+          <div className="max-w-3xl space-y-4">
+            <ClientCampaignSettings clientId={createdClientId} />
             <div className="flex justify-end">
               <button
                 type="button"
