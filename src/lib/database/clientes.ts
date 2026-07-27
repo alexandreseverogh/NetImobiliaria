@@ -324,14 +324,14 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
     // Verificar se CPF já existe no mesmo tenant
     const existingCPF = await pool.query('SELECT 1 FROM clientes WHERE cpf = $1 AND tenant_id = $2', [data.cpf, data.tenant_id])
     if (existingCPF.rows.length > 0) {
-      throw new Error('CPF já cadastrado nesta imobiliária')
+      throw new Error('CPF já cadastrado')
     }
     
     // Verificar se email já existe no mesmo tenant
     if (data.email) {
       const existingEmail = await pool.query('SELECT 1 FROM clientes WHERE email = $1 AND tenant_id = $2', [data.email, data.tenant_id])
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado nesta imobiliária')
+        throw new Error('Email já cadastrado')
       }
     }
     
@@ -395,7 +395,7 @@ export async function updateClienteByUuid(uuid: string, tenantId: string, data: 
         [data.cpf, tenantId, uuid]
       )
       if (existingCPF.rows.length > 0) {
-        throw new Error('CPF já cadastrado nesta imobiliária')
+        throw new Error('CPF já cadastrado')
       }
     }
     
@@ -406,7 +406,7 @@ export async function updateClienteByUuid(uuid: string, tenantId: string, data: 
         [data.email, tenantId, uuid]
       )
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado nesta imobiliária')
+        throw new Error('Email já cadastrado')
       }
     }
     

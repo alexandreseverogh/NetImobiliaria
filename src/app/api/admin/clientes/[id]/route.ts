@@ -148,13 +148,13 @@ export async function PUT(
   } catch (error: any) {
     console.error('Erro ao atualizar cliente:', error)
     
-    if (error.message === 'CPF já cadastrado' || error.message === 'Email já cadastrado') {
+    if (error.message?.startsWith('CPF já cadastrado') || error.message?.startsWith('Email já cadastrado') || error.message === 'CPF Inválido') {
       return NextResponse.json(
         { error: error.message },
-        { status: 409 }
+        { status: error.message === 'CPF Inválido' ? 400 : 409 }
       )
     }
-    
+
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

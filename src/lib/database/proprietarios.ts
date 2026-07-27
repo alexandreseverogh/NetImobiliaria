@@ -400,7 +400,7 @@ export async function createProprietario(data: CreateProprietarioData, isAdmin: 
     if (data.cpf) {
       const existingCPF = await pool.query('SELECT 1 FROM proprietarios WHERE cpf = $1 AND tenant_id = $2', [data.cpf, data.tenant_id])
       if (existingCPF.rows.length > 0) {
-        throw new Error('CPF já cadastrado nesta imobiliária')
+        throw new Error('CPF já cadastrado')
       }
     }
 
@@ -408,7 +408,7 @@ export async function createProprietario(data: CreateProprietarioData, isAdmin: 
     if (data.cnpj) {
       const existingCNPJ = await pool.query('SELECT 1 FROM proprietarios WHERE cnpj = $1 AND tenant_id = $2', [data.cnpj, data.tenant_id])
       if (existingCNPJ.rows.length > 0) {
-        throw new Error('CNPJ já cadastrado nesta imobiliária')
+        throw new Error('CNPJ já cadastrado')
       }
     }
 
@@ -416,7 +416,7 @@ export async function createProprietario(data: CreateProprietarioData, isAdmin: 
     if (data.email) {
       const existingEmail = await pool.query('SELECT 1 FROM proprietarios WHERE email = $1 AND tenant_id = $2', [data.email, data.tenant_id])
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado nesta imobiliária')
+        throw new Error('Email já cadastrado')
       }
     }
 
@@ -486,7 +486,7 @@ export async function updateProprietarioByUuid(uuid: string, tenantId: string, d
         [data.cpf, tenantId, uuid]
       )
       if (existingCPF.rows.length > 0) {
-        throw new Error('CPF já cadastrado nesta imobiliária')
+        throw new Error('CPF já cadastrado')
       }
     }
 
@@ -497,7 +497,7 @@ export async function updateProprietarioByUuid(uuid: string, tenantId: string, d
         [data.cnpj, tenantId, uuid]
       )
       if (existingCNPJ.rows.length > 0) {
-        throw new Error('CNPJ já cadastrado nesta imobiliária')
+        throw new Error('CNPJ já cadastrado')
       }
     }
 
@@ -508,7 +508,7 @@ export async function updateProprietarioByUuid(uuid: string, tenantId: string, d
         [data.email, tenantId, uuid]
       )
       if (existingEmail.rows.length > 0) {
-        throw new Error('Email já cadastrado nesta imobiliária')
+        throw new Error('Email já cadastrado')
       }
     }
 
