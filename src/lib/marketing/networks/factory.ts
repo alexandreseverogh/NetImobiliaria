@@ -3,6 +3,7 @@ import { MetaAdsAdapter, MetaCredentials } from './meta/metaAdsAdapter';
 import { GoogleAdsAdapter, GoogleCredentials } from './google';
 import { FakeMetaAdapter } from './fake/FakeMetaAdapter';
 import { FakeGoogleAdapter } from './fake/FakeGoogleAdapter';
+import { FakeTikTokAdapter } from './fake/FakeTikTokAdapter';
 import type { AdNetworkService, NetworkCode, NetworkCredentials } from './types';
 import prisma from '../prisma';
 
@@ -51,8 +52,14 @@ export function buildNetworkService(
         customer_id:     credentials.customer_id || '',
       } as GoogleCredentials);
 
-    case 'linkedin':
     case 'tiktok':
+      // Adapter real (TikTokAdsAdapter) é T2 do plano — ainda não implementado. O fake já
+      // funciona (docs/PLANO_TIKTOK.md T1), pra viabilizar toda a Trilha F/G de teste sem
+      // depender de aprovação de app no TikTok for Business.
+      if (credentials.access_token === SIMULATED_MARKER) return new FakeTikTokAdapter();
+      throw new Error(`Rede "${code}" ainda não está implementada (adapter real pendente — ver docs/PLANO_TIKTOK.md T2).`);
+
+    case 'linkedin':
       throw new Error(`Rede "${code}" ainda não está implementada. Disponível na FASE 11.`);
 
     default:
