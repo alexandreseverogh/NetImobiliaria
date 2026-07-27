@@ -1,13 +1,13 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-26 — Trilha B do teste rigoroso em andamento (usuário testando
-> manualmente item a item, vários bugs reais achados e corrigidos no processo — ver lista
-> completa na entrada "Sessão 2026-07-25/26" abaixo). Durante a Trilha B (item "Visão 4"), o
-> usuário perguntou por que "Negócios Fechados" nunca sai de zero pra campanha Google — isso
-> levou a uma feature nova, fora do escopo original da Trilha B mas decidida com o usuário:
-> **webhook do Lead Form nativo do Google Ads**, implementado, testado localmente e testado
-> via túnel ngrok real (ponta a ponta, HTTP público → nosso servidor). **Teste com conta real
-> do Google Ads segue pendente do deploy** — ver seção própria abaixo com o passo a passo.
+> **Atualizado em:** 2026-07-27 — Trilha B concluída (todos os itens do roteiro manual
+> confirmados, inclusive 3 bugs reais achados e corrigidos: disclaimer de "Conversões"
+> generalizado Meta+Google, CPL nulo em 2 telas, filtro de rede na Visão 4). Depois, fora do
+> escopo original mas confirmado com o usuário, uma leva de bugs reais de multi-tenant na
+> validação de CPF/e-mail de clientes/proprietários (nunca funcionava — faltava tenantId) +
+> gate de módulo na tela pós-cadastro de cliente. Agora em **Trilha C** (dado novo, cenários
+> extensos com cliente de teste dedicado) — Fase 0 (seed de 5 campanhas) concluída e corrigida
+> (ver "Última tarefa concluída" abaixo — lição real sobre timestamp de `Insight.date`).
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar — e também ao retomar após
 > interrupção, antes de continuar, para não repetir o mesmo hiato de documentação.
@@ -16,20 +16,70 @@
 
 ## Tarefa em andamento
 
-**Trilha B do teste rigoroso** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`) — roteiro manual
-de verificação em todas as telas, usuário testando item a item via screenshot real. Itens já
-confirmados: Dashboard (Visão Executiva com filtro de rede Google), Portfolio, Auditoria, Briefing
-Estratégico, Desperdício de Verba, Insights da IA, Tracking Health, "Todos os Clientes" (Inteligência
-de Segmento), Leads Capturados. **Próximo item real: trocar o filtro de rede pra "Meta"** — leads
-devem cair pra valores próximos de zero (as 4 campanhas Meta genuinamente sem lead na Janela A),
-sem erro nem "undefined". Trilha C (dado novo, cenários de teste extensos) e Trilha D/E (conta real
-Google/simulação) seguem não iniciadas — ver documento completo.
+**Trilha C do teste rigoroso** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`) — cenários de
+dado novo com cliente de teste dedicado (`90847892-3328-46c5-973c-c3257a5ac86a`, tenant Marketing
+Digital). **Fase 0 concluída**: 5 campanhas semeadas (`prisma/seed-trilha-c.sql`) — Cenário 1
+Sucesso (Meta, 5 dias, R$300, 0 leads ainda), Cenário 2 Crítico (Meta, 4 dias, R$400, 0 leads
+permanente), Cenário 3 Atenção (Google, 4 dias, R$520, 8 conversões via `Insight.conversions`,
+CPL R$65), Cenário 4 Site Próprio (Meta, CTA `LEARN_MORE`, 3 dias, R$150), Cenário 5 Fadiga (Meta,
+6 dias, R$250, frequência crescente até 3.9x, calibrada pra ficar entre `frequency_max` e
+`frequency_max*1.3` — dispara ALERT simples, não REFRESH_CREATIVE). Confirmado ao vivo via
+`insights/ai` que as 5 disparam exatamente a regra esperada (4x PAUSE "Gasto sem resultados" +
+1x OPTIMIZE CPL + 1x ALERT fadiga, sem nenhuma SCALE ainda — só depois da Fase 1 injetar leads
+reais no Cenário 1).
 
-**Pendência real, não-bloqueante, desta sessão:** testar o webhook do Lead Form do Google
-(`/api/public/google-leads/webhook`, ver seção própria abaixo) com uma conta REAL do Google Ads,
-depois que a aplicação estiver publicada (deploy pendente, discutido em sessões anteriores).
+**Próximo passo real: Fase 1** — injetar os leads reais de cada cenário: 15 cliques WhatsApp via
+`/api/r/trilha-c-sucesso-track` (Cenário 1, deve virar SCALE), Cenário 2 fica intocado (0 leads
+de propósito), Cenário 3 já está completo (conversões do Google), 3 submissões via
+`POST /api/public/cta/ingest?ref=trilha-c-site-track` (Cenário 4), 2 cliques WhatsApp via
+`/api/r/trilha-c-fadiga-track` (Cenário 5). Depois: Fase 2 (CRM/Kanban, negócio fechado → Visão
+4), Fase 3 (Mensageria), Fase 4 (dashboards completos), Fase 5 (Agentes/cron/briefing), limpeza
+final (remover as 5 campanhas + todo dado gerado, confirmando 0 resíduo).
+
+**Pendência real, não-bloqueante:** testar o webhook do Lead Form do Google
+(`/api/public/google-leads/webhook`) com uma conta REAL do Google Ads, depois que a aplicação
+estiver publicada (deploy pendente, discutido em sessões anteriores).
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-27 — Trilha C Fase 0: seed de 5 campanhas + bug real no próprio seed (não no app) ✅
+
+**Contexto:** iniciada a Trilha C do teste rigoroso — 5 cenários de campanha desenhados à mão
+contra os benchmarks reais do segmento Imobiliário (`cpl_ideal=35, cpl_critical=80, ctr_min=0.8,
+frequency_max=3.0, spend_no_lead=50, min_days_running=3`), num cliente de teste dedicado criado
+pela própria UI (já corrigida nesta sessão — ver entrada anterior). Cenário 5 (Fadiga) incluído a
+pedido explícito do usuário antes de começar.
+
+**Bug real encontrado, mas na MINHA seed, não na aplicação:** depois de aplicar
+`prisma/seed-trilha-c.sql` e confirmar os totais batendo exatos via SQL direto, o endpoint
+`GET /insights/ai` retornava números de gasto sistematicamente MENORES que o total semeado (ex.:
+Cenário 1 mostrava R$240 em vez de R$300) e o Cenário 4 (Site Próprio, só 3 dias de dado) estava
+**totalmente ausente** da lista de insights. Investigação (`aiInsights.ts`, linha ~429):
+`insightWhere.date.lte = new Date(filters.endDate)` — `new Date("2026-07-26")` vira
+`2026-07-26T00:00:00.000Z` (meia-noite). Minha seed tinha usado literais `'2026-07-26 12:00:00'`
+(meio-dia, por legibilidade) — esse horário fica DEPOIS da meia-noite do filtro `lte`, então o
+último dia de cada campanha era silenciosamente excluído. Para o Cenário 4, perder 1 dos 3 dias
+derrubou `daysRunning` (=`insights.length`) de 3 pra 2, abaixo do `min_days_running=3` — por isso
+nenhuma regra disparava pra ele.
+
+**Confirmado que não é bug real da aplicação:** dado sincronizado de verdade
+(`agentMonitor.ts:225`, `date: new Date(day.date)`) vem de uma string tipo `"2026-07-26"` da API
+do Meta/Google — sem hora, vira meia-noite UTC também, batendo exatamente com o `lte` do filtro.
+O desalinhamento foi 100% um artefato da minha escolha de horário na seed, não um bug latente na
+lógica de filtro de datas da plataforma.
+
+**Corrigido:** `UPDATE "Insight" SET date = date_trunc('day', date) WHERE "campaignId" IN (...)`
+— normaliza as 22 linhas semeadas pra meia-noite, igual ao padrão real de sincronização.
+Reconfirmado ao vivo: todos os 5 cenários agora aparecem com o gasto exato semeado e disparam
+exatamente a regra prevista no plano (incluindo o Cenário 4, antes ausente).
+
+**Lição registrada:** ao semear dado de teste pra `Insight.date` (ou qualquer campo `DateTime`
+comparado via `gte`/`lte` com uma string de data pura vinda de query param), usar sempre meia-noite
+(`date_trunc('day', ...)` ou literal sem componente de hora) — nunca um horário "legível" como
+meio-dia — pra não introduzir um desalinhamento artificial com o filtro que não existe no dado
+real sincronizado pela plataforma.
+
+---
 
 ### Sessão 2026-07-25/26 — Webhook do Lead Form nativo do Google Ads (recebimento) ✅
 
