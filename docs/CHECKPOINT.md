@@ -23,13 +23,28 @@
 **Implementação da rede TikTok** (`docs/PLANO_TIKTOK.md`) — plano completo escrito e aprovado
 em 2026-07-27 (auditoria de código encontrou 3 achados que mudam o desenho vs. o esboço antigo
 de `PLANO_GOOGLE_TIKTOK.md` §Fase 2: benchmarks sem dimensão de rede, bug real de rótulo
-meta/google no dashboard, `REALLOCATE_BUDGET` como casca nunca preenchida). **T0 concluído**
-(commit `0b877b3`): `system_benchmarks.network_id` + cascata de 6 camadas no
+meta/google no dashboard, `REALLOCATE_BUDGET` como casca nunca preenchida).
+
+**T0 concluído** (commit `0b877b3`): `system_benchmarks.network_id` + cascata de 6 camadas no
 `benchmarkResolver`, `aiInsights.ts`/`wastedSpendService.ts` resolvendo benchmark por
 (segmento, rede) da campanha, fix do ternário binário em `CommandCenterView.tsx`. Zero
-regressão confirmada ao vivo contra dado real (Meta+Google). **Próximo passo: T1**
-(`FakeTikTokAdapter` + `networkLeadSource.tiktok` + seed de `network_defaults.tiktok`) — os
-dois pré-requisitos bloqueantes restantes antes de qualquer trabalho de adapter real ou UI.
+regressão confirmada ao vivo contra dado real (Meta+Google).
+
+**T1 concluído** (commit `ebb7ecd`): `FakeTikTokAdapter` (implementa `AdNetworkService` direto,
+sem precisar do truque de herança do fake do Google), `networkLeadSource.tiktok = 'cta_engagement'`
+(decisão deliberada — TikTok nasce com atribuição de receita real, sem repetir o débito de
+identidade que travou a Visão 4 do Google), `network_defaults.tiktok` seedado no segmento
+Imobiliário com `instant_form_supported=false` (guardrail pro Wizard, T3). Smoke test ao vivo:
+cron real criou `Insight` via upsert de verdade contra o fake, `insights/ai` processou a
+campanha TikTok sem erro e confirmou lead via `cta_engagement` (não `insight_conversions`).
+Dado de teste removido, 0 resíduo.
+
+**Próximo passo: T2** (adapter real do TikTok — TikTok Business API v1.3, `fetch` nativo em vez
+de SDK, mesmo precedente do projeto com o pacote `openai` quebrando no runtime do Next) — fora
+do escopo imediato, depende de app aprovado no TikTok for Business. **Alternativa mais valiosa
+de avançar agora, sem depender de aprovação externa:** T4 (motor de realocação cross-rede,
+docs/PLANO_TIKTOK.md §8) — não depende do TikTok real, já opera sobre Meta×Google desde o
+primeiro dia.
 
 ## Penúltima tarefa concluída
 
