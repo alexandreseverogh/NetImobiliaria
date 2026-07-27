@@ -43,17 +43,27 @@ export const SEGMENT_SEED_DEFAULTS: Record<string, { value: number; label: strin
 };
 
 /**
- * Resolves a single benchmark metric following 4-layer precedence:
- *   1. client_benchmark_overrides  (most specific)
- *   2. tenant_benchmark_overrides
- *   3. system_benchmarks for the resolved segment
- *   4. ERROR — segmento não configurado (nunca deveria chegar aqui em produção)
+ * Resolves a single benchmark metric following precedence (5 layers quando networkCode é
+ * informado, 4 quando não é — retrocompatível por construção):
+ *   1. client_benchmark_overrides  (most specific — sem dimensão de rede, ver nota abaixo)
+ *   2. tenant_benchmark_overrides  (idem)
+ *   3. system_benchmarks para o segmento resolvido, NA REDE informada (docs/PLANO_TIKTOK.md §5.1)
+ *   4. system_benchmarks para o segmento resolvido, sem rede (comportamento histórico)
+ *   5. ERROR — segmento não configurado (nunca deveria chegar aqui em produção)
+ *
+ * Nota de escopo (T0, 2026-07-27): client_benchmark_overrides/tenant_benchmark_overrides
+ * deliberadamente NÃO ganharam dimensão de rede nesta rodada — são customizações raras e
+ * opt-in (já têm UI/API própria); o achado bloqueante (cpl_ideal do Meta aplicado ao TikTok)
+ * vive na camada 3/4 (o default do segmento, que toda campanha nova usa antes de qualquer
+ * override manual existir). Camada de rede em overrides fica como extensão natural futura,
+ * se um tenant precisar customizar benchmark por rede além do default do segmento.
  */
 export async function resolveBenchmark(
   metricKey: string,
   tenantId: string,
   segmentId: string | null,
   clientId?: string | null,
+  networkCode?: string | null,
 ): Promise<number> {
   const pool = getPool();
 
@@ -75,17 +85,32 @@ export async function resolveBenchmark(
   );
   if (tenantRes.rows[0]) return parseFloat(tenantRes.rows[0].value);
 
-  // Layer 3 — segment benchmark (source of truth por segmento de negócio)
   if (segmentId) {
+    // Layer 3 — benchmark do segmento NA REDE informada (docs/PLANO_TIKTOK.md §5.1). Subquery
+    // com código de rede inválido/ausente resolve NULL, e "network_id = NULL" nunca casa em
+    // SQL — cai graciosamente pra camada 4, nunca lança erro.
+    if (networkCode) {
+      const segNetRes = await pool.query(
+        `SELECT value FROM public.system_benchmarks
+         WHERE segment_id = $1::uuid AND metric_key = $2
+           AND network_id = (SELECT id FROM public.ad_networks WHERE code = $3)
+         LIMIT 1`,
+        [segmentId, metricKey, networkCode],
+      );
+      if (segNetRes.rows[0]) return parseFloat(segNetRes.rows[0].value);
+    }
+
+    // Layer 4 — benchmark do segmento sem rede (comportamento histórico, 100% preservado —
+    // toda linha existente antes desta migração tem network_id IS NULL).
     const segRes = await pool.query(
       `SELECT value FROM public.system_benchmarks
-       WHERE segment_id = $1::uuid AND metric_key = $2 LIMIT 1`,
+       WHERE segment_id = $1::uuid AND metric_key = $2 AND network_id IS NULL LIMIT 1`,
       [segmentId, metricKey],
     );
     if (segRes.rows[0]) return parseFloat(segRes.rows[0].value);
   }
 
-  // Layer 4 — chave ausente no banco: segmento não está totalmente configurado.
+  // Layer 5 — chave ausente no banco: segmento não está totalmente configurado.
   // Isso NÃO deveria acontecer em produção — configure via /admin/master/segments → Parâmetros.
   console.error(
     `[benchmarkResolver] BENCHMARK NÃO CONFIGURADO: "${metricKey}" | segment=${segmentId ?? 'null'} | tenant=${tenantId}. ` +
@@ -101,9 +126,10 @@ export async function resolveBenchmarks(
   tenantId: string,
   segmentId: string | null,
   clientId?: string | null,
+  networkCode?: string | null,
 ): Promise<Record<string, number>> {
   const entries = await Promise.all(
-    keys.map(async (key) => [key, await resolveBenchmark(key, tenantId, segmentId, clientId)] as const),
+    keys.map(async (key) => [key, await resolveBenchmark(key, tenantId, segmentId, clientId, networkCode)] as const),
   );
   return Object.fromEntries(entries);
 }

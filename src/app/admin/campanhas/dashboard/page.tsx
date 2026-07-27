@@ -12,7 +12,7 @@ import {
 } from '@/lib/marketing-api';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 import type { SegmentDashboardResponse } from '@/app/api/admin/campanhas/dashboard/segment/route';
-import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, OBJECTIVES } from '@/lib/marketing-utils';
+import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, OBJECTIVES, NETWORK_LABELS } from '@/lib/marketing-utils';
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
 import { FunnelChart } from '@/components/marketing/charts/FunnelChart';
 import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelChart';
@@ -42,8 +42,6 @@ import { KpiCard, HookRateKpiCard } from '@/components/marketing/dashboard/KpiCa
 // ─── Palettes ─────────────────────────────────────────────────────────────────
 const PALETTE_DARK  = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#60a5fa', '#e879f9'];
 const PALETTE_LIGHT = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899'];
-// PARTE D1 — rótulo amigável por código de rede (ad_networks.code)
-const NETWORK_LABELS: Record<string, string> = { meta: 'Meta', google: 'Google', tiktok: 'TikTok', linkedin: 'LinkedIn' };
 import { CommandCenterView } from '@/components/marketing/dashboard/CommandCenterView';
 import { AnalyticsView } from '@/components/marketing/dashboard/AnalyticsView';
 import { DeepDiveView } from '@/components/marketing/dashboard/DeepDiveView';

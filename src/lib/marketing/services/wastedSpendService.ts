@@ -2,6 +2,7 @@ import prisma from '../prisma';
 import { resolveSegment } from '../../intelligence/segmentResolver';
 import { resolveBenchmarks } from '../../intelligence/benchmarkResolver';
 import { getLeadEvents, leadsByCampaign as groupLeadsByCampaign } from './leadEvents';
+import { resolveCampaignNetworkCodes } from '../networkFilterUtils';
 
 // Máscara monetária pt-BR (R$ 99.999,99) para as strings descritivas do relatório
 const fmtBRL = (v: number) =>
@@ -47,12 +48,10 @@ export async function calculateWastedSpend(
   const realClientId = (clientId && clientId !== 'own' && clientId !== 'segment') ? clientId : null;
 
   const segment = await resolveSegment(tenantId, realClientId ?? undefined);
-  const b = await resolveBenchmarks(
-    ['cpl_ideal', 'cpl_critical', 'ctr_min', 'frequency_max', 'spend_no_lead', 'min_leads_scale', 'min_days_running'],
-    tenantId,
-    segment?.id ?? null,
-    realClientId,
-  );
+  const BENCHMARK_KEYS = ['cpl_ideal', 'cpl_critical', 'ctr_min', 'frequency_max', 'spend_no_lead', 'min_leads_scale', 'min_days_running'];
+  // Benchmark "sem rede" — usado no relatório vazio e como fallback de rótulo antes de saber
+  // quais redes existem no escopo (as explicações genéricas de categoria usam este).
+  const b = await resolveBenchmarks(BENCHMARK_KEYS, tenantId, segment?.id ?? null, realClientId);
 
   const campWhere: any = { tenantId };
   if (clientId === 'own')   campWhere.clientId = null;        // Minha Empresa → campanhas próprias
@@ -61,12 +60,29 @@ export async function calculateWastedSpend(
 
   const campaigns = await prisma.campaign.findMany({
     where: campWhere,
-    select: { id: true, name: true },
+    select: { id: true, name: true, networkId: true },
   });
 
   if (campaigns.length === 0) return emptyReport(tenantId, clientId, period, b);
 
   const campaignIds = campaigns.map(c => c.id);
+
+  // docs/PLANO_TIKTOK.md §7.3 — cpl_ideal/spend_no_lead/etc calibrados numa rede não valem
+  // igual pra outra (achado bloqueante: TikTok julgado pelo padrão do Meta apareceria inflado
+  // em HIGH_CPL_SPEND/ZERO_LEADS_SPEND). Benchmark resolvido por rede, com cache — 1 resolução
+  // por rede distinta no escopo, não por campanha.
+  const networkByCampaignId = await resolveCampaignNetworkCodes(campaigns as any);
+  const benchmarksByNetwork = new Map<string, Record<string, number>>();
+  benchmarksByNetwork.set('meta', b); // já resolvido acima; evita 1 chamada redundante pro caso comum
+  async function benchmarksForNetwork(network: string): Promise<Record<string, number>> {
+    if (benchmarksByNetwork.has(network)) return benchmarksByNetwork.get(network)!;
+    const bm = await resolveBenchmarks(BENCHMARK_KEYS, tenantId, segment?.id ?? null, realClientId, network)
+      .catch(() => b); // rede sem benchmark próprio configurado → cai no default do segmento
+    benchmarksByNetwork.set(network, bm);
+    return bm;
+  }
+  const uniqueNetworks = Array.from(new Set(Array.from(networkByCampaignId.values())));
+  await Promise.all(uniqueNetworks.map(n => benchmarksForNetwork(n)));
 
   // Fonte única de lead (WhatsApp + formulário + conversão real do Google) — antes só contava
   // WHATSAPP_CLICK, o que classificava campanha de Google/formulário como "gasto sem lead"
@@ -88,6 +104,7 @@ export async function calculateWastedSpend(
   type Stats = {
     id: string; name: string; totalSpend: number; leads: number;
     avgFrequency: number; daysRunning: number; cpl: number;
+    bench: Record<string, number>;
   };
 
   const stats: Stats[] = insightGroups
@@ -95,6 +112,7 @@ export async function calculateWastedSpend(
     .map(g => {
       const leads      = leadsByCampaign.get(g.campaignId) ?? 0;
       const totalSpend = g._sum.spend ?? 0;
+      const network    = networkByCampaignId.get(g.campaignId) ?? 'meta';
       return {
         id: g.campaignId,
         name: campaignMap.get(g.campaignId) ?? g.campaignId,
@@ -103,6 +121,7 @@ export async function calculateWastedSpend(
         avgFrequency: g._avg.frequency ?? 0,
         daysRunning:  g._count.id,
         cpl: leads > 0 ? totalSpend / leads : 0,
+        bench: benchmarksByNetwork.get(network) ?? b,
       };
     });
 
@@ -114,6 +133,7 @@ export async function calculateWastedSpend(
   const classified = new Set<string>();
 
   for (const s of stats) {
+    const b = s.bench; // benchmark da REDE desta campanha (docs/PLANO_TIKTOK.md §7.3)
     // ZERO_LEADS_SPEND — most critical
     if (
       s.leads === 0 &&

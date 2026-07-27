@@ -3,7 +3,7 @@ import pool from '@/lib/database/connection';
 import { resolveBenchmarks, BenchmarkMap } from '../../intelligence/benchmarkResolver';
 import { computeSignalsForCampaign, type NormalizedSignals } from './signalEngine';
 import { resolveCampaignIdsBySegment } from '../segmentUtils';
-import { filterCampaignsByNetwork } from '../networkFilterUtils';
+import { filterCampaignsByNetwork, resolveCampaignNetworkCodes } from '../networkFilterUtils';
 import { getLeadEvents, sumLeads } from './leadEvents';
 
 const S = 'campanhasmarketingdigital';
@@ -401,24 +401,36 @@ export async function generateAiInsights(
     ? await mapCampaignSegments(campaigns.map(c => c.id), tenantId)
     : new Map<string, { segmentId: string | null; segmentName: string }>();
 
-  const benchmarksBySegment = new Map<string, BenchmarkMap>();
+  // docs/PLANO_TIKTOK.md §5.1/§7.2 — benchmark também varia por REDE (cpl_ideal calibrado em
+  // Meta não vale para TikTok/Google). Cache agora é (segmento, rede), não só segmento — sem
+  // isso toda campanha de uma rede nova seria julgada pelo padrão de outra.
+  const networkByCampaignId = await resolveCampaignNetworkCodes(campaigns as any);
+
+  const benchmarksBySegmentNetwork = new Map<string, BenchmarkMap>();
   if (tenantId) {
-    const uniqueSegmentIds = Array.from(
-      new Set(Array.from(campaignSegments.values()).map(v => v.segmentId).filter(Boolean) as string[]),
-    );
-    await Promise.all(uniqueSegmentIds.map(async segId => {
-      const bm = await resolveBenchmarks(BENCHMARK_KEYS, tenantId, segId, clientId).catch((err) => {
-        console.error('[aiInsights] resolveBenchmarks falhou para segment', segId, err);
+    const uniquePairs = new Map<string, { segId: string; network: string }>();
+    for (const c of campaigns) {
+      const seg = campaignSegments.get(c.id);
+      if (!seg?.segmentId) continue;
+      const network = networkByCampaignId.get(c.id) ?? 'meta';
+      uniquePairs.set(`${seg.segmentId}::${network}`, { segId: seg.segmentId, network });
+    }
+    await Promise.all(Array.from(uniquePairs.entries()).map(async ([cacheKey, { segId, network }]) => {
+      const bm = await resolveBenchmarks(BENCHMARK_KEYS, tenantId, segId, clientId, network).catch((err) => {
+        console.error('[aiInsights] resolveBenchmarks falhou para segment', segId, 'rede', network, err);
         return {} as BenchmarkMap;
       });
-      benchmarksBySegment.set(segId, bm);
+      benchmarksBySegmentNetwork.set(cacheKey, bm);
     }));
   }
 
   function benchmarksFor(campaignId: string): BenchmarkMap {
     const seg = campaignSegments.get(campaignId);
-    if (seg?.segmentId && benchmarksBySegment.has(seg.segmentId)) {
-      return benchmarksBySegment.get(seg.segmentId)!;
+    if (!seg?.segmentId) return {} as BenchmarkMap;
+    const network = networkByCampaignId.get(campaignId) ?? 'meta';
+    const cacheKey = `${seg.segmentId}::${network}`;
+    if (benchmarksBySegmentNetwork.has(cacheKey)) {
+      return benchmarksBySegmentNetwork.get(cacheKey)!;
     }
     // Segmento não mapeado ou não configurado — retorna vazio; as regras usarão valor 0
     // e o benchmarkResolver já logou o erro. Configure via /admin/master/segments → Parâmetros.

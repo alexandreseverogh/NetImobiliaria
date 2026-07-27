@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { SparklesIcon, HeartIcon, BoltIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
-import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn } from '@/lib/marketing-utils';
+import { formatCurrency, formatCurrencyCompact, formatNumber, formatPercent, cn, networkLabel } from '@/lib/marketing-utils';
 import { KpiCard, HookRateKpiCard } from '@/components/marketing/dashboard/KpiCard';
 import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart';
 import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelChart';
@@ -173,14 +173,14 @@ export function CommandCenterView({
         <KpiCard isDark={isDark} label="Gasto Total" value={formatCurrencyCompact(t.spend)} fullValue={formatCurrency(t.spend)} delta={d?.spend} color={isDark ? 'text-slate-100' : 'text-slate-900'} invertDelta 
           breakdown={
             t.spendByNetwork && Object.keys(t.spendByNetwork).length > 1
-              ? Object.entries(t.spendByNetwork).map(([net, val]) => ({ label: net === 'meta' ? 'Meta Ads' : 'Google Ads', value: formatCurrencyCompact(val) }))
+              ? Object.entries(t.spendByNetwork).map(([net, val]) => ({ label: networkLabel(net), value: formatCurrencyCompact(val) }))
               : undefined
           }
         />
         <KpiCard isDark={isDark} label="Leads" value={formatNumber(data.currentPeriod.leadCount || 0)} delta={d?.leads} color={isDark ? 'text-indigo-400' : 'text-indigo-600'} 
           breakdown={
             data.leadsByNetwork && Object.keys(data.leadsByNetwork).length > 1
-              ? Object.entries(data.leadsByNetwork).map(([net, val]) => ({ label: net === 'meta' ? 'Meta Ads' : 'Google Ads', value: formatNumber(val) }))
+              ? Object.entries(data.leadsByNetwork).map(([net, val]) => ({ label: networkLabel(net), value: formatNumber(val) }))
               : undefined
           }
         />
@@ -188,7 +188,7 @@ export function CommandCenterView({
           breakdown={
             data.cplByNetwork && Object.keys(data.cplByNetwork).length > 1
               ? Object.entries(data.cplByNetwork).map(([net, v]) => ({
-                  label: net === 'meta' ? 'Meta Ads' : 'Google Ads',
+                  label: networkLabel(net),
                   value: v.cpl !== null ? formatCurrencyCompact(v.cpl) : '—',
                 }))
               : undefined

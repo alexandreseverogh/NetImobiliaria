@@ -36,6 +36,21 @@ export function formatDate(date: string): string {
   return new Date(date).toLocaleDateString('pt-BR');
 }
 
+/**
+ * Rótulo de exibição por código de rede (public.ad_networks.code). Fonte única — antes
+ * `dashboard/page.tsx` e `agentNotificador.ts` mantinham cópias próprias deste mapa, e
+ * `CommandCenterView.tsx` nem usava um mapa: tinha um ternário binário
+ * (`net === 'meta' ? 'Meta Ads' : 'Google Ads'`) que rotulava QUALQUER rede que não fosse
+ * Meta como "Google Ads" — TikTok apareceria com o nome errado nos 3 KPIs de breakdown por
+ * rede (docs/PLANO_TIKTOK.md, Achado 2). `networkLabel()` sempre retorna algo sensato mesmo
+ * pra um código de rede desconhecido (capitaliza a 1ª letra), nunca finge que é outra rede.
+ */
+export const NETWORK_LABELS: Record<string, string> = { meta: 'Meta', google: 'Google', tiktok: 'TikTok', linkedin: 'LinkedIn' };
+
+export function networkLabel(code: string): string {
+  return NETWORK_LABELS[code] ?? (code.charAt(0).toUpperCase() + code.slice(1));
+}
+
 export const OBJECTIVES = [
   { value: 'OUTCOME_TRAFFIC', label: 'Trafego', icon: '🌐' },
   { value: 'OUTCOME_SALES', label: 'Vendas', icon: '💰' },
