@@ -50,19 +50,22 @@ ainda não iniciadas.
    na hora (`Campaign.status` real mudou pra `PAUSED`); SCALE do Cenário 1 ficou
    `PENDING_APPROVAL` com PIN de 6 dígitos. Não é bug de código — só o texto do CLAUDE.md que
    estava errado, corrigido nesta sessão.
-3. **Achado NÃO resolvido, registrado honestamente** — `POST /api/agent/approve/[id]` com PIN
-   correto pra uma ação SCALE retorna **500 com corpo HTTP completamente vazio** (sem o HTML de
-   erro que o código deveria gerar) quando a execução real (chamada à API do Meta pra mudar
-   budget) falha. Confirmado que a lógica de PIN/transição de status FUNCIONA corretamente (a
-   `AgentAction` reverte certinho pra `PENDING_APPROVAL` depois da falha — mesmo padrão do
-   catch), mas a resposta HTTP que o usuário veria (um gestor clicando o link do WhatsApp) fica
-   em branco em vez de mostrar a mensagem de erro amigável que o código constrói. Tentativas de
-   diagnosticar a causa exata (debug inline + escrita em arquivo) não conseguiram capturar o
-   stack real — pode ser efeito colateral de rodar sem credenciais reais de Meta Ads neste
-   ambiente (mesma limitação documentada em várias sessões anteriores: "Sync Meta real" ainda
-   pendente), ou um bug genuíno na formatação da resposta de erro. **Vale investigar numa sessão
-   futura com acesso ao console do servidor** — não é bloqueante pra Trilha C (o REJECT, testado
-   em paralelo, funciona perfeitamente ponta a ponta).
+3. **Achado da rodada anterior, RESOLVIDO nesta sessão (não era limitação de ambiente)** —
+   `POST /api/agent/approve/[id]` retornava **500 com corpo HTTP completamente vazio** pra
+   QUALQUER ação ofensiva (SCALE/REFRESH_CREATIVE/ADJUST_AUDIENCE/REALLOCATE_BUDGET), com PIN
+   certo ou errado, com ou sem credenciais Meta — não era "falta de credencial real" como
+   suspeitado antes. Causa raiz real: `getAction()` fazia `WHERE a.id = $1::uuid` contra
+   `AgentAction.id`, que é coluna **TEXT** — Postgres rejeita a comparação
+   (`operator does not exist: text = uuid`) antes mesmo do try/catch da rota rodar, e o handler
+   padrão de erro do Next.js devolve 500 vazio. Isso quebrava tanto o `GET` (formulário de PIN,
+   o link que o gestor clica no WhatsApp) quanto o `POST` (execução) — a rota de aprovação via
+   WhatsApp nunca funcionou, desde que foi escrita. `/api/agent/reject` nunca teve esse bug (usa
+   Prisma `$queryRaw` com interpolação de tag, sem cast manual). Isolado criando uma campanha/
+   ação sintéticas + logging temporário (revertido depois) que confirmou `getAction()` nunca
+   completava. Corrigido: `WHERE a.id = $1` (sem cast). Testado ao vivo: `GET` retorna o
+   formulário de PIN normalmente, `POST` com PIN correto executa de verdade
+   (`AgentAction.status='EXECUTED'`, `AdSet.dailyBudget` atualizado de fato no banco,
+   `budget_before=5000→budget_after=5500`). Commit `8be46a8`.
 
 **Confirmado funcionando corretamente, ponta a ponta, com dado real, em todas as 5 fases:**
 - **Fase 1** (leads reais): 15 cliques WhatsApp (Cenário 1) → `CtaInteraction`; 3 submissões via
