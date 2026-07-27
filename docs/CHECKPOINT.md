@@ -1,13 +1,17 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-27 — Trilha B concluída (todos os itens do roteiro manual
-> confirmados, inclusive 3 bugs reais achados e corrigidos: disclaimer de "Conversões"
-> generalizado Meta+Google, CPL nulo em 2 telas, filtro de rede na Visão 4). Depois, fora do
-> escopo original mas confirmado com o usuário, uma leva de bugs reais de multi-tenant na
-> validação de CPF/e-mail de clientes/proprietários (nunca funcionava — faltava tenantId) +
-> gate de módulo na tela pós-cadastro de cliente. Agora em **Trilha C** (dado novo, cenários
-> extensos com cliente de teste dedicado) — Fase 0 (seed de 5 campanhas) concluída e corrigida
-> (ver "Última tarefa concluída" abaixo — lição real sobre timestamp de `Insight.date`).
+> **Atualizado em:** 2026-07-27 — **Trilha B e Trilha C do teste rigoroso concluídas por
+> completo** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`). Trilha B: roteiro manual
+> confirmado item a item, 3 bugs reais achados e corrigidos (disclaimer de "Conversões"
+> generalizado Meta+Google, CPL nulo em 2 telas, filtro de rede na Visão 4) +, fora do escopo
+> original mas confirmado com o usuário, uma leva de bugs reais de multi-tenant na validação de
+> CPF/e-mail de clientes/proprietários (nunca funcionava — faltava tenantId) + gate de módulo na
+> tela pós-cadastro de cliente. Trilha C: 5 cenários de campanha com cliente de teste dedicado,
+> Fases 0-5 executadas ponta a ponta com dado real (leads, CRM/Kanban até negócio fechado,
+> Mensageria, todos os dashboards, Agentes) — achou e corrigiu 1 bug real (`expandEndOfDay`
+> faltando em Insights da IA/Briefing, excluía leads do próprio dia) + corrigiu documentação
+> desatualizada do Agente Autônomo no CLAUDE.md. Todo dado de teste (Trilha C) removido ao
+> final, 0 resíduo confirmado. Trilha D/E (conta real Google/simulação) seguem não iniciadas.
 > **Propósito:** Garantir continuidade entre sessões, modelos, contas e computadores.
 > **Regra:** atualizar ao final de cada sessão antes de fechar — e também ao retomar após
 > interrupção, antes de continuar, para não repetir o mesmo hiato de documentação.
@@ -16,12 +20,17 @@
 
 ## Tarefa em andamento
 
-**Trilha C do teste rigoroso** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`) — Fases 0-5
-**concluídas e verificadas ao vivo**, tudo com dado real (cliente de teste dedicado
-`90847892-3328-46c5-973c-c3257a5ac86a`, tenant Marketing Digital, 5 campanhas
-`prisma/seed-trilha-c.sql`). **Falta só a limpeza final** (remover as 5 campanhas + todo dado
-gerado nas Fases 1-5 — leads, CtaInteraction/CtaSubmission, contatos/conversas de Mensageria,
-AgentAction, o cliente de teste — confirmando 0 resíduo, mesma disciplina de sempre).
+**Nenhuma tarefa em andamento no momento.** Trilha C formalmente concluída (Fases 0-5 + limpeza
+final) — todo dado de teste removido, 0 resíduo confirmado via SQL em 12 tabelas (mensageria.
+contacts/conversations/messages, leads_kanban, marketing_eventos, leads_staging, CtaSubmission,
+CtaInteraction, AgentAction, AuditReport, StrategicBriefing, Insight, Campaign, clientes). O
+cliente de teste (`90847892-3328-46c5-973c-c3257a5ac86a`) e as 5 campanhas (`trilha-c-*`) não
+existem mais no banco. `prisma/seed-trilha-c.sql` mantido no repo (idempotente, `ON CONFLICT DO
+NOTHING`) pra reexecutar a Trilha C no futuro sem precisar redesenhar os 5 cenários do zero.
+
+**Próximo passo real, quando retomado:** Trilha D/E do roteiro (`docs/
+TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`) — teste com conta real do Google Ads / simulação —
+ainda não iniciadas.
 
 **Achados reais desta rodada (Trilha C), por ordem de descoberta:**
 1. **Bug real, não do seed — `expandEndOfDay` faltando em `aiInsights.ts`/`strategicBriefing.ts`**
