@@ -387,18 +387,24 @@ export function DashboardPage() {
     : `Últimos ${dateRange} dias`;
 
   // ─── Theme tokens ─────────────────────────────────────────────────────────
-  const bg       = isDark ? 'bg-[#080c14]' : 'bg-slate-50';
+  // DESIGN.md — "O Painel de Missão": navy-deep (#0a192f) como corpo, navy-surface (#112240)
+  // como superfície elevada de card. "A Regra Flat-By-Default": sombra só em resposta a
+  // estado (hover/modal), nunca decorativa em repouso — cardBase deixou de ter box-shadow
+  // estático.
+  const bg       = isDark ? 'bg-[#0a192f]' : 'bg-slate-50';
   const cardBase = isDark
-    ? 'bg-[rgba(13,20,33,0.92)] backdrop-blur-sm border border-[rgba(255,255,255,0.07)] shadow-[0_2px_16px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.03)]'
-    : 'bg-white border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]';
+    ? 'bg-[#112240] border border-[rgba(255,255,255,0.06)] transition-shadow hover:shadow-[0_4px_20px_rgba(0,0,0,0.25)]'
+    : 'bg-white border border-slate-200/80 transition-shadow hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)]';
   const tx       = isDark ? 'text-slate-300' : 'text-slate-900';
   const txMuted  = isDark ? 'text-slate-400' : 'text-slate-500';
   const txFaint  = isDark ? 'text-slate-500' : 'text-slate-400';
   const divider  = isDark ? 'border-[rgba(255,255,255,0.05)]' : 'border-slate-100';
 
+  // DESIGN.md — "Anel de foco (#2563eb) ... fixo, não substituível": o foco de acessibilidade
+  // é sempre azul, independente do acento de decisão (âmbar) usado no resto da tela.
   const selectBase = isDark
-    ? 'border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all'
-    : 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all';
+    ? 'border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2563eb] transition-all'
+    : 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb] transition-all';
   const selectStyle = isDark
     ? { colorScheme: 'dark' as const, backgroundColor: '#1e2a3a', color: '#cbd5e1' }
     : undefined;
@@ -469,8 +475,11 @@ export function DashboardPage() {
             {/* Sync Meta + Ajuda empilhados */}
             <div className="flex flex-col gap-1.5">
               <ExecuteGuard resource="dashboard-campanhas">
+                {/* DESIGN.md — button-primary: único botão em âmbar por contexto, no ponto de
+                    decisão real da tela (disparar uma sincronização). Sem transform/glow no
+                    hover — "o âmbar fala por si". */}
                 <button onClick={handleSync} disabled={syncing}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-indigo-500/25">
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-[#c5a028] text-[#020c1b] text-xs font-black uppercase tracking-widest rounded-xl hover:bg-[#d4af37] disabled:opacity-50 transition-colors">
                   <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
                   {syncing ? 'Sincronizando...' : 'Sync Meta'}
                 </button>
@@ -558,8 +567,8 @@ export function DashboardPage() {
                   { value: '30', label: '30d'  },
                 ].map(({ value, label }) => (
                   <button key={value} onClick={() => handleQuickDate(value)}
-                    className={cn('px-3 py-1.5 rounded-lg text-xs font-black transition-all', dateRange === value
-                      ? 'bg-indigo-600 text-white shadow-sm'
+                    className={cn('px-3 py-1.5 rounded-lg text-xs font-black transition-colors', dateRange === value
+                      ? 'bg-[#c5a028] text-[#020c1b]'
                       : isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-900')}>
                     {label}
                   </button>
@@ -628,21 +637,21 @@ export function DashboardPage() {
         
         {/* ── Layer Navigation (Tabs) ── */}
         <div className="flex p-1 mb-8 rounded-xl w-fit border transition-all" style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}>
-          <button 
+          <button
              onClick={() => setActiveLayer('COMMAND')}
-             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all', activeLayer === 'COMMAND' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'COMMAND' ? 'bg-[#c5a028] text-[#020c1b]' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
           >
              Visão Executiva
           </button>
-          <button 
+          <button
              onClick={() => setActiveLayer('ANALYTICS')}
-             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all', activeLayer === 'ANALYTICS' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'ANALYTICS' ? 'bg-[#c5a028] text-[#020c1b]' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
           >
              Análise de Dados
           </button>
           <button
              onClick={() => setActiveLayer('DEEP_DIVE')}
-             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all', activeLayer === 'DEEP_DIVE' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'DEEP_DIVE' ? 'bg-[#c5a028] text-[#020c1b]' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
           >
              Inteligência Profunda
           </button>
