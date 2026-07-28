@@ -148,11 +148,42 @@ tiktok: 'cta_engagement',
 **Risco a mitigar (documentar na UI, mesmo padrão do aviso de "Conversões" já implementado em
 `ClassicFunnelChart.tsx`):** se o cliente usar Instant Form nativo do TikTok, os leads não
 chegam por `cta_engagement` e a campanha aparece com leads=0. Duas saídas, nesta ordem:
-- **Fase 1:** aviso explícito na UI + `network_defaults.tiktok.instant_form_supported=false`,
-  e o wizard só oferece CTA de tráfego (não deixa criar campanha cujo lead a plataforma não
-  consegue ver — falha honesta em vez de silenciosa).
-- **Fase 3 (opcional):** webhook de Instant Form do TikTok, espelhando
-  `/api/public/google-leads/webhook` (já provado ponta a ponta com ngrok).
+- **Fase 1 (implementada):** aviso explícito na UI + `network_defaults.tiktok.
+  instant_form_supported=false`, e o wizard só oferece CTA de tráfego (não deixa criar campanha
+  cujo lead a plataforma não consegue ver — falha honesta em vez de silenciosa). Com isso, **é
+  estruturalmente impossível uma campanha lançada por esta plataforma gerar lead invisível** — a
+  única forma de acontecer é o cliente configurar um Instant Form manualmente direto no TikTok
+  Ads Manager dele, fora da nossa ferramenta (mesma limitação inerente a qualquer plataforma
+  terceira, não é um gap nosso).
+- **Fase 3 (T6 — bloqueada por T2, não é mais "opcional independente"):** webhook de Instant
+  Form do TikTok. **Achado real de pesquisa em 2026-07-28** (documentação oficial em
+  `business-api.tiktok.com`, navegada de verdade via browser — o fetch estático não renderiza o
+  SPA da doc): o mecanismo do TikTok é **estruturalmente diferente** do usado no
+  `/api/public/google-leads/webhook`, que este parágrafo presumia incorretamente poder
+  "espelhar". No Google, o CLIENTE configura URL+chave direto na tela dele do Google Ads —
+  self-serve, sem nenhuma dependência da nossa integração. No TikTok, a inscrição é feita por
+  NÓS chamando `POST /subscription/subscribe/` com `app_id`/`secret` do NOSSO app desenvolvedor
+  + `access_token` do CLIENTE obtido via OAuth + `advertiser_id`:
+  ```json
+  POST https://business-api.tiktok.com/open_api/v1.3/subscription/subscribe/
+  {
+    "app_id": "{{nosso app_id}}", "secret": "{{nosso app secret}}",
+    "subscribe_entity": "LEAD", "callback_url": "{{nossa URL}}",
+    "subscription_detail": { "access_token": "{{access_token do cliente via OAuth}}",
+                              "advertiser_id": "{{conta do cliente}}" }
+  }
+  ```
+  Ou seja, inscrever o webhook exige exatamente o mesmo par de pré-requisitos do T2 (app
+  aprovado + conexão OAuth funcionando com a conta do cliente) — **T6 está bloqueado por T2**,
+  não é uma entrega independente. Uma vez inscrito, o TikTok empurra o lead completo direto no
+  payload (sem precisar de uma 2ª chamada de "pull"): `object:1`, `entry[].id` (lead ID),
+  `lead_source` (`INSTANT_FORM`/`DIRECT_MESSAGE`), `page_id`/`page_name`, `advertiser_id`,
+  `campaign_id`/`campaign_name`, `adgroup_id`/`adgroup_name`, `ad_id`/`ad_name`, `create_time`,
+  e `changes[]` — array de `{field, value}` com os campos reais do formulário (`name`,
+  `phone_number`, `email`, `address`, `gender`, `scheduled_time`, etc., dinâmico conforme o
+  Instant Form configurado). **Retomar esta implementação quando T2 destravar** — nesse ponto, a
+  conexão OAuth já vai existir (é pré-requisito do próprio T2), e inscrever o webhook vira só
+  mais uma chamada usando essa mesma conexão.
 
 ---
 
@@ -524,7 +555,7 @@ analisa frames, funciona para vídeo do TikTok sem alteração.
 | **T3** | Wizard TikTok + drill-down de retenção | Não | Lançar pela plataforma |
 | **T4** | ⭐ Motor de realocação (§8) | Não | **O payoff** |
 | **T5** | Medição D+14 + histórico + circuit breaker | Não | Prova de valor |
-| **T6** | *(Opcional)* Webhook Instant Form | Não | Cobre o caso de §3 |
+| **T6** | Webhook Instant Form (**bloqueado por T2** — ver §3) | Não | Cobre o caso de §3 |
 
 **T0 e T1 são pré-requisitos absolutos.** Subir TikTok sem benchmark por rede significa entregar
 ao gestor uma rede que o próprio sistema vai recomendar matar.
@@ -532,6 +563,14 @@ ao gestor uma rede que o próprio sistema vai recomendar matar.
 **Nota:** T4 não depende do TikTok real — o motor opera sobre Meta×Google desde o primeiro dia, e
 o TikTok apenas aumenta o espaço de decisão. Pode ser antecipado se o TikTok travar em aprovação
 de app.
+
+**T6 não é mais "opcional independente" — depende estruturalmente de T2** (achado de pesquisa
+2026-07-28, detalhe completo em §3): inscrever o webhook de lead do TikTok exige uma chamada
+nossa a `POST /subscription/subscribe/` autenticada com o `access_token` do cliente via OAuth —
+a mesma conexão que T2 precisa estabelecer. Diferente do Google (cliente configura URL+chave
+self-serve, sem depender da nossa integração), aqui não tem como adiantar nada antes de T2
+destravar. Decisão do usuário (2026-07-28): implementar assim que T2 for desbloqueado, não
+antes — documentado aqui, não atacado nesta rodada.
 
 ---
 
@@ -626,7 +665,7 @@ disciplina já aplicada nas Trilhas C e E.
 |---|---|---|
 | Benchmark de TikTok mal calibrado no seed | 🔴 Alta | Primeiros 30 dias em modo observação; Master ajusta pela UI antes de ligar ações automáticas |
 | Haircut marginal irreal → realocação destrói performance | 🔴 Alta | Medição D+14 + circuit breaker (§8.4); teto de 30% da origem |
-| Cliente usa Instant Form → leads invisíveis | 🟠 Média | Wizard não oferece esse CTA na Fase 1 (falha honesta); T6 resolve |
+| Cliente usa Instant Form → leads invisíveis | 🟠 Média | Wizard não oferece esse CTA na Fase 1 (falha honesta) — estruturalmente impossível uma campanha lançada por nós gerar lead invisível; T6 resolveria o caso de o cliente configurar manualmente fora da plataforma, mas está bloqueado por T2 (ver §3) |
 | App TikTok não aprovado a tempo | 🟠 Média | `FakeTikTokAdapter` destrava T0/T1/T4 e todo o teste |
 | 2s vs 3s inflando Hook Rate | 🟠 Média | Benchmark de retenção por rede (§6) |
 | Ping-pong de verba entre redes | 🟡 Baixa | Cooldown de 14 dias (E10) |

@@ -1,6 +1,27 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-28 — **Redesign Premium concluído nas 4 superfícies do módulo de
+> **Atualizado em:** 2026-07-28 — **T6 (webhook de Instant Form do TikTok) — achado real de
+> pesquisa: bloqueado por T2, não é mais "opcional independente".** Usuário perguntou se T6 tinha
+> sido resolvido e declarou a regra "nenhum lead invisível de nenhuma rede", o que tornaria T6
+> obrigatório em vez de opcional — antes de implementar (mesmo rigor já usado na pesquisa do
+> webhook do Google), fui checar a documentação REAL da TikTok Business API (o fetch estático
+> falhou — é um SPA que só renderiza via JS — resolvido navegando de verdade via browser e lendo
+> o iframe same-origin renderizado). Achado: o mecanismo do TikTok é estruturalmente diferente do
+> Google — lá o CLIENTE configura URL+chave self-serve na própria tela dele; no TikTok, SOMOS NÓS
+> que chamamos `POST /subscription/subscribe/` com `app_id`/`secret` do nosso app + `access_token`
+> do cliente via OAuth — os mesmos 2 pré-requisitos de T2 (app aprovado + conexão OAuth com a
+> conta do cliente). **T6 não pode ser adiantado independente de T2**, ao contrário do que
+> `PLANO_TIKTOK.md` §3 presumia ("espelhando `/api/public/google-leads/webhook`" — suposição
+> incorreta, corrigida). Documento atualizado com o payload real do webhook (`entry[].changes[]`
+> com `name`/`phone_number`/`email`/etc.) pra quando T2 destravar. Decisão do usuário: documentar
+> agora, implementar só quando T2 for desbloqueado — nenhum código escrito nesta rodada. Quanto à
+> regra em si ("nenhum lead invisível"): já é estruturalmente cumprida hoje — o wizard nunca
+> oferece Instant Form como CTA pro TikTok (`instant_form_supported=false`, Fase 1 do §3, já
+> implementada desde T1/T3), então nenhuma campanha lançada por esta plataforma pode gerar lead
+> invisível; o único jeito de isso acontecer é o cliente configurar um Instant Form manualmente
+> direto no TikTok Ads Manager dele, fora da nossa ferramenta — fora do nosso controle, mesma
+> limitação inerente de qualquer plataforma terceira. — **Sessão anterior (2026-07-28):**
+> **Redesign Premium concluído nas 4 superfícies do módulo de
 > Campanhas** (pendência do CLAUDE.md "Redesign Premium — ativar skill `impeccable`"): Dashboard,
 > Configurações, CampaignWizard e Criativos, uma checkpoint por vez com aprovação do usuário
 > antes de seguir pra próxima. Passe estreito e deliberadamente reversível (não uma reconstrução
@@ -61,6 +82,60 @@
 **Nenhuma tarefa em andamento no momento.**
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-28 (continuação 2) — T6: pesquisa real revela bloqueio estrutural por T2 ✅
+
+**Contexto:** usuário perguntou se T6 (webhook de Instant Form do TikTok, `docs/PLANO_TIKTOK.md`
+§10) tinha sido resolvido. Resposta: não, nunca foi atacado — é o único item do faseamento do
+plano que nenhuma sessão anterior tocou. O usuário então declarou uma regra de negócio explícita:
+"não poderá haver nenhum lead invisível vindo de qualquer rede" — o que reabre a questão de se T6
+deveria deixar de ser "opcional" e virar obrigatório.
+
+**Antes de implementar qualquer coisa, pesquisa real da API do TikTok** (mesmo rigor já usado na
+sessão do webhook do Google — nunca confiar em memória pra contrato de API de terceiro). Tentativas
+via `WebFetch`/`WebSearch` bateram num limite real: a documentação oficial
+(`business-api.tiktok.com/portal/docs`) é um SPA que só renderiza via JavaScript — o `WebFetch` só
+converte HTML estático pra markdown, sem executar JS, então recebia sempre a casca vazia da página
+(só título, sem conteúdo). Resolvido navegando de verdade com o Browser pane real (que executa JS)
+— achado um detalhe técnico a mais: o conteúdo real fica dentro de um `<iframe>` same-origin
+(`business-api.tiktok.com/gateway/docs/...`), acessível via `iframe.contentDocument` direto (sem
+problema de CORS, mesmo origin). Navegado pela árvore real: Marketing API → Campaign Management →
+Create Lead Generation ads → Lead generation → Webhook subscription → "Subscribe to ad account
+Webhook events via Subscription API" — a página certa, com o payload completo documentado.
+
+**Achado real, que muda a resposta:** o mecanismo do TikTok é **estruturalmente diferente** do
+usado no webhook do Google (`/api/public/google-leads/webhook`), que o `PLANO_TIKTOK.md` §3
+presumia poder "espelhar" — suposição nunca verificada antes, agora confirmada incorreta. No
+Google, o CLIENTE configura URL+chave compartilhada direto na própria tela dele do Google Ads —
+self-serve, zero dependência da nossa integração além da chave. No TikTok, a inscrição é feita
+por NÓS, chamando `POST /subscription/subscribe/` com `app_id`/`secret` do NOSSO app desenvolvedor
++ `access_token` do CLIENTE obtido via OAuth + `advertiser_id` — exatamente os mesmos 2
+pré-requisitos que T2 (adapter real) já precisa resolver (app aprovado + conexão OAuth com a conta
+do cliente). **T6 não pode ser adiantado independente de T2** — ao contrário do que a entrada
+original do faseamento sugeria ("(Opcional)"), agora corrigido pra "bloqueado por T2". Uma vez
+inscrito, o payload do webhook já vem completo (sem precisar de uma 2ª chamada de "pull"):
+`object:1`, `entry[].id` (lead ID), `lead_source` (`INSTANT_FORM`/`DIRECT_MESSAGE`), `page_id`,
+`campaign_id`/`campaign_name`, `adgroup_id`, `ad_id`, `create_time`, e `changes[]` — array de
+`{field, value}` com os campos reais do formulário (`name`, `phone_number`, `email`, `address`,
+`gender`, `scheduled_time`, dinâmico conforme o Instant Form configurado).
+
+**Decisão do usuário:** documentar agora, implementar só quando T2 destravar (bloqueado por
+aprovação externa do app no TikTok for Business, inalterado desde sessões anteriores) — nenhum
+código escrito nesta rodada. `docs/PLANO_TIKTOK.md` atualizado em 3 pontos (§3 com o achado
+completo + payload real, §10 tabela de faseamento, §12 tabela de riscos) pra que a próxima sessão
+que retomar T2 já saiba exatamente o que fazer em seguida, sem repetir a pesquisa.
+
+**Quanto à regra "nenhum lead invisível" em si — já cumprida hoje, sem precisar de T6:** o wizard
+nunca oferece Instant Form como opção de CTA pro TikTok (`network_defaults.tiktok.
+instant_form_supported=false`, Fase 1 do §3, implementada desde T1/T3) — é estruturalmente
+impossível uma campanha lançada por esta plataforma gerar lead invisível, porque a própria opção
+que geraria esse lead nunca é oferecida. O único jeito de um lead TikTok ficar invisível hoje é o
+cliente configurar um Instant Form manualmente direto no TikTok Ads Manager DELE, fora da nossa
+ferramenta — cenário fora do nosso controle, mesma limitação inerente de qualquer plataforma
+terceira (não é um gap específico nosso, nem algo que T6 sozinho eliminaria por completo, já que
+depende do cliente usar exclusivamente os caminhos que passam pela nossa plataforma).
+
+---
 
 ### Sessão 2026-07-28 (continuação) — Redesign Premium: acento âmbar nas 4 superfícies do módulo ✅
 
