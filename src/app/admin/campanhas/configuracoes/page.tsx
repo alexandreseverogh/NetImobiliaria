@@ -518,7 +518,8 @@ function MasterSettingsView() {
             <div>
               <h2 className="text-sm font-black text-gray-900">Redes de Anúncios</h2>
               <p className="text-xs text-gray-400 mt-0.5">
-                Conecte Meta, Google, LinkedIn e TikTok — gerencie credenciais por rede
+                {/* LinkedIn removido do texto — oculto da UI por enquanto, ver route.ts de /configuracoes/redes */}
+                Conecte Meta, Google e TikTok — gerencie credenciais por rede
               </p>
             </div>
           </div>

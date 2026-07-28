@@ -38,6 +38,10 @@ export async function GET(request: NextRequest) {
        FROM public.ad_networks n
        LEFT JOIN public.tenant_network_credentials tnc
          ON tnc.network_id = n.id AND tnc.tenant_id = $1::uuid
+       -- LinkedIn não será implementado por um bom tempo (decisão explícita) — ocultado da UI
+       -- (wizard + tela de redes, os dois únicos consumidores deste endpoint) sem apagar o
+       -- catálogo/adapter stub. Pra reexibir, basta remover esta linha.
+       WHERE n.code <> 'linkedin'
        ORDER BY n.sort_order, n.name`,
       [tenantId],
     );
