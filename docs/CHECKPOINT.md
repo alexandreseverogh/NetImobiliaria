@@ -116,12 +116,42 @@ dado de teste (2 campanhas, 2 AdSets, 10 Insight, 25 CtaInteraction, 1 AgentActi
 BudgetReallocation) removido depois, 0 resíduo confirmado por SQL. `npx tsc --noEmit`: 64 erros,
 mesma baseline pré-existente, zero novos em qualquer arquivo tocado.
 
-**Próximo passo:** T4 tem 3 sub-itens ainda pendentes, não bloqueantes pro core já funcionar —
-cron de medição D+14 (compara `actual_lead_gain` real contra `projected_lead_gain`, grava
-`verdict`) + circuit breaker (≥3 `BACKFIRED` em 90 dias desliga auto-sugestão do tenant), UI
-(card de oportunidade no dashboard + histórico de realocações passadas com veredito), e a bateria
-formal de testes Trilha H (H1-H16, casos de borda de elegibilidade/execução/rejeição/medição) —
-ver `docs/PLANO_TIKTOK.md` §8.4-8.6 e §11. T2 (adapter real do TikTok, TikTok Business API v1.3)
+**T5 concluído** (medição D+14 + circuit breaker, commit `55ec099`): cron diário
+(`/api/cron/campanhas/realloc-measure`, 07:00, registrado no `feed-cron-scheduler.js`) mede
+propostas `EXECUTED` há ≥14 dias — compara leads/dia numa janela de 14 dias ANTES vs. DEPOIS do
+`executed_at`, tanto na origem quanto no destino (`deltaTarget + deltaSource`), pra isolar o
+efeito da realocação de uma sazonalidade genérica de "mais tráfego este mês"; grava
+`actual_lead_gain`/`verdict` (`CONFIRMED` se ≥50% do projetado, `BACKFIRED` se ≤0, `NEUTRAL` no
+meio). Circuit breaker (`reallocationMeasurement.isReallocationCircuitBreakerTripped`): ≥3
+`BACKFIRED` do tenant em 90 dias — checado em 2 pontos, não só 1, pra cobrir o texto literal do
+plano ("não executa nem com aprovação"): (1) `runReallocationAgent` para de propor enquanto
+ativo; (2) `agentDecisor.executeAction` (branch `REALLOCATE_BUDGET`) barra a execução mesmo com
+PIN correto, caso a proposta já estivesse `PENDING_APPROVAL` de antes do breaker disparar —
+marca `AgentAction`/`BudgetReallocation` como `BLOCKED` e alerta o Master via `notifyAlert`
+(Slack+WhatsApp). Os 2 endpoints de aprovação (`/api/agent/approve/[id]` e
+`/api/admin/master/aprovacoes`) passaram a checar o status real gravado depois de chamar
+`executeAction` — sem isso, o approve mostraria "✅ Aprovado e executado!" mesmo quando o breaker
+bloqueou tudo, uma mensagem enganosa pro humano que aprovou.
+
+**Testado ao vivo, ponta a ponta, números batendo exatos com o cálculo manual**: cenário
+CONFIRMED (campanhas reais com leads reais antes/depois do `executed_at` sintético) →
+`actual_lead_gain=0.214` (leads/dia) contra `projected_lead_gain=0.300` → `verdict=CONFIRMED` ·
+3 cenários BACKFIRED (campanhas sem lead nenhum → `actual_lead_gain=0`) → `verdict=BACKFIRED` nos
+3 · com os 3 BACKFIRED no banco, criado um par elegível do zero (mesmo molde do smoke test do
+T4) → `runReallocationAgent` retornou `proposalsCreated=0` (breaker ativo suprimiu a sugestão
+nova) · criada uma proposta `PENDING_APPROVAL` pré-existente pro mesmo par → aprovada via PIN
+correto → resposta HTML "🛑 Bloqueada pelo circuit breaker" (não "executado"), `AgentAction`
+e `BudgetReallocation` ambos `BLOCKED`, `AdSet.dailyBudget` das duas campanhas intocado
+(confirmado igual ao valor antes da tentativa). Todo dado de teste (4 campanhas, AdSets,
+Insight, CtaInteraction, 4 `BudgetReallocation`, 1 `AgentAction`) removido depois, 0 resíduo
+confirmado por SQL. `npx tsc --noEmit`: zero erros novos em qualquer arquivo tocado (os 2 a mais
+no total eram artefato stale de `.next/types` de uma rota de debug já removida, não código real).
+
+**Próximo passo:** só restam 2 itens de T4, nenhum bloqueia o motor já funcionar de ponta a
+ponta — UI (card de oportunidade no dashboard Visão Executiva + seção "Para onde mover" no
+Desperdício de Verba + histórico de realocações com veredito) e a bateria formal de testes
+Trilha H (H1-H16, boa parte já coberta ao vivo nos smoke tests do T4/T5, falta formalizar como
+suíte) — ver `docs/PLANO_TIKTOK.md` §8.6 e §11. T2 (adapter real do TikTok, TikTok Business API v1.3)
 segue bloqueado por aprovação externa do app no TikTok for Business — inalterado desde a sessão
 anterior.
 
