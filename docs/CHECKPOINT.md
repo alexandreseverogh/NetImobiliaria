@@ -1,6 +1,25 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-28 — **T6 (webhook de Instant Form do TikTok) — achado real de
+> **Atualizado em:** 2026-07-28 — **Consolidação de worktrees: conferido o estado real dos 4
+> fronts.** Usuário pediu pra conferir o estado real de `netimob-google`, `netimob-cherrypick` e
+> `netimob-imgfix` (a tabela do CLAUDE.md é só um snapshot, pode estar desatualizada). Checado via
+> `git merge-base --is-ancestor` (não por suposição): `netimob-google`
+> (`feature/google-ads-implementation`) e `netimob-cherrypick` (`feature/mensageria-rag`) já
+> estão 100% mergeados em `feature/ag-cockpit-camadas` — nenhum trabalho pendente, worktrees
+> redundantes (mantidos por ora, não removidos sem pedido explícito). `netimob-imgfix`
+> (`fix/next-image-minio-localhost`) tinha 1 commit real e ainda não mergeado
+> (`00cb95a`, 15/07) — confirmado por inspeção direta do código (não só pelo git log) que o bug
+> que ele corrige (fotos de imóveis não aparecendo na landpaging/página de detalhe, causa raiz:
+> o otimizador de imagem do Next não segue o redirect 302 de `/api/public/imagens/[id]` pro
+> MinIO) **ainda estava presente** neste worktree principal — `SafeImage.tsx` sem o unoptimize
+> condicional, `LandingPropertyCard.tsx` sem o mesmo tratamento, `next.config.js` sem
+> `localhost:9000` nos `remotePatterns`. Trazido via `git cherry-pick 00cb95a` (não merge da
+> branch inteira, pra evitar conflito irrelevante com `CLAUDE.md`, que tinha divergido nos dois
+> lados por motivos não relacionados) — aplicado sem conflito, commit `cdadf4d`, `npx tsc --noEmit`
+> limpo nos 3 arquivos tocados. Não reverificado visualmente no navegador — o commit original já
+> tinha sido testado ao vivo pelo autor ("fotos reais confirmadas na landpaging e na página de
+> detalhe"), e o código trazido é byte-a-byte idêntico. — **Sessão anterior (2026-07-28): T6
+> (webhook de Instant Form do TikTok) — achado real de
 > pesquisa: bloqueado por T2, não é mais "opcional independente".** Usuário perguntou se T6 tinha
 > sido resolvido e declarou a regra "nenhum lead invisível de nenhuma rede", o que tornaria T6
 > obrigatório em vez de opcional — antes de implementar (mesmo rigor já usado na pesquisa do
@@ -82,6 +101,44 @@
 **Nenhuma tarefa em andamento no momento.**
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-28 (continuação 3) — Consolidação de worktrees + fix de fotos trazido ✅
+
+**Contexto:** usuário pediu pra conferir o estado real das outras 3 frentes em worktree
+(`netimob-google`, `netimob-cherrypick`, `netimob-imgfix`) — a tabela do `CLAUDE.md` que as lista
+é só um snapshot de 2026-07-19, explicitamente marcado como "pode estar desatualizada".
+
+**Verificação (não por suposição — `git merge-base --is-ancestor` de cada tip contra o HEAD
+atual):**
+- `netimob-google` (`feature/google-ads-implementation`, tip `86eecbf`) — **já mergeado**.
+- `netimob-cherrypick` (`feature/mensageria-rag`, tip `83d60cf`) — **já mergeado**.
+- `netimob-imgfix` (`fix/next-image-minio-localhost`, tip `00cb95a`) — **NÃO mergeado**, 1 commit
+  real de 15/07 ("fix: fotos de imóveis não apareciam na landpaging e página de detalhe").
+
+**Achado real, confirmado por inspeção direta do código deste worktree (não só pelo git log):**
+o bug que o commit `00cb95a` corrige ainda estava presente aqui. Causa raiz: `/api/public/
+imagens/[id]` redireciona (302) pro storage real (MinIO/S3) em vez de reenviar os bytes — o
+otimizador de imagem do Next, pra URLs relativas/mesma origem, chama o handler da rota
+diretamente em processo em vez de fazer um fetch HTTP real, não segue o redirect, recebe resposta
+vazia e quebra ("Input Buffer is empty" no Sharp). Conferido: `SafeImage.tsx` aqui não pulava a
+otimização pra esse caminho (`shouldUnoptimize` só cobria `data:`/`blob:`/paths sem `/`),
+`LandingPropertyCard.tsx` sem tratamento nenhum, `next.config.js` sem `localhost:9000`/
+`127.0.0.1:9000` (MinIO) nos `remotePatterns`.
+
+**Trazido via `git cherry-pick 00cb95a`** (não merge da branch inteira — o commit não toca
+`CLAUDE.md`, mas as duas branches tinham divergido nesse arquivo por motivos não relacionados;
+cherry-pick evita esse conflito irrelevante). Aplicado sem conflito (`git auto-merge` só em
+`next.config.js`), novo commit `cdadf4d`. `npx tsc --noEmit` limpo nos 3 arquivos tocados
+(`SafeImage.tsx`, `LandingPropertyCard.tsx`, `next.config.js`). Não reverificado visualmente no
+navegador — o commit original já tinha sido testado ao vivo pelo próprio autor ("fotos reais
+confirmadas na landpaging e na página de detalhe do imóvel") e o código trazido é byte-a-byte
+idêntico, sem nenhuma adaptação.
+
+**Worktrees já mergeados (`netimob-google`, `netimob-cherrypick`) mantidos por ora** — usuário não
+pediu remoção, e remover worktree é uma operação que vale confirmar explicitamente antes, mesmo
+já confirmado que não têm trabalho pendente.
+
+---
 
 ### Sessão 2026-07-28 (continuação 2) — T6: pesquisa real revela bloqueio estrutural por T2 ✅
 
