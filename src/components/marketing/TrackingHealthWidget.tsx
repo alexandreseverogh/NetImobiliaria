@@ -196,7 +196,7 @@ export function TrackingHealthWidget({ clientId, segmentId, compact = false }: P
         <button
           onClick={handleRun}
           disabled={running}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-60"
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#c5a028] text-[#020c1b] text-xs font-black uppercase tracking-widest hover:bg-[#d4af37] transition-colors disabled:opacity-60"
         >
           {running
             ? <><ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Verificando...</>

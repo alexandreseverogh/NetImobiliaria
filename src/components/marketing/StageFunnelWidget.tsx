@@ -242,11 +242,11 @@ export function StageFunnelWidget({ data, isDark = false, clientId }: Props) {
         <button
           onClick={handleDiagnose}
           disabled={diagnosing}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all
-            bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-colors
+            bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 disabled:opacity-50"
         >
           {diagnosing ? (
-            <><span className="h-3.5 w-3.5 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />Analisando funil...</>
+            <><span className="h-3.5 w-3.5 rounded-full border-2 border-[#c5a028] border-t-transparent animate-spin" />Analisando funil...</>
           ) : (
             <>
               <SparklesIcon className="h-3.5 w-3.5" />
@@ -269,12 +269,12 @@ export function StageFunnelWidget({ data, isDark = false, clientId }: Props) {
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden"
             >
-              <div className="mt-2 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+              <div className="mt-2 p-4 bg-amber-50 border border-amber-200 rounded-xl">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <SparklesIcon className="h-3.5 w-3.5 text-indigo-500" />
-                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Diagnóstico da IA</span>
+                  <SparklesIcon className="h-3.5 w-3.5 text-amber-600" />
+                  <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Diagnóstico da IA</span>
                 </div>
-                <p className="text-xs text-indigo-900 leading-relaxed whitespace-pre-line">{diagnosis}</p>
+                <p className="text-xs text-amber-900 leading-relaxed whitespace-pre-line">{diagnosis}</p>
               </div>
             </motion.div>
           )}

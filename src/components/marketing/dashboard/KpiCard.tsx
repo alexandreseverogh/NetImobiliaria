@@ -113,7 +113,7 @@ export function HookRateKpiCard({ isDark, value, color, benchmarks: bm }: {
     <div className={cn(
       'group relative rounded-2xl border p-3.5 flex flex-col gap-1.5 min-w-0 overflow-visible transition-all duration-200',
       isDark
-        ? 'bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(99,102,241,0.4)] hover:shadow-[0_0_24px_rgba(99,102,241,0.12)] hover:-translate-y-0.5'
+        ? 'bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.12)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.25)] hover:-translate-y-0.5'
         : 'bg-white border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.09)] hover:-translate-y-0.5',
     )}>
       {/* Label + ícone de referência */}
@@ -128,8 +128,8 @@ export function HookRateKpiCard({ isDark, value, color, benchmarks: bm }: {
           className={cn(
             'flex-shrink-0 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-black leading-none transition-colors',
             showRef
-              ? 'bg-indigo-500 text-white'
-              : isDark ? 'bg-slate-700 text-slate-400 hover:bg-indigo-500/30 hover:text-indigo-300' : 'bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600',
+              ? 'bg-[#c5a028] text-[#020c1b]'
+              : isDark ? 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-700',
           )}
         >
           i

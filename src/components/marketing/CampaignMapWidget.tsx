@@ -274,7 +274,7 @@ export function CampaignMapWidget({ isDark, clientId, segmentId, startDate, endD
       {loading ? (
         <div className="flex-1 flex items-center justify-center" style={{ minHeight: 260 }}>
           <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+            <div className="w-8 h-8 rounded-full border-2 border-[#c5a028] border-t-transparent animate-spin" />
             <p className={`text-xs ${txFaint}`}>Carregando mapa…</p>
           </div>
         </div>
