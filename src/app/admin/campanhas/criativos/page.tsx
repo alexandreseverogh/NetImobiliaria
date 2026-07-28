@@ -714,10 +714,10 @@ function GenerateModal({
                   {Object.entries(FORMAT_LABELS).map(([f, label]) => (
                     <button key={f} onClick={() => toggleFormat(f)}
                       className={cn(
-                        'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
+                        'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
                         formats.includes(f)
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300',
+                          ? 'bg-[#c5a028] text-[#020c1b] border-[#c5a028]'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300',
                       )}>
                       {label}
                     </button>
@@ -733,10 +733,10 @@ function GenerateModal({
                     {templates.map(t => (
                       <button key={t.id} onClick={() => setTemplateId(t.id)}
                         className={cn(
-                          'p-2.5 rounded-xl border text-left transition-all',
+                          'p-2.5 rounded-xl border text-left transition-colors',
                           templateId === t.id
-                            ? 'border-indigo-500 bg-indigo-50'
-                            : 'border-slate-100 bg-white hover:border-indigo-200',
+                            ? 'border-[#c5a028] bg-amber-50'
+                            : 'border-slate-100 bg-white hover:border-slate-200',
                         )}>
                         <p className="text-[11px] font-bold text-slate-800">{t.name}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">{t.formats.join(' · ')}</p>
@@ -753,7 +753,7 @@ function GenerateModal({
                   <input
                     value={headline} onChange={e => setHeadline(e.target.value)}
                     placeholder="Ex: Apartamento dos seus sonhos..."
-                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder:text-slate-300"
+                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#2563eb] placeholder:text-slate-300"
                   />
                 </div>
                 <div>
@@ -761,7 +761,7 @@ function GenerateModal({
                   <input
                     value={cta} onChange={e => setCta(e.target.value)}
                     placeholder="Ex: Quero Saber Mais"
-                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder:text-slate-300"
+                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#2563eb] placeholder:text-slate-300"
                   />
                 </div>
               </div>
@@ -770,10 +770,10 @@ function GenerateModal({
                 onClick={handleGenerate}
                 disabled={busy || formats.length === 0}
                 className={cn(
-                  'w-full py-2.5 rounded-xl text-sm font-bold text-white transition-all',
+                  'w-full py-2.5 rounded-xl text-sm font-bold transition-colors',
                   busy || formats.length === 0
-                    ? 'bg-slate-300 cursor-not-allowed'
-                    : 'bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-200',
+                    ? 'bg-slate-300 text-white cursor-not-allowed'
+                    : 'bg-[#c5a028] text-[#020c1b] hover:bg-[#d4af37]',
                 )}>
                 {busy ? 'Iniciando...' : `Gerar ${formats.length} variação(ões)`}
               </button>
@@ -784,8 +784,8 @@ function GenerateModal({
           {screen === 'generating' && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <div className="relative">
-                <div className="w-16 h-16 rounded-full border-4 border-indigo-100" />
-                <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin" />
+                <div className="w-16 h-16 rounded-full border-4 border-amber-100" />
+                <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-[#c5a028] border-t-transparent animate-spin" />
               </div>
               <div className="text-center">
                 <p className="text-sm font-bold text-slate-800">Gerando variações...</p>
@@ -817,20 +817,20 @@ function GenerateModal({
                       return (
                         <button key={url} onClick={() => toggleSelected(url)}
                           className={cn(
-                            'relative rounded-xl overflow-hidden border-2 transition-all group',
-                            isSel ? 'border-indigo-500 shadow-md shadow-indigo-100' : 'border-slate-200 opacity-60 hover:opacity-90',
+                            'relative rounded-xl overflow-hidden border-2 transition-colors group',
+                            isSel ? 'border-[#c5a028] shadow-md shadow-amber-100' : 'border-slate-200 opacity-60 hover:opacity-90',
                           )}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={url} alt={`Variação ${fmt}`} className="w-full object-cover max-h-48" />
                           <div className={cn(
-                            'absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase text-white',
-                            isSel ? 'bg-indigo-600' : 'bg-slate-500',
+                            'absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase',
+                            isSel ? 'bg-[#c5a028] text-[#020c1b]' : 'bg-slate-500 text-white',
                           )}>
                             {fmt}
                           </div>
                           {isSel && (
-                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center shadow">
-                              <CheckCircleIcon className="h-4 w-4 text-white" />
+                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#c5a028] flex items-center justify-center shadow">
+                              <CheckCircleIcon className="h-4 w-4 text-[#020c1b]" />
                             </div>
                           )}
                         </button>
@@ -851,10 +851,10 @@ function GenerateModal({
                     <button
                       onClick={handleApprove} disabled={busy || selected.length === 0}
                       className={cn(
-                        'flex-1 py-2 rounded-xl text-sm font-bold text-white transition-all',
+                        'flex-1 py-2 rounded-xl text-sm font-bold transition-colors',
                         busy || selected.length === 0
-                          ? 'bg-slate-300 cursor-not-allowed'
-                          : 'bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-200',
+                          ? 'bg-slate-300 text-white cursor-not-allowed'
+                          : 'bg-[#c5a028] text-[#020c1b] hover:bg-[#d4af37]',
                       )}>
                       {busy ? 'Salvando...' : `Aprovar ${selected.length} variação(ões)`}
                     </button>
@@ -894,7 +894,7 @@ function AssetCard({
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group"
+      className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-slate-300 transition-all group"
     >
       {/* Imagem */}
       <div className="relative aspect-[4/3] bg-slate-50 overflow-hidden">
@@ -988,7 +988,7 @@ function AssetCard({
           {(status === 'pending' || status === 'failed') && (
             <button
               onClick={() => onReanalyze(asset.id)}
-              className="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5"
+              className="text-[9px] font-bold text-slate-500 hover:text-slate-700 flex items-center gap-0.5"
             >
               <SparklesIcon className="h-3 w-3" />
               {status === 'failed' ? 'Re-analisar' : 'Analisar'}
@@ -1003,7 +1003,7 @@ function AssetCard({
               )}
               <button
                 onClick={() => onReanalyze(asset.id)}
-                className="text-[9px] text-slate-300 hover:text-indigo-500 transition-colors"
+                className="text-[9px] text-slate-300 hover:text-slate-600 transition-colors"
                 title="Re-analisar"
               >
                 <ArrowPathIcon className="h-3 w-3" />
@@ -1016,7 +1016,7 @@ function AssetCard({
         {asset.mime_type?.startsWith('image/') && (
           <button
             onClick={() => onGenerate(asset)}
-            className="w-full mt-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 border border-dashed border-indigo-200 hover:border-indigo-400 transition-all"
+            className="w-full mt-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-slate-50 border border-dashed border-slate-200 hover:border-slate-400 transition-colors"
           >
             <PaintBrushIcon className="h-3 w-3" />
             Gerar variações
@@ -1173,7 +1173,7 @@ export default function GaleriaCreativosPage() {
           />
           <Link
             href="/admin/campanhas/criativos/padroes"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors"
           >
             <ChartBarIcon className="h-4 w-4" />
             Padrões Vencedores
@@ -1182,7 +1182,7 @@ export default function GaleriaCreativosPage() {
           {assets.length > 0 && (
             <button
               onClick={handleReanalyzeAll}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-slate-700 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-700 transition-all"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-slate-700 bg-white border border-slate-200 hover:border-slate-300 hover:text-slate-900 transition-colors"
               title="Re-analisar todos os criativos"
             >
               <SparklesIcon className="h-4 w-4" />
@@ -1202,10 +1202,10 @@ export default function GaleriaCreativosPage() {
           )}
 
           <label className={cn(
-            'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white cursor-pointer transition-all',
+            'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold cursor-pointer transition-colors',
             uploading
-              ? 'bg-slate-400 cursor-not-allowed'
-              : 'bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-200',
+              ? 'bg-slate-400 text-white cursor-not-allowed'
+              : 'bg-[#c5a028] text-[#020c1b] hover:bg-[#d4af37]',
           )}>
             <PhotoIcon className="h-4 w-4" />
             {uploading ? 'Enviando...' : 'Adicionar Criativos'}
@@ -1218,7 +1218,7 @@ export default function GaleriaCreativosPage() {
           <button
             onClick={() => { setRefreshing(true); loadAssets(); }}
             disabled={refreshing}
-            className="p-2 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all disabled:opacity-50"
+            className="p-2 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors disabled:opacity-50"
           >
             <ArrowPathIcon className={cn('h-4 w-4', refreshing && 'animate-spin')} />
           </button>
@@ -1230,7 +1230,7 @@ export default function GaleriaCreativosPage() {
         {uploadMsg && (
           <motion.div
             initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="mb-4 px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm font-medium text-indigo-700 flex items-center gap-2"
+            className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm font-medium text-amber-800 flex items-center gap-2"
           >
             <SparklesIcon className="h-4 w-4 flex-shrink-0" />
             {uploadMsg}
@@ -1261,21 +1261,21 @@ export default function GaleriaCreativosPage() {
           { val: filterAngle, set: setFilterAngle, label: 'Todos os Ângulos', opts: ANGLE_LABELS },
         ].map(({ val, set, label, opts }) => (
           <select key={label} value={val} onChange={e => set(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-400">
+            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#2563eb]">
             <option value="">{label}</option>
             {Object.entries(opts).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         ))}
 
         <select value={filterUgc} onChange={e => setFilterUgc(e.target.value)}
-          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-400">
+          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#2563eb]">
           <option value="">UGC + Corporativo</option>
           <option value="true">Apenas UGC</option>
           <option value="false">Apenas Corporativo</option>
         </select>
 
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-400">
+          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#2563eb]">
           <option value="">Todos os Status</option>
           <option value="done">Analisados</option>
           <option value="pending">Pendentes</option>
@@ -1315,7 +1315,7 @@ export default function GaleriaCreativosPage() {
           <p className="text-sm text-slate-400 max-w-sm mb-6">
             Carregue criativos para iniciar a análise automática com IA. Eles também são salvos quando você lança campanhas.
           </p>
-          <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer shadow-sm transition-all">
+          <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-[#020c1b] bg-[#c5a028] hover:bg-[#d4af37] cursor-pointer transition-colors">
             <PhotoIcon className="h-4 w-4" />
             Adicionar primeiros criativos
             <input type="file" multiple accept="image/*" className="hidden" onChange={handleFileUpload} />
@@ -1333,7 +1333,7 @@ export default function GaleriaCreativosPage() {
         <div className="mt-8 text-center">
           <button
             onClick={loadAssets}
-            className="px-6 py-2 rounded-xl text-sm font-bold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 transition-all"
+            className="px-6 py-2 rounded-xl text-sm font-bold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
           >
             Carregar mais ({total - assets.length} restantes)
           </button>
