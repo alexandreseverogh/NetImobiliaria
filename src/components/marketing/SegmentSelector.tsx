@@ -161,8 +161,8 @@ export default function SegmentSelector({
       ? 'bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.07)]'
       : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm',
     open && (isDark
-      ? 'ring-2 ring-indigo-500/30 border-indigo-500/40'
-      : 'ring-2 ring-indigo-500/20 border-indigo-300'),
+      ? 'ring-2 ring-gold-premium/30 border-gold-premium/40'
+      : 'ring-2 ring-gold-premium/20 border-gold-premium/40'),
   );
 
   const panelBase = cn(
@@ -277,8 +277,8 @@ export default function SegmentSelector({
                     className={cn(
                       'w-full pl-8 pr-8 py-2 rounded-xl text-sm font-medium focus:outline-none transition-all',
                       isDark
-                        ? 'bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.08)] text-slate-200 placeholder:text-slate-600 focus:ring-2 focus:ring-indigo-500/30'
-                        : 'bg-slate-50 border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500/20',
+                        ? 'bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.08)] text-slate-200 placeholder:text-slate-600 focus:ring-2 focus:ring-blue-600/50'
+                        : 'bg-slate-50 border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-600/30',
                     )}
                   />
                   {search && (
@@ -315,18 +315,19 @@ export default function SegmentSelector({
                         className={cn(
                           'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors',
                           isSelected
-                            ? isDark ? 'bg-[rgba(255,255,255,0.04)]' : 'bg-indigo-50/60'
+                            ? isDark ? 'bg-[rgba(255,255,255,0.04)]' : 'bg-amber-50/60'
                             : rowHov,
                         )}
                       >
-                        {/* Checkbox */}
+                        {/* Checkbox — único indicador de seleção (Regra do Acento Único: não
+                            duplicar o mesmo sinal em cor de texto + badge + checkbox) */}
                         <span className={cn(
                           'w-4 h-4 rounded flex items-center justify-center shrink-0 border transition-colors',
                           isSelected
-                            ? 'bg-indigo-600 border-indigo-600'
+                            ? 'bg-gold-premium border-gold-premium'
                             : isDark ? 'border-[rgba(255,255,255,0.15)] bg-transparent' : 'border-slate-300 bg-white',
                         )}>
-                          {isSelected && <CheckIcon className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+                          {isSelected && <CheckIcon className="h-2.5 w-2.5 text-navy-dark" strokeWidth={3} />}
                         </span>
 
                         {/* Dot colorido */}
@@ -334,7 +335,7 @@ export default function SegmentSelector({
 
                         {/* Nome + meta */}
                         <div className="flex-1 min-w-0">
-                          <p className={cn('text-sm font-semibold truncate', isSelected ? (isDark ? 'text-indigo-300' : 'text-indigo-700') : tx)}>
+                          <p className={cn('text-sm font-semibold truncate', tx)}>
                             {seg.name}
                           </p>
                           {seg.isOwn && (
@@ -345,9 +346,7 @@ export default function SegmentSelector({
                         {/* Badge de campanhas no período */}
                         <span className={cn(
                           'text-[10px] font-black px-2 py-0.5 rounded-full shrink-0',
-                          isSelected
-                            ? isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'
-                            : isDark ? 'bg-[rgba(255,255,255,0.06)] text-slate-500' : 'bg-slate-100 text-slate-500',
+                          isDark ? 'bg-[rgba(255,255,255,0.06)] text-slate-500' : 'bg-slate-100 text-slate-500',
                         )}>
                           {seg.campaignCount} camp.
                         </span>

@@ -161,10 +161,10 @@ export default function ClientSelector({
         <button
           onClick={() => { persistValue('own'); setOpen(false); }}
           className={cn(
-            'h-9 flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold transition-all border whitespace-nowrap',
+            'h-9 flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold transition-colors border whitespace-nowrap',
             value === 'own'
-              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-              : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-200 hover:text-gray-800 shadow-sm',
+              ? 'bg-gold-premium text-navy-dark border-gold-premium'
+              : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-800 shadow-sm',
           )}
         >
           <BuildingOfficeIcon className="h-3.5 w-3.5" />
@@ -175,12 +175,12 @@ export default function ClientSelector({
         <button
           onClick={() => setOpen(o => !o)}
           className={cn(
-            'h-9 flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold transition-all border whitespace-nowrap',
+            'h-9 flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold transition-colors border whitespace-nowrap',
             isClientSelected
-              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+              ? 'bg-gold-premium text-navy-dark border-gold-premium'
               : open
-                ? 'bg-white border-indigo-300 ring-2 ring-indigo-500/20 text-gray-900 shadow-sm'
-                : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-200 hover:text-gray-800 shadow-sm',
+                ? 'bg-white border-gold-premium/40 ring-2 ring-gold-premium/20 text-gray-900 shadow-sm'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-800 shadow-sm',
           )}
         >
           {loading ? (
@@ -221,7 +221,7 @@ export default function ClientSelector({
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Buscar cliente..."
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-8 py-2 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-8 py-2 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 />
                 {search && (
                   <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -332,15 +332,15 @@ export default function ClientSelector({
       <button
         onClick={() => setOpen(o => !o)}
         className={cn(
-          'flex items-center gap-2.5 h-10 pl-3 pr-3 rounded-xl border text-sm font-semibold transition-all',
-          'bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500',
+          'flex items-center gap-2.5 h-10 pl-3 pr-3 rounded-xl border text-sm font-semibold transition-colors',
+          'bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-600',
           open
-            ? 'border-indigo-300 ring-2 ring-indigo-500/20 shadow-lg'
-            : 'border-gray-200 shadow-sm hover:border-indigo-200',
+            ? 'border-gold-premium/40 ring-2 ring-gold-premium/20 shadow-lg'
+            : 'border-gray-200 shadow-sm hover:border-gray-300',
         )}
       >
         {loading ? (
-          <div className="h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <div className="h-4 w-4 border-2 border-gold-premium border-t-transparent rounded-full animate-spin" />
         ) : currentIcon()}
         <span className="text-gray-900 max-w-[140px] truncate">{currentLabel()}</span>
         <ChevronDownIcon className={cn(
@@ -366,7 +366,7 @@ export default function ClientSelector({
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Buscar cliente..."
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-8 py-2 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-8 py-2 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
               />
               {search && (
                 <button
@@ -464,16 +464,13 @@ function DropdownOption({
     <button
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all',
-        selected ? 'bg-indigo-50' : 'hover:bg-gray-50',
+        'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors',
+        selected ? 'bg-amber-50' : 'hover:bg-gray-50',
       )}
     >
       <div className="shrink-0">{icon}</div>
       <div className="flex-1 min-w-0">
-        <p className={cn(
-          'text-sm font-semibold truncate',
-          selected ? 'text-indigo-700' : 'text-gray-900',
-        )}>
+        <p className="text-sm font-semibold truncate text-gray-900">
           {label}
         </p>
         {sublabel && (
@@ -485,7 +482,7 @@ function DropdownOption({
           {badge}
         </span>
       )}
-      {selected && <CheckIcon className="h-4 w-4 text-indigo-600 shrink-0" />}
+      {selected && <CheckIcon className="h-4 w-4 text-gold-premium shrink-0" />}
     </button>
   );
 }
