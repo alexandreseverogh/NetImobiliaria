@@ -247,6 +247,38 @@ cron.schedule('0 18 * * 0', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
+// 5. REALOCAÇÃO DE VERBA — medição D+14 — diário às 07:00
+// docs/PLANO_TIKTOK.md §8.4 — fecha o loop de aprendizado do motor de realocação (T4): mede
+// propostas EXECUTED há ≥14 dias, grava verdict, alimenta o circuit breaker (H15).
+cron.schedule('0 7 * * *', async () => {
+  console.log(`\n💰 [${new Date().toISOString()}] Iniciando realloc-measure...`);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/campanhas/realloc-measure`, {
+      method: 'POST',
+      headers: {
+        'x-cron-secret': CRON_SECRET,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error(`❌ [realloc-measure] Erro na resposta (${response.status}):`, errorData);
+      return;
+    }
+
+    const data = await response.json();
+    console.log(
+      `✅ [realloc-measure] measured=${data.measured} byVerdict=${JSON.stringify(data.byVerdict)} ${data.elapsedMs}ms`
+    );
+  } catch (error) {
+    console.error('❌ [realloc-measure] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
 // FASE 16.F — Publicação orgânica agendada: a cada 5 minutos
 cron.schedule('*/5 * * * *', async () => {
   try {

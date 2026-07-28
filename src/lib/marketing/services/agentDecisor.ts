@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import prisma from '../prisma';
 import { generateAiInsights } from './aiInsights';
 import {
-  notifyExecuted, notifyDigest,
+  notifyExecuted, notifyDigest, notifyAlert,
   type DigestItem,
 } from './agentNotificador';
 import { invokeForContext } from '../../intelligence/llmInvoker';
@@ -12,6 +12,7 @@ import { transitionCampaign } from './campaignStateMachine';
 import { getAngleInsights } from './angleInsightsService';
 import { resolveCampaignSegment, computeBudgetPlan } from './budgetPlanner';
 import { resolveBenchmarks } from '../../intelligence/benchmarkResolver';
+import { isReallocationCircuitBreakerTripped } from './reallocationMeasurement';
 
 const CONFIDENCE_THRESHOLD = parseFloat(process.env.AGENT_CONFIDENCE_THRESHOLD || '0.85');
 const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'http://localhost:3001';
@@ -352,6 +353,29 @@ export async function executeAction(
       // rede real (não existe hoje pra nenhuma ação deste motor).
       const realloc = await prisma.budgetReallocation.findFirst({ where: { agentActionId: action.id } });
       if (!realloc) throw new Error('BudgetReallocation não encontrada para esta AgentAction');
+
+      // §8.4/H15 — circuit breaker: a proposta pode ter sido criada ANTES de bater 3
+      // BACKFIRED (o breaker só é checado na hora de sugerir, em runReallocationAgent) e ainda
+      // assim chegar aqui já aprovada com PIN — "não executa nem com aprovação" é literal: barra
+      // aqui também, mesmo com PIN correto, e avisa o Master em vez de mexer em budget real.
+      if (tenantId && await isReallocationCircuitBreakerTripped(tenantId)) {
+        await prisma.budgetReallocation.update({ where: { id: realloc.id }, data: { status: 'BLOCKED' } });
+        await prisma.$executeRaw`
+          UPDATE campanhasmarketingdigital."AgentAction" SET status = 'BLOCKED' WHERE id = ${action.id}
+        `;
+        await notifyAlert({
+          campaignId: action.campaignId,
+          campaignName: action.campaignName,
+          title: 'Realocação bloqueada pelo circuit breaker',
+          description:
+            `A proposta "${realloc.sourceCampaignName} → ${realloc.targetCampaignName}" foi aprovada, ` +
+            `mas NÃO foi executada: este tenant teve ≥3 realocações mal-sucedidas (BACKFIRED) nos ` +
+            `últimos 90 dias. Auto-sugestão desligada até revisão manual.`,
+          confidence: realloc.confidence,
+          tenantId,
+        });
+        return null;
+      }
 
       const [sourceAdSets, targetAdSets] = await Promise.all([
         prisma.adSet.findMany({ where: { campaignId: realloc.sourceCampaignId } }),

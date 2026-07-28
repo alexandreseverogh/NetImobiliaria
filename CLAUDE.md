@@ -427,8 +427,12 @@ agentMonitor.ts (cron a cada 6h)
 Aprovação via links: `GET /api/agent/approve/[id]` e `GET /api/agent/reject/[id]` (sem JWT, autenticados pelo UUID da ação, retornam HTML).
 
 Cron endpoints (header `x-cron-secret`):
-- `POST /api/cron/campanhas/sync` → sync métricas + decisor para todos os tenants
+- `POST /api/cron/campanhas/sync` → sync métricas + decisor para todos os tenants (inclui o
+  motor de realocação cross-rede, T4 — `runReallocationAgent` por tenant)
 - `POST /api/cron/campanhas/briefing` → gera briefing + envia WhatsApp/Slack
+- `POST /api/cron/campanhas/realloc-measure` → mede D+14 as realocações de verba `EXECUTED`
+  (grava `actual_lead_gain`/`verdict` em `BudgetReallocation`), alimenta o circuit breaker —
+  `docs/PLANO_TIKTOK.md` §8.4. Diário, 07:00.
 
 ---
 

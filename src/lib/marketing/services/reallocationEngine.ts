@@ -4,6 +4,7 @@ import { resolveBenchmarks } from '../../intelligence/benchmarkResolver';
 import { resolveCampaignNetworkCodes } from '../networkFilterUtils';
 import { getLeadEvents, sumLeads } from './leadEvents';
 import { networkLabel } from '@/lib/marketing-utils';
+import { isReallocationCircuitBreakerTripped } from './reallocationMeasurement';
 import type { DigestItem } from './agentNotificador';
 
 const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN || 'http://localhost:3001';
@@ -284,6 +285,10 @@ export async function findReallocationOpportunities(tenantId: string): Promise<R
  * origem de 2 propostas simultâneas na fila de aprovação).
  */
 export async function runReallocationAgent(tenantId: string): Promise<{ proposalsCreated: number; digestItems: DigestItem[] }> {
+  // §8.4/H15 — circuit breaker: ≥3 propostas BACKFIRED nos últimos 90 dias desliga a
+  // auto-sugestão pro tenant (não só a auto-execução) até o padrão ser revisado por alguém.
+  if (await isReallocationCircuitBreakerTripped(tenantId)) return { proposalsCreated: 0, digestItems: [] };
+
   const candidates = await findReallocationOpportunities(tenantId);
   if (candidates.length === 0) return { proposalsCreated: 0, digestItems: [] };
 

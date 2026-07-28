@@ -114,6 +114,22 @@ export async function POST(
 
   try {
     await executeAction(action, action.tenantId ?? null, false, false, customBudgetCents);
+
+    // §8.4/H15 — circuit breaker: executeAction pode ter aprovado o PIN mas bloqueado a
+    // execução de verdade (REALLOCATE_BUDGET com ≥3 BACKFIRED recentes) — o retorno não
+    // distingue isso de "executado sem mudança de budget" (ex.: ADD_NEGATIVE_KEYWORD também
+    // retorna null), então checamos o status real gravado em vez de assumir sucesso.
+    const after = await getAction(params.id);
+    if (after?.status === 'BLOCKED') {
+      return htmlResponse(
+        '🛑 Bloqueada pelo circuit breaker',
+        `O PIN foi validado, mas a ação <strong>${action.title}</strong> para <strong>${action.campaignName}</strong> ` +
+        `NÃO foi executada: este tenant teve realocações mal-sucedidas recentes e a auto-sugestão foi ` +
+        `desligada até revisão manual. O Master foi notificado.`,
+        200,
+      );
+    }
+
     const budgetLine = customBudgetCents
       ? ` Novo investimento diário: <strong>${fmtBRL(customBudgetCents)}</strong>.`
       : '';

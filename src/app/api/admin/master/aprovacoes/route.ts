@@ -160,6 +160,16 @@ export async function POST(req: NextRequest) {
 
     try {
       await executeAction(action, action.tenantId ?? null, false, false, body.customBudget);
+
+      // §8.4/H15 — circuit breaker pode ter bloqueado a execução mesmo com PIN/aprovação
+      // válidos (REALLOCATE_BUDGET com ≥3 BACKFIRED recentes) — checar o status real gravado
+      // em vez de assumir 'EXECUTED' só porque não lançou exceção.
+      const afterRows = await prisma.$queryRaw<{ status: string }[]>`
+        SELECT status FROM campanhasmarketingdigital."AgentAction" WHERE id = ${body.id} LIMIT 1`;
+      if (afterRows[0]?.status === 'BLOCKED') {
+        return NextResponse.json({ ok: true, status: 'BLOCKED', reason: 'circuit_breaker' });
+      }
+
       return NextResponse.json({ ok: true, status: 'EXECUTED' });
     } catch (execErr: any) {
       await prisma.$executeRaw`
