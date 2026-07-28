@@ -26,6 +26,39 @@ interface WastedReport {
   recoveryPlan: string[];
 }
 
+// docs/PLANO_TIKTOK.md §8.6 — motor de realocação cross-rede (T4): conecta o diagnóstico
+// (desperdício detectado nesta página) à ação concreta (destino real, não só "pause/otimize").
+interface BudgetReallocationRow {
+  id: string;
+  sourceCampaignId: string;
+  sourceCampaignName: string;
+  sourceNetwork: string;
+  sourceCplBefore: number;
+  targetCampaignName: string;
+  targetNetwork: string;
+  targetCplBefore: number;
+  amountCents: number;
+  gapPct: number;
+  projectedLeadGain: number;
+  status: string;
+  actualLeadGain: number | null;
+  verdict: string | null;
+  createdAt: string;
+}
+
+const VERDICT_META: Record<string, { label: string; cls: string }> = {
+  CONFIRMED: { label: 'Confirmado',  cls: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+  NEUTRAL:   { label: 'Neutro',      cls: 'bg-amber-50 text-amber-600 border-amber-100' },
+  BACKFIRED: { label: 'Não deu certo', cls: 'bg-red-50 text-red-600 border-red-100' },
+};
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  PROPOSED:  { label: 'Aguardando aprovação', cls: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+  APPROVED:  { label: 'Aprovada',             cls: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+  EXECUTED:  { label: 'Aguardando medição',   cls: 'bg-slate-100 text-slate-500 border-slate-200' },
+  REJECTED:  { label: 'Rejeitada',            cls: 'bg-slate-100 text-slate-500 border-slate-200' },
+  BLOCKED:   { label: 'Bloqueada (circuit breaker)', cls: 'bg-red-50 text-red-600 border-red-100' },
+};
+
 const CATEGORY_META: Record<string, { label: string; icon: string; accent: string; bg: string; border: string }> = {
   ZERO_LEADS_SPEND:   { label: 'Sem Leads',           icon: '💸', accent: 'text-red-600',    bg: 'bg-red-50',    border: 'border-red-100' },
   HIGH_CPL_SPEND:     { label: 'CPL Crítico',          icon: '📉', accent: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100' },
@@ -46,6 +79,8 @@ export default function DesperdicioPage() {
   const [narrativa, setNarrativa] = useState('');
   const [genNarr, setGenNarr]     = useState(false);
   const [expanded, setExpanded]   = useState<Record<string, boolean>>({});
+  const [realocLive, setRealocLive]       = useState<BudgetReallocationRow[]>([]);
+  const [realocHistory, setRealocHistory] = useState<BudgetReallocationRow[]>([]);
 
   // Seletor Minha Empresa / Para um Cliente — padrão 'own'
   const { clients, loading: clientsLoading, clientFilter, setClientFilter } = useClientSelector('desperdicio');
@@ -63,6 +98,19 @@ export default function DesperdicioPage() {
   }, [days, clientFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  // docs/PLANO_TIKTOK.md §8.6 — "Para onde mover" + histórico, motor de realocação (T4)
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (clientFilter !== 'all') params.set('clientId', clientFilter);
+    fetch(`/api/admin/campanhas/realocacoes?${params}`)
+      .then(async r => (r.ok ? r.json() : null))
+      .then(d => {
+        setRealocLive(d?.live ?? []);
+        setRealocHistory(d?.history ?? []);
+      })
+      .catch(() => { setRealocLive([]); setRealocHistory([]); });
+  }, [clientFilter]);
 
   async function handleGenerateNarrativa() {
     setGenNarr(true);
@@ -265,6 +313,86 @@ export default function DesperdicioPage() {
                 </div>
               )}
             </div>
+
+            {/* Para onde mover — docs/PLANO_TIKTOK.md §8.6 (T4). Conecta o diagnóstico acima
+                (desperdício detectado) à ação concreta: destino real com CPL provado melhor,
+                não só "pause/otimize" sem dizer para onde ir. */}
+            {realocLive.length > 0 && (
+              <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-5">
+                <div className="mb-4">
+                  <h2 className="text-sm font-black text-gray-900">💰 Para onde mover</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Verba parada em campanhas fracas tem destino melhor provado em outra rede
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  {realocLive.map(r => {
+                    const isWasted = Object.values(report.byCategory).some(cat =>
+                      cat.campaigns.some(c => c.id === r.sourceCampaignId),
+                    );
+                    return (
+                      <div key={r.id} className="flex items-center justify-between gap-4 p-3 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap text-sm">
+                            <span className="font-bold text-gray-900 truncate">{r.sourceCampaignName}</span>
+                            {isWasted && (
+                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-red-100 text-red-600">desperdício</span>
+                            )}
+                            <span className="text-gray-400">→</span>
+                            <span className="font-bold text-gray-900 truncate">{r.targetCampaignName}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            CPL {formatCurrency(r.sourceCplBefore)} → {formatCurrency(r.targetCplBefore)} · vantagem de {r.gapPct.toFixed(0)}%
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-black text-emerald-600">{formatCurrency(r.amountCents / 100)}/dia</p>
+                          <p className="text-[10px] text-gray-400">+{r.projectedLeadGain.toFixed(2)} lead/dia</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <a href="/admin/campanhas/aprovacoes" className="inline-block mt-4 text-xs font-black text-emerald-600 hover:text-emerald-700">
+                  Aprovar na fila →
+                </a>
+              </div>
+            )}
+
+            {/* Histórico de Realocações — prova de valor do módulo pro gestor (D+14) */}
+            {realocHistory.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <h2 className="text-sm font-black text-gray-900 mb-4">Histórico de Realocações</h2>
+                <div className="space-y-2">
+                  {realocHistory.map(r => {
+                    const statusMeta  = STATUS_META[r.status] ?? { label: r.status, cls: 'bg-slate-100 text-slate-500 border-slate-200' };
+                    const verdictMeta = r.verdict ? VERDICT_META[r.verdict] : null;
+                    return (
+                      <div key={r.id} className="flex items-center justify-between gap-4 py-3 border-b border-gray-50 last:border-0">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap text-sm">
+                            <span className="font-medium text-gray-900 truncate">{r.sourceCampaignName}</span>
+                            <span className="text-gray-400">→</span>
+                            <span className="font-medium text-gray-900 truncate">{r.targetCampaignName}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {formatCurrency(r.amountCents / 100)}/dia · projetado +{r.projectedLeadGain.toFixed(2)} lead/dia
+                            {r.actualLeadGain != null && ` · real ${r.actualLeadGain >= 0 ? '+' : ''}${r.actualLeadGain.toFixed(2)} lead/dia`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {verdictMeta ? (
+                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded border ${verdictMeta.cls}`}>{verdictMeta.label}</span>
+                          ) : (
+                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded border ${statusMeta.cls}`}>{statusMeta.label}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* AI Narrative */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">

@@ -7,6 +7,7 @@ import { MultiMetricChart } from '@/components/marketing/charts/MultiMetricChart
 import { ClassicFunnelChart } from '@/components/marketing/charts/ClassicFunnelChart';
 import { CampaignMapWidget } from '@/components/marketing/CampaignMapWidget';
 import { RevenueAttributionWidget } from '@/components/marketing/dashboard/RevenueAttributionWidget';
+import { ReallocationOpportunityWidget } from '@/components/marketing/dashboard/ReallocationOpportunityWidget';
 import type { DashboardFullData, AiInsightData } from '@/lib/marketing-api';
 import type { HookSaturationResult } from '@/lib/marketing/services/hookSaturationService';
 
@@ -411,6 +412,16 @@ export function CommandCenterView({
         clientId={clientFilter ?? null}
         periodDays={periodDays}
         network={network ?? null}
+        cardBase={cardBase}
+        tx={tx}
+        txMuted={txMuted}
+        txFaint={txFaint}
+      />
+
+      {/* ── LINHA 6: Oportunidade de Realocação cross-rede (T4, docs/PLANO_TIKTOK.md §8.6) ── */}
+      <ReallocationOpportunityWidget
+        isDark={isDark}
+        clientId={clientFilter ?? null}
         cardBase={cardBase}
         tx={tx}
         txMuted={txMuted}
