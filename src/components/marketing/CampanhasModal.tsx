@@ -869,7 +869,7 @@ function ScheduleDisplay({
             <span key={i} className={cn(
               'w-7 h-7 flex items-center justify-center rounded-md text-[10px] font-black',
               scheduleDays?.includes(i)
-                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
+                ? 'bg-gold-premium text-navy-dark shadow-sm shadow-gold-premium/30'
                 : 'bg-gray-100 text-gray-400',
             )}>
               {d.slice(0, 2)}
@@ -1195,7 +1195,7 @@ function Pagination({
               className={cn(
                 'w-8 h-8 rounded-lg text-sm font-bold transition-all',
                 n === page
-                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
+                  ? 'bg-gold-premium text-navy-dark shadow-sm shadow-gold-premium/30'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
               )}
             >
@@ -1358,7 +1358,7 @@ export default function CampanhasModal({
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         disabled={loading || campaigns.length === 0}
-                        className="py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed max-w-[260px]"
+                        className="py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all appearance-none shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed max-w-[260px]"
                       >
                         <option value="">
                           {loading ? 'Carregando…' : `Todas as campanhas (${campaigns.length})`}
@@ -1375,7 +1375,7 @@ export default function CampanhasModal({
                       <select
                         value={statusFilter}
                         onChange={e => setStatusFilter(e.target.value)}
-                        className="py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none shadow-sm cursor-pointer"
+                        className="py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all appearance-none shadow-sm cursor-pointer"
                       >
                         <option value="">Todos status</option>
                         <option value="ACTIVE">Ativas</option>
@@ -1405,7 +1405,7 @@ export default function CampanhasModal({
                       value={search}
                       onChange={e => setSearch(e.target.value)}
                       disabled={loading || campaigns.length === 0}
-                      className="w-full py-2.5 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer disabled:opacity-50"
+                      className="w-full py-2.5 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 appearance-none cursor-pointer disabled:opacity-50"
                     >
                       <option value="">{loading ? 'Carregando…' : 'Todas as campanhas'}</option>
                       {campaigns.map(c => (
@@ -1418,7 +1418,7 @@ export default function CampanhasModal({
                     <select
                       value={statusFilter}
                       onChange={e => setStatusFilter(e.target.value)}
-                      className="h-full py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+                      className="h-full py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 appearance-none cursor-pointer"
                     >
                       <option value="">Status</option>
                       <option value="ACTIVE">Ativas</option>
@@ -1487,7 +1487,7 @@ export default function CampanhasModal({
                     {(search || statusFilter) && (
                       <button
                         onClick={() => { setSearch(''); setStatusFilter(''); }}
-                        className="mt-5 px-5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-all shadow-sm"
+                        className="mt-5 px-5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-all shadow-sm"
                       >
                         Limpar filtros
                       </button>
