@@ -523,16 +523,19 @@ VALUES ('Nova Página', 'IconName', '/admin/campanhas/nova', 110, 5, true);
 
 ## Pendências e Próximos Passos
 
-### 1. Redesign Premium — Ativar skill `impeccable`
+### 1. Redesign Premium — Ativar skill `impeccable` — ✅ 4 telas principais concluídas (2026-07-28)
 
-As interfaces atuais são funcionais mas convencionais. Para elevar o nível visual:
-```
-/impeccable
-```
-Revisar com foco em: `dashboard/page.tsx`, `leads/page.tsx`, `criativos/page.tsx`, `configuracoes/page.tsx`, `src/components/marketing/` (charts + CampaignWizard).
+`dashboard/page.tsx`, `configuracoes/page.tsx`, `CampaignWizard.tsx` e `criativos/page.tsx`
+tiveram o sistema de cor corrigido (indigo-600 genérico → acento âmbar `#c5a028`/`#020c1b` do
+`PRODUCT.md`/`DESIGN.md` deste projeto, anel de foco fixo `#2563eb`) — passe estreito, uma
+checkpoint por tela com aprovação do usuário. Detalhe completo em `docs/CHECKPOINT.md`.
+
+**Ainda pendente, se pedido:** `leads/page.tsx` (nunca entrou no escopo desta rodada) e os
+componentes compartilhados de gráfico em `src/components/marketing/` (`AnalyticsView.tsx`,
+`BriefingCard.tsx`, `CommandCenterView.tsx`, `KpiCard.tsx`, `PeriodBadge.tsx`,
+`ClassicFunnelChart.tsx` — ~28 ocorrências de indigo mapeadas via grep, não atacadas).
 
 ### 2. Outras Pendências
 
 - **Sync Meta real**: validar `POST /insights/sync` com token de produção e campanhas reais
 - **Fluxo completo do CampaignWizard**: publicação no Meta após upload de criativos
-- **Alerta de token Meta expirando**: `meta_token_expires_at` existe no tenant, falta notificação na UI
