@@ -34,9 +34,11 @@ interface Props {
    * Popula os campos de texto antes do usuário chegar ao step 2.
    */
   initialValues?: {
-    body?:     string;
-    headline?: string;
-    hookText?: string;  // exibido como dica no step 2
+    body?:        string;
+    headline?:    string;
+    hookText?:    string;  // exibido como dica no step 2
+    /** Pré-seleciona a rede no step 0 — vem do botão específico clicado em /nova (Meta/TikTok). */
+    networkCode?: string;
   };
 }
 
@@ -110,7 +112,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
   });
 
   const [form, setForm] = useState({
-    networkCode:  'meta',
+    networkCode:  initialValues?.networkCode || 'meta',
     creativeType: selectedImages.length === 1 ? 'SINGLE_IMAGE' : '',
     name:         '',
     body:         initialValues?.body     || '',
@@ -463,6 +465,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
 interface NetworkOption {
   id: string; code: string; name: string; icon: string; color: string;
   network_active: boolean; capabilities: { supported?: boolean }; connected?: boolean;
+  contracted?: boolean;
 }
 
 function StepNetwork({ form, updateForm }: any) {
@@ -502,18 +505,22 @@ function StepNetwork({ form, updateForm }: any) {
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {networks.map(net => {
-            const isSupported = net.capabilities?.supported !== false;
-            const isSelected  = form.networkCode === net.code;
+            const isSupported  = net.capabilities?.supported !== false;
+            // Contratação (modelo de negócio: cada rede é cobrada separadamente) tem
+            // prioridade sobre "conectado" — sem contratar, nem adianta ter credencial.
+            const isContracted = net.contracted !== false;
+            const isSelected   = form.networkCode === net.code;
+            const isClickable  = isSupported && isContracted && net.connected;
             return (
               <button
                 key={net.code}
-                disabled={!isSupported || !net.connected}
-                onClick={() => isSupported && net.connected && updateForm({ networkCode: net.code })}
+                disabled={!isClickable}
+                onClick={() => isClickable && updateForm({ networkCode: net.code })}
                 className={cn(
                   'bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center transition-all relative',
                   isSelected && 'ring-2 ring-indigo-500 bg-indigo-50 border-indigo-200',
-                  (!isSupported || !net.connected) && 'opacity-50 cursor-not-allowed',
-                  isSupported && net.connected && !isSelected && 'hover:bg-gray-50 cursor-pointer',
+                  !isClickable && 'opacity-50 cursor-not-allowed',
+                  isClickable && !isSelected && 'hover:bg-gray-50 cursor-pointer',
                 )}
               >
                 <div
@@ -523,12 +530,14 @@ function StepNetwork({ form, updateForm }: any) {
                   {ICONS[net.code] || net.code.slice(0, 2).toUpperCase()}
                 </div>
                 <p className="text-sm font-semibold text-gray-900">{net.name}</p>
-                {net.connected ? (
-                  <p className="text-xs text-emerald-600 mt-1 font-medium">Conectado</p>
-                ) : isSupported ? (
-                  <p className="text-xs text-amber-500 mt-1">Não conectado</p>
-                ) : (
+                {!isSupported ? (
                   <p className="text-xs text-gray-400 mt-1">Em breve</p>
+                ) : !isContracted ? (
+                  <p className="text-xs text-gray-400 mt-1">Não contratado</p>
+                ) : net.connected ? (
+                  <p className="text-xs text-emerald-600 mt-1 font-medium">Conectado</p>
+                ) : (
+                  <p className="text-xs text-amber-500 mt-1">Não conectado</p>
                 )}
                 {isSelected && (
                   <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center">
@@ -541,7 +550,7 @@ function StepNetwork({ form, updateForm }: any) {
             );
           })}
         </div>
-        {networks.some(n => n.capabilities?.supported !== false && !n.connected) && (
+        {networks.some(n => n.capabilities?.supported !== false && n.contracted !== false && !n.connected) && (
           <p className="text-xs text-gray-400 mt-3">
             Redes com "Não conectado" precisam de credenciais em{' '}
             <a href="/admin/campanhas/configuracoes/redes" target="_blank" className="text-indigo-600 underline">

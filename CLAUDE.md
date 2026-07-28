@@ -349,6 +349,30 @@ mudar.
 `inboundProcessor.ts`) além do `WHATSAPP_CLICK` — por isso o filtro de submissão exclui
 `cta_type='WHATSAPP_MESSAGE'` explicitamente, senão o mesmo lead conta 2x.
 
+### Contratação de Rede por Tenant — cada rede é cobrada separadamente
+
+Modelo de negócio: uma empresa pode não ter contratado uma rede de anúncio específica (ex.:
+contratou só Meta, não TikTok). Isso é distinto de "conectado" (tem credencial configurada) —
+uma empresa pode ter contratado mas não ter conectado ainda, ou (antes desta feature) estar
+vendo redes que nunca pagou.
+
+Reaproveita o sistema genérico de provisionamento já usado por todo o resto da plataforma
+(`system_features` + `tenant_feature_overrides`, ver `docs/ACCESS_CONTROL.md`) em vez de colunas
+soltas em `tenants` — decisão deliberada pra não duplicar o mecanismo. 3 features sem `url`
+própria (não são página, são toggle de capacidade): `campanhas-rede-meta`,
+`campanhas-rede-google`, `campanhas-rede-tiktok` — habilitadas por tenant em
+`/admin/master/provisioning`, dentro do módulo "Gestão de Campanhas de Marketing Digital".
+Master (`is_system_role`) bypassa o gate (vê tudo como contratado, mesmo padrão de
+`get_sidebar_menu_for_user`).
+
+`GET /api/admin/campanhas/configuracoes/redes` calcula `contracted` por rede via
+`LEFT JOIN tenant_feature_overrides` (slug = `'campanhas-rede-' || code`) e é o único ponto de
+verdade — tanto a tela de Configurações → Redes quanto o step "Rede de Anúncios" do
+`CampaignWizard.tsx` e os 2 botões de rede em `/admin/campanhas/nova` (Meta/TikTok separados,
+mais o botão dedicado do Google AI Max) leem esse mesmo campo. Prioridade de estado num card:
+`!supported` ("Em breve") → `!contracted` ("Não contratado") → `!connected` ("Não conectado") →
+"Conectado". Ver `prisma/migration-2026-07-28-network-provisioning.sql`.
+
 ---
 
 ## Multi-Tenant e Filtro de Clientes

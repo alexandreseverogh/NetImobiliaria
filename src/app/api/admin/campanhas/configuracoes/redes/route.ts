@@ -16,6 +16,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
     const tenantId = payload.tenantId;
+    // Master bypassa provisionamento (mesmo padrão de get_sidebar_menu_for_user) — só tenants
+    // reais precisam ter a rede contratada explicitamente via /admin/master/provisioning.
+    const isMaster = payload.is_system_role === true;
 
     const res = await pool.query(
       `SELECT
@@ -34,16 +37,25 @@ export async function GET(request: NextRequest) {
          tnc.expires_at,
          tnc.last_validated,
          tnc.updated_at      AS connected_at,
-         CASE WHEN tnc.id IS NOT NULL AND tnc.is_active THEN true ELSE false END AS connected
+         CASE WHEN tnc.id IS NOT NULL AND tnc.is_active THEN true ELSE false END AS connected,
+         -- Provisionamento por rede (modelo de negócio: cada rede é cobrada separadamente do
+         -- tenant) — reaproveita system_features/tenant_feature_overrides, o mesmo mecanismo
+         -- genérico usado pra todo o resto da plataforma. Ver
+         -- prisma/migration-2026-07-28-network-provisioning.sql.
+         CASE WHEN $2::boolean THEN true ELSE COALESCE(tfo.is_active, false) END AS contracted
        FROM public.ad_networks n
        LEFT JOIN public.tenant_network_credentials tnc
          ON tnc.network_id = n.id AND tnc.tenant_id = $1::uuid
+       LEFT JOIN public.system_features sf
+         ON sf.slug = 'campanhas-rede-' || n.code
+       LEFT JOIN public.tenant_feature_overrides tfo
+         ON tfo.feature_id = sf.id AND tfo.tenant_id = $1::uuid
        -- LinkedIn não será implementado por um bom tempo (decisão explícita) — ocultado da UI
        -- (wizard + tela de redes, os dois únicos consumidores deste endpoint) sem apagar o
        -- catálogo/adapter stub. Pra reexibir, basta remover esta linha.
        WHERE n.code <> 'linkedin'
        ORDER BY n.sort_order, n.name`,
-      [tenantId],
+      [tenantId, isMaster],
     );
 
     return NextResponse.json({ networks: res.rows });

@@ -81,6 +81,39 @@ export default function NovaCampanhaPage() {
   /* ── Phase 2: wizard ────────────────────────────────── */
   const [showWizard, setShowWizard] = useState(false);
   const [showGoogleWizard, setShowGoogleWizard] = useState(false);
+  /** Rede escolhida no botão específico clicado (Meta ou TikTok) — pré-seleciona o step 0
+   *  do wizard genérico, que continua mostrando o passo "Rede de Anúncios" normalmente
+   *  (o usuário ainda pode trocar lá dentro, só chega com a intenção certa já marcada). */
+  const [pickedNetwork, setPickedNetwork] = useState<'meta' | 'tiktok'>('meta');
+
+  /* ── Provisionamento por rede — botões separados, cada um habilitado só quando a rede foi
+   *  contratada pelo tenant (via Master → Provisionamento) E está com credenciais conectadas.
+   *  Ver prisma/migration-2026-07-28-network-provisioning.sql. */
+  const [networkStatus, setNetworkStatus] = useState<Record<string, { contracted: boolean; connected: boolean; supported: boolean }>>({});
+  const [networksLoaded, setNetworksLoaded] = useState(false);
+
+  useEffect(() => {
+    adminFetch('/api/admin/campanhas/configuracoes/redes')
+      .then(r => r.json())
+      .then(d => {
+        const map: Record<string, { contracted: boolean; connected: boolean; supported: boolean }> = {};
+        (d.networks || []).forEach((n: any) => {
+          map[n.code] = {
+            contracted: n.contracted !== false,
+            connected:  !!n.connected,
+            supported:  n.capabilities?.supported !== false,
+          };
+        });
+        setNetworkStatus(map);
+      })
+      .catch(() => setNetworkStatus({}))
+      .finally(() => setNetworksLoaded(true));
+  }, []);
+
+  function networkReady(code: string): boolean {
+    const s = networkStatus[code];
+    return !!s && s.contracted && s.connected;
+  }
 
   /* ── Consultar campanhas modal ──────────────────────── */
   const [showConsultarModal, setShowConsultarModal] = useState(false);
@@ -240,11 +273,12 @@ export default function NovaCampanhaPage() {
         onClose={() => setShowWizard(false)}
         onSuccess={handleSuccess}
         getAssetIds={() => uploadPromiseRef.current}
-        initialValues={
-          (prefillBody || prefillHeadline)
-            ? { body: prefillBody || undefined, headline: prefillHeadline || undefined, hookText: prefillHookText || undefined }
-            : undefined
-        }
+        initialValues={{
+          body:        prefillBody || undefined,
+          headline:    prefillHeadline || undefined,
+          hookText:    prefillHookText || undefined,
+          networkCode: pickedNetwork,
+        }}
       />
     );
   }
@@ -659,29 +693,61 @@ export default function NovaCampanhaPage() {
           </div>
 
           <div className="flex gap-3">
-            <button
-              onClick={() => {
-                uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
-                setShowWizard(true);
-              }}
-              disabled={!contextReady}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: contextReady ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#94a3b8' }}
-            >
-              <RocketLaunchIcon className="h-4 w-4" />
-              Meta / TikTok
-            </button>
-            <button
-              onClick={() => {
-                uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
-                setShowGoogleWizard(true);
-              }}
-              disabled={!contextReady}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700"
-            >
-              <img src="/google-logo.png" alt="Google" className="h-4 w-4 filter brightness-0 invert opacity-90" onError={e => e.currentTarget.style.display='none'} />
-              Google AI Max
-            </button>
+            {(() => {
+              const metaOk = networkReady('meta');
+              return (
+                <button
+                  onClick={() => {
+                    setPickedNetwork('meta');
+                    uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
+                    setShowWizard(true);
+                  }}
+                  disabled={!contextReady || !networksLoaded || !metaOk}
+                  title={!metaOk && networksLoaded ? (networkStatus.meta?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: (contextReady && metaOk) ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#94a3b8' }}
+                >
+                  <RocketLaunchIcon className="h-4 w-4" />
+                  Meta Ads
+                </button>
+              );
+            })()}
+            {(() => {
+              const tiktokOk = networkReady('tiktok');
+              return (
+                <button
+                  onClick={() => {
+                    setPickedNetwork('tiktok');
+                    uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
+                    setShowWizard(true);
+                  }}
+                  disabled={!contextReady || !networksLoaded || !tiktokOk}
+                  title={!tiktokOk && networksLoaded ? (networkStatus.tiktok?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-slate-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: (contextReady && tiktokOk) ? 'linear-gradient(135deg, #111827, #000000)' : '#94a3b8' }}
+                >
+                  <RocketLaunchIcon className="h-4 w-4" />
+                  TikTok Ads
+                </button>
+              );
+            })()}
+            {(() => {
+              const googleOk = networkReady('google');
+              return (
+                <button
+                  onClick={() => {
+                    uploadPromiseRef.current = uploadSelectedToLibrary(effectiveClientId);
+                    setShowGoogleWizard(true);
+                  }}
+                  disabled={!contextReady || !networksLoaded || !googleOk}
+                  title={!googleOk && networksLoaded ? (networkStatus.google?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <img src="/google-logo.png" alt="Google" className="h-4 w-4 filter brightness-0 invert opacity-90" onError={e => e.currentTarget.style.display='none'} />
+                  Google AI Max
+                </button>
+              );
+            })()}
           </div>
         </div>
 

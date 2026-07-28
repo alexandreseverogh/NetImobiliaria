@@ -25,6 +25,7 @@ interface Network {
   last_validated: string | null;
   connected_at: string | null;
   connected: boolean;
+  contracted: boolean;
 }
 
 interface MetaForm {
@@ -213,6 +214,8 @@ export default function RedesPage() {
                     <div className="text-xs text-gray-500">Conta: {net.account_id}</div>
                   ) : !net.capabilities.supported ? (
                     <div className="text-xs text-gray-400">Em breve</div>
+                  ) : net.contracted === false ? (
+                    <div className="text-xs text-gray-400">Não contratado</div>
                   ) : (
                     <div className="text-xs text-gray-400">Não conectado</div>
                   )}
@@ -251,17 +254,24 @@ export default function RedesPage() {
                       Desativar
                     </button>
                   </>
-                ) : net.capabilities.supported !== false ? (
+                ) : net.capabilities.supported === false ? (
+                  <span className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
+                    Em breve
+                  </span>
+                ) : net.contracted === false ? (
+                  <span
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed"
+                    title="Fale com o time comercial para contratar esta rede"
+                  >
+                    Não contratado
+                  </span>
+                ) : (
                   <button
                     onClick={() => setExpanded(expandedCode === net.code ? null : net.code)}
                     className="px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
                   >
                     Conectar
                   </button>
-                ) : (
-                  <span className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                    Em breve
-                  </span>
                 )}
               </div>
             </div>
