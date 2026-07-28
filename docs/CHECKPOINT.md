@@ -75,12 +75,55 @@ fetch('/api/admin/auth/me', { headers: { Authorization: 'Bearer ' + TOKEN } })
 // 3. Navegar normalmente — sessão válida
 ```
 
-**Próximo passo: T2** (adapter real do TikTok — TikTok Business API v1.3, `fetch` nativo em vez
-de SDK, mesmo precedente do projeto com o pacote `openai` quebrando no runtime do Next) — fora
-do escopo imediato, depende de app aprovado no TikTok for Business. **Alternativa mais valiosa
-de avançar agora, sem depender de aprovação externa:** T4 (motor de realocação cross-rede,
-docs/PLANO_TIKTOK.md §8) — não depende do TikTok real, já opera sobre Meta×Google desde o
-primeiro dia.
+**T4 concluído** (motor de realocação cross-rede, `docs/PLANO_TIKTOK.md` §8 — não depende do
+TikTok real, já opera sobre Meta×Google hoje): migração `BudgetReallocation` (tabela de detalhe
+bilateral, linkada 1:1 à `AgentAction` que já carrega PIN/aprovação) + 5 benchmarks novos
+(`realloc_min_cpl_gap_pct=30%`, `realloc_max_pct_of_source=30%`, `realloc_marginal_haircut_pct=25%`,
+`realloc_max_abs_cents=R$50`, `realloc_cooldown_days=14`) seedados nos 6 segmentos ativos via
+`benchmarkResolver`. `reallocationEngine.ts` — `findReallocationOpportunities()` aplica 11
+critérios de elegibilidade (mesmo cliente/segmento/funnel_stage, redes diferentes, origem com
+lead real, ambas maduras, destino com eficiência PROVADA não prometida, nenhuma em learning,
+destino com headroom real — frequência pra Meta/TikTok, IS Lost Budget pra Google —, origem não é
+a única campanha do seu funnel_stage, cooldown por par, vantagem de CPL acima do mínimo) e calcula
+o ganho líquido projetado com **haircut marginal explícito** (nunca assume CPL médio constante no
+destino após receita extra — a resposta ingênua "CPL menor → move tudo" fica deliberadamente
+impossível de expressar aqui). `runReallocationAgent()` converte a melhor oportunidade por
+campanha-origem numa `AgentAction` tipo `REALLOCATE_BUDGET` (sempre OFFENSIVE — aumenta gasto
+numa rede, sempre exige aprovação humana com PIN, nunca auto-executa) + a `BudgetReallocation`
+vinculada. Fio de volta no cron (`/api/cron/campanhas/sync`) + no digest do WhatsApp
+(`agentNotificador.ts` — bucket próprio `reallocs`, achado real: sem isso a ação ficaria
+criada no banco mas invisível/inaprovável via WhatsApp, só um outro tipo já tinha esse
+tratamento) + na execução (`agentDecisor.executeAction`, branch `REALLOCATE_BUDGET`: atualiza os
+AdSets de origem E destino dentro de um único `prisma.$transaction` — **desvio deliberado do
+texto literal do plano**, que sugeria reverter a origem se a chamada de rede do destino falhasse;
+o código real do projeto (SCALE/DOWNSCALE já existentes) sempre trata push de rede como
+best-effort/non-blocking e o banco local como fonte da verdade, então a atomicidade real é
+a transação Postgres entre as duas campanhas, não uma reversão condicionada à rede) + no reject
+(`/api/agent/reject/[id]`, achado real: sem o fix, rejeitar deixava a `BudgetReallocation` presa
+em `PROPOSED` pra sempre, já que `setStatus()` só tocava a `AgentAction`).
+
+**Testado ao vivo, ponta a ponta, com números batendo exatos com o cálculo manual**: 2 campanhas
+sintéticas (Meta CPL R$50, TikTok CPL R$20, mesmo tenant/segmento/funnel_stage BOF) → motor
+encontrou 1 candidato (gap 60%, R$15/dia, ganho líquido projetado +0,30 lead/dia, confiança 0,94)
+→ `runReallocationAgent` criou `AgentAction`+`BudgetReallocation` reais → aprovado via PIN real
+(`/api/agent/approve/[id]`) → `AdSet` de origem 100→85 (-R$15), destino 60→75 (+R$15), ambas as
+tabelas marcadas `EXECUTED` com os valores corretos. **Achado real de sessão longa, mesma classe
+já documentada váras vezes neste arquivo:** o servidor dev tinha o singleton do Prisma Client
+travado ANTES do `npx prisma generate` que criou o model `BudgetReallocation` — `prisma.
+budgetReallocation` vinha `undefined` até o comentário do `next.config.js` ser tocado (força
+restart completo do processo Next, mesmo truque já usado em sessões de FASE 9/Auditoria). Todo
+dado de teste (2 campanhas, 2 AdSets, 10 Insight, 25 CtaInteraction, 1 AgentAction, 1
+BudgetReallocation) removido depois, 0 resíduo confirmado por SQL. `npx tsc --noEmit`: 64 erros,
+mesma baseline pré-existente, zero novos em qualquer arquivo tocado.
+
+**Próximo passo:** T4 tem 3 sub-itens ainda pendentes, não bloqueantes pro core já funcionar —
+cron de medição D+14 (compara `actual_lead_gain` real contra `projected_lead_gain`, grava
+`verdict`) + circuit breaker (≥3 `BACKFIRED` em 90 dias desliga auto-sugestão do tenant), UI
+(card de oportunidade no dashboard + histórico de realocações passadas com veredito), e a bateria
+formal de testes Trilha H (H1-H16, casos de borda de elegibilidade/execução/rejeição/medição) —
+ver `docs/PLANO_TIKTOK.md` §8.4-8.6 e §11. T2 (adapter real do TikTok, TikTok Business API v1.3)
+segue bloqueado por aprovação externa do app no TikTok for Business — inalterado desde a sessão
+anterior.
 
 ## Penúltima tarefa concluída
 

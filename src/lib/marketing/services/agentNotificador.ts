@@ -334,7 +334,7 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
   });
 
   const tenantLine = tenantName ? ` — ${tenantName}` : '';
-  let hasScales = false;
+  let hasApprovals = false; // SCALE ou REALLOCATE_BUDGET — qualquer ação que exija PIN/painel
 
   // PARTE D3 — com Google (e futuramente TikTok) no ar, uma ação "escalar" do Google e uma do
   // Meta apareciam misturadas no mesmo resumo sem dizer de qual rede — reduzia a clareza da
@@ -348,11 +348,12 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
 
   for (const key of clientKeys) {
     const group = byClient.get(key)!;
-    const scales     = group.filter(i => i.type === 'SCALE');
-    const pauses     = group.filter(i => i.type === 'PAUSE');
-    const downscales = group.filter(i => i.type === 'DOWNSCALE');
-    const others     = group.filter(i => !['SCALE', 'PAUSE', 'DOWNSCALE'].includes(i.type));
-    if (scales.length > 0) hasScales = true;
+    const scales      = group.filter(i => i.type === 'SCALE');
+    const pauses      = group.filter(i => i.type === 'PAUSE');
+    const downscales  = group.filter(i => i.type === 'DOWNSCALE');
+    const reallocs    = group.filter(i => i.type === 'REALLOCATE_BUDGET');
+    const others      = group.filter(i => !['SCALE', 'PAUSE', 'DOWNSCALE', 'REALLOCATE_BUDGET'].includes(i.type));
+    if (scales.length > 0 || reallocs.length > 0) hasApprovals = true;
 
     // Cabeçalho compacto — cada bloco é auto-contido (chega como mensagem separada)
     let b = `🤖 *Resumo do Ciclo*${tenantLine}\n`;
@@ -388,6 +389,16 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
       if (d.budget?.before != null && d.budget?.after != null) {
         b += `   💰 ${fmtBRL(d.budget.before)} -> ${fmtBRL(d.budget.after)}\n`;
       }
+    }
+
+    // 💰 Realocações cross-rede (precisam de aprovação — docs/PLANO_TIKTOK.md §8.4). Já vem
+    // com as 2 redes rotuladas dentro de description (não cabe no networkTag de 1 rede só).
+    for (const r of reallocs) {
+      b += `💰 *${r.campaignName}*\n`;
+      if (r.description) b += `   ${r.description}\n`;
+      if (r.pin) b += `   🔐 PIN: *${r.pin}*\n`;
+      if (r.approveUrl) b += `   ✅ ${r.approveUrl}\n`;
+      if (r.rejectUrl)  b += `   ❌ ${r.rejectUrl}\n`;
     }
 
     // ⚡ Outras ações
@@ -429,7 +440,7 @@ export async function notifyDigest(tenantId: string, items: DigestItem[]) {
     blocks.push(b);
   }
 
-  const panelLine = hasScales
+  const panelLine = hasApprovals
     ? `📲 Aprovar no painel: ${process.env.PUBLIC_DOMAIN || 'http://localhost:3001'}/admin/campanhas/aprovacoes`
     : '';
 

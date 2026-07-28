@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-06-02 — prisma generate AuditReport (clearou global.prismaMarketing)
+// last-restart: 2026-07-27 — prisma generate BudgetReallocation (clearou global.prismaMarketing)
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

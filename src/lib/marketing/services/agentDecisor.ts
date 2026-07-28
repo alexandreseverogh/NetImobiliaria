@@ -340,6 +340,79 @@ export async function executeAction(
         }
       }
       if (adSets.length > 0) budgetChange = { before, after };
+
+    } else if (action.type === 'REALLOCATE_BUDGET') {
+      // docs/PLANO_TIKTOK.md §8.4 — DOWNSCALE na origem + SCALE no destino. Diferente de
+      // PAUSE/SCALE/DOWNSCALE (que nunca chamam a rede de verdade pro budget, só best-effort
+      // via updateAdSetBudget se o adapter tiver isso), aqui a garantia de atomicidade é a
+      // MESMA já usada no resto do módulo: local (Prisma) é a fonte da verdade, uma falha de
+      // rede NUNCA bloqueia nem reverte o estado local — mas as duas campanhas (origem E
+      // destino) têm que mudar juntas ou nenhuma muda, por isso as duas ficam num único
+      // prisma.$transaction. Reversão de verdade só existiria se houvesse push síncrono pra
+      // rede real (não existe hoje pra nenhuma ação deste motor).
+      const realloc = await prisma.budgetReallocation.findFirst({ where: { agentActionId: action.id } });
+      if (!realloc) throw new Error('BudgetReallocation não encontrada para esta AgentAction');
+
+      const [sourceAdSets, targetAdSets] = await Promise.all([
+        prisma.adSet.findMany({ where: { campaignId: realloc.sourceCampaignId } }),
+        prisma.adSet.findMany({ where: { campaignId: realloc.targetCampaignId } }),
+      ]);
+      const sourceTotal = sourceAdSets.reduce((s, a) => s + (a.dailyBudget || 0), 0);
+      const targetTotal = targetAdSets.reduce((s, a) => s + (a.dailyBudget || 0), 0);
+
+      const sourceUpdates = sourceAdSets.map(a => {
+        const ratio = sourceTotal > 0 ? (a.dailyBudget || 0) / sourceTotal : 1 / sourceAdSets.length;
+        const cut = Math.round(realloc.amountCents * ratio);
+        const newBudget = Math.max(1, (a.dailyBudget || 0) - cut);
+        return prisma.adSet.update({ where: { id: a.id }, data: { dailyBudget: newBudget } });
+      });
+      const targetUpdates = targetAdSets.map(a => {
+        const ratio = targetTotal > 0 ? (a.dailyBudget || 0) / targetTotal : 1 / targetAdSets.length;
+        const add = Math.round(realloc.amountCents * ratio);
+        const newBudget = (a.dailyBudget || 0) + add;
+        return prisma.adSet.update({ where: { id: a.id }, data: { dailyBudget: newBudget } });
+      });
+
+      if (sourceAdSets.length === 0 || targetAdSets.length === 0) {
+        throw new Error('Origem ou destino sem AdSet — não é possível realocar');
+      }
+      await prisma.$transaction([...sourceUpdates, ...targetUpdates]);
+
+      const sourceBudgetAfter = Math.max(0, sourceTotal - realloc.amountCents);
+      const targetBudgetAfter = targetTotal + realloc.amountCents;
+
+      // Best-effort na rede real de cada lado — mesma disciplina de nunca bloquear/reverter
+      // o estado local já acordado com PAUSE/SCALE/DOWNSCALE acima.
+      for (const [campId, net, adSets] of [
+        [realloc.sourceCampaignId, realloc.sourceNetwork, sourceAdSets],
+        [realloc.targetCampaignId, realloc.targetNetwork, targetAdSets],
+      ] as const) {
+        if (!tenantId) continue;
+        try {
+          const campRow = await prisma.campaign.findUnique({ where: { id: campId }, select: { externalId: true, metaCampaignId: true } });
+          const extId = (campRow as any)?.externalId || (campRow as any)?.metaCampaignId;
+          if (!extId) continue;
+          const networkService = await getNetworkServiceForTenant(tenantId, net as NetworkCode);
+          if (typeof (networkService as any).updateAdSetBudget === 'function') {
+            for (const a of adSets) {
+              const updated = await prisma.adSet.findUnique({ where: { id: a.id } });
+              if (updated) {
+                await (networkService as any).updateAdSetBudget(
+                  (updated as any).external_id || (updated as any).metaAdSetId,
+                  updated.dailyBudget,
+                );
+              }
+            }
+          }
+        } catch { /* falha de rede não bloqueia */ }
+      }
+
+      await prisma.budgetReallocation.update({
+        where: { id: realloc.id },
+        data: { status: 'EXECUTED', sourceBudgetAfter, targetBudgetAfter, executedAt: new Date() },
+      });
+
+      budgetChange = { before: realloc.sourceBudgetBefore, after: sourceBudgetAfter };
     }
 
     const bBefore = budgetChange?.before ?? null;

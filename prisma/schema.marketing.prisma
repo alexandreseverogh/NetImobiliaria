@@ -365,6 +365,50 @@ model AgentAction {
   @@index([tenantId])
 }
 
+// docs/PLANO_TIKTOK.md §5.2/§8 — motor de realocação cross-rede (T4). AgentAction modela só
+// 1 campanha; esta tabela carrega o detalhe bilateral (origem + destino) de uma proposta de
+// realocação, vinculada a uma AgentAction (agentActionId) que serve de anchor de aprovação/PIN.
+model BudgetReallocation {
+  id                  String    @id @default(uuid())
+  tenantId            String    @map("tenant_id") @db.Uuid
+  clientId            String?   @map("client_id") @db.Uuid
+  segmentId           String?   @map("segment_id") @db.Uuid
+
+  sourceCampaignId    String    @map("source_campaign_id")
+  sourceCampaignName  String    @map("source_campaign_name")
+  sourceNetwork       String    @map("source_network") @db.VarChar(20)
+  sourceCplBefore     Float     @map("source_cpl_before")
+  sourceBudgetBefore  Int       @map("source_budget_before")
+  sourceBudgetAfter   Int?      @map("source_budget_after")
+
+  targetCampaignId    String    @map("target_campaign_id")
+  targetCampaignName  String    @map("target_campaign_name")
+  targetNetwork       String    @map("target_network") @db.VarChar(20)
+  targetCplBefore     Float     @map("target_cpl_before")
+  targetBudgetBefore  Int       @map("target_budget_before")
+  targetBudgetAfter   Int?      @map("target_budget_after")
+
+  amountCents         Int       @map("amount_cents")
+  gapPct              Float     @map("gap_pct")
+  projectedLeadGain   Float     @map("projected_lead_gain")
+  confidence          Float
+
+  status              String    @default("PROPOSED")
+  agentActionId       String?   @map("agent_action_id")
+
+  measuredAt          DateTime? @map("measured_at")
+  actualLeadGain      Float?    @map("actual_lead_gain")
+  verdict             String?
+
+  createdAt           DateTime  @default(now()) @map("created_at")
+  executedAt          DateTime? @map("executed_at")
+
+  @@index([tenantId, createdAt])
+  @@index([sourceCampaignId, targetCampaignId, createdAt])
+  @@index([agentActionId])
+  @@map("BudgetReallocation")
+}
+
 model Settings {
   id              String  @id @default(uuid())
   tenantId        String? @unique @map("tenant_id") @db.Uuid

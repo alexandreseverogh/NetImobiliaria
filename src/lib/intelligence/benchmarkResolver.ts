@@ -40,6 +40,12 @@ export const SEGMENT_SEED_DEFAULTS: Record<string, { value: number; label: strin
   pressure_w_quality:    { value: 0.25, label: 'Peso Qualidade (Pressão)',  unit: 'NUM', description: 'Peso do quality_ranking no índice de pressão' },
   // FASE 1 (Google Ads) — regra IMPRESSION_SHARE_OPPORTUNITY
   is_lost_budget_scale_min: { value: 20, label: 'IS Lost Budget p/ Escalar (%)', unit: 'PCT', description: 'IS perdido por orçamento acima disso + CPL bom → oportunidade real de aumentar verba' },
+  // docs/PLANO_TIKTOK.md §8.5 — motor de realocação cross-rede (T4)
+  realloc_min_cpl_gap_pct:      { value: 30, label: 'Vantagem Mín. p/ Realocar (%)',    unit: 'PCT', description: 'Diferença de CPL entre origem e destino, mínima pra propor realocação' },
+  realloc_max_pct_of_source:    { value: 30, label: 'Teto de Retirada da Origem (%)',   unit: 'PCT', description: 'Máximo do budget da origem que pode ser realocado numa proposta' },
+  realloc_marginal_haircut_pct: { value: 25, label: 'Desconto Marginal (%)',            unit: 'PCT', description: 'Degradação esperada do CPL do destino ao receber verba extra — protege contra superestimar o ganho' },
+  realloc_max_abs_cents:        { value: 5000, label: 'Teto Absoluto por Proposta (R$)', unit: 'BRL', description: 'Valor máximo diário realocável numa única proposta' },
+  realloc_cooldown_days:        { value: 14, label: 'Cooldown entre Propostas (dias)',  unit: 'NUM', description: 'Dias sem repetir proposta pro mesmo par origem→destino' },
 };
 
 /**

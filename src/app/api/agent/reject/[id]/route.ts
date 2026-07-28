@@ -98,6 +98,14 @@ export async function POST(
   // PIN correto — rejeitar
   await setStatus(params.id, 'REJECTED');
 
+  // docs/PLANO_TIKTOK.md T4 — sincroniza o status da BudgetReallocation vinculada, senão fica
+  // presa em 'PROPOSED' pra sempre (o cron de medição D+14 e o histórico leriam errado).
+  if (action.type === 'REALLOCATE_BUDGET') {
+    await prisma.$executeRaw`
+      UPDATE campanhasmarketingdigital."BudgetReallocation"
+      SET status = 'REJECTED' WHERE agent_action_id = ${params.id}`;
+  }
+
   return htmlResponse(
     '🚫 Ação rejeitada',
     `A ação <strong>${action.title}</strong> para a campanha <strong>${action.campaignName}</strong> foi rejeitada. O agente não executará esta mudança.`,
