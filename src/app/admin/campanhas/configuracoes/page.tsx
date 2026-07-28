@@ -73,7 +73,7 @@ function Field({
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           className={cn(
-            "w-full bg-gray-50 border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all pl-4",
+            "w-full bg-gray-50 border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent transition-all pl-4",
             isPassword ? "pr-12" : "pr-4"
           )}
         />
@@ -174,7 +174,7 @@ function MetaIdentityField({
             ? 'border-emerald-200 focus:ring-emerald-500'
             : status === 'warn'
             ? 'border-amber-200 focus:ring-amber-500'
-            : 'border-gray-200 focus:ring-indigo-500',
+            : 'border-gray-200 focus:ring-[#2563eb]',
         )}
       />
       {hint && <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">{hint}</p>}
@@ -227,7 +227,7 @@ function MetaIdentitySection() {
 
   if (!loaded) return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-indigo-600" />
+      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-[#c5a028]" />
     </div>
   );
 
@@ -503,17 +503,17 @@ function MasterSettingsView() {
     ? Object.entries(llmModels.providers).map(([key, val]: [string, any]) => ({ key, label: val.label }))
     : [{ key: 'anthropic', label: 'Anthropic' }];
 
-  const selectCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all";
+  const selectCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent transition-all";
 
   return (
     <div className="space-y-6">
 
       {/* ── Redes de Anúncios ─── */}
       <Link href="/admin/campanhas/configuracoes/redes">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between hover:border-indigo-200 hover:shadow-md transition-all cursor-pointer group">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between hover:border-[#c5a028]/40 hover:shadow-md transition-colors cursor-pointer group">
           <div className="flex items-center gap-4">
-            <div className="p-2.5 bg-indigo-50 rounded-xl group-hover:bg-indigo-600 transition-colors">
-              <GlobeAltIcon className="h-5 w-5 text-indigo-600 group-hover:text-white transition-colors" />
+            <div className="p-2.5 bg-[#c5a028]/10 rounded-xl group-hover:bg-[#c5a028] transition-colors">
+              <GlobeAltIcon className="h-5 w-5 text-[#c5a028] group-hover:text-[#020c1b] transition-colors" />
             </div>
             <div>
               <h2 className="text-sm font-black text-gray-900">Redes de Anúncios</h2>
@@ -523,7 +523,7 @@ function MasterSettingsView() {
               </p>
             </div>
           </div>
-          <ArrowRightIcon className="h-4 w-4 text-gray-300 group-hover:text-indigo-600 transition-colors" />
+          <ArrowRightIcon className="h-4 w-4 text-gray-300 group-hover:text-[#c5a028] transition-colors" />
         </div>
       </Link>
 
@@ -572,7 +572,7 @@ function MasterSettingsView() {
           ) : (
             <input type="text" value={llmModel} onChange={e => setLlmModel(e.target.value)}
               placeholder="ID do modelo"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb] transition-all" />
           )}
         </div>
 
@@ -604,7 +604,7 @@ function MasterSettingsView() {
         <div className="flex items-center gap-3 flex-wrap pt-1">
           <UpdateGuard resource="configuracoes-campanhas">
             <button onClick={handleSaveLlm} disabled={llmSaving}
-              className="px-5 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50">
+              className="px-5 py-2.5 bg-[#c5a028] text-[#020c1b] text-xs font-black uppercase tracking-widest rounded-xl hover:bg-[#d4af37] transition-colors disabled:opacity-50">
               {llmSaving ? 'Salvando...' : 'Salvar IA'}
             </button>
           </UpdateGuard>
@@ -646,7 +646,7 @@ function MasterSettingsView() {
             onChange={e => setWhatsapp(w => ({ ...w, defaultMessage: e.target.value }))}
             placeholder="Olá! Vi o anúncio e quero saber mais sobre o imóvel..."
             rows={3}
-            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-none"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb] transition-all resize-none"
           />
         </div>
         <div className="flex items-center gap-3 pt-1">
@@ -709,7 +709,7 @@ function MasterSettingsView() {
       <div className="flex items-center gap-4 pb-8">
         <UpdateGuard resource="configuracoes-campanhas">
           <button onClick={handleSave} disabled={saving}
-            className="px-8 py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50">
+            className="px-8 py-3 bg-[#c5a028] text-[#020c1b] text-xs font-black uppercase tracking-widest rounded-xl hover:bg-[#d4af37] transition-colors disabled:opacity-50">
             {saving ? 'Salvando...' : 'Salvar Configurações'}
           </button>
         </UpdateGuard>
@@ -866,7 +866,7 @@ function TenantSettingsView() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#c5a028]" />
       </div>
     );
   }
@@ -883,10 +883,10 @@ function TenantSettingsView() {
           <button
             onClick={() => setImportMode('own')}
             className={cn(
-              'flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-all border',
+              'flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-colors border',
               importMode === 'own'
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
-                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                ? 'bg-[#c5a028] text-[#020c1b] border-[#c5a028]'
+                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-900'
             )}
           >
             <BuildingOfficeIcon className="h-4 w-4" />
@@ -895,10 +895,10 @@ function TenantSettingsView() {
           <button
             onClick={() => { setImportMode('client'); setSelectedClient(null); setSearch(''); }}
             className={cn(
-              'flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-all border',
+              'flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-black transition-colors border',
               importMode === 'client'
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
-                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                ? 'bg-[#c5a028] text-[#020c1b] border-[#c5a028]'
+                : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-900'
             )}
           >
             <UserCircleIcon className="h-4 w-4" />
@@ -930,7 +930,7 @@ function TenantSettingsView() {
                 value={ownPath}
                 onChange={e => { setOwnPath(e.target.value); setOwnSaved(false); setOwnError(''); }}
                 placeholder="Ex: C:\Criativos\MinhaEmpresa"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent transition-all"
               />
               <p className="text-[10px] text-gray-400 mt-1.5">
                 Anotação do caminho local na sua máquina — usado como referência ao abrir a pasta na página de Criativos.
@@ -941,7 +941,7 @@ function TenantSettingsView() {
                 <button
                   onClick={handleSaveOwn}
                   disabled={ownSaving}
-                  className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                  className="px-6 py-2.5 bg-[#c5a028] text-[#020c1b] text-xs font-black uppercase tracking-widest rounded-xl hover:bg-[#d4af37] transition-colors disabled:opacity-50"
                 >
                   {ownSaving ? 'Salvando...' : 'Salvar'}
                 </button>
@@ -987,7 +987,7 @@ function TenantSettingsView() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Buscar por nome ou e-mail..."
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-9 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-9 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent transition-all"
                 />
                 {search && (
                   <button onClick={() => { setSearch(''); searchRef.current?.focus(); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -1019,19 +1019,19 @@ function TenantSettingsView() {
                     <button
                       key={client.id}
                       onClick={() => handleSelect(client)}
-                      className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all border-b border-gray-50 last:border-0 ${
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors border-b border-gray-50 last:border-0 ${
                         isSelected
-                          ? 'bg-indigo-50 border-l-2 border-l-indigo-500'
+                          ? 'bg-amber-50/80'
                           : 'hover:bg-gray-50'
                       }`}
                     >
                       <div className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
-                        isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'
+                        isSelected ? 'bg-[#c5a028] text-[#020c1b]' : 'bg-gray-100 text-gray-600'
                       }`}>
                         {initials(client.name)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-black truncate ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>
+                        <p className="text-sm font-black truncate text-gray-900">
                           {client.name}
                         </p>
                         {client.email && (
@@ -1062,7 +1062,7 @@ function TenantSettingsView() {
             ) : (
               <>
                 <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-black text-white shrink-0">
+                  <div className="h-9 w-9 rounded-xl bg-[#c5a028] flex items-center justify-center text-xs font-black text-[#020c1b] shrink-0">
                     {initials(selectedClient.name)}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1083,7 +1083,7 @@ function TenantSettingsView() {
                       value={editingPath}
                       onChange={e => { setEditingPath(e.target.value); setSaved(false); setSaveError(''); }}
                       placeholder="Ex: C:\Criativos\NomeDoCliente"
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2563eb] focus:border-transparent transition-all"
                     />
                     <p className="text-[10px] text-gray-400 mt-1.5">
                       Anotação do caminho local na sua máquina — usado como referência ao preparar os criativos para a campanha.
@@ -1094,7 +1094,7 @@ function TenantSettingsView() {
                       <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                        className="px-6 py-2.5 bg-[#c5a028] text-[#020c1b] text-xs font-black uppercase tracking-widest rounded-xl hover:bg-[#d4af37] transition-colors disabled:opacity-50"
                       >
                         {saving ? 'Salvando...' : 'Salvar'}
                       </button>
@@ -1163,7 +1163,7 @@ function TenantSettingsView() {
             <button
               onClick={handleSaveSettings}
               disabled={settingsSaving}
-              className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+              className="px-6 py-2.5 bg-[#c5a028] text-[#020c1b] text-xs font-black uppercase tracking-widest rounded-xl hover:bg-[#d4af37] transition-colors disabled:opacity-50"
             >
               {settingsSaving ? 'Salvando...' : 'Salvar Configurações adicionais'}
             </button>
@@ -1218,7 +1218,7 @@ function SettingsPageInner() {
         <div className="max-w-3xl mx-auto">
           {header}
           <div className="flex items-center justify-center py-24">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600" />
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#c5a028]" />
           </div>
         </div>
       </div>
