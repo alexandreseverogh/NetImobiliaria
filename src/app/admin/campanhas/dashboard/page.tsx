@@ -316,12 +316,19 @@ export function DashboardPage() {
   const cpl: number | null = t && data?.currentPeriod.leadCount && data.currentPeriod.leadCount > 0
     ? t.spend / data.currentPeriod.leadCount : null;
 
+  // ctr/cpc/cpm são colunas nullable em Insight — algumas linhas (ex.: sync antigo, dado
+  // seedado) nunca tiveram esses campos preenchidos mesmo com spend/clicks/impressions reais.
+  // Sem fallback, o gráfico de Eficiência ficava em branco (nenhuma linha, nenhum eixo) pra
+  // qualquer período que caísse só nessas linhas — mesma fórmula já usada em calcTotals acima.
   const chartData = data?.currentPeriod.insights
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .map(i => ({
       date: utcDateLabel(i.date),
       spend: i.spend, clicks: i.clicks, impressions: i.impressions,
-      ctr: i.ctr, cpc: i.cpc, cpm: i.cpm, conversions: i.conversions,
+      ctr: i.ctr ?? (i.impressions > 0 ? (i.clicks / i.impressions) * 100 : 0),
+      cpc: i.cpc ?? (i.clicks > 0 ? i.spend / i.clicks : 0),
+      cpm: i.cpm ?? (i.impressions > 0 ? (i.spend / i.impressions) * 1000 : 0),
+      conversions: i.conversions,
     })) || [];
 
   // CPL por dia vem de /dashboard/cpl (endpoint dedicado, cplTimelineService.ts) — antes era
