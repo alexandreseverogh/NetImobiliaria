@@ -302,7 +302,7 @@ export default function NovaCampanhaPage() {
               <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em] mb-1">Campanhas</p>
               <h1 className="text-3xl font-black text-gray-900 tracking-tight">Lançar Campanha</h1>
               <p className="text-gray-500 mt-1 text-sm font-medium">
-                Selecione os criativos e configure sua campanha no Meta Ads
+                Selecione os criativos e configure sua campanha — Meta, TikTok ou Google
               </p>
             </div>
 
@@ -669,7 +669,7 @@ export default function NovaCampanhaPage() {
               style={{ background: contextReady ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#94a3b8' }}
             >
               <RocketLaunchIcon className="h-4 w-4" />
-              Meta Ads
+              Meta / TikTok
             </button>
             <button
               onClick={() => {
