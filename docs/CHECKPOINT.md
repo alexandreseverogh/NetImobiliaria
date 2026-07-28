@@ -147,13 +147,33 @@ Insight, CtaInteraction, 4 `BudgetReallocation`, 1 `AgentAction`) removido depoi
 confirmado por SQL. `npx tsc --noEmit`: zero erros novos em qualquer arquivo tocado (os 2 a mais
 no total eram artefato stale de `.next/types` de uma rota de debug já removida, não código real).
 
-**Próximo passo:** só restam 2 itens de T4, nenhum bloqueia o motor já funcionar de ponta a
-ponta — UI (card de oportunidade no dashboard Visão Executiva + seção "Para onde mover" no
-Desperdício de Verba + histórico de realocações com veredito) e a bateria formal de testes
-Trilha H (H1-H16, boa parte já coberta ao vivo nos smoke tests do T4/T5, falta formalizar como
-suíte) — ver `docs/PLANO_TIKTOK.md` §8.6 e §11. T2 (adapter real do TikTok, TikTok Business API v1.3)
-segue bloqueado por aprovação externa do app no TikTok for Business — inalterado desde a sessão
-anterior.
+**UI concluída** (commit `2199bcd`, `docs/PLANO_TIKTOK.md` §8.6): `GET /api/admin/campanhas/
+realocacoes` (propostas vivas `PROPOSED` + histórico `EXECUTED/MEASURED/REJECTED/BLOCKED`,
+escopado por tenant+cliente) alimenta 3 superfícies novas — card "Oportunidade de Realocação" na
+Visão Executiva do dashboard (`ReallocationOpportunityWidget.tsx`, mesmo padrão self-fetching de
+`RevenueAttributionWidget`, só renderiza com ≥1 proposta viva — nunca skeleton vazio permanente);
+seção "Para onde mover" no Desperdício de Verba (conecta o diagnóstico já existente na página à
+ação concreta, com badge "desperdício" quando a campanha-origem da proposta já está numa das
+categorias de desperdício listadas acima); "Histórico de Realocações" com o veredito D+14
+(Confirmado/Neutro/Não deu certo) quando disponível, senão o status operacional. A fila de
+aprovação (`/admin/campanhas/aprovacoes`) já renderizava `REALLOCATE_BUDGET` desde a T4
+original — não precisou de mudança.
+
+**Testado ao vivo no navegador** (sessão autenticada real via JWT com `userId` real + playbook
+documentado acima, dashboard com segmento Imobiliário selecionado): sem dado real → nenhuma das
+3 seções aparece (comportamento correto — testado no estado limpo pós-T5); inserida 1 proposta
+`PROPOSED` + 1 `MEASURED/CONFIRMED` manualmente → os 3 widgets renderizaram os números exatos
+(CPL R$82→R$31, 62% vantagem, R$30/dia, +0.55 lead/dia no card; badge "CONFIRMADO" sem o status
+`MEASURED` redundante ao lado, depois de um ajuste). Único warning de console encontrado
+(hydration em `SegmentSelector.tsx`) é pré-existente, não relacionado ao código novo. Dado de
+teste removido, 0 resíduo confirmado.
+
+**Próximo passo:** só resta a bateria formal de testes Trilha H (H1-H16) — boa parte já coberta
+ao vivo nos smoke tests do T4/T5 desta sessão (H1/H2/H7/H8/H9/H10/H12/H13/H14/H15 já exercitados
+com dado real), falta formalizar como suíte documentada + cobrir os casos ainda não tocados
+(H3-H6, H11, H16) — ver `docs/PLANO_TIKTOK.md` §11. T2 (adapter real do TikTok, TikTok Business
+API v1.3) segue bloqueado por aprovação externa do app no TikTok for Business — inalterado desde
+a sessão anterior.
 
 ## Penúltima tarefa concluída
 
