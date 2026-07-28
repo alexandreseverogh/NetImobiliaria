@@ -1,6 +1,15 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-27 (sessão TikTok/T4) — **T4, o motor de realocação de verba
+> **Atualizado em:** 2026-07-28 — **Contratação de rede por tenant implementada**: cada rede de
+> anúncio (Meta/Google/TikTok) agora é gateada por tenant via o sistema genérico de
+> provisionamento já usado pelo resto da plataforma (`system_features` +
+> `tenant_feature_overrides`, tela `/admin/master/provisioning`) — decisão explícita do usuário
+> pra não duplicar em colunas soltas em `tenants`. `/admin/campanhas/nova` ganhou botões
+> separados por rede (Meta Ads / TikTok Ads / Google AI Max), cada um desabilitado quando a rede
+> não está contratada+conectada pro tenant logado. Testado ao vivo com token Master (bypass) e
+> token de tenant real (TikTok corretamente desabilitado com "Rede não contratada"). Ver seção
+> "Última tarefa concluída" abaixo. — **Sessão anterior (2026-07-27, TikTok/T4):** T4, o motor
+> de realocação de verba
 > cross-rede (`docs/PLANO_TIKTOK.md` §8), está formalmente concluído**: migração + elegibilidade
 > de 11 critérios + execução atômica com PIN + notificação WhatsApp + medição D+14 + circuit
 > breaker (2 camadas: suprime sugestão nova e bloqueia execução de proposta já aprovada) + UI
@@ -29,11 +38,58 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento.** T4 (motor de realocação cross-rede) formalmente
-concluído — ver "Última tarefa concluída" abaixo. T2 (adapter real do TikTok) segue bloqueado
-por aprovação externa do app no TikTok for Business.
+**Nenhuma tarefa em andamento no momento.**
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-28 — Contratação de rede por tenant (Meta/Google/TikTok) ✅
+
+**Contexto:** usuário notou que o botão "Meta / TikTok" em `/admin/campanhas/nova` escondia a
+opção de TikTok atrás de um rótulo enganoso (achado real, corrigido primeiro — commit
+`6b5acb5`). Isso levou a uma discussão de modelo de negócio: cada rede de anúncio é cobrada
+separadamente por tenant, então o ideal é botão próprio por rede, desabilitado quando a empresa
+não contratou aquela rede. Usuário propôs 3 colunas boolean em `tenants` + aba CRUD nova;
+recomendei reaproveitar o sistema genérico de provisionamento já usado por todo o resto da
+plataforma (`system_features`+`tenant_feature_overrides`, `/admin/master/provisioning`) em vez
+de um 2º mecanismo paralelo — usuário concordou.
+
+**Implementado** (`prisma/migration-2026-07-28-network-provisioning.sql`): 3 features sem `url`
+própria (não são página, são toggle de capacidade) — `campanhas-rede-meta/google/tiktok`,
+vinculadas ao módulo "Gestão de Campanhas de Marketing Digital" (já linkado ao segmento
+Imobiliário, então aparecem automaticamente na árvore do Master). Backfill deliberado (não é
+provisionamento automático genérico): tenants com credencial JÁ ativa numa rede continuam
+habilitados — só TikTok, sem nenhum tenant com credencial real, ficou de fora do backfill.
+`permissions`/`role_permissions` **não** foram criadas (pesquisa confirmou que só protegem
+visibilidade de sidebar via `get_sidebar_menu_for_user`; essas 3 features são lidas por uma
+query bespoke dentro de uma API já existente, não pelo pipeline de rota/sidebar).
+
+`GET /api/admin/campanhas/configuracoes/redes` ganhou o campo `contracted` por rede (LEFT JOIN
+`tenant_feature_overrides`), com bypass total pra Master (`is_system_role`) — mesmo padrão de
+`get_sidebar_menu_for_user`. É o único ponto de verdade, consumido por 3 lugares: a tela
+Configurações → Redes, o step "Rede de Anúncios" do `CampaignWizard.tsx`, e os botões de
+`/admin/campanhas/nova`. Prioridade de estado num card: `Em breve` (não suportado) →
+`Não contratado` → `Não conectado` → `Conectado`.
+
+`/admin/campanhas/nova` — o botão único "Meta / TikTok" virou 2 botões independentes (mais o já
+existente "Google AI Max"), cada um desabilitado individualmente quando a rede não está
+contratada+conectada. `CampaignWizard` ganhou `initialValues.networkCode` pra pré-selecionar a
+rede escolhida no botão de fora — o wizard ainda mostra o passo "Rede de Anúncios" normalmente
+(usuário pode confirmar ou trocar), só chega com a intenção certa já marcada.
+
+**Testado ao vivo:** contagem de features no Hub de Provisionamento Master confirmou 11→14 pro
+módulo de Campanhas (as 3 novas entraram corretamente na árvore, sem precisar tocar em
+`system_segment_modules` — o módulo já estava linkado ao segmento Imobiliário) · endpoint
+testado com 2 tokens reais: Master (`is_system_role:true`) → `contracted:true` pras 3 redes
+(bypass); tenant real (`is_system_role:false`, mesmo tenant Marketing Digital) →
+`contracted:true` só pra Meta/Google (as que já tinham credencial ativa antes desta feature),
+`contracted:false` pro TikTok (nunca teve credencial real) · com o token de tenant real injetado
+no navegador, botão "TikTok Ads" renderizou `disabled=true` com tooltip "Rede não contratada"
+(distinto de "Rede não conectada", confirmando a prioridade de mensagem correta), Meta Ads e
+Google AI Max continuaram habilitados. `npx tsc --noEmit`: 64 erros, mesma baseline, zero novos.
+
+---
+
+### Sessão 2026-07-27 (TikTok/T4) — histórico anterior
 
 **Implementação da rede TikTok** (`docs/PLANO_TIKTOK.md`) — plano completo escrito e aprovado
 em 2026-07-27 (auditoria de código encontrou 3 achados que mudam o desenho vs. o esboço antigo
