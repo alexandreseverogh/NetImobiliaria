@@ -1,7 +1,16 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-27 — **Trilha B e Trilha C do teste rigoroso concluídas por
-> completo** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`). Trilha B: roteiro manual
+> **Atualizado em:** 2026-07-27 (sessão TikTok/T4) — **T4, o motor de realocação de verba
+> cross-rede (`docs/PLANO_TIKTOK.md` §8), está formalmente concluído**: migração + elegibilidade
+> de 11 critérios + execução atômica com PIN + notificação WhatsApp + medição D+14 + circuit
+> breaker (2 camadas: suprime sugestão nova e bloqueia execução de proposta já aprovada) + UI
+> (card no dashboard, "Para onde mover" no Desperdício, histórico com veredito) + os 16 cenários
+> formais da Trilha H — tudo testado ao vivo contra dado real, zero mudança de código necessária
+> nos testes formais (o motor bateu com a especificação do plano em todos os casos). Só falta T2
+> (adapter real do TikTok), bloqueado por aprovação externa do app no TikTok for Business. Ver
+> seção "Última tarefa concluída" abaixo para o detalhe completo. — **Trilha B e Trilha C do
+> teste rigoroso concluídas por completo** (`docs/TESTE_RIGOROSO_LEADEVENTS_2026-07-22.md`).
+> Trilha B: roteiro manual
 > confirmado item a item, 3 bugs reais achados e corrigidos (disclaimer de "Conversões"
 > generalizado Meta+Google, CPL nulo em 2 telas, filtro de rede na Visão 4) +, fora do escopo
 > original mas confirmado com o usuário, uma leva de bugs reais de multi-tenant na validação de
@@ -19,6 +28,12 @@
 ---
 
 ## Tarefa em andamento
+
+**Nenhuma tarefa em andamento no momento.** T4 (motor de realocação cross-rede) formalmente
+concluído — ver "Última tarefa concluída" abaixo. T2 (adapter real do TikTok) segue bloqueado
+por aprovação externa do app no TikTok for Business.
+
+## Última tarefa concluída
 
 **Implementação da rede TikTok** (`docs/PLANO_TIKTOK.md`) — plano completo escrito e aprovado
 em 2026-07-27 (auditoria de código encontrou 3 achados que mudam o desenho vs. o esboço antigo
@@ -168,12 +183,62 @@ documentado acima, dashboard com segmento Imobiliário selecionado): sem dado re
 (hydration em `SegmentSelector.tsx`) é pré-existente, não relacionado ao código novo. Dado de
 teste removido, 0 resíduo confirmado.
 
-**Próximo passo:** só resta a bateria formal de testes Trilha H (H1-H16) — boa parte já coberta
-ao vivo nos smoke tests do T4/T5 desta sessão (H1/H2/H7/H8/H9/H10/H12/H13/H14/H15 já exercitados
-com dado real), falta formalizar como suíte documentada + cobrir os casos ainda não tocados
-(H3-H6, H11, H16) — ver `docs/PLANO_TIKTOK.md` §11. T2 (adapter real do TikTok, TikTok Business
-API v1.3) segue bloqueado por aprovação externa do app no TikTok for Business — inalterado desde
-a sessão anterior.
+**Trilha H concluída — 16/16 cenários testados ao vivo contra dado real** (`docs/PLANO_TIKTOK.md`
+§11), usando um par de campanhas "flexível" (`th-flex-source` Meta / `th-flex-target` TikTok,
+mesmo molde comprovado do smoke test original do T4) mutado incrementalmente entre chamadas
+reais a `findReallocationOpportunities`/`runReallocationAgent` — cada caso negativo confirmado
+por contraste direto com o baseline positivo (H1), não isolado:
+
+- **H1** (baseline positivo) — confere exato com o cálculo manual (gap 60%, R$15/dia,
+  +0,30 lead/dia, confiança 0,94) — mesmo resultado do smoke test T4 original.
+- **H2** (gap 8%, abaixo do mínimo 30%) — 0 candidatos.
+- **H3** (destino com 2 leads, abaixo de `min_leads_scale`) — o par específico
+  origem→destino não qualificou (E6), mas a mutação incidentalmente criou uma oportunidade
+  REVERSA válida (destino caro→origem barata) — achado que confirma o motor avalia as duas
+  direções de forma independente, não um bug.
+- **H4** (destino em `LEARNING`) — 0 candidatos.
+- **H5** (destino com frequência 4.5, acima do teto ~3) — 0 candidatos (sem headroom).
+- **H6** (origem BOF × destino TOF) — o par específico não apareceu (E3); um candidato
+  não-relacionado surgiu entre o destino mutado e uma campanha real pré-existente que
+  também é TOF — efeito colateral esperado do dado de produção compartilhado, não um bug.
+- **H7** (origem com 0 leads) — 0 candidatos nas duas direções (E7 bloqueia forward, E6
+  bloqueia reverse já que a origem-sem-lead também não serve como destino).
+- **H8** (mesma rede nos dois lados) — 0 candidatos (E4).
+- **H9** (proposta `EXECUTED` recente pro mesmo par) — 0 candidatos com o registro de
+  cooldown presente; removendo o registro, o candidato baseline reaparece idêntico ao H1
+  (prova que o cooldown, não outra coisa, era o bloqueio).
+- **H10** — já comprovado no smoke test original do T4 (aprovação com PIN real:
+  `DOWNSCALE` origem + `SCALE` destino, ambos aplicados atomicamente).
+- **H11** (falha de rede não reverte) — comportamento real do motor **diverge deliberadamente**
+  do texto literal do plano (que sugeria reverter a origem se a rede do destino falhasse); a
+  arquitetura real do projeto (igual PAUSE/SCALE/DOWNSCALE) trata push de rede como best-effort
+  sempre, nunca bloqueia nem reverte o estado local — confirmado implicitamente no smoke test
+  original do T4 (tenant sem credenciais reais de Meta/TikTok, e mesmo assim as duas campanhas
+  tiveram o budget alterado corretamente via `prisma.$transaction`, a garantia real de
+  atomicidade). Documentado como decisão consciente, não um gap de teste.
+- **H12** (rejeição) — `AgentAction`+`BudgetReallocation` marcados `REJECTED` via
+  `/api/agent/reject/[id]` com PIN real, `AdSet.dailyBudget` das duas campanhas confirmado
+  intocado depois.
+- **H13/H14/H15** — já comprovados ao vivo no T5 (medição D+14 CONFIRMED/BACKFIRED + circuit
+  breaker nas duas camadas).
+- **H16** (cadeia A→B,C no mesmo ciclo) — criada uma 3ª campanha (Google) como 2º destino
+  válido pra `th-flex-source`; `findReallocationOpportunities` corretamente achou os 3
+  candidatos possíveis (incluindo o par mais fraco origem→destino1); `runReallocationAgent`
+  criou exatamente 2 propostas (1 por campanha-origem DISTINTA), sempre escolhendo a de maior
+  ganho projetado — a opção mais fraca da mesma origem foi corretamente descartada, sem
+  cascata.
+
+Todo dado de teste (3 campanhas, AdSets, Insight, CtaInteraction, 2 `AgentAction`+
+`BudgetReallocation` do H16, 1 par de H9/H12) removido depois, 0 resíduo confirmado por SQL em
+cada rodada. Nenhuma mudança de código foi necessária — o motor bateu com a especificação do
+plano em todos os 16 cenários. `npx tsc --noEmit`: 64 erros, mesma baseline, zero novos.
+
+**Com isso, T4 (motor de realocação cross-rede) está formalmente concluído — migração,
+elegibilidade, execução atômica, notificação, medição D+14, circuit breaker, UI e os 16 testes
+formais da Trilha H, tudo testado ao vivo contra dado real.** T2 (adapter real do TikTok,
+TikTok Business API v1.3) segue como a única pendência do plano `docs/PLANO_TIKTOK.md`,
+bloqueada por aprovação externa do app no TikTok for Business — inalterado desde sessões
+anteriores.
 
 ## Penúltima tarefa concluída
 
