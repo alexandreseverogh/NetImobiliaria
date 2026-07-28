@@ -34,6 +34,13 @@ interface MetaForm {
   app_secret: string;
 }
 
+interface TikTokForm {
+  access_token: string;
+  advertiser_id: string;
+  app_id: string;
+  secret: string;
+}
+
 const NETWORK_ICONS: Record<string, string> = {
   meta:     '𝕗',
   google:   'G',
@@ -49,6 +56,9 @@ export default function RedesPage() {
   const [expandedCode, setExpanded]   = useState<string | null>(null);
   const [metaForm, setMetaForm]       = useState<MetaForm>({
     access_token: '', ad_account_id: '', app_id: '', app_secret: '',
+  });
+  const [tiktokForm, setTiktokForm]   = useState<TikTokForm>({
+    access_token: '', advertiser_id: '', app_id: '', secret: '',
   });
   const [feedback, setFeedback]       = useState<{ code: string; ok: boolean; msg: string } | null>(null);
 
@@ -87,6 +97,37 @@ export default function RedesPage() {
       setFeedback({ code: 'meta', ok: true, msg: 'Credenciais salvas com sucesso.' });
     } catch (err: any) {
       setFeedback({ code: 'meta', ok: false, msg: err?.response?.data?.error || 'Erro ao salvar.' });
+    } finally {
+      setConnecting(null);
+    }
+  };
+
+  const handleConnectTikTok = async () => {
+    if (!tiktokForm.access_token || !tiktokForm.advertiser_id) {
+      setFeedback({ code: 'tiktok', ok: false, msg: 'Access token e ID do Advertiser são obrigatórios.' });
+      return;
+    }
+    setConnecting('tiktok');
+    setFeedback(null);
+    try {
+      // Backend genérico (POST /redes) — nenhuma alteração precisou ser feita nele pro TikTok,
+      // só aceita network_code + credentials + account_id, mesmo padrão de qualquer rede nova
+      // (docs/PLANO_TIKTOK.md T3).
+      await axios.post('/api/admin/campanhas/configuracoes/redes', {
+        network_code: 'tiktok',
+        credentials: {
+          access_token: tiktokForm.access_token,
+          app_id:       tiktokForm.app_id,
+          secret:       tiktokForm.secret,
+        },
+        account_id:   tiktokForm.advertiser_id,
+        display_name: 'TikTok Ads',
+      });
+      await fetchNetworks();
+      setExpanded(null);
+      setFeedback({ code: 'tiktok', ok: true, msg: 'Credenciais salvas com sucesso.' });
+    } catch (err: any) {
+      setFeedback({ code: 'tiktok', ok: false, msg: err?.response?.data?.error || 'Erro ao salvar.' });
     } finally {
       setConnecting(null);
     }
@@ -291,6 +332,70 @@ export default function RedesPage() {
                       className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
                     >
                       {connecting === 'meta' ? 'Salvando...' : 'Salvar Credenciais'}
+                    </button>
+                  </UpdateGuard>
+                  <button
+                    onClick={() => setExpanded(null)}
+                    className="px-4 py-2 text-gray-500 hover:text-gray-700 text-sm"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Connection form (expandable) — TikTok (docs/PLANO_TIKTOK.md T3) */}
+            {expandedCode === net.code && net.code === 'tiktok' && (
+              <div className="border-t border-gray-100 p-4 bg-gray-50 space-y-3">
+                <p className="text-sm text-gray-600 font-medium">Credenciais TikTok for Business</p>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Access Token *</label>
+                  <input
+                    type="password"
+                    value={tiktokForm.access_token}
+                    onChange={e => setTiktokForm(f => ({ ...f, access_token: e.target.value }))}
+                    placeholder="act..."
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">ID do Advertiser *</label>
+                  <input
+                    type="text"
+                    value={tiktokForm.advertiser_id}
+                    onChange={e => setTiktokForm(f => ({ ...f, advertiser_id: e.target.value }))}
+                    placeholder="123456789"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">App ID (opcional)</label>
+                    <input
+                      type="text"
+                      value={tiktokForm.app_id}
+                      onChange={e => setTiktokForm(f => ({ ...f, app_id: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Secret (opcional)</label>
+                    <input
+                      type="password"
+                      value={tiktokForm.secret}
+                      onChange={e => setTiktokForm(f => ({ ...f, secret: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <UpdateGuard resource="configuracoes-campanhas">
+                    <button
+                      onClick={handleConnectTikTok}
+                      disabled={connecting === 'tiktok'}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                    >
+                      {connecting === 'tiktok' ? 'Salvando...' : 'Salvar Credenciais'}
                     </button>
                   </UpdateGuard>
                   <button

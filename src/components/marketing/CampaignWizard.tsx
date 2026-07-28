@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { createCampaign, getMetaIdentity, getWhatsAppConfig, type Creative } from '@/lib/marketing-api';
-import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency } from '@/lib/marketing-utils';
+import { cn, OBJECTIVES, CTA_TYPES, DAYS_OF_WEEK, formatCurrency, networkLabel } from '@/lib/marketing-utils';
 import { LocationPicker, type LocationEntry } from './LocationPicker';
 import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
 import {
@@ -611,7 +611,7 @@ function StepType({ form, updateForm, selectedImages, hookAlert }: any) {
           <div>
             <p className="text-sm font-bold text-amber-800">Nenhum criativo selecionado</p>
             <p className="text-sm text-amber-700 mt-1">
-              A campanha será criada sem imagem. Você poderá adicionar criativos diretamente no Meta Ads Manager após o lançamento.
+              A campanha será criada sem imagem. Você poderá adicionar criativos diretamente no {networkLabel(form.networkCode)} Ads Manager após o lançamento.
             </p>
           </div>
         </div>
@@ -1588,7 +1588,7 @@ function StepReview({ form, selectedImages, autoFields, initiatives = [] }: any)
         </svg>
         <p className="text-sm text-indigo-700">
           A campanha será criada com status <span className="font-bold">PAUSADA</span>.
-          Ative manualmente após revisar no Meta Ads Manager.
+          Ative manualmente após revisar no {networkLabel(form.networkCode)} Ads Manager.
         </p>
       </div>
     </div>
