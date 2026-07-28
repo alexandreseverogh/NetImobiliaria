@@ -174,8 +174,8 @@ export default function LeadsCapturadosPage() {
     ? new Date(stats.todayDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
     : ''
 
-  const selectCls = 'bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]'
-  const inputCls  = 'bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]'
+  const selectCls = 'bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600'
+  const inputCls  = 'bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600'
 
   return (
     <div className="px-4 py-6 bg-gray-50 min-h-screen">
@@ -395,7 +395,7 @@ export default function LeadsCapturadosPage() {
                         ? <span key={`e${idx}`} className="px-1 text-xs text-gray-400">…</span>
                         : (
                           <button key={item} onClick={() => goToPage(item as number)} disabled={tableLoading}
-                            className={`min-w-[30px] h-8 rounded-lg text-xs font-bold transition-colors disabled:cursor-not-allowed ${item === page ? 'bg-[#c5a028] text-[#020c1b]' : 'text-gray-600 hover:bg-gray-200'}`}>
+                            className={`min-w-[30px] h-8 rounded-lg text-xs font-bold transition-colors disabled:cursor-not-allowed ${item === page ? 'bg-gold-premium text-navy-dark' : 'text-gray-600 hover:bg-gray-200'}`}>
                             {item}
                           </button>
                         )

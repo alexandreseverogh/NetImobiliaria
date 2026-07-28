@@ -398,9 +398,9 @@ export function DashboardPage() {
   // como superfície elevada de card. "A Regra Flat-By-Default": sombra só em resposta a
   // estado (hover/modal), nunca decorativa em repouso — cardBase deixou de ter box-shadow
   // estático.
-  const bg       = isDark ? 'bg-[#0a192f]' : 'bg-slate-50';
+  const bg       = isDark ? 'bg-navy' : 'bg-slate-50';
   const cardBase = isDark
-    ? 'bg-[#112240] border border-[rgba(255,255,255,0.06)] transition-shadow hover:shadow-[0_4px_20px_rgba(0,0,0,0.25)]'
+    ? 'bg-navy-light border border-[rgba(255,255,255,0.06)] transition-shadow hover:shadow-[0_4px_20px_rgba(0,0,0,0.25)]'
     : 'bg-white border border-slate-200/80 transition-shadow hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)]';
   const tx       = isDark ? 'text-slate-300' : 'text-slate-900';
   const txMuted  = isDark ? 'text-slate-400' : 'text-slate-500';
@@ -410,8 +410,8 @@ export function DashboardPage() {
   // DESIGN.md — "Anel de foco (#2563eb) ... fixo, não substituível": o foco de acessibilidade
   // é sempre azul, independente do acento de decisão (âmbar) usado no resto da tela.
   const selectBase = isDark
-    ? 'border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2563eb] transition-all'
-    : 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb] transition-all';
+    ? 'border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all'
+    : 'bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all';
   const selectStyle = isDark
     ? { colorScheme: 'dark' as const, backgroundColor: '#1e2a3a', color: '#cbd5e1' }
     : undefined;
@@ -486,7 +486,7 @@ export function DashboardPage() {
                     decisão real da tela (disparar uma sincronização). Sem transform/glow no
                     hover — "o âmbar fala por si". */}
                 <button onClick={handleSync} disabled={syncing}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-[#c5a028] text-[#020c1b] text-xs font-black uppercase tracking-widest rounded-xl hover:bg-[#d4af37] disabled:opacity-50 transition-colors">
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gold-premium text-navy-dark text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gold disabled:opacity-50 transition-colors">
                   <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
                   {syncing ? 'Sincronizando...' : 'Sync Meta'}
                 </button>
@@ -575,7 +575,7 @@ export function DashboardPage() {
                 ].map(({ value, label }) => (
                   <button key={value} onClick={() => handleQuickDate(value)}
                     className={cn('px-3 py-1.5 rounded-lg text-xs font-black transition-colors', dateRange === value
-                      ? 'bg-[#c5a028] text-[#020c1b]'
+                      ? 'bg-gold-premium text-navy-dark'
                       : isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-900')}>
                     {label}
                   </button>
@@ -646,19 +646,19 @@ export function DashboardPage() {
         <div className="flex p-1 mb-8 rounded-xl w-fit border transition-all" style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}>
           <button
              onClick={() => setActiveLayer('COMMAND')}
-             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'COMMAND' ? 'bg-[#c5a028] text-[#020c1b]' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'COMMAND' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
           >
              Visão Executiva
           </button>
           <button
              onClick={() => setActiveLayer('ANALYTICS')}
-             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'ANALYTICS' ? 'bg-[#c5a028] text-[#020c1b]' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'ANALYTICS' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
           >
              Análise de Dados
           </button>
           <button
              onClick={() => setActiveLayer('DEEP_DIVE')}
-             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'DEEP_DIVE' ? 'bg-[#c5a028] text-[#020c1b]' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
+             className={cn('px-5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors', activeLayer === 'DEEP_DIVE' ? 'bg-gold-premium text-navy-dark' : (isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'))}
           >
              Inteligência Profunda
           </button>

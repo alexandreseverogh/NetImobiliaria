@@ -128,7 +128,7 @@ export function HookRateKpiCard({ isDark, value, color, benchmarks: bm }: {
           className={cn(
             'flex-shrink-0 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-black leading-none transition-colors',
             showRef
-              ? 'bg-[#c5a028] text-[#020c1b]'
+              ? 'bg-gold-premium text-navy-dark'
               : isDark ? 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-700',
           )}
         >

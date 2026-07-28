@@ -14,7 +14,7 @@ import {
 /* ── shared input class ──────────────────────────────────── */
 const inputCls =
   'px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-900 ' +
-  'placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-[#2563eb] transition-all disabled:opacity-60';
+  'placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all disabled:opacity-60';
 
 /* ── types ───────────────────────────────────────────────── */
 interface Props {
@@ -341,14 +341,14 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               onClick={() => setStep(i)}
               className={cn(
                 'w-full text-left px-4 py-3 rounded-xl transition-colors flex items-center gap-3',
-                i === step   ? 'bg-[#c5a028]/10 border border-[#c5a028]/30' :
+                i === step   ? 'bg-gold-premium/10 border border-gold-premium/30' :
                 i < step     ? 'hover:bg-gray-50 cursor-pointer' :
                                'opacity-40 cursor-default'
               )}
             >
               <div className={cn(
                 'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
-                i === step   ? 'bg-[#c5a028] text-[#020c1b]' :
+                i === step   ? 'bg-gold-premium text-navy-dark' :
                 i < step     ? 'bg-emerald-100 text-emerald-600' :
                                'bg-gray-100 text-gray-400'
               )}>
@@ -427,7 +427,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
           {step < STEPS.length - 1 ? (
             <button
               onClick={() => setStep(step + 1)}
-              className="px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-[#020c1b] bg-[#c5a028] hover:bg-[#d4af37] transition-colors"
+              className="px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-navy-dark bg-gold-premium hover:bg-gold transition-colors"
             >
               Próximo →
             </button>
@@ -437,7 +437,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               disabled={submitting}
               className={cn(
                 'inline-flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-60',
-                submitting ? 'bg-slate-400 text-white' : 'bg-[#c5a028] text-[#020c1b] hover:bg-[#d4af37]',
+                submitting ? 'bg-slate-400 text-white' : 'bg-gold-premium text-navy-dark hover:bg-gold',
               )}
             >
               {submitting ? (
@@ -519,7 +519,7 @@ function StepNetwork({ form, updateForm }: any) {
                 onClick={() => isClickable && updateForm({ networkCode: net.code })}
                 className={cn(
                   'bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center transition-colors relative',
-                  isSelected && 'ring-2 ring-[#c5a028] bg-amber-50 border-[#c5a028]/40',
+                  isSelected && 'ring-2 ring-gold-premium bg-amber-50 border-gold-premium/40',
                   !isClickable && 'opacity-50 cursor-not-allowed',
                   isClickable && !isSelected && 'hover:bg-gray-50 cursor-pointer',
                 )}
@@ -541,8 +541,8 @@ function StepNetwork({ form, updateForm }: any) {
                   <p className="text-xs text-amber-500 mt-1">Não conectado</p>
                 )}
                 {isSelected && (
-                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#c5a028] flex items-center justify-center">
-                    <svg className="w-3 h-3 text-[#020c1b]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-gold-premium flex items-center justify-center">
+                    <svg className="w-3 h-3 text-navy-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
@@ -657,7 +657,7 @@ function StepType({ form, updateForm, selectedImages, hookAlert }: any) {
               className={cn(
                 'bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center transition-colors',
                 form.creativeType === opt.value
-                  ? 'ring-2 ring-[#c5a028] bg-amber-50 border-[#c5a028]/40'
+                  ? 'ring-2 ring-gold-premium bg-amber-50 border-gold-premium/40'
                   : 'hover:bg-gray-50'
               )}
             >
@@ -884,7 +884,7 @@ function StepTargeting({ form, updateForm, clientId, suggestedInterests }: any) 
                 <button key={opt.label} onClick={() => updateForm({ genders: opt.value })}
                   className={cn('px-5 py-2.5 rounded-xl border transition-colors text-sm font-medium',
                     JSON.stringify(form.genders) === JSON.stringify(opt.value)
-                      ? 'border-[#c5a028] bg-amber-50 text-[#8a6f1c]'
+                      ? 'border-gold-premium bg-amber-50 text-[#8a6f1c]'
                       : 'border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300'
                   )}>
                   {opt.label}
@@ -1302,7 +1302,7 @@ function StepBudget({ form, updateForm }: any) {
             className={cn(
               'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors',
               scheduleMode === 'uniform'
-                ? 'bg-[#c5a028] text-[#020c1b] border-[#c5a028]'
+                ? 'bg-gold-premium text-navy-dark border-gold-premium'
                 : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900'
             )}
           >
@@ -1313,7 +1313,7 @@ function StepBudget({ form, updateForm }: any) {
             className={cn(
               'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors',
               scheduleMode === 'perday'
-                ? 'bg-[#c5a028] text-[#020c1b] border-[#c5a028]'
+                ? 'bg-gold-premium text-navy-dark border-gold-premium'
                 : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900'
             )}
           >
@@ -1330,7 +1330,7 @@ function StepBudget({ form, updateForm }: any) {
                   <button key={day.value} onClick={() => toggleDay(day.value)}
                     className={cn('w-11 h-11 rounded-xl text-sm font-semibold transition-colors',
                       form.scheduleDays.includes(day.value)
-                        ? 'bg-[#c5a028] text-[#020c1b]'
+                        ? 'bg-gold-premium text-navy-dark'
                         : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300'
                     )}>
                     {day.label}
@@ -1380,13 +1380,13 @@ function StepBudget({ form, updateForm }: any) {
               return (
                 <div key={day.value} className={cn(
                   'flex items-center gap-4 px-4 py-3 rounded-xl border transition-colors',
-                  isActive ? 'border-[#c5a028]/30 bg-amber-50/40' : 'border-gray-100 bg-gray-50 opacity-50'
+                  isActive ? 'border-gold-premium/30 bg-amber-50/40' : 'border-gray-100 bg-gray-50 opacity-50'
                 )}>
                   <button
                     onClick={() => toggleDay(day.value)}
                     className={cn(
                       'w-12 h-10 rounded-xl text-sm font-bold shrink-0 transition-colors',
-                      isActive ? 'bg-[#c5a028] text-[#020c1b]' : 'bg-gray-200 text-gray-400'
+                      isActive ? 'bg-gold-premium text-navy-dark' : 'bg-gray-200 text-gray-400'
                     )}>
                     {day.label}
                   </button>
@@ -1448,7 +1448,7 @@ function StepObjective({ form, updateForm, autoFields, initiatives = [] }: any) 
           {OBJECTIVES.map(obj => (
             <button key={obj.value} onClick={() => updateForm({ objective: obj.value })}
               className={cn('bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left transition-colors flex items-center gap-4',
-                form.objective === obj.value ? 'ring-2 ring-[#c5a028] bg-amber-50 border-[#c5a028]/40' : 'hover:bg-gray-50'
+                form.objective === obj.value ? 'ring-2 ring-gold-premium bg-amber-50 border-gold-premium/40' : 'hover:bg-gray-50'
               )}>
               <span className="text-3xl shrink-0">{obj.icon}</span>
               <div>

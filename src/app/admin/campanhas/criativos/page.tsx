@@ -716,7 +716,7 @@ function GenerateModal({
                       className={cn(
                         'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
                         formats.includes(f)
-                          ? 'bg-[#c5a028] text-[#020c1b] border-[#c5a028]'
+                          ? 'bg-gold-premium text-navy-dark border-gold-premium'
                           : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300',
                       )}>
                       {label}
@@ -735,7 +735,7 @@ function GenerateModal({
                         className={cn(
                           'p-2.5 rounded-xl border text-left transition-colors',
                           templateId === t.id
-                            ? 'border-[#c5a028] bg-amber-50'
+                            ? 'border-gold-premium bg-amber-50'
                             : 'border-slate-100 bg-white hover:border-slate-200',
                         )}>
                         <p className="text-[11px] font-bold text-slate-800">{t.name}</p>
@@ -753,7 +753,7 @@ function GenerateModal({
                   <input
                     value={headline} onChange={e => setHeadline(e.target.value)}
                     placeholder="Ex: Apartamento dos seus sonhos..."
-                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#2563eb] placeholder:text-slate-300"
+                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-600 placeholder:text-slate-300"
                   />
                 </div>
                 <div>
@@ -761,7 +761,7 @@ function GenerateModal({
                   <input
                     value={cta} onChange={e => setCta(e.target.value)}
                     placeholder="Ex: Quero Saber Mais"
-                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#2563eb] placeholder:text-slate-300"
+                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-600 placeholder:text-slate-300"
                   />
                 </div>
               </div>
@@ -773,7 +773,7 @@ function GenerateModal({
                   'w-full py-2.5 rounded-xl text-sm font-bold transition-colors',
                   busy || formats.length === 0
                     ? 'bg-slate-300 text-white cursor-not-allowed'
-                    : 'bg-[#c5a028] text-[#020c1b] hover:bg-[#d4af37]',
+                    : 'bg-gold-premium text-navy-dark hover:bg-gold',
                 )}>
                 {busy ? 'Iniciando...' : `Gerar ${formats.length} variação(ões)`}
               </button>
@@ -785,7 +785,7 @@ function GenerateModal({
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <div className="relative">
                 <div className="w-16 h-16 rounded-full border-4 border-amber-100" />
-                <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-[#c5a028] border-t-transparent animate-spin" />
+                <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-gold-premium border-t-transparent animate-spin" />
               </div>
               <div className="text-center">
                 <p className="text-sm font-bold text-slate-800">Gerando variações...</p>
@@ -818,19 +818,19 @@ function GenerateModal({
                         <button key={url} onClick={() => toggleSelected(url)}
                           className={cn(
                             'relative rounded-xl overflow-hidden border-2 transition-colors group',
-                            isSel ? 'border-[#c5a028] shadow-md shadow-amber-100' : 'border-slate-200 opacity-60 hover:opacity-90',
+                            isSel ? 'border-gold-premium shadow-md shadow-amber-100' : 'border-slate-200 opacity-60 hover:opacity-90',
                           )}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={url} alt={`Variação ${fmt}`} className="w-full object-cover max-h-48" />
                           <div className={cn(
                             'absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase',
-                            isSel ? 'bg-[#c5a028] text-[#020c1b]' : 'bg-slate-500 text-white',
+                            isSel ? 'bg-gold-premium text-navy-dark' : 'bg-slate-500 text-white',
                           )}>
                             {fmt}
                           </div>
                           {isSel && (
-                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#c5a028] flex items-center justify-center shadow">
-                              <CheckCircleIcon className="h-4 w-4 text-[#020c1b]" />
+                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-gold-premium flex items-center justify-center shadow">
+                              <CheckCircleIcon className="h-4 w-4 text-navy-dark" />
                             </div>
                           )}
                         </button>
@@ -854,7 +854,7 @@ function GenerateModal({
                         'flex-1 py-2 rounded-xl text-sm font-bold transition-colors',
                         busy || selected.length === 0
                           ? 'bg-slate-300 text-white cursor-not-allowed'
-                          : 'bg-[#c5a028] text-[#020c1b] hover:bg-[#d4af37]',
+                          : 'bg-gold-premium text-navy-dark hover:bg-gold',
                       )}>
                       {busy ? 'Salvando...' : `Aprovar ${selected.length} variação(ões)`}
                     </button>
@@ -1205,7 +1205,7 @@ export default function GaleriaCreativosPage() {
             'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold cursor-pointer transition-colors',
             uploading
               ? 'bg-slate-400 text-white cursor-not-allowed'
-              : 'bg-[#c5a028] text-[#020c1b] hover:bg-[#d4af37]',
+              : 'bg-gold-premium text-navy-dark hover:bg-gold',
           )}>
             <PhotoIcon className="h-4 w-4" />
             {uploading ? 'Enviando...' : 'Adicionar Criativos'}
@@ -1261,21 +1261,21 @@ export default function GaleriaCreativosPage() {
           { val: filterAngle, set: setFilterAngle, label: 'Todos os Ângulos', opts: ANGLE_LABELS },
         ].map(({ val, set, label, opts }) => (
           <select key={label} value={val} onChange={e => set(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#2563eb]">
+            className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
             <option value="">{label}</option>
             {Object.entries(opts).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         ))}
 
         <select value={filterUgc} onChange={e => setFilterUgc(e.target.value)}
-          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#2563eb]">
+          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
           <option value="">UGC + Corporativo</option>
           <option value="true">Apenas UGC</option>
           <option value="false">Apenas Corporativo</option>
         </select>
 
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#2563eb]">
+          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
           <option value="">Todos os Status</option>
           <option value="done">Analisados</option>
           <option value="pending">Pendentes</option>
@@ -1315,7 +1315,7 @@ export default function GaleriaCreativosPage() {
           <p className="text-sm text-slate-400 max-w-sm mb-6">
             Carregue criativos para iniciar a análise automática com IA. Eles também são salvos quando você lança campanhas.
           </p>
-          <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-[#020c1b] bg-[#c5a028] hover:bg-[#d4af37] cursor-pointer transition-colors">
+          <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-navy-dark bg-gold-premium hover:bg-gold cursor-pointer transition-colors">
             <PhotoIcon className="h-4 w-4" />
             Adicionar primeiros criativos
             <input type="file" multiple accept="image/*" className="hidden" onChange={handleFileUpload} />

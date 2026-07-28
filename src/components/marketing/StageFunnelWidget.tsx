@@ -246,7 +246,7 @@ export function StageFunnelWidget({ data, isDark = false, clientId }: Props) {
             bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 disabled:opacity-50"
         >
           {diagnosing ? (
-            <><span className="h-3.5 w-3.5 rounded-full border-2 border-[#c5a028] border-t-transparent animate-spin" />Analisando funil...</>
+            <><span className="h-3.5 w-3.5 rounded-full border-2 border-gold-premium border-t-transparent animate-spin" />Analisando funil...</>
           ) : (
             <>
               <SparklesIcon className="h-3.5 w-3.5" />
