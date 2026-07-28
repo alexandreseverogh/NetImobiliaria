@@ -33,6 +33,7 @@ import { SegmentNarrative } from '@/components/marketing/SegmentNarrative';
 import { MultiClientMetricChart } from '@/components/marketing/charts/MultiClientMetricChart';
 import { MultiClientCplChart } from '@/components/marketing/charts/MultiClientCplChart';
 import { TrackingHealthWidget } from '@/components/marketing/TrackingHealthWidget';
+import { TokenExpiryBanner } from '@/components/marketing/TokenExpiryBanner';
 import { TimeToEventBar }      from '@/components/marketing/charts/TimeToEventBar';
 import { SignalTrajectory }    from '@/components/marketing/charts/SignalTrajectory';
 import { DemandRadar }         from '@/components/marketing/charts/DemandRadar';
@@ -478,6 +479,8 @@ export function DashboardPage() {
             </div>
           </div>
         </div>
+
+        <TokenExpiryBanner isDark={isDark} />
 
         {/* ── Filters ───────────────────────────────────────────────────────── */}
         <div className={`rounded-2xl p-4 mb-6 ${cardBase}`}>
