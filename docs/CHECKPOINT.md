@@ -1,6 +1,26 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-28 — **Contratação de rede por tenant implementada**: cada rede de
+> **Atualizado em:** 2026-07-28 — **Redesign Premium concluído nas 4 superfícies do módulo de
+> Campanhas** (pendência do CLAUDE.md "Redesign Premium — ativar skill `impeccable`"): Dashboard,
+> Configurações, CampaignWizard e Criativos, uma checkpoint por vez com aprovação do usuário
+> antes de seguir pra próxima. Passe estreito e deliberadamente reversível (não uma reconstrução
+> total): substitui o indigo-600 genérico por `#c5a028`/`#020c1b` (o acento âmbar do "Painel de
+> Missão", já definido em `PRODUCT.md`/`DESIGN.md` deste projeto) nos pontos reais de
+> decisão/estado-ativo — CTAs primários, seleção única (cards de rede/formato/objetivo/template),
+> toggles de escolha exclusiva ou multi-select central à tela, navegação de etapas — e fixa o
+> anel de foco em `#2563eb` (regra do DESIGN.md, independente do acento). Removido também 1
+> padrão explicitamente banido pelo DESIGN.md (side-stripe border colorida na linha selecionada
+> da lista de clientes em Configurações). Deixado de propósito como estava: ícones/badges/textos
+> informativos (não são decisão), o componente `InterestsPicker` inteiro do wizard e as
+> micro-ações repetidas por card da galeria de Criativos (plurais/reincidentes — promovê-los ao
+> acento único diluiria a "Regra do Acento Único" do próprio DESIGN.md) e os 2 sub-sistemas com
+> marca própria já estabelecida (azul `#1877f2` do Meta em Configurações, violeta do modal
+> "Criar com IA" em Criativos). Verificado via `npx tsc --noEmit` (zero erros novos em cada
+> arquivo) + inspeção de estilo computado ao vivo no navegador em cada superfície (o Browser pane
+> não estava compositando screenshot nesta sessão — `javascript_tool`/`getComputedStyle` usado
+> como substituto, incluindo clique real em controles pra confirmar estado ativo/selecionado).
+> Commits: `6458f32` (Dashboard), `becdc3f` (Configurações), `03b43e7` (CampaignWizard), `f1704b1`
+> (Criativos). — **Sessão anterior (2026-07-28, Contratação de rede):** cada rede de
 > anúncio (Meta/Google/TikTok) agora é gateada por tenant via o sistema genérico de
 > provisionamento já usado pelo resto da plataforma (`system_features` +
 > `tenant_feature_overrides`, tela `/admin/master/provisioning`) — decisão explícita do usuário
@@ -41,6 +61,79 @@
 **Nenhuma tarefa em andamento no momento.**
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-28 (continuação) — Redesign Premium: acento âmbar nas 4 superfícies do módulo ✅
+
+**Contexto:** usuário pediu status dos próximos passos; um dos 3 itens pendentes listados no
+CLAUDE.md era "Redesign Premium — ativar skill `impeccable`" (Dashboard, Configurações,
+CampaignWizard, Criativos + `src/components/marketing/` charts). Usuário pediu pra implementar
+esse item (junto com o alerta de token, já concluído na sessão anterior — ver seção seguinte).
+
+**Escopo real levantado antes de agir:** `context.mjs` do skill confirmou que este projeto já
+tem `PRODUCT.md`/`DESIGN.md` próprios (escritos numa sessão anterior não registrada em detalhe
+aqui) — um sistema de design "Painel de Missão": navy-based dark-mode-primary + acento âmbar
+único (`#c5a028` sobre `#020c1b`, contraste ≈7,88:1 calculado à mão), "Regra do Acento Único"
+(âmbar é a ÚNICA cor de decisão — qualquer outra ênfase usa peso/posição, nunca outro acento),
+"Regra Antivetorial" (nunca branco/indigo genérico de SaaS), "Regra Flat-By-Default" (sombra só
+em hover/estado, nunca decorativa em repouso) e um anel de foco fixo `#2563eb` independente do
+acento. Ou seja: o trabalho real não era "criar" um design system, era **aplicar o que já existe
+mas nunca foi propagado** — as 4 telas do módulo (e vários componentes compartilhados) ainda
+usavam indigo-600 genérico (a cor padrão de IA-SaaS que o próprio skill lista como "AI slop").
+
+**Bloqueio de ambiente, resolvido com o usuário via `AskUserQuestion`:** o Browser pane não
+estava compositando screenshot nesta sessão ("the page is not compositing frames") mesmo com o
+painel focado — nem eu nem o usuário conseguimos ver a prévia visual. Usuário decidiu: (1)
+prosseguir com rigor no nível de código mesmo sem verificação visual disponível agora,
+substituindo por `javascript_tool`/`getComputedStyle` (que continuou funcionando mesmo com o
+screenshot quebrado); (2) **uma superfície por vez, com checkpoint** — apresentar o resultado de
+cada tela, esperar aprovação, só então seguir pra próxima. Processo seguido à risca nas 4 rodadas.
+
+**Padrão aplicado, consistente nas 4 superfícies** (passe estreito — corrige o sistema de cor nos
+pontos de decisão real, não uma reconstrução visual completa):
+- CTAs primários (botões "Salvar"/"Sync"/"Lançar"/"Adicionar"/"Gerar"/"Aprovar") e estados
+  ativos/selecionados (abas, pills de período, cards de seleção única, toggles de escolha
+  exclusiva ou multi-select central à tela) → `#c5a028` bg / `#020c1b` texto, sem gradiente nem
+  glow decorativo (Regra Flat-By-Default — sombra só aparece no hover).
+- Anéis de foco (`focus:ring-*`) → `#2563eb` fixo, em todo input/select/textarea tocado.
+- Banners de aviso/notícia (ex.: "Texto gerado pela IA", "será criada PAUSADA", feedback de
+  upload) → unificados no mesmo âmbar já usado pelos outros avisos de cada tela (eram os únicos
+  em indigo, destoando do resto).
+- 1 padrão explicitamente banido pelo `DESIGN.md` corrigido: side-stripe border colorida
+  (`border-l-2 border-l-indigo-500`) na linha selecionada da lista de clientes em Configurações
+  — trocado por tint de fundo, sem faixa lateral.
+
+**Deixado deliberadamente sem alteração, com critério explícito em cada commit:**
+- Cor informativa/categórica (ícones de cabeçalho, badges de categoria, eyebrows, textos de
+  destaque inline) — não é ponto de decisão, converter tudo pra âmbar violaria a própria "Regra
+  do Acento Único" (diluir o significado de "isto é a decisão desta tela").
+- Sub-sistemas com marca própria já estabelecida: azul `#1877f2` da Meta (botão "Salvar
+  Identidade Meta" em Configurações) e violeta do modal "Criar novo criativo com IA" em
+  Criativos (zero indigo lá — já nasceu 100% violeta) — branding de terceiro/feature própria,
+  fora do escopo da correção de sistema de cor genérico.
+- Seções plurais/autocontidas: o `InterestsPicker` inteiro no CampaignWizard (avançado/opcional,
+  converter só parte ficaria mais inconsistente que não tocar) e as micro-ações repetidas por
+  card na galeria de Criativos (dezenas de cards simultâneos — promover cada um ao acento único
+  diluiria exatamente o que a regra existe pra evitar); essas viraram neutras (slate), não âmbar.
+
+**Verificado em cada uma das 4 rodadas:** `npx tsc --noEmit` sem erros novos no arquivo tocado +
+inspeção ao vivo no navegador real (tenant Marketing Digital, sessão autenticada real) via
+`javascript_tool`/`getComputedStyle` — incluindo cliques reais em controles (selecionar
+segmento, avançar etapas do wizard, marcar gênero/dia da semana) pra confirmar que o estado
+"selecionado"/"ativo" renderiza exatamente `rgb(197, 160, 40)`/`rgb(2, 12, 27)`, não só que a
+classe CSS existe no código. Sem verificação visual por screenshot (limitação de ambiente desta
+sessão, não resolvida) — usuário ainda não viu a prévia pixel-a-pixel, só a confirmação via
+estilo computado descrita acima em cada checkpoint apresentado.
+
+**Fora de escopo desta rodada, registrado como pendência real:** `src/components/marketing/`
+(charts: `AnalyticsView.tsx`, `BriefingCard.tsx`, `CommandCenterView.tsx`, `KpiCard.tsx`,
+`PeriodBadge.tsx`, `ClassicFunnelChart.tsx` — ~28 ocorrências de indigo encontradas via grep,
+listadas no CLAUDE.md original mas não atacadas aqui) — o pedido do usuário cobriu as 4 telas
+principais; os componentes de gráfico compartilhados ficam pra uma rodada futura, se pedida.
+
+Commits: `6458f32` (Dashboard), `becdc3f` (Configurações), `03b43e7` (CampaignWizard), `f1704b1`
+(Criativos).
+
+---
 
 ### Sessão 2026-07-28 — Contratação de rede por tenant (Meta/Google/TikTok) ✅
 
