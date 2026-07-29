@@ -1,6 +1,42 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 — **2 achados reais investigando a sidebar/CRM do tenant
+> **Atualizado em:** 2026-07-29 — **Varredura completa do bug de cookie fantasma
+> "accessToken" em toda a base de código.** Depois de corrigir o Kanban de Leads (ver
+> resumo anterior abaixo), o usuário pediu uma varredura minuciosa pra saber se o mesmo
+> padrão quebrava qualquer outra funcionalidade — a pendência tinha ficado registrada como
+> "não atacada" no fix anterior. Delegado o levantamento a um agente de pesquisa dedicado
+> (não confiar em heurística de grep rápido, que já tinha dado 1 falso positivo antes) —
+> retornou uma tabela completa das 44 rotas afetadas, classificando cada uma por presença
+> de fallback de Authorization e por quem realmente a chama no frontend. **Achado que
+> simplificou toda a correção:** o cookie real (`admin_auth_token`) é `httpOnly` — o
+> navegador já o envia AUTOMATICAMENTE em toda requisição same-origin, mesmo `fetch()` cru
+> sem nenhum header manual (httpOnly só impede LEITURA via JS, nunca bloqueia o envio
+> automático pelo navegador). Ou seja, o problema nunca foi "frontend esquece de mandar o
+> token" — era só o backend checar o nome ERRADO de cookie (`accessToken`, que nenhum login
+> desta plataforma jamais cria). Corrigido com uma troca mecânica e seca (só o nome da
+> string checada, nenhuma lógica) em **41 arquivos reais** (2 `route-backup.ts` ficaram de
+> fora — não são rotas de verdade pro Next App Router, são cópias de backup mortas).
+> Confirmado ao vivo, via `curl` com o token SÓ no cookie (sem nenhum header Authorization,
+> pra provar a causa raiz de verdade): `GET /api/crm/stats/dashboard` (dashboard principal
+> do CRM) voltou a funcionar; `GET /api/admin/imoveis/[id]/rascunho` (sistema de auto-save
+> da edição de imóvel, usado em TODOS os 10 pontos de chamada de `hooks/useRascunho.ts`,
+> sempre falhava silenciosamente antes) voltou a responder corretamente; `GET /api/admin/
+> user-features` (permissões da sidebar hierárquica) passou a autenticar o usuário
+> corretamente (a negação de acesso que ele retorna agora é o controle de permissão real
+> funcionando, não mais "usuário nunca reconhecido"). **Achado relacionado, mesma família
+> de sintoma mas causa diferente:** 6 componentes administrativos (criar/editar/excluir
+> feature de sistema, excluir categoria, excluir perfil, listar usuários de um role) liam
+> `localStorage.getItem('auth-token')` — chave que só é populada pelo login de CORRETOR,
+> nunca pelo de admin (`admin-auth-token`, a chave real) — corrigidos junto. `npx tsc
+> --noEmit`: mesma baseline (52 erros pré-existentes), zero novos nos 47 arquivos tocados.
+> **Fora de escopo, documentado no relatório de auditoria, não corrigido por não ter
+> nenhum caller real encontrado:** ~9 rotas de `imoveis-debug/[id]/*` sem fallback de
+> Authorization nenhum (só o cookie), e 2 componentes seletores (`AmenidadesSelector.tsx`,
+> `ProximidadesSelector.tsx`) que fazem fetch cru mas não são importados em lugar nenhum
+> do app — candidatos a remoção de código morto numa rodada futura, não tocados aqui.
+> Commit `671ad0a`.
+>
+> — **Sessão anterior (2026-07-29): 2 achados reais investigando a sidebar/CRM do tenant
 > admmd.** Usuário perguntou por que "Rede Meta Ads"/"Rede Google Ads" aparecem na sidebar e
 > por que nenhuma funcionalidade do CRM ("Gestão de Leads"/"Kanban de Leads") funciona pra esse
 > tenant. Investigação (rodando `get_sidebar_menu_for_user()` de verdade pro usuário, não só
@@ -197,6 +233,80 @@
 **Nenhuma tarefa em andamento no momento.**
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-29 (continuação) — Varredura completa do cookie fantasma "accessToken" ✅
+
+**Contexto:** o fix do Kanban de Leads (sessão anterior, mesmo dia) tinha registrado como
+pendência não atacada: "esse mesmo padrão de cookie inexistente aparece em ~40 outras rotas
+do sistema — vale ficar de olho". Usuário pediu explicitamente uma varredura minuciosa em
+vez de deixar como risco aberto.
+
+**Metodologia:** delegado o levantamento completo a um agente de pesquisa dedicado (Explore),
+com instrução explícita de NÃO confiar em heurística de grep de proximidade de texto — na
+sessão anterior, um `grep -A3` rápido tinha classificado errado 1 arquivo como "sem fallback
+de Authorization" quando na verdade ele checava o header primeiro, só que numa ordem diferente
+no código. O agente leu cada um dos 44 arquivos por completo e cruzou com quem realmente
+chama cada rota no frontend (via `useApi`/`useAuthenticatedFetch`/`adminFetch`/fetch cru),
+produzindo um veredito individual: SEGURO / QUEBRADO / QUEBRADO-PARCIAL / SEM-CALLER-
+ENCONTRADO / ROTA-MORTA.
+
+**Achado que simplificou a correção inteira:** o cookie real de sessão
+(`admin_auth_token`) é gravado com `httpOnly: true` no login. Isso significa que o
+NAVEGADOR já anexa esse cookie automaticamente em toda requisição same-origin — inclusive
+`fetch()` cru sem nenhum header manual — porque `httpOnly` só impede LEITURA via
+`document.cookie`/JS, nunca bloqueia o envio automático pelo navegador. Ou seja: ao
+contrário do que a sessão anterior presumiu (que a causa era sempre "frontend esquece de
+mandar o Bearer"), a causa raiz real, na maioria dos casos, era só o backend checar o NOME
+ERRADO de cookie (`accessToken`, que nenhum login desta plataforma jamais cria). Isso reduz
+a correção de "auditar e corrigir caller por caller" para uma troca mecânica e segura de
+uma única string, em cada arquivo, sem tocar em nenhuma lógica de controle.
+
+**Corrigido:** troca de `cookies.get('accessToken')` → `cookies.get('admin_auth_token')` em
+**41 arquivos reais** (2 `route-backup.ts` deixados de fora — nome de arquivo não é
+`route.ts`, o Next App Router não os registra como rota, são cópias de backup mortas,
+confirmado que não são importados em lugar nenhum).
+
+**3 rotas confirmadas quebradas pelo agente, reverificadas ao vivo depois do fix** (via
+`curl` mandando o token SÓ como cookie, nunca como header Authorization, pra provar que a
+causa raiz real é a que foi corrigida, não uma coincidência de outro caminho):
+- `GET /api/crm/stats/dashboard` (dashboard principal do CRM, `/crm`) — antes sempre
+  falhava (mesma causa raiz do bug do Kanban já corrigido); depois: `{"success":true,
+  "stats":[...]}` com os 6 leads reais do tenant Marketing Digital.
+- `GET /api/admin/imoveis/[id]/rascunho` (sistema de auto-save da edição de imóvel via
+  `hooks/useRascunho.ts` — usado nos 10 pontos de chamada do hook, incluindo criar/atualizar/
+  descartar rascunho) — antes sempre falhava silenciosamente pra qualquer imóvel, qualquer
+  tenant; depois: `{"success":true,"rascunho":null}` (resposta honesta — sem rascunho
+  ativo pro imóvel testado, não mais um erro de autenticação mascarado).
+- `GET /api/admin/user-features` (alimenta a lista de permissões da sidebar hierárquica em
+  `HierarchicalSidebar.tsx`) — antes nunca reconhecia nenhum usuário; depois autentica
+  corretamente e aplica o controle de permissão de verdade (a negação de acesso que retornou
+  no teste é o sistema de permissões funcionando como desenhado pro role testado, não mais
+  "usuário nunca identificado").
+
+**Achado relacionado, investigado durante a mesma varredura, causa diferente mas sintoma
+idêntico (401 silencioso):** 6 componentes administrativos — `CreateSystemFeatureModal.tsx`,
+`EditSystemFeatureModal.tsx`, `DeleteSystemFeatureModal.tsx`, `DeleteCategoryModal.tsx`
+(`categorias/`), `DeletePerfilModal.tsx`, `RoleUsersModal.tsx` — liam
+`localStorage.getItem('auth-token')`, uma chave que só é populada pelo fluxo de login de
+CORRETOR (`CorretorLoginModal.tsx`), nunca pelo login de admin (a chave real é
+`admin-auth-token`, confirmada em `src/lib/auth/adminFetch.ts` e em toda tela do painel
+administrativo). Corrigidos os 8 pontos de leitura nesses 6 arquivos pra usar a chave certa.
+
+**Verificado:** `npx tsc --noEmit` — mesma baseline pré-existente (52 erros), zero novos em
+qualquer um dos 47 arquivos tocados nesta rodada.
+
+**Fora de escopo, documentado no relatório do agente, não corrigido por não ter nenhum
+caller real encontrado em `src/app`/`src/components`/`src/hooks` (garantidamente quebrado
+SE algum dia alguém chamar, mas sem impacto hoje):** ~9 rotas de `imoveis-debug/[id]/*`
+que checam só o cookie, sem fallback de Authorization nenhum. Registrado também, mas fora
+do escopo desta correção de bug de auth (candidato a limpeza de código morto numa rodada
+futura, não tocado aqui): 2 componentes seletores (`AmenidadesSelector.tsx`,
+`ProximidadesSelector.tsx`) que fazem fetch cru sem auth mas não são importados em lugar
+nenhum do app.
+
+Commit `671ad0a`.
+
+---
 
 ### Sessão 2026-07-29 — Sidebar (Rede Ads + links mortos de CRM) e Kanban de Leads real ✅
 
