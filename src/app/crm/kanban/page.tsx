@@ -20,6 +20,7 @@ import {
   ArrowRightIcon,
   CalendarIcon
 } from '@heroicons/react/24/outline'
+import { adminFetch } from '@/lib/auth/adminFetch'
 import EnrichedLeadData from '@/components/crm/EnrichedLeadData'
 import NovoLeadModal from '@/components/crm/NovoLeadModal'
 import AgendarVisitaModal from '@/components/crm/AgendarVisitaModal'
@@ -94,7 +95,7 @@ export default function KanbanPage() {
 
   const fetchData = async () => {
     try {
-      const [colsRes, leadsRes] = await Promise.all([fetch('/api/crm/kanban/colunas'), fetch('/api/crm/leads')])
+      const [colsRes, leadsRes] = await Promise.all([adminFetch('/api/crm/kanban/colunas'), adminFetch('/api/crm/leads')])
       const [colsData, leadsData] = await Promise.all([colsRes.json(), leadsRes.json()])
       if (colsData.success) setColunas(colsData.colunas)
       if (leadsData.success) setLeads(leadsData.leads)
@@ -115,8 +116,8 @@ export default function KanbanPage() {
     if (!targetCol) return
     setMovingLead(true)
     try {
-      const res = await fetch('/api/crm/kanban/move', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const res = await adminFetch('/api/crm/kanban/move', {
+        method: 'POST',
         body: JSON.stringify({ lead_uuid: lead.lead_uuid, coluna_id: targetCol.id })
       })
       const data = await res.json()
@@ -161,8 +162,8 @@ export default function KanbanPage() {
     }
 
     try {
-      const res = await fetch('/api/crm/kanban/move', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const res = await adminFetch('/api/crm/kanban/move', {
+        method: 'POST',
         body: JSON.stringify({ lead_uuid, coluna_id: targetCol.id })
       })
       const data = await res.json()
