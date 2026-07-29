@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, Cell,
@@ -73,6 +73,13 @@ export default function LeadsCapturadosPage() {
   const { clients, loading: clientsLoading, clientFilter, setClientFilter } =
     useClientSelector('leads')
 
+  // Guarda contra corrida entre requisições: clientFilter assenta em 2-3 valores logo no mount
+  // (useClientSelector troca 'own'→'segment' assim que resolve isOwnSegment) e cada troca dispara
+  // um novo loadAll() em paralelo — sem essa proteção, uma resposta MAIS ANTIGA (ex.: sem filtro
+  // de origem) que demore mais pra resolver pode sobrescrever o estado de uma resposta mais nova
+  // (ex.: já com origem aplicada), dando a falsa impressão de que o filtro "não fez efeito".
+  const requestIdRef = useRef(0)
+
   const buildQs = useCallback((extra: Record<string, any> = {}) => {
     const p: Record<string, string> = {
       startDate: filters.startDate,
@@ -98,6 +105,7 @@ export default function LeadsCapturadosPage() {
     }
     setDateError('')
     setLoading(true)
+    const myRequestId = ++requestIdRef.current
     try {
       const [leadsRes, statsRes] = await Promise.all([
         adminFetch(`/api/admin/campanhas/leads?${buildQs({ page: '1', limit: String(PAGE_SIZE) })}`).then(async r => {
@@ -111,17 +119,21 @@ export default function LeadsCapturadosPage() {
           return data
         }),
       ])
+      // Descarta resposta desatualizada — outra chamada mais recente a loadAll() já foi disparada
+      // enquanto esta estava em voo (ex.: clientFilter assentando + troca de filtro quase junto).
+      if (myRequestId !== requestIdRef.current) return
       setLeads(leadsRes.leads ?? [])
       setTotal(leadsRes.total ?? 0)
       setStats(statsRes)
       setPage(1)
     } catch (err: any) {
+      if (myRequestId !== requestIdRef.current) return
       console.error('[leads page] loadAll erro:', err)
       setLeads([])
       setTotal(0)
       setStats(EMPTY_STATS)
     } finally {
-      setLoading(false)
+      if (myRequestId === requestIdRef.current) setLoading(false)
     }
   }, [buildQs, filters.startDate, filters.endDate])
 
@@ -130,12 +142,14 @@ export default function LeadsCapturadosPage() {
   const goToPage = async (p: number) => {
     setPage(p)
     setTableLoading(true)
+    const myRequestId = ++requestIdRef.current
     try {
       const res = await adminFetch(`/api/admin/campanhas/leads?${buildQs({ page: String(p), limit: String(PAGE_SIZE) })}`).then(r => r.json())
+      if (myRequestId !== requestIdRef.current) return
       setLeads(res.leads ?? [])
       setTotal(res.total ?? 0)
     } finally {
-      setTableLoading(false)
+      if (myRequestId === requestIdRef.current) setTableLoading(false)
     }
   }
 
