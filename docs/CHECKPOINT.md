@@ -1,6 +1,25 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 (continuação 5) — **Fix real de CSP encontrado ao VERIFICAR
+> **Atualizado em:** 2026-07-29 (continuação 6) — **"Entrar" lento em `/artemis4` de novo —
+> issue crônico já documentado em 2026-07-11, causa raiz confirmada idêntica, fix anterior
+> reforçado (commit `2e9d42f`).** Usuário reportou o mesmo sintoma de sessões antigas: clicar
+> "Entrar" demora "um século" antes de mostrar o login. Antes de mexer em qualquer coisa,
+> confirmado ao vivo (2 `curl` seguidos em `/admin/login`) que é **exatamente** o mesmo
+> fenômeno de sempre — Next.js em modo DEV compila cada rota sob demanda no 1º hit depois de
+> cada restart do servidor (3,57s frio vs 0,24s morno, medido agora) — e **não** uma
+> regressão das mudanças de CSP/CSRF desta mesma sessão (confirmado diretamente, não
+> assumido). O fix de 2026-07-11 (pré-aquecer `/admin/login` via `requestIdleCallback` ao
+> montar `/artemis4`) continuava no código, mas tinha uma lacuna real: esperava até 4s de
+> ociosidade antes de disparar — como "Entrar" é o 1º CTA visível na tela, um clique rápido
+> (a ação óbvia da página) batia o aquecimento na corrida e pagava o compile frio do mesmo
+> jeito. Corrigido: o `fetch` de aquecimento agora dispara direto no mount, sem esperar
+> ociosidade/timeout nenhum. Verificado ao vivo (aba nova, network log limpo): a requisição
+> pra `/admin/login` já aparece resolvida (`200 OK`) na primeira leva de chamadas da página,
+> junto dos chunks JS/CSS iniciais — antes só aparecia depois de 3-4s. `npx tsc --noEmit`: 52
+> erros, mesma baseline, zero novos. Sem custo real em produção (rota já vem pré-compilada no
+> build de produção — o fenômeno inteiro é exclusivo de `next dev`).
+>
+> — **Sessão anterior (2026-07-29, continuação 5): Fix real de CSP encontrado ao VERIFICAR
 > AO VIVO (commit `7b10fb9`), não hipotético.** Usuário pediu automatizar 2 coisas
 > (rotina de teste local + automação do grep de log em produção) — investigação mostrou que
 > ambas as automações propostas tinham custo desproporcional (headless browser novo pra
@@ -402,19 +421,27 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento.** Todas as 4 fases planejadas para esta rodada de
+**Nenhuma tarefa em andamento no momento.** Todas as 4 fases planejadas para a rodada de
 hardening (Fase -1, Fase 0, Fase 1, Fase 2) estão implementadas e commitadas, com captura
-automática de log (`[CSP-VIOLATION]` + `[CSRF-CHECK]`, ambos no stdout do servidor) e a
-política de CSP já corrigida contra os 2 problemas reais encontrados via verificação ao vivo
-(eval do HMR em dev + script do YouTube). Pendente, não bloqueante: Meta Pixel e o `img-src`
-do MinIO seguem sem teste ao vivo (ver resumo no topo deste arquivo — lacuna de verificação
-honesta, não bug conhecido); depois de algum tempo de uso real, consultar os logs (`docker
-logs` em produção, terminal do `next dev` em local) antes de decidir promover CSP/CSRF pra
-modo bloqueante — ver `C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`. Fase 3
-(auditoria das ~132 rotas "zona cinzenta") e a eliminação total do token duplicado em
+automática de log (`[CSP-VIOLATION]` + `[CSRF-CHECK]`, ambos no stdout do servidor), a
+política de CSP corrigida contra os 2 problemas reais encontrados via verificação ao vivo
+(eval do HMR em dev + script do YouTube), e o fix crônico do "Entrar lento" em `/artemis4`
+reforçado (pré-aquecimento agora dispara no mount, não mais atrás de ociosidade). Pendente,
+não bloqueante: Meta Pixel e o `img-src` do MinIO seguem sem teste ao vivo (lacuna de
+verificação honesta, não bug conhecido); depois de algum tempo de uso real, consultar os
+logs (`docker logs` em produção, terminal do `next dev` em local) antes de decidir promover
+CSP/CSRF pra modo bloqueante — ver `C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`.
+Fase 3 (auditoria das ~132 rotas "zona cinzenta") e a eliminação total do token duplicado em
 localStorage seguem fora de escopo por decisão explícita do plano.
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-29 (continuação 6) — "Entrar" lento em /artemis4: fix crônico reforçado ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 6)").
+Commit `2e9d42f`.
+
+---
 
 ### Sessão 2026-07-29 (continuação 5) — Fix real de CSP (eval dev-only + youtube script-src) ✅
 
