@@ -1,6 +1,69 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 — **Varredura completa do bug de cookie fantasma
+> **Atualizado em:** 2026-07-29 — **Plano de endurecimento de autenticação/sessão: Fase -1
+> (XSS real) + Fase 0 (2 fixes de higiene) implementadas.** Depois da varredura do cookie
+> fantasma (ver resumo logo abaixo), o usuário fez uma pergunta de arquitetura genuína:
+> "essa alternativa de checar os acessos pelo cookie, em detrimento de checar por autenticação
+> no header, não deixa toda a aplicação vulnerável a falhas e outros riscos?" — pediu em
+> seguida um plano de endurecimento de verdade (investigação primeiro, zero alteração,
+> análise completa de impacto/risco de quebra) e, antes de aprovar, exigiu uma avaliação
+> honesta e direta de quão vulnerável a aplicação está HOJE, sem nenhuma das correções — "seja
+> bem honesto atuando como um profissional senior de cibersecurity". Investigação (3 agentes
+> de pesquisa dedicados, só leitura) mapeou os 3 sistemas de sessão paralelos da plataforma
+> (admin/corretor/público, cada um duplicando o mesmo JWT em cookie `httpOnly` + `localStorage`
+> JS-legível) e produziu um plano faseado, salvo em `C:\Users\T-GAMER\.claude\plans\
+> crystalline-riding-squid.md`. **Avaliação honesta dada ao usuário antes da aprovação:** a
+> pergunta original (CSRF via cookie) é risco BAIXO-MODERADO hoje — `sameSite:'lax'` é
+> mitigação padrão da indústria e funciona na prática, não é porta aberta; MAS existe uma
+> vulnerabilidade REAL, ativa, com cadeia de exploração completa até roubo de sessão de admin,
+> não-teórica: upload de documento de imóvel grava `nome_arquivo` sem sanitização (permissão de
+> corretor comum, não exclusiva de admin) → interpolado sem escape num `document.write()` em
+> `DocumentosLista.tsx`/`DocumentModal.tsx`, usado na página PÚBLICA do imóvel → script injetado
+> roda na mesma origem do painel admin → lê `localStorage.getItem('admin-auth-token')`, o JWT de
+> sessão de 7 dias, bearer token puro, funciona de qualquer lugar sem depender de cookie/CSRF
+> nenhum. Essa avaliação elevou o fix desse XSS a uma "Fase -1" urgente e independente do resto
+> do roadmap (que segue válido, mas é menos urgente) — usuário aprovou o plano com essa moldura.
+>
+> **Implementado nesta sessão (Fase -1 + Fase 0, commit `2a4886b`):**
+> **Fase -1 — fechado o XSS real:** `document.write()` em `DocumentosLista.tsx` e
+> `DocumentModal.tsx` reescrito pra nunca mais interpolar dado externo (`nome_arquivo`/`url`) numa
+> string HTML — agora recebe só markup 100% estático e fixo; nome do arquivo e URL do PDF são
+> atribuídos DEPOIS via propriedades seguras do DOM (`element.textContent`, `document.title`,
+> `iframe.src` — nenhuma delas é parseada como markup) + allowlist de esquema de URL
+> (`/^(https?:)?\/\//i.test(url) || url.startsWith('/')`, bloqueia `javascript:` antes mesmo de
+> abrir o popup). **Verificado ao vivo, não só por leitura de código:** testado no navegador real
+> com um payload malicioso (`'"><img src=x onerror=window.__xssFired=true>.pdf'`) atribuído via
+> `textContent`/`.title` — resultado: `xssFired:false` (o handler nunca executa), `innerHTML`
+> mostra os caracteres `<`/`>` escapados como entidade HTML (`&lt;`/`&gt;`), confirmando que o
+> navegador trata a string como texto puro, nunca como marcação — exatamente o comportamento que
+> fecha a cadeia de exploração descrita na avaliação de risco.
+> **Fase 0 (2 dos 3 itens do plano — item 1, remover o campo `csrf` decorativo de
+> `src/app/login/page.tsx`, foi deliberadamente adiado pra dentro da Fase 2, que ainda decide se
+> vira a base real de defesa CSRF ou é só removido):**
+> (2) `secure:false` hardcoded em `/api/admin/auth/refresh/route.ts` (2 ocorrências, cookies
+> `accessToken`/`refreshToken`) corrigido pra `process.env.NODE_ENV === 'production'`, mesmo
+> padrão já usado em `login/route.ts` — exigia atacante já em posição de rede pra explorar, não
+> era emergência, mas corrigido junto por ser risco de quebra zero.
+> (3) `getUserFromLocalStorage()` removida de `src/middleware/publicAuth.ts` — fazia
+> `jwt.verify()` no client usando uma env var (`NEXT_PUBLIC_JWT_SECRET`) que nunca é definida em
+> nenhum `.env` real da plataforma; confirmado via grep que a função tinha ZERO callers antes de
+> remover — código morto, mas um padrão perigoso se alguém reativasse sem perceber que o secret
+> nunca existiu de verdade. `publicAuthMiddleware` (a outra função do mesmo arquivo, com checagem
+> correta server-side) ficou intocada, mesmo também sem uso — fora do escopo deste fix pontual.
+> `npx tsc --noEmit`: 52 erros, mesma baseline pré-existente, zero novos nos 4 arquivos tocados.
+>
+> **Ainda pendente do plano, não iniciado nesta sessão:** Fase 1 (Content-Security-Policy —
+> precisa de levantamento completo de domínios externos genuinamente usados — Meta Pixel,
+> YouTube em `/artemis4`, MinIO/S3 — e rollout em modo Report-Only antes de bloquear) e Fase 2
+> (defesa CSRF real via checagem de Origin/Referer, reaproveitando a lógica já escrita mas nunca
+> plugada em `environmentMiddleware.ts`, também com período de observação em modo log antes de
+> aplicar de verdade). Fase 3 (auditoria das ~132 rotas "zona cinzenta" não classificadas) e a
+> eliminação total do token duplicado em localStorage seguem explicitamente FORA de escopo desta
+> rodada — o próprio plano documenta o porquê (200+ call-sites, 3 sistemas de login paralelos,
+> `useAuth.tsx` precisaria reescrita, zero suíte de testes automatizados no projeto pra verificar
+> uma refatoração desse tamanho sem navegar manualmente por cada tela).
+>
+> — **Sessão anterior (2026-07-29, continuação): Varredura completa do bug de cookie fantasma
 > "accessToken" em toda a base de código.** Depois de corrigir o Kanban de Leads (ver
 > resumo anterior abaixo), o usuário pediu uma varredura minuciosa pra saber se o mesmo
 > padrão quebrava qualquer outra funcionalidade — a pendência tinha ficado registrada como
@@ -230,9 +293,17 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento.**
+**Nenhuma tarefa em andamento no momento.** Próximas, quando retomadas: Fase 1 (CSP
+Report-Only) e Fase 2 (CSRF via Origin/Referer) do plano de endurecimento — ver
+`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md` e o resumo no topo deste arquivo.
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-29 (continuação 2) — Hardening Fase -1 (XSS real) + Fase 0 (2 itens) ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29"). Commit `2a4886b`.
+
+---
 
 ### Sessão 2026-07-29 (continuação) — Varredura completa do cookie fantasma "accessToken" ✅
 
