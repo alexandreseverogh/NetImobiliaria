@@ -253,23 +253,47 @@ const nextConfig = {
 
     // Otimizações de produção
     swcMinify: true,
-
-    // Headers de segurança em produção
-    async headers() {
-      return [
-        {
-          source: '/(.*)',
-          headers: [
-            { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
-            { key: 'X-Content-Type-Options', value: 'nosniff' },
-            { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-            { key: 'X-XSS-Protection', value: '1; mode=block' },
-            { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-          ],
-        },
-      ]
-    },
   }),
+
+  // Headers de segurança — sempre ativos (inclusive em dev, pra CSP Report-Only ser
+  // observável durante o desenvolvimento, não só depois de já estar em produção).
+  // Fase 1 do plano de hardening (docs/CHECKPOINT.md) — CSP em Report-Only: só loga
+  // violação no console, nunca bloqueia nada. Inventário real de domínios externos
+  // carregados pelo NAVEGADOR (não chamadas server-to-server, que não entram na CSP):
+  // Meta Pixel (connect.facebook.net + www.facebook.com), YouTube embed em /artemis4
+  // (www.youtube.com), MinIO em dev (localhost:9000 — em produção vai via proxy Caddy
+  // /storage/*, mesma origem). Os ~30 domínios de notícias em `images.remotePatterns`
+  // acima são só pro otimizador de imagem do Next (server-side) — o navegador só vê
+  // /_next/image, mesma origem, nunca precisam entrar aqui.
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://connect.facebook.net",
+      "style-src 'self' 'unsafe-inline'",
+      `img-src 'self' data: blob: https://www.facebook.com${isDevelopment ? ' http://localhost:9000 http://127.0.0.1:9000' : ''}`,
+      "frame-src 'self' https://www.youtube.com",
+      "connect-src 'self' https://www.facebook.com",
+      "font-src 'self' data:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'self'",
+    ].join('; ')
+
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          ...(isProduction ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }] : []),
+          { key: 'Content-Security-Policy-Report-Only', value: csp },
+        ],
+      },
+    ]
+  },
 
   /* 
   experimental: {
