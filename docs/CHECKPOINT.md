@@ -1,6 +1,34 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-28 — **Redesign Premium: 3ª rodada — Leads, widgets embutidos do
+> **Atualizado em:** 2026-07-28 — **Fix real: filtro de Origem em `/admin/campanhas/leads` não
+> afetava os cards/gráficos do topo.** Usuário reportou, testando o Redesign Premium recém
+> concluído (ver resumo anterior abaixo), que qualquer opção escolhida no filtro "Origem" da
+> tela de Leads mostrava sempre os mesmos resultados. Investigação encontrou **2 bugs reais e
+> independentes**, ambos confirmados ao vivo antes e depois do fix — nunca corrigido "no escuro":
+> (1) `GET /api/admin/campanhas/leads/stats` **nunca lia o query param `origem`** — só o
+> endpoint irmão (`GET /api/admin/campanhas/leads`, que alimenta a tabela "Últimos Leads" no
+> rodapé) já filtrava corretamente; os cards do topo (Total Leads, Média/Dia, os 2 gráficos)
+> sempre mostravam o total geral, dando a falsa impressão de que o filtro inteiro não tinha
+> efeito. Corrigido replicando a mesma condição já usada no endpoint irmão
+> (`COALESCE(me.plataforma, 'direto') = origem`) — commit `c1605a9`. (2) **Race condition real**
+> encontrada durante a investigação (não hipotética — confirmada no próprio network log da
+> sessão): `useClientSelector` troca `clientFilter` de `'own'` pra `'segment'` logo após o mount
+> (comportamento já existente, documentado), disparando múltiplas chamadas a `loadAll()` em
+> paralelo sem nenhum cancelamento/sequenciamento — uma resposta mais antiga podia, em teoria,
+> sobrescrever uma mais nova. Corrigido com um contador de requisição (`requestIdRef`) em
+> `loadAll()`/`goToPage()` — commit `7e754bc`. **Metodologia de verificação, sessão de debug
+> colaborativa com o usuário via DevTools do navegador dele (não só o meu):** SQL direto no
+> Postgres confirmando os valores reais de `plataforma` por tenant · `curl` direto contra o
+> servidor com um JWT gerado na hora, contornando qualquer cache de navegador · leitura da aba
+> Network do DevTools do usuário passo a passo (Request URL completa com `origem=whatsapp_
+> organico`, Response com `totalLeads:4`, e por fim o próprio card na tela mostrando `4`) — cada
+> etapa isolando uma camada diferente (backend puro → rede → estado React → DOM renderizado) até
+> confirmar que a cadeia inteira funciona ponta a ponta. Um teste seguinte do usuário
+> ("WhatsApp CTA" → 0 leads) inicialmente pareceu suspeito mas se confirmou correto: não existe
+> nenhum lead real com essa origem específica nesse tenant — `0` é a resposta certa, não um
+> resíduo do bug. `npx tsc --noEmit` limpo nos 2 arquivos tocados em cada commit.
+>
+> — **Sessão anterior (2026-07-28): Redesign Premium: 3ª rodada — Leads, widgets embutidos do
 > Dashboard e componentes compartilhados (Cliente/Segmento/CampanhasModal/LocationPicker) +
 > eliminação de redundância de hex solto.** Continuação da pendência do CLAUDE.md ("Redesign
 > Premium — parcialmente concluído, resto é opcional se pedido"). Usuário perguntou o ganho real
@@ -137,6 +165,57 @@
 **Nenhuma tarefa em andamento no momento.**
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-28 (continuação 5) — Fix: filtro de Origem na tela de Leads (2 bugs reais) ✅
+
+**Contexto:** durante o roteiro de testes do Redesign Premium concluído na sessão anterior, o
+usuário reportou: "qualquer que seja a opção escolhida no filtro 'Origem', os resultados
+exibidos são sempre os mesmos... como se não estivesse realmente filtrando".
+
+**Bug 1 — backend nunca lia o filtro (commit `c1605a9`):** `GET /api/admin/campanhas/leads/
+stats/route.ts` nunca extraía `sp.get('origem')` — a tabela de leads no rodapé da página
+(endpoint irmão, `GET /api/admin/campanhas/leads`) já filtrava certinho, mas os cards do topo
+("Total Leads", "Média/Dia") e os 2 gráficos ("Sinal × Total Leads por Dia", "Leads por
+Origem") vinham do endpoint `/stats`, que sempre devolvia o total geral. Testado direto no
+Postgres antes de mexer no código (`docker exec ... psql`) pra confirmar os valores reais de
+`marketing_eventos.plataforma` do tenant Marketing Digital: `whatsapp_organico`=4,
+`cta_app_form`=2, `cta_api`=1. Corrigido adicionando a mesma condição já usada no endpoint
+irmão (`COALESCE(me.plataforma, 'direto') = origem`) ao `WHERE` compartilhado por todas as
+queries da rota. Verificado com `curl` direto (sem navegador) pros 3 cenários: sem filtro→6,
+`whatsapp_organico`→4, `meta_lead_ads` (sem lead real)→0 — todos exatos.
+
+**Bug 2 — race condition real, achada investigando o Bug 1 (commit `7e754bc`):**
+`useClientSelector('leads')` troca `clientFilter` de `'own'` pra `'segment'` automaticamente
+logo após o mount (comportamento pré-existente, documentado em sessão anterior) — confirmado ao
+vivo no próprio network log da sessão do usuário que isso dispara 3-4 chamadas a `loadAll()`
+em sequência rápida a cada carregamento de página, **sem nenhum cancelamento ou sequenciamento**
+entre elas. Sem proteção, uma resposta mais antiga (ex.: sem `origem`) que demorasse mais pra
+resolver no servidor podia sobrescrever o estado de uma resposta mais nova (já filtrada),
+dando exatamente a sensação relatada de "o filtro não teve efeito". Corrigido com um contador
+de requisição (`requestIdRef`, incrementado a cada `loadAll()`/`goToPage()`) — a resposta só
+atualiza o estado se ainda for a requisição mais recente disparada.
+
+**Depuração colaborativa via DevTools do navegador do próprio usuário** (não só o meu) —
+mesmo depois dos 2 fixes, o usuário ainda via "o mesmo resultado", o que levantou a dúvida
+honesta de se havia um 3º bug ainda não encontrado. Isolado camada por camada, sem assumir
+nada: (1) SQL direto — confirmou os dados reais; (2) `curl` com JWT gerado na hora, contornando
+qualquer cache de navegador — confirmou o backend puro; (3) leitura guiada da aba Network do
+DevTools do usuário (Request URL completa com `origem=whatsapp_organico`, aba Response com
+`totalLeads:4`) — confirmou que a resposta CERTA estava chegando no navegador dele; (4)
+pergunta direta sobre o que a TELA (não o DevTools) mostrava naquele exato momento — confirmou
+`4`, batendo com a resposta. Cada etapa isolou uma camada diferente (banco → servidor → rede →
+estado React → DOM) até fechar o ciclo completo sem nenhum salto de fé. Um teste seguinte do
+usuário (selecionar "WhatsApp CTA" → 0 leads) inicialmente pareceu suspeito, mas se confirmou
+**correto, não um resíduo do bug**: não existe nenhum lead real com essa origem específica
+(`cta_whatsapp`) nesse tenant — zero é a resposta certa, e o próprio fato de números diferentes
+aparecerem pra origens diferentes (4, 0, e por decorrência 6/2/1 nas demais) já é a prova de
+que o filtro funciona ponta a ponta.
+
+**`npx tsc --noEmit` limpo nos 2 arquivos tocados** (`leads/stats/route.ts`,
+`leads/page.tsx`) em cada commit. Nenhum push imediato — enviado só ao final, a pedido
+explícito do usuário ("faça commit de tudo e push no github remoto").
+
+---
 
 ### Sessão 2026-07-28 (continuação 4) — Redesign Premium: Leads + widgets do Dashboard + componentes compartilhados ✅
 
