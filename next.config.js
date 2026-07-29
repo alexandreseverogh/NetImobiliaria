@@ -260,15 +260,23 @@ const nextConfig = {
   // Fase 1 do plano de hardening (docs/CHECKPOINT.md) — CSP em Report-Only: só loga
   // violação no console, nunca bloqueia nada. Inventário real de domínios externos
   // carregados pelo NAVEGADOR (não chamadas server-to-server, que não entram na CSP):
-  // Meta Pixel (connect.facebook.net + www.facebook.com), YouTube embed em /artemis4
-  // (www.youtube.com), MinIO em dev (localhost:9000 — em produção vai via proxy Caddy
+  // Meta Pixel (connect.facebook.net + www.facebook.com), YouTube embed E o script da
+  // IFrame Player API em /artemis4 (www.youtube.com — carrega tanto o iframe quanto um
+  // <script src> direto na página, achado real via captura ao vivo do report-uri, ver
+  // CHECKPOINT), MinIO em dev (localhost:9000 — em produção vai via proxy Caddy
   // /storage/*, mesma origem). Os ~30 domínios de notícias em `images.remotePatterns`
   // acima são só pro otimizador de imagem do Next (server-side) — o navegador só vê
   // /_next/image, mesma origem, nunca precisam entrar aqui.
+  //
+  // 'unsafe-eval' em script-src é DEV-ONLY: o Next.js usa eval() internamente pro
+  // source-map do Fast Refresh (webpack devtool 'eval-source-map', deixado automático
+  // neste projeto — ver bloco `webpack:` mais abaixo). Build de produção não usa eval()
+  // pra isso — confirmado via captura ao vivo: 81 das 83 violações reais observadas em
+  // dev eram exatamente essa, nenhuma delas faz sentido incluir permanentemente.
   async headers() {
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://connect.facebook.net",
+      `script-src 'self' 'unsafe-inline' https://connect.facebook.net https://www.youtube.com${isDevelopment ? " 'unsafe-eval'" : ''}`,
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: https://www.facebook.com${isDevelopment ? ' http://localhost:9000 http://127.0.0.1:9000' : ''}`,
       "frame-src 'self' https://www.youtube.com",
