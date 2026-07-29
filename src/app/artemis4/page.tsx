@@ -119,27 +119,18 @@ export default function Artemis4LandingPage() {
     fetchModules()
   }, [])
 
-  // 1.5. Pré-aquece /admin/login em segundo plano (durante ocioso) — a rota vive no route
-  // group `admin` (layout pesado) e, em dev, compila sob demanda (~10s na 1ª navegação).
-  // Warmando enquanto o usuário lê a landing, o clique em "Entrar" pega a rota já morna
-  // (~0,3s). Em produção é inofensivo (só um GET de baixa prioridade). Roda uma única vez.
+  // 1.5. Pré-aquece /admin/login assim que a landing monta — a rota vive no route group
+  // `admin` (layout pesado) e, em dev, compila sob demanda (~3-10s na 1ª navegação depois
+  // de cada restart do servidor). Achado real: a versão anterior deste fix esperava até
+  // 4s de ociosidade (requestIdleCallback) antes de disparar — "Entrar" é o 1º CTA visível
+  // na tela, então um clique rápido batia o aquecimento na corrida e pagava o compile frio
+  // do mesmo jeito. Disparo imediato no mount (fetch de baixíssimo custo, fire-and-forget,
+  // não compete de forma perceptível com o vídeo/canvas que a página já carrega) — o clique
+  // em "Entrar" pega a rota já morna (~0,3s) mesmo que aconteça em menos de 1s. Em produção
+  // é inofensivo (rota já vem pré-compilada no build; só mais um GET de baixa prioridade,
+  // sem efeito de "aquecer" nada). Roda uma única vez.
   useEffect(() => {
-    let idleId: number | undefined
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    const warm = () => { fetch('/admin/login', { credentials: 'same-origin' }).catch(() => {}) }
-
-    if (typeof (window as any).requestIdleCallback === 'function') {
-      idleId = (window as any).requestIdleCallback(warm, { timeout: 4000 })
-    } else {
-      timeoutId = setTimeout(warm, 3000)
-    }
-
-    return () => {
-      if (idleId !== undefined && typeof (window as any).cancelIdleCallback === 'function') {
-        ;(window as any).cancelIdleCallback(idleId)
-      }
-      if (timeoutId) clearTimeout(timeoutId)
-    }
+    fetch('/admin/login', { credentials: 'same-origin' }).catch(() => {})
   }, [])
 
   // 2. Inicialização do YouTube IFrame Player API
