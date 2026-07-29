@@ -1,6 +1,40 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 (continuação 4) — **Auto-report de violações de CSP (commit
+> **Atualizado em:** 2026-07-29 (continuação 5) — **Fix real de CSP encontrado ao VERIFICAR
+> AO VIVO (commit `7b10fb9`), não hipotético.** Usuário pediu automatizar 2 coisas
+> (rotina de teste local + automação do grep de log em produção) — investigação mostrou que
+> ambas as automações propostas tinham custo desproporcional (headless browser novo pra
+> local; socket do Docker montado noutro container pra prod, ironicamente uma concessão de
+> segurança sensível) frente a uma alternativa mais simples (notificação direta do próprio
+> processo). Perguntado ao usuário: escolheu NÃO adicionar nenhuma automação nova — nem
+> prober headless, nem notificação Slack — confirmando que o pipeline já construído
+> (report-uri + log) já bastava.
+>
+> Com o servidor dev já reiniciado (confirmado via `curl -I`, sem eu precisar tocar em
+> nenhum processo), aproveitei pra fazer uma verificação real com navegador de verdade (meu
+> Browser pane) em `/artemis4` — e ela encontrou um problema GENUÍNO: **83 violações reais
+> de CSP por carregamento**, não hipotéticas. Isolado o payload exato via instrumentação
+> temporária (gravação em arquivo, revertida depois — mesmo padrão de diagnóstico já usado
+> nesta sessão) + o evento nativo `securitypolicyviolation` do navegador: 2 causas distintas,
+> ambas cobertas erradas na política original —
+> **(1) `eval` em `script-src` (81 ocorrências)** — o Next.js em modo DEV usa `eval()`
+> internamente pro source-map do Fast Refresh (`devtool: 'eval-source-map'`, confirmado que
+> este projeto deixa automático); build de produção não usa. Corrigido com `'unsafe-eval'`
+> só em dev, mesmo padrão condicional já usado pro MinIO.
+> **(2) `https://www.youtube.com/iframe_api` + `.../www-widgetapi.js` (`script-src-elem`)**
+> — achado real que o inventário original errou: a página carrega o script da IFrame Player
+> API do YouTube DIRETO nela, não só dentro do iframe embutido — eu só tinha colocado
+> `youtube.com` em `frame-src`, faltava em `script-src`. Corrigido.
+> Revalidado com aba de navegador **limpa** (não a mesma usada pra diagnosticar, pra não
+> herdar histórico) em `/artemis4` e numa página real de imóvel: **zero violação em ambas**
+> depois do fix, confirmado via `read_network_requests` (0 POSTs pro endpoint de report).
+> **Lacunas de verificação registradas com honestidade, não escondidas:** Meta Pixel
+> (`connect.facebook.net`/`www.facebook.com`) segue sem teste ao vivo — tenant Master ainda
+> sem `pixel_id` configurado (pendência antiga, não desta sessão); `img-src` do MinIO
+> (`localhost:9000`) não foi exercitado — o imóvel testado (id 31) não tinha foto real fora
+> do `/_next/image` otimizado. `npx tsc --noEmit`: 52 erros, mesma baseline, zero novos.
+>
+> — **Sessão anterior (2026-07-29, continuação 4): Auto-report de violações de CSP (commit
 > `39646a9`), resposta a "não sei como irei observar".** Depois de implementar Fase 1 (CSP
 > Report-Only) e Fase 2 (CSRF log-only) — ver resumo logo abaixo — o usuário apontou, com
 > razão, que "checar o Console do navegador/terminal por um tempo" não é um processo real
@@ -370,16 +404,24 @@
 
 **Nenhuma tarefa em andamento no momento.** Todas as 4 fases planejadas para esta rodada de
 hardening (Fase -1, Fase 0, Fase 1, Fase 2) estão implementadas e commitadas, com captura
-automática de log (`[CSP-VIOLATION]` + `[CSRF-CHECK]`, ambos no stdout do servidor — sem
-precisar de nenhum passo manual, ver resumo no topo deste arquivo). Pendente, não bloqueante:
-reiniciar o servidor dev (não feito nesta sessão — usuário optou por fazer por conta própria)
-e, depois de algum tempo de uso real, consultar os logs (`docker logs` em produção, terminal
-do `next dev` em local) antes de decidir promover CSP/CSRF pra modo bloqueante — ver
-`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`. Fase 3 (auditoria das ~132
-rotas "zona cinzenta") e a eliminação total do token duplicado em localStorage seguem fora de
-escopo por decisão explícita do plano.
+automática de log (`[CSP-VIOLATION]` + `[CSRF-CHECK]`, ambos no stdout do servidor) e a
+política de CSP já corrigida contra os 2 problemas reais encontrados via verificação ao vivo
+(eval do HMR em dev + script do YouTube). Pendente, não bloqueante: Meta Pixel e o `img-src`
+do MinIO seguem sem teste ao vivo (ver resumo no topo deste arquivo — lacuna de verificação
+honesta, não bug conhecido); depois de algum tempo de uso real, consultar os logs (`docker
+logs` em produção, terminal do `next dev` em local) antes de decidir promover CSP/CSRF pra
+modo bloqueante — ver `C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`. Fase 3
+(auditoria das ~132 rotas "zona cinzenta") e a eliminação total do token duplicado em
+localStorage seguem fora de escopo por decisão explícita do plano.
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-29 (continuação 5) — Fix real de CSP (eval dev-only + youtube script-src) ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 5)").
+Commit `7b10fb9`.
+
+---
 
 ### Sessão 2026-07-29 (continuação 4) — Auto-report de violações de CSP ✅
 
