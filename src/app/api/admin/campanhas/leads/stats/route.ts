@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
   const clientId  = sp.get('clientId')
   const startDate = sp.get('startDate')
   const endDate   = sp.get('endDate')
+  const origem    = sp.get('origem')
 
   const conditions: string[] = ['ls.tenant_id = $1']
   const params: unknown[] = [payload.tenantId]
@@ -42,6 +43,10 @@ export async function GET(request: NextRequest) {
   if (endDate) {
     params.push(new Date(endDate + 'T23:59:59'))
     conditions.push(`ls.created_at <= $${params.length}`)
+  }
+  if (origem && origem !== 'all') {
+    params.push(origem)
+    conditions.push(`COALESCE(me.plataforma, 'direto') = $${params.length}`)
   }
 
   const where = conditions.join(' AND ')
