@@ -1,7 +1,43 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-28 — **Consolidação de worktrees: conferido o estado real dos 4
-> fronts.** Usuário pediu pra conferir o estado real de `netimob-google`, `netimob-cherrypick` e
+> **Atualizado em:** 2026-07-28 — **Redesign Premium: 3ª rodada — Leads, widgets embutidos do
+> Dashboard e componentes compartilhados (Cliente/Segmento/CampanhasModal/LocationPicker) +
+> eliminação de redundância de hex solto.** Continuação da pendência do CLAUDE.md ("Redesign
+> Premium — parcialmente concluído, resto é opcional se pedido"). Usuário perguntou o ganho real
+> de completar `leads/page.tsx` + os componentes compartilhados e pediu pra seguir com ambos.
+> Convertidos (indigo-600 → âmbar `#c5a028`/`#020c1b`, mesmo critério das 4 telas anteriores —
+> só pontos de decisão/estado-ativo, nunca cor categórica/informativa): `leads/page.tsx` (página
+> de leads em si, commit `08ab802`) · 4 widgets embutidos no Dashboard —
+> `KpiCard.tsx`/`StageFunnelWidget.tsx`/`TrackingHealthWidget.tsx`/`CampaignMapWidget.tsx`
+> (commit `901e0fc`) · `ClientSelector.tsx`/`SegmentSelector.tsx`, os 2 seletores mais reusados
+> do módulo (commit `0220815`) · `CampanhasModal.tsx`, o modal "Consultar Campanhas" (commit
+> `6946460`) · `LocationPicker.tsx` (etapa de localização do wizard) + `WinningAngleChip.tsx`
+> (commit `a960b2e`). **Achado real de arquitetura, levantado pelo usuário no meio da rodada:**
+> o `tailwind.config.js` já tinha tokens nomeados (`gold.premium`, `navy.dark`, etc.) pras
+> exatas cores que eu vinha escrevendo como hex solto (`bg-[#c5a028]`) — retrofit mecânico nos 9
+> arquivos já tocados até aquele ponto pro token nomeado, sem mudança visual (commit `9b1ac7e`).
+> **Decisões de "deixar como está" registradas com critério, não só varridas:** `LocationPicker`
+> — chips de localidade já adicionada e linhas do dropdown de busca (elementos repetidos por
+> item) neutralizados pra cinza em vez de âmbar, pra não diluir o acento único (mesmo critério
+> do `AssetCard` de Criativos); `WinningAngleChip` — link "Ver análise →" virou cinza, não âmbar
+> (âmbar como cor de TEXTO sobre fundo claro teria contraste insuficiente, diferente de âmbar
+> como fundo de botão, já usado em todo o resto); `DashboardHelpModal.tsx` — avaliado por
+> completo e mantido **intocado**, sem nenhuma conversão: todo o indigo ali (ícone "?", botão
+> "Ajuda", aba ativa interna, hover de card, link de expandir) forma uma identidade visual
+> coerente e autocontida do recurso de Ajuda — converter só parte quebraria essa consistência
+> interna, converter tudo pra âmbar tornaria "Ajuda" indistinguível do CTA primário e do aviso
+> de IA (que também usa âmbar); `WinningAngleChip.ANGLE_COLORS`/`StatusBadge`/`FunnelBadge` do
+> `CampanhasModal` — taxonomias categóricas deliberadas (1 cor fixa por categoria), mesmo padrão
+> de `SEGMENT_COLORS`/`STAGE_COLORS` já preservado nas rodadas anteriores. Verificado em cada
+> commit via `npx tsc --noEmit` (baseline de 53 erros pré-existentes, zero novos) + pelo menos
+> 1 valor computado real conferido ao vivo no navegador por arquivo (`getComputedStyle`,
+> incluindo confirmar que a classe nova `accent-gold-premium` do slider do `LocationPicker`
+> realmente compila no Tailwind — `rgb(197, 160, 40)` confirmado). **Ainda fora de escopo,
+> nunca pedido nesta rodada:** as ~13 páginas do módulo que nunca entraram no escopo do
+> Redesign Premium (aprovações, auditoria, desperdício, destinos, iniciativas, mecanismos,
+> portfolio, publicações, configurações/redes) — continuam com indigo genérico, sem terem sido
+> avaliadas ainda. — **Sessão anterior (2026-07-28): Consolidação de worktrees: conferido o
+> estado real dos 4 fronts.** Usuário pediu pra conferir o estado real de `netimob-google`, `netimob-cherrypick` e
 > `netimob-imgfix` (a tabela do CLAUDE.md é só um snapshot, pode estar desatualizada). Checado via
 > `git merge-base --is-ancestor` (não por suposição): `netimob-google`
 > (`feature/google-ads-implementation`) e `netimob-cherrypick` (`feature/mensageria-rag`) já
@@ -101,6 +137,97 @@
 **Nenhuma tarefa em andamento no momento.**
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-28 (continuação 4) — Redesign Premium: Leads + widgets do Dashboard + componentes compartilhados ✅
+
+**Contexto:** depois das 4 telas principais do Redesign Premium (Dashboard, Configurações,
+CampaignWizard, Criativos — ver entrada "continuação" abaixo), o CLAUDE.md registrava como
+pendência opcional "`leads/page.tsx` (nunca entrou no escopo desta rodada) e os componentes
+compartilhados de gráfico". Usuário perguntou "qual será o ganho se implementarmos ambos?" —
+respondido em 2-3 frases (consistência visual completa do módulo + esses componentes
+reaparecem em quase toda tela, então o ganho de cada correção se multiplica) — usuário
+confirmou "siga então".
+
+**Implementado, 4 commits de conversão + 1 de refatoração, mesmo critério das rodadas
+anteriores (indigo-600 → âmbar `#c5a028`/`#020c1b`, só em pontos reais de
+decisão/estado-ativo, nunca cor categórica/informativa):**
+
+1. **`leads/page.tsx`** (commit `08ab802`) — anéis de foco, hover de linha da tabela (neutro,
+   não âmbar) e botão de página ativa da paginação.
+2. **4 widgets embutidos no Dashboard** (commit `901e0fc`) — `KpiCard.tsx` (glow de hover
+   neutralizado de indigo pra branco/preto — Regra Flat-By-Default; botão de referência do
+   Hook Rate), `StageFunnelWidget.tsx` (botão + painel "Diagnosticar gargalo com IA",
+   unificado com a cor já usada nos outros avisos de IA), `TrackingHealthWidget.tsx` (botão
+   "Executar 1ª verificação"), `CampaignMapWidget.tsx` (spinner).
+3. **`ClientSelector.tsx` + `SegmentSelector.tsx`** (commit `0220815`) — os 2 seletores mais
+   reutilizados do módulo (aparecem em quase toda tela): pills de estado selecionado, anel do
+   dropdown aberto, anéis de foco da busca, spinner, linha selecionada no dropdown. No
+   `SegmentSelector`, consolidado um caso de 3 sinais de cor simultâneos numa linha selecionada
+   (fundo+texto+badge todos mudando junto) pra só o checkbox mudar — Regra do Acento Único.
+4. **`CampanhasModal.tsx`** (commit `6946460`) — modal "Consultar Campanhas": pill de dia da
+   semana ativo no agendamento, botão de página ativa da paginação interna, 4 anéis de foco de
+   select, hover do botão "Limpar filtros".
+5. **`LocationPicker.tsx` + `WinningAngleChip.tsx`** (commit `a960b2e`) — etapa de localização
+   do wizard: botão "Salvar/Adicionar", slider de raio E o círculo desenhado no mapa Leaflet
+   (cor real do overlay, não só classe Tailwind) viram âmbar; `WinningAngleChip`'s link
+   "Ver análise →" vira cinza.
+
+**Achado real de arquitetura, levantado pelo próprio usuário no meio da rodada** ("não
+teríamos como refatorar de forma que haja total reutilização e eliminação de redundância de
+código?"): o `tailwind.config.js` já tinha tokens nomeados (`gold.premium: '#c5a028'`,
+`navy.dark: '#020c1b'`, `gold: '#d4af37'`, `navy`/`navy.light`) pras exatas cores que eu vinha
+escrevendo como hex arbitrário (`bg-[#c5a028]`) desde a 1ª rodada — nunca tinha percebido que
+já existiam. **Commit `9b1ac7e`** — retrofit mecânico (`sed`) nos 9 arquivos já tocados até
+aquele ponto, trocando todo hex solto pelo token nomeado equivalente (zero mudança visual,
+mesmo valor — só elimina a duplicação do literal espalhado pelo código). Verificado: grep
+confirma zero hex solto restante (2 referências em comentário, inofensivas), `tsc` limpo,
+`getComputedStyle` no botão "Sync Meta" confirma `rgb(197, 160, 40)`/`rgb(2, 12, 27)`,
+idêntico a antes do retrofit.
+
+**Decisões de "deixar como está" nesta rodada, cada uma com critério explícito (não foi
+varredura cega de indigo→âmbar):**
+- `LocationPicker.tsx` — chips de localidade já adicionada e linhas do dropdown de busca
+  (elementos que se repetem, um por item na lista) neutralizados pra **cinza**, não âmbar —
+  mesmo critério já usado no `AssetCard` de Criativos (repetição dilui o acento único).
+- `WinningAngleChip.tsx` — link "Ver análise →" virou **cinza**, não âmbar: âmbar como cor de
+  TEXTO sobre fundo claro (`#c5a028` em branco) fica abaixo do contraste mínimo de 4.5:1 pra
+  texto pequeno — diferente de âmbar como FUNDO de botão (`bg-gold-premium text-navy-dark`),
+  que é o uso padrão em todo o resto do módulo e não tem esse problema.
+- `DashboardHelpModal.tsx` — **avaliado por completo e mantido 100% intocado**, nenhuma
+  conversão. Todo o indigo do arquivo (ícone "?", botão "Ajuda", aba ativa dentro do modal,
+  hover de card, link "ver mais detalhes") forma uma identidade visual coerente e autocontida
+  do recurso de Ajuda/Guia — não é indigo-por-omissão. Converter só parte quebraria essa
+  consistência interna (aba ativa em âmbar mas hover de card ainda indigo, por exemplo);
+  converter tudo pra âmbar tornaria "Ajuda" visualmente indistinguível do CTA primário E do
+  aviso de IA (que também é âmbar) — 3 significados diferentes competindo pela mesma cor. Mesmo
+  princípio já aplicado à paleta por-segmento do `SegmentSelector` e ao pill violeta "Todos os
+  Clientes" do `ClientSelector` nas rodadas anteriores: identidade deliberada e distinta, não
+  indigo-padrão a corrigir.
+- Taxonomias categóricas preservadas: `WinningAngleChip.ANGLE_COLORS`/`ANGLE_COLORS_LIGHT`
+  (1 cor fixa por ângulo — investimento/estilo de vida/família/...), `StatusBadge`/
+  `FunnelBadge` do `CampanhasModal` (1 cor fixa por status/estágio de funil) — mesmo padrão de
+  `SEGMENT_COLORS`/`STAGE_COLORS` já preservado desde as primeiras rodadas.
+
+**Verificado em cada commit:** `npx tsc --noEmit` — baseline de 53 erros pré-existentes, **zero
+novos** em qualquer arquivo tocado, confirmado depois do último commit também. Pelo menos 1
+valor computado real conferido ao vivo no navegador por arquivo/grupo, sessão autenticada real
+(tenant Imovtec) — incluindo confirmar que a combinação nova `accent-gold-premium` (nunca usada
+antes nesta sessão, é a cor do "thumb"/trilha de um `<input type="range">`) realmente compila no
+Tailwind (`getComputedStyle(...).accentColor === 'rgb(197, 160, 40)'`, testado via elemento
+sintético já que o slider real fica dentro do wizard, atrás de várias etapas).
+
+**Fora de escopo, nunca pedido nesta rodada, registrado honestamente:** as ~13 páginas do
+módulo que nunca entraram no escopo do Redesign Premium original (aprovações, auditoria,
+desperdício, destinos, iniciativas — 3 arquivos —, mecanismos, portfolio — 2 arquivos —,
+publicações, configurações/redes) continuam com indigo genérico, sem terem sido avaliadas —
+não foram tocadas por não terem sido pedidas, não por esquecimento.
+
+**Com isso, a pendência "Redesign Premium" do CLAUDE.md está encerrada no escopo que já foi
+pedido em algum momento** (as 4 telas principais + Leads + os componentes efetivamente
+compartilhados entre elas). As ~13 páginas nunca atacadas ficam como pendência nova, só se
+pedidas — CLAUDE.md atualizado pra refletir isso.
+
+---
 
 ### Sessão 2026-07-28 (continuação 3) — Consolidação de worktrees + fix de fotos trazido ✅
 

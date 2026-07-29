@@ -523,17 +523,24 @@ VALUES ('Nova Página', 'IconName', '/admin/campanhas/nova', 110, 5, true);
 
 ## Pendências e Próximos Passos
 
-### 1. Redesign Premium — Ativar skill `impeccable` — ✅ 4 telas principais concluídas (2026-07-28)
+### 1. Redesign Premium — Ativar skill `impeccable` — ✅ concluído no escopo já pedido (2026-07-28)
 
-`dashboard/page.tsx`, `configuracoes/page.tsx`, `CampaignWizard.tsx` e `criativos/page.tsx`
-tiveram o sistema de cor corrigido (indigo-600 genérico → acento âmbar `#c5a028`/`#020c1b` do
-`PRODUCT.md`/`DESIGN.md` deste projeto, anel de foco fixo `#2563eb`) — passe estreito, uma
-checkpoint por tela com aprovação do usuário. Detalhe completo em `docs/CHECKPOINT.md`.
+`dashboard/page.tsx`, `configuracoes/page.tsx`, `CampaignWizard.tsx`, `criativos/page.tsx` e
+`leads/page.tsx` — mais os componentes efetivamente compartilhados entre essas telas
+(`ClientSelector.tsx`, `SegmentSelector.tsx`, `CampanhasModal.tsx`, `LocationPicker.tsx`,
+`WinningAngleChip.tsx`, `KpiCard.tsx`, `StageFunnelWidget.tsx`, `TrackingHealthWidget.tsx`,
+`CampaignMapWidget.tsx`) — tiveram o sistema de cor corrigido (indigo-600 genérico → acento
+âmbar `#c5a028`/`#020c1b` do `PRODUCT.md`/`DESIGN.md` deste projeto, anel de foco fixo
+`#2563eb`, ambos hoje via tokens nomeados `gold-premium`/`navy-dark`/`blue-600` do
+`tailwind.config.js`) — passe estreito, uma checkpoint por tela/grupo com aprovação do usuário.
+`DashboardHelpModal.tsx` foi avaliado e mantido intocado de propósito (identidade visual
+própria e coerente do recurso de Ajuda, não indigo-por-omissão). Detalhe completo em
+`docs/CHECKPOINT.md`.
 
-**Ainda pendente, se pedido:** `leads/page.tsx` (nunca entrou no escopo desta rodada) e os
-componentes compartilhados de gráfico em `src/components/marketing/` (`AnalyticsView.tsx`,
-`BriefingCard.tsx`, `CommandCenterView.tsx`, `KpiCard.tsx`, `PeriodBadge.tsx`,
-`ClassicFunnelChart.tsx` — ~28 ocorrências de indigo mapeadas via grep, não atacadas).
+**Ainda pendente, só se pedido:** as ~13 páginas do módulo que nunca entraram no escopo desta
+frente (`aprovacoes`, `auditoria`, `desperdicio`, `destinos`, `iniciativas` — 3 arquivos —,
+`mecanismos`, `portfolio` — 2 arquivos —, `publicacoes`, `configuracoes/redes`) — ainda com
+indigo genérico, nunca avaliadas.
 
 ### 2. Outras Pendências
 
