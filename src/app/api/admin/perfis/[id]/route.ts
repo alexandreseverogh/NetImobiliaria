@@ -100,7 +100,7 @@ export async function GET(
     console.log('🔍 DEBUG - API /perfis/[id] chamada para perfil ID:', params.id);
     
     // Verificar autenticação - buscar token dos cookies ou header
-    const token = request.cookies.get('accessToken')?.value || 
+    const token = request.cookies.get('admin_auth_token')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '');
     
     if (!token) {
@@ -282,7 +282,7 @@ export async function PUT(
     const denied = await requireApiPermission(request, 'perfis', 'UPDATE')
     if (denied) return denied
 
-    const token = request.cookies.get('accessToken')?.value ||
+    const token = request.cookies.get('admin_auth_token')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '');
 
     if (!token) return NextResponse.json({ message: 'Não autorizado' }, { status: 401 });
@@ -410,7 +410,7 @@ export async function DELETE(
     if (denied) return denied
 
     // Verificar autenticação - buscar token dos cookies ou header
-    const token = request.cookies.get('accessToken')?.value ||
+    const token = request.cookies.get('admin_auth_token')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '');
 
     if (!token) {

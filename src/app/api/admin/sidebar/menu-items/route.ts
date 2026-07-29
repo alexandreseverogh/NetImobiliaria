@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : request.cookies.get('accessToken')?.value;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : request.cookies.get('admin_auth_token')?.value;
     const decoded = token ? verifyTokenNode(token) as any : null;
     
     const tenantId = decoded?.tenantId;
@@ -268,7 +268,7 @@ export async function DELETE(request: NextRequest) {
 
 function getUserIdFromRequest(request: NextRequest): string | null {
   try {
-    const cookie = request.cookies.get('accessToken');
+    const cookie = request.cookies.get('admin_auth_token');
     if (cookie?.value) {
       const payload = verifyTokenNode(cookie.value);
       return payload?.userId || null;

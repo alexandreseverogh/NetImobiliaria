@@ -19,7 +19,7 @@ import { logAuditEvent, extractRequestData } from '@/lib/audit/auditLogger'
 // Função para extrair usuário logado
 function getCurrentUserPayload(request: NextRequest) {
   try {
-    const token = request.cookies.get('accessToken')?.value ||
+    const token = request.cookies.get('admin_auth_token')?.value ||
       request.headers.get('authorization')?.replace('Bearer ', '')
 
     if (!token) {

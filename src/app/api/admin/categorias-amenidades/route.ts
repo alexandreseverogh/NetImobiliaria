@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) return permissionCheck
     
-    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    const token = request.cookies.get('admin_auth_token')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
     let tenantId = undefined
     if (token) {
       const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     
     console.log('📝 Criando categoria com dados:', { nome, descricao, icone, cor, ordem, ativo })
     
-    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    const token = request.cookies.get('admin_auth_token')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
     let tenantId = undefined
     if (token) {
       const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))

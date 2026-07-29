@@ -64,7 +64,7 @@ const findFeatureByKey = (features: FeatureRow[], key: string): FeatureRow | und
 export async function GET(request: NextRequest) {
   try {
     // Verificar autenticação - buscar token dos cookies ou header
-    const token = request.cookies.get('accessToken')?.value || 
+    const token = request.cookies.get('admin_auth_token')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '');
     
     if (!token) {
@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
     if (denied) return denied
 
     // Verificar autenticação - buscar token dos cookies ou header
-    const token = request.cookies.get('accessToken')?.value ||
+    const token = request.cookies.get('admin_auth_token')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '');
 
     if (!token) {

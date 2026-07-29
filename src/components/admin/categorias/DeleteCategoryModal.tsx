@@ -20,7 +20,7 @@ export default function DeleteCategoryModal({ category, onClose, onConfirm }: De
 
     try {
       // Buscar token de autenticação
-      const token = localStorage.getItem('auth-token')
+      const token = localStorage.getItem('admin-auth-token')
       
       const response = await fetch(`/api/admin/categorias?id=${category.id}`, {
         method: 'DELETE',

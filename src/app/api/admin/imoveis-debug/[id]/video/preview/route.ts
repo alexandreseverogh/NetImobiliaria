@@ -6,7 +6,7 @@ import { verifyTokenNode } from '@/lib/auth/jwt-node'
 // Função para extrair usuário logado
 function getCurrentUser(request: NextRequest): string | null {
   try {
-    const token = request.cookies.get('accessToken')?.value || 
+    const token = request.cookies.get('admin_auth_token')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '')
     
     if (!token) return null

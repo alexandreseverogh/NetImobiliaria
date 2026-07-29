@@ -72,7 +72,7 @@ export async function PUT(
       )
     }
 
-    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    const token = request.cookies.get('admin_auth_token')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
     let tenantId = undefined
     if (token) {
       const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))
@@ -162,7 +162,7 @@ export async function DELETE(
       )
     }
 
-    const token = request.cookies.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    const token = request.cookies.get('admin_auth_token')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
     let tenantId = undefined
     if (token) {
       const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))

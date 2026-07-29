@@ -51,7 +51,7 @@ export default function CreateSystemFeatureModal({
     try {
       setLoadingCategories(true)
       console.log('🔍 DEBUG - Iniciando busca de categorias...')
-      const token = localStorage.getItem('auth-token')
+      const token = localStorage.getItem('admin-auth-token')
       console.log('🔍 DEBUG - Token encontrado:', token ? 'SIM' : 'NÃO')
       
       const response = await fetch('/api/admin/categorias', {
@@ -103,7 +103,7 @@ export default function CreateSystemFeatureModal({
     setLoading(true)
     
     try {
-      const token = localStorage.getItem('auth-token')
+      const token = localStorage.getItem('admin-auth-token')
       console.log('🔍 DEBUG - Token encontrado:', token ? 'SIM' : 'NÃO')
       
       console.log('🔍 DEBUG - Enviando requisição para API...')

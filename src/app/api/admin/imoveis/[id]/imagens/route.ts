@@ -65,7 +65,7 @@ export async function GET(
     }
 
     // Extrair tenantId para isolamento
-    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('accessToken')?.value
+    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('admin_auth_token')?.value
     let tenantId = null
     if (token) {
       const { verifyToken } = await import('@/lib/auth/jwt')
@@ -208,7 +208,7 @@ export async function POST(
       }
 
       // Extrair tenantId para isolamento no S3 e no Banco
-      const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('accessToken')?.value
+      const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('admin_auth_token')?.value
       let tenantId = null
       if (token) {
         const { verifyToken } = await import('@/lib/auth/jwt')
@@ -302,7 +302,7 @@ export async function PUT(
     }
 
     // Extrair tenantId para isolamento
-    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('accessToken')?.value
+    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('admin_auth_token')?.value
     let tenantId = null
     if (token) {
       const { verifyToken } = await import('@/lib/auth/jwt')
@@ -367,7 +367,7 @@ export async function DELETE(
     }
 
     // Extrair tenantId para isolamento
-    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('accessToken')?.value
+    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('admin_auth_token')?.value
     let tenantId = null
     if (token) {
       const { verifyToken } = await import('@/lib/auth/jwt')
@@ -465,7 +465,7 @@ export async function PATCH(
     }
 
     // Extrair tenantId para isolamento
-    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('accessToken')?.value
+    const token = request.headers.get('authorization')?.split(' ')[1] || request.cookies.get('admin_auth_token')?.value
     let tenantId = null
     if (token) {
       const { verifyToken } = await import('@/lib/auth/jwt')

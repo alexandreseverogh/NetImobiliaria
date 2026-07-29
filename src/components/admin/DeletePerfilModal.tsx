@@ -32,7 +32,7 @@ export default function DeletePerfilModal({ isOpen, perfil, onClose, onSuccess }
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('auth-token')
+      const token = localStorage.getItem('admin-auth-token')
       const response = await fetch(`/api/admin/perfis/${perfil.id}`, {
         method: 'DELETE',
         headers: {

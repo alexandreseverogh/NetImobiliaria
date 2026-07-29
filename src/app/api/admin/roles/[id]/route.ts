@@ -24,7 +24,7 @@ export async function GET(
       )
     }
 
-    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('admin_auth_token')?.value
     const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
     const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
 
@@ -94,7 +94,7 @@ export async function PUT(
       )
     }
 
-    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('admin_auth_token')?.value
     const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
     const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
     const isMasterAdmin = !!decoded?.is_system_role
@@ -268,7 +268,7 @@ export async function DELETE(
       )
     }
 
-    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value || request.cookies.get('admin_auth_token')?.value
     const decoded = token ? await import('@/lib/auth/jwt').then(m => m.verifyToken(token)) : null
     const tenantId = !decoded?.is_system_role ? decoded?.tenantId : undefined
     const isMasterAdmin = !!decoded?.is_system_role

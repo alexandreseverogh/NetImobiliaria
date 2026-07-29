@@ -14,7 +14,7 @@ export async function POST(
     if (denied) return denied
 
     // Verificar autenticação
-    const token = request.cookies.get('accessToken')?.value
+    const token = request.cookies.get('admin_auth_token')?.value
     if (!token) {
       return NextResponse.json(
         { error: 'Token de autenticação não fornecido' },

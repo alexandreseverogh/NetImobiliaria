@@ -19,7 +19,7 @@ export async function POST(
     }
 
     // 🛡️ Extrair usuário logado do token
-    const token = request.cookies.get('accessToken')?.value ||
+    const token = request.cookies.get('admin_auth_token')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '')
 
     if (!token) {
