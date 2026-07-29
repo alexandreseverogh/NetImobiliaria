@@ -33,37 +33,4 @@ export function publicAuthMiddleware(request: NextRequest) {
   }
 }
 
-/**
- * Função auxiliar para obter dados do usuário do token
- * Usado em componentes do lado do cliente
- */
-export function getUserFromLocalStorage(): {
-  userUuid: string
-  userType: 'cliente' | 'proprietario'
-  nome: string
-  email: string
-} | null {
-  if (typeof window === 'undefined') return null
-
-  try {
-    const token = localStorage.getItem('public-auth-token')
-    if (!token) return null
-
-    const jwtSecret = process.env.NEXT_PUBLIC_JWT_SECRET || 'fallback-secret'
-    const decoded = jwt.verify(token, jwtSecret) as any
-
-    if (decoded && decoded.userUuid && decoded.userType) {
-      return {
-        userUuid: decoded.userUuid,
-        userType: decoded.userType,
-        nome: decoded.nome,
-        email: decoded.email
-      }
-    }
-    return null
-  } catch (error) {
-    return null
-  }
-}
-
 

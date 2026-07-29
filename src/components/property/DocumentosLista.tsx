@@ -26,25 +26,34 @@ export default function DocumentosLista({
       
       if (documento && documento.url) {
         console.log('🔍 DocumentosLista - Abrindo documento em popup')
-        
+
+        // Bloqueia esquemas perigosos (ex.: javascript:) — só http(s) e caminhos relativos.
+        const isSafeUrl = /^(https?:)?\/\//i.test(documento.url) || documento.url.startsWith('/')
+        if (!isSafeUrl) {
+          alert('Erro: URL do documento inválida')
+          return
+        }
+
         // Criar popup em tela cheia sem controles do browser
         const popup = window.open(
-          '', 
-          'documentViewer', 
+          '',
+          'documentViewer',
           'fullscreen=yes,scrollbars=yes,resizable=yes,width=screen.width,height=screen.height,left=0,top=0,toolbar=no,menubar=no,location=no,status=no'
         )
-        
+
         if (popup) {
-          // Escrever HTML completo para o popup
+          // HTML/CSS fixo, sem nenhuma interpolação de dado externo — nome do arquivo e URL
+          // são atribuídos depois via propriedades do DOM (textContent/src), nunca via
+          // string HTML, pra nunca serem interpretados como markup/script.
+          popup.document.open()
           popup.document.write(`
             <!DOCTYPE html>
             <html>
             <head>
-              <title>${documento.nome_arquivo}</title>
               <style>
-                body { 
-                  margin: 0; 
-                  padding: 0; 
+                body {
+                  margin: 0;
+                  padding: 0;
                   overflow: hidden;
                   background: black;
                 }
@@ -83,14 +92,24 @@ export default function DocumentosLista({
             </head>
             <body>
               <div class="header">
-                <span style="font-weight: 600;">${documento.nome_arquivo}</span>
-                <button class="close-btn" onclick="window.close()">✕ Fechar</button>
+                <span class="doc-title" style="font-weight: 600;"></span>
+                <button class="close-btn" type="button">✕ Fechar</button>
               </div>
-              <iframe src="${documento.url}#toolbar=0&navpanes=0&scrollbar=1&statusbar=0&messages=0&view=FitH"></iframe>
             </body>
             </html>
           `)
           popup.document.close()
+
+          popup.document.title = documento.nome_arquivo
+          const titleSpan = popup.document.querySelector('.doc-title')
+          if (titleSpan) titleSpan.textContent = documento.nome_arquivo
+
+          const closeBtn = popup.document.querySelector('.close-btn')
+          if (closeBtn) closeBtn.addEventListener('click', () => popup.close())
+
+          const iframe = popup.document.createElement('iframe')
+          iframe.src = `${documento.url}#toolbar=0&navpanes=0&scrollbar=1&statusbar=0&messages=0&view=FitH`
+          popup.document.body.appendChild(iframe)
         } else {
           alert('Popup bloqueado! Permita popups para este site.')
         }
