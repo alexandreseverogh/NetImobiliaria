@@ -34,7 +34,7 @@ const MARKER_SHADOW_URL       = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/
 
 const inputCls =
   'px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-900 ' +
-  'placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all';
+  'placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all';
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
@@ -125,8 +125,8 @@ export function LocationPicker({ locations, onChange }: Props) {
         <div className="space-y-2">
           {locations.map(loc => (
             <div key={loc.id}
-              className="flex items-center gap-3 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2.5">
-              <svg className="w-4 h-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
+              <svg className="w-4 h-4 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -137,12 +137,12 @@ export function LocationPicker({ locations, onChange }: Props) {
                   type="number" value={loc.radius}
                   onChange={e => updateRadius(loc.id, parseInt(e.target.value) || 1)}
                   min={1} max={200}
-                  className="w-14 text-center text-xs bg-white border border-indigo-200 rounded-lg py-1 text-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  className="w-14 text-center text-xs bg-white border border-gray-200 rounded-lg py-1 text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
-                <span className="text-xs text-indigo-400 font-medium">km</span>
+                <span className="text-xs text-gray-400 font-medium">km</span>
               </div>
               <button onClick={() => openMapForEdit(loc)}
-                className="text-gray-400 hover:text-indigo-500 transition-colors p-1" title="Ver no mapa">
+                className="text-gray-400 hover:text-gray-700 transition-colors p-1" title="Ver no mapa">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
@@ -173,13 +173,13 @@ export function LocationPicker({ locations, onChange }: Props) {
             />
             {searching && (
               <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-gold-premium border-t-transparent rounded-full animate-spin" />
               </div>
             )}
           </div>
           <button
             onClick={openMapForNew}
-            className="px-3 py-2 rounded-xl border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 transition-all shrink-0"
+            className="px-3 py-2 rounded-xl border border-gray-200 text-gray-500 hover:text-gray-900 hover:border-gray-300 transition-all shrink-0"
             title="Selecionar no mapa"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -194,8 +194,8 @@ export function LocationPicker({ locations, onChange }: Props) {
           <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
             {results.map(r => (
               <button key={r.place_id} onClick={() => addLocation(r)}
-                className="w-full text-left px-4 py-3 hover:bg-indigo-50 transition-colors border-b border-gray-100 last:border-0 flex items-start gap-2">
-                <svg className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 flex items-start gap-2">
+                <svg className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -267,7 +267,7 @@ function MapModal({ initial, onSave, onClose }: MapModalProps) {
       circleRef.current.setLatLng([lat, lng]);
     } else {
       circleRef.current = L.circle([lat, lng], {
-        radius: radius * 1000, color: '#6366f1', fillColor: '#6366f1', fillOpacity: 0.12, weight: 2,
+        radius: radius * 1000, color: '#c5a028', fillColor: '#c5a028', fillOpacity: 0.12, weight: 2,
       }).addTo(map);
     }
 
@@ -406,7 +406,7 @@ function MapModal({ initial, onSave, onClose }: MapModalProps) {
               onChange={e => setMapSearch(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleMapSearch()}
               placeholder="Buscar local no mapa..."
-              className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"
+              className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
             />
             <button
               onClick={handleMapSearch}
@@ -431,14 +431,14 @@ function MapModal({ initial, onSave, onClose }: MapModalProps) {
             <input
               type="range" min={1} max={200} value={radius}
               onChange={e => setRadius(parseInt(e.target.value))}
-              className="flex-1 accent-indigo-600"
+              className="flex-1 accent-gold-premium"
             />
             <div className="flex items-center gap-1.5 shrink-0">
               <input
                 type="number" value={radius}
                 onChange={e => setRadius(Math.max(1, Math.min(200, parseInt(e.target.value) || 1)))}
                 min={1} max={200}
-                className="w-16 text-center text-sm bg-white border border-gray-200 rounded-xl py-1.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-16 text-center text-sm bg-white border border-gray-200 rounded-xl py-1.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
               <span className="text-sm text-gray-500">km</span>
             </div>
@@ -457,10 +457,10 @@ function MapModal({ initial, onSave, onClose }: MapModalProps) {
             onClick={handleSave}
             disabled={!hasPin}
             className={cn(
-              'px-5 py-2.5 rounded-xl text-sm font-black text-white transition-all',
+              'px-5 py-2.5 rounded-xl text-sm font-black transition-all',
               hasPin
-                ? 'bg-indigo-600 hover:bg-indigo-700 shadow-sm'
-                : 'bg-gray-300 cursor-not-allowed opacity-60'
+                ? 'bg-gold-premium text-navy-dark hover:bg-gold shadow-sm'
+                : 'bg-gray-300 text-white cursor-not-allowed opacity-60'
             )}
           >
             {initial ? 'Salvar' : 'Adicionar'}

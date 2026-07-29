@@ -152,7 +152,7 @@ export function WinningAngleChip({ isDark, period, clientId }: {
       <a
         href="/admin/campanhas/portfolio/cross-insights"
         className={`ml-auto text-[10px] font-black uppercase tracking-widest transition-colors shrink-0 ${
-          isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'
+          isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-800'
         }`}
       >
         Ver análise →
