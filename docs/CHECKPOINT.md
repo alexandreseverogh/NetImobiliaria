@@ -1,6 +1,38 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-28 — **Fix real: filtro de Origem em `/admin/campanhas/leads` não
+> **Atualizado em:** 2026-07-29 — **2 achados reais investigando a sidebar/CRM do tenant
+> admmd.** Usuário perguntou por que "Rede Meta Ads"/"Rede Google Ads" aparecem na sidebar e
+> por que nenhuma funcionalidade do CRM ("Gestão de Leads"/"Kanban de Leads") funciona pra esse
+> tenant. Investigação (rodando `get_sidebar_menu_for_user()` de verdade pro usuário, não só
+> lendo código) revelou 2 causas reais e distintas:
+> **(1) Sidebar:** as 3 "Rede X Ads" são toggles de capacidade (`system_features` sem `url`,
+> reaproveitando o mecanismo de provisionamento só pra saber se o tenant contratou aquela rede —
+> nunca foram pensadas como página) — a função de sidebar nunca filtrava por `url` vazio, então
+> qualquer feature assim "vazava" pro menu como item morto (`path: null`). Ao mesmo tempo,
+> "Gestão de Leads"/"Kanban de Leads" tinham o MESMO sintoma (`url` vazio) só que por
+> esquecimento real — as páginas (`src/app/crm/kanban`, `src/app/crm/leads`) já existiam no
+> código. Corrigido com 1 migração (`migration-2026-07-29-sidebar-url-fixes.sql`): populou o
+> `url` das 2 entradas de CRM + adicionou um filtro (`sf.url IS NOT NULL AND sf.url <> ''`) na
+> função de sidebar, pra qualquer toggle futuro nunca mais vazar sem precisar de exceção por id.
+> Verificado via diff do JSON da função antes/depois (só as 4 mudanças esperadas) + sanity check
+> em outro tenant real. Commits `9fac3f8` + `5a20cdc` (doc em `ACCESS_CONTROL.md`).
+> **(2) CRM de fato não funcionava — bug mais sério, achado ao testar `/crm/kanban` de verdade:**
+> o quadro Kanban sempre mostrava 0 leads em toda coluna, pra QUALQUER tenant (não só admmd).
+> Causa: `src/app/crm/kanban/page.tsx` chamava `fetch()` cru (sem header de autenticação) pra 3
+> endpoints, que por sua vez liam o token de um cookie chamado `accessToken` — que **nenhum
+> fluxo de login desta plataforma jamais seta** (o cookie real é `admin_auth_token`). Sem token
+> nenhum, toda query `WHERE tenant_id = $1` recebia `$1=NULL` e nunca casava com nada. Achado um
+> 2º bug juntamente: `GET /api/crm/kanban/colunas` **nunca teve filtro de tenant nenhum** —
+> retornava as colunas de TODOS os tenants misturadas (explicando as várias "LEAD CAPTADO"/"EM
+> ANÁLISE" repetidas na tela, uma por tenant + 7 linhas órfãs legadas). Corrigido: `page.tsx`
+> passou a usar `adminFetch` nas 3 chamadas; os 3 endpoints (`leads`, `kanban/colunas`,
+> `kanban/move`) passaram a checar o cookie certo; `kanban/colunas` ganhou isolamento completo
+> por tenant (GET/POST/DELETE). Testado ao vivo, ponta a ponta, sessão real do admmd: GET
+> colunas retornou exatamente as 7 do tenant (antes: todas de todos), GET leads retornou os 6
+> reais (antes: 0), a tela renderizou os 6 leads corretamente, POST move testado nos dois
+> sentidos e revertido sem resíduo. Commit `3c9045c`.
+>
+> — **Sessão anterior (2026-07-28): Fix real: filtro de Origem em `/admin/campanhas/leads` não
 > afetava os cards/gráficos do topo.** Usuário reportou, testando o Redesign Premium recém
 > concluído (ver resumo anterior abaixo), que qualquer opção escolhida no filtro "Origem" da
 > tela de Leads mostrava sempre os mesmos resultados. Investigação encontrou **2 bugs reais e
@@ -165,6 +197,68 @@
 **Nenhuma tarefa em andamento no momento.**
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-29 — Sidebar (Rede Ads + links mortos de CRM) e Kanban de Leads real ✅
+
+**Contexto:** usuário perguntou (1) por que "Rede Meta Ads"/"Rede Google Ads" aparecem na
+sidebar do tenant `admmd`, e (2) por que nenhuma funcionalidade do CRM ("Gestão de Leads",
+"Kanban de Leads") é acionada pra esse mesmo tenant.
+
+**Achado 1 — sidebar mostrando itens sem página real, commits `9fac3f8` + `5a20cdc`:**
+rodei `get_sidebar_menu_for_user()` de verdade pro `admmd` (não só lido o código) e confirmei:
+as 3 "Rede X Ads" são toggles de capacidade (`system_features.url` vazio de propósito —
+reaproveitam o mecanismo de provisionamento só pra saber se o tenant contratou aquela rede,
+nunca foram pensadas como página, consumidas só por `GET /api/admin/campanhas/configuracoes/
+redes`). "Gestão de Leads"/"Kanban de Leads" tinham o MESMO sintoma (`url` vazio) só que por
+esquecimento genuíno — as páginas (`src/app/crm/kanban/page.tsx`, `src/app/crm/leads/page.tsx`)
+já existem no código, só nunca foram linkadas. Corrigido via
+`prisma/migration-2026-07-29-sidebar-url-fixes.sql`: populei o `url` das 2 entradas de CRM
+(`/crm/kanban`, `/crm/leads`) + adicionei um filtro na função (`sf.url IS NOT NULL AND sf.url
+<> ''`) pra qualquer toggle de capacidade (presente ou futuro) nunca mais vazar pra sidebar sem
+precisar de exceção por id. Verificado via diff do JSON retornado pela função antes/depois —
+só as 4 mudanças esperadas (3 toggles somem, os 2 links de CRM ganham path real) — e sanity
+check rodando a função pra outro tenant real (Imobiliaria XYZ, 2 usuários, sem erro).
+
+**Achado 2 — bug mais sério, achado testando `/crm/kanban` de verdade no navegador:** o quadro
+Kanban mostrava **0 leads em toda coluna**, mesmo com 6 leads reais confirmados no banco pro
+tenant. Isso não era específico do `admmd` — afetava QUALQUER tenant. Causa raiz:
+`src/app/crm/kanban/page.tsx` chamava `fetch()` cru (sem nenhum header de autenticação) pros
+3 endpoints de dados (`/api/crm/kanban/colunas`, `/api/crm/leads`, `/api/crm/kanban/move`) —
+únicas 3 chamadas do arquivo que não usavam `adminFetch` nem passavam o Bearer manualmente
+(as outras 2 chamadas do mesmo arquivo, `fetchTenantConfig`/`fetchAgendamentos`, já faziam
+certo). Sem esse header, e sem NENHUM login desta plataforma jamais setar o cookie que os 3
+endpoints tentavam ler (`accessToken` — o cookie real é `admin_auth_token`, confirmado em
+`/api/admin/auth/login`), `getCurrentUser()` sempre retornava `null` → `tenantId = null` → toda
+query `WHERE tenant_id = $1` nunca casava com nenhuma linha. **Achado um 2º bug no mesmo lugar,
+investigando o 1º:** `GET /api/crm/kanban/colunas` **nunca teve filtro de tenant nenhum** —
+retornava as colunas de TODOS os tenants misturadas (explica as várias "LEAD CAPTADO"/"EM
+ANÁLISE" repetidas lado a lado na captura de tela que o usuário mandou — um conjunto de 7
+colunas por tenant real, mais 7 linhas órfãs legadas com `tenant_id NULL`).
+
+**Corrigido (commit `3c9045c`):** `page.tsx` passou a usar `adminFetch` nas 3 chamadas; os 3
+endpoints (`leads/route.ts`, `kanban/move/route.ts`, e o novo `getCurrentUser` de
+`kanban/colunas/route.ts`) passaram a checar o cookie certo (`admin_auth_token`);
+`kanban/colunas/route.ts` ganhou isolamento completo por tenant nos 3 métodos (GET filtra por
+`tenant_id`, POST seta `tenant_id` no INSERT e exige `tenant_id` no UPDATE, DELETE verifica
+posse antes de apagar) — mesmo padrão já usado em `leads/route.ts` e `move/route.ts`.
+
+**Testado ao vivo, ponta a ponta, sessão real do `admmd`** (JWT gerado com `userId` real,
+setado em cookie + localStorage, mesmo playbook já documentado neste arquivo): `GET colunas`
+retornou exatamente as 7 do tenant Marketing Digital (antes: todas de todos os tenants
+misturadas) · `GET leads` retornou os 6 leads reais (antes: 0, sempre) · a tela do Kanban
+renderizou os 6 leads corretamente na coluna "Lead Captado", as demais 6 colunas com 0 (correto
+— nenhum lead avançou ainda) · `POST move` testado nos dois sentidos num lead real (Lead
+Captado → Em Análise → Lead Captado de volta), confirmado sem resíduo depois via SQL direto.
+`npx tsc --noEmit`: mesma baseline pré-existente, zero erros novos nos 4 arquivos tocados.
+
+**Fora de escopo desta rodada, registrado honestamente:** o padrão de cookie `accessToken`
+(nunca setado por nenhum login) aparece em ~40 outras rotas de API além das 3 corrigidas aqui
+(a maioria delas funciona hoje porque é chamada via `adminFetch`, que sempre manda o Bearer
+header — o problema só se manifesta quando o caller usa `fetch()` cru, como era o caso aqui).
+Não auditei nem toquei nas outras ~37 rotas — fica registrado como um padrão a verificar se
+outro sintoma parecido aparecer em outra tela do CRM.
+
+---
 
 ### Sessão 2026-07-28 (continuação 5) — Fix: filtro de Origem na tela de Leads (2 bugs reais) ✅
 
