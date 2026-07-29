@@ -1,6 +1,24 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 (continuação 3) — **Plano de endurecimento: Fase 1 (CSP
+> **Atualizado em:** 2026-07-29 (continuação 4) — **Auto-report de violações de CSP (commit
+> `39646a9`), resposta a "não sei como irei observar".** Depois de implementar Fase 1 (CSP
+> Report-Only) e Fase 2 (CSRF log-only) — ver resumo logo abaixo — o usuário apontou, com
+> razão, que "checar o Console do navegador/terminal por um tempo" não é um processo real
+> executável. Resolvido eliminando a etapa manual: adicionado `report-uri` à política CSP
+> apontando pro novo endpoint público `POST /api/public/security/csp-report`
+> (`src/app/api/public/security/csp-report/route.ts`) — o NAVEGADOR dispara esse POST
+> sozinho, automaticamente, sempre que detecta uma violação (mesmo em modo Report-Only, que
+> continua sem bloquear nada). O endpoint só `console.warn` o relatório (rate-limited via
+> `applyPublicRateLimit`, reaproveitado de `src/lib/security/rate-limiter.ts` — mesmo teto de
+> qualquer rota pública, pra não virar vetor de flood de log) — sem tabela nova, sem mudança
+> de comportamento. Com isso, `[CSP-VIOLATION]` (novo) e `[CSRF-CHECK]` (Fase 2) caem no
+> MESMO lugar — os logs do processo do servidor — sem exigir nenhum passo manual:
+> **produção (Docker):** `docker logs netimobiliaria-app | grep -E "CSP-VIOLATION|CSRF-CHECK"`
+> a qualquer momento (Docker retém o histórico); **dev local:** aparece direto no terminal
+> rodando `npm run dev` enquanto a aplicação é usada normalmente. `npx tsc --noEmit`: 52
+> erros, mesma baseline, zero novos no endpoint criado.
+>
+> — **Sessão anterior (2026-07-29, continuação 3): Plano de endurecimento: Fase 1 (CSP
 > Report-Only) e Fase 2 (CSRF via Origin/Referer, log-only) implementadas, na mesma sessão
 > que fechou a Fase -1/Fase 0 (resumo completo logo abaixo).** Usuário perguntou "como
 > podemos avançar ainda em relação a essa questão de segurança?" — as duas fases seguintes
@@ -351,21 +369,28 @@
 ## Tarefa em andamento
 
 **Nenhuma tarefa em andamento no momento.** Todas as 4 fases planejadas para esta rodada de
-hardening (Fase -1, Fase 0, Fase 1, Fase 2) estão implementadas e commitadas. Pendente, não
-bloqueante: reiniciar o servidor dev (não feito nesta sessão — usuário optou por fazer por
-conta própria) e, com o servidor novo no ar, observar por um tempo real de uso os relatórios
-de violação de CSP (console do navegador) e os logs `[CSRF-CHECK]` (terminal do `next dev`)
-antes de decidir promover qualquer uma das duas pra modo bloqueante — ver resumo no topo
-deste arquivo e `C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`. Fase 3
-(auditoria das ~132 rotas "zona cinzenta") e a eliminação total do token duplicado em
-localStorage seguem fora de escopo por decisão explícita do plano.
+hardening (Fase -1, Fase 0, Fase 1, Fase 2) estão implementadas e commitadas, com captura
+automática de log (`[CSP-VIOLATION]` + `[CSRF-CHECK]`, ambos no stdout do servidor — sem
+precisar de nenhum passo manual, ver resumo no topo deste arquivo). Pendente, não bloqueante:
+reiniciar o servidor dev (não feito nesta sessão — usuário optou por fazer por conta própria)
+e, depois de algum tempo de uso real, consultar os logs (`docker logs` em produção, terminal
+do `next dev` em local) antes de decidir promover CSP/CSRF pra modo bloqueante — ver
+`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`. Fase 3 (auditoria das ~132
+rotas "zona cinzenta") e a eliminação total do token duplicado em localStorage seguem fora de
+escopo por decisão explícita do plano.
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-29 (continuação 4) — Auto-report de violações de CSP ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 4)").
+Commit `39646a9`.
+
+---
+
 ### Sessão 2026-07-29 (continuação 3) — Hardening Fase 1 (CSP Report-Only) + Fase 2 (CSRF log-only) ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 3)").
-Commits `4018855` (Fase 1) + `01f786b` (Fase 2).
+Ver resumo completo no topo deste arquivo. Commits `4018855` (Fase 1) + `01f786b` (Fase 2).
 
 ---
 
