@@ -1,7 +1,64 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 — **Plano de endurecimento de autenticação/sessão: Fase -1
-> (XSS real) + Fase 0 (2 fixes de higiene) implementadas.** Depois da varredura do cookie
+> **Atualizado em:** 2026-07-29 (continuação 3) — **Plano de endurecimento: Fase 1 (CSP
+> Report-Only) e Fase 2 (CSRF via Origin/Referer, log-only) implementadas, na mesma sessão
+> que fechou a Fase -1/Fase 0 (resumo completo logo abaixo).** Usuário perguntou "como
+> podemos avançar ainda em relação a essa questão de segurança?" — as duas fases seguintes
+> do plano aprovado (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`) foram
+> desenhadas pra serem risco zero por construção: nenhuma delas bloqueia nada nesta rodada,
+> só observam/logam, exatamente como o plano exige antes de promover qualquer uma pra modo
+> bloqueante.
+>
+> **Fase 1 — CSP em `Content-Security-Policy-Report-Only` (commit `4018855`):** antes de
+> escrever a política, levantamento real (grep + leitura de código) de quais domínios
+> externos o NAVEGADOR de fato carrega — chamadas server-to-server (Graph API do Meta,
+> Google OAuth/Translation/Calendar/Gemini) não entram, CSP não as governa. Achado: só 3
+> dependências externas reais do lado do browser — Meta Pixel (`connect.facebook.net` +
+> beacon `www.facebook.com`, injeta script inline via `dangerouslySetInnerHTML`, por isso
+> `script-src` precisou de `'unsafe-inline'`), YouTube embed em `/artemis4`
+> (`www.youtube.com`, `frame-src`), e MinIO só em dev (`localhost:9000` — em produção passa
+> pelo proxy Caddy `/storage/*`, mesma origem, não precisa entrar na política). Os ~30
+> domínios de notícia no `images.remotePatterns` do `next.config.js` (globo, uol, forbes,
+> dezeen etc.) ficaram de fora de propósito — são só pro otimizador de imagem do Next
+> (server-side), o navegador só vê `/_next/image`, mesma origem. Também: o bloco de headers
+> de segurança (`X-Frame-Options` etc.), que só rodava em produção, passou a rodar sempre —
+> sem isso, violação de CSP só seria percebida depois de já estar em produção. Verificado
+> via `node -e` carregando o config e resolvendo `headers()` nos 3 branches
+> (`NODE_ENV` vazio/`development`/`production`) — condicionais de MinIO-dev-only e
+> HSTS-prod-only corretos nos 3 casos. Não verificado ao vivo no navegador nesta sessão —
+> havia um processo `node.exe` já ocupando a porta 3000 (possível sessão de dev ativa do
+> usuário) e, perguntado explicitamente, o usuário optou por reiniciar o próprio servidor
+> quando conveniente, não eu. **Pendente da próxima sessão que tocar o servidor:** reiniciar
+> pra carregar o `next.config.js` novo, abrir uma página de imóvel + `/artemis4`, checar o
+> Console do navegador por linhas `[Report Only]` — não deveria bloquear nada, mas qualquer
+> violação inesperada aponta um domínio que faltou no inventário, a ajustar antes de promover
+> a política pra modo bloqueante.
+>
+> **Fase 2 — CSRF via Origin/Referer em modo log-only (commit `01f786b`):** novo
+> `src/lib/security/csrfOriginCheck.ts` — compara o header `Origin` (ou `Referer` como
+> fallback) contra a origem real vista pelo próprio Next.js (`request.nextUrl.origin`, deriva
+> do Host/`X-Forwarded-Host` — funciona em dev e produção sem allowlist fixa que poderia
+> ficar desatualizada), só pra rotas `/api/*` de método que muda estado
+> (POST/PUT/PATCH/DELETE), excluindo `/api/public/*` e `/api/cron/*` (webhooks/cron
+> legítimos, chamados de fora do navegador, nunca têm `Origin`). Só `console.warn` — nunca
+> bloqueia. **Achado real ao plugar isso:** o `matcher` do `src/middleware.ts` excluía `/api`
+> inteiramente (`(?!api|...)`)  — ou seja, esse middleware NUNCA rodava em nenhuma rota de
+> API até agora, só em páginas. Precisou ganhar um segundo padrão (`'/api/:path*'`) pro
+> `logCsrfOriginCheck` de fato rodar; `isProtectedRoute` (lógica de redirect de sessão pra
+> `/admin`/`/crm`) nunca casa com pathname iniciando em `/api`, então o comportamento de
+> página existente não muda em nada com essa ampliação. Removido também o campo `csrf`
+> decorativo de `src/app/login/page.tsx` — gerado via `Math.random()` no client, confirmado
+> que nunca era lido nem enviado por `handleSubmit` (que já usa `fetch` via
+> `useAuth().login()`, não um POST de formulário cru) e nunca validado no servidor; mantê-lo
+> ao lado da defesa real (Origin/Referer) só daria falsa sensação de segurança. `npx tsc
+> --noEmit`: 52 erros, mesma baseline, zero novos nos 3 arquivos tocados/criados. Não
+> verificado ao vivo (mesma razão da Fase 1 — sem restart do servidor) — o log de
+> `[CSRF-CHECK]` aparece no TERMINAL do `next dev`, não no console do navegador; pendente
+> observar por um tempo antes de decidir a política de bloqueio real, conforme o plano exige.
+>
+> — **Sessão anterior (2026-07-29, continuação 2): Plano de endurecimento de
+> autenticação/sessão: Fase -1 (XSS real) + Fase 0 (2 fixes de higiene) implementadas.**
+> Depois da varredura do cookie
 > fantasma (ver resumo logo abaixo), o usuário fez uma pergunta de arquitetura genuína:
 > "essa alternativa de checar os acessos pelo cookie, em detrimento de checar por autenticação
 > no header, não deixa toda a aplicação vulnerável a falhas e outros riscos?" — pediu em
@@ -293,15 +350,28 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento.** Próximas, quando retomadas: Fase 1 (CSP
-Report-Only) e Fase 2 (CSRF via Origin/Referer) do plano de endurecimento — ver
-`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md` e o resumo no topo deste arquivo.
+**Nenhuma tarefa em andamento no momento.** Todas as 4 fases planejadas para esta rodada de
+hardening (Fase -1, Fase 0, Fase 1, Fase 2) estão implementadas e commitadas. Pendente, não
+bloqueante: reiniciar o servidor dev (não feito nesta sessão — usuário optou por fazer por
+conta própria) e, com o servidor novo no ar, observar por um tempo real de uso os relatórios
+de violação de CSP (console do navegador) e os logs `[CSRF-CHECK]` (terminal do `next dev`)
+antes de decidir promover qualquer uma das duas pra modo bloqueante — ver resumo no topo
+deste arquivo e `C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`. Fase 3
+(auditoria das ~132 rotas "zona cinzenta") e a eliminação total do token duplicado em
+localStorage seguem fora de escopo por decisão explícita do plano.
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-29 (continuação 3) — Hardening Fase 1 (CSP Report-Only) + Fase 2 (CSRF log-only) ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 3)").
+Commits `4018855` (Fase 1) + `01f786b` (Fase 2).
+
+---
+
 ### Sessão 2026-07-29 (continuação 2) — Hardening Fase -1 (XSS real) + Fase 0 (2 itens) ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29"). Commit `2a4886b`.
+Ver resumo completo no topo deste arquivo. Commit `2a4886b`.
 
 ---
 
