@@ -278,6 +278,10 @@ const nextConfig = {
       "base-uri 'self'",
       "form-action 'self'",
       "frame-ancestors 'self'",
+      // Reporta violação automaticamente pro nosso próprio endpoint — transforma
+      // "observar por um tempo" em algo automático (logs do servidor), em vez de
+      // depender de alguém abrir o DevTools e ficar olhando o Console manualmente.
+      "report-uri /api/public/security/csp-report",
     ].join('; ')
 
     return [
