@@ -1,6 +1,32 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 (continuação 9) — **Tradução de "Tracking" → "Rastreamento"
+> **Atualizado em:** 2026-07-29 (continuação 10) — **Bug real encontrado testando o teste
+> sugerido de outra coisa: mapa de cor por segmento em `ClientSelector.tsx` nunca batia com
+> nenhum segmento real desta base (commit `1bbe5d5`).** Usuário mandou um print testando o
+> item "pill de estado ativo fica dourado" no seletor "Para um Cliente" — o pill em si já
+> estava correto, mas os avatares de iniciais dos clientes na lista ("AS"/"IP") apareciam
+> roxo/indigo. Investigação: `SEGMENT_COLORS` (mapa categórico por segmento, mesmo padrão já
+> documentado como "taxonomia deliberada, não indigo-por-omissão" em sessões anteriores) tinha
+> chaves especulativas (`imobiliario`, `automotivo`, `varejo`, `ecommerce`, `saude`,
+> `educacao`, `beleza`, `marketing-digital`) que **nunca correspondiam a nenhum dos 6
+> segmentos reais** cadastrados em `public.system_segments` (Imobiliário, Saúde Digital,
+> Venda de Carros, Geral, Pet, Master Platform) nem aos slugs reais (`imobiliaria`, `saude`,
+> `carros`, `geral`, `pet`, `master`) — e a normalização de string nunca removia acento, então
+> mesmo "Imobiliário"→"imobiliário" (minúsculo, mas com acento) não batia com a chave
+> `imobiliario` (sem acento). Resultado real, confirmado, não hipotético: TODO cliente de
+> QUALQUER segmento desta plataforma sempre caiu no fallback indigo — a diferenciação de cor
+> por categoria nunca funcionou de verdade em produção, desde que foi implementada.
+> Corrigido: `normalizeSegmentKey()` usa Unicode NFD + remove diacríticos de verdade; mapa
+> ganhou chaves reais (nome normalizado E slug, cobrindo os dois formatos que podem chegar)
+> pros 6 segmentos + manteve as chaves especulativas antigas (Master pode criar segmento novo
+> com qualquer slug a qualquer momento, sem deploy). Verificado ao vivo: os mesmos 2 clientes
+> do print original agora `bg-blue-500` (`rgb(59, 130, 246)`), e a lista completa de clientes
+> reais da plataforma mostrou cada segmento com sua cor própria (laranja/Carros, rosa/Saúde,
+> cinza/Geral) — zero indigo restante. `npx tsc --noEmit`: 53 erros, mesma baseline, zero
+> novos. (Quanto ao teste original do spinner do Mapa de Campanhas: confirmado só por
+> `getComputedStyle`, `rgb(197,160,40)`/dourado — já estava correto, sem mudança de código.)
+>
+> — **Sessão anterior (2026-07-29, continuação 9): Tradução de "Tracking" → "Rastreamento"
 > e "Trends" → "Tendências" no dashboard (commit `e0c6253`).** Usuário apontou, corretamente,
 > que o fix da sessão anterior ("Saúde do Tracking") ainda deixava a palavra "Tracking" em
 > inglês, e que "Trends ao vivo" no Radar de Demanda também devia virar 100% português.
@@ -489,10 +515,16 @@ do token em localStorage fora de escopo por decisão do plano
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-29 (continuação 10) — Fix real: mapa de cor por segmento nunca batia (ClientSelector) ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 10)").
+Commit `1bbe5d5`.
+
+---
+
 ### Sessão 2026-07-29 (continuação 9) — Tradução completa "Tracking"→"Rastreamento" + "Trends"→"Tendências" ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 9)").
-Commit `e0c6253`.
+Ver resumo completo no topo deste arquivo. Commit `e0c6253`.
 
 ---
 
