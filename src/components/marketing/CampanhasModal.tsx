@@ -1551,17 +1551,26 @@ export default function CampanhasModal({
                       Período de veiculação
                     </span>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <DateInputPtBR
-                        value={periodStart}
-                        onChange={iso => { setPeriodStart(iso); setQuickPeriod(''); }}
-                        className="w-[120px] py-2 pl-3 pr-7 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
-                      />
+                      {/* DateInputPtBR: o <span> interno é sempre w-full do pai (a
+                          largura vem de fora); sem esse wrapper de tamanho fixo, o
+                          span estica pra ocupar a linha flex inteira e o ícone de
+                          calendário (absolute right-2 do próprio componente) acaba
+                          longe do fim visível do campo estreito. */}
+                      <div className="w-[120px] shrink-0">
+                        <DateInputPtBR
+                          value={periodStart}
+                          onChange={iso => { setPeriodStart(iso); setQuickPeriod(''); }}
+                          className="w-full py-2 pl-3 pr-7 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                        />
+                      </div>
                       <span className="text-gray-300 text-xs font-bold">→</span>
-                      <DateInputPtBR
-                        value={periodEnd}
-                        onChange={iso => { setPeriodEnd(iso); setQuickPeriod(''); }}
-                        className="w-[120px] py-2 pl-3 pr-7 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
-                      />
+                      <div className="w-[120px] shrink-0">
+                        <DateInputPtBR
+                          value={periodEnd}
+                          onChange={iso => { setPeriodEnd(iso); setQuickPeriod(''); }}
+                          className="w-full py-2 pl-3 pr-7 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                        />
+                      </div>
                       <div className="flex gap-1 rounded-lg p-1 border border-gray-200 bg-white">
                         {PERIOD_PRESETS.map(p => (
                           <button

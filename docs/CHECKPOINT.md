@@ -1,6 +1,22 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-30 (continuação 3) — **Ajustes de UX no modal "Consultar
+> **Atualizado em:** 2026-07-30 (continuação 4) — **Fix real: ícone de calendário longe do
+> campo de data no modal "Consultar Campanhas" (commit seguinte).** Usuário mandou print
+> mostrando o ícone de calendário afastado do fim visível dos campos De/Até. Causa real:
+> `DateInputPtBR` (componente compartilhado) posiciona o botão do calendário via
+> `absolute right-2` dentro do seu próprio `<span className="w-full">` — só que "w-full" ali
+> é 100% do CONTAINER PAI, não do `<input>` visível. No `CampanhasModal.tsx`, a largura
+> `w-[120px]` tinha sido aplicada só na className do `<input>` (repassada como prop), nunca
+> no wrapper — como o `<span>` é filho direto de uma linha flex (`flex items-center gap-2
+> flex-wrap`), ele esticava pra ocupar o espaço livre da linha inteira, arrastando o ícone
+> pra longe do campo visualmente estreito. Corrigido envolvendo cada `DateInputPtBR` num
+> `<div className="w-[120px] shrink-0">` (a largura fixa agora vale pro wrapper que o
+> componente realmente respeita) — `className` do input passou a usar `w-full` desse novo
+> container em vez do valor fixo direto. Verificado ao vivo via `getComputedStyle`/
+> `getBoundingClientRect`: ícone agora fica a 24px do fim do input (dentro do próprio padding
+> do campo, `gap: -24`), idêntico ao posicionamento já usado em todo o resto do app.
+>
+> — **Sessão anterior (2026-07-30, continuação 3) — Ajustes de UX no modal "Consultar
 > Campanhas" (commit seguinte).** Usuário pediu 2 ajustes pontuais na entrega anterior: (1)
 > label explícito "Período de veiculação" acima dos filtros de data/presets, tudo dentro de
 > um container visualmente discreto (não solto no cabeçalho); (2) label explicando o que
@@ -674,9 +690,15 @@ do token em localStorage fora de escopo por decisão do plano
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-30 (continuação 4) — Fix real: ícone de calendário afastado do campo de data ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 4)").
+
+---
+
 ### Sessão 2026-07-30 (continuação 3) — Ajustes de UX: label "Período de veiculação" + "Otimizado para" ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 3)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 3)"). Commit `32ce711`.
 
 ---
 
