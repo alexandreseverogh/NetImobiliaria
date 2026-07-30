@@ -1,6 +1,31 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 (continuação 11) — **Troca da logomarca padrão pra
+> **Atualizado em:** 2026-07-30 — **Lacuna real de provisionamento (`tenant_feature_overrides`)
+> corrigida: categorias "Sistema" e "Cadastros" incompletas na sidebar de 2 tenants reais
+> (commit `df218f6`).** Usuário reportou que, logado como admmd (Marketing Digital), a
+> categoria "Sistema" só mostrava 2 dos itens esperados ("Sessões"/"Visita Plataforma") e
+> "Cadastros" só mostrava "Clientes" (faltando "Proprietários"). Investigação (comparando
+> `tenant_feature_overrides` das 3 empresas reais, não assumindo bug de código) confirmou:
+> **não era bug na função `get_sidebar_menu_for_user` nem no frontend** — 7 features reais de
+> "Sistema" (Monitoramento/Auditoria de login, Expurgo de histórico, Análise de Logs,
+> Configurações de Logs, Monitoramento de Segurança, Auditoria de Logs do Sistema, Auditoria
+> de Ações) e "Proprietários" (Cadastros) já estavam provisionadas pra "Imobiliaria XYZ" (e
+> Proprietários também pra "Imovitec"), mas nunca tinham sido provisionadas pra "Marketing
+> Digital" — e as 7 de Sistema também faltavam em "Imovitec". Como são ferramentas básicas de
+> administração/segurança e um cadastro básico (não algo que varia por plano comercial, ao
+> contrário de módulos como Campanhas/CRM), ficou claro que era lacuna de rollout, não
+> restrição deliberada — confirmado perguntando ao usuário antes de escrever qualquer dado.
+> As únicas 2 features de "Sistema" sem provisionamento em NENHUMA empresa real ("Categorias
+> de Funcionalidades", "Funcionalidades do sistema") foram deixadas intocadas — fazem sentido
+> como exclusivas do Master (gerenciam o catálogo global de features, não faria sentido
+> nenhuma empresa comum ter acesso). Corrigido via migração aditiva/idempotente
+> (`migration-2026-07-30-provision-sistema-cadastros-gap.sql`, `ON CONFLICT DO UPDATE`) —
+> provisiona as 7 features de Sistema pra Marketing Digital e Imovitec, e Proprietários pra
+> Marketing Digital. Verificado ao vivo rodando `get_sidebar_menu_for_user()` de verdade pro
+> usuário admmd (não só a tabela crua): "Sistema" retorna as 9 features reais esperadas,
+> "Cadastros" retorna Proprietários + Clientes.
+>
+> — **Sessão anterior (2026-07-29, continuação 11): Troca da logomarca padrão pra
 > `artemis4_light_b.png` em `/artemis4`, `/admin/login` (as 2 peles) e no `AdminHeader.tsx`
 > pós-login (commit `cff1fb1`).** Pedido direto do usuário. Achado no caminho: a pele CRM
 > do login (`?system=crm`, "Olhos de Águia") usava por engano uma imagem do Artemis4 com um
@@ -539,10 +564,15 @@ do token em localStorage fora de escopo por decisão do plano
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-30 — Lacuna real de provisionamento (Sistema + Cadastros) ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30"). Commit `df218f6`.
+
+---
+
 ### Sessão 2026-07-29 (continuação 11) — Troca de logomarca padrão (artemis4_light_b) ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 11)").
-Commit `cff1fb1`.
+Ver resumo completo no topo deste arquivo. Commit `cff1fb1`.
 
 ---
 
