@@ -1,6 +1,27 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 (continuação 8) — **Testes manuais do Redesign Premium:
+> **Atualizado em:** 2026-07-29 (continuação 9) — **Tradução de "Tracking" → "Rastreamento"
+> e "Trends" → "Tendências" no dashboard (commit `e0c6253`).** Usuário apontou, corretamente,
+> que o fix da sessão anterior ("Saúde do Tracking") ainda deixava a palavra "Tracking" em
+> inglês, e que "Trends ao vivo" no Radar de Demanda também devia virar 100% português.
+> Varredura completa (não só os 2 pontos apontados) encontrou **7 ocorrências a mais** do
+> mesmo problema, em 3 arquivos que o fix anterior não tinha tocado: `auditReportService.ts`
+> (label + 3 strings de "detail" da dimensão "tracking" do relatório de auditoria — mesma
+> etiqueta, tela diferente) e `DashboardHelpModal.tsx` (glossário/dicas/benchmarks do modal
+> de Ajuda — 7 ocorrências; a decisão de sessão anterior de manter esse modal intocado era
+> só sobre PALETA de cor, não sobre idioma, então não se aplicava aqui). Tradução escolhida
+> (`Tracking`→`Rastreamento`) já era consistente com texto pré-existente na própria tela
+> ("Score de rastreamento por cliente"/"Score 0-100 da saúde do rastreamento" já estavam em
+> português antes desta sessão). Para "Trends": badge `📶 Trends ao vivo`→`📶 Tendências ao
+> vivo` e os 2 rótulos "Demanda (Trends)" (tooltip + série do gráfico)→"Demanda (Tendências)"
+> em `DemandRadar.tsx`; mantido de propósito **"Google Trends"** na legenda que credita a
+> fonte real do dado (nome de produto, mesma categoria de "Meta Pixel"/"YouTube" já
+> preservados). Verificado ao vivo (navegador real, segmento Imobiliário, aba Inteligência
+> Profunda): `body.innerText` confirma "Saúde do Rastreamento"/"Tendências ao vivo" presentes
+> e as versões antigas em inglês ausentes. `npx tsc --noEmit`: zero erros novos nos 6
+> arquivos tocados (mesmo artefato stale de `.next/types` de sempre).
+>
+> — **Sessão anterior (2026-07-29, continuação 8): Testes manuais do Redesign Premium:
 > 2 achados durante a rodada de testes do usuário na tela de Leads e no dashboard.**
 >
 > **(1) "Campanha" e "Ad Set" pareciam mostrar as mesmas opções em `/admin/campanhas/
@@ -468,10 +489,17 @@ do token em localStorage fora de escopo por decisão do plano
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-29 (continuação 9) — Tradução completa "Tracking"→"Rastreamento" + "Trends"→"Tendências" ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 9)").
+Commit `e0c6253`.
+
+---
+
 ### Sessão 2026-07-29 (continuação 8) — Testes manuais: achados Campanha/Ad Set + Tracking Health ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 8)").
-Commit `e8713b3`. Pendência: limpar os 15 leads de teste (ver "Tarefa em andamento" acima).
+Ver resumo completo no topo deste arquivo. Commit `e8713b3`. Pendência: limpar os 15 leads
+de teste (ver "Tarefa em andamento" acima).
 
 ---
 
