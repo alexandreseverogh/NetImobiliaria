@@ -188,7 +188,7 @@ export function TrackingHealthWidget({ clientId, segmentId, compact = false }: P
               <HeartIcon className="h-4 w-4 text-slate-500" />
             </div>
             <div>
-              <p className="text-xs font-black text-slate-600 uppercase tracking-widest">Tracking Health</p>
+              <p className="text-xs font-black text-slate-600 uppercase tracking-widest">Saúde do Tracking</p>
               <p className="text-[10px] text-gray-400">Nenhuma verificação executada</p>
             </div>
           </div>
@@ -225,7 +225,7 @@ export function TrackingHealthWidget({ clientId, segmentId, compact = false }: P
             <div className="flex items-center gap-2 mb-0.5">
               <HeartIcon className={`h-4 w-4 shrink-0 ${score !== null ? '' : 'text-gray-400'}`}
                 style={{ color: score !== null ? scoreColor(score) : undefined }} />
-              <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Tracking Health</p>
+              <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Saúde do Tracking</p>
             </div>
             {score !== null && (
               <p className="text-sm font-bold" style={{ color: scoreColor(score) }}>
@@ -260,9 +260,9 @@ export function TrackingHealthWidget({ clientId, segmentId, compact = false }: P
               onClick={handleRun}
               disabled={running}
               title="Executar novo check"
-              className="p-2 rounded-xl hover:bg-white/60 transition-all disabled:opacity-50"
+              className="p-2.5 rounded-xl hover:bg-gold-premium/10 transition-all disabled:opacity-50"
             >
-              <ArrowPathIcon className={`h-4 w-4 text-gray-500 ${running ? 'animate-spin' : ''}`} />
+              <ArrowPathIcon className={`h-5 w-5 text-gold-premium ${running ? 'animate-spin' : ''}`} />
             </button>
             {checks.length > 0 && (
               <button

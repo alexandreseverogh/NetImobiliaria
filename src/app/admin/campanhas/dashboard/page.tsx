@@ -1316,7 +1316,7 @@ function SegmentDashboard({
               <span className="text-base leading-none">🩺</span>
             </div>
             <div>
-              <h3 className={cn('text-base font-black', tx)}>Tracking Health</h3>
+              <h3 className={cn('text-base font-black', tx)}>Saúde do Tracking</h3>
               <p className={cn('text-xs', txMuted)}>Score de rastreamento por cliente</p>
             </div>
           </div>
