@@ -1,6 +1,41 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 (continuação 6) — **"Entrar" lento em `/artemis4` de novo —
+> **Atualizado em:** 2026-07-29 (continuação 8) — **Testes manuais do Redesign Premium:
+> 2 achados durante a rodada de testes do usuário na tela de Leads e no dashboard.**
+>
+> **(1) "Campanha" e "Ad Set" pareciam mostrar as mesmas opções em `/admin/campanhas/
+> dashboard` — investigado, NÃO é bug.** Confirmado em 2 camadas (SQL direto comparando
+> nome de campanha vs. ad set no banco, e depois ao vivo no navegador real, sessão
+> autenticada, segmento Imobiliário, via `getComputedStyle`/leitura direta dos 2 `<select>`):
+> são listas genuinamente diferentes (ex.: campanha "Alto Padrão — Alphaville" → ad set
+> "Alphaville 35-60 anos") — a maioria dos dados de teste só nomeou o ad set como
+> "`<nome da campanha>` · AdSet", o que faz parecer repetição à primeira vista, mas é a
+> hierarquia real do Meta (Campanha → Ad Set → Anúncio), 2 filtros corretos e distintos.
+> Nenhuma mudança de código necessária.
+>
+> **(2) Teste da paginação de `/admin/campanhas/leads` sem dado suficiente — 15 leads de
+> teste inseridos temporariamente (aprovados pelo usuário).** Tenant Marketing Digital (admmd)
+> tem só 9 leads reais no total, desde sempre (2026-07-04 a 07-08) — nenhum período mais
+> largo resolveria, e "Todos os Clientes" só chegaria a 9, ainda abaixo dos 20 necessários
+> pra 2ª página aparecer (`PAGE_SIZE=20`). Inseridos 15 leads sintéticos ("TESTE PAGINACAO
+> 1..15", `leads_staging`+`marketing_eventos`, `client_id NULL`, datados nas últimas 15h) —
+> confirmado via API real que o total no escopo/período testado pelo usuário foi de 6 pra
+> 21. **Pendente: remover esses 15 leads assim que o usuário confirmar que já viu o botão
+> de página ativa dourado** (tarefa registrada, não esquecida).
+>
+> **(3) Feedback de UX na seção "Tracking Health" (commit `e8713b3`):** usuário apontou 2
+> problemas reais — nome em inglês (3 ocorrências: widget compacto, estado "sem dado ainda"
+> e o heading da seção, em `TrackingHealthWidget.tsx` + `DeepDiveView.tsx` +
+> `dashboard/page.tsx`) e o botão de atualizar (↺) "extremamente pequeno, pode passar
+> despercebido". Corrigido: título → "Saúde do Tracking" (nome que o próprio código já usava
+> internamente num comentário — "Saúde do Tracking (FASE 8)"); botão de atualizar aumentado
+> (`p-2`→`p-2.5`, `h-4`→`h-5`) e recolorido pra `gold-premium` (era cinza neutro por design
+> — decisão revertida a pedido explícito do usuário, que preferiu destacá-lo mais). Verificado
+> ao vivo: `getComputedStyle` do ícone confirma `rgb(197, 160, 40)` (gold-premium exato) e
+> 20px. `npx tsc --noEmit`: zero erros novos (único erro a mais no total é artefato stale de
+> `.next/types`, build output, não código-fonte).
+>
+> — **Sessão anterior (2026-07-29, continuação 6): "Entrar" lento em `/artemis4` de novo —
 > issue crônico já documentado em 2026-07-11, causa raiz confirmada idêntica, fix anterior
 > reforçado (commit `2e9d42f`).** Usuário reportou o mesmo sintoma de sessões antigas: clicar
 > "Entrar" demora "um século" antes de mostrar o login. Antes de mexer em qualquer coisa,
@@ -421,25 +456,28 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento.** Todas as 4 fases planejadas para a rodada de
-hardening (Fase -1, Fase 0, Fase 1, Fase 2) estão implementadas e commitadas, com captura
-automática de log (`[CSP-VIOLATION]` + `[CSRF-CHECK]`, ambos no stdout do servidor), a
-política de CSP corrigida contra os 2 problemas reais encontrados via verificação ao vivo
-(eval do HMR em dev + script do YouTube), e o fix crônico do "Entrar lento" em `/artemis4`
-reforçado (pré-aquecimento agora dispara no mount, não mais atrás de ociosidade). Pendente,
-não bloqueante: Meta Pixel e o `img-src` do MinIO seguem sem teste ao vivo (lacuna de
-verificação honesta, não bug conhecido); depois de algum tempo de uso real, consultar os
-logs (`docker logs` em produção, terminal do `next dev` em local) antes de decidir promover
-CSP/CSRF pra modo bloqueante — ver `C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`.
-Fase 3 (auditoria das ~132 rotas "zona cinzenta") e a eliminação total do token duplicado em
-localStorage seguem fora de escopo por decisão explícita do plano.
+**Testes manuais do Redesign Premium, em andamento pelo usuário.** Pendência real e
+pontual: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant Marketing
+Digital) inseridos pra viabilizar o teste visual da paginação em `/admin/campanhas/leads`
+— assim que o usuário confirmar que já viu o botão de página ativa dourado. Ver resumo no
+topo deste arquivo. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
+seguem implementadas e commitadas, captura automática de log funcionando; Meta Pixel e
+`img-src` do MinIO seguem sem teste ao vivo (lacuna honesta, não bug); Fase 3 e eliminação
+do token em localStorage fora de escopo por decisão do plano
+(`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-29 (continuação 8) — Testes manuais: achados Campanha/Ad Set + Tracking Health ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 8)").
+Commit `e8713b3`. Pendência: limpar os 15 leads de teste (ver "Tarefa em andamento" acima).
+
+---
+
 ### Sessão 2026-07-29 (continuação 6) — "Entrar" lento em /artemis4: fix crônico reforçado ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 6)").
-Commit `2e9d42f`.
+Ver resumo completo no topo deste arquivo. Commit `2e9d42f`.
 
 ---
 
