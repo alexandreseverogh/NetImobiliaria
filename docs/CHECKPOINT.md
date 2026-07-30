@@ -1,6 +1,44 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-30 (continuação 6) — **Fix real: wizard de campanha (Meta/
+> **Atualizado em:** 2026-07-30 (continuação 7) — **Fix real: `hook_type` de criativo gravado
+> fora do enum do prompt, contaminando o aviso "Portfólio saturado com hook 'Preço'" no
+> wizard (commit seguinte).** Usuário mandou print do passo "Tipo" do wizard TikTok
+> perguntando se o aviso de saturação de hook era confiável e de onde vinha — pediu
+> investigação, não assumir.
+>
+> **Investigação (não hipotética, com dado real do banco):** o aviso vem de um pipeline real
+> — cada criativo é analisado por Vision LLM no upload (`creative_vision_analysis`, prompt em
+> `system_prompt_templates`), classificado em vários campos incluindo `hook_type`; uma 2ª
+> etapa (`hookSaturationService.ts`) agrega o portfólio atual do cliente/tenant por
+> `hook_type` e alerta quando um tipo passa de 50% de share. Isso está correto e funcionando.
+>
+> **Achado real durante a investigação:** o próprio prompt define `hook_type` como só um
+> destes 7 valores — `urgency|curiosity|social_proof|benefit|story|problem|other` —
+> **"price" (Preço) não é um deles**; "price" só é válido no campo **separado** `angle`
+> (`investment|lifestyle|family|price|urgency|social|luxury|other`), um conceito diferente
+> (tema do anúncio, não técnica de atenção). `creativeAnalysisService.ts` nunca validava o
+> que o LLM devolvia antes de gravar. Confirmado no banco (todo o banco, não só um tenant):
+> **8 linhas** com `hook_type` fora do enum — 7 "price" + 1 "investment".
+>
+> **Corrigido, com autorização explícita do usuário ("quero"):**
+> 1. `src/lib/marketing/services/creativeAnalysisService.ts` — novo `VALID_HOOK_TYPES` (o
+>    enum real dos 7 valores do prompt); resultado da Vision é clampado contra esse set antes
+>    de persistir — valor fora do enum vira `'other'` (mesmo fallback que `EMPTY_RESULT` já
+>    usava pra "não consegui classificar"), com log de aviso pra rastreabilidade futura.
+> 2. `prisma/migration-2026-07-30-fix-invalid-hook-type.sql` (aplicada) — corrige as 8 linhas
+>    históricas já gravadas erradas pra `'other'`. Não deu pra saber o hook_type correto sem
+>    reprocessar via Vision (custo de LLM) — `'other'` é o mesmo fallback conservador do
+>    próprio código, não um chute novo.
+>
+> **Verificado:** `npx tsc --noEmit` — 53 erros, mesma baseline, zero no arquivo tocado.
+> `GET /api/admin/campanhas/criativos/hook-saturation` (com e sem `clientId`, replicando a
+> chamada real do wizard) agora retorna `dominantHook:"other"` (73%) em vez de `"price"` —
+> o aviso no wizard (que só renderiza com exatamente 1 criativo selecionado, mesma condição
+> do print do usuário) vai mostrar "Portfólio saturado com hook 'Outro'", não mais "Preço".
+> `emotional_tone`/`cta_style`/`angle` conferidos — só `hook_type` tinha valores fora do
+> enum, escopo do fix está completo.
+>
+> — **Sessão anterior (2026-07-30, continuação 6) — Fix real: wizard de campanha (Meta/
 > TikTok) levava 30+ segundos pra abrir + refazia a escolha de rede do zero (commit
 > seguinte).** Usuário reportou: ao clicar num dos 3 botões macro ("Meta Ads"/"TikTok Ads"/
 > "Google AI Max") em `/admin/campanhas/nova`, a "segunda página" (o wizard) demorava
@@ -774,9 +812,15 @@ do token em localStorage fora de escopo por decisão do plano
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-30 (continuação 7) — Fix real: hook_type fora do enum contaminava aviso de saturação ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 7)").
+
+---
+
 ### Sessão 2026-07-30 (continuação 6) — Fix real: wizard de campanha lento + refazia escolha de rede ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 6)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 6)"). Commit `bed3a7a`.
 
 ---
 

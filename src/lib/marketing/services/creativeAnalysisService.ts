@@ -48,6 +48,15 @@ const EMPTY_RESULT: CreativeAnalysisResult = {
   key_visual_elements: [], confidence: 0,
 };
 
+// Enum real de hook_type ditado pro modelo no prompt creative_vision_analysis. O LLM não
+// respeita esse enum de forma confiável (achado real: 8 criativos gravados com "price"/
+// "investment" — valores que só são válidos no campo ANGLE, um conceito diferente de hook —
+// contaminando o cálculo de saturação de hook em hookSaturationService.ts). Clampar aqui
+// garante que só o schema real seja persistido, sem depender só da obediência do prompt.
+const VALID_HOOK_TYPES = new Set([
+  'urgency', 'curiosity', 'social_proof', 'benefit', 'story', 'problem', 'other',
+]);
+
 /** Substitui {{variavel}} pelo valor correspondente no mapa. */
 function applyVariables(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
@@ -223,6 +232,15 @@ export async function analyzeCreativeAsset(assetId: string): Promise<void> {
       }
       // Re-lançar para cair no catch externo que grava analysis_status = 'failed'
       throw new Error(`Vision LLM falhou: ${msg}`);
+    }
+
+    // Clampa hook_type contra o enum real do prompt — nunca persistir um valor que só
+    // faz sentido no campo angle (ex.: "price"/"investment"/"luxury").
+    if (!VALID_HOOK_TYPES.has(result.hook_type)) {
+      console.warn(
+        `[CreativeAnalysis] hook_type fora do enum: "${result.hook_type}" (asset ${assetId}) — gravando como "other"`
+      );
+      result.hook_type = 'other';
     }
 
     // 5. Persistir resultado
