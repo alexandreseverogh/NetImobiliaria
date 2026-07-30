@@ -1002,13 +1002,21 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-700">
                 {genderLabel(adSet.genders)}
               </span>
-              {adSet.optimizationGoal && (
-                <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-700">
-                  {adSet.optimizationGoal.replace(/_/g, ' ')}
-                </span>
-              )}
             </div>
           </div>
+
+          {/* Otimização de entrega — separado do Público-alvo: não é quem é
+              alcançado, é para QUAL AÇÃO o Meta otimiza a veiculação. */}
+          {adSet.optimizationGoal && (
+            <div>
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+                Otimizado para
+              </p>
+              <span className="inline-block px-2.5 py-1 bg-slate-100 rounded-lg text-[11px] font-bold text-slate-700">
+                {adSet.optimizationGoal.replace(/_/g, ' ')}
+              </span>
+            </div>
+          )}
 
           {/* Programação */}
           <div>
@@ -1525,7 +1533,7 @@ export default function CampanhasModal({
                   </div>
                 </div>
 
-                {/* ── Pivot: Cliente + Período (veiculação) ── */}
+                {/* ── Pivot: Cliente + Período de veiculação ── */}
                 <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-4 flex-wrap">
                   {!isMaster && (
                     <ClientSelector
@@ -1536,43 +1544,50 @@ export default function CampanhasModal({
                       variant="toggle"
                     />
                   )}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <DateInputPtBR
-                      value={periodStart}
-                      onChange={iso => { setPeriodStart(iso); setQuickPeriod(''); }}
-                      className="w-[120px] py-2 pl-3 pr-7 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm"
-                    />
-                    <span className="text-gray-300 text-xs font-bold">→</span>
-                    <DateInputPtBR
-                      value={periodEnd}
-                      onChange={iso => { setPeriodEnd(iso); setQuickPeriod(''); }}
-                      className="w-[120px] py-2 pl-3 pr-7 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm"
-                    />
-                    <div className="flex gap-1 rounded-xl p-1 border border-gray-200 bg-gray-50">
-                      {PERIOD_PRESETS.map(p => (
+
+                  {/* Container discreto — agrupa label + range + presets do período */}
+                  <div className="flex flex-col gap-1.5 bg-gray-50/70 border border-gray-100 rounded-xl px-3 py-2">
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                      Período de veiculação
+                    </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <DateInputPtBR
+                        value={periodStart}
+                        onChange={iso => { setPeriodStart(iso); setQuickPeriod(''); }}
+                        className="w-[120px] py-2 pl-3 pr-7 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                      />
+                      <span className="text-gray-300 text-xs font-bold">→</span>
+                      <DateInputPtBR
+                        value={periodEnd}
+                        onChange={iso => { setPeriodEnd(iso); setQuickPeriod(''); }}
+                        className="w-[120px] py-2 pl-3 pr-7 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                      />
+                      <div className="flex gap-1 rounded-lg p-1 border border-gray-200 bg-white">
+                        {PERIOD_PRESETS.map(p => (
+                          <button
+                            key={p.value}
+                            onClick={() => applyQuickPeriod(p.value)}
+                            className={cn(
+                              'px-2.5 py-1.5 rounded-md text-xs font-black transition-colors',
+                              quickPeriod === p.value
+                                ? 'bg-gold-premium text-navy-dark'
+                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50',
+                            )}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                      {(periodStart || periodEnd) && (
                         <button
-                          key={p.value}
-                          onClick={() => applyQuickPeriod(p.value)}
-                          className={cn(
-                            'px-2.5 py-1.5 rounded-lg text-xs font-black transition-colors',
-                            quickPeriod === p.value
-                              ? 'bg-gold-premium text-navy-dark'
-                              : 'text-gray-500 hover:text-gray-900 hover:bg-white',
-                          )}
+                          onClick={clearPeriod}
+                          title="Limpar período"
+                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-white rounded-lg transition-all"
                         >
-                          {p.label}
+                          <XMarkIcon className="h-3.5 w-3.5" />
                         </button>
-                      ))}
+                      )}
                     </div>
-                    {(periodStart || periodEnd) && (
-                      <button
-                        onClick={clearPeriod}
-                        title="Limpar período"
-                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all"
-                      >
-                        <XMarkIcon className="h-3.5 w-3.5" />
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>

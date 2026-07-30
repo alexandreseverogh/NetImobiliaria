@@ -1,6 +1,27 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-30 (continuação 2) — **Modal "Consultar Campanhas": pivot de
+> **Atualizado em:** 2026-07-30 (continuação 3) — **Ajustes de UX no modal "Consultar
+> Campanhas" (commit seguinte).** Usuário pediu 2 ajustes pontuais na entrega anterior: (1)
+> label explícito "Período de veiculação" acima dos filtros de data/presets, tudo dentro de
+> um container visualmente discreto (não solto no cabeçalho); (2) label explicando o que
+> significa o valor cru exibido tipo "LEAD GENERATION" (era `AdSet.optimizationGoal`, jogado
+> junto dos chips de Público-alvo sem nenhuma legenda).
+>
+> **`src/components/marketing/CampanhasModal.tsx`:**
+> - O bloco de período (`DateInputPtBR` De/Até + presets Hoje/7d/15d/30d + botão limpar) agora
+>   vive dentro de um card próprio (`bg-gray-50/70 border border-gray-100 rounded-xl`), com o
+>   label uppercase cinza "Período de veiculação" no topo — mesmo padrão visual já usado nos
+>   outros labels de seção do card de campanha (`Público-alvo`, `Programação`, `Localização`).
+> - `adSet.optimizationGoal` (ex.: "LEAD GENERATION", "LINK CLICKS") separado do grupo
+>   Público-alvo (não é sobre QUEM é alcançado, é sobre PRA QUE AÇÃO o Meta otimiza a
+>   entrega) — ganhou sua própria mini-seção com o label "Otimizado para" acima do chip.
+>
+> **Verificado:** `npx tsc --noEmit` — 53 erros, mesma baseline, zero no arquivo tocado. Ao
+> vivo (sessão real, tenant Marketing Digital): label "Período de veiculação" confirmado
+> presente no container discreto; label "Otimizado para" confirmado presente em cada um dos
+> 5 cards de campanha reais, acima do chip de otimização.
+>
+> — **Sessão anterior (2026-07-30, continuação 2) — Modal "Consultar Campanhas": pivot de
 > cliente + filtro de período por veiculação + prewarm da rota (commit `e56e9a2` seguinte).**
 > Usuário reportou dois pontos testando `/admin/campanhas/nova` → "Consultar Campanhas" pro
 > tenant admmd: (1) nenhuma campanha aparecia; (2) a tela deveria ter os mesmos filtros de
@@ -653,9 +674,15 @@ do token em localStorage fora de escopo por decisão do plano
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-30 (continuação 3) — Ajustes de UX: label "Período de veiculação" + "Otimizado para" ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 3)").
+
+---
+
 ### Sessão 2026-07-30 (continuação 2) — "Consultar Campanhas": pivot de cliente + período por veiculação + prewarm ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 2)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 2)"). Commit `47a683f`.
 
 ---
 
