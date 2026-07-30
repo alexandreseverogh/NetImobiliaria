@@ -1,6 +1,37 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-30 — **Lacuna real de provisionamento (`tenant_feature_overrides`)
+> **Atualizado em:** 2026-07-30 (continuação) — **Fix real: dropdown de Segmento ignorava a
+> cor real cadastrada em `system_segments.color_theme` (commit pendente).** Testando o item
+> "Abra o dropdown de segmento → passe o mouse pelas opções → a opção com o mouse em cima usa
+> fundo âmbar suave, não indigo", o usuário declarou a expectativa correta: "eu imaginei que a
+> cor exibida para cada segmento no dropdown seria a cor do tema do segmento que está na
+> tabela segments" — e não era. `SegmentSelector.tsx` tinha uma paleta fixa de 15 cores por
+> slug (`PALETTE`/`palFor()`), nunca lendo o campo real `colorTheme` que o próprio componente
+> já recebia via prop e que o Master já edita com um color-picker de verdade em
+> `/admin/master/segments` — a personalização do Master nunca tinha efeito nenhum na tela real
+> que o usuário final vê, só na própria tela de gestão. Confirmado real (não intencional) antes
+> de mexer, com `AskUserQuestion` — usuário escolheu "usar a cor real do Master".
+> Corrigido: `palFor()`/`PALETTE` removidos, substituídos por `themeStyleFor(colorTheme,
+> isDark)` — deriva `dot`/`chip`/`tabText`/`tabBorder`/`tabActive` como objetos `CSSProperties`
+> a partir do hex real, aplicados via `style={}` (Tailwind JIT não gera classe de um hex vindo
+> do banco em runtime); translúcido via hex+2-dígitos-alfa (`${cor}26`), técnica CSS válida em
+> todo browser evergreen. Fallback `#6366f1` (indigo) só se `colorTheme` vier nulo/vazio —
+> nunca deveria acontecer, já que a coluna é `NOT NULL DEFAULT '#2563eb'` no schema real, mas
+> mantido por segurança. Os 3 pontos de renderização (chip do trigger, dot da lista do
+> dropdown, abas de multi-segmento) foram todos migrados pro mesmo helper. Verificado: `npx
+> tsc --noEmit` — 53 erros, mesma baseline, zero no arquivo tocado. Ao vivo (sessão real via
+> JWT, tenant Marketing Digital, segmento Imobiliário — `color_theme` real `#2563eb` no banco):
+> `getComputedStyle` do dot da lista e do chip do trigger confirmam `rgb(37, 99, 235)` exato
+> (= `#2563eb`), chip com fundo translúcido azul e borda azul — bate 100% com o valor real da
+> tabela, não mais o indigo hardcoded. **Não exercitado ao vivo:** a linha de abas de
+> multi-segmento (`multiMode`, 2+ segmentos simultâneos) — o único hook consumidor hoje
+> (`useSegmentSelector`, usado em `dashboard/page.tsx`) faz seleção exclusiva de propósito
+> (`next = prev.includes(id) ? [] : [id]`, comentário "Exclusive selection" no próprio código),
+> então esse branch nunca é alcançado na prática hoje; migrado pro mesmo `themeStyleFor` com a
+> mesma técnica já comprovada nos outros 2 pontos, confiança por revisão de código + padrão
+> idêntico, não por interação ao vivo.
+>
+> — **Sessão anterior (2026-07-30): Lacuna real de provisionamento (`tenant_feature_overrides`)
 > corrigida: categorias "Sistema" e "Cadastros" incompletas na sidebar de 2 tenants reais
 > (commit `df218f6`).** Usuário reportou que, logado como admmd (Marketing Digital), a
 > categoria "Sistema" só mostrava 2 dos itens esperados ("Sessões"/"Visita Plataforma") e
@@ -563,6 +594,12 @@ do token em localStorage fora de escopo por decisão do plano
 (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
+
+### Sessão 2026-07-30 (continuação) — Fix real: dropdown de Segmento ignorava color_theme real ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação)").
+
+---
 
 ### Sessão 2026-07-30 — Lacuna real de provisionamento (Sistema + Cadastros) ✅
 
