@@ -1,6 +1,30 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-29 (continuação 10) — **Bug real encontrado testando o teste
+> **Atualizado em:** 2026-07-29 (continuação 11) — **Troca da logomarca padrão pra
+> `artemis4_light_b.png` em `/artemis4`, `/admin/login` (as 2 peles) e no `AdminHeader.tsx`
+> pós-login (commit `cff1fb1`).** Pedido direto do usuário. Achado no caminho: a pele CRM
+> do login (`?system=crm`, "Olhos de Águia") usava por engano uma imagem do Artemis4 com um
+> path com erro de digitação (`Artetmis4.JPEG`) nunca notado antes — perguntado ao usuário se
+> trocava ali também (marca visualmente diferente) ou deixava fora do escopo; escolheu trocar
+> também, por ser claramente um resíduo, não uma escolha deliberada de manter uma marca à
+> parte (diferente da decisão já tomada sobre `DashboardHelpModal.tsx` numa sessão anterior,
+> que era mesmo intocado de propósito). Achado técnico relevante: o asset novo tem fundo
+> **branco opaco**, sem transparência (confirmado nas 2 variantes irmãs também —
+> `artemis4_light_a.png` idem, `artemis4_dark.png` nem é logo, é um mockup completo de
+> apresentação de marca, não usado) — nos 2 lugares de fundo escuro (header da landing, pele
+> CRM do login, e o `AdminHeader.tsx` quando `theme.mode==='dark'`, usado hoje pelo layout da
+> Central de Mensagens) precisou de uma badge/círculo branco ao redor pra não aparecer como
+> caixa branca crua; no login padrão (já claro) e no header do admin em modo claro (maioria
+> dos casos hoje) a imagem já se encaixa direto. Verificado ao vivo nas 3 telas (imagem
+> carrega, wrapper branco confirmado via `getComputedStyle`) — **exceto o fallback do
+> `AdminHeader.tsx` em si**, que não pôde ser exercitado com um tenant real: os 4 tenants
+> ativos deste banco já têm logo próprio configurado (prioridade 1 no código, intocada),
+> então nenhum hoje realmente cai no fallback que troquei — confirmado em vez disso que a
+> string exata retornada carrega como imagem válida (1024px), e a lógica em si segue o mesmo
+> padrão (`if/return` de literal) já usado e comprovado antes. `npx tsc --noEmit`: 53 erros,
+> mesma baseline, zero novos.
+>
+> — **Sessão anterior (2026-07-29, continuação 10): Bug real encontrado testando o teste
 > sugerido de outra coisa: mapa de cor por segmento em `ClientSelector.tsx` nunca batia com
 > nenhum segmento real desta base (commit `1bbe5d5`).** Usuário mandou um print testando o
 > item "pill de estado ativo fica dourado" no seletor "Para um Cliente" — o pill em si já
@@ -515,10 +539,16 @@ do token em localStorage fora de escopo por decisão do plano
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-29 (continuação 11) — Troca de logomarca padrão (artemis4_light_b) ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 11)").
+Commit `cff1fb1`.
+
+---
+
 ### Sessão 2026-07-29 (continuação 10) — Fix real: mapa de cor por segmento nunca batia (ClientSelector) ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-29 (continuação 10)").
-Commit `1bbe5d5`.
+Ver resumo completo no topo deste arquivo. Commit `1bbe5d5`.
 
 ---
 
