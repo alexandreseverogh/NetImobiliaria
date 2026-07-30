@@ -830,13 +830,15 @@ export default function Artemis4LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             
-            {/* Logo Artemis4 — imagem da pasta public */}
+            {/* Logo Artemis4 — imagem da pasta public. Fundo branco opaco (asset novo,
+                sem transparência) — badge branca arredondada evita a caixa branca crua
+                contra o header escuro. */}
             <div className="flex-shrink-0 flex items-center gap-3">
-              <div className="relative rounded-xl ring-1 ring-amber-300/20 shadow-[0_0_25px_-8px_rgba(212,175,55,0.45)] overflow-hidden">
+              <div className="relative rounded-xl ring-1 ring-amber-300/20 shadow-[0_0_25px_-8px_rgba(212,175,55,0.45)] overflow-hidden bg-white p-1">
                 <img
-                  src="/Artemis4.jpg"
+                  src="/Assets/artemis4_light_b.png"
                   alt="Artemis4"
-                  className="h-12 w-auto object-contain"
+                  className="h-10 w-auto object-contain"
                   draggable={false}
                 />
               </div>

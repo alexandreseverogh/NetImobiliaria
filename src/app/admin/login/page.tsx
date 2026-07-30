@@ -179,15 +179,19 @@ function LoginContent() {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center flex flex-col items-center">
           {isCRM ? (
-            <img
-              src="/Artetmis4.JPEG"
-              alt="Artemis"
-              className="h-32 w-auto drop-shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all duration-700 hover:scale-110"
-            />
+            // Fundo branco opaco do asset novo (sem transparência) — badge branca
+            // arredondada evita caixa branca crua contra o fundo escuro do CRM.
+            <div className="h-32 w-32 flex items-center justify-center rounded-full bg-white shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all duration-700 hover:scale-110">
+              <img
+                src="/Assets/artemis4_light_b.png"
+                alt="Artemis"
+                className="h-24 w-24 object-contain"
+              />
+            </div>
           ) : (
             <div className="mx-auto h-20 w-20 flex items-center justify-center rounded-full bg-white shadow-lg">
               <Image
-                src="/Artemis4.JPEG"
+                src="/Assets/artemis4_light_b.png"
                 alt="Artemis4"
                 width={128}
                 height={128}

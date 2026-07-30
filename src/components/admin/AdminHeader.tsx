@@ -33,16 +33,16 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
     const isMasterAdmin = (user as any)?.is_system_role === true;
     if (isMasterAdmin) {
       console.log('👑 Logo: Administrador Master detectado - Exibindo Artemis');
-      return '/Artemis4.JPEG'
+      return '/Assets/artemis4_light_b.png'
     }
 
     // 🔄 FALLBACK FINAL
     const isMasterArea = tenant?.name?.toUpperCase().includes('MASTER') ||
       tenant?.slug === 'master'
 
-    if (isMasterArea) return '/Artemis4.JPEG'
+    if (isMasterArea) return '/Assets/artemis4_light_b.png'
 
-    return '/Artemis4.JPEG' // Fallback definitivo
+    return '/Assets/artemis4_light_b.png' // Fallback definitivo
   }
 
   // Verificação de segurança para evitar erros
@@ -94,7 +94,15 @@ export default function AdminHeader({ user, onLogout, onMenuClick, title = 'Áre
           {/* Título da página */}
           <div className="flex-1 lg:flex-none flex items-center space-x-3">
             <Link href="/admin">
-              <img src={getLogo()} alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              {isDark ? (
+                // Asset padrão tem fundo branco opaco — badge evita caixa branca
+                // crua contra o header escuro (ex.: layout da Central de Mensagens).
+                <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                  <img src={getLogo()} alt="Logo" className="h-9 w-auto object-contain" />
+                </div>
+              ) : (
+                <img src={getLogo()} alt="Logo" className="h-16 w-auto cursor-pointer hover:opacity-80 transition-opacity" />
+              )}
             </Link>
             <h1 className={`text-lg font-bold ${titleColor} tracking-tight`}>
               {title}
