@@ -81,20 +81,49 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
+// Chaves cobrem tanto o NOME normalizado (ex.: "Imobiliário" → imobiliario)
+// quanto o SLUG real (ex.: imobiliaria) dos 6 segmentos hoje cadastrados em
+// public.system_segments — os dois formatos aparecem dependendo de qual campo
+// o chamador populou em `client.segmentName` (ver linha ~526). Bug real
+// encontrado nesta sessão: o mapa antigo só tinha slugs hipotéticos
+// (automotivo/varejo/ecommerce/educacao/beleza) que nunca bateram com nenhum
+// segmento REAL desta base — todo cliente, de qualquer segmento, sempre caía
+// no fallback indigo, sem que a diferenciação por cor jamais funcionasse.
 const SEGMENT_COLORS: Record<string, string> = {
+  // Segmentos reais desta base
   imobiliario:         'bg-blue-500',
+  imobiliaria:         'bg-blue-500',
+  'venda-de-carros':   'bg-orange-500',
+  carros:              'bg-orange-500',
+  geral:               'bg-slate-500',
+  pet:                 'bg-teal-500',
+  'saude-digital':     'bg-rose-500',
+  saude:               'bg-rose-500',
+  'master-platform':   'bg-gray-500',
+  master:              'bg-gray-500',
+  // Slugs hipotéticos/futuros — mantidos: o Master pode criar um segmento
+  // novo com qualquer um desses slugs a qualquer momento via
+  // /admin/master/segments, sem precisar de deploy novo.
   automotivo:          'bg-orange-500',
   varejo:              'bg-emerald-500',
   ecommerce:           'bg-emerald-500',
-  saude:               'bg-rose-500',
   educacao:            'bg-violet-500',
   beleza:              'bg-pink-500',
   'marketing-digital': 'bg-indigo-500',
 };
 
+function normalizeSegmentKey(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // remove acentos (á→a, ú→u, etc.)
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-');
+}
+
 function segmentColor(seg?: string | null): string {
   if (!seg) return 'bg-gray-400';
-  const key = seg.toLowerCase().replace(/\s+/g, '-');
+  const key = normalizeSegmentKey(seg);
   return SEGMENT_COLORS[key] || 'bg-indigo-500';
 }
 
