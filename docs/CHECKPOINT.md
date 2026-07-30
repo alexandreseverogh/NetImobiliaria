@@ -1,7 +1,65 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-30 (continuação) — **Fix real: dropdown de Segmento ignorava a
-> cor real cadastrada em `system_segments.color_theme` (commit pendente).** Testando o item
+> **Atualizado em:** 2026-07-30 (continuação 2) — **Modal "Consultar Campanhas": pivot de
+> cliente + filtro de período por veiculação + prewarm da rota (commit `e56e9a2` seguinte).**
+> Usuário reportou dois pontos testando `/admin/campanhas/nova` → "Consultar Campanhas" pro
+> tenant admmd: (1) nenhuma campanha aparecia; (2) a tela deveria ter os mesmos filtros de
+> Minha Empresa/Segmentos/Clientes/período já implementados no dashboard — pediu análise
+> profunda sob a ótica do negócio antes de mexer em código.
+>
+> **Investigação do item 1 — não era bug de lógica.** Testado ao vivo (sessão real via JWT,
+> tenant Marketing Digital): as 5 campanhas próprias reais carregaram corretamente depois de
+> alguns segundos, batendo exato com o banco; reaberto o modal uma 2ª vez (rota já compilada)
+> carregou instantâneo. Confirmado também que nenhum dos 7 clientes reais deste tenant está
+> genuinamente zerado (3-4 campanhas cada). Causa real: mesmo padrão crônico já documentado
+> várias vezes neste arquivo — compilação sob demanda do Next em modo DEV faz a 1ª abertura
+> de uma rota numa sessão nova levar alguns segundos, tempo em que o skeleton de loading pode
+> ser confundido com "nada aparece" se o usuário não espera. Não é esperado em produção
+> (build já compilado).
+>
+> **Item 2 — análise de negócio, não implementação direta.** Proposta inicial (Cliente sim,
+> Segmento não, período como "filtro de busca secundário") foi corrigida depois do usuário
+> pedir reavaliação do ponto do período: a distinção "busca vs. agregação" era artificial —
+> um filtro de período num catálogo tem a mesma função real que num dashboard (escopar o que
+> é relevante agora), só que aplicado a JANELA DE VEICULAÇÃO da campanha
+> (`AdSet.startTime`/`endTime`), não a "data de criação do registro" (proposta original,
+> corrigida) nem a agregação de gasto/leads (que esta tela não tem). Precedente direto: o
+> próprio Meta Ads Manager filtra sua lista de campanhas por data de veiculação, não de
+> criação — mesmo padrão replicado aqui. Segmento ficou de fora como eixo novo (implícito
+> pelo cliente escolhido, redundante nesta tela mono-tenant).
+>
+> **Implementado, `src/components/marketing/CampanhasModal.tsx`:**
+> 1. **Pivot de cliente sem fechar o modal** — `ClientSelector` (`variant="toggle"`, mesmo
+>    componente já usado em 9 outras telas do módulo) inserido no cabeçalho; novo estado
+>    interno `localClientFilter` (inicializado a partir das props `campaignFor`/
+>    `effectiveClientId` só na transição de abertura, editável livremente depois);
+>    `fetchCampaigns` refeito pra depender dele em vez das props fixas. Lista de clientes
+>    carregada via o mesmo endpoint `/api/admin/campanhas/clients` que o hook
+>    `useClientSelector` já usa (não reaproveitado diretamente porque o hook tem lógica de
+>    default por segmento que não se aplica aqui — mono-tenant, sem conceito de segmento
+>    ativo). `contextTitle`/`contextSubtitle` recalculados a partir do pivot local.
+> 2. **Filtro de período por janela de veiculação** — `DateInputPtBR` (De/Até) + presets
+>    Hoje/7d/15d/30d, mesmo visual do dashboard; filtro client-side (`overlapsPeriod`):
+>    `campanha.adSets.some(as => as.startTime <= fim && (!as.endTime || as.endTime >= início))`
+>    — campanha sem `endTime` (em aberto) é tratada como ainda ativa em qualquer período que
+>    não termine antes do início dela.
+> 3. **`hasActiveFilters`** unifica busca+status+período pro empty-state e o botão
+>    "Limpar filtros" (que agora também limpa o período).
+>
+> **`src/app/admin/campanhas/nova/page.tsx`** — prewarm: `adminFetch('/api/admin/campanhas/
+> campaigns?clientId=own')` disparado direto no mount (sem esperar ociosidade — mesma lição
+> já aplicada no fix do `/artemis4`: um clique rápido vence um `requestIdleCallback`).
+>
+> **Verificado:** `npx tsc --noEmit` — 53 erros, mesma baseline, zero nos 2 arquivos tocados.
+> Ao vivo (sessão real, tenant Marketing Digital): pivot de "Minha Empresa" → "AutoMax
+> Veículos" sem fechar o modal, título atualiza pra "Campanhas de AutoMax Veículos (3)",
+> batendo com o banco · filtro de período testado com range antes do início real das 3
+> campanhas (todas com `startTime=2026-04-29`, sem `endTime`) → corretamente 0/3, empty state
+> "Ajuste os filtros de busca, status ou período" · "Limpar filtros" restaura as 3
+> corretamente, campos de data limpos, presets desmarcados.
+>
+> — **Sessão anterior (2026-07-30, continuação) — Fix real: dropdown de Segmento ignorava a
+> cor real cadastrada em `system_segments.color_theme` (commit `e56e9a2`).** Testando o item
 > "Abra o dropdown de segmento → passe o mouse pelas opções → a opção com o mouse em cima usa
 > fundo âmbar suave, não indigo", o usuário declarou a expectativa correta: "eu imaginei que a
 > cor exibida para cada segmento no dropdown seria a cor do tema do segmento que está na
@@ -595,9 +653,15 @@ do token em localStorage fora de escopo por decisão do plano
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-30 (continuação 2) — "Consultar Campanhas": pivot de cliente + período por veiculação + prewarm ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 2)").
+
+---
+
 ### Sessão 2026-07-30 (continuação) — Fix real: dropdown de Segmento ignorava color_theme real ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação)"). Commit `e56e9a2`.
 
 ---
 

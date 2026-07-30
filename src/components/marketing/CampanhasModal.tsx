@@ -24,6 +24,8 @@ import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
 import { ANGLE_OPTIONS, angleLabel } from '@/lib/marketing/angles';
 import { PencilIcon, CheckIcon } from '@heroicons/react/24/outline';
+import ClientSelector, { type ClientOption, type ClientFilterValue } from '@/components/marketing/ClientSelector';
+import DateInputPtBR from '@/components/ui/DateInputPtBR';
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -1228,6 +1230,15 @@ export interface CampanhasModalProps {
   isMaster?: boolean;
 }
 
+// Presets de período — mesma lógica de "Hoje/7d/15d/30d" do dashboard, adaptados
+// pra filtro client-side por janela de veiculação (não agregação de gasto/leads).
+const PERIOD_PRESETS = [
+  { value: '1',  label: 'Hoje' },
+  { value: '7',  label: '7d'   },
+  { value: '15', label: '15d'  },
+  { value: '30', label: '30d'  },
+];
+
 export default function CampanhasModal({
   isOpen, onClose, effectiveClientId, campaignFor, clientName, isMaster = false,
 }: CampanhasModalProps) {
@@ -1241,12 +1252,40 @@ export default function CampanhasModal({
   const [showClassifyModal, setShowClassifyModal] = useState(false);
   const [classifyDismissed, setClassifyDismissed] = useState(false);
 
+  // ── Pivot de cliente dentro do modal (sem fechar/reabrir) ──────────────────
+  // 'own' | 'segment' (= todas: próprias + clientes) | <uuid de cliente>
+  const [localClientFilter, setLocalClientFilter] = useState<ClientFilterValue>('own');
+  const [clientOptions, setClientOptions]         = useState<ClientOption[]>([]);
+  const [clientsLoading, setClientsLoading]       = useState(false);
+
+  // ── Filtro de período — janela de veiculação (AdSet.startTime/endTime),
+  // não janela de agregação de gasto/leads (esta tela não tem métrica). ─────
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd]     = useState('');
+  const [quickPeriod, setQuickPeriod] = useState('');
+
+  function applyQuickPeriod(days: string) {
+    const end   = new Date();
+    const start = new Date(Date.now() - (parseInt(days, 10) - 1) * 86400000);
+    setQuickPeriod(days);
+    setPeriodStart(start.toISOString().split('T')[0]);
+    setPeriodEnd(end.toISOString().split('T')[0]);
+  }
+
+  function clearPeriod() {
+    setQuickPeriod('');
+    setPeriodStart('');
+    setPeriodEnd('');
+  }
+
   const fetchCampaigns = useCallback(async () => {
     setLoading(true); setError('');
     try {
       const params = new URLSearchParams();
       if (!isMaster) {
-        params.set('clientId', effectiveClientId || 'own');
+        if (localClientFilter === 'own') params.set('clientId', 'own');
+        else if (localClientFilter !== 'segment') params.set('clientId', localClientFilter);
+        // 'segment' (Todos os Clientes) → sem parâmetro; a API já retorna próprias + clientes
       }
       const res = await adminFetch(`/api/admin/campanhas/campaigns?${params}`);
       if (!res.ok) throw new Error(await res.text() || `Erro ${res.status}`);
@@ -1257,20 +1296,50 @@ export default function CampanhasModal({
     } finally {
       setLoading(false);
     }
-  }, [effectiveClientId, campaignFor, isMaster]);
+  }, [localClientFilter, isMaster]);
 
+  // Reseta o estado do modal só na transição de abertura — pivotar cliente/período
+  // DENTRO do modal já aberto não deve reiniciar busca/status/página sozinho.
   useEffect(() => {
     if (isOpen) {
-      fetchCampaigns();
+      setLocalClientFilter(campaignFor === 'client' && effectiveClientId ? effectiveClientId : 'own');
       setSearch('');
       setStatusFilter('');
+      clearPeriod();
       setPage(1);
       setClassifyDismissed(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Busca campanhas sempre que o modal abre OU o cliente pivotado muda
+  useEffect(() => {
+    if (isOpen) fetchCampaigns();
   }, [isOpen, fetchCampaigns]);
 
+  // Carrega a lista de clientes pra o ClientSelector (não aplicável a master,
+  // que já vê tudo sem noção de cliente único nesta tela)
+  useEffect(() => {
+    if (!isOpen || isMaster) return;
+    setClientsLoading(true);
+    fetch('/api/admin/campanhas/clients', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        const list: any[] = Array.isArray(data) ? data : (data.clients || []);
+        setClientOptions(list.map((c: any) => ({
+          id:            c.id   || c.uuid,
+          name:          c.name || c.nome || '',
+          email:         c.email || null,
+          segmentName:   c.segmentName || c.segment_name || c.segment_slug || null,
+          campaignCount: c.campaignCount ?? undefined,
+        })));
+      })
+      .catch(() => {})
+      .finally(() => setClientsLoading(false));
+  }, [isOpen, isMaster]);
+
   // Reset to page 1 when filters change
-  useEffect(() => { setPage(1); }, [search, statusFilter]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, periodStart, periodEnd]);
 
   // Close on Escape
   useEffect(() => {
@@ -1283,26 +1352,53 @@ export default function CampanhasModal({
   // FASE 14d — contagem para o banner de classificação
   const unclassifiedCount = campaigns.filter(c => !c.declaredAngle).length;
 
+  // Overlap com a janela de veiculação real (AdSet.startTime/endTime) — não é
+  // "criada entre X e Y", é "esteve/está ativa nesse intervalo" (mesmo critério
+  // que o próprio Meta Ads Manager usa pra filtrar lista de campanhas por data).
+  function overlapsPeriod(c: CampaignData): boolean {
+    if (!periodStart && !periodEnd) return true;
+    const rangeStart = periodStart ? new Date(`${periodStart}T00:00:00`) : null;
+    const rangeEnd   = periodEnd   ? new Date(`${periodEnd}T23:59:59`)   : null;
+    if (c.adSets.length === 0) return false;
+    return c.adSets.some(as => {
+      const flightStart = new Date(as.startTime);
+      const flightEnd    = as.endTime ? new Date(as.endTime) : null;
+      if (rangeEnd && flightStart > rangeEnd) return false;
+      if (rangeStart && flightEnd && flightEnd < rangeStart) return false;
+      return true;
+    });
+  }
+
+  const hasActiveFilters = !!(search || statusFilter || periodStart || periodEnd);
+
   const filtered = campaigns.filter(c => {
     const matchSearch  = !search       || c.id === search;   // seleção exata pelo id
     const matchStatus  = !statusFilter || c.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchPeriod  = overlapsPeriod(c);
+    return matchSearch && matchStatus && matchPeriod;
   });
 
   const totalFiltered = filtered.length;
   const paginated     = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
+  const isClientPivot   = localClientFilter !== 'own' && localClientFilter !== 'segment';
+  const pivotedClientName = isClientPivot
+    ? clientOptions.find(c => c.id === localClientFilter)?.name ?? clientName
+    : undefined;
+
   const contextTitle = isMaster
     ? 'Todas as Campanhas'
-    : campaignFor === 'client' && clientName
-    ? `Campanhas de ${clientName}`
+    : localClientFilter === 'segment'
+    ? 'Todas as Campanhas'
+    : pivotedClientName
+    ? `Campanhas de ${pivotedClientName}`
     : 'Campanhas da Minha Empresa';
 
   const contextSubtitle = isMaster
     ? 'Visão consolidada'
-    : campaignFor === 'client' && clientName
-    ? clientName
-    : 'Minha Empresa';
+    : localClientFilter === 'segment'
+    ? 'Próprias + Clientes'
+    : pivotedClientName || 'Minha Empresa';
 
   return (
     <AnimatePresence>
@@ -1428,6 +1524,57 @@ export default function CampanhasModal({
                     <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                   </div>
                 </div>
+
+                {/* ── Pivot: Cliente + Período (veiculação) ── */}
+                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-4 flex-wrap">
+                  {!isMaster && (
+                    <ClientSelector
+                      value={localClientFilter}
+                      onChange={setLocalClientFilter}
+                      clients={clientOptions}
+                      loading={clientsLoading}
+                      variant="toggle"
+                    />
+                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <DateInputPtBR
+                      value={periodStart}
+                      onChange={iso => { setPeriodStart(iso); setQuickPeriod(''); }}
+                      className="w-[120px] py-2 pl-3 pr-7 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm"
+                    />
+                    <span className="text-gray-300 text-xs font-bold">→</span>
+                    <DateInputPtBR
+                      value={periodEnd}
+                      onChange={iso => { setPeriodEnd(iso); setQuickPeriod(''); }}
+                      className="w-[120px] py-2 pl-3 pr-7 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm"
+                    />
+                    <div className="flex gap-1 rounded-xl p-1 border border-gray-200 bg-gray-50">
+                      {PERIOD_PRESETS.map(p => (
+                        <button
+                          key={p.value}
+                          onClick={() => applyQuickPeriod(p.value)}
+                          className={cn(
+                            'px-2.5 py-1.5 rounded-lg text-xs font-black transition-colors',
+                            quickPeriod === p.value
+                              ? 'bg-gold-premium text-navy-dark'
+                              : 'text-gray-500 hover:text-gray-900 hover:bg-white',
+                          )}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    {(periodStart || periodEnd) && (
+                      <button
+                        onClick={clearPeriod}
+                        title="Limpar período"
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all"
+                      >
+                        <XMarkIcon className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1475,18 +1622,18 @@ export default function CampanhasModal({
                       <RocketLaunchIcon className="h-12 w-12 text-indigo-300" />
                     </div>
                     <p className="text-lg font-black text-gray-700 mb-2">
-                      {search || statusFilter ? 'Nenhuma campanha encontrada' : 'Nenhuma campanha lançada ainda'}
+                      {hasActiveFilters ? 'Nenhuma campanha encontrada' : 'Nenhuma campanha lançada ainda'}
                     </p>
                     <p className="text-sm text-gray-400 max-w-xs leading-relaxed">
-                      {search || statusFilter
-                        ? 'Ajuste os filtros de busca ou status.'
+                      {hasActiveFilters
+                        ? 'Ajuste os filtros de busca, status ou período.'
                         : `Use "Configurar Campanha" para lançar ${
-                            campaignFor === 'client' && clientName ? `a primeira campanha de ${clientName}` : 'sua primeira campanha'
+                            pivotedClientName ? `a primeira campanha de ${pivotedClientName}` : 'sua primeira campanha'
                           }.`}
                     </p>
-                    {(search || statusFilter) && (
+                    {hasActiveFilters && (
                       <button
-                        onClick={() => { setSearch(''); setStatusFilter(''); }}
+                        onClick={() => { setSearch(''); setStatusFilter(''); clearPeriod(); }}
                         className="mt-5 px-5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-all shadow-sm"
                       >
                         Limpar filtros

@@ -119,6 +119,16 @@ export default function NovaCampanhaPage() {
   /* ── Consultar campanhas modal ──────────────────────── */
   const [showConsultarModal, setShowConsultarModal] = useState(false);
 
+  /* Prewarm da rota de campanhas assim que a página monta — em dev, o Next
+   * compila cada API route sob demanda no 1º hit; sem isso, o 1º clique em
+   * "Consultar Campanhas" mostra o skeleton de loading por vários segundos
+   * (mesmo padrão de causa raiz já documentado no prewarm de /admin/login em
+   * /artemis4). Dispara direto no mount, sem esperar ociosidade — o clique
+   * costuma ser rápido demais pra um requestIdleCallback vencer a corrida. */
+  useEffect(() => {
+    adminFetch('/api/admin/campanhas/campaigns?clientId=own').catch(() => {});
+  }, []);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supportsPickerAPI =
     typeof window !== 'undefined' && 'showDirectoryPicker' in window;
