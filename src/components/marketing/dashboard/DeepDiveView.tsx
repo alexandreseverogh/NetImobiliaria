@@ -189,7 +189,7 @@ export function DeepDiveView({
               <span className="text-base leading-none">🩺</span>
             </div>
             <div>
-              <h2 className={cn('text-lg font-black', tx)}>Saúde do Tracking</h2>
+              <h2 className={cn('text-lg font-black', tx)}>Saúde do Rastreamento</h2>
               <p className={cn('text-xs', txMuted)}>Score 0-100 — monitoramento automático do tracking e pixel</p>
             </div>
           </div>

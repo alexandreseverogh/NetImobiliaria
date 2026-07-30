@@ -116,7 +116,7 @@ function CustomTooltip({ active, payload, isDark }: any) {
         </div>
         {angle.exogenous !== null ? (
           <div className="flex justify-between gap-4">
-            <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>Demanda (Trends)</span>
+            <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>Demanda (Tendências)</span>
             <span style={{ color: '#22d3ee' }} className="font-mono font-semibold">{angle.exogenous}</span>
           </div>
         ) : (
@@ -278,7 +278,7 @@ function SegmentRadarBlock({ seg, isDark }: { seg: SegmentRadar; isDark: boolean
 
   const hasExo = seg.hasTrendsData;
   const exoLabel = seg.exogenousAvailability === seg.totalAngles && seg.totalAngles > 0
-    ? '📶 Trends ao vivo'
+    ? '📶 Tendências ao vivo'
     : seg.exogenousAvailability > 0
       ? `📶 ${seg.exogenousAvailability}/${seg.totalAngles} ângulos`
       : '⏳ Aguardando cron';
@@ -343,7 +343,7 @@ function SegmentRadarBlock({ seg, isDark }: { seg: SegmentRadar; isDark: boolean
                 activeDot={{ r: 6, fill: '#818cf8' }} />
               {hasExo && (
                 // Exógeno — tracejado mais espesso, bem visível
-                <Radar name="Demanda (Trends)" dataKey="exogenousPlot"
+                <Radar name="Demanda (Tendências)" dataKey="exogenousPlot"
                   stroke="#22d3ee"
                   strokeWidth={2.5}
                   strokeDasharray="7 3"

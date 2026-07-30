@@ -188,7 +188,7 @@ export function TrackingHealthWidget({ clientId, segmentId, compact = false }: P
               <HeartIcon className="h-4 w-4 text-slate-500" />
             </div>
             <div>
-              <p className="text-xs font-black text-slate-600 uppercase tracking-widest">Saúde do Tracking</p>
+              <p className="text-xs font-black text-slate-600 uppercase tracking-widest">Saúde do Rastreamento</p>
               <p className="text-[10px] text-gray-400">Nenhuma verificação executada</p>
             </div>
           </div>
@@ -225,7 +225,7 @@ export function TrackingHealthWidget({ clientId, segmentId, compact = false }: P
             <div className="flex items-center gap-2 mb-0.5">
               <HeartIcon className={`h-4 w-4 shrink-0 ${score !== null ? '' : 'text-gray-400'}`}
                 style={{ color: score !== null ? scoreColor(score) : undefined }} />
-              <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Saúde do Tracking</p>
+              <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Saúde do Rastreamento</p>
             </div>
             {score !== null && (
               <p className="text-sm font-bold" style={{ color: scoreColor(score) }}>

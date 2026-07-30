@@ -517,13 +517,13 @@ function scoreDimensionTracking(
   const criticalCount = issues.filter((i: any) => i.severity === 'critical').length;
 
   const detail = criticalCount > 0
-    ? `${criticalCount} problema(s) crítico(s) de tracking detectado(s).`
+    ? `${criticalCount} problema(s) crítico(s) de rastreamento detectado(s).`
     : issues.length > 0
-      ? `${issues.length} alerta(s) de tracking — score ${score}/100.`
-      : `Tracking saudável — score ${score}/100.`;
+      ? `${issues.length} alerta(s) de rastreamento — score ${score}/100.`
+      : `Rastreamento saudável — score ${score}/100.`;
 
   return {
-    id: 'tracking', label: 'Saúde do Tracking', score,
+    id: 'tracking', label: 'Saúde do Rastreamento', score,
     weight: DIMENSION_WEIGHTS.tracking,
     detail,
     status: score >= 70 ? 'ok' : score >= 45 ? 'warn' : 'critical',
