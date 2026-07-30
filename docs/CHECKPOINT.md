@@ -1,6 +1,41 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-30 (continuação 4) — **Fix real: ícone de calendário longe do
+> **Atualizado em:** 2026-07-30 (continuação 5) — **2 pontos testados pelo usuário: TikTok
+> Ads desabilitado (não era bug — provisionamento pendente) + paginação do "Consultar
+> Campanhas" (não era bug — bastava usar "Todos os Clientes"), commit `migration-2026-07-30-
+> provision-tiktok-test-marketing-digital.sql`.**
+>
+> **(1) "TikTok Ads" desabilitado em `/admin/campanhas/nova` pro tenant admmd —
+> investigado, confirmado que era o gate de provisionamento por rede funcionando
+> corretamente, não um bug.** `GET /api/admin/campanhas/configuracoes/redes` mostrava TikTok
+> com `contracted:false` (sem linha em `tenant_feature_overrides` pra
+> `campanhas-rede-tiktok`) **e** `connected:false` (nenhuma linha em
+> `tenant_network_credentials`) — exatamente o comportamento documentado no CLAUDE.md
+> ("cada rede é cobrada separadamente"). Perguntado ao usuário via `AskUserQuestion` antes
+> de mexer em dado de tenant real; escolheu "Provisionar + conectar credencial de teste".
+> Aplicado `prisma/migration-2026-07-30-provision-tiktok-test-marketing-digital.sql`
+> (aditivo/idempotente): insere `tenant_feature_overrides` (feature 117,
+> `campanhas-rede-tiktok`) + uma linha em `tenant_network_credentials` com
+> `credentials={"access_token":"__SIMULATED__"}` — mesmo marcador sentinela já usado na
+> Trilha E/T3 desta sessão (`SIMULATED_MARKER` em `factory.ts`), que ativa o
+> `FakeTikTokAdapter` em vez de tentar falar com a API real do TikTok (T2, adapter real,
+> segue bloqueado por aprovação externa). Verificado ao vivo: endpoint agora retorna
+> `contracted:true, connected:true` pro TikTok; botão "TikTok Ads" com `disabled:false`;
+> clicado de verdade → wizard abre no step "Rede de Anúncios" com TikTok pré-selecionado,
+> badge "Conectado".
+>
+> **(2) Paginação do modal "Consultar Campanhas" não testável — usuário relatou só 5
+> campanhas na tabela.** Não era bug nem faltava dado: as 5 são só as campanhas "próprias"
+> (`client_id IS NULL`) do tenant Marketing Digital; o tenant tem mais 23 campanhas
+> distribuídas entre os 7 clientes reais que gerencia (28 no total). O pill "Todos os
+> Clientes" no `ClientSelector` — já implementado dentro do modal numa sessão anterior desta
+> mesma frente — remove o filtro de `clientId` e já traz as 28 campanhas de uma vez.
+> Verificado ao vivo: clicado "Todos os Clientes" → título "Todas as Campanhas (28)",
+> paginação real com 3 páginas (12+12+4), confirmando que o componente de paginação já
+> funciona — só faltava o usuário saber que esse pill existe. Nenhuma mudança de código
+> necessária.
+>
+> — **Sessão anterior (2026-07-30, continuação 4) — Fix real: ícone de calendário longe do
 > campo de data no modal "Consultar Campanhas" (commit seguinte).** Usuário mandou print
 > mostrando o ícone de calendário afastado do fim visível dos campos De/Até. Causa real:
 > `DateInputPtBR` (componente compartilhado) posiciona o botão do calendário via
@@ -690,9 +725,15 @@ do token em localStorage fora de escopo por decisão do plano
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-30 (continuação 5) — TikTok Ads provisionado (teste) + paginação esclarecida ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 5)").
+
+---
+
 ### Sessão 2026-07-30 (continuação 4) — Fix real: ícone de calendário afastado do campo de data ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 4)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 4)"). Commit `45f129c`.
 
 ---
 
