@@ -1,6 +1,55 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-30 (continuação 5) — **2 pontos testados pelo usuário: TikTok
+> **Atualizado em:** 2026-07-30 (continuação 6) — **Fix real: wizard de campanha (Meta/
+> TikTok) levava 30+ segundos pra abrir + refazia a escolha de rede do zero (commit
+> seguinte).** Usuário reportou: ao clicar num dos 3 botões macro ("Meta Ads"/"TikTok Ads"/
+> "Google AI Max") em `/admin/campanhas/nova`, a "segunda página" (o wizard) demorava
+> extremamente pra carregar e mostrava de novo os mesmos 3 botões de escolha de rede — pediu
+> avaliação antes de mexer.
+>
+> **Investigação, com medição real:** cliquei em "Meta Ads" via script e cronometrei —
+> **mais de 30 segundos** até o passo "Rede de Anúncios" do wizard aparecer (o teste bateu no
+> timeout de 30s da própria ferramenta de automação). Causas reais, confirmadas via
+> `read_network_requests`, não hipotéticas:
+> 1. `CampaignWizard`/`GoogleAiMaxWizard` são carregados via `next/dynamic({ssr:false})` —
+>    chunk JS separado, nunca compilado antecipadamente, só no 1º uso — mesmo padrão de causa
+>    raiz já corrigido em `/admin/login` e em `/api/admin/campanhas/campaigns` nesta sessão,
+>    nunca aplicado aqui.
+> 2. `StepNetwork` (passo 1 do wizard) faz sua **própria** chamada a `GET /api/admin/
+>    campanhas/configuracoes/redes` — o MESMO endpoint que `/nova` já buscou e guarda em
+>    `networkStatus`. Capturado **4 chamadas duplicadas** a esse endpoint só numa abertura,
+>    cada uma com seu próprio skeleton de loading.
+> 3. A "pergunta de novo pela rede" é real, não impressão: `StepNetwork` sempre renderiza os
+>    3 cards de escolha de novo — a pré-seleção do botão clicado em `/nova` só aparece como
+>    anel dourado, não pula a etapa.
+>
+> **Decisão do usuário (perguntado antes de implementar):** manter a etapa "Rede" visível
+> (útil poder trocar de rede dentro do wizard), mas fazê-la aparecer **instantânea, já com a
+> opção certa destacada** — não pular a etapa, só eliminar a demora e a rebusca.
+>
+> **Implementado:**
+> 1. `src/app/admin/campanhas/nova/page.tsx` — novo `useEffect` de prewarm: `import(
+>    '@/components/marketing/CampaignWizard')` e `import('@/components/marketing/
+>    GoogleAiMaxWizard')` disparados sem renderizar nada, assim que a página monta — o
+>    webpack compila os chunks em background enquanto o usuário ainda escolhe criativos.
+> 2. Página já guarda `networkStatus` (mapa derivado) mas descartava a lista crua da API —
+>    nova state `networksRaw` guarda a resposta completa (`d.networks`), repassada como prop
+>    `networks` pro `<CampaignWizard>`.
+> 3. `src/components/marketing/CampaignWizard.tsx` — `Props` ganha `networks?: NetworkOption[]`
+>    (interface movida pra cima, próxima da declaração de `Props`, removida a duplicata que
+>    existia mais abaixo); `StepNetwork` recebe `networks` como prop — se vier preenchida,
+>    usa direto (zero fetch, zero skeleton); se ausente (uso standalone), cai no fallback de
+>    sempre buscar sozinha, mantendo retrocompatibilidade.
+>
+> **Verificado:** `npx tsc --noEmit` — 53 erros, mesma baseline, zero nos 2 arquivos tocados.
+> Ao vivo, depois do dev server estabilizar (sessões de teste anteriores foram contaminadas
+> por HMR concorrente dos próprios edits, causando hangs de 30-78s não relacionados ao fix
+> em si — descartadas, refeitas limpas): clique em "Meta Ads" abre a etapa "Rede de
+> Anúncios" **instantaneamente** (confirmado 2x, sem skeleton visível), Meta Ads já com o
+> anel dourado de seleção (`ring-2`) — mesma UX pedida: etapa continua visível e editável,
+> mas sem demora nem rebusca.
+>
+> — **Sessão anterior (2026-07-30, continuação 5) — 2 pontos testados pelo usuário: TikTok
 > Ads desabilitado (não era bug — provisionamento pendente) + paginação do "Consultar
 > Campanhas" (não era bug — bastava usar "Todos os Clientes"), commit `migration-2026-07-30-
 > provision-tiktok-test-marketing-digital.sql`.**
@@ -725,9 +774,15 @@ do token em localStorage fora de escopo por decisão do plano
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-30 (continuação 6) — Fix real: wizard de campanha lento + refazia escolha de rede ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 6)").
+
+---
+
 ### Sessão 2026-07-30 (continuação 5) — TikTok Ads provisionado (teste) + paginação esclarecida ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 5)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 5)"). Commit `af2fe90`.
 
 ---
 

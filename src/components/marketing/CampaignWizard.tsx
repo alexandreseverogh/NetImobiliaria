@@ -17,6 +17,12 @@ const inputCls =
   'placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all disabled:opacity-60';
 
 /* ── types ───────────────────────────────────────────────── */
+interface NetworkOption {
+  id: string; code: string; name: string; icon: string; color: string;
+  network_active: boolean; capabilities: { supported?: boolean }; connected?: boolean;
+  contracted?: boolean;
+}
+
 interface Props {
   selectedImages?: Creative[];
   onClose: () => void;
@@ -40,6 +46,14 @@ interface Props {
     /** Pré-seleciona a rede no step 0 — vem do botão específico clicado em /nova (Meta/TikTok). */
     networkCode?: string;
   };
+  /**
+   * Status de rede já resolvido por /nova (GET /configuracoes/redes) — repassado pra
+   * StepNetwork evitar refazer a mesma chamada do zero (achado real: a etapa "Rede" sempre
+   * recarregava e reexibia o próprio skeleton, mesmo a rede já tendo sido escolhida no botão
+   * clicado em /nova, um dos fatores da demora extrema reportada ao abrir o wizard).
+   * Ausente/vazio → StepNetwork busca sozinha (uso standalone continua funcionando).
+   */
+  networks?: NetworkOption[];
 }
 
 /* ── AutoChip ────────────────────────────────────────────── */
@@ -85,7 +99,7 @@ function Label({ children, className }: { children: React.ReactNode; className?:
 /* ══════════════════════════════════════════════════════════
    MAIN WIZARD COMPONENT — FASE 2 (configuração da campanha)
 ══════════════════════════════════════════════════════════ */
-export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds, initialValues }: Props) {
+export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds, initialValues, networks }: Props) {
   const selectedImages = selectedImagesProp ?? [];
   const [step, setStep]             = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -404,7 +418,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               transition={{ duration: 0.2 }}
               className="max-w-4xl"
             >
-              {step === 0 && <StepNetwork   form={form} updateForm={updateForm} />}
+              {step === 0 && <StepNetwork   form={form} updateForm={updateForm} networks={networks} />}
               {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} />}
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
@@ -463,17 +477,16 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
    STEP 0 — REDE
 ══════════════════════════════════════════════════════════ */
 
-interface NetworkOption {
-  id: string; code: string; name: string; icon: string; color: string;
-  network_active: boolean; capabilities: { supported?: boolean }; connected?: boolean;
-  contracted?: boolean;
-}
-
-function StepNetwork({ form, updateForm }: any) {
-  const [networks, setNetworks] = useState<NetworkOption[]>([]);
-  const [loading, setLoading]   = useState(true);
+function StepNetwork({ form, updateForm, networks: networksProp }: any) {
+  // /nova já buscou o status de rede pra habilitar os botões macro (Meta/TikTok/Google) —
+  // se ele repassou a lista aqui, reaproveita direto: sem refetch, sem skeleton próprio.
+  // Só busca sozinha se usada sem esse prop (fallback, uso standalone).
+  const hasPreloaded = Array.isArray(networksProp) && networksProp.length > 0;
+  const [networks, setNetworks] = useState<NetworkOption[]>(hasPreloaded ? networksProp : []);
+  const [loading, setLoading]   = useState(!hasPreloaded);
 
   useEffect(() => {
+    if (hasPreloaded) return;
     axios.get('/api/admin/campanhas/configuracoes/redes')
       .then(r => setNetworks(r.data.networks || []))
       .catch(() => {
@@ -483,7 +496,8 @@ function StepNetwork({ form, updateForm }: any) {
         }]);
       })
       .finally(() => setLoading(false));
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPreloaded]);
 
   const ICONS: Record<string, string> = { meta: '𝕗', google: 'G', linkedin: 'in', tiktok: '♪' };
 

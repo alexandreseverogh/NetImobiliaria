@@ -92,13 +92,20 @@ export default function NovaCampanhaPage() {
    *  Ver prisma/migration-2026-07-28-network-provisioning.sql. */
   const [networkStatus, setNetworkStatus] = useState<Record<string, { contracted: boolean; connected: boolean; supported: boolean }>>({});
   const [networksLoaded, setNetworksLoaded] = useState(false);
+  // Lista crua da mesma resposta, repassada pro CampaignWizard -> StepNetwork — achado real:
+  // a etapa "Rede" do wizard sempre refazia essa MESMA chamada do zero (com o próprio
+  // skeleton), mesmo a rede já tendo sido escolhida no botão macro clicado aqui. Reaproveitar
+  // elimina 1 dos fatores da demora extrema reportada ao abrir o wizard.
+  const [networksRaw, setNetworksRaw] = useState<any[]>([]);
 
   useEffect(() => {
     adminFetch('/api/admin/campanhas/configuracoes/redes')
       .then(r => r.json())
       .then(d => {
+        const list = d.networks || [];
+        setNetworksRaw(list);
         const map: Record<string, { contracted: boolean; connected: boolean; supported: boolean }> = {};
-        (d.networks || []).forEach((n: any) => {
+        list.forEach((n: any) => {
           map[n.code] = {
             contracted: n.contracted !== false,
             connected:  !!n.connected,
@@ -127,6 +134,18 @@ export default function NovaCampanhaPage() {
    * costuma ser rápido demais pra um requestIdleCallback vencer a corrida. */
   useEffect(() => {
     adminFetch('/api/admin/campanhas/campaigns?clientId=own').catch(() => {});
+  }, []);
+
+  /* Prewarm dos chunks JS dos wizards (Meta/TikTok e Google AI Max) — medido ao vivo: a
+   * primeira abertura de qualquer um dos dois, numa sessão nova, levava 30+ segundos porque
+   * next/dynamic({ssr:false}) só compila o chunk sob demanda no 1º uso (mesma causa raiz já
+   * documentada em outros prewarms desta sessão). Disparar o import() aqui (sem renderizar
+   * nada) faz o webpack compilar em background enquanto o usuário ainda está selecionando
+   * criativos — pelo tempo que isso leva, o chunk já deve estar pronto quando o botão de
+   * rede for clicado. */
+  useEffect(() => {
+    import('@/components/marketing/CampaignWizard').catch(() => {});
+    import('@/components/marketing/GoogleAiMaxWizard').catch(() => {});
   }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -284,6 +303,7 @@ export default function NovaCampanhaPage() {
         onClose={() => setShowWizard(false)}
         onSuccess={handleSuccess}
         getAssetIds={() => uploadPromiseRef.current}
+        networks={networksRaw}
         initialValues={{
           body:        prefillBody || undefined,
           headline:    prefillHeadline || undefined,
