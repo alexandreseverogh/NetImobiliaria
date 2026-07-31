@@ -4,7 +4,7 @@ import pool from '@/lib/database/connection'
 
 export const runtime = 'nodejs'
 
-async function getLoggedUser(request: NextRequest): Promise<{ userId: string | null, error?: string }> {
+async function getLoggedUser(request: NextRequest): Promise<{ userId: string | null, tenantId?: string, isMaster?: boolean, error?: string }> {
   const token = getTokenFromRequest(request)
   if (!token) return { userId: null, error: 'Token não encontrado (Header ou Cookie)' }
 

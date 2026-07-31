@@ -23,9 +23,9 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const exists = userType === 'cliente' 
-      ? await checkClienteEmail(email, excludeUuid)
-      : await checkProprietarioEmail(email, excludeUuid)
+    const exists = userType === 'cliente'
+      ? await checkClienteEmail(email, null, excludeUuid)
+      : await checkProprietarioEmail(email, null, excludeUuid)
     
     console.log('✅ [PUBLIC] Resultado Email exists:', exists)
     

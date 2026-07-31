@@ -52,7 +52,9 @@ export interface CreateProprietarioData {
   cep?: string
   origem_cadastro?: string
   corretor_fk?: string | null
-  tenant_id: string
+  // Ausente/null pro cadastro público auto-atendido (sem empresa gestora) — ver
+  // checkCPFExists/checkEmailExists/checkCNPJExists (IS NOT DISTINCT FROM) pro tratamento null-safe.
+  tenant_id?: string | null
   created_by?: string
   semantic_data?: any
 }
@@ -202,7 +204,7 @@ export function formatCEP(value: string): string {
 export async function findProprietariosPaginated(
   page: number = 1,
   limit: number = 10,
-  filters: ProprietarioFilters = {}
+  filters: ProprietarioFilters
 ): Promise<{
   proprietarios: Proprietario[]
   total: number
@@ -396,25 +398,29 @@ export async function createProprietario(data: CreateProprietarioData, isAdmin: 
       throw new Error('CPF ou CNPJ deve ser informado')
     }
 
-    // Verificar se CPF já existe no mesmo tenant
+    // tenant_id normalizado pra null explícito — IS NOT DISTINCT FROM trata NULL corretamente
+    // (cadastro público não tem tenant; "=" nunca bate com NULL em SQL)
+    const tenantIdNormalizado = data.tenant_id || null
+
+    // Verificar se CPF já existe no mesmo tenant (ou no pool público, se tenant_id for null)
     if (data.cpf) {
-      const existingCPF = await pool.query('SELECT 1 FROM proprietarios WHERE cpf = $1 AND tenant_id = $2', [data.cpf, data.tenant_id])
+      const existingCPF = await pool.query('SELECT 1 FROM proprietarios WHERE cpf = $1 AND tenant_id IS NOT DISTINCT FROM $2', [data.cpf, tenantIdNormalizado])
       if (existingCPF.rows.length > 0) {
         throw new Error('CPF já cadastrado')
       }
     }
 
-    // Verificar se CNPJ já existe no mesmo tenant
+    // Verificar se CNPJ já existe no mesmo tenant (ou no pool público, se tenant_id for null)
     if (data.cnpj) {
-      const existingCNPJ = await pool.query('SELECT 1 FROM proprietarios WHERE cnpj = $1 AND tenant_id = $2', [data.cnpj, data.tenant_id])
+      const existingCNPJ = await pool.query('SELECT 1 FROM proprietarios WHERE cnpj = $1 AND tenant_id IS NOT DISTINCT FROM $2', [data.cnpj, tenantIdNormalizado])
       if (existingCNPJ.rows.length > 0) {
         throw new Error('CNPJ já cadastrado')
       }
     }
 
-    // Verificar se email já existe no mesmo tenant
+    // Verificar se email já existe no mesmo tenant (ou no pool público, se tenant_id for null)
     if (data.email) {
-      const existingEmail = await pool.query('SELECT 1 FROM proprietarios WHERE email = $1 AND tenant_id = $2', [data.email, data.tenant_id])
+      const existingEmail = await pool.query('SELECT 1 FROM proprietarios WHERE email = $1 AND tenant_id IS NOT DISTINCT FROM $2', [data.email, tenantIdNormalizado])
       if (existingEmail.rows.length > 0) {
         throw new Error('Email já cadastrado')
       }
@@ -447,7 +453,7 @@ export async function createProprietario(data: CreateProprietarioData, isAdmin: 
       data.origem_cadastro || 'Plataforma',
       data.created_by || 'system',
       data.corretor_fk || null,
-      data.tenant_id,
+      tenantIdNormalizado,
       JSON.stringify(data.semantic_data || {})
     ])
 
@@ -459,7 +465,7 @@ export async function createProprietario(data: CreateProprietarioData, isAdmin: 
 }
 
 // Atualizar proprietário por UUID
-export async function updateProprietarioByUuid(uuid: string, tenantId: string, data: UpdateProprietarioData, isAdmin: boolean = false): Promise<Proprietario> {
+export async function updateProprietarioByUuid(uuid: string, tenantId: string | null, data: UpdateProprietarioData, isAdmin: boolean = false): Promise<Proprietario> {
   try {
     // Validar CPF se fornecido e não vazio
     if (data.cpf && data.cpf.trim() !== '') {
@@ -479,10 +485,11 @@ export async function updateProprietarioByUuid(uuid: string, tenantId: string, d
       data.cpf = null as any
     }
 
-    // Verificar se CPF já existe no mesmo tenant (excluindo o próprio registro)
+    // Verificar se CPF já existe no mesmo tenant (excluindo o próprio registro) — IS NOT
+    // DISTINCT FROM trata null (proprietário público, sem tenant) corretamente
     if (data.cpf) {
       const existingCPF = await pool.query(
-        'SELECT 1 FROM proprietarios WHERE cpf = $1 AND tenant_id = $2 AND uuid != $3',
+        'SELECT 1 FROM proprietarios WHERE cpf = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND uuid != $3',
         [data.cpf, tenantId, uuid]
       )
       if (existingCPF.rows.length > 0) {
@@ -493,7 +500,7 @@ export async function updateProprietarioByUuid(uuid: string, tenantId: string, d
     // Verificar se CNPJ já existe no mesmo tenant (excluindo o próprio registro)
     if (data.cnpj) {
       const existingCNPJ = await pool.query(
-        'SELECT 1 FROM proprietarios WHERE cnpj = $1 AND tenant_id = $2 AND uuid != $3',
+        'SELECT 1 FROM proprietarios WHERE cnpj = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND uuid != $3',
         [data.cnpj, tenantId, uuid]
       )
       if (existingCNPJ.rows.length > 0) {
@@ -504,7 +511,7 @@ export async function updateProprietarioByUuid(uuid: string, tenantId: string, d
     // Verificar se email já existe no mesmo tenant (excluindo o próprio registro)
     if (data.email) {
       const existingEmail = await pool.query(
-        'SELECT 1 FROM proprietarios WHERE email = $1 AND tenant_id = $2 AND uuid != $3',
+        'SELECT 1 FROM proprietarios WHERE email = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND uuid != $3',
         [data.email, tenantId, uuid]
       )
       if (existingEmail.rows.length > 0) {
@@ -598,9 +605,9 @@ export async function updateProprietarioByUuid(uuid: string, tenantId: string, d
     }
 
     const query = `
-      UPDATE proprietarios 
+      UPDATE proprietarios
       SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE uuid = $${paramCount + 1}::uuid AND tenant_id = $${paramCount + 2}::uuid
+      WHERE uuid = $${paramCount + 1}::uuid AND tenant_id IS NOT DISTINCT FROM $${paramCount + 2}::uuid
       RETURNING *
     `
 
@@ -633,14 +640,14 @@ export async function deleteProprietarioByUuid(uuid: string, tenantId: string): 
   }
 }
 
-// Verificar se CPF já existe no tenant
-export async function checkCPFExists(cpf: string, tenantId: string, excludeUuid?: string): Promise<boolean> {
+// Verificar se CPF já existe no tenant (tenantId=null => pool público, sem empresa gestora)
+export async function checkCPFExists(cpf: string, tenantId: string | null, excludeUuid?: string): Promise<boolean> {
   try {
     const cpfRaw = String(cpf || '')
     const cpfDigits = cpfRaw.replace(/\D/g, '')
     const params: any[] = [cpfRaw, cpfDigits, tenantId]
     let query =
-      "SELECT 1 FROM proprietarios WHERE (cpf = $1 OR REPLACE(REPLACE(cpf, '.', ''), '-', '') = $2) AND tenant_id = $3"
+      "SELECT 1 FROM proprietarios WHERE (cpf = $1 OR REPLACE(REPLACE(cpf, '.', ''), '-', '') = $2) AND tenant_id IS NOT DISTINCT FROM $3"
 
     if (excludeUuid) {
       query += ' AND uuid != $4::uuid'
@@ -655,11 +662,11 @@ export async function checkCPFExists(cpf: string, tenantId: string, excludeUuid?
   }
 }
 
-// Verificar se Email já existe no tenant
-export async function checkEmailExists(email: string, tenantId: string, excludeUuid?: string): Promise<boolean> {
+// Verificar se Email já existe no tenant (tenantId=null => pool público, sem empresa gestora)
+export async function checkEmailExists(email: string, tenantId: string | null, excludeUuid?: string): Promise<boolean> {
   try {
     const params: any[] = [email, tenantId]
-    let query = 'SELECT 1 FROM proprietarios WHERE LOWER(email) = LOWER($1) AND tenant_id = $2'
+    let query = 'SELECT 1 FROM proprietarios WHERE LOWER(email) = LOWER($1) AND tenant_id IS NOT DISTINCT FROM $2'
 
     if (excludeUuid) {
       query += ' AND uuid != $3::uuid'
@@ -674,15 +681,15 @@ export async function checkEmailExists(email: string, tenantId: string, excludeU
   }
 }
 
-// Verificar se CNPJ já existe no tenant
-export async function checkCNPJExists(cnpj: string, tenantId: string, excludeUuid?: string): Promise<boolean> {
+// Verificar se CNPJ já existe no tenant (tenantId=null => pool público, sem empresa gestora)
+export async function checkCNPJExists(cnpj: string, tenantId: string | null, excludeUuid?: string): Promise<boolean> {
   try {
     const cnpjRaw = String(cnpj || '')
     const cnpjDigits = cnpjRaw.replace(/\D/g, '')
     const params: any[] = [cnpjRaw, cnpjDigits, tenantId]
 
     let query =
-      "SELECT 1 FROM proprietarios WHERE (cnpj = $1 OR REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '/', ''), '-', '') = $2) AND tenant_id = $3"
+      "SELECT 1 FROM proprietarios WHERE (cnpj = $1 OR REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '/', ''), '-', '') = $2) AND tenant_id IS NOT DISTINCT FROM $3"
 
     if (excludeUuid) {
       query += ' AND uuid != $4::uuid'

@@ -1077,7 +1077,7 @@ export async function POST(request: NextRequest) {
       const { ipAddress, userAgent } = extractRequestData(request)
       await logAuditEvent({
         userId: currentUser?.userId,
-        tenantId,
+        tenantId: (currentUser as any)?.tenantId,
         action: 'CREATE',
         resource: 'imoveis',
         resourceId: novoImovel.id,

@@ -14,6 +14,7 @@ interface Perfil {
   id: number;
   name: string;
   description: string;
+  level: number;
   userCount: number;
   permissions: Record<string, string[]>;
 }

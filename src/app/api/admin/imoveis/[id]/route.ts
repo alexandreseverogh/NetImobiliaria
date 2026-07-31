@@ -901,7 +901,7 @@ export async function PUT(
               JSON.stringify(details),
               request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
               request.headers.get('user-agent') || 'unknown',
-              currentUserPayload?.tenantId || null
+              currentUser?.tenantId || null
             ])
 
             console.log('✅ Log de auditoria registrado para mudança de status')

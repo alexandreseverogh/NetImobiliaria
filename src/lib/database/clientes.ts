@@ -54,7 +54,9 @@ export interface CreateClienteData {
   cep?: string
   origem_cadastro?: string
   tipo_cliente?: TipoCliente
-  tenant_id: string
+  // Ausente/null pro cadastro público auto-atendido (consumidor_pf, sem empresa gestora) —
+  // ver checkCPFExists/checkEmailExists (IS NOT DISTINCT FROM) pro tratamento null-safe.
+  tenant_id?: string | null
   created_by?: string
 }
 
@@ -152,9 +154,9 @@ export function formatCEP(value: string): string {
  * Buscar clientes com paginação e filtros
  */
 export async function findClientesPaginated(
-  page: number = 1, 
-  limit: number = 10, 
-  filters: ClienteFilters = {}
+  page: number = 1,
+  limit: number = 10,
+  filters: ClienteFilters
 ): Promise<{
   clientes: Cliente[]
   total: number
@@ -321,15 +323,19 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
       throw new Error('CPF Inválido')
     }
     
-    // Verificar se CPF já existe no mesmo tenant
-    const existingCPF = await pool.query('SELECT 1 FROM clientes WHERE cpf = $1 AND tenant_id = $2', [data.cpf, data.tenant_id])
+    // tenant_id normalizado pra null explícito — IS NOT DISTINCT FROM trata NULL corretamente
+    // (cadastro público/consumidor_pf não tem tenant; "=" nunca bate com NULL em SQL)
+    const tenantIdNormalizado = data.tenant_id || null
+
+    // Verificar se CPF já existe no mesmo tenant (ou no pool público, se tenant_id for null)
+    const existingCPF = await pool.query('SELECT 1 FROM clientes WHERE cpf = $1 AND tenant_id IS NOT DISTINCT FROM $2', [data.cpf, tenantIdNormalizado])
     if (existingCPF.rows.length > 0) {
       throw new Error('CPF já cadastrado')
     }
-    
-    // Verificar se email já existe no mesmo tenant
+
+    // Verificar se email já existe no mesmo tenant (ou no pool público, se tenant_id for null)
     if (data.email) {
-      const existingEmail = await pool.query('SELECT 1 FROM clientes WHERE email = $1 AND tenant_id = $2', [data.email, data.tenant_id])
+      const existingEmail = await pool.query('SELECT 1 FROM clientes WHERE email = $1 AND tenant_id IS NOT DISTINCT FROM $2', [data.email, tenantIdNormalizado])
       if (existingEmail.rows.length > 0) {
         throw new Error('Email já cadastrado')
       }
@@ -366,7 +372,7 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
       origemCadastro,
       tipoCliente,
       data.created_by || 'system',
-      data.tenant_id
+      tenantIdNormalizado
     ])
     
     return result.rows[0]
@@ -377,7 +383,7 @@ export async function createCliente(data: CreateClienteData): Promise<Cliente> {
 }
 
 // Atualizar cliente
-export async function updateClienteByUuid(uuid: string, tenantId: string, data: UpdateClienteData): Promise<Cliente> {
+export async function updateClienteByUuid(uuid: string, tenantId: string | null, data: UpdateClienteData): Promise<Cliente> {
   try {
     if (!uuid || typeof uuid !== 'string') {
       throw new Error('UUID inválido para atualização de cliente')
@@ -387,22 +393,23 @@ export async function updateClienteByUuid(uuid: string, tenantId: string, data: 
     if (data.cpf && !validateCPF(data.cpf)) {
       throw new Error('CPF Inválido')
     }
-    
-    // Verificar se CPF já existe no mesmo tenant (excluindo o próprio registro)
+
+    // Verificar se CPF já existe no mesmo tenant (excluindo o próprio registro) — IS NOT
+    // DISTINCT FROM trata null (cliente público, sem tenant) corretamente, "=" nunca bate com NULL
     if (data.cpf) {
       const existingCPF = await pool.query(
-        'SELECT 1 FROM clientes WHERE cpf = $1 AND tenant_id = $2 AND uuid != $3',
+        'SELECT 1 FROM clientes WHERE cpf = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND uuid != $3',
         [data.cpf, tenantId, uuid]
       )
       if (existingCPF.rows.length > 0) {
         throw new Error('CPF já cadastrado')
       }
     }
-    
+
     // Verificar se email já existe no mesmo tenant (excluindo o próprio registro)
     if (data.email) {
       const existingEmail = await pool.query(
-        'SELECT 1 FROM clientes WHERE email = $1 AND tenant_id = $2 AND uuid != $3',
+        'SELECT 1 FROM clientes WHERE email = $1 AND tenant_id IS NOT DISTINCT FROM $2 AND uuid != $3',
         [data.email, tenantId, uuid]
       )
       if (existingEmail.rows.length > 0) {
@@ -491,9 +498,9 @@ export async function updateClienteByUuid(uuid: string, tenantId: string, data: 
     }
     
     const query = `
-      UPDATE clientes 
+      UPDATE clientes
       SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE uuid = $${paramCount + 1} AND tenant_id = $${paramCount + 2}
+      WHERE uuid = $${paramCount + 1} AND tenant_id IS NOT DISTINCT FROM $${paramCount + 2}
       RETURNING *
     `
     
@@ -526,13 +533,13 @@ export async function deleteClienteByUuid(uuid: string, tenantId: string): Promi
   }
 }
 
-// Verificar se CPF já existe no tenant
-export async function checkCPFExists(cpf: string, tenantId: string, excludeUuid?: string): Promise<boolean> {
+// Verificar se CPF já existe no tenant (tenantId=null => pool público, sem empresa gestora)
+export async function checkCPFExists(cpf: string, tenantId: string | null, excludeUuid?: string): Promise<boolean> {
   try {
     const cpfRaw = String(cpf || '')
     const cpfDigits = cpfRaw.replace(/\D/g, '')
     let query =
-      "SELECT 1 FROM clientes WHERE (cpf = $1 OR REPLACE(REPLACE(cpf, '.', ''), '-', '') = $2) AND tenant_id = $3"
+      "SELECT 1 FROM clientes WHERE (cpf = $1 OR REPLACE(REPLACE(cpf, '.', ''), '-', '') = $2) AND tenant_id IS NOT DISTINCT FROM $3"
     const params: any[] = [cpfRaw, cpfDigits, tenantId]
     
     if (excludeUuid) {
@@ -548,10 +555,10 @@ export async function checkCPFExists(cpf: string, tenantId: string, excludeUuid?
   }
 }
 
-// Verificar se Email já existe no tenant
-export async function checkEmailExists(email: string, tenantId: string, excludeUuid?: string): Promise<boolean> {
+// Verificar se Email já existe no tenant (tenantId=null => pool público, sem empresa gestora)
+export async function checkEmailExists(email: string, tenantId: string | null, excludeUuid?: string): Promise<boolean> {
   try {
-    let query = 'SELECT 1 FROM clientes WHERE LOWER(email) = LOWER($1) AND tenant_id = $2'
+    let query = 'SELECT 1 FROM clientes WHERE LOWER(email) = LOWER($1) AND tenant_id IS NOT DISTINCT FROM $2'
     const params: any[] = [email, tenantId]
     
     if (excludeUuid) {

@@ -1,3 +1,5 @@
+import { QueryResult } from 'pg'
+import pool from './connection'
 import { logAuditEvent as internalLog, findAuditLogs, AuditLog as Log } from '../audit/auditLogger'
 
 export type AuditLog = Log
@@ -133,7 +135,7 @@ export async function getAuditStats(): Promise<{
       ORDER BY count DESC
       LIMIT 5
     `)
-    const topActions = actionsResult.rows.map(row => ({
+    const topActions = actionsResult.rows.map((row: { action: string; count: string }) => ({
       action: row.action,
       count: parseInt(row.count)
     }))
@@ -148,7 +150,7 @@ export async function getAuditStats(): Promise<{
       ORDER BY count DESC
       LIMIT 5
     `)
-    const topUsers = usersResult.rows.map(row => ({
+    const topUsers = usersResult.rows.map((row: { username: string; count: string }) => ({
       username: row.username,
       count: parseInt(row.count)
     }))

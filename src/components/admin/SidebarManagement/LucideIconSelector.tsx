@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react'
 import * as Lucide from 'lucide-react'
-import { Input } from '@/components/ui/input' // Assuming there's a UI input or I'll use standard
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 
 interface LucideIconSelectorProps {

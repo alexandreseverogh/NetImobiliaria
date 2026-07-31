@@ -8,7 +8,7 @@ interface Perfil {
   name: string;
   description: string;
   userCount: number;
-  permissions: Record<string, string>;
+  permissions: Record<string, string[]>;
 }
 
 interface DeletePerfilModalProps {

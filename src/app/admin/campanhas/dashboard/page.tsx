@@ -52,7 +52,7 @@ import { PeriodBadge } from '@/components/marketing/dashboard/PeriodBadge';
 import { FarolSection } from '@/components/marketing/dashboard/FarolSection';
 //  MAIN COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
-export function DashboardPage() {
+function DashboardPage() {
   const [data, setData]                     = useState<DashboardFullData | null>(null);
   const [cplTimeline, setCplTimeline]       = useState<CplTimelineData | null>(null);
   const [funnelData7, setFunnelData7]       = useState<FunnelData7 | null>(null);

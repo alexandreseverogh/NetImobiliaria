@@ -6,7 +6,7 @@ import { logAuditEvent, extractUserIdFromToken } from '@/lib/audit/auditLogger'
 import { extractRequestData } from '@/lib/utils/ipUtils'
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -18,7 +18,7 @@ export async function GET(
       )
     }
 
-    const token = request.cookies?.get('accessToken')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
+    const token = request.cookies.get('admin_auth_token')?.value || request.headers.get('authorization')?.replace('Bearer ', '')
     let tenantId = undefined
     if (token) {
       const decoded = await import('@/lib/auth/jwt').then(m => m.verifyToken(token))

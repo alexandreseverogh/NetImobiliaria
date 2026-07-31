@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import * as HeroIcons from '@heroicons/react/24/outline';
@@ -37,9 +37,9 @@ interface Pagination {
 }
 
 // Componente de Ícone Dinâmico
-const IconRenderer = ({ iconName, className }: { iconName: string, className?: string }) => {
+const IconRenderer = ({ iconName, className, style }: { iconName: string, className?: string, style?: CSSProperties }) => {
   const Icon = (HeroIcons as any)[iconName];
-  return Icon ? <Icon className={className} /> : null;
+  return Icon ? <Icon className={className} style={style} /> : null;
 };
 
 export default function FeedCategoriasSection() {

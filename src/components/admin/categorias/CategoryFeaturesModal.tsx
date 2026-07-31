@@ -28,7 +28,7 @@ interface CategoryFeaturesModalProps {
 }
 
 export default function CategoryFeaturesModal({ category, onClose, onUpdate }: CategoryFeaturesModalProps) {
-  const { get, put, del } = useApi()
+  const { get, put, delete: del } = useApi()
   const [searchTerm, setSearchTerm] = useState('')
   const [allFeatures, setAllFeatures] = useState<Feature[]>([])
   const [loading, setLoading] = useState(true)

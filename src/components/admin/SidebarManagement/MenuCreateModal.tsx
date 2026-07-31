@@ -85,7 +85,6 @@ export function MenuCreateModal({
       setUrl('')
       setDescription('')
       setSelectedFeatureId(null)
-      setSelectedCategoryId(null)
     } catch (err) {
       console.error('Erro ao salvar:', err)
     } finally {

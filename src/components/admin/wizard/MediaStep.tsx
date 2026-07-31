@@ -1577,7 +1577,7 @@ function MediaStep({ data, onUpdate, mode, imovelId, registrarAlteracaoRascunho,
                           id={image.id}
                           image={image}
                           onRemove={removeImage}
-                          isPrincipal={image.principal}
+                          isPrincipal={image.principal ?? false}
                           mode="create"
                         />
                       ))
