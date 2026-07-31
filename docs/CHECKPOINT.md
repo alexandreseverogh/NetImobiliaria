@@ -1,6 +1,91 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-30 (continuação 7) — **Fix real: `hook_type` de criativo gravado
+> **Atualizado em:** 2026-07-30 (continuação 8) — **Sugestão concreta de hook (Caminho A
+> "com histórico" / Caminho B "sem histórico") no aviso de saturação do wizard, commit
+> seguinte.** Continuação direta da investigação anterior (continuação 7, fix do
+> `hook_type` fora do enum) — usuário perguntou, mostrando o aviso já corrigido
+> ("Portfólio saturado com hook 'Outro' (73%)"): **"Com essa sugestão provida, qual é a
+> ação efetiva que o usuário deve tomar?"** — "Outro" não é uma técnica de hook real que
+> dê pra "diversificar", então o aviso sozinho não levava a nenhuma ação concreta.
+>
+> **Discussão socrática de design (várias rodadas, usuário corrigindo cada proposta antes
+> de aprovar a versão final):**
+> 1ª proposta (reescrever a mensagem pra sugerir "reanalisar ou usar abordagem mais
+> explícita") foi rejeitada por vaga — usuário: "o que você, no lugar do usuário,
+> consideraria pra agir efetivamente?", cenário explícito de empresa em estágio inicial
+> sem histórico de performance. 2ª proposta (texto de hook concreto gerado por IA a partir
+> da cena real da imagem) tinha um exemplo com **fato inventado** ("já são 40 famílias
+> morando aqui") — usuário pegou na hora: "como o modelo LLM iria 'adivinhar' esses dados?
+> Se for pra estreia de uma clínica médica ou loja de carros?" (risco real de publicidade
+> enganosa/CDC art. 37, e em segmento regulado como saúde, CFM). 3ª proposta (placeholder
+> `[X]` pro número desconhecido) também foi rejeitada pelo usuário com o argumento mais
+> forte da conversa: no Mercado Imobiliário existe divulgação de lançamento **na planta**
+> (imóvel ainda nem construído) — pra esse caso não existe NENHUM número real pra
+> preencher, nunca, então um placeholder é estruturalmente inaplicável, não só arriscado.
+> Usuário propôs a arquitetura final, limpa: **"1) Se houver histórico de performance dos
+> criativos, usa-se a técnica de sugestão baseada nesse histórico; 2) Se não houver
+> histórico, só sugerir informações lidas diretamente da imagem."** Refinei: nem todo hook
+> é seguro no Caminho B — Prova Social e Urgência-de-estoque exigem fato externo
+> verificável que, em alguns cenários (pré-lançamento), nunca vai existir — excluídos por
+> completo do Caminho B, não templados. Última pergunta do usuário, também rejeitando
+> arbitrariedade: **"Qual será o número 'mágico' que caracterize a existência de
+> histórico?"** — resolvido reaproveitando os benchmarks JÁ existentes e configuráveis por
+> segmento (`min_leads_scale`/`min_days_running`, o mesmo critério de maturidade já usado
+> na regra SCALE de `aiInsights.ts`), em vez de inventar um número novo. Usuário confirmou
+> ("faz sim") e autorizou implementação ("avance").
+>
+> **Implementado — decisão de caminho sempre no servidor, nunca confiando em CTR/CPL que o
+> client mandasse (gap de confiança que o endpoint irmão `concepts/route.ts`, pré-existente,
+> tem e este não repete):**
+> 1. `src/lib/marketing/services/hookSaturationService.ts` — reescrito: `REAL_HOOK_TYPES`
+>    (o enum real de 7 valores, corrigindo de brinde um bug real achado no caminho —
+>    a sugestão "experimente hooks de X ou Y" sorteava de `Object.keys(HOOK_LABELS)`
+>    inteiro, que mistura hook_type com valores de angle tipo "Investimento"/"Luxo", então
+>    podia sugerir "experimente o hook Investimento", que nunca foi um hook de verdade);
+>    `SAFE_COLD_START_HOOKS` (os 4 hooks sustentáveis só com o que está visível na imagem —
+>    Curiosidade/Benefício/História/Problema — nunca Urgência/Prova Social);
+>    `getHookSuggestionContext(tenantId, clientId)` — resolve segmento real, busca os
+>    benchmarks reais via `resolveBenchmarks`, calcula maturidade real por hook_type
+>    (leads via `leadEvents.ts`, dias via `COUNT(DISTINCT date)` de `Insight` — mesma
+>    convenção `daysRunning` já usada em `aiInsights.ts`) e decide Caminho A ou B.
+> 2. `src/lib/marketing/services/creativeAnalysisService.ts` — extraído
+>    `callTextLlmForJson()` (helper compartilhado multi-provider, já existia inline em
+>    `generateCreativeConcepts`) + novo `generateVisualHookSuggestions()` (Caminho B),
+>    chamando um prompt novo.
+> 3. `prisma/migration-2026-07-30-creative-hook-suggestion-coldstart.sql` (aplicada) — novo
+>    template global `creative_hook_suggestion_coldstart`, com regra explícita "nunca
+>    invente número/estatística/certificação", ancorado só nas cenas reais (`scene_description`/
+>    `key_visual_elements`) já extraídas pela Vision no upload de cada criativo do tenant.
+> 4. `POST /api/admin/campanhas/criativos/hook-suggestions` (novo) — decide o caminho no
+>    servidor via `getHookSuggestionContext`; Caminho A reaproveita
+>    `generateCreativeConcepts` (já existia, usado por "Padrões Vencedores") alimentado com
+>    CTR/CPL/leads reais agregados; Caminho B chama `generateVisualHookSuggestions`.
+> 5. `CampaignWizard.tsx` — o aviso de saturação (dentro de `StepType`) ganhou um novo
+>    componente `HookAlertPanel` com botão "Ver sugestões de hook" que chama o endpoint
+>    novo e renderiza o resultado (label do caminho + concepts ou suggestions).
+>
+> **Testado ao vivo, ponta a ponta, nos dois caminhos:**
+> Caminho B (estado real do tenant, sem nenhum dado sintético) — `curl` direto no endpoint
+> retornou sugestões reais e seguras, ex.: `{"hookType":"curiosity","hookText":"O que está
+> por trás do QR Code?","why":"...sem inventar fatos."}` — confirmado sem nenhum fato
+> inventado, sem Prova Social/Urgência. Caminho A — inserido temporariamente 6
+> `CtaInteraction` sintéticas (`ad_id LIKE 'teste-hookA-%'`) numa campanha real (hook_type
+> 'urgency', 47 dias reais de Insight) pra cruzar o threshold de 5 leads/3 dias do segmento
+> Imobiliário → endpoint retornou corretamente `path:"history"` com `basedOn` real (6
+> leads, 47 dias, CTR/CPL reais) e 5 concepts gerados pelo `generateCreativeConcepts`
+> existente — dado de teste removido na sequência, confirmado 0 linhas residuais.
+> **Verificação final no navegador real** (sessão JWT injetada, tenant Marketing Digital,
+> imagem sintética injetada via `DataTransfer` — nunca persistida no banco, sem precisar
+> de limpeza): wizard Meta Ads → step "Tipo" → aviso renderizou "Portfólio saturado com
+> hook 'Outro' (73%)" com o botão novo → clique → painel mostrou corretamente o Caminho B
+> ("Sem histórico maduro ainda — sugestões geradas só a partir das fotos reais... sem
+> inventar dado") com 3 sugestões reais (Curiosidade "O que está por trás do QR Code?",
+> Problema "Procurando conveniência?", História "Imagine viver no luxo"), cada uma com o
+> texto de `why` confirmando a ausência de fato inventado — bate exatamente com o desenho
+> aprovado pelo usuário. `npx tsc --noEmit`: mesma baseline, zero erros novos nos arquivos
+> tocados.
+>
+> — **Sessão anterior (2026-07-30, continuação 7) — Fix real: `hook_type` de criativo gravado
 > fora do enum do prompt, contaminando o aviso "Portfólio saturado com hook 'Preço'" no
 > wizard (commit seguinte).** Usuário mandou print do passo "Tipo" do wizard TikTok
 > perguntando se o aviso de saturação de hook era confiável e de onde vinha — pediu
@@ -800,21 +885,27 @@
 
 ## Tarefa em andamento
 
-**Testes manuais do Redesign Premium, em andamento pelo usuário.** Pendência real e
-pontual: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant Marketing
-Digital) inseridos pra viabilizar o teste visual da paginação em `/admin/campanhas/leads`
-— assim que o usuário confirmar que já viu o botão de página ativa dourado. Ver resumo no
-topo deste arquivo. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
-seguem implementadas e commitadas, captura automática de log funcionando; Meta Pixel e
-`img-src` do MinIO seguem sem teste ao vivo (lacuna honesta, não bug); Fase 3 e eliminação
-do token em localStorage fora de escopo por decisão do plano
-(`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Nenhuma tarefa em andamento no momento** — sugestão concreta de hook (Caminho A/B) testada
+ponta a ponta (backend via curl + UI real no navegador) e pronta pra commit. Pendência
+antiga e pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO
+1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
+`/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de página ativa
+dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem
+implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna
+honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por decisão do
+plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-30 (continuação 8) — Sugestão concreta de hook (Caminho A/B) no aviso de saturação ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 8)").
+
+---
+
 ### Sessão 2026-07-30 (continuação 7) — Fix real: hook_type fora do enum contaminava aviso de saturação ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 7)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 7)"). Commit `e8ebc48`.
 
 ---
 

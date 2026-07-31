@@ -419,7 +419,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               className="max-w-4xl"
             >
               {step === 0 && <StepNetwork   form={form} updateForm={updateForm} networks={networks} />}
-              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} />}
+              {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} clientId={clientId} />}
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
               {step === 4 && <StepBudget    form={form} updateForm={updateForm} />}
@@ -578,28 +578,128 @@ function StepNetwork({ form, updateForm, networks: networksProp }: any) {
   );
 }
 
+/* ── Hook Alert + sugestão concreta ─────────────────────────
+ * Caminho A ("com histórico"): reaproveita o padrão vencedor real do tenant (CTR/CPL).
+ * Caminho B ("sem histórico"): ancorado só na cena real de criativos já analisados —
+ * nunca Prova Social/Urgência-de-estoque, nunca número/fato inventado. Decisão de produto
+ * fechada em conversa com o usuário (ver docs/CHECKPOINT.md, sessão 2026-07-30). */
+
+interface HookConceptA {
+  format: string; scene: string; hook_text: string; body: string;
+  headline: string; cta: string; why_it_works: string;
+}
+interface HookSuggestionB {
+  hookType: string; sceneAssetId: string | null; hookText: string; why: string;
+}
+interface HookSuggestResponse {
+  path: 'history' | 'coldstart';
+  basedOn: { hookType: string; label: string; leads: number; daysRunning: number } | null;
+  concepts?: HookConceptA[];
+  suggestions?: HookSuggestionB[];
+  message?: string;
+}
+
+function HookAlertPanel({ hookAlert, clientId }: { hookAlert: any; clientId?: string | null }) {
+  const [state, setState] = useState<{
+    status: 'idle' | 'loading' | 'done' | 'error';
+    result?: HookSuggestResponse;
+    error?: string;
+  }>({ status: 'idle' });
+
+  async function loadSuggestions() {
+    setState({ status: 'loading' });
+    try {
+      const res = await axios.post('/api/admin/campanhas/criativos/hook-suggestions', { clientId: clientId || undefined });
+      setState({ status: 'done', result: res.data });
+    } catch (err: any) {
+      setState({ status: 'error', error: err?.response?.data?.error || 'Erro ao gerar sugestões.' });
+    }
+  }
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <span className="text-lg shrink-0">⚠️</span>
+        <div className="flex-1">
+          <p className="text-sm font-black text-amber-800">
+            Portfólio saturado com hook "{hookAlert.dominantLabel}" ({hookAlert.dominantShare}%)
+          </p>
+          {hookAlert.suggestion && (
+            <p className="text-xs text-amber-700 mt-0.5">{hookAlert.suggestion} para maior alcance.</p>
+          )}
+        </div>
+        {state.status !== 'done' && (
+          <button
+            onClick={loadSuggestions}
+            disabled={state.status === 'loading'}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-black bg-amber-800 text-amber-50 hover:bg-amber-900 transition-colors disabled:opacity-50"
+          >
+            {state.status === 'loading' ? 'Gerando…' : 'Ver sugestões de hook'}
+          </button>
+        )}
+      </div>
+
+      {state.status === 'error' && (
+        <p className="text-xs text-red-600">{state.error}</p>
+      )}
+
+      {state.status === 'done' && state.result && (
+        <div className="pt-1 border-t border-amber-200/60 space-y-2.5">
+          <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide">
+            {state.result.path === 'history' && state.result.basedOn
+              ? `Baseado no seu histórico real — hook "${state.result.basedOn.label}" (${state.result.basedOn.leads} leads em ${state.result.basedOn.daysRunning} dias)`
+              : 'Sem histórico maduro ainda — sugestões geradas só a partir das fotos reais dos seus criativos, sem inventar dado'}
+          </p>
+
+          {state.result.message && (
+            <p className="text-xs text-amber-700">{state.result.message}</p>
+          )}
+
+          {/* Caminho A — conceitos completos */}
+          {state.result.concepts?.map((c, i) => (
+            <div key={i} className="bg-white border border-amber-100 rounded-xl p-3">
+              <p className="text-sm font-bold text-gray-900">{c.headline}</p>
+              <p className="text-xs text-gray-600 mt-0.5">{c.hook_text}</p>
+              <p className="text-xs text-gray-500 mt-1">{c.body}</p>
+              <p className="text-[10px] text-amber-600 mt-1.5 italic">{c.why_it_works}</p>
+            </div>
+          ))}
+
+          {/* Caminho B — sugestões ancoradas em cena real */}
+          {state.result.suggestions?.map((s, i) => (
+            <div key={i} className="bg-white border border-amber-100 rounded-xl p-3">
+              <span className="inline-block text-[9px] font-black text-amber-600 uppercase tracking-wider mb-1">
+                {HOOK_LABELS_PT[s.hookType] ?? s.hookType}
+              </span>
+              <p className="text-sm font-bold text-gray-900">{s.hookText}</p>
+              <p className="text-[10px] text-gray-500 mt-1 italic">{s.why}</p>
+            </div>
+          ))}
+
+          {(!state.result.concepts?.length && !state.result.suggestions?.length && !state.result.message) && (
+            <p className="text-xs text-amber-700">Nenhuma sugestão gerada — tente novamente.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const HOOK_LABELS_PT: Record<string, string> = {
+  urgency: 'Urgência', curiosity: 'Curiosidade', social_proof: 'Prova Social',
+  benefit: 'Benefício', story: 'História', problem: 'Problema', other: 'Outro',
+};
+
 /* ══════════════════════════════════════════════════════════
    STEP 1 — TIPO
 ══════════════════════════════════════════════════════════ */
 
-function StepType({ form, updateForm, selectedImages, hookAlert }: any) {
+function StepType({ form, updateForm, selectedImages, hookAlert, clientId }: any) {
   /* Single image: show preview + name field */
   if (selectedImages.length === 1) {
     return (
       <div className="space-y-8">
-        {hookAlert && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-            <span className="text-lg shrink-0">⚠️</span>
-            <div>
-              <p className="text-sm font-black text-amber-800">
-                Portfólio saturado com hook "{hookAlert.dominantLabel}" ({hookAlert.dominantShare}%)
-              </p>
-              {hookAlert.suggestion && (
-                <p className="text-xs text-amber-700 mt-0.5">{hookAlert.suggestion} para maior alcance.</p>
-              )}
-            </div>
-          </div>
-        )}
+        {hookAlert && <HookAlertPanel hookAlert={hookAlert} clientId={clientId} />}
         <Section title="Criativo Selecionado">
           <div className="flex items-start gap-8">
             <div className="w-56 h-56 rounded-2xl overflow-hidden border border-gray-200 shrink-0">

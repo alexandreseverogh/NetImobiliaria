@@ -301,6 +301,39 @@ export interface CreativeConcept {
   why_it_works: string;
 }
 
+/** Chama o LLM configurado (linha global, mesma cascata multi-provider do resto do arquivo)
+ *  com um prompt de texto puro e devolve o JSON já sem markdown — compartilhado pelos dois
+ *  geradores (padrão vencedor + sugestão visual sem histórico). */
+async function callTextLlmForJson(
+  prompt: string,
+  llmCfg: Awaited<ReturnType<typeof getLlmConfig>>,
+  maxTokens = 2000,
+): Promise<any> {
+  let rawText: string;
+
+  if (llmCfg.provider === 'anthropic') {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: llmCfg.apiKey });
+    const msg = await client.messages.create({
+      model: llmCfg.model, max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    rawText = msg.content[0]?.type === 'text' ? msg.content[0].text.trim() : '{}';
+  } else {
+    if (!llmCfg.baseUrl) throw new Error(`baseUrl não encontrada para provider "${llmCfg.provider}"`);
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey: llmCfg.apiKey, baseURL: llmCfg.baseUrl });
+    const res = await client.chat.completions.create({
+      model: llmCfg.model, max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    rawText = res.choices[0]?.message?.content?.trim() ?? '{}';
+  }
+
+  const clean = rawText.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+  return JSON.parse(clean);
+}
+
 export async function generateCreativeConcepts(params: {
   segment: string;
   style: string;
@@ -329,28 +362,64 @@ export async function generateCreativeConcepts(params: {
     ads_count:     params.ads_count,
   });
 
-  let rawText: string;
-
-  if (llmCfg.provider === 'anthropic') {
-    const { default: Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: llmCfg.apiKey });
-    const msg = await client.messages.create({
-      model: llmCfg.model, max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    rawText = msg.content[0]?.type === 'text' ? msg.content[0].text.trim() : '{}';
-  } else {
-    if (!llmCfg.baseUrl) throw new Error(`baseUrl não encontrada para provider "${llmCfg.provider}"`);
-    const { default: OpenAI } = await import('openai');
-    const client = new OpenAI({ apiKey: llmCfg.apiKey, baseURL: llmCfg.baseUrl });
-    const res = await client.chat.completions.create({
-      model: llmCfg.model, max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    rawText = res.choices[0]?.message?.content?.trim() ?? '{}';
-  }
-
-  const clean = rawText.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
-  const parsed = JSON.parse(clean);
+  const parsed = await callTextLlmForJson(prompt, llmCfg);
   return parsed.concepts || [];
+}
+
+// ── Sugestão de hook sem histórico (Caminho B) ──────────────────────────────────
+//
+// Diferente de generateCreativeConcepts (que se ancora em CTR/CPL real — "padrão vencedor"),
+// este gerador nunca tem métrica de performance real por trás (é exatamente o cenário de
+// "sem histórico" — empresa nova, lançamento na planta, etc.). Por isso: (1) só cobre os 4
+// hooks de SAFE_COLD_START_HOOKS (nunca Urgência-de-estoque nem Prova Social, que exigem um
+// fato externo verificável que não existe aqui); (2) o prompt é ancorado só nas cenas REAIS já
+// descritas pela Vision no upload de cada criativo — nunca inventa número, estatística,
+// certificação ou qualquer alegação que não esteja literalmente na cena.
+
+export interface VisualHookSuggestion {
+  hookType: string;
+  sceneAssetId: string | null;
+  hookText: string;
+  why: string;
+}
+
+export async function generateVisualHookSuggestions(params: {
+  segment: string;
+  missingHooks: string[];  // subconjunto de SAFE_COLD_START_HOOKS
+  hookLabels: Record<string, string>;
+  scenes: { assetId: string; sceneDescription: string; keyVisualElements: string[] }[];
+}): Promise<VisualHookSuggestion[]> {
+  if (params.scenes.length === 0 || params.missingHooks.length === 0) return [];
+
+  const llmCfg = await getLlmConfig();
+  if (!llmCfg.apiKey) throw new Error('API Key não configurada.');
+
+  const template = await resolvePromptTemplate('creative_hook_suggestion_coldstart', null);
+  if (!template) throw new Error('Prompt template não encontrado: creative_hook_suggestion_coldstart. Execute a migration SQL.');
+
+  const scenesText = params.scenes
+    .map((s, i) => `${i}. ${s.sceneDescription}${s.keyVisualElements.length ? ' — elementos visíveis: ' + s.keyVisualElements.join(', ') : ''}`)
+    .join('\n');
+
+  const missingHooksText = params.missingHooks.map(k => params.hookLabels[k] ?? k).join(', ');
+
+  const prompt = applyVariables(template, {
+    segment:       params.segment,
+    missing_hooks: missingHooksText,
+    scenes:        scenesText,
+  });
+
+  const parsed = await callTextLlmForJson(prompt, llmCfg);
+  const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions : [];
+
+  return suggestions.map((s: any) => {
+    const idx = Number(s.scene_ref);
+    const scene = Number.isInteger(idx) ? params.scenes[idx] : undefined;
+    return {
+      hookType: typeof s.hook_type === 'string' ? s.hook_type : 'other',
+      sceneAssetId: scene?.assetId ?? null,
+      hookText: typeof s.hook_text === 'string' ? s.hook_text : '',
+      why: typeof s.why === 'string' ? s.why : '',
+    };
+  }).filter((s: VisualHookSuggestion) => s.hookText);
 }
