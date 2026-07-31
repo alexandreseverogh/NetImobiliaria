@@ -1,6 +1,96 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-30 (continuação 8) — **Sugestão concreta de hook (Caminho A
+> **Atualizado em:** 2026-07-31 — **`npx tsc --noEmit` zerado por completo (53 → 0),
+> investigado arquivo por arquivo, achando bugs reais no caminho (commit seguinte).**
+> Usuário perguntou, depois do commit anterior reportar "53 erros, exatamente a baseline
+> conhecida": "como podemos resolver, definitivamente, para zerar isso?" — pedido de
+> zerar a baseline histórica de erros do tsc, nunca atacada em nenhuma sessão anterior.
+>
+> **Achado estrutural que mudou a natureza do trabalho:** havia um `tsconfig.tsbuildinfo`
+> (cache incremental do tsc) mascarando erros reais — `lib/database/audit.ts` tinha 3
+> funções inteiras (`getActionAuditLogs`/`getAuditStats`/`cleanupOldAuditLogs`) que nunca
+> importavam `pool`, lançando `ReferenceError` em runtime pra qualquer caller real — o
+> cache full-project run nunca reportava isso, só uma compilação isolada do arquivo
+> revelou. Cache purgado (`rm tsconfig.tsbuildinfo`, já no `.gitignore`) e toda verificação
+> desta rodada foi feita do zero, sem cache — só assim a contagem final é confiável.
+>
+> **Achado mais sério, pausado pra decisão do usuário via `AskUserQuestion` antes de
+> corrigir:** a verificação de duplicidade de CPF/CNPJ/e-mail no cadastro público
+> (`RegisterForm.tsx` → `POST /api/public/auth/register`) estava **completamente
+> quebrada** — `createCliente`/`createProprietario` e os 5 endpoints públicos de
+> pré-checagem faziam `WHERE ... AND tenant_id = $2` com `tenantId=undefined` (cadastro
+> público não tem tenant, é o fluxo `consumidor_pf` da decisão D2) — em SQL, `= NULL`
+> nunca é verdadeiro, então a checagem nunca encontrava nenhuma duplicata: era possível
+> cadastrar o mesmo CPF/e-mail várias vezes pelo formulário público, sem bloqueio nenhum,
+> silenciosamente. Usuário escolheu "Corrigir de verdade agora" (não só satisfazer o
+> compilador) — corrigido com `IS NOT DISTINCT FROM` (null-safe) em `clientes.ts`/
+> `proprietarios.ts` (create/update/check, incluindo a query final de UPDATE que também
+> silenciosamente não afetava nenhuma linha pra usuário público) + propagado aos 5 call
+> sites (`check-cpf`/`check-cnpj`/`check-email`/`auth/check-email`/`auth/profile`, todos
+> passando `tenantId=null` explícito agora).
+>
+> **Outros bugs reais encontrados no caminho (não hipotéticos — cada um investigado até a
+> causa raiz antes de decidir o fix, nunca suprimido só pra silenciar o tsc):**
+> - `api/admin/imoveis/[id]/route.ts` — Temporal Dead Zone real: dentro do bloco
+>   `if ('status_fk' in data)`, o log de auditoria de mudança de status parcial referenciava
+>   `currentUserPayload` (nome nunca declarado nesse bloco — só existe uma declaração bem
+>   mais abaixo, no escopo pai) — `ReferenceError` sempre, engolido pelo try/catch. Nome
+>   certo já existia no mesmo bloco (`currentUser`).
+> - `api/admin/imoveis/route.ts` — mesmo padrão: shorthand `tenantId,` no log de auditoria
+>   de criação de imóvel sem nenhuma variável `tenantId` no escopo do handler POST (só
+>   existe uma no GET, função diferente) — toda criação de imóvel perdia o log de auditoria.
+> - `admin/hierarquia-perfis/page.tsx` — modal de editar perfil sempre abria com nome/
+>   descrição vazios e nível caindo no fallback `1`: o objeto passado pro `EditPerfilModal`
+>   usava chaves em português (`nome`/`descricao`/`nivel`) mas o modal lê inglês (`name`/
+>   `description`/`level`).
+> - `api/admin/categorias-amenidades/[id]/route.ts` — mesmo bug do "cookie fantasma
+>   `accessToken`" já documentado e corrigido em 41 arquivos numa sessão anterior
+>   (2026-07-29) — este `GET` ficou de fora daquela varredura; o `PUT` do mesmo arquivo já
+>   usava o padrão certo (`admin_auth_token`), usado como referência pro fix.
+> - `CategoryFeaturesModal.tsx` — `const { get, put, del } = useApi()`: o hook retorna a
+>   chave `delete`, não `del` — `del(...)` sempre foi `undefined`, quebrando a remoção de
+>   feature nesse modal.
+> - `SidebarManagement/MenuCreateModal.tsx` — `setSelectedCategoryId(null)` no cleanup final
+>   de `handleSave()` referenciava um setter nunca declarado (sem `useState` correspondente,
+>   `categories` prop nunca usada na UI) — toda vez que o save tinha sucesso, essa linha
+>   lançava `ReferenceError` capturado pelo próprio catch, logando "Erro ao salvar" mesmo
+>   quando o save funcionou.
+> - `components/skills/premium/ExecutiveDashboard.tsx` — `<last-7-days>Últimos 6
+>   meses</last-7-days>` dentro de um `<select>` (deveria ser `<option>`) — resíduo de
+>   copy-paste, dropdown sem nenhuma option funcional.
+> - `hooks/usePermissions.tsx` — as 2 branches de retorno tinham formato diferente: o
+>   branch "sem permissão" nunca incluía `auditConfigs` (só o branch normal incluía) —
+>   qualquer consumidor que dependesse desse campo tinha falso-negativo silencioso quando
+>   o usuário não tinha `permissoes`.
+> - `services/twoFactorAuthService.ts` — `null` passado onde `reason?: string` esperava
+>   `string | undefined`; substituído por `undefined` (mesmo efeito na gravação, já que o
+>   código já normalizava `reason || null` internamente — zero mudança de comportamento).
+>
+> **Zero-risco (config/limpeza, sem bug por trás):** `tsconfig.json` `target: "es5"` →
+> `"es2017"` (stack já é Next 14/React 18 — resolve 7 erros de `downlevelIteration` de
+> uma vez); 3 scripts de debug mortos na raiz removidos (`check_db.ts`/`scratch_query.ts`/
+> `test_uuid.ts` — schema já desatualizado, zero referência em `src/`); named export
+> duplicado (`export function DashboardPage`) removido de `dashboard/page.tsx` (só o
+> `export default` é permitido num `page.tsx` do App Router — a duplicata quebrava o
+> gerador de tipos de rota do Next); `LucideIconSelector.tsx` — import morto e nunca usado
+> de `@/components/ui/input` (módulo que nem existe) removido; `MediaStep.tsx` —
+> `isPrincipal={image.principal ?? false}` (tipo `boolean|undefined`→`boolean`, sem mudança
+> de comportamento real); `FeedCategoriasSection.tsx` — `IconRenderer` local ganhou suporte
+> a `style` (estava sendo passado mas silenciosamente ignorado — cor do ícone por categoria
+> nunca aparecia); `lib/database/clientes.ts`/`proprietarios.ts` — `findClientesPaginated`/
+> `findProprietariosPaginated` perderam o default `filters = {}` (os 2 únicos call sites
+> reais de cada já passavam filtro completo com `tenant_id`; default vazio era um footgun
+> de querybar sem isolamento de tenant, nunca exercitado na prática).
+>
+> **Verificado:** `npx tsc --noEmit` com cache purgado — **0 erros** (baseline de 53 zerada
+> de verdade, não suprimida). Testado ao vivo no navegador que a feature construída na
+> sessão anterior (sugestão de hook, Caminho A/B) continua funcionando sem regressão.
+> Não foi feita verificação visual dedicada dos 2 ajustes puramente cosméticos
+> (`ExecutiveDashboard.tsx`/`FeedCategoriasSection.tsx`) além de confirmar que a página
+> `/landpaging` carrega normalmente — risco residual muito baixo (mudança de 1-2 linhas,
+> sem lógica nova). Commit único, mensagem detalhada por achado.
+>
+> — **Sessão anterior (2026-07-30, continuação 8) — Sugestão concreta de hook (Caminho A
 > "com histórico" / Caminho B "sem histórico") no aviso de saturação do wizard, commit
 > seguinte.** Continuação direta da investigação anterior (continuação 7, fix do
 > `hook_type` fora do enum) — usuário perguntou, mostrando o aviso já corrigido
@@ -885,21 +975,26 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — sugestão concreta de hook (Caminho A/B) testada
-ponta a ponta (backend via curl + UI real no navegador) e pronta pra commit. Pendência
-antiga e pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO
-1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
-`/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de página ativa
-dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem
-implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna
-honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por decisão do
-plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Nenhuma tarefa em andamento no momento** — `npx tsc --noEmit` zerado (53→0), commitado.
+Pendência antiga e pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE
+PAGINACAO 1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual da
+paginação em `/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de
+página ativa dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
+seguem implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo
+(lacuna honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por
+decisão do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-07-31 — `npx tsc --noEmit` zerado (53 → 0), bugs reais no caminho ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-31").
+
+---
+
 ### Sessão 2026-07-30 (continuação 8) — Sugestão concreta de hook (Caminho A/B) no aviso de saturação ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 8)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-30 (continuação 8)"). Commit `465840b`.
 
 ---
 
