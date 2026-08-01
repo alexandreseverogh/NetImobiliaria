@@ -1,6 +1,40 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-07-31 — **`npx tsc --noEmit` zerado por completo (53 → 0),
+> **Atualizado em:** 2026-08-01 — **Fix real: horário de veiculação errado no card do
+> "Consultar Campanhas" + label "CAMPANHA " no nome (commit `93f1c5a`).** Usuário pediu 2
+> ajustes na tela: exibir o horário de veiculação em cada card, e prefixar o nome da
+> campanha com "CAMPANHA ".
+>
+> **Investigação (não hipotética) mostrou que a seção "Programação" já existia** no card
+> (`ScheduleDisplay`, dentro de `CampanhasModal.tsx`) — só que tinha um bug real: o parser
+> de `scheduleTimeSlots` assumia um formato inventado (`{day, startHour, endHour}`),
+> enquanto o formato REAL gravado pelo Meta (`adset_schedule`, confirmado via
+> `GET /api/admin/campanhas/campaigns` real) é `{days: number[], start_minute, end_minute,
+> timezone_type}` — uma entrada cobre VÁRIOS dias de uma vez, e o horário é em MINUTOS
+> desde meia-noite (não hora cheia — 1230 = 20:30). Resultado real, confirmado ao vivo
+> antes do fix: todo card com horário "personalizado por dia" mostrava só "DOM" (dia
+> errado, sempre o primeiro do enum) + "–" (nem hora nenhuma, `fmtHour(undefined)` retorna
+> string vazia).
+>
+> **Corrigido:** novo `fmtMinutes()` converte minutos→HH:mm (1440 tratado como "24:00", fim
+> do dia, não "00:00" do dia seguinte); o parser expande cada entrada do array real em uma
+> linha por dia (usando o `days: number[]` de verdade, não mais o índice da entrada como
+> fallback de dia). Campanhas sem nenhuma restrição de horário (schedule uniforme, sem
+> `scheduleStartHour`/`scheduleEndHour`) agora mostram explicitamente "00:00 → 24:00 (dia
+> todo)" em vez de omitir a linha de horário — todo card sempre tem um horário visível,
+> como pedido (antes, esse caso — a maioria das campanhas reais deste tenant — não mostrava
+> horário nenhum). Label "CAMPANHA " adicionado antes do nome de cada card.
+>
+> **Testado ao vivo, com dado real, comparando antes/depois:** "TikTok - Campanha Teste"
+> (`days:[2,5]`, `start_minute:1200, end_minute:1260`) — antes "DOM –", depois "TER
+> 20:00–21:00" + "SEX 20:00–21:00" (2 dias reais, cada um com o horário certo) · "campanha
+> 7" (7 dias, `start_minute:360, end_minute:1380`) — depois mostra os 7 dias corretos, cada
+> um "06:00–23:00" · campanhas sem `scheduleTimeSlots` nem horas customizadas ("Google
+> Search...", "MD · Captação Própria Premium/Financiamento") — depois mostram "00:00 →
+> 24:00 (dia todo)" explicitamente. `npx tsc --noEmit`: 0 erros (mesma baseline zerada da
+> sessão anterior, nenhum erro novo no arquivo tocado).
+>
+> — **Sessão anterior (2026-07-31) — `npx tsc --noEmit` zerado por completo (53 → 0),
 > investigado arquivo por arquivo, achando bugs reais no caminho (commit seguinte).**
 > Usuário perguntou, depois do commit anterior reportar "53 erros, exatamente a baseline
 > conhecida": "como podemos resolver, definitivamente, para zerar isso?" — pedido de
@@ -975,20 +1009,27 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — `npx tsc --noEmit` zerado (53→0), commitado.
-Pendência antiga e pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE
-PAGINACAO 1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual da
-paginação em `/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de
-página ativa dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
-seguem implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo
-(lacuna honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por
-decisão do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Nenhuma tarefa em andamento no momento** — fix de horário de veiculação + label
+"CAMPANHA " no "Consultar Campanhas" testado ao vivo e commitado. Pendência antiga e
+pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15",
+tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
+`/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de página ativa
+dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem
+implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna
+honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por decisão do
+plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-01 — Fix real: horário de veiculação errado no card + label "CAMPANHA " ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-01"). Commit `93f1c5a`.
+
+---
+
 ### Sessão 2026-07-31 — `npx tsc --noEmit` zerado (53 → 0), bugs reais no caminho ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-31").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-07-31 (histórico)"). Commits `587754e` + `acb4e8b`.
 
 ---
 
