@@ -101,6 +101,17 @@ function fmtHour(h: number | null | undefined): string {
   return `${String(h).padStart(2, '0')}:00`;
 }
 
+// Meta guarda dayparting em MINUTOS desde meia-noite (start_minute/end_minute), não em horas
+// cheias — 1230 = 20:30, por exemplo. 1440 (=24:00) é o fim do dia, não "00:00" do dia
+// seguinte, por isso tratado como caso especial.
+function fmtMinutes(min: number | null | undefined): string {
+  if (min == null) return '';
+  if (min >= 1440) return '24:00';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 const OBJECTIVE_MAP: Record<string, string> = {
   LEAD_GENERATION: 'Geração de Leads',
   CONVERSIONS: 'Conversões',
@@ -819,34 +830,48 @@ interface ScheduleDisplayProps {
 function ScheduleDisplay({
   scheduleDays, scheduleStartHour, scheduleEndHour, scheduleTimeSlots,
 }: ScheduleDisplayProps) {
-  // Custom per-day slots
+  // Custom per-day slots — formato real do Meta (adset_schedule): array de
+  // { days: number[], start_minute, end_minute, timezone_type } — uma entrada pode cobrir
+  // vários dias de uma vez, e os horários são em MINUTOS desde meia-noite, não horas cheias
+  // (ex.: 1230 = 20:30). Também aceita, defensivamente, o formato mais simples { day,
+  // startHour, endHour } — caso algum dado histórico tenha sido gravado assim.
   if (scheduleTimeSlots && typeof scheduleTimeSlots === 'object') {
-    type SlotEntry = { day: number; startHour: number; endHour: number };
-    let entries: SlotEntry[] = [];
+    type DaySlot = { day: number; startMin: number; endMin: number };
+    const bySlots: unknown[] = Array.isArray(scheduleTimeSlots)
+      ? scheduleTimeSlots
+      : Object.entries(scheduleTimeSlots as Record<string, unknown>).map(([day, v]) => ({ day: parseInt(day), ...(v as object) }));
 
-    if (Array.isArray(scheduleTimeSlots)) {
-      entries = (scheduleTimeSlots as SlotEntry[]).slice(0, 7);
-    } else {
-      entries = Object.entries(scheduleTimeSlots as Record<string, unknown>).map(([day, v]) => {
-        const val = v as Record<string, number>;
-        return { day: parseInt(day), startHour: val?.start ?? val?.startHour ?? 0, endHour: val?.end ?? val?.endHour ?? 24 };
-      });
+    const expanded: DaySlot[] = [];
+    for (const raw of bySlots) {
+      const entry = raw as Record<string, any>;
+      if (!entry) continue;
+      const days: number[] = Array.isArray(entry.days)
+        ? entry.days
+        : (typeof entry.day === 'number' ? [entry.day] : []);
+      if (days.length === 0) continue;
+
+      const hasMinutes = entry.start_minute != null || entry.end_minute != null;
+      const startMin = hasMinutes ? (entry.start_minute ?? 0) : (entry.startHour ?? entry.start ?? 0) * 60;
+      const endMin   = hasMinutes ? (entry.end_minute ?? 1440) : (entry.endHour ?? entry.end ?? 24) * 60;
+
+      for (const d of days) expanded.push({ day: d, startMin, endMin });
     }
 
-    if (entries.length > 0) {
+    if (expanded.length > 0) {
+      expanded.sort((a, b) => a.day - b.day);
       return (
         <div className="space-y-2">
           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-md text-[10px] font-black text-violet-700 uppercase tracking-wider">
             Personalizado por dia
           </div>
           <div className="grid grid-cols-4 gap-1">
-            {entries.map((slot, i) => (
+            {expanded.map((slot, i) => (
               <div key={i} className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-center">
                 <p className="text-[9px] font-black text-indigo-600 uppercase tracking-wider">
-                  {DAY_LABELS[slot.day ?? i] ?? `D${slot.day ?? i}`}
+                  {DAY_LABELS[slot.day] ?? `D${slot.day}`}
                 </p>
                 <p className="text-[10px] font-semibold text-gray-700 leading-tight mt-0.5">
-                  {fmtHour(slot.startHour)}<span className="text-gray-400">–</span>{fmtHour(slot.endHour)}
+                  {fmtMinutes(slot.startMin)}<span className="text-gray-400">–</span>{fmtMinutes(slot.endMin)}
                 </p>
               </div>
             ))}
@@ -856,8 +881,9 @@ function ScheduleDisplay({
     }
   }
 
-  // Uniform schedule
+  // Uniform schedule (mesmo horário todo dia veiculado)
   const allDays = !scheduleDays?.length || scheduleDays.length === 7;
+  const hasCustomHours = scheduleStartHour != null || scheduleEndHour != null;
 
   return (
     <div className="space-y-2">
@@ -879,11 +905,12 @@ function ScheduleDisplay({
           ))}
         </div>
       )}
-      {(scheduleStartHour != null || scheduleEndHour != null) && (
-        <p className="text-[11px] font-semibold text-gray-600">
-          {fmtHour(scheduleStartHour)} <span className="text-gray-400">→</span> {fmtHour(scheduleEndHour)}
-        </p>
-      )}
+      {/* Sempre mostra um horário — sem restrição configurada = veiculação o dia inteiro */}
+      <p className="text-[11px] font-semibold text-gray-600">
+        {hasCustomHours
+          ? <>{fmtHour(scheduleStartHour)} <span className="text-gray-400">→</span> {fmtHour(scheduleEndHour)}</>
+          : <>00:00 <span className="text-gray-400">→</span> 24:00 <span className="text-gray-400 font-medium">(dia todo)</span></>}
+      </p>
     </div>
   );
 }
@@ -948,6 +975,7 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
 
         {/* Campaign name */}
         <h3 className="text-sm font-black text-gray-900 leading-snug mb-2">
+          <span className="text-gray-400 font-bold">CAMPANHA </span>
           {campaign.name}
         </h3>
 
