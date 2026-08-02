@@ -5,6 +5,11 @@ import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { getNetworkServiceForTenant } from '@/lib/marketing/networks/factory';
 import type { NetworkCode } from '@/lib/marketing/networks/types';
 import { normalizeAngle } from '@/lib/marketing/angles';
+import { getLeadEvents, leadsByCampaign } from '@/lib/marketing/services/leadEvents';
+
+// Início "de sempre" pra métrica cumulativa (sem filtro de período) — mesmo padrão de
+// EPOCH_START já usado em hookSaturationService.ts.
+const METRICS_EPOCH_START = new Date('2000-01-01T00:00:00Z');
 
 export const dynamic = 'force-dynamic';
 
@@ -73,9 +78,65 @@ export async function GET(request: NextRequest) {
       } catch { /* non-critical */ }
     }
 
+    // Indicadores cumulativos por campanha (mesmo conjunto da Visão Executiva do dashboard,
+    // adaptado pra escopo de 1 campanha: Gasto Total, Leads, CPL Médio, CTR/Hook Rate) — sem
+    // filtro de período, acumulado desde sempre até agora. "Campanhas Ativas" fica de fora
+    // (é métrica de portfólio, não faz sentido por campanha individual).
+    const campaignIds = campaigns.map(c => c.id);
+    const metricsMap: Record<string, {
+      spend: number; leads: number; cpl: number | null;
+      ctr: number | null; hookRate: number | null;
+    }> = {};
+
+    if (campaignIds.length > 0) {
+      try {
+        const [spendAgg, leadEvents] = await Promise.all([
+          prisma.insight.groupBy({
+            by: ['campaignId'],
+            where: { campaignId: { in: campaignIds } },
+            _sum: { spend: true, impressions: true, clicks: true, videoViews3s: true },
+          }),
+          getLeadEvents(payload.tenantId, {
+            campaignIds,
+            startDate: METRICS_EPOCH_START,
+            endDate: new Date(),
+          }),
+        ]);
+        const leadsMap = leadsByCampaign(leadEvents);
+
+        for (const row of spendAgg) {
+          const spend = row._sum.spend ?? 0;
+          const impressions = row._sum.impressions ?? 0;
+          const clicks = row._sum.clicks ?? 0;
+          const videoViews3s = row._sum.videoViews3s ?? 0;
+          const leads = leadsMap.get(row.campaignId) ?? 0;
+
+          metricsMap[row.campaignId] = {
+            spend,
+            leads,
+            cpl: leads > 0 ? spend / leads : null,
+            ctr: impressions > 0 ? (clicks / impressions) * 100 : null,
+            hookRate: impressions > 0 && videoViews3s > 0 ? (videoViews3s / impressions) * 100 : null,
+          };
+        }
+        // Campanhas sem nenhum Insight ainda (recém-criadas) — garante leads=0 explícito em vez
+        // de omitir o campo, já que getLeadEvents pode achar lead mesmo sem Insight sincronizado.
+        for (const cid of campaignIds) {
+          if (!metricsMap[cid]) {
+            const leads = leadsMap.get(cid) ?? 0;
+            metricsMap[cid] = { spend: 0, leads, cpl: null, ctr: null, hookRate: null };
+          }
+        }
+      } catch (metricsError) {
+        console.error('Erro ao agregar métricas cumulativas por campanha:', metricsError);
+        // Não bloquear a listagem por falha nas métricas — cards renderizam sem essa seção.
+      }
+    }
+
     const enriched = campaigns.map(c => ({
       ...c,
       angleSource: angleSourceMap[c.id] ?? null,
+      metrics: metricsMap[c.id] ?? null,
       adSets: c.adSets.map(as => ({
         ...as,
         ads: as.ads.map(ad => ({

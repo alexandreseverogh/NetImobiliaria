@@ -78,6 +78,15 @@ interface CampaignData {
   declaredAngle?: string | null;
   // FASE 14d — fonte: 'declared' | 'llm_auto' | null
   angleSource?: string | null;
+  // Indicadores cumulativos (desde sempre até agora) — mesmo conjunto da Visão Executiva do
+  // dashboard, adaptado a 1 campanha. null quando a agregação falhou (não bloqueia o card).
+  metrics?: {
+    spend: number;
+    leads: number;
+    cpl: number | null;
+    ctr: number | null;
+    hookRate: number | null;
+  } | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -95,6 +104,12 @@ function fmtDate(iso: string | null | undefined): string {
 
 function fmtBudget(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+// Diferente de fmtBudget: Insight.spend já vem em reais (não centavos) — ver CLAUDE.md
+// "CPC e spend em reais".
+function fmtCurrency(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function fmtHour(h: number | null | undefined): string {
@@ -980,14 +995,11 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
           {campaign.name}
         </h3>
 
-        {/* Objetivo + data */}
+        {/* Objetivo */}
         <div className="flex items-center gap-3 flex-wrap">
           <span className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] font-bold text-indigo-700">
             <RocketLaunchIcon className="h-3 w-3 shrink-0" />
             {objectiveLabel(campaign.objective)}
-          </span>
-          <span className="text-[10px] text-gray-400 font-medium">
-            Criada em {fmtDate(campaign.createdAt)}
           </span>
         </div>
       </div>
@@ -995,7 +1007,7 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
       {/* ── AdSet section ── */}
       {adSet && (
         <div className="px-5 py-4 border-b border-gray-50 space-y-4 flex-1">
-          {/* Budget & Período — uma linha cada */}
+          {/* Budget, Criação & Período — mesmo peso visual nos 3 */}
           <div className="flex items-stretch gap-3">
             <div className="flex-1 bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-100 rounded-xl px-3 py-2.5">
               <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">
@@ -1003,6 +1015,14 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               </p>
               <p className="text-base font-black text-indigo-800 leading-tight">
                 {fmtBudget(adSet.dailyBudget)}
+              </p>
+            </div>
+            <div className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">
+                Criada em
+              </p>
+              <p className="text-[11px] font-bold text-gray-700 leading-snug">
+                {fmtDate(campaign.createdAt)}
               </p>
             </div>
             <div className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
@@ -1018,6 +1038,47 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               </p>
             </div>
           </div>
+
+          {/* Desempenho acumulado — mesmos indicadores da Visão Executiva (dashboard), sem
+              filtro de período: cumulativo desde sempre até agora. "Campanhas Ativas" fica de
+              fora (métrica de portfólio, não de campanha individual). */}
+          {campaign.metrics && (
+            <div>
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+                Desempenho Acumulado
+              </p>
+              <div className="grid grid-cols-4 gap-1.5">
+                <div className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 text-center">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Gasto</p>
+                  <p className="text-[11px] font-black text-slate-800 mt-0.5 leading-tight">
+                    {fmtCurrency(campaign.metrics.spend)}
+                  </p>
+                </div>
+                <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-2 text-center">
+                  <p className="text-[8px] font-black text-indigo-400 uppercase tracking-wider">Leads</p>
+                  <p className="text-[11px] font-black text-indigo-700 mt-0.5 leading-tight">
+                    {campaign.metrics.leads}
+                  </p>
+                </div>
+                <div className="bg-teal-50 border border-teal-100 rounded-lg px-2 py-2 text-center">
+                  <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">CPL Médio</p>
+                  <p className="text-[11px] font-black text-teal-700 mt-0.5 leading-tight">
+                    {campaign.metrics.cpl !== null ? fmtCurrency(campaign.metrics.cpl) : '—'}
+                  </p>
+                </div>
+                <div className="bg-amber-50 border border-amber-100 rounded-lg px-2 py-2 text-center">
+                  <p className="text-[8px] font-black text-amber-500 uppercase tracking-wider">
+                    {campaign.metrics.hookRate !== null ? 'Hook Rate' : 'CTR'}
+                  </p>
+                  <p className="text-[11px] font-black text-amber-700 mt-0.5 leading-tight">
+                    {(campaign.metrics.hookRate ?? campaign.metrics.ctr) !== null
+                      ? `${(campaign.metrics.hookRate ?? campaign.metrics.ctr)!.toFixed(2)}%`
+                      : '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Público */}
           <div>
