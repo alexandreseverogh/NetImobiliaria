@@ -1055,13 +1055,13 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
                   </p>
                 </div>
                 <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-2 text-center">
-                  <p className="text-[8px] font-black text-indigo-400 uppercase tracking-wider">Leads</p>
+                  <p className="text-[8px] font-black text-indigo-400 uppercase tracking-wider leading-tight">Sinais Interesse</p>
                   <p className="text-[11px] font-black text-indigo-700 mt-0.5 leading-tight">
                     {campaign.metrics.leads}
                   </p>
                 </div>
                 <div className="bg-teal-50 border border-teal-100 rounded-lg px-2 py-2 text-center">
-                  <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">CPL Médio</p>
+                  <p className="text-[8px] font-black text-teal-500 uppercase tracking-wider">Custo/Sinal</p>
                   <p className="text-[11px] font-black text-teal-700 mt-0.5 leading-tight">
                     {campaign.metrics.cpl !== null ? fmtCurrency(campaign.metrics.cpl) : '—'}
                   </p>
