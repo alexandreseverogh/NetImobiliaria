@@ -19,6 +19,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   SparklesIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { adminFetch } from '@/lib/auth/adminFetch';
 import { cn } from '@/lib/marketing-utils';
@@ -1408,7 +1409,7 @@ export default function CampanhasModal({
   const hasActiveFilters = !!(search || statusFilter || periodStart || periodEnd);
 
   const filtered = campaigns.filter(c => {
-    const matchSearch  = !search       || c.id === search;   // seleção exata pelo id
+    const matchSearch  = !search       || c.name.toLowerCase().includes(search.trim().toLowerCase());
     const matchStatus  = !statusFilter || c.status === statusFilter;
     const matchPeriod  = overlapsPeriod(c);
     return matchSearch && matchStatus && matchPeriod;
@@ -1484,22 +1485,17 @@ export default function CampanhasModal({
 
                   {/* Controls */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {/* Campaign select — populated with loaded campaigns */}
+                    {/* Busca por nome (texto livre — filtra por substring, pode retornar 0) */}
                     <div className="relative hidden md:block">
-                      <select
+                      <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      <input
+                        type="text"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         disabled={loading || campaigns.length === 0}
-                        className="py-2 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all appearance-none shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed max-w-[260px]"
-                      >
-                        <option value="">
-                          {loading ? 'Carregando…' : `Todas as campanhas (${campaigns.length})`}
-                        </option>
-                        {campaigns.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                        placeholder={loading ? 'Carregando…' : `Buscar por nome (${campaigns.length})`}
+                        className="py-2 pl-8 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-[220px]"
+                      />
                     </div>
 
                     {/* Status filter */}
@@ -1533,18 +1529,15 @@ export default function CampanhasModal({
                 {/* Mobile filters */}
                 <div className="mt-3 md:hidden flex gap-2">
                   <div className="relative flex-1">
-                    <select
+                    <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      type="text"
                       value={search}
                       onChange={e => setSearch(e.target.value)}
                       disabled={loading || campaigns.length === 0}
-                      className="w-full py-2.5 pl-3 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 appearance-none cursor-pointer disabled:opacity-50"
-                    >
-                      <option value="">{loading ? 'Carregando…' : 'Todas as campanhas'}</option>
-                      {campaigns.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      placeholder={loading ? 'Carregando…' : 'Buscar por nome'}
+                      className="w-full py-2.5 pl-8 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
+                    />
                   </div>
                   <div className="relative">
                     <select
