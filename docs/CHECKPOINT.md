@@ -1,6 +1,39 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-02 (continuação) — **"Consultar Campanhas": data de criação com
+> **Atualizado em:** 2026-08-02 (continuação 3) — **2 ajustes no card "Desempenho
+> Acumulado" (commits `0ee57a7` + `a168d83`), ambos a pedido do usuário testando a
+> entrega anterior.**
+>
+> **(1) Container discreto:** o bloco de 4 tiles coloridos (Gasto/Leads/CPL/CTR) estava
+> solto direto no card, sem nenhum agrupamento visual — usuário: "não ficou legal... deve
+> estar dentro de um container, estilizado e colorido discretamente". Envolvido em
+> `bg-slate-50/70 border border-slate-100 rounded-xl px-3 py-2.5`, mesmo padrão já usado
+> no container de "Período de veiculação" mais abaixo no mesmo modal. Confirmado via
+> `getComputedStyle`: fundo `rgba(248,250,252,0.7)`, borda `rgb(241,245,249)`.
+>
+> **(2) "Leads" sempre zerado — não era bug de contagem, era rótulo enganoso.** Usuário:
+> "o campo LEADS sempre é exibido zerado. Qual tal exibirmos SINAIS DE INTERESSE?".
+> Verificado ao vivo contra a API real: 5 das 6 campanhas do tenant têm gasto real
+> (R$9.670 a R$11.927) mas `leads: 0` — a métrica (via `leadEvents.ts`) conta clique bruto
+> de WhatsApp/formulário (`CtaInteraction`/`CtaSubmission`), e esses registros foram
+> removidos ao final de sessões de teste anteriores (a disciplina de "0 resíduo" já
+> documentada extensivamente neste arquivo) — não há engajamento real persistido pra essas
+> campanhas agora, mesmo com gasto real acontecendo. A contagem em si está certa; o rótulo
+> "Leads" é que promete mais do que mede (sugere confirmação no CRM, que a métrica nunca
+> exigiu — mesma definição de "Sinal de Interesse (Meta)" já usada em
+> `/admin/campanhas/leads`, também clique bruto sem confirmação). Renomeado "Leads" →
+> "Sinais Interesse" e, por consistência interna do mesmo grupo de tiles, "CPL Médio" →
+> "Custo/Sinal" — computação idêntica, só o texto mudou (decisão restrita a este card; o
+> "CPL Médio" da Visão Executiva do dashboard, `CommandCenterView.tsx`, não foi tocado —
+> é a mesma métrica mas já é terminologia estabelecida em toda a plataforma).
+>
+> **Verificado ao vivo, com dado real, em ambas as rodadas:** container com fundo/borda
+> confirmados via `getComputedStyle`; labels novos ("SINAIS INTERESSE", "CUSTO/SINAL")
+> renderizando com os mesmos valores de antes (ex.: campanha Google Search continua
+> mostrando 64/R$3.330,54, agora sob o rótulo novo). `npx tsc --noEmit`: 0 erros nas duas
+> rodadas.
+>
+> — **Sessão anterior (2026-08-02, continuação 2) — "Consultar Campanhas": data de criação com
 > destaque + Desempenho Acumulado por card (commit `26ef853`).** Usuário pediu análise de
 > viabilidade de 2 itens por card: 1) data de criação junto do período de veiculação; 2) os
 > mesmos indicadores da Visão Executiva do dashboard (`CommandCenterView.tsx`), cumulativos
@@ -1076,10 +1109,10 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — Desempenho Acumulado + destaque da data de
-criação no "Consultar Campanhas" testado ao vivo com dado real e commitado. Pendência
-antiga e pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO
-1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
+**Nenhuma tarefa em andamento no momento** — container discreto + rótulo "Sinais
+Interesse" no card "Desempenho Acumulado" testados ao vivo e commitados. Pendência antiga
+e pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15",
+tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
 `/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de página ativa
 dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem
 implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna
@@ -1088,9 +1121,15 @@ do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
-### Sessão 2026-08-02 (continuação) — Desempenho Acumulado + destaque da data de criação por card ✅
+### Sessão 2026-08-02 (continuação 3) — Container discreto + "Sinais Interesse" no Desempenho Acumulado ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02 (continuação)"). Commit `26ef853`.
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02 (continuação 3)"). Commits `0ee57a7` + `a168d83`.
+
+---
+
+### Sessão 2026-08-02 (continuação 2) — Desempenho Acumulado + destaque da data de criação por card ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02 (continuação 2), histórico"). Commit `26ef853`.
 
 ---
 
