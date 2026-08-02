@@ -1,6 +1,36 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-02 (continuação 3) — **2 ajustes no card "Desempenho
+> **Atualizado em:** 2026-08-02 (continuação 4) — **Fix real: trocar pra Google AI Max de
+> dentro do wizard Meta/TikTok em `/admin/campanhas/nova` (commit `c1fe33a`).** Usuário
+> reportou: depois de escolher criativos + rede na Fase 1, a Fase 2 mostra de novo as 3
+> opções de rede com a escolhida já marcada — mas se o usuário quiser trocar pra Google AI
+> Max ali dentro, a opção fica desabilitada.
+>
+> **Investigado — não era bug de provisionamento.** Google Ads nunca é "supported" dentro
+> do `CampaignWizard` genérico, de propósito: Performance Max tem estrutura fundamentalmente
+> diferente (asset groups, não adSet/ad), por isso vive num componente próprio
+> (`GoogleAiMaxWizard.tsx`), decisão arquitetural já documentada neste arquivo. O problema
+> real era que, uma vez dentro do wizard genérico, **não existia nenhum caminho funcional**
+> pra chegar no assistente certo — o usuário precisaria descobrir sozinho que tinha que
+> fechar o wizard e voltar pra Fase 1 pra clicar no botão separado "Google AI Max". O rótulo
+> "Em breve" reforçava a confusão, sugerindo "ainda não lançado" quando na verdade é
+> "estrutura diferente, sempre vai ser outro assistente".
+>
+> **Corrigido com um atalho real, não só cosmético:** novo prop opcional `onSwitchToGoogle`
+> no `CampaignWizard`, repassado a `StepNetwork` — quando presente (só quando Google está
+> contratado+conectado pro tenant, mesma regra já usada nos 3 botões macro da Fase 1 via
+> `networkReady()`), o tile de Google troca "Em breve" por "Abrir assistente próprio →",
+> agora clicável de verdade: fecha o `CampaignWizard` e abre o `GoogleAiMaxWizard`
+> diretamente (`nova/page.tsx`: `setShowWizard(false); setShowGoogleWizard(true)`),
+> reaproveitando os mesmos criativos já selecionados na Fase 1 — nenhum dos dois wizards
+> perde o que já foi escolhido, já que ambos recebem a mesma prop `selectedImages={selected}`.
+>
+> **Testado ao vivo, tenant real com Google contratado+conectado:** aberto o wizard via
+> "Meta Ads" → step "Rede" → tile Google mostrou corretamente "Abrir assistente próprio →"
+> (não mais "Em breve") → clique fechou o wizard Meta e abriu "Google AI Max Wizard —
+> Performance Max" corretamente. `npx tsc --noEmit`: 0 erros.
+>
+> — **Sessão anterior (2026-08-02, continuação 3) — 2 ajustes no card "Desempenho
 > Acumulado" (commits `0ee57a7` + `a168d83`), ambos a pedido do usuário testando a
 > entrega anterior.**
 >
@@ -1109,10 +1139,10 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — container discreto + rótulo "Sinais
-Interesse" no card "Desempenho Acumulado" testados ao vivo e commitados. Pendência antiga
-e pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15",
-tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
+**Nenhuma tarefa em andamento no momento** — atalho "Abrir assistente próprio →" pra
+Google AI Max de dentro do wizard Meta/TikTok testado ao vivo e commitado. Pendência
+antiga e pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO
+1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
 `/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de página ativa
 dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem
 implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna
@@ -1121,9 +1151,15 @@ do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-02 (continuação 4) — Fix real: trocar pra Google AI Max de dentro do wizard ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02 (continuação 4)"). Commit `c1fe33a`.
+
+---
+
 ### Sessão 2026-08-02 (continuação 3) — Container discreto + "Sinais Interesse" no Desempenho Acumulado ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02 (continuação 3)"). Commits `0ee57a7` + `a168d83`.
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02 (continuação 3), histórico"). Commits `0ee57a7` + `a168d83`.
 
 ---
 
