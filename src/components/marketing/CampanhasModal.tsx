@@ -1043,7 +1043,7 @@ function CampaignCard({ campaign, index }: { campaign: CampaignData; index: numb
               filtro de período: cumulativo desde sempre até agora. "Campanhas Ativas" fica de
               fora (métrica de portfólio, não de campanha individual). */}
           {campaign.metrics && (
-            <div>
+            <div className="bg-slate-50/70 border border-slate-100 rounded-xl px-3 py-2.5">
               <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
                 Desempenho Acumulado
               </p>
