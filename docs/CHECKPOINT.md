@@ -1,6 +1,43 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-02 — **Fix real: campo de busca do "Consultar Campanhas" era
+> **Atualizado em:** 2026-08-02 (continuação) — **"Consultar Campanhas": data de criação com
+> destaque + Desempenho Acumulado por card (commit `26ef853`).** Usuário pediu análise de
+> viabilidade de 2 itens por card: 1) data de criação junto do período de veiculação; 2) os
+> mesmos indicadores da Visão Executiva do dashboard (`CommandCenterView.tsx`), cumulativos
+> "até a data e hora da consulta". Após análise (ver troca anterior), usuário aprovou a
+> recomendação: implementar os 4 indicadores aplicáveis por campanha individual — Gasto,
+> Leads, CPL, CTR/Hook Rate — excluindo "Campanhas Ativas" (métrica de portfólio, não faz
+> sentido por campanha).
+>
+> **Achado real confirmado antes de implementar:** `GET /api/admin/campanhas/campaigns` (a
+> API que alimenta esse modal) nunca fez join nenhum com `Insight` nem contagem de lead —
+> só retornava metadado de configuração (orçamento, público, agendamento). Não era "expor
+> um campo", era agregação nova.
+>
+> **Implementado:**
+> 1. Backend — nova agregação por campanha, **sem filtro de período** (cumulativo desde
+>    sempre): `Insight.groupBy` (spend/impressions/clicks/videoViews3s) + leads via
+>    `leadEvents.ts` (a fonte única de contagem de lead do projeto — cada rede sinaliza lead
+>    de um jeito diferente, e esse serviço já resolve isso). CTR e Hook Rate em percentual;
+>    Hook Rate só aparece quando a campanha tem vídeo real (`videoViews3s > 0`), senão cai
+>    pra CTR — mesma regra condicional já usada na Visão Executiva
+>    (`hookRate !== null ? <HookRateKpiCard> : <KpiCard CTR>`). Falha na agregação não
+>    bloqueia a listagem (`metrics: null`, card renderiza sem essa seção — degrada
+>    graciosamente).
+> 2. Frontend — "Criada em" saiu do texto pequeno solto perto do badge de objetivo e virou
+>    um 3º bloco na mesma linha de Orçamento/Período (mesmo peso visual dos outros dois);
+>    nova seção "Desempenho Acumulado" logo abaixo, com 4 tiles compactos (Gasto/Leads/
+>    CPL Médio/CTR-ou-Hook-Rate).
+>
+> **Testado ao vivo, com dado real, batendo com números já documentados em sessões
+> anteriores:** "Google Search — Apartamentos SP" → R$ 213.154,39 / 64 leads / R$ 3.330,54
+> CPL / 4,11% CTR (idêntico ao que já tinha sido confirmado manualmente meses atrás) · "MD
+> · Captação Própria Premium" (tem vídeo real) → corretamente "Hook Rate 11,00%" em vez de
+> CTR · campanhas sem `Insight`/lead nenhum (TikTok de teste, "campanha 7") → R$ 0,00 / 0 /
+> — / — honesto, sem inventar dado. `npx tsc --noEmit`: 0 erros (mesma baseline zerada,
+> nenhum erro novo).
+>
+> — **Sessão anterior (2026-08-02) — Fix real: campo de busca do "Consultar Campanhas" era
 > seleção exata, não texto livre — nunca podia retornar zero resultados (commit
 > `5392cb0`).** Usuário reportou, citando um item de teste ("Digite um filtro que não
 > retorne nada → clique em 'Limpar filtros'... não concluído"): "na funcionalidade de
@@ -1039,21 +1076,27 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — fix do campo de busca (texto livre) no
-"Consultar Campanhas" testado ao vivo e commitado. Pendência antiga e pontual, ainda não
-atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant Marketing
-Digital) inseridos pra viabilizar o teste visual da paginação em `/admin/campanhas/leads`
-— assim que o usuário confirmar que já viu o botão de página ativa dourado. Fora isso,
-todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem implementadas e commitadas;
-Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna honesta, não bug); Fase 3
-e eliminação do token em localStorage fora de escopo por decisão do plano
-(`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Nenhuma tarefa em andamento no momento** — Desempenho Acumulado + destaque da data de
+criação no "Consultar Campanhas" testado ao vivo com dado real e commitado. Pendência
+antiga e pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO
+1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
+`/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de página ativa
+dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem
+implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna
+honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por decisão
+do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-02 (continuação) — Desempenho Acumulado + destaque da data de criação por card ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02 (continuação)"). Commit `26ef853`.
+
+---
+
 ### Sessão 2026-08-02 — Fix real: busca do "Consultar Campanhas" era seleção exata, não texto livre ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02"). Commit `5392cb0`.
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02 (histórico)"). Commit `5392cb0`.
 
 ---
 
