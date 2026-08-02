@@ -1,6 +1,36 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-01 — **Fix real: horário de veiculação errado no card do
+> **Atualizado em:** 2026-08-02 — **Fix real: campo de busca do "Consultar Campanhas" era
+> seleção exata, não texto livre — nunca podia retornar zero resultados (commit
+> `5392cb0`).** Usuário reportou, citando um item de teste ("Digite um filtro que não
+> retorne nada → clique em 'Limpar filtros'... não concluído"): "na funcionalidade de
+> consulta de campanhas não visualizo o botão 'Limpar filtros'".
+>
+> **Investigação ao vivo (não hipotética) mostrou 2 coisas distintas:** (1) o botão
+> "Limpar filtros" **já funcionava perfeitamente** — testado ao vivo selecionando o status
+> "Removidas" (nenhuma campanha removida existe) → apareceu corretamente "Nenhuma campanha
+> encontrada" + "Limpar filtros", clique restaurou a lista; (2) o campo que parecia ser
+> "busca por nome" nunca foi um input de texto livre — era um `<select>` com a lista exata
+> das campanhas já carregadas (`search === c.id`, seleção exata). Por construção, um
+> dropdown de seleção exata **nunca pode retornar zero resultados** (só dá pra escolher um
+> nome que já existe) — por isso o teste "digite um filtro que não retorne nada" nunca
+> conseguia disparar o empty state por essa via, mesmo o botão em si estando correto.
+>
+> **Corrigido:** os 2 controles (desktop + mobile) trocados de `<select>` pra
+> `<input type="text">` real, com ícone de lupa; filtro passou de `c.id === search`
+> (comparação exata) pra `c.name.toLowerCase().includes(search.trim().toLowerCase())`
+> (substring, case-insensitive) — `hasActiveFilters`/`matchSearch` já usavam a variável
+> `search` genericamente, sem mudança de tipo necessária no resto do componente.
+>
+> **Testado ao vivo, ponta a ponta, o cenário exato do teste original:** digitado
+> "xyzxyznaoexiste" (não bate com nenhuma das 6 campanhas reais) → `(0/6)` + "Nenhuma
+> campanha encontrada" + "Ajuste os filtros..." + botão "Limpar filtros" visível ·
+> `mouseover` no botão confirmado via `getComputedStyle`: `color: rgb(75, 85, 99)` (cinza,
+> não roxo) · clique no botão → campo de busca limpo (`value === ''`) e as 6 campanhas
+> reais voltaram a aparecer. `npx tsc --noEmit`: 0 erros (mesma baseline zerada, nenhum
+> erro novo no arquivo tocado).
+>
+> — **Sessão anterior (2026-08-01) — Fix real: horário de veiculação errado no card do
 > "Consultar Campanhas" + label "CAMPANHA " no nome (commit `93f1c5a`).** Usuário pediu 2
 > ajustes na tela: exibir o horário de veiculação em cada card, e prefixar o nome da
 > campanha com "CAMPANHA ".
@@ -1009,21 +1039,27 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — fix de horário de veiculação + label
-"CAMPANHA " no "Consultar Campanhas" testado ao vivo e commitado. Pendência antiga e
-pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15",
-tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
-`/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de página ativa
-dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem
-implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna
-honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por decisão do
-plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Nenhuma tarefa em andamento no momento** — fix do campo de busca (texto livre) no
+"Consultar Campanhas" testado ao vivo e commitado. Pendência antiga e pontual, ainda não
+atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant Marketing
+Digital) inseridos pra viabilizar o teste visual da paginação em `/admin/campanhas/leads`
+— assim que o usuário confirmar que já viu o botão de página ativa dourado. Fora isso,
+todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem implementadas e commitadas;
+Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna honesta, não bug); Fase 3
+e eliminação do token em localStorage fora de escopo por decisão do plano
+(`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-02 — Fix real: busca do "Consultar Campanhas" era seleção exata, não texto livre ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02"). Commit `5392cb0`.
+
+---
+
 ### Sessão 2026-08-01 — Fix real: horário de veiculação errado no card + label "CAMPANHA " ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-01"). Commit `93f1c5a`.
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-01 (histórico)"). Commit `93f1c5a`.
 
 ---
 
