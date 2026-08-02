@@ -310,6 +310,10 @@ export default function NovaCampanhaPage() {
           hookText:    prefillHookText || undefined,
           networkCode: pickedNetwork,
         }}
+        onSwitchToGoogle={networkReady('google') ? () => {
+          setShowWizard(false);
+          setShowGoogleWizard(true);
+        } : undefined}
       />
     );
   }

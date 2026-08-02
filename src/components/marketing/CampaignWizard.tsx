@@ -54,6 +54,16 @@ interface Props {
    * Ausente/vazio → StepNetwork busca sozinha (uso standalone continua funcionando).
    */
   networks?: NetworkOption[];
+  /**
+   * Google Ads (Performance Max) não é suportado neste wizard genérico — tem estrutura
+   * fundamentalmente diferente (asset groups, não adSet/ad) e por isso vive num componente
+   * próprio (GoogleAiMaxWizard). Sem esse callback, um usuário que já está dentro deste
+   * wizard e decide que quer Google não tem NENHUM caminho de volta — precisaria descobrir
+   * sozinho que tem que fechar o wizard e clicar no botão separado em /nova. Quando presente,
+   * StepNetwork oferece um atalho real: fecha este wizard e abre o do Google diretamente,
+   * reaproveitando os mesmos criativos já selecionados.
+   */
+  onSwitchToGoogle?: () => void;
 }
 
 /* ── AutoChip ────────────────────────────────────────────── */
@@ -99,7 +109,7 @@ function Label({ children, className }: { children: React.ReactNode; className?:
 /* ══════════════════════════════════════════════════════════
    MAIN WIZARD COMPONENT — FASE 2 (configuração da campanha)
 ══════════════════════════════════════════════════════════ */
-export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds, initialValues, networks }: Props) {
+export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, onSuccess, clientId, getAssetIds, initialValues, networks, onSwitchToGoogle }: Props) {
   const selectedImages = selectedImagesProp ?? [];
   const [step, setStep]             = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -418,7 +428,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
               transition={{ duration: 0.2 }}
               className="max-w-4xl"
             >
-              {step === 0 && <StepNetwork   form={form} updateForm={updateForm} networks={networks} />}
+              {step === 0 && <StepNetwork   form={form} updateForm={updateForm} networks={networks} onSwitchToGoogle={onSwitchToGoogle} />}
               {step === 1 && <StepType      form={form} updateForm={updateForm} selectedImages={selectedImages} hookAlert={hookAlert} clientId={clientId} />}
               {step === 2 && <StepTextCta   form={form} updateForm={updateForm} autoFields={autoFields} hookTextHint={initialValues?.hookText} isPrefilled={!!(initialValues?.body || initialValues?.headline)} />}
               {step === 3 && <StepTargeting form={form} updateForm={updateForm} clientId={clientId} suggestedInterests={autoFields.suggestedInterests} />}
@@ -477,7 +487,7 @@ export function CampaignWizard({ selectedImages: selectedImagesProp, onClose, on
    STEP 0 — REDE
 ══════════════════════════════════════════════════════════ */
 
-function StepNetwork({ form, updateForm, networks: networksProp }: any) {
+function StepNetwork({ form, updateForm, networks: networksProp, onSwitchToGoogle }: any) {
   // /nova já buscou o status de rede pra habilitar os botões macro (Meta/TikTok/Google) —
   // se ele repassou a lista aqui, reaproveita direto: sem refetch, sem skeleton próprio.
   // Só busca sozinha se usada sem esse prop (fallback, uso standalone).
@@ -525,12 +535,20 @@ function StepNetwork({ form, updateForm, networks: networksProp }: any) {
             // prioridade sobre "conectado" — sem contratar, nem adianta ter credencial.
             const isContracted = net.contracted !== false;
             const isSelected   = form.networkCode === net.code;
-            const isClickable  = isSupported && isContracted && net.connected;
+            // Google Ads (Performance Max) nunca é "isSupported" AQUI de propósito — não é
+            // que falte configurar, é que o formato é estruturalmente diferente (asset
+            // groups, não adSet/ad) e vive num wizard próprio. Em vez de deixar o usuário
+            // sem nenhum caminho de volta, oferece o atalho real pra trocar de wizard.
+            const isGoogleSwitch = net.code === 'google' && !isSupported && typeof onSwitchToGoogle === 'function';
+            const isClickable  = (isSupported && isContracted && net.connected) || isGoogleSwitch;
             return (
               <button
                 key={net.code}
                 disabled={!isClickable}
-                onClick={() => isClickable && updateForm({ networkCode: net.code })}
+                onClick={() => {
+                  if (isGoogleSwitch) return onSwitchToGoogle();
+                  if (isSupported && isContracted && net.connected) updateForm({ networkCode: net.code });
+                }}
                 className={cn(
                   'bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center transition-colors relative',
                   isSelected && 'ring-2 ring-gold-premium bg-amber-50 border-gold-premium/40',
@@ -545,7 +563,9 @@ function StepNetwork({ form, updateForm, networks: networksProp }: any) {
                   {ICONS[net.code] || net.code.slice(0, 2).toUpperCase()}
                 </div>
                 <p className="text-sm font-semibold text-gray-900">{net.name}</p>
-                {!isSupported ? (
+                {isGoogleSwitch ? (
+                  <p className="text-xs text-indigo-600 mt-1 font-semibold">Abrir assistente próprio →</p>
+                ) : !isSupported ? (
                   <p className="text-xs text-gray-400 mt-1">Em breve</p>
                 ) : !isContracted ? (
                   <p className="text-xs text-gray-400 mt-1">Não contratado</p>
