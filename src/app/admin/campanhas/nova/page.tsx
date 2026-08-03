@@ -97,9 +97,18 @@ export default function NovaCampanhaPage() {
   // skeleton), mesmo a rede já tendo sido escolhida no botão macro clicado aqui. Reaproveitar
   // elimina 1 dos fatores da demora extrema reportada ao abrir o wizard.
   const [networksRaw, setNetworksRaw] = useState<any[]>([]);
+  // Achado real: em dev, quando a rota ainda não compilou nessa sessão, uma única chamada
+  // pode levar 30-50s (medido ao vivo, inclusive retornando 404 nesse meio tempo). O retry
+  // automático abaixo evita ficar preso pra sempre, mas não acelera a espera em si — esse
+  // indicador dá contexto visual ("carregando", não "quebrado") e uma saída manual pro
+  // usuário não precisar esperar o backoff inteiro se quiser forçar de novo.
+  const [networksSlow, setNetworksSlow] = useState(false);
+  const [networksRetryTick, setNetworksRetryTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setNetworksSlow(false);
+    const slowTimer = setTimeout(() => { if (!cancelled) setNetworksSlow(true); }, 6000);
 
     // Achado real: sem retry, uma falha transitória (comum em dev com a rota ainda
     // compilando sob demanda no 1º hit da sessão — já confirmado ao vivo levando 40-50s e
@@ -137,8 +146,14 @@ export default function NovaCampanhaPage() {
     }
 
     loadNetworkStatus();
-    return () => { cancelled = true; };
-  }, []);
+    return () => { cancelled = true; clearTimeout(slowTimer); };
+  }, [networksRetryTick]);
+
+  function retryNetworkStatus() {
+    setNetworksLoaded(false);
+    setNetworksSlow(false);
+    setNetworksRetryTick(t => t + 1);
+  }
 
   function networkReady(code: string): boolean {
     const s = networkStatus[code];
@@ -751,7 +766,23 @@ export default function NovaCampanhaPage() {
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col items-end gap-1.5">
+            {!networksLoaded && (
+              <div className="flex items-center gap-2 text-[11px] font-medium text-gray-400">
+                <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                {networksSlow ? 'Ainda carregando as redes disponíveis…' : 'Carregando redes disponíveis…'}
+                {networksSlow && (
+                  <button
+                    type="button"
+                    onClick={retryNetworkStatus}
+                    className="underline text-indigo-600 hover:text-indigo-800 font-semibold"
+                  >
+                    Tentar novamente
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="flex gap-3">
             {(() => {
               const metaOk = networkReady('meta');
               return (
@@ -802,11 +833,12 @@ export default function NovaCampanhaPage() {
                   title={!googleOk && networksLoaded ? (networkStatus.google?.contracted === false ? 'Rede não contratada' : 'Rede não conectada — configure em Configurações → Redes') : undefined}
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700"
                 >
-                  <img src="/google-logo.png" alt="Google" className="h-4 w-4 filter brightness-0 invert opacity-90" onError={e => e.currentTarget.style.display='none'} />
+                  <span className="text-base font-black leading-none" aria-hidden="true">G</span>
                   Google AI Max
                 </button>
               );
             })()}
+            </div>
           </div>
         </div>
 

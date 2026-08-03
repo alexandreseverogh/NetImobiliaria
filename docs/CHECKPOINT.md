@@ -1,8 +1,55 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-03 (continuação) — **Fix real: botões de rede
+> **Atualizado em:** 2026-08-03 (continuação 2) — **2 achados na sequência do fix de retry
+> dos botões de rede: `<img src="/google-logo.png">` inexistente (404 real) + feedback
+> visual ausente enquanto os botões esperam a resposta (commit seguinte).** Usuário
+> reportou, testando o fix anterior: (1) console mostrando erro de uma imagem do Google
+> não carregada; (2) "o mesmo problema de ainda aparecem os 3 botões de escolha da rede
+> desabilitados ainda persiste".
+>
+> **Achado 1 — real, confirmado no log do próprio servidor dev do usuário** (ele colou a
+> linha exata): `GET /google-logo.png 404 in 29059ms`. O botão "Google AI Max" usava
+> `<img src="/google-logo.png">` — arquivo que **nunca existiu** em `public/` (confirmado
+> via busca no diretório inteiro, zero resultado). Único ponto do código inteiro que
+> referenciava esse caminho. Um `onError` já escondia a imagem quebrada silenciosamente,
+> então nunca quebrou visualmente — mas gerava a requisição 404 real que aparecia no
+> console, exatamente o que o usuário viu. Corrigido: substituído por um `<span>G</span>`
+> inline (mesmo padrão de ícone-texto já usado pro Google no seletor de rede do
+> `CampaignWizard.tsx`, que usa `'G'` como ícone da rede Google sem depender de nenhum
+> arquivo de imagem) — zero requisição de rede, zero 404.
+>
+> **Achado 2 — o retry da rodada anterior (`4315968`) está correto em princípio, mas não
+> resolve a percepção do usuário sozinho:** o retry evita os botões ficarem presos **pra
+> sempre**, mas não acelera a compilação em si do Next em modo dev (medido ao vivo de novo
+> nesta mesma investigação: `Compiled /api/admin/campanhas/settings/client-creatives in
+> 27.6s`, `GET /google-logo.png 404 in 29059ms` — o mesmo padrão de sobrecarga do
+> compilador já documentado, ainda presente no ambiente do usuário). Sem nenhum feedback
+> visual, os botões continuavam parecendo simplesmente "travados/quebrados" durante esse
+> tempo de espera real, mesmo o retry por trás funcionando — a percepção do usuário de
+> "o mesmo problema ainda persiste" é sobre a UX da espera, não sobre o retry ter falhado.
+>
+> **Corrigido — feedback visual + saída manual, sem prometer resolver o tempo de
+> compilação em si (que é uma característica do modo dev, não um bug corrigível no
+> cliente):** enquanto `!networksLoaded`, aparece agora um indicador com spinner
+> ("Carregando redes disponíveis…") acima dos 3 botões; depois de 6s ainda carregando, o
+> texto muda pra "Ainda carregando as redes disponíveis…" com um link "Tentar novamente"
+> que força uma nova tentativa imediata (via `networksRetryTick`, novo state que
+> retrigger o mesmo `useEffect` de carga) sem esperar o backoff automático nem exigir
+> recarregar a página inteira.
+>
+> **Verificado ao vivo:** `npx tsc --noEmit` — 0 erros (mesma baseline zerada, nada novo).
+> `document.querySelectorAll('img[src*="google-logo"]').length === 0` confirma a imagem
+> quebrada removida do DOM. Botões testados habilitando corretamente em ~2s numa rota já
+> aquecida (sem regressão do caminho de sucesso). O cenário de compile-storm genuíno (que
+> motivou a investigação) foi reproduzido de novo ao vivo nesta sessão, confirmando que o
+> fenômeno de base (dev-mode, várias rotas compilando ao mesmo tempo) é real e
+> independente de qualquer coisa no código do cliente — o que esta rodada resolve é a
+> transparência (usuário sabe que está carregando, não travado) e dá uma saída manual,
+> não a duração da espera em si, que é inerente ao `next dev` numa sessão fria.
+>
+> — **Sessão anterior (2026-08-03, continuação) — Fix real: botões de rede
 > (Meta/TikTok/Google) em `/admin/campanhas/nova` ficavam presos desabilitados sem
-> nenhuma recuperação, às vezes por muito tempo (commit seguinte).** Usuário reportou:
+> nenhuma recuperação, às vezes por muito tempo (commit `4315968`).** Usuário reportou:
 > depois de escolher a pasta e clicar num criativo específico, os botões de rede abaixo
 > "muitas das vezes" ficavam desabilitados por um bom tempo — às vezes, depois de muito
 > tempo, passavam a habilitar.
@@ -1214,21 +1261,28 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — fix do retry dos botões de rede em
-`/admin/campanhas/nova` testado ao vivo e pronto pra commit. Pendência antiga e pontual,
-ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant
-Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
-`/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de página ativa
-dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem
-implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna
-honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por decisão
-do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Nenhuma tarefa em andamento no momento** — fix do `google-logo.png` 404 + feedback
+visual/retry manual dos botões de rede em `/admin/campanhas/nova` testado ao vivo e pronto
+pra commit. Pendência antiga e pontual, ainda não atacada: **remover os 15 leads de teste**
+("TESTE PAGINACAO 1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual
+da paginação em `/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão
+de página ativa dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
+seguem implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo
+(lacuna honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por
+decisão do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-03 (continuação 2) — Fix: google-logo.png 404 + feedback visual/retry manual ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 2)").
+
+---
+
 ### Sessão 2026-08-03 (continuação) — Fix real: retry pros botões de rede em /nova ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação),
+histórico").
 
 ---
 
