@@ -1,6 +1,42 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-03 — **Fix real: círculo do raio de alcance no `LocationPicker`
+> **Atualizado em:** 2026-08-03 (continuação) — **Fix real: botões de rede
+> (Meta/TikTok/Google) em `/admin/campanhas/nova` ficavam presos desabilitados sem
+> nenhuma recuperação, às vezes por muito tempo (commit seguinte).** Usuário reportou:
+> depois de escolher a pasta e clicar num criativo específico, os botões de rede abaixo
+> "muitas das vezes" ficavam desabilitados por um bom tempo — às vezes, depois de muito
+> tempo, passavam a habilitar.
+>
+> **Investigado ao vivo, reproduzido de verdade (não hipotético):** os 3 botões dependem
+> de `networksLoaded`/`networkStatus`, preenchidos por 1 único `useEffect` que chama
+> `GET /api/admin/campanhas/configuracoes/redes` uma vez no mount, sem NENHUM retry —
+> `.catch(() => setNetworkStatus({}))` seguido de `.finally(() => setNetworksLoaded(true))`.
+> Reproduzido com um servidor dev genuinamente frio (não simulado): a 1ª tentativa dessa
+> rota, junto com `/api/admin/sidebar/menu` e `/api/admin/campanhas/settings/client-
+> creatives`, chegou a **retornar 404** depois de 47-53 segundos — sintoma real de
+> sobrecarga do compilador do Next em dev (várias rotas compilando ao mesmo tempo), não
+> hipótese. Como o efeito só roda 1 vez (`deps: []`) e não tinha nenhum retry, essa falha
+> transitória deixava os 3 botões presos desabilitados **pra sempre** naquela instância da
+> página — a única recuperação possível era recarregar a página inteira manualmente, o que
+> bate exatamente com "às vezes, depois de um tempo longo eles passam a ser habilitados"
+> relatado pelo usuário (não é a mesma requisição demorando — é uma NOVA tentativa via
+> reload manual que, dessa vez, acerta a rota já compilada).
+>
+> **Corrigido:** `useEffect` reescrito com retry automático (até 3 tentativas, backoff
+> curto de 1,5s/3s) antes de desistir e mostrar os botões como indisponíveis — nenhuma
+> falha transitória isolada (cold-compile em dev, hiccup de rede, blip passageiro de pool
+> de conexão em produção) trava mais os botões sem chance de recuperação automática.
+>
+> **Verificado ao vivo:** `npx tsc --noEmit` — 0 erros (mesma baseline zerada, nada novo no
+> arquivo tocado). Caminho normal (sucesso rápido) confirmado sem regressão — botões
+> habilitam em ~2s numa rota já aquecida, mesmo resultado de antes do fix. O caminho de
+> falha/retry em si não foi forçado ao vivo (exigiria interceptar `fetch` antes do 1º mount
+> da página, incompatível com a forma como a sessão injeta JWT via script pós-carregamento)
+> — confiança vem da revisão de código (padrão simples de retry com contador + backoff,
+> com flag `cancelled` pra evitar update de state após unmount) e do log real capturado que
+> motivou o fix (a falha 404 documentada acima).
+>
+> — **Sessão anterior (2026-08-03) — Fix real: círculo do raio de alcance no `LocationPicker`
 > (mapa "Selecionar no Mapa") ainda dourado só num dos 2 caminhos de código — o outro
 > continuava indigo (commit seguinte).** Usuário tinha pedido, numa sessão anterior, que o
 > círculo do raio no mapa Leaflet virasse dourado (parte do Redesign Premium); mandou print
@@ -1178,21 +1214,27 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — fix do círculo indigo residual no
-`LocationPicker` testado ao vivo e pronto pra commit. Pendência antiga e pontual, ainda não
-atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant Marketing
-Digital) inseridos pra viabilizar o teste visual da paginação em `/admin/campanhas/leads` —
-assim que o usuário confirmar que já viu o botão de página ativa dourado. Fora isso, todas
-as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem implementadas e commitadas; Meta
-Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna honesta, não bug); Fase 3 e
-eliminação do token em localStorage fora de escopo por decisão do plano
-(`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Nenhuma tarefa em andamento no momento** — fix do retry dos botões de rede em
+`/admin/campanhas/nova` testado ao vivo e pronto pra commit. Pendência antiga e pontual,
+ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant
+Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
+`/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de página ativa
+dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem
+implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna
+honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por decisão
+do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-03 (continuação) — Fix real: retry pros botões de rede em /nova ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação)").
+
+---
+
 ### Sessão 2026-08-03 — Fix real: círculo indigo residual no LocationPicker (2º caminho de código) ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03, histórico").
 
 ---
 

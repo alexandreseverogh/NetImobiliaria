@@ -99,9 +99,20 @@ export default function NovaCampanhaPage() {
   const [networksRaw, setNetworksRaw] = useState<any[]>([]);
 
   useEffect(() => {
-    adminFetch('/api/admin/campanhas/configuracoes/redes')
-      .then(r => r.json())
-      .then(d => {
+    let cancelled = false;
+
+    // Achado real: sem retry, uma falha transitória (comum em dev com a rota ainda
+    // compilando sob demanda no 1º hit da sessão — já confirmado ao vivo levando 40-50s e
+    // até retornando 404 nesse meio tempo) deixava os 3 botões de rede desabilitados pra
+    // sempre nessa instância da página, sem nenhuma forma de recuperação a não ser recarregar
+    // manualmente — o efeito só roda uma vez (deps `[]`). Até 3 tentativas com backoff curto
+    // cobre esse hiccup sem exigir ação do usuário.
+    async function loadNetworkStatus(attempt = 1) {
+      try {
+        const r = await adminFetch('/api/admin/campanhas/configuracoes/redes');
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        if (cancelled) return;
         const list = d.networks || [];
         setNetworksRaw(list);
         const map: Record<string, { contracted: boolean; connected: boolean; supported: boolean }> = {};
@@ -113,9 +124,20 @@ export default function NovaCampanhaPage() {
           };
         });
         setNetworkStatus(map);
-      })
-      .catch(() => setNetworkStatus({}))
-      .finally(() => setNetworksLoaded(true));
+        setNetworksLoaded(true);
+      } catch {
+        if (cancelled) return;
+        if (attempt < 3) {
+          setTimeout(() => loadNetworkStatus(attempt + 1), attempt * 1500);
+        } else {
+          setNetworkStatus({});
+          setNetworksLoaded(true);
+        }
+      }
+    }
+
+    loadNetworkStatus();
+    return () => { cancelled = true; };
   }, []);
 
   function networkReady(code: string): boolean {
