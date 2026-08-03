@@ -310,7 +310,7 @@ function MapModal({ initial, onSave, onClose }: MapModalProps) {
     if (initial) {
       const marker = L.marker([initial.latitude, initial.longitude], { draggable: true }).addTo(map);
       const circle = L.circle([initial.latitude, initial.longitude], {
-        radius: initial.radius * 1000, color: '#6366f1', fillColor: '#6366f1', fillOpacity: 0.12, weight: 2,
+        radius: initial.radius * 1000, color: '#c5a028', fillColor: '#c5a028', fillOpacity: 0.12, weight: 2,
       }).addTo(map);
       marker.on('dragend', () => {
         const pos = marker.getLatLng();

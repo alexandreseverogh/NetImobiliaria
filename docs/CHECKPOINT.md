@@ -1,6 +1,45 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-02 (continuação 4) — **Fix real: trocar pra Google AI Max de
+> **Atualizado em:** 2026-08-03 — **Fix real: círculo do raio de alcance no `LocationPicker`
+> (mapa "Selecionar no Mapa") ainda dourado só num dos 2 caminhos de código — o outro
+> continuava indigo (commit seguinte).** Usuário tinha pedido, numa sessão anterior, que o
+> círculo do raio no mapa Leaflet virasse dourado (parte do Redesign Premium); mandou print
+> do modal aberto via "Ver no mapa" numa localidade já cadastrada, pedindo confirmação
+> visual de que o teste tinha passado. **O print não mostrava nenhum círculo colorido
+> visível** — nem dourado, nem o indigo antigo.
+>
+> **Investigado, achado real:** `LocationPicker.tsx` tem DOIS pontos que criam o círculo
+> Leaflet (`L.circle(...)`), não um só. O caminho usado quando o usuário CLICA num ponto
+> novo do mapa (dentro de `placePin`, ~linha 269) já tinha sido corrigido pra `#c5a028`
+> (dourado) na rodada anterior do Redesign Premium. Mas o SEGUNDO caminho — usado quando o
+> modal abre já com uma localidade EXISTENTE (`initial` prop presente, exatamente o cenário
+> do print do usuário: endereço já preenchido, botão "Ver no mapa" clicado numa localidade
+> já salva) — continuava hardcoded em `#6366f1` (indigo/azul-arroxeado), nunca tocado
+> naquela rodada. Confirmado que é este 2º caminho que roda no cenário do usuário.
+>
+> **Corrigido:** troca mecânica de `#6366f1` → `#c5a028` nas 2 ocorrências (`color`/
+> `fillColor`) do bloco de criação do círculo "inicial" (linha ~312-313).
+>
+> **Sobre o círculo não aparecer visível em NENHUMA cor no print original — investigado e
+> confirmado que não é bug, é escala:** testado ao vivo (sessão real via JWT, tenant
+> Marketing Digital, wizard Meta Ads → step "Público" → localidade real "Recife,
+> Pernambuco" adicionada via busca → reaberta em modo edição via "Ver no mapa", o mesmo
+> fluxo do print original) — `getBoundingClientRect()` do elemento SVG do círculo confirma
+> ~1322×1322px de bounding box num viewport de 1280×720: pra um raio em dezenas de km, o
+> círculo é MUITO maior que a área visível do mapa na tela — a borda curva nunca aparece
+> dentro do viewport, só o preenchimento a 12% de opacidade, sutil o bastante pra passar
+> despercebido numa captura de tela comprimida sobre um mapa multicolorido. Não é um bug de
+> renderização à parte — é esperado pra raios grandes, independente da cor.
+>
+> **Verificado ao vivo, não só por leitura de código:** reproduzido o cenário exato do
+> print (localidade já existente reaberta via "Ver no mapa") — `document.querySelectorAll
+> ('.leaflet-overlay-pane path')` confirma `stroke: "#c5a028", fill: "#c5a028"` (dourado
+> exato), não mais `#6366f1`. `npx tsc --noEmit`: 0 erros (mesma baseline zerada desta
+> sessão, nenhum erro novo no único arquivo tocado). Nenhum dado de teste persistido — a
+> localidade de teste existiu só no estado do wizard em memória, nunca chegou a ser salva
+> (não cheguei a clicar em "Lançar"/confirmar), então não há resíduo a limpar.
+>
+> — **Sessão anterior (2026-08-02, continuação 4) — Fix real: trocar pra Google AI Max de
 > dentro do wizard Meta/TikTok em `/admin/campanhas/nova` (commit `c1fe33a`).** Usuário
 > reportou: depois de escolher criativos + rede na Fase 1, a Fase 2 mostra de novo as 3
 > opções de rede com a escolhida já marcada — mas se o usuário quiser trocar pra Google AI
@@ -1139,21 +1178,27 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — atalho "Abrir assistente próprio →" pra
-Google AI Max de dentro do wizard Meta/TikTok testado ao vivo e commitado. Pendência
-antiga e pontual, ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO
-1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
-`/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão de página ativa
-dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem
-implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna
-honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por decisão
-do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Nenhuma tarefa em andamento no momento** — fix do círculo indigo residual no
+`LocationPicker` testado ao vivo e pronto pra commit. Pendência antiga e pontual, ainda não
+atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant Marketing
+Digital) inseridos pra viabilizar o teste visual da paginação em `/admin/campanhas/leads` —
+assim que o usuário confirmar que já viu o botão de página ativa dourado. Fora isso, todas
+as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem implementadas e commitadas; Meta
+Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna honesta, não bug); Fase 3 e
+eliminação do token em localStorage fora de escopo por decisão do plano
+(`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-03 — Fix real: círculo indigo residual no LocationPicker (2º caminho de código) ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03").
+
+---
+
 ### Sessão 2026-08-02 (continuação 4) — Fix real: trocar pra Google AI Max de dentro do wizard ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02 (continuação 4)"). Commit `c1fe33a`.
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-02 (continuação 4), histórico"). Commit `c1fe33a`.
 
 ---
 
