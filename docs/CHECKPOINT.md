@@ -1,8 +1,46 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-03 (continuação 2) — **2 achados na sequência do fix de retry
-> dos botões de rede: `<img src="/google-logo.png">` inexistente (404 real) + feedback
-> visual ausente enquanto os botões esperam a resposta (commit seguinte).** Usuário
+> **Atualizado em:** 2026-08-03 (continuação 3) — **Fix real: link "Ver análise →" do card
+> CREATIVE_FATIGUE (Dashboard → Inteligência Profunda) ainda roxo (`text-violet-500`) e
+> em fonte minúscula — resíduo do Redesign Premium, nunca convertido (commit seguinte).**
+> Usuário testou o item "WinningAngleChip: link 'Ver análise →' deve estar cinza, não
+> roxo" e mandou 3 prints em sequência tentando localizar a tela certa — o 1º era do
+> wizard de campanha (`/admin/campanhas/nova`, aviso de saturação de hook — feature
+> diferente, "Ver sugestões de hook"), o 2º já era a página de destino
+> (`/admin/campanhas/portfolio/cross-insights`, pra onde o link leva DEPOIS de clicado,
+> não o link em si), e o 3º finalmente mostrou o link procurado — só que reportado como
+> "extremamente pequeno".
+>
+> **Investigado: não era o mesmo link do teste original.** `WinningAngleChip.tsx` (a
+> barra "Ângulo vencedor" que o teste original citava) já estava correto — conferido no
+> código, `text-slate-500 hover:text-slate-800`/`hover:text-slate-300`, sem nenhum roxo. O
+> link do 3º print é um componente DIFERENTE: o card "CREATIVE_FATIGUE" dentro da seção
+> "Insights da IA" (`DeepDiveView.tsx`), que aponta pra `/admin/campanhas/criativos/padroes`
+> — nunca fazia parte do teste original citado pelo usuário, mas achado real e válido por
+> conta própria: `text-[10px] font-bold text-violet-500 hover:underline` — roxo, nunca
+> convertido na rodada de Redesign Premium (que converteu o `WinningAngleChip` mas deixou
+> este card de fora, provavelmente por serem visualmente parecidos mas viverem em
+> arquivos diferentes).
+>
+> **Corrigido:** `text-violet-500` → `text-slate-500 hover:text-slate-800` (claro) /
+> `hover:text-slate-300` (escuro), mesmo padrão já usado no restante do arquivo (linha
+> ~140) e no `WinningAngleChip`; peso/estilo elevado pra `font-black uppercase
+> tracking-wide` (igual aos badges irmãos do mesmo card, ex. `CREATIVE_FATIGUE`/
+> `Confiança: X%`) — tamanho de fonte mantido em 10px (mesma convenção de toda a
+> tipografia compacta desta seção de insights, não um bug isolado de tamanho), mas o peso
+> visual maior deixa o CTA mais presente sem quebrar a hierarquia compacta do card.
+>
+> **Verificado ao vivo:** `npx tsc --noEmit` — 0 erros. Sessão real (tenant Marketing
+> Digital, segmento Imobiliário, modo escuro — o mesmo tema do print do usuário), card
+> CREATIVE_FATIGUE presente (saturação de hook real, 73%) → `getComputedStyle` do link
+> confirma `color: rgb(100, 116, 139)` (`#64748b` = slate-500 exato, não mais roxo) e
+> `className` confirma `hover:text-slate-300` ativo (branch dark). `npx tsc --noEmit`
+> limpo, nenhum erro novo no arquivo tocado.
+>
+> — **Sessão anterior (2026-08-03, continuação 2) — 2 achados na sequência do fix de
+> retry dos botões de rede: `<img src="/google-logo.png">` inexistente (404 real) +
+> feedback visual ausente enquanto os botões esperam a resposta (commit `db2e4f3`).**
+> Usuário
 > reportou, testando o fix anterior: (1) console mostrando erro de uma imagem do Google
 > não carregada; (2) "o mesmo problema de ainda aparecem os 3 botões de escolha da rede
 > desabilitados ainda persiste".
@@ -1261,21 +1299,28 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — fix do `google-logo.png` 404 + feedback
-visual/retry manual dos botões de rede em `/admin/campanhas/nova` testado ao vivo e pronto
-pra commit. Pendência antiga e pontual, ainda não atacada: **remover os 15 leads de teste**
-("TESTE PAGINACAO 1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual
-da paginação em `/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão
-de página ativa dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
-seguem implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo
-(lacuna honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por
-decisão do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Nenhuma tarefa em andamento no momento** — fix do link "Ver análise →" roxo do card
+CREATIVE_FATIGUE testado ao vivo e pronto pra commit. Pendência antiga e pontual, ainda não
+atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant Marketing
+Digital) inseridos pra viabilizar o teste visual da paginação em `/admin/campanhas/leads` —
+assim que o usuário confirmar que já viu o botão de página ativa dourado. Fora isso, todas
+as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem implementadas e commitadas; Meta
+Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna honesta, não bug); Fase 3 e
+eliminação do token em localStorage fora de escopo por decisão do plano
+(`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-03 (continuação 3) — Fix: link "Ver análise →" roxo no card CREATIVE_FATIGUE ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 3)").
+
+---
+
 ### Sessão 2026-08-03 (continuação 2) — Fix: google-logo.png 404 + feedback visual/retry manual ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 2)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 2),
+histórico").
 
 ---
 

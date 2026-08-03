@@ -346,7 +346,10 @@ export function DeepDiveView({
                         <span className={cn(`w-1.5 h-1.5 rounded-full`, s.dot)} />CREATIVE_FATIGUE
                       </span>
                       <a href="/admin/campanhas/criativos/padroes"
-                        className={`text-[10px] font-bold text-violet-500 hover:underline`}>
+                        className={cn(
+                          'text-[10px] font-black uppercase tracking-wide shrink-0 transition-colors',
+                          isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-800'
+                        )}>
                         Ver análise →
                       </a>
                     </div>
