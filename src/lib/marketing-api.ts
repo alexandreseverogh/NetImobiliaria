@@ -374,6 +374,9 @@ export interface DashboardFullData {
   cplByNetwork?: Record<string, { spend: number; leads: number; cpl: number | null }>;
   // PARTE D1 — redes com dado real no escopo atual (antes do filtro de rede), alimenta o seletor
   availableNetworks?: string[];
+  // Subconjunto de availableNetworks que NÃO está mais contratado pelo tenant agora — dado
+  // histórico continua contando nos cálculos (nunca escondido retroativamente), só avisa.
+  discontinuedNetworks?: string[];
   funnelData: FunnelData;
 }
 

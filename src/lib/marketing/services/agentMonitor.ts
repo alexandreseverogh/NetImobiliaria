@@ -7,6 +7,7 @@ import { runDecisor } from './agentDecisor';
 import { generateStrategicBriefing } from './strategicBriefing';
 import { notifyWhatsApp, notifySlack } from './agentNotificador';
 import { inferLifecycleStatus } from './campaignStateMachine';
+import { getProvisionedNetworkCodes } from './networkProvisioning';
 
 const SYNC_SCHEDULE = process.env.AGENT_SYNC_SCHEDULE || '0 */6 * * *';
 const BRIEFING_MORNING_SCHEDULE = process.env.BRIEFING_MORNING_SCHEDULE || '0 8 * * *';
@@ -167,12 +168,18 @@ export async function syncMetrics() {
   for (const [tenantId, tenantCampaigns] of Array.from(byTenant.entries())) {
     if (tenantId === '__global__') continue;
 
+    // Coleta só pode acontecer pra rede que o tenant tem contratada agora — credencial ainda
+    // ativa no banco não é suficiente (ex.: rede foi provisionada no passado, contrato
+    // encerrado, ninguém apagou a credencial). Calculado 1x por tenant, não por campanha.
+    const provisionedNetworks = await getProvisionedNetworkCodes(tenantId);
+
     for (const campaign of tenantCampaigns) {
       // networkId ausente = campanha legada anterior ao FK (sempre Meta, via metaCampaignId)
       const networkCode = ((campaign.networkId ? networkCodeById.get(campaign.networkId) : null) || 'meta') as NetworkCode;
       const externalId = networkCode === 'meta' ? (campaign.metaCampaignId || campaign.externalId) : campaign.externalId;
 
       if (!externalId) continue;
+      if (!provisionedNetworks.has(networkCode)) continue;
 
       let networkService: Awaited<ReturnType<typeof getNetworkServiceForTenant>>;
       try {
@@ -183,50 +190,7 @@ export async function syncMetrics() {
       }
 
       try {
-        const insights = await networkService.fetchInsights(externalId, { since, until });
-        for (const day of insights) {
-          const insightId = `${campaign.id}-${day.date}`;
-          const insightBase = {
-            impressions:      day.impressions,
-            reach:            day.reach,
-            clicks:           day.clicks,
-            spend:            day.spend,
-            cpc:              day.cpc,
-            cpm:              day.cpm,
-            ctr:              day.ctr,
-            frequency:        day.frequency,
-            // FASE 5 — Video Metrics
-            videoViews3s:     day.videoViews3s     ?? 0,
-            videoViews15s:    day.videoViews15s    ?? 0,
-            videoViews25Pct:  day.videoViews25Pct  ?? 0,
-            videoViews50Pct:  day.videoViews50Pct  ?? 0,
-            videoViews75Pct:  day.videoViews75Pct  ?? 0,
-            videoViews100Pct: day.videoViews100Pct ?? 0,
-            thruplayViews:    day.thruplayViews    ?? 0,
-            // FASE 8.5 — Sinais de diagnóstico do Meta
-            qualityRanking:        day.qualityRanking        ?? null,
-            engagementRateRanking: day.engagementRateRanking ?? null,
-            conversionRateRanking: day.conversionRateRanking ?? null,
-            firstImpressionRatio:  day.firstImpressionRatio  ?? null,
-            breakdowns:       (day as any).breakdowns ?? {},
-            // FASE 1 (Google Ads) — Impression Share + ROAS
-            searchImpressionShare: day.searchImpressionShare ?? 0,
-            searchBudgetLostIs:    day.searchBudgetLostIs    ?? 0,
-            searchRankLostIs:      day.searchRankLostIs      ?? 0,
-            conversionsValue:      day.conversionsValue      ?? 0,
-          };
-          await prisma.insight.upsert({
-            where: { id: insightId },
-            update: insightBase,
-            create: {
-              id: insightId,
-              campaignId: campaign.id,
-              tenantId:   campaign.tenantId ?? null,
-              date:       new Date(day.date),
-              ...insightBase,
-            },
-          });
-        }
+        await syncCampaignInsights(networkService, campaign, externalId, since, until);
       } catch (err) {
         console.error(`Erro ao sincronizar campanha ${campaign.id} (${networkCode}):`, err);
       }
@@ -249,6 +213,68 @@ export async function syncMetrics() {
       }
     }
   }
+}
+
+/**
+ * Sincroniza os Insight (campanha-dia) de UMA campanha contra a rede já resolvida — extraído
+ * do loop de syncMetrics() pra ser reaproveitado também pelo sync manual (POST /insights/sync),
+ * que antes desta sessão só cobria Meta e duplicava (parcialmente, defasado) este mesmo mapeamento
+ * de campos. Fonte única evita o tipo de drift que causou aquela defasagem original.
+ */
+export async function syncCampaignInsights(
+  networkService: Awaited<ReturnType<typeof getNetworkServiceForTenant>>,
+  campaign: { id: string; tenantId: string | null },
+  externalId: string,
+  since: string,
+  until: string,
+): Promise<number> {
+  const insights = await networkService.fetchInsights(externalId, { since, until });
+  let count = 0;
+  for (const day of insights) {
+    const insightId = `${campaign.id}-${day.date}`;
+    const insightBase = {
+      impressions:      day.impressions,
+      reach:            day.reach,
+      clicks:           day.clicks,
+      spend:            day.spend,
+      cpc:              day.cpc,
+      cpm:              day.cpm,
+      ctr:              day.ctr,
+      frequency:        day.frequency,
+      // FASE 5 — Video Metrics
+      videoViews3s:     day.videoViews3s     ?? 0,
+      videoViews15s:    day.videoViews15s    ?? 0,
+      videoViews25Pct:  day.videoViews25Pct  ?? 0,
+      videoViews50Pct:  day.videoViews50Pct  ?? 0,
+      videoViews75Pct:  day.videoViews75Pct  ?? 0,
+      videoViews100Pct: day.videoViews100Pct ?? 0,
+      thruplayViews:    day.thruplayViews    ?? 0,
+      // FASE 8.5 — Sinais de diagnóstico do Meta
+      qualityRanking:        day.qualityRanking        ?? null,
+      engagementRateRanking: day.engagementRateRanking ?? null,
+      conversionRateRanking: day.conversionRateRanking ?? null,
+      firstImpressionRatio:  day.firstImpressionRatio  ?? null,
+      breakdowns:       (day as any).breakdowns ?? {},
+      // FASE 1 (Google Ads) — Impression Share + ROAS
+      searchImpressionShare: day.searchImpressionShare ?? 0,
+      searchBudgetLostIs:    day.searchBudgetLostIs    ?? 0,
+      searchRankLostIs:      day.searchRankLostIs      ?? 0,
+      conversionsValue:      day.conversionsValue      ?? 0,
+    };
+    await prisma.insight.upsert({
+      where: { id: insightId },
+      update: insightBase,
+      create: {
+        id: insightId,
+        campaignId: campaign.id,
+        tenantId:   campaign.tenantId ?? null,
+        date:       new Date(day.date),
+        ...insightBase,
+      },
+    });
+    count++;
+  }
+  return count;
 }
 
 /** FASE 1 (Google Ads) A4 — grava os termos de busca reais no grão próprio (GoogleSearchTerm,

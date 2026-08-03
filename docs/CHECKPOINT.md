@@ -1,8 +1,73 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-03 (continuação 3) — **Fix real: link "Ver análise →" do card
+> **Atualizado em:** 2026-08-03 (continuação 4) — **Sync multi-rede + gate de provisionamento
+> na coleta + badge de "rede descontinuada" no Dashboard (commit seguinte).** Nasceu de uma
+> discussão socrática longa com o usuário (não um bug reportado): por que só existe "Sync
+> Meta" e não Google/TikTok, se os KPIs já somam as 3 redes juntas? Investigação real (não
+> hipotética) confirmou 2 achados sérios:
+>
+> **Achado 1 — o botão manual estava genuinamente preso ao Meta, código legado nunca
+> generalizado** quando os adapters de Google/TikTok chegaram (FASE 1/T1): filtrava
+> campanha por `metaCampaignId` e chamava `getNetworkServiceForTenant(tenantId, 'meta')`
+> com string fixa. O cron automático (`syncMetrics()`, a cada 6h) já era multi-rede de
+> verdade — só o botão manual tinha ficado pra trás.
+>
+> **Achado 2 — mais sério: nenhum caminho de coleta checava se a rede está CONTRATADA agora
+> (`tenant_feature_overrides`), só se tem credencial ATIVA (`tenant_network_credentials`).**
+> Um tenant que teve uma rede provisionada no passado e teve o contrato encerrado depois
+> continuava sendo sincronizado normalmente pelo cron, gastando chamada real de API numa
+> rede que não paga mais — o controle de provisionamento (`contracted`) só existia na porta
+> de entrada da UI (bloquear lançar campanha nova), nunca na tubulação de dados.
+>
+> **Decisão de negócio fechada com o usuário antes de implementar:** dado histórico já
+> coletado de uma rede desprovisionada **continua contando nos cálculos pra sempre**
+> (nunca escondido retroativamente) — só a COLETA de dado novo para. Como aviso de
+> transparência sobre isso, um badge no Dashboard quando isso está acontecendo.
+>
+> **Implementado:**
+> 1. `src/lib/marketing/services/networkProvisioning.ts` (novo) — `getProvisionedNetworkCodes
+>    (tenantId)`, fonte única de "quais redes estão contratadas agora", extraída da mesma
+>    lógica que já existia só dentro de `GET /configuracoes/redes`. Sem bypass de Master —
+>    isto não é gate de visibilidade de tela, é estado real de contrato, precisa valer
+>    igual mesmo consultado sem usuário logado (cron).
+> 2. `agentMonitor.ts` — `syncMetrics()` (cron) ganha o gate: `if (!provisionedNetworks.has
+>    (networkCode)) continue`, calculado 1x por tenant. Extraído `syncCampaignInsights()`
+>    (exportado) — o mapeamento completo de campos do `Insight` (vídeo, sinais Meta,
+>    Impression Share do Google) que antes só existia inline dentro do loop do cron, agora
+>    reaproveitado também pelo sync manual — fonte única, evita repetir a mesma classe de
+>    defasagem que causou o Achado 1.
+> 3. `POST /insights/sync` reescrito — cobre TODAS as redes contratadas+conectadas do
+>    tenant (não só Meta), mesma resolução de rede por campanha do cron, mesmo gate de
+>    provisionamento, resposta quebrada por rede (`byNetwork`) pra isolar erro de uma rede
+>    sem travar as outras (ex.: Google com token expirado não impede Meta/TikTok de
+>    sincronizar). Botão renomeado "Sync Meta" → "Sincronizar".
+> 4. `dashboard/full/route.ts` — computa `discontinuedNetworks` (redes com dado no escopo
+>    atual — `availableNetworks`, já existia — menos redes contratadas agora). Zero
+>    mudança em nenhum cálculo de KPI existente, só um campo novo de leitura.
+> 5. `DiscontinuedNetworkBanner.tsx` (novo) — mesmo padrão visual/posicional do
+>    `TokenExpiryBanner` já existente (self-contido, sem novo fetch — o dado já vem
+>    dentro da resposta de `dashboard/full`).
+>
+> **Verificado ao vivo, com dado real, não hipotético:** `npx tsc --noEmit` — 0 erros em
+> todos os arquivos tocados. Testado o cenário completo via toggle real e reversível no
+> banco (não dado sintético): desativada temporariamente a feature `campanhas-rede-google`
+> pro tenant Marketing Digital → `GET dashboard/full` retornou `discontinuedNetworks:
+> ["google"]` (antes: `[]`) com `availableNetworks` e `Gasto Total` (R$213.154,39, dado
+> real da campanha Google Search) **inalterados** — confirma a decisão de nunca esconder
+> retroativamente · banner renderizou corretamente na tela ("Google não está mais
+> contratada... Revisar em Configurações → Redes") · revertido o toggle, confirmado
+> `discontinuedNetworks: []` de volta ao normal, zero resíduo no banco (foi só um UPDATE
+> reversível numa linha já existente, não INSERT de dado novo). Botão "Sincronizar"
+> confirmado renderizando com o novo rótulo. **Não verificado ao vivo:** o caminho de
+> sucesso do sync em si contra API real de rede — o JWT sintético usado nesta sessão bate
+> num 403 genuíno de `requireApiPermission` (checagem RBAC server-side inalterada por este
+> commit, confirmado via diff — não é regressão, é limitação de como o token de teste é
+> montado) — mesma lacuna de "sync real com token de produção" já registrada como pendência
+> há várias sessões, não nova.
+>
+> — **Sessão anterior (2026-08-03, continuação 3) — Fix real: link "Ver análise →" do card
 > CREATIVE_FATIGUE (Dashboard → Inteligência Profunda) ainda roxo (`text-violet-500`) e
-> em fonte minúscula — resíduo do Redesign Premium, nunca convertido (commit seguinte).**
+> em fonte minúscula — resíduo do Redesign Premium, nunca convertido (commit `38016f9`).**
 > Usuário testou o item "WinningAngleChip: link 'Ver análise →' deve estar cinza, não
 > roxo" e mandou 3 prints em sequência tentando localizar a tela certa — o 1º era do
 > wizard de campanha (`/admin/campanhas/nova`, aviso de saturação de hook — feature
@@ -1299,21 +1364,32 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — fix do link "Ver análise →" roxo do card
-CREATIVE_FATIGUE testado ao vivo e pronto pra commit. Pendência antiga e pontual, ainda não
-atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant Marketing
-Digital) inseridos pra viabilizar o teste visual da paginação em `/admin/campanhas/leads` —
-assim que o usuário confirmar que já viu o botão de página ativa dourado. Fora isso, todas
-as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem implementadas e commitadas; Meta
-Pixel e `img-src` do MinIO seguem sem teste ao vivo (lacuna honesta, não bug); Fase 3 e
-eliminação do token em localStorage fora de escopo por decisão do plano
-(`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Nenhuma tarefa em andamento no momento** — sync multi-rede com gate de provisionamento +
+badge de rede descontinuada testado ao vivo (via toggle real e reversível de provisionamento)
+e pronto pra commit. Pendência real registrada nesta mesma rodada: o caminho de SUCESSO do
+sync (POST /insights/sync contra API real de rede) não foi verificado ao vivo — token de
+teste sintético bate num 403 genuíno de RBAC (`requireApiPermission`), inalterado por este
+commit — mesma lacuna de "sync real com token de produção" já pendente há várias sessões.
+Pendência antiga e pontual, também ainda não atacada: **remover os 15 leads de teste**
+("TESTE PAGINACAO 1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual
+da paginação em `/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão
+de página ativa dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
+seguem implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo
+(lacuna honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por
+decisão do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-03 (continuação 4) — Sync multi-rede + gate de provisionamento + badge de rede descontinuada ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 4)").
+
+---
+
 ### Sessão 2026-08-03 (continuação 3) — Fix: link "Ver análise →" roxo no card CREATIVE_FATIGUE ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 3)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 3),
+histórico").
 
 ---
 

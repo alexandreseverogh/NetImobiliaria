@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
+import { getProvisionedNetworkCodes } from '@/lib/marketing/services/networkProvisioning';
 import {
   getLeadEvents, sumLeads, leadsByDay,
   leadsByCampaign as groupLeadsByCampaign,
@@ -92,6 +93,13 @@ export async function GET(request: NextRequest) {
     // o seletor "Todas / Meta / Google / TikTok" no topo do dashboard sem colapsar as opções
     // quando o usuário já tiver escolhido uma rede específica.
     const availableNetworks = Array.from(new Set(campaigns.map(c => campaignNetworkCode.get(c.id) || 'meta'))).sort();
+
+    // Rede descontinuada: aparece no escopo atual (tem Insight real contribuindo pros cálculos
+    // abaixo) mas não está mais contratada pelo tenant agora. Dado histórico continua contando
+    // nos números (decisão deliberada — nunca escondido retroativamente), só avisa que uma
+    // parte do que compõe esses cálculos vem de uma rede que não é mais parte do contrato.
+    const provisionedNetworks = await getProvisionedNetworkCodes(payload.tenantId);
+    const discontinuedNetworks = availableNetworks.filter(n => !provisionedNetworks.has(n));
 
     if (networkFilter) {
       campaigns = campaigns.filter(c => (campaignNetworkCode.get(c.id) || 'meta') === networkFilter);
@@ -210,6 +218,7 @@ export async function GET(request: NextRequest) {
       leadsByCampaign,
       cplByNetwork,
       availableNetworks,
+      discontinuedNetworks,
       funnelData,
     });
   } catch (error: any) {

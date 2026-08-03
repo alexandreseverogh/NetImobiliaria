@@ -34,6 +34,7 @@ import { MultiClientMetricChart } from '@/components/marketing/charts/MultiClien
 import { MultiClientCplChart } from '@/components/marketing/charts/MultiClientCplChart';
 import { TrackingHealthWidget } from '@/components/marketing/TrackingHealthWidget';
 import { TokenExpiryBanner } from '@/components/marketing/TokenExpiryBanner';
+import { DiscontinuedNetworkBanner } from '@/components/marketing/DiscontinuedNetworkBanner';
 import { TimeToEventBar }      from '@/components/marketing/charts/TimeToEventBar';
 import { SignalTrajectory }    from '@/components/marketing/charts/SignalTrajectory';
 import { DemandRadar }         from '@/components/marketing/charts/DemandRadar';
@@ -273,10 +274,14 @@ function DashboardPage() {
     try {
       const result = await syncInsights();
       await loadData();
-      // Sincronização com erros parciais
-      if (result?.errors?.length) {
-        const firstErr = result.errors[0];
-        alert(`Sincronizado com avisos:\n${result.synced} registros salvos\n\nErro: ${firstErr}`);
+      // Sincroniza todas as redes contratadas+conectadas do tenant (não só Meta) — o
+      // resultado vem quebrado por rede (byNetwork); resume aqui num único aviso.
+      const byNetwork = result?.byNetwork || {};
+      const networkErrors: string[] = Object.entries(byNetwork).flatMap(
+        ([code, b]: [string, any]) => (b.errors || []).map((e: string) => `${code}: ${e}`)
+      );
+      if (networkErrors.length > 0) {
+        alert(`Sincronizado com avisos:\n${result.synced} registros salvos\n\n${networkErrors.join('\n')}`);
       }
     } catch (err: any) {
       const apiMsg = err?.response?.data?.error ?? err?.message ?? 'Erro desconhecido';
@@ -488,7 +493,7 @@ function DashboardPage() {
                 <button onClick={handleSync} disabled={syncing}
                   className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gold-premium text-navy-dark text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gold disabled:opacity-50 transition-colors">
                   <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                  {syncing ? 'Sincronizando...' : 'Sync Meta'}
+                  {syncing ? 'Sincronizando...' : 'Sincronizar'}
                 </button>
               </ExecuteGuard>
               <DashboardHelpButton isDark={isDark} />
@@ -497,6 +502,7 @@ function DashboardPage() {
         </div>
 
         <TokenExpiryBanner isDark={isDark} />
+        <DiscontinuedNetworkBanner isDark={isDark} discontinuedNetworks={data?.discontinuedNetworks || []} />
 
         {/* ── Filters ───────────────────────────────────────────────────────── */}
         <div className={`rounded-2xl p-4 mb-6 ${cardBase}`}>
