@@ -1,6 +1,30 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-04 — **Feature "Atividades por lead" implementada e testada.**
+> **Atualizado em:** 2026-08-04 (continuação) — **Catálogo de Atividades adicionado à sidebar.**
+> Usuário pediu explicitamente: o CRUD de tipos de atividade (`/crm/config/atividades`, entrada
+> anterior deste arquivo) deveria estar acessível pela sidebar, na categoria "Configurações
+> CRM", com acesso pro administrador do tenant + qualquer usuário com permissão concedida —
+> mesmo modelo de acesso já usado por toda a plataforma (`docs/ACCESS_CONTROL.md`).
+>
+> **Implementado:** `prisma/migration-2026-08-04-crm-atividades-sidebar.sql` (aplicada) —
+> replica exatamente o padrão da feature irmã "Personalização Kanban" (id 75, mesma categoria
+> 25): novo `system_features` (id 119, url `/crm/config/atividades`) + 4 `permissions`
+> (read/write/delete/admin) + `role_permissions` copiado do mesmo conjunto de roles que já tem
+> acesso a "Personalização Kanban" (role 42 "Administrador") + `tenant_feature_overrides`
+> provisionado pros mesmos 3 tenants que já têm CRM ativo (Imobiliaria XYZ, Imovtec, Marketing
+> Digital). Achado no processo: usei `icon: 'ListBullet'` na 1ª tentativa, mas o
+> `DynamicIcon.tsx` do projeto só resolve por um mapa fixo de chaves lowercase
+> (`clipboarddocumentlisticon`, `viewcolumnsicon`, etc.) — sem match, cai silenciosamente no
+> ícone padrão (`HomeIcon`). Corrigido pra `clipboarddocumentlisticon` (já usado por outras
+> features do mesmo tipo "lista/catálogo"), tanto no banco quanto na migração-fonte.
+>
+> **Verificado ao vivo:** `get_sidebar_menu_for_user()` real (usuário `admmd`, tenant Marketing
+> Digital) confirma o item "Catálogo de Atividades" dentro de "Configurações CRM", ao lado de
+> "Personalização Kanban" · navegador real (sessão JWT injetada): categoria expande mostrando
+> o item com o ícone certo, clique navega pra `/crm/config/atividades` e a tela carrega os 9
+> tipos reais do tenant normalmente.
+>
+> — **Sessão anterior (2026-08-04) — Feature "Atividades por lead" implementada e testada.**
 > Continuação direta da entrada anterior (plano apresentado, aguardando aprovação) — usuário
 > respondeu com 4 decisões de design explícitas que fecharam o plano: (1) catálogo de tipos
 > pode ser por tenant OU por cliente específico do tenant; (2) atividades já criadas podem ser
