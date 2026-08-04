@@ -546,6 +546,34 @@ frente (`aprovacoes`, `auditoria`, `desperdicio`, `destinos`, `iniciativas` — 
 `mecanismos`, `portfolio` — 2 arquivos —, `publicacoes`, `configuracoes/redes`) — ainda com
 indigo genérico, nunca avaliadas.
 
+### 1b. Redesign Premium — módulo de CRM — 📋 planejado, aguardando avanço de funcionalidades
+
+O Redesign Premium (sistema "Painel de Missão" — âmbar `#c5a028`/navy `#020c1b`, anel de foco
+fixo `#2563eb`, tokens `gold-premium`/`navy-dark`/`blue-600`) **nunca foi aplicado ao módulo de
+CRM** — só cobriu Campanhas de Marketing Digital até aqui. Levantamento real feito em
+2026-08-03 (`docs/CHECKPOINT.md`), confirmando 14 telas/componentes, **0 já migrados**:
+
+| Arquivo | Situação |
+|---|---|
+| `src/app/crm/page.tsx` | indigo genérico (1 ocorrência) |
+| `src/app/crm/kanban/page.tsx` | indigo genérico — a mais suja, 11 ocorrências, misturado com blue/amber/rose/emerald sem lógica de marca |
+| `src/app/crm/leads/page.tsx` | indigo genérico (2) |
+| `src/app/crm/config/ia/page.tsx`, `config/kanban/page.tsx`, `config/marketing/page.tsx`, `config/segmentos/page.tsx`, `dashboards/ciclos/page.tsx` | sem indigo explícito, mas sem nenhum token do design system — paleta ad-hoc blue/emerald/purple/amber |
+| `src/components/crm/AgendarVisitaModal.tsx`, `NovoLeadModal.tsx` | indigo genérico (1 cada) |
+| `src/components/crm/AgendamentosLead.tsx`, `EnrichedLeadData.tsx`, `MarketingCampaignModal.tsx`, `CRMLayoutContent.tsx`, `crm/layout.tsx` | sem cor de marca definida |
+
+**Diferente do `DashboardHelpModal.tsx`** (que tem justificativa registrada pra manter
+identidade própria em Campanhas), não há sinal de paleta deliberada no CRM — é a mistura
+padrão de mercado que a "Regra do Acento Único" do projeto já classifica como a evitar. Sem
+identidade visual a preservar; é só um módulo que nunca entrou nessa frente.
+
+**Decisão do usuário (2026-08-03):** documentar o plano agora, mas **não iniciar ainda** —
+prioridade é avançar funcionalidades novas do CRM primeiro (ex.: Atividades por lead, ver
+seção própria abaixo), redesign fica pra uma rodada futura, mesmo padrão de execução já
+comprovado em Campanhas (passe estreito, uma checkpoint por tela/grupo, aprovação do usuário
+antes de seguir pra próxima, `DashboardHelpModal`-like: avaliar caso a caso antes de assumir
+que toda cor não-âmbar é bug).
+
 ### 2. Outras Pendências
 
 - **Sync Meta real**: validar `POST /insights/sync` com token de produção e campanhas reais

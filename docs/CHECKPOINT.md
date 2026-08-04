@@ -1,8 +1,28 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-03 (continuação 6) — **Filtro "vigente" no dropdown de
+> **Atualizado em:** 2026-08-03 (continuação 7) — **Início da frente de trabalho de CRM.**
+> Usuário pediu pra investir esforços no módulo de CRM a partir de agora. Primeiro passo:
+> auditoria real (agente Explore) de quais telas do CRM já passaram pelo Redesign Premium —
+> confirmado que **nenhuma** (0 de 14 telas/componentes usa `gold-premium`/`navy-dark`; 5
+> arquivos com indigo genérico explícito, os outros 9 com paleta ad-hoc blue/emerald/purple/
+> amber sem token de marca nenhum). Plano documentado no `CLAUDE.md` (seção "1b. Redesign
+> Premium — módulo de CRM") pra implementar numa rodada futura — decisão do usuário foi
+> **não iniciar agora**, priorizar funcionalidade nova primeiro.
+>
+> **Segundo pedido, ainda em planejamento (não implementado nesta entrada):** feature de
+> "Atividades" por lead do Kanban — N atividades ao longo do ciclo de vendas/perda de cada
+> card, escolhidas de uma tabela-catálogo de tipos + complemento em texto livre. Investigação
+> real (agente Explore) confirmou que a tabela `agendamentos` já existente **não é
+> reaproveitável** — é especificamente "visita a imóvel integrada ao Google Calendar"
+> (`google_event_id_*`, `data_hora_fim` obrigatório, e-mails de confirmação), não um conceito
+> genérico de atividade. Plano de implementação (2 tabelas novas em `public` —
+> `tipos_atividade` catálogo por tenant + `atividades_lead` registros, seguindo o mesmo
+> padrão de FK `lead_uuid → leads_staging` já usado por `leads_kanban`/`agendamentos`) foi
+> apresentado ao usuário, aguardando aprovação antes de implementar.
+>
+> — **Sessão anterior (2026-08-03, continuação 6) — Filtro "vigente" no dropdown de
 > Campanha do Dashboard, com toggle "Mostrar encerradas" (Mecanismo B da discussão de
-> segregação do passado, commit seguinte).** Fechamento da mesma discussão das rodadas
+> segregação do passado, commit `2586c0a`).** Fechamento da mesma discussão das rodadas
 > anteriores — usuário pediu explicitamente pra implementar agora, com a variante toggle
 > (não automático/silencioso), depois de uma rodada de esclarecimento sobre o que
 > "mesmo limiar de recência" e "toggle" significavam na prática (perguntas legítimas,
@@ -1432,21 +1452,17 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — filtro "vigente" com toggle "Mostrar
-encerradas" no dropdown de Campanha do Dashboard testado ao vivo, com dado real, e pronto
-pra commit. Com isso, os 4 achados/pedidos da discussão de "segregação do passado" desta
-sessão inteira (campo de período usado, risco nas 3 visões do dashboard, piso de recência
-do agente/briefing, e agora o filtro do dropdown com toggle) estão implementados —
-encerra essa frente de trabalho, salvo o usuário querer aprofundar mais. Pendência real de
-2 rodadas atrás, ainda não atacada: o caminho de SUCESSO do sync multi-rede
-(POST /insights/sync contra API real de rede) não foi verificado ao vivo — token de teste
-sintético bate num 403 genuíno de RBAC (`requireApiPermission`). Pendência antiga e
-pontual, também ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO
-1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
-`/admin/campanhas/leads`. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
-seguem implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo
-(lacuna honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por
-decisão do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+**Frente de CRM iniciada.** Plano do Redesign Premium do CRM documentado (`CLAUDE.md` §1b),
+não implementado — aguardando avanço de funcionalidades primeiro, por decisão do usuário.
+Plano de implementação da feature "Atividades por lead" (2 tabelas novas, catálogo +
+registros) apresentado ao usuário, **aguardando aprovação antes de implementar** — próximo
+passo real desta sessão. Pendências mais antigas, ainda não atacadas: o caminho de SUCESSO
+do sync multi-rede (POST /insights/sync contra API real de rede, não verificado ao vivo —
+token de teste sintético bate num 403 genuíno de RBAC); remover os 15 leads de teste ("TESTE
+PAGINACAO 1..15", tenant Marketing Digital) da paginação de `/admin/campanhas/leads`. Fora
+isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem implementadas e
+commitadas; Fase 3 e eliminação do token em localStorage fora de escopo por decisão do plano
+(`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
