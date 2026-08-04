@@ -147,6 +147,10 @@ AGENT_CONFIDENCE_THRESHOLD=0.85
 AGENT_SYNC_SCHEDULE=0 */6 * * *
 BRIEFING_MORNING_SCHEDULE=0 8 * * *
 BRIEFING_CLOSING_SCHEDULE=0 18 * * *
+# Piso de recência (dias) pra generateAiInsights() quando chamada sem período explícito
+# (agentDecisor.ts, strategicBriefing.ts — rodam em background, sem UI por trás). Evita
+# avaliar/narrar campanha morta há semanas como se fosse performance de agora.
+AGENT_INSIGHT_RECENCY_DAYS=30
 ```
 
 ---

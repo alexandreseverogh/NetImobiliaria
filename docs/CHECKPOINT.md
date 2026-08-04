@@ -1,8 +1,34 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-03 (continuação 4) — **Sync multi-rede + gate de provisionamento
-> na coleta + badge de "rede descontinuada" no Dashboard (commit seguinte).** Nasceu de uma
-> discussão socrática longa com o usuário (não um bug reportado): por que só existe "Sync
+> **Atualizado em:** 2026-08-03 (continuação 5) — **Fix real: `generateAiInsights()` sem
+> nenhum piso de recência quando chamada sem período (agentDecisor.ts cron autônomo +
+> strategicBriefing.ts, Briefing com LLM) — evitava avaliar/narrar campanha morta há
+> semanas como se fosse dado de agora (commit seguinte).** Continuação direta da discussão
+> de "segregação do passado" desta mesma sessão (achado já documentado na rodada anterior,
+> tabela dos 3 chamadores de `generateAiInsights`) — usuário pediu pra prosseguir com a
+> correção.
+>
+> **Implementado:** `aiInsights.ts` ganha `AGENT_INSIGHT_RECENCY_DAYS` (env, default 30,
+> mesmo padrão de `AGENT_CONFIDENCE_THRESHOLD`/`AGENT_SYNC_SCHEDULE` já documentados no
+> CLAUDE.md) — a query de `Insight` por campanha sempre tem piso inferior de data agora:
+> explícito (`filters.startDate`, quando quem chama passa período — a UI do dashboard já
+> fazia isso, continua igual) ou implícito (`now - AGENT_INSIGHT_RECENCY_DAYS`, quando o
+> caller não passa filtro nenhum — o caso do cron autônomo e do Briefing). Fix cirúrgico
+> num único ponto (a função compartilhada), não precisou tocar nos 4 call sites.
+>
+> **Verificado com precisão, no nível exato de dado que o código consulta (não só
+> leitura de código):** comparado a query real ANTES/DEPOIS pra "Alto Padrão — Alphaville"
+> (já `lifecycle_status='KILLED'`, última atividade real 41 dias atrás) — comportamento
+> antigo (`take: 14` puro) retornava **14 linhas** (a campanha morta seria avaliada pela
+> decisão automática e narrada pelo Briefing como se fosse performance de agora);
+> comportamento novo (piso de 30 dias) retorna **0 linhas** — corretamente excluída.
+> `npx tsc --noEmit`: 0 erros no arquivo tocado. `AGENT_INSIGHT_RECENCY_DAYS` documentado
+> no CLAUDE.md junto dos outros env vars do agente autônomo.
+>
+> — **Sessão anterior (2026-08-03, continuação 4) — Sync multi-rede + gate de
+> provisionamento na coleta + badge de "rede descontinuada" no Dashboard (commit
+> `9eeac98`).** Nasceu de uma discussão socrática longa com o usuário (não um bug
+> reportado): por que só existe "Sync
 > Meta" e não Google/TikTok, se os KPIs já somam as 3 redes juntas? Investigação real (não
 > hipotética) confirmou 2 achados sérios:
 >
@@ -1364,25 +1390,35 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — sync multi-rede com gate de provisionamento +
-badge de rede descontinuada testado ao vivo (via toggle real e reversível de provisionamento)
-e pronto pra commit. Pendência real registrada nesta mesma rodada: o caminho de SUCESSO do
-sync (POST /insights/sync contra API real de rede) não foi verificado ao vivo — token de
-teste sintético bate num 403 genuíno de RBAC (`requireApiPermission`), inalterado por este
-commit — mesma lacuna de "sync real com token de produção" já pendente há várias sessões.
-Pendência antiga e pontual, também ainda não atacada: **remover os 15 leads de teste**
-("TESTE PAGINACAO 1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual
-da paginação em `/admin/campanhas/leads` — assim que o usuário confirmar que já viu o botão
-de página ativa dourado. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
+**Nenhuma tarefa em andamento no momento** — piso de recência em `generateAiInsights()`
+verificado no nível exato de dado consultado e pronto pra commit. Com isso, os 3 achados da
+discussão de "segregação do passado" desta sessão (campo de período usado, risco nas 3
+visões do dashboard, piso de recência do agente/briefing) estão implementados — resta ainda
+em aberto, se o usuário quiser retomar: o filtro de "vigente" no dropdown/listas de campanha
+(discutido, não implementado — ficou definido que o foco prioritário eram os 2 caminhos de
+background, já corrigidos agora). Pendência real da rodada anterior, ainda não atacada: o
+caminho de SUCESSO do sync multi-rede (POST /insights/sync contra API real de rede) não foi
+verificado ao vivo — token de teste sintético bate num 403 genuíno de RBAC
+(`requireApiPermission`), inalterado por aquele commit. Pendência antiga e pontual, também
+ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant
+Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
+`/admin/campanhas/leads`. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
 seguem implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo
 (lacuna honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por
 decisão do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-03 (continuação 5) — Fix real: piso de recência em generateAiInsights() sem período ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 5)").
+
+---
+
 ### Sessão 2026-08-03 (continuação 4) — Sync multi-rede + gate de provisionamento + badge de rede descontinuada ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 4)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 4),
+histórico").
 
 ---
 

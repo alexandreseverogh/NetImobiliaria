@@ -9,6 +9,18 @@ import { getLeadEvents, sumLeads } from './leadEvents';
 const S = 'campanhasmarketingdigital';
 
 /**
+ * Piso de recência pra generateAiInsights() quando NENHUM filtro de período é passado —
+ * achado real (não hipotético): agentDecisor.ts (cron autônomo, executa PAUSE/DOWNSCALE
+ * sozinho) e strategicBriefing.ts (Briefing com LLM, manual e cron 08h/18h) chamam essa
+ * função sem startDate/endDate, porque rodam em background sem nenhuma UI/período por trás.
+ * Sem piso, a query caía em "últimas 14 linhas de Insight que a campanha já teve, não importa
+ * de quando" — uma campanha morta há 70 dias podia ser avaliada por uma decisão automática ou
+ * narrada pelo LLM como se fosse performance de agora. Configurável via env, mesmo padrão já
+ * usado por AGENT_SYNC_SCHEDULE/AGENT_CONFIDENCE_THRESHOLD (CLAUDE.md).
+ */
+const AGENT_INSIGHT_RECENCY_DAYS = parseInt(process.env.AGENT_INSIGHT_RECENCY_DAYS || '30', 10);
+
+/**
  * Expande uma data pura "YYYY-MM-DD" pro fim do dia (23:59:59.999 UTC) antes de usar como
  * limite superior (`lte`) — sem isso, `new Date("2026-07-27")` vira meia-noite UTC e exclui
  * qualquer lead/evento com timestamp real (created_at) do PRÓPRIO dia final do período, já
@@ -446,11 +458,15 @@ export async function generateAiInsights(
     const segTag     = { segmentId: campSeg?.segmentId ?? null, segmentName: campSeg?.segmentName ?? 'Sem segmento' };
     const insightWhere: any = { campaignId: campaign.id };
     if (tenantId) insightWhere.tenantId = tenantId;
-    if (filters?.startDate || filters?.endDate) {
-      insightWhere.date = {};
-      if (filters.startDate) insightWhere.date.gte = new Date(filters.startDate);
-      if (filters.endDate)   insightWhere.date.lte = expandEndOfDay(filters.endDate);
-    }
+    // Sempre um piso de recência — explícito (UI, filters.startDate) ou implícito
+    // (AGENT_INSIGHT_RECENCY_DAYS, quando o caller não passa período nenhum). Nunca cai em
+    // busca sem limite inferior de data.
+    insightWhere.date = {
+      gte: filters?.startDate
+        ? new Date(filters.startDate)
+        : new Date(Date.now() - AGENT_INSIGHT_RECENCY_DAYS * 86400000),
+    };
+    if (filters?.endDate) insightWhere.date.lte = expandEndOfDay(filters.endDate);
 
     const insights = await prisma.insight.findMany({
       where: insightWhere,
