@@ -326,11 +326,18 @@ export async function GET(request: NextRequest) {
 
     const query = `
       SELECT l.lead_uuid, l.nome, l.email, l.telefone, l.status, l.score_prontidao, l.tag_sonho, l.resumo_ia,
-             l.imovel_id, l.estado_fk, l.cidade_fk, l.created_at, l.enriquecimento_cache,
-             k.nome as coluna_nome 
+             l.imovel_id, l.estado_fk, l.cidade_fk, l.created_at, l.enriquecimento_cache, l.client_id,
+             k.nome as coluna_nome,
+             COALESCE(at.atividades_count, 0)::int AS atividades_count
       FROM leads_staging l
       LEFT JOIN leads_kanban lk ON l.lead_uuid = lk.lead_uuid
       LEFT JOIN kanban_colunas k ON lk.coluna_id = k.id
+      LEFT JOIN (
+        SELECT lead_uuid, count(*) AS atividades_count
+        FROM atividades_lead
+        WHERE deleted_at IS NULL
+        GROUP BY lead_uuid
+      ) at ON at.lead_uuid = l.lead_uuid
       ${!isMaster ? 'WHERE l.tenant_id = $1' : ''}
       ORDER BY l.created_at DESC
       LIMIT 100

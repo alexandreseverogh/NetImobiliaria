@@ -1,24 +1,83 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-03 (continuação 7) — **Início da frente de trabalho de CRM.**
-> Usuário pediu pra investir esforços no módulo de CRM a partir de agora. Primeiro passo:
-> auditoria real (agente Explore) de quais telas do CRM já passaram pelo Redesign Premium —
-> confirmado que **nenhuma** (0 de 14 telas/componentes usa `gold-premium`/`navy-dark`; 5
-> arquivos com indigo genérico explícito, os outros 9 com paleta ad-hoc blue/emerald/purple/
-> amber sem token de marca nenhum). Plano documentado no `CLAUDE.md` (seção "1b. Redesign
-> Premium — módulo de CRM") pra implementar numa rodada futura — decisão do usuário foi
-> **não iniciar agora**, priorizar funcionalidade nova primeiro.
+> **Atualizado em:** 2026-08-04 — **Feature "Atividades por lead" implementada e testada.**
+> Continuação direta da entrada anterior (plano apresentado, aguardando aprovação) — usuário
+> respondeu com 4 decisões de design explícitas que fecharam o plano: (1) catálogo de tipos
+> pode ser por tenant OU por cliente específico do tenant; (2) atividades já criadas podem ser
+> editadas/excluídas (implementado como soft-delete via `deleted_at` — reversível, mesma
+> convenção de nunca apagar dado de verdade já usada no resto da plataforma, não uma
+> exclusão física); (3) campo opcional por card, N atividades por lead; (4) lista sempre em
+> ordem cronológica — inicialmente pedida crescente, **corrigida pelo usuário logo em seguida**
+> pra decrescente (mais recente primeiro) antes de eu implementar.
 >
-> **Segundo pedido, ainda em planejamento (não implementado nesta entrada):** feature de
-> "Atividades" por lead do Kanban — N atividades ao longo do ciclo de vendas/perda de cada
-> card, escolhidas de uma tabela-catálogo de tipos + complemento em texto livre. Investigação
-> real (agente Explore) confirmou que a tabela `agendamentos` já existente **não é
-> reaproveitável** — é especificamente "visita a imóvel integrada ao Google Calendar"
-> (`google_event_id_*`, `data_hora_fim` obrigatório, e-mails de confirmação), não um conceito
-> genérico de atividade. Plano de implementação (2 tabelas novas em `public` —
-> `tipos_atividade` catálogo por tenant + `atividades_lead` registros, seguindo o mesmo
-> padrão de FK `lead_uuid → leads_staging` já usado por `leads_kanban`/`agendamentos`) foi
-> apresentado ao usuário, aguardando aprovação antes de implementar.
+> **Implementado:**
+> 1. `prisma/migration-2026-08-03-crm-atividades-lead.sql` (aplicada) — `public.tipos_atividade`
+>    (catálogo; `client_id NULL` = padrão do tenant, preenchido = específico daquele cliente;
+>    2 índices únicos parciais pra unicidade de nome por escopo, já que `NULL` não colide em
+>    `UNIQUE` normal do Postgres) + `public.atividades_lead` (registros; `coluna_id` capturado
+>    automaticamente do `leads_kanban` do lead no momento da criação, nunca escolhido pelo
+>    usuário; `deleted_at` pro soft-delete; 4 colunas de anexo). Seed inicial de 9 tipos padrão
+>    por tenant (Ligação, WhatsApp, E-mail, Reunião, Proposta Enviada, Visita Realizada,
+>    Follow-up, Negociação, Objeção Registrada) — aplicado automaticamente a todo tenant que já
+>    tem Kanban configurado (4 tenants, 36 linhas).
+> 2. `src/app/api/crm/atividades/tipos/route.ts` (novo) — CRUD do catálogo, escopado por
+>    `client_id` opcional; `DELETE` é soft (`ativo=false`), preserva atividades já criadas com
+>    aquele tipo.
+> 3. `src/app/api/crm/atividades/route.ts` (novo) — GET (lista por `lead_uuid`, mais recente
+>    primeiro), POST (multipart, com anexo opcional — áudio/imagem/PDF via `s3-client.ts`/MinIO,
+>    prefixo `atividades/<tenant_id>/<lead_uuid>/`, teto 20MB), PATCH (edição, inclui trocar
+>    anexo), DELETE (soft). `tenant_id`/`client_id`/`coluna_id` sempre resolvidos no servidor a
+>    partir do `lead_uuid` — nunca confia no que o client mandaria, evita atribuir atividade a
+>    lead de outro tenant.
+> 4. `GET /api/crm/leads` — nova subquery `atividades_count` (só ativas) por lead, pro badge do
+>    card do Kanban; `client_id` do lead também exposto (usado pra resolver o catálogo certo).
+> 5. `src/components/crm/AtividadesLead.tsx` (novo) — lista + formulário inline "+ Nova
+>    Atividade" (select de tipo, textarea com mínimo de 15 caracteres validado client+server,
+>    input de arquivo), preview de anexo por tipo (áudio: player inline; imagem: thumbnail +
+>    lightbox; PDF: link "Abrir"), ações de editar/excluir por item.
+> 6. `src/app/crm/kanban/page.tsx` — badge de contagem no card (só aparece se > 0); seção
+>    "Atividades" na Ficha do lead, logo abaixo de "Histórico de Visitas"; novo ícone de atalho
+>    na toolbar pra `/crm/config/atividades` (mesmo padrão do atalho já existente pra
+>    `/crm/config/kanban`).
+> 7. `src/app/crm/config/atividades/page.tsx` (novo) — CRUD do catálogo com seletor de escopo
+>    "Padrão da Empresa" vs. "Cliente Específico" (busca de cliente reaproveitando
+>    `/api/crm/clientes/search`, mesmo componente/UX já usado em `NovoLeadModal.tsx`).
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital, lead real
+> "Roberto Severo", usuário real `admmd`): via API (curl) — criação com e sem anexo (imagem real
+> upada no MinIO, URL pública confirmada 200), ordem cronológica decrescente confirmada,
+> `atividades_count` refletido em `GET /api/crm/leads`, validação de descrição curta (400),
+> edição (PATCH), soft-delete (some da listagem, mas a linha continua no banco com
+> `deleted_at` preenchido), catálogo escopado por cliente isolado corretamente do catálogo do
+> tenant (não vaza pro escopo tenant-wide), rejeição de nome duplicado no mesmo escopo (409).
+> Achado no processo, não é bug do app: 2 tentativas de teste com acento direto no `curl -d`
+> corromperam o UTF-8 ("Ligação"→"Liga??o") — mesmo padrão de erro operacional já documentado
+> várias vezes nesta sessão (nunca passar texto acentuado inline em bash/curl no Git Bash
+> Windows, sempre via arquivo) — refeito corretamente via `--data-binary @arquivo.json`, sem
+> repetir o erro. Via navegador real (sessão JWT injetada, mesmo playbook já documentado): fluxo
+> completo "+ Nova Atividade" → seleciona tipo → digita descrição → Registrar → ficha atualiza
+> na hora com o item novo (dot colorido do tipo, "agora", nome do autor) → fechado o modal,
+> reload confirma o badge "1" no card na posição certa (ao lado da data). Botão de excluir
+> confirmado ligado corretamente à API (mesma API já validada via curl) — o clique automatizado
+> parou no `confirm()` nativo do navegador (limitação conhecida de automação headless, não um
+> bug), exclusão final feita via SQL direto pra fechar a limpeza. Todo dado de teste removido
+> (atividade + tipo "Vistoria Técnica" criado só pra testar escopo por cliente), `count(*)=0`
+> confirmado nas duas tabelas além do seed padrão. `npx tsc --noEmit`: 0 erros (mesma baseline
+> zerada desde 2026-07-31, nenhum erro novo em nenhum dos 6 arquivos novos/tocados).
+>
+> **Pendente:** nenhuma — a feature está completa no escopo pedido. Redesign Premium do CRM
+> (`CLAUDE.md` §1b) segue como próxima rodada quando o usuário priorizar.
+>
+> — **Sessão anterior (2026-08-03, continuação 7) — Início da frente de trabalho de CRM +
+> plano da feature Atividades apresentado.** Auditoria real (agente Explore) de quais telas do
+> CRM já passaram pelo Redesign Premium — confirmado que **nenhuma** (0 de 14 telas/componentes
+> usa `gold-premium`/`navy-dark`; 5 arquivos com indigo genérico explícito, os outros 9 com
+> paleta ad-hoc blue/emerald/purple/amber sem token de marca nenhum). Plano documentado no
+> `CLAUDE.md` (seção "1b. Redesign Premium — módulo de CRM") pra implementar numa rodada
+> futura — decisão do usuário foi **não iniciar agora**, priorizar funcionalidade nova
+> primeiro. Investigação real confirmou que a tabela `agendamentos` já existente **não é
+> reaproveitável** pra Atividades — é especificamente "visita a imóvel integrada ao Google
+> Calendar", não um conceito genérico.
 >
 > — **Sessão anterior (2026-08-03, continuação 6) — Filtro "vigente" no dropdown de
 > Campanha do Dashboard, com toggle "Mostrar encerradas" (Mecanismo B da discussão de
@@ -1452,16 +1511,17 @@
 
 ## Tarefa em andamento
 
-**Frente de CRM iniciada.** Plano do Redesign Premium do CRM documentado (`CLAUDE.md` §1b),
-não implementado — aguardando avanço de funcionalidades primeiro, por decisão do usuário.
-Plano de implementação da feature "Atividades por lead" (2 tabelas novas, catálogo +
-registros) apresentado ao usuário, **aguardando aprovação antes de implementar** — próximo
-passo real desta sessão. Pendências mais antigas, ainda não atacadas: o caminho de SUCESSO
-do sync multi-rede (POST /insights/sync contra API real de rede, não verificado ao vivo —
-token de teste sintético bate num 403 genuíno de RBAC); remover os 15 leads de teste ("TESTE
-PAGINACAO 1..15", tenant Marketing Digital) da paginação de `/admin/campanhas/leads`. Fora
-isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem implementadas e
-commitadas; Fase 3 e eliminação do token em localStorage fora de escopo por decisão do plano
+**Nenhuma tarefa em andamento no momento.** Feature "Atividades por lead" concluída e testada
+(ver entrada no topo deste arquivo). Frente de CRM segue aberta — Redesign Premium do CRM
+(`CLAUDE.md` §1b) documentado mas não implementado, por decisão do usuário (prioriza
+funcionalidade nova primeiro; próxima feature de CRM a definir com o usuário).
+
+Pendências mais antigas, ainda não atacadas: o caminho de SUCESSO do sync multi-rede
+(POST /insights/sync contra API real de rede, não verificado ao vivo — token de teste
+sintético bate num 403 genuíno de RBAC); remover os 15 leads de teste ("TESTE PAGINACAO
+1..15", tenant Marketing Digital) da paginação de `/admin/campanhas/leads`. Fora isso, todas
+as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem implementadas e commitadas; Fase 3 e
+eliminação do token em localStorage fora de escopo por decisão do plano
 (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
 
 ## Última tarefa concluída

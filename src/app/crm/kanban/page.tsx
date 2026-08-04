@@ -18,13 +18,15 @@ import {
   CalendarDaysIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
-  CalendarIcon
+  CalendarIcon,
+  PencilSquareIcon
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import EnrichedLeadData from '@/components/crm/EnrichedLeadData'
 import NovoLeadModal from '@/components/crm/NovoLeadModal'
 import AgendarVisitaModal from '@/components/crm/AgendarVisitaModal'
 import AgendamentosLead from '@/components/crm/AgendamentosLead'
+import AtividadesLead from '@/components/crm/AtividadesLead'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
 
@@ -33,6 +35,7 @@ interface Lead {
   tag_sonho: string; resumo_ia?: string; coluna_nome: string;
   score_prontidao: number; imovel_id?: number | null;
   enriquecimento_cache?: any; created_at?: string; match?: string;
+  client_id?: string | null; atividades_count?: number;
 }
 interface Coluna { id: number; nome: string; titulo_exibicao: string; cor: string; icone: string; }
 
@@ -196,6 +199,9 @@ export default function KanbanPage() {
           <a href="/crm/config/kanban" className={`p-3 ${t.isDark ? t.textMuted : 'text-slate-400'} hover:text-blue-500 ${t.isDark ? t.cardBg : 'bg-white border-slate-200'} rounded-2xl transition-all border shadow-sm`} title="Configurar Funil">
             <ListBulletIcon className="h-5 w-5" />
           </a>
+          <a href="/crm/config/atividades" className={`p-3 ${t.isDark ? t.textMuted : 'text-slate-400'} hover:text-blue-500 ${t.isDark ? t.cardBg : 'bg-white border-slate-200'} rounded-2xl transition-all border shadow-sm`} title="Configurar Tipos de Atividade">
+            <PencilSquareIcon className="h-5 w-5" />
+          </a>
           <button onClick={() => setIsNovoLeadOpen(true)}
             className="flex items-center px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-bold rounded-2xl transition-all shadow-[0_8px_20px_-6px_rgba(37,99,235,0.4)] active:scale-95 border border-white/10">
             <PlusIcon className="h-5 w-5 mr-2" />Novo Lead
@@ -284,6 +290,12 @@ export default function KanbanPage() {
                         {lead.created_at && (
                           <span className={`text-[10px] font-bold uppercase tracking-widest ${t.isDark ? t.textMuted : 'text-slate-400'}`}>
                             {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          </span>
+                        )}
+                        {!!lead.atividades_count && (
+                          <span className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${t.isDark ? 'bg-white/5 text-white/50' : 'bg-slate-100 text-slate-500'}`} title={`${lead.atividades_count} atividade(s) registrada(s)`}>
+                            <ListBulletIcon className="h-3 w-3" />
+                            {lead.atividades_count}
                           </span>
                         )}
                       </div>
@@ -432,6 +444,14 @@ export default function KanbanPage() {
                 <AgendamentosLead
                   leadUuid={selectedLead.lead_uuid}
                   onAgendar={tenantConfig?.calendario ? () => setIsAgendarOpen(true) : undefined}
+                />
+              </div>
+
+              {/* Atividades do Ciclo de Vendas/Perda */}
+              <div className={`p-5 ${t.cardBg} rounded-3xl border border-indigo-500/10`}>
+                <AtividadesLead
+                  leadUuid={selectedLead.lead_uuid}
+                  clientId={selectedLead.client_id}
                 />
               </div>
             </div>
