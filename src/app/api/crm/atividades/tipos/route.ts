@@ -83,9 +83,16 @@ export async function POST(request: NextRequest) {
         WHERE id = $6 AND tenant_id = $7
         RETURNING *
       `
-      const { rows } = await pool.query(query, [nome.trim(), icone || null, cor || '#3B82F6', ordem ?? 0, client_id || null, id, tenantId])
-      if (rows.length === 0) return NextResponse.json({ error: 'Atividade não encontrada ou sem permissão.' }, { status: 404 })
-      return NextResponse.json({ success: true, tipo: rows[0] })
+      try {
+        const { rows } = await pool.query(query, [nome.trim(), icone || null, cor || '#3B82F6', ordem ?? 0, client_id || null, id, tenantId])
+        if (rows.length === 0) return NextResponse.json({ error: 'Atividade não encontrada ou sem permissão.' }, { status: 404 })
+        return NextResponse.json({ success: true, tipo: rows[0] })
+      } catch (e: any) {
+        if (e.code === '23505') {
+          return NextResponse.json({ error: 'Já existe uma atividade com esse nome nesse escopo.' }, { status: 409 })
+        }
+        throw e
+      }
     } else {
       const query = `
         INSERT INTO tipos_atividade (tenant_id, client_id, nome, icone, cor, ordem)

@@ -1,6 +1,36 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-04 (continuação 5) — **Janela do picker de ícone estava
+> **Atualizado em:** 2026-08-04 (continuação 6) — **Fix real: tipo de atividade desativado
+> (soft-delete) bloqueava pra sempre a reutilização do nome, disparando "Já existe uma
+> atividade com esse nome nesse escopo." mesmo editando um campo qualquer de outro item.**
+> Usuário reportou o erro aparecendo ao salvar edições no CRUD; testes sistemáticos via API
+> (ordem, ícone, cor, isoladamente e combinados) não reproduziram nada — toda edição comum
+> funcionou normalmente. A pista real veio de um resíduo já presente no banco desta mesma
+> sessão de testes: um tipo "Telepatia" desativado (`ativo=false`, criado numa rodada
+> anterior só pra testar o bloqueio de exclusão). Tentei recriar um tipo com esse mesmo
+> nome/escopo — e reproduzi o erro exato na hora.
+>
+> **Causa raiz confirmada:** os 2 índices únicos de `tipos_atividade`
+> (`ux_tipos_atividade_tenant`/`ux_tipos_atividade_client`) nunca filtravam por `ativo` —
+> um tipo desativado continua ocupando a vaga do nome pra sempre, mesmo sumindo de toda a
+> UI (o `GET` só lista `ativo=true`). Qualquer tentativa de recriar aquele nome, ou renomear
+> outro tipo pra ele, esbarra na constraint do Postgres contra uma linha invisível — parecia
+> "editei um campo qualquer e apareceu erro de nome duplicado do nada", porque de fato o
+> usuário nunca via o nome conflitante em lugar nenhum.
+>
+> **Corrigido:** `prisma/migration-2026-08-04-tipos-atividade-unique-ativo.sql` (aplicada) —
+> os 2 índices recriados com `AND ativo = true` na condição parcial, então só linhas ativas
+> disputam a unicidade do nome — um nome "liberado" por soft-delete pode ser reutilizado
+> normalmente. De brinde, o branch de `UPDATE` da API (editar um tipo já existente) ganhou o
+> mesmo tratamento de erro 23505 que o `INSERT` já tinha — antes, um conflito genuíno durante
+> edição vazava o erro cru do Postgres (500) em vez da mensagem amigável (409).
+>
+> **Testado:** recriar "Telepatia" no mesmo escopo do fantasma → antes 409 (bloqueado),
+> depois da migração → 200 (sucesso real, nova linha). `npx tsc --noEmit`: 0 erros. Todo
+> dado de teste desta rodada removido (o "Telepatia" recriado só pra provar o fix, e os
+> valores de "Ligação" usados nos testes de edição revertidos ao original).
+>
+> — **Sessão anterior (2026-08-04, continuação 5) — Janela do picker de ícone estava
 > pequena demais.** Continuação direta da rodada anterior (troca pro `HybridIconSelector`) —
 > usuário testou e apontou que a área ainda ficava "extremamente pequena" pra escolha
 > visual. Causa: o modal "Editar/Nova Atividade" era `max-w-md` (~448px), bem mais estreito
