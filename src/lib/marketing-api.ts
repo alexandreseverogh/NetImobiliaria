@@ -51,6 +51,10 @@ export interface Campaign {
   funnelStage?: string;
   createdAt: string;
   adSets: AdSet[];
+  // Filtro "vigente" do dropdown de campanhas do Dashboard — lifecycleStatus != KILLED e
+  // atividade real (Insight) ou criação dentro de AGENT_INSIGHT_RECENCY_DAYS. Não afeta
+  // nenhum cálculo — só o que aparece por padrão na lista.
+  isVigente?: boolean;
 }
 
 export interface AdSet {

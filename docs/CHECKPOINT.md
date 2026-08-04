@@ -1,6 +1,48 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-03 (continuação 5) — **Fix real: `generateAiInsights()` sem
+> **Atualizado em:** 2026-08-03 (continuação 6) — **Filtro "vigente" no dropdown de
+> Campanha do Dashboard, com toggle "Mostrar encerradas" (Mecanismo B da discussão de
+> segregação do passado, commit seguinte).** Fechamento da mesma discussão das rodadas
+> anteriores — usuário pediu explicitamente pra implementar agora, com a variante toggle
+> (não automático/silencioso), depois de uma rodada de esclarecimento sobre o que
+> "mesmo limiar de recência" e "toggle" significavam na prática (perguntas legítimas,
+> minha explicação anterior tinha empacotado os dois conceitos demais numa pergunta só).
+>
+> **Critério de "vigente" fechado com o usuário:** `lifecycleStatus != 'KILLED'` E (teve
+> `Insight` OU foi criada) dentro de `AGENT_INSIGHT_RECENCY_DAYS` (30 dias, mesma constante
+> já exportada do fix anterior — um conceito único de "atual" na plataforma, dois
+> mecanismos independentes que só compartilham o número). Nunca filtra o cálculo em si —
+> só o que aparece por padrão no `<select>` de Campanha; a campanha atualmente selecionada
+> nunca some da lista, mesmo que deixe de ser vigente entre um load e outro (evita
+> `<select>` com `value` sem `option` correspondente).
+>
+> **Implementado:**
+> 1. `aiInsights.ts` — `AGENT_INSIGHT_RECENCY_DAYS` exportado (antes só interno).
+> 2. `dashboard/full/route.ts` — nova query `prisma.insight.groupBy` (MAX(date) por
+>    campanha, sem nenhum filtro de período — precisa saber a ÚLTIMA atividade real de
+>    todos os tempos, não só dentro do período selecionado na tela) computa `isVigente`
+>    por campanha, anexado à resposta (`campaigns: campaignsWithVigente`). Zero mudança em
+>    `campaignIds`/`insightWhere` usados pro cálculo de KPI — só um campo novo de leitura.
+> 3. `marketing-api.ts` — `Campaign.isVigente?: boolean`.
+> 4. `dashboard/page.tsx` — `showEndedCampaigns` (state, default `false`);
+>    `campaignDropdownOptions` deriva de `campaigns` filtrando `isVigente !== false` (com a
+>    ressalva da campanha já selecionada); checkbox "Mostrar encerradas (N)" ao lado do
+>    label "Campanha", só aparece quando `N > 0`.
+>
+> **Verificado ao vivo, com dado real** (tenant Marketing Digital, segmento Imobiliário,
+> escopo "Minha Empresa" — as mesmas 6 campanhas do print original do usuário):
+> `GET dashboard/full` confirma `isVigente` correto por campanha — `true` só pras 2 com
+> atividade real recente ("TikTok - Campanha Teste", criada há poucos dias, e "Google
+> Search — Apartamentos SP", sincronizando há 15 dias); `false` pras 4 restantes
+> ("campanha 7" — criada há 64 dias, nunca sincronizou; "MD · Captação Própria
+> Premium/Financiamento" — `PAUSED`, última atividade há 52 dias; "Alto Padrão —
+> Alphaville" — já `KILLED`). Dropdown na tela renderizou corretamente só as 2 vigentes +
+> checkbox "Mostrar encerradas (4)"; clicado o checkbox → as 6 reapareceram imediatamente.
+> "Onde está o Dinheiro?" (lista diferente, não tocada) continuou mostrando as 5 com
+> gasto no período, confirmando que o filtro não vazou pra nenhum outro lugar. `npx tsc
+> --noEmit`: 0 erros em todos os arquivos tocados.
+>
+> — **Sessão anterior (2026-08-03, continuação 5) — Fix real: `generateAiInsights()` sem
 > nenhum piso de recência quando chamada sem período (agentDecisor.ts cron autônomo +
 > strategicBriefing.ts, Briefing com LLM) — evitava avaliar/narrar campanha morta há
 > semanas como se fosse dado de agora (commit seguinte).** Continuação direta da discussão
@@ -1390,18 +1432,17 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento** — piso de recência em `generateAiInsights()`
-verificado no nível exato de dado consultado e pronto pra commit. Com isso, os 3 achados da
-discussão de "segregação do passado" desta sessão (campo de período usado, risco nas 3
-visões do dashboard, piso de recência do agente/briefing) estão implementados — resta ainda
-em aberto, se o usuário quiser retomar: o filtro de "vigente" no dropdown/listas de campanha
-(discutido, não implementado — ficou definido que o foco prioritário eram os 2 caminhos de
-background, já corrigidos agora). Pendência real da rodada anterior, ainda não atacada: o
-caminho de SUCESSO do sync multi-rede (POST /insights/sync contra API real de rede) não foi
-verificado ao vivo — token de teste sintético bate num 403 genuíno de RBAC
-(`requireApiPermission`), inalterado por aquele commit. Pendência antiga e pontual, também
-ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO 1..15", tenant
-Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
+**Nenhuma tarefa em andamento no momento** — filtro "vigente" com toggle "Mostrar
+encerradas" no dropdown de Campanha do Dashboard testado ao vivo, com dado real, e pronto
+pra commit. Com isso, os 4 achados/pedidos da discussão de "segregação do passado" desta
+sessão inteira (campo de período usado, risco nas 3 visões do dashboard, piso de recência
+do agente/briefing, e agora o filtro do dropdown com toggle) estão implementados —
+encerra essa frente de trabalho, salvo o usuário querer aprofundar mais. Pendência real de
+2 rodadas atrás, ainda não atacada: o caminho de SUCESSO do sync multi-rede
+(POST /insights/sync contra API real de rede) não foi verificado ao vivo — token de teste
+sintético bate num 403 genuíno de RBAC (`requireApiPermission`). Pendência antiga e
+pontual, também ainda não atacada: **remover os 15 leads de teste** ("TESTE PAGINACAO
+1..15", tenant Marketing Digital) inseridos pra viabilizar o teste visual da paginação em
 `/admin/campanhas/leads`. Fora isso, todas as 4 fases da rodada de hardening (Fase -1/0/1/2)
 seguem implementadas e commitadas; Meta Pixel e `img-src` do MinIO seguem sem teste ao vivo
 (lacuna honesta, não bug); Fase 3 e eliminação do token em localStorage fora de escopo por
@@ -1409,9 +1450,16 @@ decisão do plano (`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`)
 
 ## Última tarefa concluída
 
+### Sessão 2026-08-03 (continuação 6) — Filtro "vigente" no dropdown de Campanha, com toggle ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 6)").
+
+---
+
 ### Sessão 2026-08-03 (continuação 5) — Fix real: piso de recência em generateAiInsights() sem período ✅
 
-Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 5)").
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-03 (continuação 5),
+histórico").
 
 ---
 

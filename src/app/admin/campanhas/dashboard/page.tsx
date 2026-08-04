@@ -83,6 +83,11 @@ function DashboardPage() {
   const [endDate, setEndDate]               = useState('');
   const endDateRef = React.useRef<HTMLInputElement>(null);
   const [selectedCampaign, setSelectedCampaign] = useState('');
+  // Filtro "vigente" — por padrão o dropdown de Campanha só mostra as que tiveram
+  // atividade real (ou foram criadas) dentro de AGENT_INSIGHT_RECENCY_DAYS; toggle
+  // "Mostrar campanhas encerradas" reexibe tudo sem sair da tela. Nunca afeta cálculo
+  // nenhum — só o que aparece como opção no <select>.
+  const [showEndedCampaigns, setShowEndedCampaigns] = useState(false);
   const [objectiveFilter, setObjectiveFilter]   = useState('');
   const [statusFilter, setStatusFilter]         = useState('');
   const [adSetFilter, setAdSetFilter]           = useState('');
@@ -312,6 +317,15 @@ function DashboardPage() {
   const d         = data?.deltas;
   const campaigns = data?.campaigns || [];
   const adSets    = data?.adSets || [];
+  // isVigente ausente (undefined) nunca deve esconder uma campanha — só false explícito
+  // some por padrão. Cobre resposta antiga sem o campo ainda / degrada pra "mostra tudo".
+  const endedCampaignsCount = campaigns.filter(c => c.isVigente === false).length;
+  // A campanha já selecionada nunca some da lista, mesmo que deixe de ser vigente entre
+  // um carregamento e outro — sem isso o <select> ficaria com um value sem option
+  // correspondente (rótulo em branco, ainda filtrando por trás, confuso).
+  const campaignDropdownOptions = showEndedCampaigns
+    ? campaigns
+    : campaigns.filter(c => c.isVigente !== false || c.id === selectedCampaign);
   // PARTE D1 — Google "está no escopo" quando o usuário filtrou por ela explicitamente, ou
   // quando não há filtro de rede (Todas) e existe dado real de Google no período. Controla o
   // drill-down de Search Terms/IS dentro da Inteligência Profunda (não é mais aba paralela).
@@ -508,11 +522,24 @@ function DashboardPage() {
         <div className={`rounded-2xl p-4 mb-6 ${cardBase}`}>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[140px]">
-              <label className={`block text-[10px] font-black uppercase tracking-widest mb-1.5 ${txFaint}`}>Campanha</label>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label className={`block text-[10px] font-black uppercase tracking-widest ${txFaint}`}>Campanha</label>
+                {endedCampaignsCount > 0 && (
+                  <label className={`flex items-center gap-1.5 text-[10px] font-semibold cursor-pointer ${txFaint}`}>
+                    <input
+                      type="checkbox"
+                      checked={showEndedCampaigns}
+                      onChange={e => setShowEndedCampaigns(e.target.checked)}
+                      className="rounded"
+                    />
+                    Mostrar encerradas ({endedCampaignsCount})
+                  </label>
+                )}
+              </div>
               <select value={selectedCampaign} onChange={e => setSelectedCampaign(e.target.value)}
                 style={selectStyle} className={`${selectBase} w-full`}>
                 <option value="">Todas</option>
-                {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {campaignDropdownOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div className="min-w-[120px]">

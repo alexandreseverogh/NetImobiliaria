@@ -3,6 +3,7 @@ import { prisma } from '@/lib/marketing/prisma';
 import { getTokenPayload } from '@/lib/auth/jwt-node';
 import { resolveCampaignIdsBySegment } from '@/lib/marketing/segmentUtils';
 import { getProvisionedNetworkCodes } from '@/lib/marketing/services/networkProvisioning';
+import { AGENT_INSIGHT_RECENCY_DAYS } from '@/lib/marketing/services/aiInsights';
 import {
   getLeadEvents, sumLeads, leadsByDay,
   leadsByCampaign as groupLeadsByCampaign,
@@ -106,6 +107,30 @@ export async function GET(request: NextRequest) {
     }
 
     const campaignIds = campaigns.map(c => c.id);
+
+    // Filtro "vigente" (toggle "Mostrar campanhas encerradas" no dropdown do Dashboard) —
+    // NUNCA restringe campaignIds/insightWhere abaixo (cálculo de KPI continua vendo tudo
+    // que já via, período é quem manda ali). Só marca cada campanha com isVigente pra o
+    // frontend decidir o que aparece por padrão no <select>. Mesmo limiar de
+    // AGENT_INSIGHT_RECENCY_DAYS já usado no piso de recência do agente/briefing —
+    // conceito único de "vigente" na plataforma, mecanismos independentes.
+    const lastActivityRows = campaignIds.length > 0
+      ? await prisma.insight.groupBy({
+          by: ['campaignId'],
+          where: { campaignId: { in: campaignIds } },
+          _max: { date: true },
+        })
+      : [];
+    const lastActivityByCampaign = new Map(lastActivityRows.map(r => [r.campaignId, r._max.date]));
+    const vigenteCutoff = new Date(Date.now() - AGENT_INSIGHT_RECENCY_DAYS * 86400000);
+    const campaignsWithVigente = campaigns.map(c => {
+      const lastInsight = lastActivityByCampaign.get(c.id) ?? null;
+      const isVigente = c.lifecycleStatus !== 'KILLED' && (
+        (!!lastInsight && lastInsight >= vigenteCutoff) ||
+        (c.createdAt >= vigenteCutoff)
+      );
+      return { ...c, isVigente };
+    });
 
     const insightWhere: any = {
       tenantId: payload.tenantId,
@@ -211,7 +236,7 @@ export async function GET(request: NextRequest) {
       currentPeriod: { insights: currentInsights, totals: currentTotals, leadCount: currentLeadCount },
       previousPeriod: { totals: prevTotals, leadCount: prevLeadCount },
       deltas,
-      campaigns,
+      campaigns: campaignsWithVigente,
       adSets: allAdSets,
       dailyLeads: normalizedDailyLeads,
       leadsByNetwork,

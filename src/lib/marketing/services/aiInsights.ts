@@ -17,8 +17,14 @@ const S = 'campanhasmarketingdigital';
  * de quando" — uma campanha morta há 70 dias podia ser avaliada por uma decisão automática ou
  * narrada pelo LLM como se fosse performance de agora. Configurável via env, mesmo padrão já
  * usado por AGENT_SYNC_SCHEDULE/AGENT_CONFIDENCE_THRESHOLD (CLAUDE.md).
+ *
+ * Exportado — mesmo conceito de "vigente" reaproveitado pelo filtro de campanha do
+ * Dashboard (dashboard/full/route.ts), pra não ter dois números concorrentes de "o que é
+ * atual" na plataforma. São 2 mecanismos independentes (este filtra linhas de Insight pra
+ * avaliação de regra/LLM; o outro filtra quais campanhas aparecem no dropdown por padrão),
+ * só o limiar é compartilhado.
  */
-const AGENT_INSIGHT_RECENCY_DAYS = parseInt(process.env.AGENT_INSIGHT_RECENCY_DAYS || '30', 10);
+export const AGENT_INSIGHT_RECENCY_DAYS = parseInt(process.env.AGENT_INSIGHT_RECENCY_DAYS || '30', 10);
 
 /**
  * Expande uma data pura "YYYY-MM-DD" pro fim do dia (23:59:59.999 UTC) antes de usar como
