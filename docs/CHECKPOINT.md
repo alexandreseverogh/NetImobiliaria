@@ -1,6 +1,21 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-04 (continuação 4) — **Fix real: picker de ícone custom abria
+> **Atualizado em:** 2026-08-04 (continuação 5) — **Janela do picker de ícone estava
+> pequena demais.** Continuação direta da rodada anterior (troca pro `HybridIconSelector`) —
+> usuário testou e apontou que a área ainda ficava "extremamente pequena" pra escolha
+> visual. Causa: o modal "Editar/Nova Atividade" era `max-w-md` (~448px), bem mais estreito
+> que o `max-w-2xl` (~672px) que `MenuCreateModal.tsx` usa quando embute o mesmo seletor —
+> o painel de 4000+ ícones ficava espremido num modal pensado só pra 3 campos de texto
+> pequenos. Corrigido alinhando com a largura já usada nesse padrão estabelecido
+> (`max-w-md` → `max-w-2xl`) + altura do wrapper do painel aumentada (`max-h-72` →
+> `max-h-[34rem]`, o `LucideIconSelector` interno já tem layout fixo de 500px, o wrapper
+> antigo cortava ele no meio criando scroll-dentro-de-scroll).
+>
+> **Verificado com o mínimo de Browser pane** (mesma disciplina da rodada anterior): medido
+> via JS direto no DOM — modal real 672px, painel de ícones 606×544px (era ~380px de largura
+> útil antes). `npx tsc --noEmit`: 0 erros.
+>
+> — **Sessão anterior (2026-08-04, continuação 4) — Fix real: picker de ícone custom abria
 > vazio + troca pelo componente já existente na aplicação.** Usuário reportou, testando a
 > entrega anterior: (1) o botão "escolher ícone" abria uma espécie de modal vazio; (2) uso
 > pesado do Browser pane pra testar UI está consumindo muito token — pedido explícito pra

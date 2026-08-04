@@ -263,7 +263,7 @@ export default function AtividadesConfigPage() {
       {/* Modal */}
       {isModalOpen && currentEdit && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className={`w-full max-w-md ${t.modalBg} rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200`}>
+          <div className={`w-full max-w-2xl ${t.modalBg} rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200`}>
             <div className="flex items-center justify-between mb-8">
               <h3 className={`text-xl font-bold flex items-center ${t.textPrimary}`}>
                 <SwatchIcon className="mr-2 h-6 w-6 text-blue-500" />
@@ -298,7 +298,7 @@ export default function AtividadesConfigPage() {
               </div>
 
               {showIconSelector && (
-                <div className="p-4 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 max-h-72 overflow-y-auto custom-scrollbar shadow-inner">
+                <div className="p-4 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 max-h-[34rem] overflow-y-auto custom-scrollbar shadow-inner">
                   <HybridIconSelector
                     selected={currentEdit.icone || ''}
                     onSelect={icone => { setCurrentEdit({ ...currentEdit, icone }); setShowIconSelector(false) }}
