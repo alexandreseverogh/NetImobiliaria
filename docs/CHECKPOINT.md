@@ -1,6 +1,38 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-04 (continuação 3) — **4 ajustes no CRUD de Atividades
+> **Atualizado em:** 2026-08-04 (continuação 4) — **Fix real: picker de ícone custom abria
+> vazio + troca pelo componente já existente na aplicação.** Usuário reportou, testando a
+> entrega anterior: (1) o botão "escolher ícone" abria uma espécie de modal vazio; (2) uso
+> pesado do Browser pane pra testar UI está consumindo muito token — pedido explícito pra
+> reduzir.
+>
+> **Achado real:** o picker que eu tinha construído do zero (`ActivityIconPicker.tsx` +
+> `activityIcons.tsx`, commit anterior) tinha bug de posicionamento/renderização próprio —
+> mas o ponto principal é que **nunca deveria ter sido construído do zero**: a aplicação já
+> tem um seletor de ícone maduro e usado em produção (`HybridIconSelector.tsx`, com abas
+> Lucide/Material/Heroicons, 4000+ ícones, busca), no mesmo padrão de embutir (input
+> `readOnly` como gatilho + painel expandido **inline**, não popover absoluto) já usado em
+> `MenuCreateModal.tsx`/`MenuEditModal.tsx` (gestão de sidebar). Substituído: removidos os 2
+> arquivos novos, `page.tsx` e `AtividadesLead.tsx` agora usam `HybridIconSelector` (seleção)
+> + `DynamicIcon` (componente já existente, `@/components/common/DynamicIcon`, renderização)
+> — o mesmo par já usado pelo resto da plataforma pra ícone de feature/sidebar.
+>
+> **Formato de valor mudou** (`lucide-<Nome>` em vez do nome cru do componente Heroicons,
+> ex. `PhoneIcon` → `lucide-Phone`) — `prisma/migration-2026-08-04-tipos-atividade-lucide-icons.sql`
+> (aplicada) migra as 36 linhas do seed original (9 tipos × 4 tenants) pro novo formato.
+>
+> **Verificado com o mínimo de Browser pane necessário** (pedido do usuário atendido — 1
+> navegação + JS direto no DOM pra inspecionar, sem a sequência longa de screenshots/cliques
+> da rodada anterior): painel do picker confirmado com 302 ícones SVG renderizados (não mais
+> vazio) · busca por "Phone" + seleção confirmada setando `lucide-Phone` no campo · painel
+> fecha sozinho após selecionar · nenhum dado alterado (ícone selecionado era o mesmo já
+> salvo pra "Ligação", modal fechado sem submeter). `npx tsc --noEmit`: 0 erros.
+>
+> **Lição registrada:** antes de construir um componente de UI do zero, checar primeiro se já
+> existe um equivalente maduro na base — `HybridIconSelector`/`DynamicIcon` já resolviam
+> exatamente esse problema e eu não tinha procurado.
+>
+> — **Sessão anterior (2026-08-04, continuação 3) — 4 ajustes no CRUD de Atividades
 > (`/crm/config/atividades`), a pedido do usuário.**
 >
 > **1) Rótulo "Tipo" → "Atividade"** em todo texto visível do CRUD (botões "Nova/Editar/Salvar

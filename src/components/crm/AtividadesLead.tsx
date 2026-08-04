@@ -14,7 +14,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/hooks/useTheme'
 import { adminFetch } from '@/lib/auth/adminFetch'
-import { ActivityIcon } from '@/lib/crm/activityIcons'
+import DynamicIcon from '@/components/common/DynamicIcon'
 
 interface TipoAtividade {
   id: number
@@ -272,7 +272,7 @@ export default function AtividadesLead({ leadUuid, clientId }: Props) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start space-x-3 min-w-0">
                     <div className="mt-0.5 flex items-center justify-center h-7 w-7 rounded-lg flex-shrink-0" style={{ backgroundColor: `${a.tipo_cor}1a`, color: a.tipo_cor }}>
-                      <ActivityIcon name={a.tipo_icone} className="h-4 w-4" />
+                      <DynamicIcon iconName={a.tipo_icone ?? ''} className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">

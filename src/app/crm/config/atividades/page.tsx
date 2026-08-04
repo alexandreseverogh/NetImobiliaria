@@ -8,8 +8,8 @@ import {
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/hooks/useTheme'
 import { adminFetch } from '@/lib/auth/adminFetch'
-import { ActivityIcon } from '@/lib/crm/activityIcons'
-import ActivityIconPicker from '@/components/crm/ActivityIconPicker'
+import DynamicIcon from '@/components/common/DynamicIcon'
+import { HybridIconSelector } from '@/components/admin/SidebarManagement/HybridIconSelector'
 
 interface TipoAtividade {
   id: number; nome: string; icone: string | null; cor: string;
@@ -26,6 +26,7 @@ export default function AtividadesConfigPage() {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [showIconSelector, setShowIconSelector] = useState(false)
 
   useEffect(() => {
     if (!toast) return
@@ -133,7 +134,7 @@ export default function AtividadesConfigPage() {
           <p className={`mt-1 text-sm ${t.textSecondary}`}>Atividades padronizadas usadas ao registrar o histórico de qualquer lead do Kanban.</p>
         </div>
         <button
-          onClick={() => { setCurrentEdit({ nome: '', icone: '', cor: '#3B82F6', ordem: tipos.length + 1 }); setIsModalOpen(true) }}
+          onClick={() => { setCurrentEdit({ nome: '', icone: '', cor: '#3B82F6', ordem: tipos.length + 1 }); setShowIconSelector(false); setIsModalOpen(true) }}
           disabled={scope === 'client' && !selectedClient}
           className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-bold rounded-xl transition-all shadow-lg">
           <PlusIcon className="h-4 w-4 mr-2" />Nova Atividade
@@ -231,7 +232,7 @@ export default function AtividadesConfigPage() {
                 <td className="px-6 py-4 text-sm font-bold text-blue-500">{tp.ordem}º</td>
                 <td className="px-6 py-4">
                   <div className={`inline-flex items-center justify-center h-8 w-8 rounded-lg ${t.isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-100'}`}>
-                    <ActivityIcon name={tp.icone} className={`h-4 w-4 ${t.textSecondary}`} />
+                    <DynamicIcon iconName={tp.icone ?? ''} className={`h-4 w-4 ${t.textSecondary}`} />
                   </div>
                 </td>
                 <td className={`px-6 py-4 text-sm font-medium ${t.textPrimary}`}>{tp.nome}</td>
@@ -243,7 +244,7 @@ export default function AtividadesConfigPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end space-x-1">
-                    <button onClick={() => { setCurrentEdit(tp); setIsModalOpen(true) }}
+                    <button onClick={() => { setCurrentEdit(tp); setShowIconSelector(false); setIsModalOpen(true) }}
                       className={`p-2 ${t.textMuted} hover:text-blue-500 ${t.cardBg} rounded-lg transition-all`}>
                       <PencilSquareIcon className="h-4 w-4" />
                     </button>
@@ -286,12 +287,25 @@ export default function AtividadesConfigPage() {
                 </div>
                 <div className="space-y-2">
                   <label className={`text-xs font-bold uppercase tracking-widest pl-1 ${t.textMuted}`}>Ícone</label>
-                  <ActivityIconPicker
-                    value={currentEdit.icone || null}
-                    onChange={icone => setCurrentEdit({ ...currentEdit, icone })}
-                  />
+                  <div className={`flex items-center gap-2 rounded-xl px-3 ${t.inputBg}`}>
+                    <DynamicIcon iconName={currentEdit.icone ?? ''} className={`h-4 w-4 flex-shrink-0 ${t.textMuted}`} />
+                    <input type="text" readOnly value={currentEdit.icone || ''}
+                      onClick={() => setShowIconSelector(v => !v)}
+                      placeholder="Clique para escolher"
+                      className="flex-1 py-2 bg-transparent text-sm cursor-pointer focus:outline-none" />
+                  </div>
                 </div>
               </div>
+
+              {showIconSelector && (
+                <div className="p-4 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 max-h-72 overflow-y-auto custom-scrollbar shadow-inner">
+                  <HybridIconSelector
+                    selected={currentEdit.icone || ''}
+                    onSelect={icone => { setCurrentEdit({ ...currentEdit, icone }); setShowIconSelector(false) }}
+                  />
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className={`text-xs font-bold uppercase tracking-widest pl-1 ${t.textMuted}`}>Cor</label>
                 <div className="flex items-center space-x-2">
