@@ -1,6 +1,54 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-04 (continuação 2) — **Fix real: busca de cliente em
+> **Atualizado em:** 2026-08-04 (continuação 3) — **4 ajustes no CRUD de Atividades
+> (`/crm/config/atividades`), a pedido do usuário.**
+>
+> **1) Rótulo "Tipo" → "Atividade"** em todo texto visível do CRUD (botões "Nova/Editar/Salvar
+> Atividade", mensagens de erro da API, empty-state da tabela) e no formulário de registro em
+> `AtividadesLead.tsx` ("Selecione a atividade...", "Escolha uma atividade.").
+>
+> **2) Picker de ícone real — investigação encontrou a causa raiz de dois problemas ao mesmo
+> tempo (achado #2 e #3 do usuário eram o mesmo bug, não dois):** o campo Ícone sempre foi um
+> `<input type="text">` livre, sem nenhuma biblioteca — e pior, o valor salvo **nunca era
+> exibido em lugar nenhum da aplicação** (nem na tabela do catálogo, nem na Ficha do lead).
+> Testado ao vivo via API antes de mexer em UI: editar nome/ícone realmente persistia no banco
+> (confirmado por SQL direto) — ou seja, "Salvar não funciona" (achado #3) não era um bug de
+> gravação, era 100% falta de feedback visual: o usuário mudava o ícone (texto livre, sem
+> preview), clicava Salvar, e como nada na tela refletia essa mudança, parecia que não tinha
+> salvado nada. Corrigido projetando a causa raiz, não o sintoma: `src/lib/crm/activityIcons.tsx`
+> (catálogo curado de 26 ícones heroicons/24/outline, nomes PascalCase batendo com o que já
+> estava salvo no seed — `PhoneIcon`, `ChatBubbleLeftIcon` etc.) + `ActivityIconPicker.tsx`
+> (grid popover, substitui o input livre) + `ActivityIcon` renderizado agora em 2 lugares novos:
+> coluna "Ícone" na tabela do catálogo, e badge colorido ao lado de cada atividade na Ficha do
+> lead (`AtividadesLead.tsx`, antes só um dot de cor sem ícone nenhum).
+>
+> **3) Feedback de sucesso** — toast (`✓ Atividade atualizada/criada/desativada com sucesso.`,
+> auto-some em 3s) adicionado ao criar/editar/desativar, fechando de vez a percepção de "não
+> aconteceu nada" mesmo pra edições que não mudam nada visível na tabela (ex.: só a cor).
+>
+> **4) Bloqueio de exclusão por uso real — feature nova, não existia antes.** `DELETE
+> /api/crm/atividades/tipos` agora conta `atividades_lead` ativas (`deleted_at IS NULL`)
+> referenciando aquele tipo antes de desativar; havendo ≥1, retorna 409 com a contagem exata
+> ("Esta atividade está registrada em N lead(s)..."), sem tocar no catálogo. Sem nenhum lead
+> associado, desativa normalmente (soft, `ativo=false` — mesma convenção reversível já usada no
+> resto da plataforma).
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital): via API — criada
+> atividade real vinculando um tipo de teste a um lead real → tentativa de excluir o tipo → 409
+> com a mensagem certa → removida a atividade do lead → exclusão do tipo agora sucede (200) ·
+> edição de nome/ícone via API confirmada persistindo no banco antes mesmo de tocar a UI · via
+> navegador real (sessão JWT injetada): editado "Ligação" trocando o ícone (telefone → vídeo) via
+> o novo picker → clique em Salvar → toast de sucesso apareceu → confirmado no banco que
+> persistiu → revertido pro ícone original (mesma execução, não um teste hipotético) · confirmado
+> via JS que as 9 linhas da tabela renderizam exatamente 1 SVG cada na coluna Ícone (não só a
+> testada) · aberto "+ Nova Atividade" na Ficha do lead Roberto Severo → dropdown mostra
+> corretamente "Selecione a atividade..." (renomeado). Todo dado de teste (tipo + atividade)
+> removido depois, 0 resíduo confirmado — **exceto 1 atividade de teste pré-existente
+> ("teste dfdsafsdfs", lead Gisele Cesse) que já estava no banco antes desta sessão e não foi eu
+> quem criou — deixada intacta, não é resíduo meu pra limpar sem confirmação.** `npx tsc
+> --noEmit`: 0 erros em todos os arquivos novos/tocados.
+>
+> — **Sessão anterior (2026-08-04, continuação 2) — Fix real: busca de cliente em
 > `/crm/config/atividades` não era isolada por tenant + virou dropdown alfabético populado.**
 > Usuário pediu explicitamente: dropdown sempre populado em ordem alfabética com os clientes
 > da tenant logada, mais um botão de busca que filtra só depois de 3 letras digitadas

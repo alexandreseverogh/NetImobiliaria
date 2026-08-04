@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/hooks/useTheme'
 import { adminFetch } from '@/lib/auth/adminFetch'
+import { ActivityIcon } from '@/lib/crm/activityIcons'
 
 interface TipoAtividade {
   id: number
@@ -27,6 +28,7 @@ interface Atividade {
   tipo_atividade_id: number
   tipo_nome: string
   tipo_cor: string
+  tipo_icone?: string | null
   descricao: string
   usuario_nome?: string | null
   anexo_url?: string | null
@@ -145,7 +147,7 @@ export default function AtividadesLead({ leadUuid, clientId }: Props) {
 
   const handleSubmit = async () => {
     setError(null)
-    if (!formTipoId) { setError('Escolha um tipo de atividade.'); return }
+    if (!formTipoId) { setError('Escolha uma atividade.'); return }
     if (formDescricao.trim().length < MIN_DESCRICAO_LEN) {
       setError(`A descrição precisa ter pelo menos ${MIN_DESCRICAO_LEN} caracteres.`)
       return
@@ -217,7 +219,7 @@ export default function AtividadesLead({ leadUuid, clientId }: Props) {
             onChange={e => setFormTipoId(e.target.value)}
             className={`w-full text-xs font-semibold rounded-xl px-3 py-2.5 border ${t.borderSub} ${t.isDark ? 'bg-black/30 text-white' : 'bg-white text-slate-700'} focus:outline-none focus:ring-2 focus:ring-blue-500/30`}
           >
-            <option value="">Selecione o tipo...</option>
+            <option value="">Selecione a atividade...</option>
             {tipos.map(tp => <option key={tp.id} value={tp.id}>{tp.nome}</option>)}
           </select>
           <textarea
@@ -269,7 +271,9 @@ export default function AtividadesLead({ leadUuid, clientId }: Props) {
               <div key={a.id} className={`p-4 rounded-2xl border ${t.borderSub} ${t.isDark ? 'bg-white/[0.02]' : 'bg-white'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start space-x-3 min-w-0">
-                    <div className="mt-0.5 h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: a.tipo_cor }} />
+                    <div className="mt-0.5 flex items-center justify-center h-7 w-7 rounded-lg flex-shrink-0" style={{ backgroundColor: `${a.tipo_cor}1a`, color: a.tipo_cor }}>
+                      <ActivityIcon name={a.tipo_icone} className="h-4 w-4" />
+                    </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: a.tipo_cor }}>{a.tipo_nome}</span>

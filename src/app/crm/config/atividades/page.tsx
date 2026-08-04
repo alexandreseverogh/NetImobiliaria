@@ -4,9 +4,12 @@ import React, { useState, useEffect } from 'react'
 import {
   ListBulletIcon, PlusIcon, SwatchIcon, TrashIcon,
   PencilSquareIcon, BuildingOffice2Icon, UserIcon, MagnifyingGlassIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/hooks/useTheme'
 import { adminFetch } from '@/lib/auth/adminFetch'
+import { ActivityIcon } from '@/lib/crm/activityIcons'
+import ActivityIconPicker from '@/components/crm/ActivityIconPicker'
 
 interface TipoAtividade {
   id: number; nome: string; icone: string | null; cor: string;
@@ -21,6 +24,14 @@ export default function AtividadesConfigPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [currentEdit, setCurrentEdit] = useState<Partial<TipoAtividade> | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(timer)
+  }, [toast])
 
   // Escopo: catálogo padrão da empresa (client_id NULL) ou de um cliente específico
   const [scope, setScope] = useState<'tenant' | 'client'>('tenant')
@@ -80,21 +91,35 @@ export default function AtividadesConfigPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    const payload = {
-      ...currentEdit,
-      client_id: scope === 'client' ? selectedClient?.uuid : null,
+    setSaving(true)
+    try {
+      const isEdit = !!currentEdit?.id
+      const payload = {
+        ...currentEdit,
+        client_id: scope === 'client' ? selectedClient?.uuid : null,
+      }
+      const res = await adminFetch('/api/crm/atividades/tipos', { method: 'POST', body: JSON.stringify(payload) })
+      const data = await res.json()
+      if (data.success) {
+        await fetchTipos()
+        setIsModalOpen(false)
+        setCurrentEdit(null)
+        setToast(isEdit ? 'Atividade atualizada com sucesso.' : 'Atividade criada com sucesso.')
+      } else {
+        setError(data.error)
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao salvar atividade.')
+    } finally {
+      setSaving(false)
     }
-    const res = await adminFetch('/api/crm/atividades/tipos', { method: 'POST', body: JSON.stringify(payload) })
-    const data = await res.json()
-    if (data.success) { fetchTipos(); setIsModalOpen(false); setCurrentEdit(null) }
-    else setError(data.error)
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Desativar este tipo de atividade? (fica reversível, os registros já criados com ele continuam intactos)')) return
+    if (!confirm('Desativar esta atividade? (fica reversível, os registros já criados com ela continuam intactos)')) return
     const res = await adminFetch(`/api/crm/atividades/tipos?id=${id}`, { method: 'DELETE' })
     const data = await res.json()
-    if (data.success) fetchTipos()
+    if (data.success) { fetchTipos(); setToast('Atividade desativada com sucesso.') }
     else alert(data.error)
   }
 
@@ -105,15 +130,22 @@ export default function AtividadesConfigPage() {
           <h2 className={`text-2xl font-bold tracking-tight italic flex items-center ${t.textPrimary}`}>
             CATÁLOGO <span className="text-blue-500 ml-2">DE ATIVIDADES</span>
           </h2>
-          <p className={`mt-1 text-sm ${t.textSecondary}`}>Tipos padronizados usados ao registrar uma atividade em qualquer lead do Kanban.</p>
+          <p className={`mt-1 text-sm ${t.textSecondary}`}>Atividades padronizadas usadas ao registrar o histórico de qualquer lead do Kanban.</p>
         </div>
         <button
           onClick={() => { setCurrentEdit({ nome: '', icone: '', cor: '#3B82F6', ordem: tipos.length + 1 }); setIsModalOpen(true) }}
           disabled={scope === 'client' && !selectedClient}
           className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-bold rounded-xl transition-all shadow-lg">
-          <PlusIcon className="h-4 w-4 mr-2" />Novo Tipo
+          <PlusIcon className="h-4 w-4 mr-2" />Nova Atividade
         </button>
       </div>
+
+      {toast && (
+        <div className="fixed top-6 right-6 z-[200] flex items-center gap-2 px-4 py-3 bg-emerald-600 text-white text-sm font-bold rounded-xl shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+          <CheckCircleIcon className="h-5 w-5" />
+          {toast}
+        </div>
+      )}
 
       {/* Seletor de escopo */}
       <div className={`flex flex-wrap items-center gap-3 p-4 rounded-2xl border ${t.borderSub} ${t.cardBg}`}>
@@ -182,21 +214,26 @@ export default function AtividadesConfigPage() {
         <table className="min-w-full">
           <thead className={`${t.isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
             <tr>
-              {['Ordem', 'Nome', 'Cor', 'Ações'].map((h, i) => (
-                <th key={h} className={`px-6 py-4 text-xs font-bold uppercase tracking-widest ${t.textMuted} ${i === 3 ? 'text-right' : 'text-left'}`}>{h}</th>
+              {['Ordem', 'Ícone', 'Nome', 'Cor', 'Ações'].map((h, i) => (
+                <th key={h} className={`px-6 py-4 text-xs font-bold uppercase tracking-widest ${t.textMuted} ${i === 4 ? 'text-right' : 'text-left'}`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className={`divide-y ${t.borderSub}`}>
             {loading ? (
-              <tr><td colSpan={4} className={`p-8 text-center ${t.textMuted}`}>Carregando catálogo...</td></tr>
+              <tr><td colSpan={5} className={`p-8 text-center ${t.textMuted}`}>Carregando catálogo...</td></tr>
             ) : scope === 'client' && !selectedClient ? (
-              <tr><td colSpan={4} className={`p-8 text-center ${t.textMuted}`}>Selecione um cliente para ver/gerenciar o catálogo dele.</td></tr>
+              <tr><td colSpan={5} className={`p-8 text-center ${t.textMuted}`}>Selecione um cliente para ver/gerenciar o catálogo dele.</td></tr>
             ) : tipos.length === 0 ? (
-              <tr><td colSpan={4} className={`p-8 text-center ${t.textMuted}`}>Nenhum tipo cadastrado neste escopo ainda.</td></tr>
+              <tr><td colSpan={5} className={`p-8 text-center ${t.textMuted}`}>Nenhuma atividade cadastrada neste escopo ainda.</td></tr>
             ) : tipos.map((tp) => (
               <tr key={tp.id} className={`group transition-colors ${t.hoverBg}`}>
                 <td className="px-6 py-4 text-sm font-bold text-blue-500">{tp.ordem}º</td>
+                <td className="px-6 py-4">
+                  <div className={`inline-flex items-center justify-center h-8 w-8 rounded-lg ${t.isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-100'}`}>
+                    <ActivityIcon name={tp.icone} className={`h-4 w-4 ${t.textSecondary}`} />
+                  </div>
+                </td>
                 <td className={`px-6 py-4 text-sm font-medium ${t.textPrimary}`}>{tp.nome}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center space-x-2">
@@ -229,7 +266,7 @@ export default function AtividadesConfigPage() {
             <div className="flex items-center justify-between mb-8">
               <h3 className={`text-xl font-bold flex items-center ${t.textPrimary}`}>
                 <SwatchIcon className="mr-2 h-6 w-6 text-blue-500" />
-                {currentEdit.id ? 'Editar Tipo' : 'Novo Tipo'}
+                {currentEdit.id ? 'Editar Atividade' : 'Nova Atividade'}
               </h3>
               <button onClick={() => { setIsModalOpen(false); setError(null) }} className={`${t.textMuted} hover:text-blue-500 transition-colors`}>Fechar</button>
             </div>
@@ -248,10 +285,11 @@ export default function AtividadesConfigPage() {
                     className={`w-full rounded-xl py-2 px-4 text-sm focus:outline-none ${t.inputBg}`} />
                 </div>
                 <div className="space-y-2">
-                  <label className={`text-xs font-bold uppercase tracking-widest pl-1 ${t.textMuted}`}>Ícone (opcional)</label>
-                  <input type="text" placeholder="Ex: PhoneIcon" value={currentEdit.icone || ''}
-                    onChange={e => setCurrentEdit({ ...currentEdit, icone: e.target.value })}
-                    className={`w-full rounded-xl py-2 px-4 text-sm focus:outline-none ${t.inputBg}`} />
+                  <label className={`text-xs font-bold uppercase tracking-widest pl-1 ${t.textMuted}`}>Ícone</label>
+                  <ActivityIconPicker
+                    value={currentEdit.icone || null}
+                    onChange={icone => setCurrentEdit({ ...currentEdit, icone })}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
@@ -266,8 +304,9 @@ export default function AtividadesConfigPage() {
                 </div>
               </div>
               {error && <div className="text-xs font-bold text-red-500">{error}</div>}
-              <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-xl uppercase tracking-widest">
-                Salvar Tipo
+              <button type="submit" disabled={saving}
+                className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-xl uppercase tracking-widest">
+                {saving ? 'Salvando...' : 'Salvar Atividade'}
               </button>
             </form>
           </div>

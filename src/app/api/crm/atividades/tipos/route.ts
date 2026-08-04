@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
         RETURNING *
       `
       const { rows } = await pool.query(query, [nome.trim(), icone || null, cor || '#3B82F6', ordem ?? 0, client_id || null, id, tenantId])
-      if (rows.length === 0) return NextResponse.json({ error: 'Tipo não encontrado ou sem permissão.' }, { status: 404 })
+      if (rows.length === 0) return NextResponse.json({ error: 'Atividade não encontrada ou sem permissão.' }, { status: 404 })
       return NextResponse.json({ success: true, tipo: rows[0] })
     } else {
       const query = `
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, tipo: rows[0] })
       } catch (e: any) {
         if (e.code === '23505') {
-          return NextResponse.json({ error: 'Já existe um tipo de atividade com esse nome nesse escopo.' }, { status: 409 })
+          return NextResponse.json({ error: 'Já existe uma atividade com esse nome nesse escopo.' }, { status: 409 })
         }
         throw e
       }
@@ -108,6 +108,8 @@ export async function POST(request: NextRequest) {
 }
 
 // DESATIVAR TIPO (soft — mesmo padrão de is_active usado no resto da plataforma)
+// Bloqueado se algum lead ainda tiver uma atividade ativa registrada com esse tipo —
+// evita esconder do catálogo um tipo que ainda está em uso real.
 export async function DELETE(request: NextRequest) {
   try {
     const currentUser = getCurrentUser(request)
@@ -122,11 +124,23 @@ export async function DELETE(request: NextRequest) {
 
     const tenantId = isMaster ? (searchParams.get('tenant_id') || currentUser.tenantId) : currentUser.tenantId
 
+    const usageRes = await pool.query(
+      `SELECT count(*)::int AS n FROM atividades_lead WHERE tipo_atividade_id = $1 AND deleted_at IS NULL`,
+      [id],
+    )
+    const usageCount = usageRes.rows[0]?.n || 0
+    if (usageCount > 0) {
+      return NextResponse.json(
+        { error: `Esta atividade está registrada em ${usageCount} lead(s) — não pode ser excluída enquanto houver leads associados a ela.` },
+        { status: 409 },
+      )
+    }
+
     const { rows } = await pool.query(
       `UPDATE tipos_atividade SET ativo = false, updated_at = NOW() WHERE id = $1 AND tenant_id = $2 RETURNING id`,
       [id, tenantId],
     )
-    if (rows.length === 0) return NextResponse.json({ error: 'Tipo não encontrado ou sem permissão.' }, { status: 404 })
+    if (rows.length === 0) return NextResponse.json({ error: 'Atividade não encontrada ou sem permissão.' }, { status: 404 })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
