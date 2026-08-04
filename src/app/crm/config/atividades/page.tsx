@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   ListBulletIcon, PlusIcon, SwatchIcon, TrashIcon,
-  PencilSquareIcon, BuildingOffice2Icon, UserIcon,
+  PencilSquareIcon, BuildingOffice2Icon, UserIcon, MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/hooks/useTheme'
 import { adminFetch } from '@/lib/auth/adminFetch'
@@ -27,21 +27,40 @@ export default function AtividadesConfigPage() {
   const [clientSearch, setClientSearch] = useState('')
   const [clientResults, setClientResults] = useState<ClienteOpt[]>([])
   const [selectedClient, setSelectedClient] = useState<ClienteOpt | null>(null)
+  const [clientListLoading, setClientListLoading] = useState(false)
 
   useEffect(() => { fetchTipos() }, [scope, selectedClient])
 
+  // Dropdown sempre populado em ordem alfabética com os clientes do tenant logado
+  // (a própria API já ordena por nome ASC); recarrega ao voltar pro escopo "cliente"
+  // sem nenhum selecionado (inclusive depois de "Trocar").
   useEffect(() => {
-    if (clientSearch.length >= 3) {
-      const delay = setTimeout(() => {
-        adminFetch(`/api/crm/clientes/search?q=${clientSearch}`)
-          .then(res => res.json())
-          .then(data => setClientResults(data.clientes || []))
-      }, 300)
-      return () => clearTimeout(delay)
-    } else {
-      setClientResults([])
-    }
-  }, [clientSearch])
+    if (scope === 'client' && !selectedClient) loadAllClients()
+  }, [scope, selectedClient])
+
+  const loadAllClients = async () => {
+    setClientListLoading(true)
+    try {
+      const res = await adminFetch('/api/crm/clientes/search')
+      const data = await res.json()
+      setClientResults(data.clientes || [])
+    } finally { setClientListLoading(false) }
+  }
+
+  const handleClientSearch = async () => {
+    if (clientSearch.trim().length < 3) return
+    setClientListLoading(true)
+    try {
+      const res = await adminFetch(`/api/crm/clientes/search?q=${encodeURIComponent(clientSearch.trim())}`)
+      const data = await res.json()
+      setClientResults(data.clientes || [])
+    } finally { setClientListLoading(false) }
+  }
+
+  const clearClientSearch = () => {
+    setClientSearch('')
+    loadAllClients()
+  }
 
   const fetchTipos = async () => {
     if (scope === 'client' && !selectedClient) { setTipos([]); setLoading(false); return }
@@ -108,22 +127,51 @@ export default function AtividadesConfigPage() {
         </button>
 
         {scope === 'client' && (
-          <div className="relative flex-1 min-w-[240px]">
-            <input
-              type="text"
-              value={selectedClient ? selectedClient.nome : clientSearch}
-              onChange={e => { setSelectedClient(null); setClientSearch(e.target.value) }}
-              placeholder="Buscar cliente por nome (mín. 3 letras)..."
-              className={`w-full rounded-xl py-2 px-4 text-sm ${t.inputBg}`}
-            />
-            {!selectedClient && clientResults.length > 0 && (
-              <div className={`absolute z-10 mt-1 w-full rounded-xl border ${t.borderSub} ${t.modalBg} shadow-xl max-h-56 overflow-y-auto`}>
-                {clientResults.map(c => (
-                  <button key={c.uuid} onClick={() => { setSelectedClient(c); setClientSearch('') }}
-                    className={`block w-full text-left px-4 py-2.5 text-sm ${t.hoverBg} ${t.textPrimary}`}>
-                    {c.nome}
+          <div className="flex-1 min-w-[280px]">
+            {selectedClient ? (
+              <div className="flex items-center gap-2">
+                <div className={`flex-1 rounded-xl py-2 px-4 text-sm font-bold ${t.inputBg}`}>{selectedClient.nome}</div>
+                <button onClick={() => setSelectedClient(null)} className="text-xs font-bold text-blue-500 hover:text-blue-400 whitespace-nowrap">
+                  Trocar
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={clientSearch}
+                    onChange={e => setClientSearch(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleClientSearch() }}
+                    placeholder="Buscar cliente (mín. 3 letras)..."
+                    className={`flex-1 rounded-xl py-2 px-4 text-sm ${t.inputBg}`}
+                  />
+                  <button
+                    onClick={handleClientSearch}
+                    disabled={clientSearch.trim().length < 3}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all whitespace-nowrap">
+                    <MagnifyingGlassIcon className="h-4 w-4" /> Buscar
                   </button>
-                ))}
+                  {clientSearch && (
+                    <button onClick={clearClientSearch} className={`text-xs font-bold ${t.textMuted} hover:text-red-500 whitespace-nowrap`}>
+                      Limpar
+                    </button>
+                  )}
+                </div>
+                <div className={`rounded-xl border ${t.borderSub} ${t.modalBg} max-h-56 overflow-y-auto`}>
+                  {clientListLoading ? (
+                    <div className={`px-4 py-3 text-xs ${t.textMuted}`}>Carregando clientes...</div>
+                  ) : clientResults.length === 0 ? (
+                    <div className={`px-4 py-3 text-xs ${t.textMuted}`}>Nenhum cliente encontrado.</div>
+                  ) : (
+                    clientResults.map(c => (
+                      <button key={c.uuid} onClick={() => { setSelectedClient(c); setClientSearch('') }}
+                        className={`block w-full text-left px-4 py-2.5 text-sm ${t.hoverBg} ${t.textPrimary}`}>
+                        {c.nome}
+                      </button>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>

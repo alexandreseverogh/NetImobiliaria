@@ -1,6 +1,42 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-04 (continuação) — **Catálogo de Atividades adicionado à sidebar.**
+> **Atualizado em:** 2026-08-04 (continuação 2) — **Fix real: busca de cliente em
+> `/crm/config/atividades` não era isolada por tenant + virou dropdown alfabético populado.**
+> Usuário pediu explicitamente: dropdown sempre populado em ordem alfabética com os clientes
+> da tenant logada, mais um botão de busca que filtra só depois de 3 letras digitadas
+> (antes era typeahead automático por debounce, sem lista prévia).
+>
+> **Achado real no processo, não só a mudança pedida:** `GET /api/crm/clientes/search`
+> (`src/app/api/crm/clientes/search/route.ts`) nunca filtrava por `tenant_id` — usava
+> `unifiedPermissionMiddleware`, que é fail-open pra rota sem entrada em
+> `route_permissions_config` (nenhuma existia pra essa rota) — ou seja, o handler nunca tinha
+> acesso ao tenant de quem estava logado, e a query rodava sem WHERE de tenant nenhum. Isso
+> significava que a busca de cliente nesta tela (e em qualquer outro consumidor da mesma rota,
+> ex. `NovoLeadModal.tsx`) podia retornar clientes de QUALQUER tenant da plataforma, não só do
+> tenant logado — real vazamento de dado entre tenants, não só uma lacuna de UX.
+>
+> **Corrigido:** rota reescrita pro mesmo padrão `getCurrentUser()` (cookie/Bearer +
+> `verifyTokenNode`) já usado por toda a família `/api/crm/*` tocada nesta sessão — sempre
+> escopado por `tenant_id` (Master vê tudo, mesmo bypass do resto da plataforma). Ganhou 2
+> modos: sem `q` → lista TODOS os clientes do tenant, `ORDER BY nome ASC`, teto 500 (alimenta
+> o dropdown pré-populado); com `q` de 3+ caracteres → filtra por nome/email/telefone/cpf,
+> mesma ordenação, teto 20. `q` de 1-2 caracteres retorna vazio (nunca busca parcial demais).
+>
+> `src/app/crm/config/atividades/page.tsx` — bloco "Cliente Específico" reescrito: ao entrar
+> nesse escopo (ou depois de "Trocar"), carrega e mostra a lista completa alfabética
+> imediatamente, sem precisar digitar nada; input de busca + botão "Buscar" (desabilitado com
+> menos de 3 letras, Enter também dispara) substitui o filtro automático por debounce; "Limpar"
+> volta pra lista completa. Cliente selecionado vira um chip fixo com ação "Trocar".
+>
+> **Testado ao vivo, ponta a ponta** (tenant Marketing Digital, real): API sem `q` retornou os
+> 7 clientes reais do tenant em ordem alfabética exata, nenhum de outro tenant · `q=gi` (2
+> letras) retornou vazio · `q=gis` (3 letras) retornou só o match real · navegador real: clique
+> em "Cliente Específico" já mostra os 7 na hora, sem digitar nada · digitado "aut" + clique em
+> "Buscar" → filtrou pra só "AutoMax Veículos" · selecionado → chip fixo + catálogo daquele
+> cliente (vazio, como esperado — nenhum tipo próprio criado ainda) · "Trocar" → lista completa
+> volta a aparecer. `npx tsc --noEmit`: 0 erros nos 2 arquivos tocados.
+>
+> — **Sessão anterior (2026-08-04) — Catálogo de Atividades adicionado à sidebar.**
 > Usuário pediu explicitamente: o CRUD de tipos de atividade (`/crm/config/atividades`, entrada
 > anterior deste arquivo) deveria estar acessível pela sidebar, na categoria "Configurações
 > CRM", com acesso pro administrador do tenant + qualquer usuário com permissão concedida —
