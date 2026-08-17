@@ -569,6 +569,7 @@ export async function POST(request: NextRequest) {
           WHEN p.action = 'admin' THEN 'ADMIN'
           WHEN p.action = 'delete' THEN 'DELETE'
           WHEN p.action = 'update' THEN 'UPDATE'
+          WHEN p.action = 'write' THEN 'UPDATE'
           WHEN p.action = 'create' THEN 'CREATE'
           WHEN p.action = 'execute' THEN 'EXECUTE'
           WHEN p.action = 'read' OR p.action = 'list' THEN 'READ'

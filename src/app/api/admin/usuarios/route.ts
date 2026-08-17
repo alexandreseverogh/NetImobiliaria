@@ -82,6 +82,14 @@ function validateCreateData(data: CreateUserRequest): { isValid: boolean; errors
 // GET - Listar usuários
 export async function GET(request: NextRequest) {
   try {
+    // POST/PUT/DELETE já exigem 'usuarios' via requireApiPermission (JWT, auto-contido) —
+    // o GET dependia só de unifiedPermissionMiddleware, que é fail-open pra qualquer rota sem
+    // entrada em route_permissions_config (nunca registrada pra /api/admin/usuarios/*, achado
+    // real ao investigar o endpoint de foto). Fecha a mesma classe de vazamento já corrigida
+    // em /api/crm/clientes/search numa sessão anterior.
+    const denied = await requireApiPermission(request, 'usuarios', 'READ')
+    if (denied) return denied
+
     // Verificar permissões usando sistema unificado
     const permissionCheck = await unifiedPermissionMiddleware(request)
     if (permissionCheck) {
@@ -117,7 +125,10 @@ export async function GET(request: NextRequest) {
     })
 
 
-    // Filtrar usuários (ocultar senhas por segurança)
+    // Filtrar usuários (ocultar senhas por segurança). A foto em si NUNCA viaja no JSON da
+    // lista — findUsersPaginated já retorna só um `has_foto` booleano (computado no SQL sem
+    // tocar o bytea); quem tem foto é servido via GET /api/admin/usuarios/[id]/foto, que
+    // redireciona pro S3/MinIO quando disponível ou faz streaming do bytea como fallback.
     const filteredUsers = result.users.map((user: UserWithRole) => ({
       ...user,
       password: '***' // Ocultar senha

@@ -13,7 +13,7 @@ import { HybridIconSelector } from '@/components/admin/SidebarManagement/HybridI
 
 interface TipoAtividade {
   id: number; nome: string; icone: string | null; cor: string;
-  ordem: number; ativo: boolean; client_id: string | null;
+  ordem: number; ativo: boolean; client_id: string | null; is_entrada: boolean;
 }
 interface ClienteOpt { uuid: string; nome: string }
 
@@ -235,7 +235,17 @@ export default function AtividadesConfigPage() {
                     <DynamicIcon iconName={tp.icone ?? ''} className={`h-4 w-4 ${t.textSecondary}`} />
                   </div>
                 </td>
-                <td className={`px-6 py-4 text-sm font-medium ${t.textPrimary}`}>{tp.nome}</td>
+                <td className={`px-6 py-4 text-sm font-medium ${t.textPrimary}`}>
+                  <div className="flex items-center gap-2">
+                    {tp.nome}
+                    {tp.is_entrada && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-sky-500/15 text-sky-500 border border-sky-500/30"
+                        title="Registrar esta atividade indica que o cliente agiu — o lead volta a aguardar resposta nossa.">
+                        Ação do cliente
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center space-x-2">
                     <div className={`h-5 w-5 rounded-full border ${t.border}`} style={{ backgroundColor: tp.cor }} />
@@ -316,6 +326,23 @@ export default function AtividadesConfigPage() {
                     onChange={e => setCurrentEdit({ ...currentEdit, cor: e.target.value })}
                     className={`flex-1 rounded-xl py-2 px-4 text-xs uppercase ${t.inputBg}`} />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <label className={`text-xs font-bold uppercase tracking-widest pl-1 ${t.textMuted}`}>Direção</label>
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                  <input type="checkbox" checked={currentEdit.is_entrada === true}
+                    onChange={e => setCurrentEdit({ ...currentEdit, is_entrada: e.target.checked })}
+                    className="h-4 w-4 mt-0.5 rounded accent-sky-500" />
+                  <span>
+                    <span className="text-sm font-bold text-sky-500">Registra uma ação do cliente</span>
+                    <span className={`block text-[11px] mt-0.5 ${t.textMuted}`}>
+                      Marque quando esta atividade significar que o CLIENTE se manifestou (ex.:
+                      &ldquo;Retorno do cliente&rdquo;, &ldquo;Objeção registrada&rdquo;) — o lead volta a
+                      aguardar resposta nossa. Deixe desmarcado para atividades que descrevem
+                      uma ação SUA (ligação feita, proposta enviada), que é o padrão.
+                    </span>
+                  </span>
+                </label>
               </div>
               {error && <div className="text-xs font-bold text-red-500">{error}</div>}
               <button type="submit" disabled={saving}

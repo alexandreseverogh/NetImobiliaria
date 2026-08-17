@@ -40,50 +40,50 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [telefone, setTelefone] = useState('')
-  const [valorVenda, setValorVenda] = useState('')
 
-  // Step 2 State: Imovel vs Custom
-  const [modoSelecao, setModoSelecao] = useState<'exato' | 'perfil'>('exato')
-  const [imovelSearch, setImovelSearch] = useState('')
-  const [imovelResults, setImovelResults] = useState<any[]>([])
-  const [selectedImovel, setSelectedImovel] = useState<any>(null)
+  // Step 2 State: Vínculo Exato (item real de inventário do segmento) vs Perfil de Interesse
+  const [modoSelecao, setModoSelecao] = useState<'exato' | 'perfil'>('perfil')
+  const [ativoDisponivel, setAtivoDisponivel] = useState(false)
+  const [ativoLabel, setAtivoLabel] = useState('Item')
+  const [ativoSearch, setAtivoSearch] = useState('')
+  const [ativoResults, setAtivoResults] = useState<any[]>([])
+  const [selectedAtivo, setSelectedAtivo] = useState<any>(null)
 
   const [formSchema, setFormSchema] = useState<FormSchemaField[]>([])
   const [customData, setCustomData] = useState<any>({})
-  const [campaignList, setCampaignList] = useState<any[]>([])
-  const [selectedCampaign, setSelectedCampaign] = useState('')
+
+  // Demanda do cliente — texto livre, sempre disponível independente de config de segmento.
+  // Alimenta ConciergeService.qualifyLead como `mensagem` (docs/CHECKPOINT.md, 2026-08-14).
+  const [demanda, setDemanda] = useState('')
 
   useEffect(() => {
     if (isOpen) {
        // Reset state
        setStep(1)
-       setModoSelecao('exato')
+       setModoSelecao('perfil')
        setClientSearch('')
        setNome('')
        setEmail('')
        setTelefone('')
-       setValorVenda('')
        setSelectedClient(null)
-       setSelectedImovel(null)
-       setImovelSearch('')
-       setSelectedCampaign('')
+       setSelectedAtivo(null)
+       setAtivoSearch('')
        setCustomData({})
-       
-       // Load Segment Form Config
-       fetch('/api/crm/config/segmentos?domainId=1')
-        .then(res => res.json())
-        .then(data => {
-            if (data.success && data.config?.[0]?.form_schema_json) {
-                setFormSchema(data.config[0].form_schema_json)
-            }
-        })
+       setDemanda('')
 
-       // Load Active Campaigns 
-       fetch('/api/crm/marketing/orcamento?timeframe=all')
+       // Config do ativo (Vínculo Exato) + formulário de Perfil de Interesse do segmento —
+       // endpoint leve, não exige permissão de editar o Segment Builder (docs/CHECKPOINT.md,
+       // 2026-08-14) já que qualquer atendente comum precisa disso pra criar um lead.
+       fetch('/api/crm/ativo/config', { credentials: 'include' })
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                setCampaignList(data.campanhas || [])
+                setAtivoDisponivel(!!data.available)
+                if (data.available) {
+                  setAtivoLabel(data.label || 'Item')
+                  setModoSelecao('exato')
+                }
+                setFormSchema(data.formSchema || [])
             }
         })
     }
@@ -103,19 +103,19 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
     }
   }, [clientSearch])
 
-  // Imovel Search Hook
+  // Ativo Search Hook (item real de inventário do segmento — imóvel, veículo, etc.)
   useEffect(() => {
-    if (imovelSearch.length >= 2) {
+    if (ativoSearch.length >= 2) {
       const delay = setTimeout(() => {
-        fetch(`/api/crm/imoveis/search?q=${imovelSearch}`)
+        fetch(`/api/crm/ativo/search?q=${encodeURIComponent(ativoSearch)}`, { credentials: 'include' })
           .then(res => res.json())
-          .then(data => setImovelResults(data.imoveis || []))
+          .then(data => setAtivoResults(data.items || []))
       }, 300)
       return () => clearTimeout(delay)
     } else {
-      setImovelResults([])
+      setAtivoResults([])
     }
-  }, [imovelSearch])
+  }, [ativoSearch])
 
   const selectClient = (c: any) => {
     setSelectedClient(c)
@@ -126,13 +126,10 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
     setClientResults([])
   }
 
-  const selectImovel = (imv: any) => {
-    setSelectedImovel(imv)
-    // Se o vínculo é exato, o valor de venda DEVE vir do preço do imóvel (Semântica)
-    const formattedPrice = (Number(imv.preco || 0)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-    setValorVenda(formattedPrice)
-    setImovelSearch('')
-    setImovelResults([])
+  const selectAtivo = (item: any) => {
+    setSelectedAtivo(item)
+    setAtivoSearch('')
+    setAtivoResults([])
   }
 
   const handleCurrencyChange = (fieldName: string, value: string) => {
@@ -168,12 +165,10 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
          nome,
          email,
          telefone,
-         valor_venda: parseFloat(valorVenda.replace(/\D/g, '')) / 100 || 0,
-         imovel_id: modoSelecao === 'exato' && selectedImovel ? selectedImovel.id : null,
+         imovel_id: modoSelecao === 'exato' && selectedAtivo ? selectedAtivo.id : null,
          raw_json: modoSelecao === 'perfil' ? customData : {},
-         // Forçamos que a engine re-enriqueça manualmente também pra garantir:
-         utm_source: 'CRM Manual',
-         utm_campaign: selectedCampaign || null
+         mensagem: demanda,
+         utm_source: 'CRM Manual'
       }
 
       const res = await fetch('/api/crm/leads', {
@@ -273,39 +268,25 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">E-mail</label>
                             <input value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-white text-sm" placeholder="Opcional" />
                         </div>
-                        <div className="space-y-1 md:col-span-2 mt-4 pt-4 border-t border-white/5">
-                            <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1 flex items-center">
-                               <SparklesIcon className="h-3 w-3 mr-1" /> Associar à Campanha MKT/Projeto
-                            </label>
-                            <select 
-                               value={selectedCampaign} 
-                               onChange={e => setSelectedCampaign(e.target.value)}
-                               className="w-full bg-emerald-900/10 border border-emerald-500/20 text-emerald-200 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm outline-none transition-all cursor-pointer"
-                            >
-                                <option value="" className="bg-[#0f172a]">--- Nenhuma Configurada (Orgânico) ---</option>
-                                {campaignList.map((camp, idx) => (
-                                    <option key={idx} value={camp.utm_campaign} className="bg-[#0f172a]">
-                                       {camp.utm_campaign} ({camp.plataforma})
-                                    </option>
-                                ))}
-                            </select>
-                            <p className="text-[10px] text-gray-500 ml-1 mt-1">Cruza o desempenho deste lead para as métricas financeiras do ROI.</p>
-                        </div>
                      </div>
                   </div>
                )}
 
                {step === 2 && (
                   <div className="space-y-6 animate-in slide-in-from-right-4">
-                     {/* Choice Tabs */}
+                     {/* Choice Tabs — "Vínculo Exato" só existe se o segmento/tenant tiver um
+                         ativo configurado (imóvel, veículo, etc.); sem isso, vai direto pro
+                         Perfil de Interesse, sem oferecer uma busca quebrada. */}
                      <div className="flex p-1 bg-black/40 rounded-xl space-x-1">
-                        <button 
-                           onClick={() => setModoSelecao('exato')}
-                           className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${modoSelecao === 'exato' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                        >
-                           Vínculo Exato
-                        </button>
-                        <button 
+                        {ativoDisponivel && (
+                           <button
+                              onClick={() => setModoSelecao('exato')}
+                              className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${modoSelecao === 'exato' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                           >
+                              Vínculo Exato
+                           </button>
+                        )}
+                        <button
                            onClick={() => setModoSelecao('perfil')}
                            className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${modoSelecao === 'perfil' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
                         >
@@ -313,62 +294,65 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
                         </button>
                      </div>
 
-                     {modoSelecao === 'exato' && (
+                     {/* Demanda do cliente — texto livre, sempre disponível independente de
+                         config de segmento; alimenta a IA de qualificação em qualquer modo. */}
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Demanda do Cliente</label>
+                        <textarea
+                           value={demanda}
+                           onChange={e => setDemanda(e.target.value)}
+                           rows={3}
+                           className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-white text-sm focus:border-blue-500 outline-none transition-all resize-none"
+                           placeholder="O que o cliente disse/pediu, em texto livre (opcional, mas ajuda muito a IA a qualificar o lead)"
+                        />
+                     </div>
+
+                     {modoSelecao === 'exato' && ativoDisponivel && (
                         <div className="space-y-4 pt-2">
                            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center text-sm text-blue-300">
                               <CheckBadgeIcon className="h-5 w-5 mr-3 flex-shrink-0" />
-                              Use esta opção se você já sabe exatamente qual imóvel (ou Ref/ID) o cliente quer.
+                              Use esta opção se você já sabe exatamente qual {ativoLabel.toLowerCase()} (ou Ref/ID) o cliente quer.
                            </div>
 
                            <div className="space-y-2 relative">
-                               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Pesquisar Imóvel</label>
+                               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Pesquisar {ativoLabel}</label>
                                <div className="relative">
                                  <BuildingOfficeIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                 <input 
+                                 <input
                                    type="text"
-                                   value={imovelSearch}
-                                   onChange={(e) => setImovelSearch(e.target.value)}
-                                   placeholder="Título, bairro ou ID..."
+                                   value={ativoSearch}
+                                   onChange={(e) => setAtivoSearch(e.target.value)}
+                                   placeholder="Nome ou ID..."
                                    className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500 transition-all outline-none"
                                  />
                                </div>
                                {/* Dropdown Results */}
-                               {imovelResults.length > 0 && (
+                               {ativoResults.length > 0 && (
                                   <div className="absolute top-16 left-0 w-full bg-[#1e293b] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-10 max-h-48 overflow-y-auto">
-                                     {imovelResults.map((imv, i) => (
-                                       <div 
-                                          key={i} 
-                                          onClick={() => selectImovel(imv)}
+                                     {ativoResults.map((item, i) => (
+                                       <div
+                                          key={i}
+                                          onClick={() => selectAtivo(item)}
                                           className="p-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0"
                                        >
-                                          <div className="text-sm font-bold text-white">[{imv.id}] {imv.titulo}</div>
-                                          <div className="text-xs text-gray-400">{imv.bairro} - R$ {imv.preco}</div>
+                                          <div className="text-sm font-bold text-white">[{item.id}] {item.nome}</div>
                                        </div>
                                      ))}
                                   </div>
                                )}
                            </div>
-                           
+
                            {/* Selected Tag */}
-                           {selectedImovel && (
+                           {selectedAtivo && (
                                <div className="p-4 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
                                   <div>
-                                     <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Imóvel Vinculado</div>
-                                     <div className="text-white text-sm mt-1">{selectedImovel.titulo}</div>
+                                     <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">{ativoLabel} Vinculado</div>
+                                     <div className="text-white text-sm mt-1">{selectedAtivo.nome}</div>
                                   </div>
-                                  <button onClick={() => setSelectedImovel(null)} className="text-gray-500 hover:text-red-400"><XMarkIcon className="h-5 w-5"/></button>
+                                  <button onClick={() => setSelectedAtivo(null)} className="text-gray-500 hover:text-red-400"><XMarkIcon className="h-5 w-5"/></button>
                                </div>
                            )}
 
-                           {selectedImovel && (
-                                <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl animate-in zoom-in-95 duration-500">
-                                   <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1 flex items-center">
-                                      <CurrencyDollarIcon className="h-3 w-3 mr-1" /> VGV Automático (Preço Imóvel)
-                                   </label>
-                                   <div className="text-xl font-black text-white font-mono mt-1">{valorVenda}</div>
-                                   <p className="text-[9px] text-gray-500 uppercase tracking-tighter mt-1 italic">Bloqueado para edição (Vínculo Exato).</p>
-                                </div>
-                            )}
                         </div>
                      )}
 
@@ -378,23 +362,6 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
                               <SparklesIcon className="h-5 w-5 mr-3 flex-shrink-0" />
                               Use esta opção caso o cliente esteja apenas pesquisando perfis genéricos. Estes dados engatilham a IA!
                            </div>
-
-                           <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl animate-in zoom-in-95 duration-500">
-                                <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest ml-1 flex items-center">
-                                   <CurrencyDollarIcon className="h-3 w-3 mr-1" /> Valor Base de Compra / Perfil
-                                </label>
-                                <input 
-                                   value={valorVenda} 
-                                   onChange={e => {
-                                      let val = e.target.value.replace(/\D/g, "");
-                                      val = (Number(val) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-                                      setValorVenda(val);
-                                   }} 
-                                   className="w-full bg-black/40 border border-amber-500/20 rounded-xl px-4 py-3 text-amber-200 text-sm font-mono focus:border-amber-500 outline-none mt-2" 
-                                   placeholder="Qual a faixa de valor que o cliente busca?" 
-                                />
-                                <p className="text-[9px] text-gray-500 uppercase tracking-tighter mt-1 italic">Informe manualmente para cálculo de ROI em leads de perfil.</p>
-                            </div>
 
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {formSchema.length === 0 && (

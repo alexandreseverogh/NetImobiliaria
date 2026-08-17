@@ -19,9 +19,13 @@ import {
   XMarkIcon,
   ShieldCheckIcon,
   BoltIcon,
-  ServerStackIcon,
-  ClockIcon
+  ClockIcon,
+  ChatBubbleLeftRightIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline'
+
+import { MODULE_CONTENT } from './moduleContent'
+import ModuleDetailModal from './ModuleDetailModal'
 
 // Interface para os módulos retornados da API
 interface SystemModule {
@@ -39,6 +43,7 @@ export default function Artemis4LandingPage() {
   const [useVideo, setUseVideo] = useState(true) // Fallback caso YouTube falhe ou sem conexão
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false) // Drawer de navegação no mobile (< lg)
   const [navigating, setNavigating] = useState(false) // Overlay de transição ao entrar na área admin
+  const [detailSlug, setDetailSlug] = useState<string | null>(null) // Módulo com modal "Saiba Mais" aberto
 
   // Referências para controle de scroll e seeking
   const playerContainerRef = useRef<HTMLDivElement>(null)
@@ -118,6 +123,16 @@ export default function Artemis4LandingPage() {
     }
     fetchModules()
   }, [])
+
+  // Fecha o modal "Saiba Mais" com Esc
+  useEffect(() => {
+    if (!detailSlug) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDetailSlug(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [detailSlug])
 
   // 1.5. Pré-aquece /admin/login assim que a landing monta — a rota vive no route group
   // `admin` (layout pesado) e, em dev, compila sob demanda (~3-10s na 1ª navegação depois
@@ -752,8 +767,10 @@ export default function Artemis4LandingPage() {
         return <UserGroupIcon className="w-8 h-8 text-amber-500" />
       case 'cadastros':
         return <LockClosedIcon className="w-8 h-8 text-purple-400" />
-      case 'gestao-campanhas':
+      case 'trafego-pago':
         return <MegaphoneIcon className="w-8 h-8 text-emerald-400" />
+      case 'mensageria':
+        return <ChatBubbleLeftRightIcon className="w-8 h-8 text-teal-400" />
       case 'imobiliario':
         return <BuildingOffice2Icon className="w-8 h-8 text-cyan-400" />
       case 'saude':
@@ -772,8 +789,10 @@ export default function Artemis4LandingPage() {
         return { border: 'hover:border-amber-500/50', shadow: 'hover:shadow-amber-500/10', text: 'text-amber-400' }
       case 'cadastros':
         return { border: 'hover:border-purple-500/50', shadow: 'hover:shadow-purple-500/10', text: 'text-purple-400' }
-      case 'gestao-campanhas':
+      case 'trafego-pago':
         return { border: 'hover:border-emerald-500/50', shadow: 'hover:shadow-emerald-500/10', text: 'text-emerald-400' }
+      case 'mensageria':
+        return { border: 'hover:border-teal-500/50', shadow: 'hover:shadow-teal-500/10', text: 'text-teal-400' }
       case 'imobiliario':
         return { border: 'hover:border-cyan-500/50', shadow: 'hover:shadow-cyan-500/10', text: 'text-cyan-400' }
       case 'saude':
@@ -782,6 +801,19 @@ export default function Artemis4LandingPage() {
         return { border: 'hover:border-indigo-500/50', shadow: 'hover:shadow-indigo-500/10', text: 'text-indigo-400' }
     }
   }
+
+  // Escopo atual dos cards exibidos — só os 3 módulos com conteúdo comercial pronto
+  // (Marketing Digital, Gestão de Mensagens, CRM), nesta ordem, a pedido do usuário
+  // (2026-08-05). Os outros 4 módulos reais (Administrativo Provisionado, Saúde Digital,
+  // Cadastros, Mercado Imobiliário) são SUPRIMIDOS aqui — não deletados: seguem existindo
+  // em `system_modules`/na API pública, só não aparecem nesta página até ganharem sua
+  // própria pesquisa de conteúdo (mesmo tratamento dado aos 3 já prontos). Pra reverter e
+  // voltar a mostrar todos os módulos retornados pela API, na ordem que ela devolver, troque
+  // `visibleModules` por `modules` no `.map()` abaixo.
+  const VISIBLE_MODULE_SLUGS = ['trafego-pago', 'mensageria', 'crm']
+  const visibleModules = VISIBLE_MODULE_SLUGS
+    .map((slug) => modules.find((m) => m.slug === slug))
+    .filter((m): m is SystemModule => Boolean(m))
 
   // Opacidade dinâmica para fazer o Hero inicial desaparecer suavemente no início da rolagem
   const heroOpacity = Math.max(0, 1 - scrollPct * 3.5)
@@ -802,6 +834,16 @@ export default function Artemis4LandingPage() {
   return (
     <div className="artemis4-page min-h-screen relative flex flex-col justify-between">
 
+      {/* Modal "Saiba Mais" — resumo executivo por módulo (src/app/artemis4/moduleContent.ts) */}
+      {detailSlug && MODULE_CONTENT[detailSlug] && (
+        <ModuleDetailModal
+          moduleName={MODULE_CONTENT[detailSlug].displayName}
+          content={MODULE_CONTENT[detailSlug]}
+          onClose={() => setDetailSlug(null)}
+          onEnter={handleEnter}
+        />
+      )}
+
       {/* Overlay de transição — feedback instantâneo ao clicar em "Entrar" enquanto a
           área administrativa carrega (a simulação já foi desligada em handleEnter). */}
       {navigating && (
@@ -818,7 +860,8 @@ export default function Artemis4LandingPage() {
         @media (prefers-reduced-motion: reduce) {
           .artemis4-page .animate-ping,
           .artemis4-page .animate-pulse,
-          .artemis4-page .animate-bounce { animation: none !important; }
+          .artemis4-page .animate-bounce,
+          .artemis4-page .animate-in { animation: none !important; }
           .artemis4-page * { scroll-behavior: auto !important; }
         }
       `}</style>
@@ -827,7 +870,7 @@ export default function Artemis4LandingPage() {
           HEADER SECTION (Horizontal - Landpaging Copy)
           ========================================== */}
       <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#020617]/70 border-b border-amber-300/10 w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             
             {/* Logo Artemis4 — imagem da pasta public. Fundo branco opaco (asset novo,
@@ -848,25 +891,26 @@ export default function Artemis4LandingPage() {
               </div>
             </div>
 
-            {/* Menu Horizontal Superior - IDÊNTICO ao Landpaging */}
+            {/* Menu Horizontal Superior — 5 itens (2026-08-05): Início/Sobre Nós/Contatos
+                reaproveitam rotas reais já existentes no site; Tecnologias/Produtos são
+                âncoras pra dentro desta própria página (não existe /tecnologias nem
+                /produtos como rota — o conteúdo já vive aqui, nas seções "Infraestrutura
+                de Nível Orbital" e "Nossos Módulos de Operação"). */}
             <nav className="hidden lg:flex space-x-1 items-center justify-center flex-1 px-8">
               <Link href="/" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
                 Início
               </Link>
-              <Link href="/tokenizacao" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
-                Tokenização
+              <Link href="#tecnologias" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
+                Tecnologias
               </Link>
-              <Link href="/imoveis" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
-                Imóveis
-              </Link>
-              <Link href="/investidor" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
-                Investidor
+              <Link href="#modulos" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
+                Produtos
               </Link>
               <Link href="/sobre" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
-                Sobre
+                Sobre Nós
               </Link>
               <Link href="/contato" className="relative text-gray-300 hover:text-amber-100 px-4 py-3.5 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] after:absolute after:left-4 after:right-4 after:bottom-1.5 after:h-px after:bg-gradient-to-r after:from-amber-300/0 after:via-amber-300/80 after:to-amber-300/0 after:scale-x-0 hover:after:scale-x-100 after:origin-center after:transition-transform after:duration-300">
-                Contato
+                Contatos
               </Link>
             </nav>
 
@@ -911,14 +955,13 @@ export default function Artemis4LandingPage() {
             ========================================== */}
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-amber-300/10 bg-[#020617]/95 backdrop-blur-xl">
-            <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col gap-1">
+            <nav className="mx-auto px-4 sm:px-6 py-4 flex flex-col gap-1">
               {[
                 { href: '/', label: 'Início' },
-                { href: '/tokenizacao', label: 'Tokenização' },
-                { href: '/imoveis', label: 'Imóveis' },
-                { href: '/investidor', label: 'Investidor' },
-                { href: '/sobre', label: 'Sobre' },
-                { href: '/contato', label: 'Contato' },
+                { href: '#tecnologias', label: 'Tecnologias' },
+                { href: '#modulos', label: 'Produtos' },
+                { href: '/sobre', label: 'Sobre Nós' },
+                { href: '/contato', label: 'Contatos' },
               ].map((item) => (
                 <Link
                   key={item.href}
@@ -1109,7 +1152,7 @@ export default function Artemis4LandingPage() {
         {/* ==========================================
             MODULES SHOWCASE SECTION (SEMRush Inspired Grid)
             ========================================== */}
-        <section id="modulos" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 relative z-20 scroll-mt-20">
+        <section id="modulos" className="mx-auto px-4 sm:px-6 lg:px-8 py-24 relative z-20 scroll-mt-20">
           
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-16">
             <div>
@@ -1122,31 +1165,38 @@ export default function Artemis4LandingPage() {
               </h2>
             </div>
             <p className="max-w-md text-sm text-gray-400 leading-relaxed font-medium">
-              A arquitetura cibernética da Artemis4 foi estruturada para centralizar o controle de operações em grandes portais imobiliários, incorporadoras, telemedicina e hubs de marketing.
+              Os módulos e funcionalidades da plataforma Artemis4 foram concebidos para alavancar receitas por meio de Marketing Digital, acelerar e automatizar atendimentos de mensagens, como também, acelerar a transformação de interesses dos clientes em vendas efetivas. Todos eles pela aplicação de tecnologias robustas, integradas e de Inteligência Artificial.
             </p>
           </div>
 
           {/* Renderização condicional para carregamento da API */}
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {[...Array(6)].map((_, i) => (
+              {[...Array(3)].map((_, i) => (
                 <div key={i} className="animate-pulse bg-white/5 border border-white/5 rounded-3xl p-6 h-[420px]" />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {modules.map((mod) => {
+              {visibleModules.map((mod) => {
                 const theme = getThemeClasses(mod.slug)
+                const content = MODULE_CONTENT[mod.slug]
                 return (
-                  <div 
+                  <div
                     key={mod.id}
                     className={`group relative overflow-hidden rounded-[28px] border border-white/[0.06] bg-gradient-to-b from-slate-900/60 to-slate-950/60 backdrop-blur-xl p-6 transition-all duration-500 hover:-translate-y-2.5 hover:shadow-2xl flex flex-col justify-between ${theme.border} ${theme.shadow}`}
                   >
                     <div>
                       {/* Imagem conceitual abstract 3D (gerada por IA) */}
-                      <div className="relative w-full h-44 rounded-2xl overflow-hidden mb-6 bg-slate-900 border border-white/5 group-hover:border-white/10 transition-colors">
+                      {/* Altura fixa (h-44) cortava demais quando o card ficou edge-to-edge
+                          (2026-08-05, cards bem mais largos numa tela wide) — aspect-video
+                          escala a altura junto com a largura, mantendo o enquadramento. */}
+                      <div className="relative w-full aspect-video rounded-2xl overflow-hidden mb-6 bg-slate-900 border border-white/5 group-hover:border-white/10 transition-colors">
                         <img
-                          src={`/assets/artemis/${mod.slug}.png`}
+                          // Mensageria usa .svg (ícone do WhatsApp desenhado à mão — sem
+                          // ferramenta de geração de imagem disponível pra render fotorrealista
+                          // como os demais); os outros módulos usam a arte .png já existente.
+                          src={mod.slug === 'mensageria' ? '/assets/artemis/mensageria.svg' : `/assets/artemis/${mod.slug}.png`}
                           alt={mod.name}
                           loading="lazy"
                           decoding="async"
@@ -1158,33 +1208,70 @@ export default function Artemis4LandingPage() {
                         />
                         {/* Camada de gradient overlay para fusão estética */}
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent" />
-                        
+
                         {/* Ícone flutuante do Módulo */}
                         <div className="absolute bottom-3 left-3 p-2 bg-slate-900/90 backdrop-blur rounded-xl border border-white/10 shadow-lg">
                           {renderIcon(mod.slug)}
                         </div>
                       </div>
 
-                      {/* Nome do Módulo */}
-                      <h3 className="font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-tight italic text-white mb-3 group-hover:text-blue-400 transition-colors flex items-center gap-2">
-                        {mod.name}
-                      </h3>
+                      {content ? (
+                        <>
+                          <h3 className="font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-tight italic text-white mb-2">
+                            {content.displayName}
+                          </h3>
+                          <p className={`text-sm font-bold italic leading-snug mb-3 ${theme.text}`}>
+                            {content.headline}
+                          </p>
+                          <p className="text-xs text-gray-400 leading-relaxed font-medium mb-4">
+                            {content.hook}
+                          </p>
+                          <ul className="space-y-2.5 mb-5">
+                            {content.gains.map((gain) => (
+                              <li key={gain} className="text-xs text-gray-300 leading-relaxed font-medium flex gap-2">
+                                <span className={`shrink-0 font-black ${theme.text}`}>✓</span>
+                                <span>{gain}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="text-[11px] text-gray-500 italic leading-relaxed font-medium mb-6">
+                            {content.crossSellLine}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          {/* Nome do Módulo */}
+                          <h3 className="font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-tight italic text-white mb-3 group-hover:text-blue-400 transition-colors flex items-center gap-2">
+                            {mod.name}
+                          </h3>
 
-                      {/* Descrição Técnica da Tabela de Módulos */}
-                      <p className="text-xs text-gray-400 leading-relaxed font-medium mb-6 min-h-[48px]">
-                        {mod.description || 'Solução modular integrada com controle de processos em tempo real e barramento central de microsserviços.'}
-                      </p>
+                          {/* Descrição Técnica da Tabela de Módulos */}
+                          <p className="text-xs text-gray-400 leading-relaxed font-medium mb-6 min-h-[48px]">
+                            {mod.description || 'Solução modular integrada com controle de processos em tempo real e barramento central de microsserviços.'}
+                          </p>
+                        </>
+                      )}
                     </div>
 
-                    {/* CTA direcionando ao Login / Admin */}
+                    {/* CTA */}
                     <div>
-                      <a
-                        href="/admin/login"
-                        onClick={handleEnter}
-                        className="w-full py-3.5 rounded-2xl bg-white/5 group-hover:bg-blue-600/10 border border-white/10 group-hover:border-blue-500/20 text-white group-hover:text-blue-400 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] flex items-center justify-center gap-2"
-                      >
-                        Acessar Módulo <ArrowRightIcon className="w-3.5 h-3.5 mt-0.5 transition-transform group-hover:translate-x-1" />
-                      </a>
+                      {content ? (
+                        <button
+                          type="button"
+                          onClick={() => setDetailSlug(mod.slug)}
+                          className={`w-full py-3.5 rounded-2xl bg-white/5 hover:bg-amber-300/10 border border-white/10 hover:border-amber-300/30 text-white hover:text-amber-100 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] flex items-center justify-center gap-2`}
+                        >
+                          Saiba Mais <ArrowRightIcon className="w-3.5 h-3.5 mt-0.5 transition-transform group-hover:translate-x-1" />
+                        </button>
+                      ) : (
+                        <a
+                          href="/admin/login"
+                          onClick={handleEnter}
+                          className="w-full py-3.5 rounded-2xl bg-white/5 group-hover:bg-blue-600/10 border border-white/10 group-hover:border-blue-500/20 text-white group-hover:text-blue-400 text-xs font-black uppercase tracking-wider italic transition-all touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] flex items-center justify-center gap-2"
+                        >
+                          Acessar Módulo <ArrowRightIcon className="w-3.5 h-3.5 mt-0.5 transition-transform group-hover:translate-x-1" />
+                        </a>
+                      )}
                     </div>
                   </div>
                 )
@@ -1196,7 +1283,7 @@ export default function Artemis4LandingPage() {
         {/* ==========================================
             TRUST / PROVA SOCIAL (antes do CTA — padrão Trust & Authority)
             ========================================== */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 relative z-20">
+        <section id="tecnologias" className="mx-auto px-4 sm:px-6 lg:px-8 pb-8 relative z-20 scroll-mt-20">
           <div className="text-center mb-10">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-amber-300/20 bg-amber-950/20 mb-3">
               <ShieldCheckIcon className="w-3.5 h-3.5 text-amber-400" />
@@ -1210,9 +1297,9 @@ export default function Artemis4LandingPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { Icon: BoltIcon, title: 'Latência Ultrabaixa', desc: 'Resposta em tempo real nos painéis de operação' },
-              { Icon: ServerStackIcon, title: 'Bancos Redundantes', desc: 'Persistência segura com múltiplas réplicas' },
-              { Icon: ClockIcon, title: 'Tempo Real', desc: 'Controle de processos com telemetria contínua' },
-              { Icon: ShieldCheckIcon, title: 'Multissegmento', desc: 'Isolamento por cliente em cada segmento' },
+              { Icon: SparklesIcon, title: 'Processos Automatizados', desc: 'Agentes de Inteligência Artificial auxiliam em todo o ciclo desde gestão de marketing digital, de mensagens e etapas da venda até a concretização do negócio' },
+              { Icon: ClockIcon, title: 'Tempo Real', desc: 'Gestão de informações e processos' },
+              { Icon: ShieldCheckIcon, title: 'Multissegmento', desc: 'Eficaz para quaisquer segmentos de negócios voltados para consumidores finais' },
             ].map(({ Icon, title, desc }) => (
               <div
                 key={title}
@@ -1231,7 +1318,7 @@ export default function Artemis4LandingPage() {
         {/* ==========================================
             MULTIPLE BUSINESS SEGMENTS / CTA AREA
             ========================================== */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-20">
+        <section className="mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-20">
           <div className="relative rounded-[40px] overflow-hidden border border-amber-300/10 bg-gradient-to-br from-slate-950/80 via-slate-950/70 to-amber-950/20 backdrop-blur-2xl p-8 md:p-16 text-center shadow-[0_0_80px_-30px_rgba(212,175,55,0.3)]">
 
             {/* Glow decorativo de calor */}
@@ -1243,7 +1330,7 @@ export default function Artemis4LandingPage() {
                 Impulsione sua Empresa à Artemis 4
               </h2>
               <p className="text-sm md:text-base text-gray-300 font-medium leading-relaxed mb-10">
-                Nossos microsserviços integrados operam com latência ultrabaixa e bancos redundantes para gerenciar carteiras de ativos digitais, agendas corporativas e otimização de funis publicitários em múltiplos nichos.
+                Não fique para trás da concorrência e embarque nas tecnologias integradas e modernas para impulsionamento de vendas.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a
@@ -1253,6 +1340,8 @@ export default function Artemis4LandingPage() {
                 >
                   Registrar Corporação
                 </a>
+                {/* "Área Administrativa" suprimida a pedido do usuário (2026-08-05) — não
+                    deletada. Botão original abaixo, comentado, caso precise voltar:
                 <a
                   href="/admin/login"
                   onClick={handleEnter}
@@ -1260,6 +1349,7 @@ export default function Artemis4LandingPage() {
                 >
                   Área Administrativa <ArrowRightIcon className="w-3.5 h-3.5 mt-0.5" />
                 </a>
+                */}
               </div>
             </div>
           </div>
@@ -1269,8 +1359,8 @@ export default function Artemis4LandingPage() {
             FOOTER SECTION (Modern & Solid)
             ========================================== */}
         <footer className="border-t border-white/5 bg-[#020617] py-14 w-full relative z-20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
+          <div className="mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
               <div className="md:col-span-2">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center ring-1 ring-amber-200/40 shadow-lg shadow-amber-500/20">
@@ -1281,10 +1371,13 @@ export default function Artemis4LandingPage() {
                   </span>
                 </div>
                 <p className="text-xs text-gray-400 leading-relaxed max-w-sm font-medium">
-                  A <span className="text-amber-200/80 font-semibold">atmosfera de negócios</span> da Net Imobiliária: tecnologia espacial de reentrada de dados e multissegmentação, projetada cirurgicamente para atração e conversão corporativa em larga escala.
+                  A <span className="text-amber-200/80 font-semibold">atmosfera de negócios</span> da Artemis4: tecnologia de tratamento de dados comerciais e multissegmentação, projetada cirurgicamente para atração e conversão corporativa de vendas em larga escala.
                 </p>
               </div>
-              
+
+              {/* Seção "Navegação" suprimida a pedido do usuário (2026-08-05) — não
+                  deletada. Bloco original abaixo, comentado, caso precise voltar (nesse
+                  caso, reverter a grid acima de md:grid-cols-3 para md:grid-cols-4):
               <div>
                 <h4 className="text-xs font-black uppercase tracking-widest text-white mb-4 italic">Navegação</h4>
                 <ul className="space-y-2.5 text-xs text-gray-400 font-bold uppercase tracking-wider">
@@ -1294,6 +1387,7 @@ export default function Artemis4LandingPage() {
                   <li><Link href="/sobre" className="inline-block py-1 hover:text-white focus-visible:outline-none focus-visible:text-amber-200 transition-colors">Sobre Nós</Link></li>
                 </ul>
               </div>
+              */}
 
               <div>
                 <h4 className="text-xs font-black uppercase tracking-widest text-white mb-4 italic">Contato Corporativo</h4>
@@ -1304,7 +1398,7 @@ export default function Artemis4LandingPage() {
                   </li>
                   <li className="flex items-center gap-2">
                     <EnvelopeIcon className="w-4 h-4 text-amber-400/80" />
-                    <span>suporte@netimobiliaria.com</span>
+                    <span>contato@artemis4.com.br</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <MapPinIcon className="w-4 h-4 text-amber-400/80 flex-shrink-0" />

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { DistributionEngine } from '@/lib/routing/distributionEngine'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { resolveTimeframeRange } from '@/lib/crm/resolveTimeframeRange'
 
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/
 
@@ -66,7 +67,17 @@ export async function POST(request: NextRequest) {
     // --- LÓGICA DE HERANÇA GEOGRÁFICA E TENANT ---
     let inheritedEstado = data.estado_fk || null
     let inheritedCidade = data.cidade_fk || null
-    let leadTenantId = data.tenant_id || '00000000-0000-0000-0000-000000000001'
+    // Prioridade: (1) sessão autenticada — é o caso do "Novo Lead" manual do Kanban
+    // (NovoLeadModal.tsx), que nunca manda tenant_id no corpo; sem isso, todo lead criado
+    // manualmente por qualquer tenant caía silenciosamente no tenant Master (achado real,
+    // roteiro de testes do CRM, 2026-08-09). (2) tenant_id explícito no corpo — usado pelos
+    // chamadores servidor-a-servidor sem sessão (webhooks do Meta/Google, inboundProcessor do
+    // WhatsApp, mecanismo de CTA) que já resolvem o tenant certo antes de chamar esta rota.
+    // (3) Master como último fallback, só alcançável se nem sessão nem corpo informarem nada.
+    const sessionUser = getCurrentUser(request)
+    let leadTenantId = (sessionUser && !sessionUser.is_system_role && sessionUser.tenantId)
+      || data.tenant_id
+      || '00000000-0000-0000-0000-000000000001'
     const leadClientId = data.client_id || null  // segmento/cliente (multi-tenant); null = "own"
 
     // Fallback legado: quando tenant_id não vem no payload mas imovel_id vem, infere o tenant
@@ -191,7 +202,7 @@ export async function POST(request: NextRequest) {
         inheritedEstado,
         inheritedCidade,
         data.utm_campaign || null,
-        data.valor_venda || 0,
+        data.valor_venda ?? null,
         leadTenantId,
         leadClientId,
         isManual ? 'manual' : 'novo'
@@ -230,75 +241,117 @@ export async function POST(request: NextRequest) {
 
     // 3. MOTOR DE QUALIFICAÇÃO CONCIERGE IA (NOVO - FASE 3)
     const { ConciergeService } = await import('@/lib/ai/conciergeService')
-    const qualification = await ConciergeService.qualifyLead(data.mensagem || '', 1, leadTenantId, raw_json)
+    const qualification = await ConciergeService.qualifyLead(data.mensagem || '', leadTenantId, leadClientId, raw_json)
 
     await pool.query(
-      `UPDATE leads_staging 
+      `UPDATE leads_staging
        SET tag_sonho = COALESCE($1, tag_sonho),
            resumo_ia = $2,
-           score_prontidao = $3
-       WHERE lead_uuid = $4`,
-      [qualification.tag_sonho, qualification.resumo_ia, qualification.score_prontidao * 10, leadUuid]
+           score_prontidao = $3,
+           score_fit = $4
+       WHERE lead_uuid = $5`,
+      [
+        qualification.tag_sonho,
+        qualification.resumo_ia,
+        qualification.score_prontidao * 10,
+        qualification.score_fit !== null ? qualification.score_fit * 10 : null,
+        leadUuid,
+      ]
     )
 
-    // 4. MOTOR DE DISTRIBUIÇÃO INTELIGENTE — resolve sozinho o segmento do tenant, a lista de
-    // estratégias configuradas (Master, /admin/master/segments) e o dono do ativo quando
-    // aplicável. Nada hardcoded pra "imóvel" aqui — ver src/lib/routing/distributionEngine.ts
-    // e src/lib/routing/strategies/ (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6, F7).
-    const routed = await DistributionEngine.findBestCandidate({
-       lead_id: leadUuid,
-       target_id: imovel_id,
-       estado_fk: inheritedEstado,
-       cidade_fk: inheritedCidade,
-       tenant_id: leadTenantId,
-    })
+    // 4. DONO DO LEAD
+    //
+    // Regra de negócio (decisão explícita do usuário, 2026-08-14): um lead criado
+    // manualmente pelo "+ Novo Lead" de /crm/kanban tem como dono OBRIGATORIAMENTE quem
+    // estava logado e o registrou — nunca passa pelo motor de distribuição. O motor de
+    // distribuição (dono do ativo / geo / round-robin / plantonista) só faz sentido pra
+    // leads que chegam por um canal SEM humano na ponta decidindo (webhook, formulário
+    // público, resposta orgânica de WhatsApp) — aí sim é preciso "achar o melhor candidato".
+    if (isManual && sessionUser?.userId) {
+       await pool.query(
+         `UPDATE leads_staging
+          SET corretor_atribuido_id = $1, atribuido_em = NOW(), atribuicao_expira_em = NULL
+          WHERE lead_uuid = $2`,
+         [sessionUser.userId, leadUuid]
+       )
 
-    if (routed) {
-       console.log(`[StagingAPI] Lead ${leadUuid} atribuído ao corretor ${routed.nome} via ${routed.motivo_atribuicao}`)
-       
-        await pool.query(
-          `UPDATE leads_staging 
-           SET corretor_atribuido_id = $1, 
-               atribuido_em = NOW(),
-               atribuicao_expira_em = $2
-           WHERE lead_uuid = $3`,
-          [routed.id, routed.motivo_atribuicao === 'dono_ativo' || routed.is_plantonista ? null : routed.expira_em, leadUuid]
-        )
+       // LOG DE HISTÓRICO PARA EXCLUSÃO EM TRANSBORDOS FUTUROS
+       await pool.query(
+         `INSERT INTO leads_staging_atribuicoes (lead_uuid, corretor_id, status)
+          VALUES ($1, $2, $3)`,
+         [leadUuid, sessionUser.userId, 'atribuido']
+       )
+    } else {
+      // MOTOR DE DISTRIBUIÇÃO INTELIGENTE — resolve sozinho o segmento do tenant, a lista de
+      // estratégias configuradas (Master, /admin/master/segments) e o dono do ativo quando
+      // aplicável. Nada hardcoded pra "imóvel" aqui — ver src/lib/routing/distributionEngine.ts
+      // e src/lib/routing/strategies/ (docs/PLANO_UNIFICACAO_LEADS_3_MODULOS.md §6, F7).
+      const routed = await DistributionEngine.findBestCandidate({
+         lead_id: leadUuid,
+         target_id: imovel_id,
+         estado_fk: inheritedEstado,
+         cidade_fk: inheritedCidade,
+         tenant_id: leadTenantId,
+      })
 
-        // LOG DE HISTÓRICO PARA EXCLUSÃO EM TRANSBORDOS FUTUROS
-        await pool.query(
-          `INSERT INTO leads_staging_atribuicoes (lead_uuid, corretor_id, status)
-           VALUES ($1, $2, $3)`,
-          [leadUuid, routed.id, 'atribuido']
-        )
+      if (routed) {
+         console.log(`[StagingAPI] Lead ${leadUuid} atribuído ao corretor ${routed.nome} via ${routed.motivo_atribuicao}`)
 
-       // Se o lead foi aceito automaticamente (Dono ou Plantonista), podemos mover de coluna
-       if (routed.motivo_atribuicao === 'dono_ativo' || routed.is_plantonista) {
           await pool.query(
-            `UPDATE leads_kanban 
-             SET coluna_id = (SELECT id FROM kanban_colunas WHERE nome = 'entendimento_dor' AND tenant_id = $2 LIMIT 1)
-             WHERE lead_uuid = $1`,
-            [leadUuid, leadTenantId]
+            `UPDATE leads_staging
+             SET corretor_atribuido_id = $1,
+                 atribuido_em = NOW(),
+                 atribuicao_expira_em = $2
+             WHERE lead_uuid = $3`,
+            [routed.id, routed.motivo_atribuicao === 'dono_ativo' || routed.is_plantonista ? null : routed.expira_em, leadUuid]
           )
 
-        // 5. ATUALIZAR SCORE (Gamificação - Fase 3)
-        const isAutoAccepted = (routed.motivo_atribuicao === 'dono_ativo' || routed.is_plantonista)
-        await pool.query(
-          `INSERT INTO corretor_scores (user_id, leads_recebidos, leads_aceitos) 
-           VALUES ($1, 1, $2)
-           ON CONFLICT (user_id) DO UPDATE 
-           SET leads_recebidos = corretor_scores.leads_recebidos + 1,
-               leads_aceitos = corretor_scores.leads_aceitos + $2,
-               updated_at = NOW()`,
-          [routed.id, isAutoAccepted ? 1 : 0]
-        )
-       }
+          // LOG DE HISTÓRICO PARA EXCLUSÃO EM TRANSBORDOS FUTUROS
+          await pool.query(
+            `INSERT INTO leads_staging_atribuicoes (lead_uuid, corretor_id, status)
+             VALUES ($1, $2, $3)`,
+            [leadUuid, routed.id, 'atribuido']
+          )
+
+         // Se o lead foi aceito automaticamente (Dono ou Plantonista), podemos mover de coluna
+         if (routed.motivo_atribuicao === 'dono_ativo' || routed.is_plantonista) {
+            await pool.query(
+              `UPDATE leads_kanban
+               SET coluna_id = (SELECT id FROM kanban_colunas WHERE nome = 'entendimento_dor' AND tenant_id = $2 LIMIT 1)
+               WHERE lead_uuid = $1`,
+              [leadUuid, leadTenantId]
+            )
+
+          // 5. ATUALIZAR SCORE (Gamificação - Fase 3)
+          const isAutoAccepted = (routed.motivo_atribuicao === 'dono_ativo' || routed.is_plantonista)
+          await pool.query(
+            `INSERT INTO corretor_scores (user_id, leads_recebidos, leads_aceitos)
+             VALUES ($1, 1, $2)
+             ON CONFLICT (user_id) DO UPDATE
+             SET leads_recebidos = corretor_scores.leads_recebidos + 1,
+                 leads_aceitos = corretor_scores.leads_aceitos + $2,
+                 updated_at = NOW()`,
+            [routed.id, isAutoAccepted ? 1 : 0]
+          )
+         }
+      }
     }
 
     // --- 🚀 NOVO: MOTOR DE ENRIQUECIMENTO GLOBAL (CRM AGNÓSTICO) ---
     // Mesmo sem imovel_id o EnrichmentService é acionado para renderizar as tags de Captações Genéricas automaticamente
     const { EnrichmentService } = await import('@/lib/crm/enrichmentService');
-    await EnrichmentService.enrichLead(leadUuid, 1, imovel_id); // Domínio 1 = Imobiliário
+    await EnrichmentService.enrichLead(leadUuid, leadTenantId, imovel_id);
+
+    // G0 — pendência de atendimento (docs/PLANO_PENDENCIA_ATENDIMENTO.md): a chegada do lead é
+    // o 1º sinal de "a bola é nossa". Vale pra QUALQUER combinação de módulos contratados —
+    // é o sinal base, não depende de Mensageria nem de atividade registrada.
+    // Este mesmo caminho também é usado por lead ENRIQUECIDO (match com lead já existente):
+    // o cliente voltou a se manifestar, então a bola volta pra nós mesmo que já tivéssemos
+    // respondido antes — exatamente o 2º-toque-em-diante que o F1 nunca cobriu.
+    const { touchPendency } = await import('@/lib/crm/pendencia/pendencyState')
+    await touchPendency(leadUuid).catch((err) => {
+      console.error('[CRM StagingAPI] falha ao atualizar pendência de atendimento:', err)
+    })
 
     return NextResponse.json({
       success: true,
@@ -324,28 +377,61 @@ export async function GET(request: NextRequest) {
     const tenantId = currentUser?.tenantId || null
     const isMaster = currentUser?.is_system_role === true
 
+    const searchParams = new URL(request.url).searchParams
+
+    // includeDeleted=1 — filtro "Mostrar leads excluídos" do Kanban (soft-delete de lead com
+    // atividades registradas; ver DELETE /api/crm/leads/[leadUuid]). Por padrão, exclui.
+    const includeDeleted = searchParams.get('includeDeleted') === '1'
+
+    // Filtro de período (De/Até) — pedido do usuário (2026-08-16), mesmo seletor/mesma lógica
+    // já usada em /crm (resolveTimeframeRange, docs/CHECKPOINT.md). Opt-in: só filtra por data
+    // quando `timeframe` vem explícito na query — o Kanban (/crm/kanban) chama este mesmo
+    // endpoint sem esse param e precisa continuar vendo TODOS os leads, sem filtro de período.
+    const timeframeParam = searchParams.get('timeframe')
+
+    const conditions: string[] = []
+    const params: any[] = []
+    if (!isMaster) {
+      params.push(tenantId)
+      conditions.push(`l.tenant_id = $${params.length}`)
+    }
+    if (!includeDeleted) {
+      conditions.push('l.deleted_at IS NULL')
+    }
+    if (timeframeParam) {
+      const { from, to } = resolveTimeframeRange(timeframeParam, searchParams.get('startDate'), searchParams.get('endDate'))
+      params.push(from)
+      conditions.push(`l.created_at >= $${params.length}::timestamptz`)
+      params.push(to)
+      conditions.push(`l.created_at < $${params.length}::timestamptz`)
+    }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
     const query = `
-      SELECT l.lead_uuid, l.nome, l.email, l.telefone, l.status, l.score_prontidao, l.tag_sonho, l.resumo_ia,
+      SELECT l.lead_uuid, l.nome, l.email, l.telefone, l.status, l.score_prontidao, l.score_fit, l.tag_sonho, l.resumo_ia,
              l.imovel_id, l.estado_fk, l.cidade_fk, l.created_at, l.enriquecimento_cache, l.client_id,
-             k.nome as coluna_nome,
-             COALESCE(at.atividades_count, 0)::int AS atividades_count
+             l.valor_venda, l.valor_venda_estimado, l.deleted_at,
+             k.nome as coluna_nome, k.is_ganho, k.is_perda, k.requer_valor_estimado,
+             COALESCE(at.atividades_count, 0)::int AS atividades_count,
+             l.corretor_atribuido_id,
+             u.nome AS corretor_nome,
+             (u.foto IS NOT NULL OR u.storage_type = 's3') AS corretor_tem_foto
       FROM leads_staging l
       LEFT JOIN leads_kanban lk ON l.lead_uuid = lk.lead_uuid
       LEFT JOIN kanban_colunas k ON lk.coluna_id = k.id
+      LEFT JOIN users u ON u.id = l.corretor_atribuido_id
       LEFT JOIN (
         SELECT lead_uuid, count(*) AS atividades_count
         FROM atividades_lead
         WHERE deleted_at IS NULL
         GROUP BY lead_uuid
       ) at ON at.lead_uuid = l.lead_uuid
-      ${!isMaster ? 'WHERE l.tenant_id = $1' : ''}
+      ${whereClause}
       ORDER BY l.created_at DESC
       LIMIT 100
     `
-    const { rows } = !isMaster 
-      ? await pool.query(query, [tenantId]) 
-      : await pool.query(query)
-      
+    const { rows } = await pool.query(query, params)
+
     return NextResponse.json({ success: true, leads: rows })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

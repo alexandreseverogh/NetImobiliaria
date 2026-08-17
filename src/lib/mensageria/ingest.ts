@@ -11,6 +11,7 @@ import { publishMensageriaEvent } from '@/lib/mensageria/realtime'
 import { autoAssignConversation } from '@/lib/mensageria/autoAssign'
 import { attachSlaPolicy, checkFirstResponseBreach } from '@/lib/mensageria/sla'
 import { maybeRunBot } from '@/lib/mensageria/botAdapter'
+import { touchPendencyByContact } from '@/lib/crm/pendencia/pendencyState'
 
 const SCHEMA = 'mensageria'
 
@@ -194,6 +195,14 @@ export async function ingestMessage(input: IngestMessageInput): Promise<IngestRe
   if (direction === 'outbound' && (senderType === 'agent' || senderType === 'bot')) {
     await checkFirstResponseBreach(conversationId).catch(() => {})
   }
+
+  // G0 — pendência de atendimento (docs/PLANO_PENDENCIA_ATENDIMENTO.md): toda mensagem muda
+  // de quem é a bola. Diferente de checkFirstResponseBreach acima (que só olha a 1ª resposta
+  // e depois fica cego pra sempre), este estado é contínuo — vale do 2º toque em diante.
+  // Best-effort: a reconciliação noturna corrige qualquer falha isolada aqui.
+  await touchPendencyByContact(contactId).catch((err) => {
+    console.error('[mensageria/ingest] falha ao atualizar pendência de atendimento:', err)
+  })
 
   publishMensageriaEvent(tenantId, {
     type: 'message.created',

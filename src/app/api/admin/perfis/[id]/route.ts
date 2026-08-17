@@ -144,9 +144,14 @@ export async function GET(
     const client = await pool.connect();
 
     try {
-      // Buscar perfil
+      // Buscar perfil — perfil global (tenant_id IS NULL, ex.: "Master Platform") só é
+      // acessível por ID quando quem pede é o próprio Master; pra qualquer outro tenant,
+      // o mesmo comportamento de "perfil não encontrado" que já vale pra ID inexistente.
+      const tenantScopeClause = isMasterAdmin
+        ? 'ur.id = $1 AND (ur.tenant_id = $2 OR ur.tenant_id IS NULL)'
+        : 'ur.id = $1 AND ur.tenant_id = $2'
       const perfilQuery = `
-        SELECT 
+        SELECT
           ur.id,
           ur.name,
           ur.description,
@@ -155,7 +160,7 @@ export async function GET(
           COUNT(ura.user_id) as user_count
         FROM user_roles ur
         LEFT JOIN user_role_assignments ura ON ur.id = ura.role_id
-        WHERE ur.id = $1 AND (ur.tenant_id = $2 OR ur.tenant_id IS NULL)
+        WHERE ${tenantScopeClause}
         GROUP BY ur.id, ur.name, ur.description, ur.level, ur.is_system_role
       `;
 
@@ -279,7 +284,7 @@ export async function PUT(
 ) {
   try {
     // Verificar permissão de edição server-side
-    const denied = await requireApiPermission(request, 'perfis', 'UPDATE')
+    const denied = await requireApiPermission(request, 'gestao-perfis', 'UPDATE')
     if (denied) return denied
 
     const token = request.cookies.get('admin_auth_token')?.value ||
@@ -406,7 +411,7 @@ export async function DELETE(
 ) {
   try {
     // Verificar permissão de exclusão server-side
-    const denied = await requireApiPermission(request, 'perfis', 'DELETE')
+    const denied = await requireApiPermission(request, 'gestao-perfis', 'DELETE')
     if (denied) return denied
 
     // Verificar autenticação - buscar token dos cookies ou header

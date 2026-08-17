@@ -15,6 +15,10 @@ import {
   CircleStackIcon,
   BuildingOffice2Icon,
   UserGroupIcon,
+  CpuChipIcon,
+  BoltIcon,
+  ScaleIcon,
+  ArchiveBoxIcon,
 } from '@heroicons/react/24/outline'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 import { SegmentInterestsModal } from '@/components/admin/master/SegmentInterestsModal'
@@ -23,6 +27,10 @@ import { SegmentBenchmarksModal } from '@/components/admin/master/SegmentBenchma
 import { SegmentDataEntitiesModal } from '@/components/admin/master/SegmentDataEntitiesModal'
 import { SegmentTenantsModal } from '@/components/admin/master/SegmentTenantsModal'
 import { SegmentDistributionModal } from '@/components/admin/master/SegmentDistributionModal'
+import { SegmentQualificationRulesModal } from '@/components/admin/master/SegmentQualificationRulesModal'
+import { SegmentAgentesModal } from '@/components/admin/master/SegmentAgentesModal'
+import { SegmentFitCriteriaModal } from '@/components/admin/master/SegmentFitCriteriaModal'
+import { SegmentAtivoConfigModal } from '@/components/admin/master/SegmentAtivoConfigModal'
 
 interface Segment {
   id: string
@@ -39,6 +47,7 @@ interface Segment {
   tenant_count:   number
   chatbot_max_turns_default: number
   distribution_role_name: string
+  crm_ia_ativa: boolean
 }
 
 interface Module {
@@ -60,6 +69,10 @@ export default function MasterSegmentsPage() {
   const [dataEntitiesSegment, setDataEntitiesSegment] = useState<Segment | null>(null)
   const [tenantsSegment, setTenantsSegment] = useState<Segment | null>(null)
   const [distributionSegment, setDistributionSegment] = useState<Segment | null>(null)
+  const [qualificationSegment, setQualificationSegment] = useState<Segment | null>(null)
+  const [agentesSegment, setAgentesSegment] = useState<Segment | null>(null)
+  const [fitCriteriaSegment, setFitCriteriaSegment] = useState<Segment | null>(null)
+  const [ativoConfigSegment, setAtivoConfigSegment] = useState<Segment | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -201,6 +214,7 @@ export default function MasterSegmentsPage() {
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Tema</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Status</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA Imagens</th>
+                <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">IA CRM</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-center whitespace-nowrap">Empresas</th>
                 <th className="px-5 py-4 text-xs font-bold text-gray-600 uppercase tracking-wide text-right whitespace-nowrap">Ações</th>
               </tr>
@@ -277,6 +291,20 @@ export default function MasterSegmentsPage() {
                       </span>
                     )}
                   </td>
+                  {/* IA CRM (qualificação de lead) */}
+                  <td className="px-5 py-4 text-center whitespace-nowrap">
+                    {segment.crm_ia_ativa ? (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black bg-teal-100 text-teal-700 border border-teal-200">
+                        <CpuChipIcon className="h-3 w-3" />
+                        Ativa
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black bg-gray-100 text-gray-400 border border-gray-200">
+                        <XCircleIcon className="h-3 w-3" />
+                        Aguardando
+                      </span>
+                    )}
+                  </td>
                   {/* Empresas */}
                   <td className="px-5 py-4 text-center whitespace-nowrap">
                     <span className="inline-flex items-center justify-center h-7 min-w-[1.75rem] px-2 rounded-full text-sm font-black bg-gray-100 text-gray-700">
@@ -327,6 +355,34 @@ export default function MasterSegmentsPage() {
                         title="Estratégias de Distribuição de Leads"
                       >
                         <UserGroupIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setQualificationSegment(segment)}
+                        className="p-2 rounded-lg text-teal-600 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition-colors"
+                        title="Qualificação de Lead por IA (CRM)"
+                      >
+                        <CpuChipIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setAgentesSegment(segment)}
+                        className="p-2 rounded-lg text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 transition-colors"
+                        title="Agentes de Aceleração (CRM)"
+                      >
+                        <BoltIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setFitCriteriaSegment(segment)}
+                        className="p-2 rounded-lg text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 transition-colors"
+                        title="Critérios de Fit (ICP)"
+                      >
+                        <ScaleIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setAtivoConfigSegment(segment)}
+                        className="p-2 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+                        title="Config do Ativo (Vínculo Exato)"
+                      >
+                        <ArchiveBoxIcon className="h-4 w-4" />
                       </button>
                       <UpdateGuard resource="master-segments">
                         <button
@@ -630,6 +686,38 @@ export default function MasterSegmentsPage() {
         <SegmentDistributionModal
           segment={distributionSegment}
           onClose={() => setDistributionSegment(null)}
+        />
+      )}
+
+      {/* Qualificação de Lead por IA (CRM) */}
+      {qualificationSegment && (
+        <SegmentQualificationRulesModal
+          segment={qualificationSegment}
+          onClose={() => { setQualificationSegment(null); fetchSegments() }}
+        />
+      )}
+
+      {/* Agentes de Aceleração (CRM) */}
+      {agentesSegment && (
+        <SegmentAgentesModal
+          segment={agentesSegment}
+          onClose={() => setAgentesSegment(null)}
+        />
+      )}
+
+      {/* Critérios de Fit (ICP) */}
+      {fitCriteriaSegment && (
+        <SegmentFitCriteriaModal
+          segment={fitCriteriaSegment}
+          onClose={() => setFitCriteriaSegment(null)}
+        />
+      )}
+
+      {/* Config do Ativo (Vínculo Exato) */}
+      {ativoConfigSegment && (
+        <SegmentAtivoConfigModal
+          segment={ativoConfigSegment}
+          onClose={() => setAtivoConfigSegment(null)}
         />
       )}
     </div>

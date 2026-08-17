@@ -102,8 +102,14 @@ export async function GET(request: NextRequest) {
 
     try {
       // Buscar perfis com contagem e lista de usuários (Global + Tenant)
+      // Perfis globais (tenant_id IS NULL, ex.: "Master Platform") só entram na
+      // listagem quando quem pede é o próprio Master — nunca vazam pra outro tenant,
+      // nem o registro do perfil, nem (mais grave) os nomes reais de quem o usa.
+      const tenantScopeClause = isMasterAdmin
+        ? 'ur.tenant_id = $1 OR ur.tenant_id IS NULL'
+        : 'ur.tenant_id = $1'
       const perfisQuery = `
-        SELECT 
+        SELECT
           ur.id,
           ur.name,
           ur.description,
@@ -112,18 +118,18 @@ export async function GET(request: NextRequest) {
           ur.is_active,
           ur.requires_2fa,
           (
-            SELECT COUNT(DISTINCT user_id) 
+            SELECT COUNT(DISTINCT user_id)
             FROM (
               SELECT user_id FROM user_role_assignments WHERE role_id = ur.id
               UNION
-              SELECT user_id FROM user_tenant_membership 
+              SELECT user_id FROM user_tenant_membership
               WHERE role_id = ur.id AND tenant_id = $1 AND is_active = true
             ) as all_users
           ) as user_count,
           (
             SELECT COALESCE(json_agg(nome), '[]')
             FROM (
-              SELECT DISTINCT u.nome 
+              SELECT DISTINCT u.nome
               FROM users u
               LEFT JOIN user_role_assignments ura ON u.id = ura.user_id
               LEFT JOIN user_tenant_membership utm ON u.id = utm.user_id
@@ -132,7 +138,7 @@ export async function GET(request: NextRequest) {
             ) as user_list
           ) as user_names
         FROM user_roles ur
-        WHERE ur.tenant_id = $1 OR ur.tenant_id IS NULL
+        WHERE ${tenantScopeClause}
         ORDER BY ur.level DESC, ur.name ASC
       `;
 
@@ -220,7 +226,7 @@ const getActionPriority = (action: string): number => {
 export async function POST(request: NextRequest) {
   try {
     // Verificar permissão de criação server-side
-    const denied = await requireApiPermission(request, 'perfis', 'CREATE')
+    const denied = await requireApiPermission(request, 'gestao-perfis', 'CREATE')
     if (denied) return denied
 
     // Verificar autenticação - buscar token dos cookies ou header

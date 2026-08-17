@@ -36,7 +36,13 @@ export const ownerOfAssetStrategy: DistributionStrategy = {
       `SELECT u.id, u.nome, u.email, u.tipo_corretor, u.is_plantonista
          FROM public.users u
          INNER JOIN public.user_tenant_membership utm ON u.id = utm.user_id
-        WHERE u.id = $1 AND u.ativo = true AND utm.tenant_id = $2`,
+        -- Ausência temporária (férias/atestado) tira o dono do ativo da fila: o lead cai pra
+        -- próxima estratégia da cascata em vez de ficar parado esperando quem está de licença.
+        -- É o caminho de atribuição MAIS COMUM do segmento Imobiliário (owner_of_asset é
+        -- prioridade 1), então é exatamente aqui que "o dono da carteira adoeceu" mais dói.
+        -- Ver docs/PLANO_PENDENCIA_ATENDIMENTO.md §4.1.
+        WHERE u.id = $1 AND u.ativo = true AND utm.tenant_id = $2
+          AND (u.indisponivel_ate IS NULL OR u.indisponivel_ate <= now())`,
       [ownerId, ctx.tenantId],
     )
     const row = ownerRes.rows[0]

@@ -76,6 +76,9 @@ async function queryBrokersByArea(
       SELECT corretor_atribuido_id as corretor_fk, created_at FROM public.leads_staging WHERE corretor_atribuido_id IS NOT NULL
     ) a ON a.corretor_fk = u.id
     WHERE u.ativo = true
+      -- Ausência temporária (férias/atestado) tira da fila de novos leads. Distinto de
+      -- u.ativo, que é a conta desabilitada. Ver docs/PLANO_PENDENCIA_ATENDIMENTO.md §4.1.
+      AND (u.indisponivel_ate IS NULL OR u.indisponivel_ate <= now())
       AND utm.tenant_id = $6
       AND ur.name = $7
       AND COALESCE(u.is_plantonista, false) = false

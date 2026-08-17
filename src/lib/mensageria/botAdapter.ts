@@ -16,6 +16,7 @@ import { getToolsForSegment, resolveEntity, compareEntity, aggregateEntity, type
 import { hasKnowledgeBase, searchKnowledge } from '@/lib/mensageria/tools/knowledgeBase'
 import { ingestMessage } from '@/lib/mensageria/ingest'
 import { sendEvolutionMessage, sendEvolutionMedia, type EvolutionInboxConfig } from '@/lib/mensageria/channels/evolutionSend'
+import { logAiAtividade } from '@/lib/crm/atividades/logAiAtividade'
 
 const SCHEMA = 'mensageria'
 const MAX_HISTORY = 20
@@ -542,7 +543,7 @@ async function handoffToHuman(
  */
 export async function maybeRunBot(conversationId: string, tenantId: string, extraContext?: string | null): Promise<void> {
   const { rows: convRows } = await pool.query(
-    `SELECT c.id, c.client_id, c.assignee_id, c.inbox_id, ib.channel_type, ib.config, ct.phone
+    `SELECT c.id, c.client_id, c.assignee_id, c.inbox_id, ib.channel_type, ib.config, ct.phone, ct.lead_uuid
        FROM ${SCHEMA}.conversations c
        JOIN ${SCHEMA}.inboxes ib ON ib.id = c.inbox_id
        JOIN ${SCHEMA}.contacts ct ON ct.id = c.contact_id
@@ -620,6 +621,15 @@ export async function maybeRunBot(conversationId: string, tenantId: string, extr
   const contact = await loadContact(conversationId)
   if (!contact) return
 
+  // Trilha de auditoria pro CRM (Atividades do lead) — só quando este contato já está
+  // vinculado a um lead real; conversa de visitante anônimo (webchat sem lead_uuid) não
+  // tem onde registrar. Best-effort, nunca bloqueia o envio real da resposta.
+  const leadUuid: string | null = conv.lead_uuid || null
+  const logBotActivity = (descricao: string) => {
+    if (!leadUuid) return
+    logAiAtividade({ leadUuid, tenantId, clientId: conv.client_id, descricao }).catch(() => {})
+  }
+
   const sendBotText = async (text: string) => {
     const { messageId } = await ingestMessage({
       tenantId, clientId: conv.client_id, inboxId: conv.inbox_id, contact,
@@ -632,6 +642,7 @@ export async function maybeRunBot(conversationId: string, tenantId: string, extr
 
   if (!reply) {
     await sendBotText(FALLBACK)
+    logBotActivity('Bot respondeu automaticamente (não conseguiu processar a pergunta — mensagem padrão de tentar novamente).')
     return
   }
 
@@ -653,6 +664,8 @@ export async function maybeRunBot(conversationId: string, tenantId: string, extr
       }
     }
     if (reply.outro) await sendBotText(reply.outro)
+    const resumo = [reply.intro, ...reply.cards.map((c) => c.header), reply.outro].filter(Boolean).join(' | ')
+    logBotActivity(`Bot respondeu automaticamente: ${resumo}`)
     return
   }
 
@@ -668,4 +681,5 @@ export async function maybeRunBot(conversationId: string, tenantId: string, extr
     })
     await deliverIfWhatsApp(messageId, conv.channel_type, conv.config, conv.phone, { kind: 'image', url })
   }
+  logBotActivity(finalText ? `Bot respondeu automaticamente: ${finalText}` : `Bot enviou ${images.length} foto(s) automaticamente.`)
 }

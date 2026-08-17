@@ -146,18 +146,20 @@ export async function POST(request: NextRequest) {
     // 4.5 Semear colunas padrão do Kanban (pipeline de leads do CRM) para o novo tenant.
     //     Os `nome` batem com o que o código espera (ex.: 'entendimento_dor', 'lead_captado').
     //     Idempotente via NOT EXISTS; compatível com a UNIQUE(tenant_id, nome).
+    //     is_ganho/is_perda: significado de ciclo de vida explícito (não inferido do `nome`,
+    //     que é livremente editável pelo tenant) — ver migration-2026-08-07-kanban-etapa-ganho-perda.sql.
     await client.query(`
-      INSERT INTO kanban_colunas (nome, titulo_exibicao, ordem, cor, icone, ativa, sla_hours, tenant_id)
-      SELECT c.nome, c.titulo, c.ordem, c.cor, c.icone, true, c.sla, $1
+      INSERT INTO kanban_colunas (nome, titulo_exibicao, ordem, cor, icone, ativa, sla_hours, tenant_id, is_ganho, is_perda)
+      SELECT c.nome, c.titulo, c.ordem, c.cor, c.icone, true, c.sla, $1, c.ganho, c.perda
       FROM (VALUES
-        ('lead_captado',     'Lead Captado',        1, '#94A3B8', 'InboxIcon',                       2),
-        ('Em Análise',       'Em Análise',          2, '#F59E0B', 'MagnifyingGlassIcon',             4),
-        ('entendimento_dor', 'Entendimento da Dor', 3, '#3B82F6', 'ChatBubbleBottomCenterTextIcon', 24),
-        ('visita_agendada',  'Visita Agendada',     4, '#10B981', 'CalendarIcon',                   24),
-        ('proposta_enviada', 'Proposta Enviada',    5, '#8B5CF6', 'DocumentTextIcon',               48),
-        ('fechamento',       'Fechamento',          6, '#059669', 'TrophyIcon',                     24),
-        ('perdido',          'Perdido',             7, '#EF4444', 'XCircleIcon',                     24)
-      ) AS c(nome, titulo, ordem, cor, icone, sla)
+        ('lead_captado',     'Lead Captado',        1, '#94A3B8', 'InboxIcon',                       2, false, false),
+        ('Em Análise',       'Em Análise',          2, '#F59E0B', 'MagnifyingGlassIcon',             4, false, false),
+        ('entendimento_dor', 'Entendimento da Dor', 3, '#3B82F6', 'ChatBubbleBottomCenterTextIcon', 24, false, false),
+        ('visita_agendada',  'Visita Agendada',     4, '#10B981', 'CalendarIcon',                   24, false, false),
+        ('proposta_enviada', 'Proposta Enviada',    5, '#8B5CF6', 'DocumentTextIcon',               48, false, false),
+        ('fechamento',       'Fechamento',          6, '#059669', 'TrophyIcon',                     24, true,  false),
+        ('perdido',          'Perdido',             7, '#EF4444', 'XCircleIcon',                     24, false, true)
+      ) AS c(nome, titulo, ordem, cor, icone, sla, ganho, perda)
       WHERE NOT EXISTS (SELECT 1 FROM kanban_colunas k WHERE k.tenant_id = $1)
     `, [tenantId]);
 

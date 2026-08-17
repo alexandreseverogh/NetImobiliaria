@@ -4,9 +4,11 @@ import React, { useState, useEffect } from 'react'
 import {
   UsersIcon, MagnifyingGlassIcon, EnvelopeIcon, PhoneIcon,
   FingerPrintIcon, ArrowPathIcon, XMarkIcon, SparklesIcon,
-  CheckBadgeIcon, ChatBubbleBottomCenterTextIcon, MapPinIcon
+  CheckBadgeIcon, ChatBubbleBottomCenterTextIcon, MapPinIcon,
+  ArrowTrendingUpIcon
 } from '@heroicons/react/24/outline'
 import EnrichedLeadData from '@/components/crm/EnrichedLeadData'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import { useTheme } from '@/hooks/useTheme'
 
 interface LeadStaging {
@@ -14,6 +16,9 @@ interface LeadStaging {
   status: string; tag_sonho: string; resumo_ia: string;
   score_prontidao: number; imovel_id: number | null;
   enriquecimento_cache?: any; created_at: string; coluna_nome: string;
+  corretor_atribuido_id?: string | null;
+  corretor_nome?: string | null;
+  corretor_tem_foto?: boolean;
 }
 
 const formatPhone = (phone: string) => {
@@ -24,19 +29,56 @@ const formatPhone = (phone: string) => {
   return phone
 }
 
+const getInitials = (name: string) => {
+  if (!name) return 'LD'
+  const parts = name.trim().split(' ')
+  return parts.length > 1 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : name.substring(0, 2).toUpperCase()
+}
+
+/** Avatar do dono do lead — mesmo padrão (foto → iniciais → ícone genérico) já usado no
+ *  card do Kanban (/crm/kanban); reaproveitado aqui pra manter a mesma linguagem visual. */
+function OwnerAvatar({ lead, isDark }: { lead: LeadStaging; isDark: boolean }) {
+  return (
+    <div className="flex flex-col items-center gap-1" title={lead.corretor_nome ? `Responsável: ${lead.corretor_nome}` : 'Sem responsável atribuído'}>
+      <div className={`h-9 w-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0 ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-100'}`}>
+        {lead.corretor_atribuido_id && lead.corretor_tem_foto ? (
+          <img src={`/api/admin/usuarios/${lead.corretor_atribuido_id}/foto`} alt={lead.corretor_nome || 'Responsável'} className="h-9 w-9 object-cover" />
+        ) : lead.corretor_nome ? (
+          <div className="h-9 w-9 rounded-lg bg-blue-600 flex items-center justify-center text-[10px] font-black text-white">
+            {getInitials(lead.corretor_nome)}
+          </div>
+        ) : (
+          <UsersIcon className={`h-5 w-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+        )}
+      </div>
+      {lead.corretor_nome && (
+        <span className={`text-[9px] font-bold leading-none text-center max-w-[52px] truncate ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>
+          {lead.corretor_nome.split(' ')[0]}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export default function LeadsStagingPage() {
   const t = useTheme()
   const [leads, setLeads] = useState<LeadStaging[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedLead, setSelectedLead] = useState<LeadStaging | null>(null)
+  // Filtro de período (De/Até) — mesmo seletor 7/30/90/Personalizado/Histórico já usado em
+  // /crm (docs/CHECKPOINT.md, 2026-08-16), pedido pra funcionar igual aqui.
+  const [timeframe, setTimeframe] = useState('30')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
 
-  useEffect(() => { fetchLeads() }, [])
+  useEffect(() => { fetchLeads() }, [timeframe])
 
   const fetchLeads = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/crm/leads')
+      const qs = `timeframe=${timeframe}${timeframe === 'custom' ? `&startDate=${startDate}&endDate=${endDate}` : ''}`
+      const res = await fetch(`/api/crm/leads?${qs}`)
       const data = await res.json()
       if (data.success) setLeads(data.leads)
     } finally { setLoading(false) }
@@ -58,7 +100,31 @@ export default function LeadsStagingPage() {
           </h2>
           <p className={`mt-1 text-sm ${t.textSecondary}`}>Gerenciamento de leads qualificados pela Inteligência Concierge.</p>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Filtro de período — mesmo seletor 7/30/90/Personalizado/Histórico de /crm */}
+          <div className={`flex ${t.selectorBg} rounded-xl p-1`}>
+            {['7', '30', '90', 'custom', 'all'].map(tf => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg transition-all ${timeframe === tf ? 'bg-blue-600 text-white shadow-lg' : t.selectorBtn}`}
+              >
+                {tf === 'all' ? 'Histórico' : tf === 'custom' ? 'Personalizado' : `${tf} Dias`}
+              </button>
+            ))}
+          </div>
+          {timeframe === 'custom' && (
+            <div className={`flex items-center space-x-2 ${t.selectorBg} rounded-xl p-1`}>
+              <DateInputPtBR value={startDate} onChange={setStartDate}
+                className={`bg-transparent border-0 text-[10px] font-bold outline-none focus:ring-0 px-2 ${t.textPrimary}`} />
+              <span className={`text-[10px] ${t.textMuted}`}>até</span>
+              <DateInputPtBR value={endDate} onChange={setEndDate}
+                className={`bg-transparent border-0 text-[10px] font-bold outline-none focus:ring-0 px-2 ${t.textPrimary}`} />
+              <button onClick={fetchLeads} className={`p-1 rounded-lg transition-all ${t.hoverBg}`}>
+                <ArrowTrendingUpIcon className="h-4 w-4 text-emerald-400 rotate-90" />
+              </button>
+            </div>
+          )}
           <button onClick={fetchLeads}
             className={`p-2.5 ${t.textMuted} ${t.hoverBg} ${t.cardBg} rounded-xl transition-all`} title="Atualizar">
             <ArrowPathIcon className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
@@ -89,14 +155,14 @@ export default function LeadsStagingPage() {
         <table className="min-w-full">
           <thead className={`${t.isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
             <tr>
-              {['Identidade', 'Dados Enriquecidos', 'Tag do Sonho', 'Score IPVE', 'Origem / Data', 'Ação'].map((h, i) => (
-                <th key={h} className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-widest ${i === 1 ? 'text-emerald-500' : t.textMuted} ${i >= 3 && i <= 4 ? 'text-center' : ''} ${i === 5 ? 'text-right' : ''}`}>{h}</th>
+              {['Identidade', 'Dados Enriquecidos', 'Tag do Sonho', 'Score IPVE', 'Responsável', 'Origem / Data', 'Ação'].map((h, i) => (
+                <th key={h} className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-widest ${i === 1 ? 'text-emerald-500' : t.textMuted} ${i >= 3 && i <= 4 ? 'text-center' : ''} ${i === 6 ? 'text-right' : ''}`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className={`divide-y ${t.borderSub}`}>
             {loading ? (
-              <tr><td colSpan={6} className="py-20 text-center text-blue-500 animate-pulse font-bold italic">Sincronizando Leads...</td></tr>
+              <tr><td colSpan={7} className="py-20 text-center text-blue-500 animate-pulse font-bold italic">Sincronizando Leads...</td></tr>
             ) : filteredLeads.length > 0 ? filteredLeads.map(lead => (
               <tr key={lead.lead_uuid} className={`group transition-all ${t.hoverBg}`}>
                 <td className="px-6 py-4">
@@ -146,6 +212,11 @@ export default function LeadsStagingPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4">
+                  <div className="flex justify-center">
+                    <OwnerAvatar lead={lead} isDark={t.isDark} />
+                  </div>
+                </td>
+                <td className="px-6 py-4">
                   <div className={`text-xs ${t.textSecondary}`}>{new Date(lead.created_at).toLocaleDateString('pt-BR')} às {new Date(lead.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
                   <div className="text-[10px] text-blue-500/50 uppercase font-black tracking-widest">{lead.imovel_id ? 'API LANDPAGING' : 'CAMPANHA GENÉRICA'}</div>
                 </td>
@@ -162,7 +233,7 @@ export default function LeadsStagingPage() {
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={6} className={`py-20 text-center italic ${t.textMuted}`}>Nenhum lead encontrado.</td></tr>
+              <tr><td colSpan={7} className={`py-20 text-center italic ${t.textMuted}`}>Nenhum lead encontrado.</td></tr>
             )}
           </tbody>
         </table>

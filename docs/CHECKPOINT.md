@@ -1,6 +1,1815 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-04 (continuação 6) — **Fix real: tipo de atividade desativado
+> **Atualizado em:** 2026-08-16 (continuação 5) — **`/crm/leads`: adicionados os mesmos
+> filtros de período (7/30/90/Personalizado/Histórico) e foto do responsável já existentes
+> no dashboard `/crm` e no Kanban.** Pedido direto do usuário em 2 partes na mesma rodada:
+> "na pagina crm/leads exibir também a foto do dono do lead" e, em seguida, "na pagina
+> crm/leads deverá funcionar os mesmos filtros de datas e intervalos como foram implementados
+> em dashboard".
+>
+> **Foto do responsável** — `src/app/crm/leads/page.tsx` ganhou `OwnerAvatar` (mesmo padrão
+> foto→iniciais→ícone genérico já usado no card do Kanban), nova coluna "Responsável" na
+> tabela; `GET /api/crm/leads` já retornava `corretor_atribuido_id`/`corretor_nome`/
+> `corretor_tem_foto` desde uma sessão anterior (2026-08-14), só a UI desta página nunca
+> consumia.
+>
+> **Filtro de período** — `src/lib/crm/resolveTimeframeRange.ts` (já existente, usado por
+> `analytics/performance` e `analytics/performance-vendedores`) agora também resolve o filtro
+> de `GET /api/crm/leads`: novo `timeframeParam` **opcional** — só filtra por data quando o
+> caller manda `?timeframe=`, preservando 100% o comportamento de `/crm/kanban` (que chama
+> este mesmo endpoint sem nenhum parâmetro, esperando todos os leads sem corte de data).
+> `crm/leads/page.tsx` ganhou o mesmo seletor visual do dashboard (7 Dias/30 Dias/90 Dias/
+> Personalizado com `DateInputPtBR` De/Até/Histórico).
+>
+> **Testado ao vivo, ponta a ponta, dado real** (tenant Imovtec/CRM SOZINHO): via API — sem
+> `timeframe` → todos os leads (regressão do Kanban confirmada intacta) · `timeframe=30` →
+> os 2 leads reais · range vazio (`custom`, 01/07/2026–22/07/2026) → 0 leads · sessão real no
+> navegador: clique em "Personalizado" + digitar o range vazio → "Nenhum lead encontrado" ·
+> clique em "30 Dias" → os 2 leads reais reapareceram, cada um com a foto real do responsável
+> carregando (`naturalWidth` 620/554, `complete:true`) na nova coluna "Responsável". `npx tsc
+> --noEmit`: 0 erros. Arquivos temporários de teste removidos.
+>
+> **Atualizado em:** 2026-08-16 (continuação 4) — **Kanban do CRM (`/crm/kanban`): badge
+> "Ganho"/"Perda" nunca existiu no board em si — só na tela de configuração.** Achado
+> executando o item 1.2 do roteiro de testes ("confirme que ela mostra um badge 'GANHO'/
+> 'PERDA' ao lado do título da coluna") com print real de uma coluna "FECHAMENTO" (etapa
+> `is_ganho=true`) sem nenhum badge visível, só o título e a contagem.
+>
+> **Causa:** a sessão de 2026-08-07 que introduziu `is_ganho`/`is_perda` implementou o badge
+> só em `/crm/config/kanban` (a tela de configuração das etapas) — o board real
+> (`/crm/kanban`) sempre usou esses 2 campos apenas pra decidir a lógica de mover lead
+> (interceptar com modal de valor), nunca pra desenhar nada no cabeçalho da coluna. O roteiro
+> de testes (item 1.2, seção do board) sempre presumiu que o badge estava lá; nunca esteve.
+>
+> **Corrigido:** `src/app/crm/kanban/page.tsx` — mesmo par de badges (`bg-emerald-500/15` /
+> `bg-red-500/15`, pill arredondado, texto "Ganho"/"Perda") já usado em `/crm/config/kanban`,
+> replicado no cabeçalho de cada coluna do board, entre o título e o contador — a API
+> (`GET /api/crm/kanban/colunas`, `SELECT *`) já retornava `is_ganho`/`is_perda`, só faltava
+> o front-end do board renderizar.
+>
+> **Testado ao vivo, sessão real no navegador, mesmo tenant/lead do print do usuário:**
+> confirmado via DOM que a coluna "Fechamento" (`is_ganho=true`) mostra "Ganho" e "Perdido"
+> (`is_perda=true`) mostra "Perda", enquanto as demais colunas (Lead Captado, Em Análise,
+> etc.) continuam sem nenhum badge — e visualmente via screenshot, batendo com o estilo já
+> usado na tela de config. `npx tsc --noEmit`: 0 erros. Nenhum dado de teste criado, token
+> JWT temporário apagado do disco.
+
+> **Atualizado em:** 2026-08-16 (continuação 3) — **Dashboard do CRM (`/crm`): 2 filtros de
+> período ("Personalizado" e "Histórico") nunca funcionaram, desde que foram adicionados na
+> UI — quebrados silenciosamente. Achado + corrigido no mesmo pedido do usuário que trouxe o
+> card "Valor Estimado Total" e o Top 10.**
+>
+> **Bug real, reportado com print:** usuário selecionou "Personalizado", preencheu De/Até
+> pra um período sem nenhum lead (01/07 a 22/07/2026) — os cards totalizadores continuaram
+> mostrando os totais da consulta anterior (2 leads, R$130.000,00), como se o filtro não
+> tivesse tido efeito nenhum. Investigação: `GET /api/crm/analytics/performance` e
+> `GET /api/crm/analytics/performance-vendedores` sempre interpolaram `timeframe` direto num
+> `INTERVAL '${timeframe} days'` — funciona pros botões numéricos (7/30/90), mas quando
+> `timeframe='custom'` ou `'all'` (os valores reais que a UI manda pra "Personalizado" e
+> "Histórico"), vira `INTERVAL 'custom days'`/`INTERVAL 'all days'` — erro de sintaxe real do
+> Postgres, confirmado via curl direto (`invalid input syntax for type interval`), 500 em
+> ambos endpoints pras 2 opções. O front-end nunca tratava esse erro (só `console.error`),
+> então a tela ficava com os totais da ÚLTIMA consulta bem-sucedida, sem nenhum aviso visível
+> — exatamente o sintoma do print. **Nunca funcionou desde que essas 2 opções foram
+> adicionadas na UI** (não é regressão desta sessão).
+>
+> **Corrigido:** `src/lib/crm/resolveTimeframeRange.ts` (novo, compartilhado pelos 2
+> endpoints) — resolve `timeframe`/`startDate`/`endDate` em bounds `{from, to}` reais
+> (sentinelas de época 1970/9999 pra "sem limite", nunca `null` — todo caller sempre faz bind
+> de exatamente 2 parâmetros de data, sem montar SQL condicional nem interpolar texto de
+> usuário). `custom` usa De/Até de verdade (Até inclui o dia inteiro, mesmo idioma de
+> `expandEndOfDay` já usado no projeto); `all` remove qualquer limite; numérico mantém o
+> comportamento de sempre; entrada inválida/incompleta cai no default seguro de 30 dias em vez
+> de quebrar. As 5 queries que antes interpolavam `${timeframe} days` (3 em `performance/
+> route.ts`, 2 em `performance-vendedores/route.ts`) passaram a usar `$2::timestamptz`/
+> `$3::timestamptz` parametrizados — corrige o crash E fecha de brinde um vetor de SQL
+> injection que existia nesse ponto (nenhuma validação prévia de `timeframe` antes de
+> interpolar). `pipelineQuery` (Pipeline Aberto) ficou intocada de propósito — é sempre
+> snapshot de agora, nunca filtrada por período, comportamento já documentado.
+>
+> **Testado via API e ao vivo no navegador, ponta a ponta, reproduzindo a sequência exata do
+> print do usuário:** `custom` com o período vazio (01/07–22/07) → antes 500, depois
+> `leads_captados:0, valor_estimado_total:0, cycle_heatmap:[]` (`pipeline_leads` continua 2,
+> corretamente — é snapshot) · `custom` cobrindo os 2 leads reais (15/08–16/08) →
+> `leads_captados:2, valor_estimado_total:130000` · `all` (Histórico, também quebrado antes) →
+> mesmos 2 leads, agora funcionando · `performance-vendedores` custom vazio →
+> `vendedores:[], motivos_perda:[]` · **sessão real no navegador**, mesmo fluxo do usuário
+> (clicar "Personalizado" → digitar 01/07/2026 e 22/07/2026 → clicar a seta de aplicar) →
+> "Leads Captados" e "Valor Estimado Total" zeraram corretamente na tela, "Gargalos & Ciclos"
+> mudou pro estado vazio "Aguardando movimentações de Kanban...". `npx tsc --noEmit`: 0 erros.
+> Nenhum dado de teste criado (bug reproduzido só com dado real já existente + variação de
+> parâmetro de URL), tokens JWT temporários apagados do disco.
+
+> **Atualizado em:** 2026-08-16 — **Kanban do CRM: dono do lead sempre é quem criou
+> manualmente (nunca mais o motor de distribuição) + exclusão híbrida de lead (permanente sem
+> atividade, reversível com atividade) + achado real corrigido no caminho (bug de UTF-8 numa
+> constraint que impedia digitar acento no formulário de segmento).** Pedido do usuário:
+> "o dono de cada lead é o user que se logou na aplicação e, obrigatoriamente, o user que
+> acessou a pagina crm/kanban e gravou o lead" — regra de negócio nova, não uma correção de
+> bug (o card já exibia foto/nome do responsável desde uma sessão anterior; o problema real
+> era que "+ Novo Lead" nunca fixava um dono, deixando o `DistributionEngine` (geografia/
+> round-robin/plantonista) decidir, às vezes sem achar ninguém).
+>
+> **Implementado** (`src/app/api/crm/leads/route.ts`, bloco de atribuição do `POST`): quando
+> `utm_source === 'CRM Manual'` (o valor que `NovoLeadModal.tsx` sempre manda) **e** existe
+> sessão autenticada, o dono é fixado direto no usuário logado — `corretor_atribuido_id =
+> sessionUser.userId`, `atribuicao_expira_em = NULL` (mesma semântica de "já aceito" usada em
+> outros caminhos de auto-aceite), log em `leads_staging_atribuicoes`, sem mover Kanban nem
+> tocar gamificação (`corretor_scores`). Qualquer outro caminho de criação (webhook Meta/
+> Google, WhatsApp orgânico, mecanismo de CTA) continua 100% intocado, passando pelo
+> `DistributionEngine` como sempre.
+>
+> **Exclusão de lead — feature nova, pedida em seguida ("deve existir um botão para exclusão
+> de leads").** Regra híbrida decidida pelo usuário: lead **sem nenhuma atividade registrada**
+> é excluído **permanentemente** (a tabela já tem `ON DELETE CASCADE` pra tudo relacionado —
+> `atividades_lead`, `consentimentos_lead`, `crm_agent_actions`, `leads_kanban_ciclos`,
+> `leads_kanban`, `leads_staging_atribuicoes`, `marketing_eventos`); lead **com** atividade é
+> excluído de forma **reversível** (soft-delete) com botão de restaurar e filtro pra ver
+> excluídos. Botão só na Ficha do Lead (opção escolhida pelo usuário — nunca no card do
+> Kanban, pra não ter exclusão por clique acidental).
+>
+> `prisma/migration-2026-08-14-leads-staging-deleted-at.sql` (aplicada) —
+> `leads_staging.deleted_at TIMESTAMPTZ` + índice `(tenant_id, deleted_at)`.
+> `src/app/api/crm/leads/[leadUuid]/route.ts` (novo) — `DELETE` conta atividades ativas
+> (`atividades_lead WHERE deleted_at IS NULL`); zero → `DELETE FROM leads_staging` real
+> (cascata cobre o resto); ≥1 → `UPDATE ... SET deleted_at = NOW()`, reversível.
+> `PATCH {action:'restore'}` limpa `deleted_at`. Mesmo padrão de auth
+> (`verifyTokenNode`/`resolveLeadScope`) já usado em `/api/crm/pendencia/resgate` e
+> `next-best-action` — Master bypassa tenant, tenant comum nunca sai do próprio escopo.
+> `GET /api/crm/leads` ganhou `?includeDeleted=1` (default exclui).
+> `src/app/crm/kanban/page.tsx` — botão "Mostrar leads excluídos" no cabeçalho (ícone lixeira,
+> destaca quando ativo); card soft-deletado fica opaco/grayscale com badge vermelha
+> "Excluído" e para de ser arrastável; Ficha do lead ganha rodapé com "Excluir"/"Restaurar" à
+> esquerda (os botões de mover etapa somem quando o lead está excluído).
+>
+> **Achado incidental, corrigido no processo:** ao investigar por que um lead de teste
+> ("Frank Aguiar", criado pelo próprio usuário testando) parecia sem dono/foto numa print,
+> confirmei ao vivo (sessão real no navegador, inspeção direta do DOM — não só leitura de
+> código) que na verdade JÁ estava funcionando: a foto carregou (554×554px reais) e a legenda
+> do primeiro nome estava presente/visível — só em fonte pequena (9px), fácil de não notar
+> numa print. Não era bug, era um estado de página desatualizado no momento da captura.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant CRM SOZINHO): via API — lead
+> criado com `utm_source:'CRM Manual'` sem nenhuma atividade → `DELETE` retornou
+> `mode:'hard'`, `count(*)=0` confirmado depois · lead criado + 1 atividade real inserida →
+> `DELETE` retornou `mode:'soft'`, `deleted_at` gravado, sumiu do `GET` default, apareceu com
+> `?includeDeleted=1` · `PATCH restore` limpou `deleted_at`, lead reapareceu no `GET` default ·
+> restaurar de novo → 409 ("não está excluído") · excluir de novo em cima de já-excluído →
+> 409 ("já está excluído") · **sessão real no navegador** (JWT+cookie+localStorage
+> injetados, mesmo playbook já documentado neste arquivo): toggle "Mostrar leads excluídos"
+> revelou o card com badge vermelha; Ficha do lead excluído mostrou o botão "Restaurar Lead"
+> (e nenhum botão de mover etapa); clique real no botão restaurou o lead e o badge sumiu do
+> card sem precisar de reload manual. `npx tsc --noEmit`: 0 erros (exit code 0, saída vazia).
+> Todo dado de teste removido (2 leads + atividade + cascata, `count(*)=0` confirmado em
+> `leads_staging`/`atividades_lead`/`leads_kanban`), tokens JWT temporários apagados do disco.
+
+> **Atualizado em:** 2026-08-14 (continuação 2) — **Desacopla "Perfil de Interesse" de
+> "Vínculo Exato" (segmento sem tabela de inventário real ganha formulário mesmo assim) +
+> campo "Demanda do Cliente" (texto livre, sempre disponível) + Master ganha "Sugerir com
+> IA" pros campos do formulário.** Continuação direta da entrada anterior — usuário testou o
+> resultado (tenant Carros/CRM SOZINHO) e apontou o cenário clássico de um cliente real da
+> plataforma: segmento sem NENHUMA tabela de inventário digitalizada (nem existe `veiculos`
+> no banco). Nesse caso a tela "Perfil de Interesse" mostrava "Nenhum campo configurado no
+> Segment Builder" — zero valor prático, porque `target_table`/`target_fk_column`/
+> `target_name_column`/`target_label` eram `NOT NULL` na MESMA linha que carrega
+> `form_schema_json`, então não dava nem pra salvar perguntas de interesse sem uma tabela
+> real. Confirmado também que `NovoLeadModal.tsx` nunca teve nenhum campo de texto livre —
+> o payload nunca mandava `mensagem`, então `ConciergeService.qualifyLead` sempre recebia
+> string vazia nesse fluxo, mesmo com Perfil de Interesse preenchido.
+>
+> **Decisão do usuário, em 2 partes:** (1) o campo de texto livre não devia se chamar
+> "Observação" — vira **"Demanda do Cliente"** (enquadra como o pedido do cliente, não uma
+> nota interna do atendente); (2) antes de decidir como alimentar os campos do formulário,
+> perguntou explicitamente se dava pra ter uma **IA sugerindo (não decidindo)** perguntas-
+> chave por segmento, com o usuário podendo adicionar as próprias por cima — mesmo padrão já
+> comprovado em Campanhas (FASE 18.3, Ângulos & Demanda: LLM sugere, Master revisa/edita,
+> salva só com confirmação humana). Confirmado que o precedente já existe e funciona;
+> replicado o mesmo desenho (POST=sugere sem salvar, PUT=salva) pro CRM.
+>
+> **Implementado:**
+> 1. `prisma/migration-2026-08-14-crm-ativo-config-nullable-target.sql` — `target_table`/
+>    `target_fk_column`/`target_name_column`/`target_label` viram nullable em
+>    `crm_ativo_config_segmento`/`_tenant`. Os 2 conceitos (Vínculo Exato × Perfil de
+>    Interesse) deixam de estar acoplados pela constraint do banco.
+> 2. `resolveAtivoConfig.ts` — `AtivoConfig` os 4 campos de Vínculo Exato viram
+>    `string | null`; só valida/exige o trio (table/fk/name) quando `target_table` está
+>    presente — sem tabela, retorna a config normalmente com `formSchemaJson` intacto.
+> 3. `EnrichmentService.enrichLead` — bug real que só apareceria DEPOIS da migração acima,
+>    pego e corrigido na mesma rodada: a validação de `targetTable`/`targetNameColumn`
+>    rodava ANTES do `if (!sourceId)` (caminho de Perfil de Interesse) — com `target_table`
+>    nulo, isso quebraria até o caminho genérico, que nunca deveria depender de tabela
+>    nenhuma. Reordenado: `enrichGenericLead` roda primeiro e incondicional; a validação de
+>    tabela só entra no branch de Vínculo Exato (`sourceId` presente).
+>    `reEnrichAllLeads` ganhou o mesmo guard (sem `targetFkColumn`, não tenta reprocessar
+>    leads por vínculo exato — só isso, sem tentar reprocessar Perfil de Interesse em lote,
+>    fora de escopo desta rodada).
+> 4. `/api/crm/ativo/config` — `available` passa a refletir `!!config.targetTable`
+>    especificamente (não mais `!!config`) — Perfil de Interesse funciona mesmo com
+>    `available:false`. `/api/crm/ativo/search` idem, degrada pra `items:[]` sem tabela.
+> 5. Rotas de escrita (`PUT /admin/master/segments/[id]/ativo-config` e
+>    `POST /api/crm/config/segmentos`) — validação "tudo ou nada": ou os 3 campos de
+>    identificação vêm juntos (Vínculo Exato configurado), ou nenhum deles (só formulário).
+>    Nunca aceita meio-configurado.
+> 6. `NovoLeadModal.tsx` — novo campo "Demanda do Cliente" (textarea, sempre visível no
+>    Passo 2, independente da aba Vínculo Exato/Perfil de Interesse selecionada) → vai pro
+>    payload como `mensagem` — campo que `POST /api/crm/leads` já lia
+>    (`data.mensagem || ''`) mas que nenhum caller do modal jamais preenchia.
+> 7. **"Sugerir com IA" pro formulário (novo, mesmo padrão de Ângulos & Demanda):**
+>    `prisma/migration-2026-08-14-crm-ativo-form-schema-suggestion-prompt.sql` (prompt
+>    global `crm_ativo_form_schema_suggestion`) + `src/lib/crm/
+>    ativoFormSchemaSuggestionService.ts` (`suggestAtivoFormSchema`, mesmo formato de
+>    `segmentAngleSuggestionService.ts`) + `POST /api/admin/master/segments/[id]/
+>    ativo-config` (novo, ao lado do GET/PUT já existentes) + botão "Sugerir com IA" no
+>    `SegmentAtivoConfigModal.tsx` — só popula a lista de campos, nunca salva sozinho; Master
+>    revisa/edita/remove antes de clicar "Salvar" (que continua o único ato de confirmação).
+>    UI dos 2 modais (Master + tenant) ganhou aviso claro de que Vínculo Exato é opcional
+>    (grupo tudo-ou-nada) e texto explicando que o formulário funciona independente dele.
+>
+> **Testado ao vivo, ponta a ponta, contra dado real** (via API real, JWTs reais dos 2
+> tenants envolvidos — CRM SOZINHO/Venda de Carros e Imobiliaria XYZ): `POST` de sugestão
+> real pro segmento Venda de Carros (sem nenhum prompt escrito à mão, só nome+descrição do
+> segmento) devolveu 7 campos genuinamente relevantes (`marca_desejada`, `faixa_preco`
+> obrigatório, `ano_minimo`, `tipo_veiculo`, `tipo_cambio`, `comentario`, `orcamento`
+> obrigatório) · `PUT` salvando só 2 desses campos, sem nenhum `target_table` → persistiu
+> corretamente (`target_table:null`) · `GET` efetivo do tenant refletiu `available:false` +
+> os 2 campos herdados do segmento · `GET .../search` sem tabela → `items:[]`, sem 500 ·
+> `PUT` com `target_table` preenchido mas `target_label`/`target_name_column` vazios → 400
+> com a mensagem certa (tudo-ou-nada funcionando) · **lead real criado via API simulando o
+> fluxo novo do modal** (Demanda: "Quero um SUV automático até 90 mil, meu carro quebrou" +
+> raw_json com 2 campos) → `tag_sonho:"🔄 Troca de Veículo"`, `resumo_ia` coerente com o
+> texto da Demanda, `score_prontidao:80`, `enriquecimento_cache` com os 2 badges do Perfil
+> de Interesse corretos — confirma a Demanda alimentando a IA de verdade, e o Perfil de
+> Interesse funcionando 100% sem nenhuma tabela de veículo existir. **Regressão confirmada
+> intacta** (Imobiliário, Imobiliaria XYZ): config do Master com `target_table:"imoveis"` +
+> badges + formulário, tudo idêntico a antes · busca real de Vínculo Exato (`?q=Imbiribeira`)
+> retornou os 9 imóveis reais esperados · lead criado com `imovel_id:31` real → 9 badges
+> completos (estado/cidade/endereço/código/dorms/suítes/vagas/área/valor), idêntico ao
+> comportamento documentado em sessões anteriores. `npx tsc --noEmit`: 0 erros (mesma
+> baseline zerada desde 2026-07-31, nenhum erro novo em nenhum arquivo tocado/criado).
+>
+> **Limpeza:** os 2 leads de teste removidos (`DELETE FROM leads_staging`, cascata via FK
+> `ON DELETE CASCADE` confirmada em `leads_kanban`/`leads_kanban_ciclos`/`atividades_lead`/
+> `marketing_eventos`/`crm_agent_actions`/`consentimentos_lead`/`leads_staging_atribuicoes` —
+> `count(*)=0` em todas) · a config de demonstração salva no segmento Venda de Carros durante
+> o teste (que tinha um artefato de encoding real do meu próprio `curl -d` inline com acento,
+> mesmo erro operacional já documentado dezenas de vezes neste arquivo — nunca do código)
+> removida, segmento restaurado ao estado real honesto (0 config, aguardando o Master
+> configurar de verdade via a UI, agora com "Sugerir com IA" disponível) · tokens JWT
+> temporários apagados do disco.
+
+> **Atualizado em:** 2026-08-14 (continuação) — **"Vínculo Exato" do Novo Lead (e a config de
+> enriquecimento que o alimenta) para de ser hardcoded pra Imobiliário — vira segmento
+> (padrão curado pelo Master) + tenant (override), igual ao padrão já usado em Agentes de
+> Aceleração/Critérios de Fit/Qualificação.** Nasceu de um print do usuário: tenant "CRM
+> SOZINHO" (segmento Venda de Carros) mostrando "Pesquisar Imóvel" no modal de Novo Lead.
+>
+> **Achado real, mais fundo do que o print sugeria:** a config inteira (`crm_segmentos_config`,
+> 1 linha em todo o banco, `domain_id=1` cravado em 3 call sites — `NovoLeadModal.tsx`,
+> `/api/crm/leads`, `/api/public/imoveis/prospects`) nunca teve auth real
+> (`unifiedPermissionMiddleware` fail-open, rota nunca registrada em
+> `route_permissions_config` — mesma classe do achado de `/api/admin/usuarios` mais cedo no
+> dia) **e** `target_table`/`target_fk_column` eram interpolados direto em SQL sem validação
+> (`EnrichmentService.enrichLead`) — SQL injection sem autenticação, ativa até esta correção.
+> Achado incidental: `permissoes` do JWT (login) nunca mapeava a ação literal `'write'` (13
+> linhas de `permissions` na plataforma usam esse nome) pra `'UPDATE'`, caindo no `ELSE` e
+> ficando minúscula — nunca batia contra `PERMISSION_LEVELS` (maiúsculo). Corrigido de brinde.
+>
+> **Implementado:**
+> - `crm_ativo_config_segmento` (padrão por segmento, curado pelo Master) +
+>   `crm_ativo_config_tenant` (override por tenant, ganha do padrão) substituem por completo
+>   a antiga `crm_segmentos_config` (dropada). Campos novos: `target_name_column` (qual coluna
+>   mostra o "nome" na busca) + `target_label` (como chamar o item em PT-BR — "Imóvel",
+>   "Veículo"...). `src/lib/crm/resolveAtivoConfig.ts` — cascata tenant→segmento→`null`
+>   (nunca inventa), valida identificador (`IDENT_RE`) antes de qualquer SQL.
+> - `EnrichmentService` reescrito — `enrichLead(leadUuid, tenantId, sourceId)` em vez de
+>   `domainId` literal; revalida identificador antes de interpolar (defesa em profundidade).
+> - `/api/crm/config/segmentos` reescrita — `requireApiPermission('crm-segment-builder', ...)`
+>   real; POST só escreve no override do PRÓPRIO tenant (nunca mais um tenant sobrescrevendo a
+>   config global de outro, que era o comportamento antes); novo DELETE restaura o padrão do
+>   segmento. Novo `GET/PUT /api/admin/master/segments/[id]/ativo-config` +
+>   `SegmentAtivoConfigModal.tsx` (botão "Config do Ativo") — onde o Master cura o padrão por
+>   segmento (ex.: cadastrar `veiculos` pro segmento Carros, quando existir de verdade).
+> - **Endpoints leves, deliberadamente SEM a permissão de editar config** —
+>   `GET /api/crm/ativo/config` (available+label+formSchema) e
+>   `GET /api/crm/ativo/search` — só sessão válida do tenant, porque um Atendente comum
+>   criando um lead não tem (nem deveria precisar de) permissão de editar o Segment Builder.
+>   Substituem `/api/crm/imoveis/search` (deletada, hardcoded a imóvel).
+> - `NovoLeadModal.tsx` — aba "Vínculo Exato" só aparece quando o segmento/tenant tem config;
+>   texto/placeholder/resultado da busca vêm do `target_label` resolvido; sem config
+>   nenhuma (caso do Carros hoje), vai direto pra "Perfil de Interesse", sem busca quebrada.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (múltiplos JWTs reais, 4 tenants
+> diferentes): regressão Imobiliário (Marketing Digital + Imobiliaria XYZ) — busca genérica
+> encontrou imóveis reais por título e por ID; lead criado com vínculo exato real (imóvel 31)
+> enriqueceu corretamente com os 9 badges reais (estado/cidade/endereço/dorms/suítes/vagas/
+> área/valor) via o novo `EnrichmentService` — bate exato com o layout antigo migrado · Carros
+> (CRM SOZINHO) — `available:false` honesto antes de qualquer config; Master configurou um
+> padrão de teste (`tipos_imovel` como stand-in, única tabela real disponível pra provar
+> genericidade sem fabricar dado de veículo) → `available:true` refletiu na hora; override do
+> tenant confirmado ganhando do padrão do segmento; DELETE confirmado restaurando a herança ·
+> gates de permissão testados nos 2 sentidos (com/sem `crm-segment-builder`: rota de edição
+> 403 sem a permissão, endpoint leve funciona igual pros dois) · **confirmado visualmente no
+> navegador**, sessão real do tenant Carros: modal "Novo Lead" → Passo 2 mostra só "Perfil de
+> Interesse", zero menção a imóvel — exatamente o bug do print original, fechado. `npx tsc
+> --noEmit`: 0 erros. Todo dado/config de teste removido (config de teste do Carros deletada,
+> lead de teste na XYZ removido, tokens temporários apagados) — Carros de volta ao estado real
+> honesto (nenhuma config ainda, aguardando o Master cadastrar o ativo real do segmento).
+>
+> **Pendência real, não é bug — decisão de negócio do usuário/Master:** nenhum segmento além
+> de Imobiliário tem hoje uma tabela de ativo real no banco (não existe `veiculos` nem
+> equivalente pra Venda de Carros). A mecânica está pronta; falta o Master de fato cadastrar
+> a tabela quando ela existir, em `/admin/master/segments` → botão "Config do Ativo".
+
+> **Atualizado em:** 2026-08-14 — **Foto do usuário migrada pra S3/MinIO (escopo:
+> criar/editar/listar em `admin/usuarios`) + achado real de vulnerabilidade corrigido +
+> avatar do responsável nos cards do Kanban do CRM.**
+>
+> **Migração pra S3/MinIO, pedido direto do usuário** ("fazer uso da mesma tecnologia de
+> MinIO que já está sendo utilizada... como na inserção e edição das imagens dos imóveis"),
+> escopo confirmado via `AskUserQuestion` ("Só admin/usuarios: criar, editar e listar") —
+> login, cadastro público e anexo de e-mail continuam no `bytea` puro, fora de escopo por
+> decisão explícita. `users` ganhou `storage_type`/`s3_key`/`url_cdn`; `createUser`/
+> `updateUser` viraram dual-writer (S3 primeiro, fallback `bytea` — mesmo padrão de
+> `imovel_imagens`); `generateUserPhotoS3Key()` em `s3-client.ts` (sem prefixo de tenant,
+> diferente do de imóvel — `userId` já é globalmente único). Novo
+> `GET /api/admin/usuarios/[id]/foto` — 302 pro S3/MinIO quando `storage_type='s3'`, streaming
+> do `bytea` como fallback legado; lista/detalhe pararam de embutir base64, só `has_foto`.
+>
+> **Achado real durante a implementação, corrigido:** `deleteUser()` nunca limpava o objeto
+> S3 da foto — confirmado ao vivo (linha do banco removida, objeto no MinIO continuava
+> `200`). Corrigido com metadado lido antes da transação + `deleteFromS3` não-bloqueante
+> depois do commit, mesmo padrão de `deleteImovelImagem`.
+>
+> **Achado real mais sério, investigando como autenticar corretamente o novo endpoint de
+> foto (não hipotético — confirmado por SQL + teste ao vivo):** `GET /api/admin/usuarios`
+> (lista) e `GET /api/admin/usuarios/[id]` (detalhe) sempre dependeram só de
+> `unifiedPermissionMiddleware`, que é **fail-open pra qualquer rota sem entrada em
+> `route_permissions_config`** (mesma classe de vazamento já corrigida antes em
+> `/api/crm/clientes/search`) — confirmado que nenhuma rota da família `/api/admin/usuarios/*`
+> jamais foi registrada nessa tabela, e que `src/middleware.ts` explicitamente exclui `/api/*`
+> do seu próprio gate de sessão (`isProtectedRoute` só casa `/admin`/`/crm`). Ou seja: listar
+> todos os usuários e ver o detalhe de qualquer um (sem senha, mas com e-mail/telefone/CPF/
+> role) não exigia nenhuma autenticação real — bug pré-existente, não introduzido nesta
+> sessão, só descoberto agora. **Corrigido:** `requireApiPermission(request, 'usuarios',
+> 'READ')` adicionado às duas rotas (mesmo padrão já usado no PUT/DELETE dos mesmos
+> arquivos). Testado ao vivo: sem a permissão `usuarios` no JWT → 403 nas duas; com ela → 200,
+> sem regressão.
+>
+> **Endpoint de foto — gate deliberadamente mais leve que CRUD de usuário:** exigir
+> `permissoes.usuarios` ali quebraria o próprio consumidor que motivou a pergunta seguinte do
+> usuário (um Atendente comum vendo o avatar de um colega no Kanban, sem ter permissão de
+> gestão de usuários) — corrigido com JWT verificado de verdade (`verifyToken`, não só
+> formato) + mesmo tenant do usuário-alvo via `user_tenant_membership` (Master bypassa).
+> Testado ao vivo: sem token → 401; tenant diferente → 403; mesmo tenant sem `permissoes.
+> usuarios` → 302 (funciona, prova que o gate certo não é o de CRUD).
+>
+> **Avatar do responsável no Kanban do CRM** — usuário perguntou diretamente se a foto do
+> usuário aparecia nos cards de `/crm/kanban`; confirmado que não (ícone genérico, sem
+> nenhuma referência a `corretor_atribuido_id`). `GET /api/crm/leads` ganhou `LEFT JOIN
+> users` (`corretor_atribuido_id`, `corretor_nome`, `corretor_tem_foto`); o ícone decorativo
+> do cabeçalho do card virou o avatar real do responsável (foto via o endpoint acima →
+> iniciais em caixa azul quando não tem foto → ícone genérico só quando ninguém está
+> atribuído — 3 estados, cascata igual à já usada em outras telas do projeto).
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital): usuário de
+> teste com foto real (não hipotética — 1ª tentativa usou um PNG 1x1 corrompido feito à mão
+> que o navegador rejeitou silenciosamente, `naturalWidth:0`; substituído por um PNG real do
+> próprio repo, confirmado `1024x1024` carregando de verdade, inclusive numa aba nova sem
+> cache) → avatar com foto real no card · usuário sem foto → iniciais "FA" em caixa azul ·
+> screenshot real do navegador confirma os 2 estados lado a lado · `npx tsc --noEmit`: 0
+> erros. Todo dado de teste (3 leads, 2 usuários, os objetos S3 correspondentes) removido —
+> confirmado `count(*)=0` e os objetos no MinIO retornando `404`.
+
+> **Atualizado em:** 2026-08-13 (continuação) — **Reversão de rumo completa: `/crm` deixa de
+> pretender medir ROI/CAC/CPL — substituído por um dashboard 100% CRM-nativo — e ganha captura
+> disciplinada de Valor ESTIMADO de negócio (Caminho 1, decisão final do usuário).** Esta
+> entrada **substitui por completo** a entrada anterior (breakdown manual+sincronizado de
+> custo, "Caminho 3") — o próprio usuário rejeitou aquela solução horas depois de aprová-la,
+> com o argumento decisivo: mesmo um número de ROI **verificado e parcial** (só mídia paga
+> digital sincronizada) é uma meia-verdade, porque nenhuma fonte disponível representa o custo
+> comercial/marketing TOTAL de um negócio (rádio, jornal, revista, promoter, comissão etc.
+> nunca são capturados de forma verificável nesta plataforma). Rotular qualquer fração disso
+> de "ROI" empresta uma credibilidade que o número não tem.
+>
+> **Decisão fechada:** o CRM não mede mais custo/retorno. Mede o que ele sabe de verdade —
+> leads, funil, velocidade, conversão, quem está performando — e adiciona **Valor ESTIMADO de
+> negócio** (nunca confundido com custo nem com o valor REAL de fechamento) como sinal de
+> priorização ("negócio grande merece atenção primeiro"), capturado de forma disciplinada.
+>
+> **Fase 0 — remoção completa.** `DROP TABLE marketing_campanhas_orcamento` (a "Central de
+> Mídia" nunca teve uso real, 0 linhas em todo o banco). Revertidas as 2 colunas + índice
+> (`segment_id`/`target_name_column`/`idx_crm_segmentos_config_segment`) que a entrada anterior
+> tinha adicionado em `crm_segmentos_config` pro `project_roi` — ficaram órfãs sem esse
+> consumidor. `system_features` id=72 ("Central de Mídias") desativada (`is_active=false`,
+> soft-disable, mesmo padrão de sempre pra esconder item de sidebar sem apagar histórico).
+> Deletados: `src/app/api/crm/marketing/orcamento/route.ts`,
+> `src/components/crm/MarketingCampaignModal.tsx`, `src/app/crm/config/marketing/page.tsx`,
+> e `hasCampanhasModule()` de `revenueAttributionService.ts` (só tinha esses 2 callers).
+> `src/app/crm/page.tsx` perdeu o botão "Central de Mídia", os 5 KPI cards antigos e toda a
+> seção "Nível 2" (toggle projectROI/campaignROI, modal de drill-down) — virou a base limpa
+> pra reconstrução. **Confirmado sem tocar em nada real de Campanhas:** `getRevenueAttribution`/
+> `hasCrmModule` (a Visão 4 REAL do módulo de Campanhas, `/admin/campanhas/dashboard`) nunca
+> dependeu de `marketing_campanhas_orcamento` — dropar a tabela tem zero efeito ali.
+>
+> **Fase 1 — motor de KPIs CRM-nativos.** `roi/route.ts` renomeado pra
+> `src/app/api/crm/analytics/performance/route.ts`, query nova sem nenhum custo: Leads
+> Captados (`COUNT(*)` de `leads_staging` no período), Negócios Fechados (qtd + `SUM(valor_
+> venda)` via `kanban_colunas.is_ganho=true`, já existia), **Negócios Perdidos** (qtd, novo,
+> análogo via `is_perda=true` — item pedido explicitamente pelo usuário: "de forma análoga a
+> negócios fechados, acho que também deve ser exibida uma análise de negócios perdidos"),
+> Pipeline Aberto (`SUM(valor_venda_estimado)` dos leads fora de etapa terminal, depende da
+> Fase 2), Taxa de Conversão/Perda, Ciclo Médio de Venda. `cycle_heatmap` (Gargalos & Ciclos)
+> ficou intocado — já era 100% CRM-nativo.
+>
+> **Fase 2 — Valor Estimado, captura progressiva e disciplinada.** Pedido do usuário: "vamos
+> ter que incluir, logo na entrada, o valor da venda... isso irá direcionar todos os esforços
+> da empresa para priorizar o fechamento dos negócios mais rentáveis" — mas nunca confundido
+> com o valor REAL (`valor_venda`, só existe depois do fechamento) nem com custo. Decisão via
+> `AskUserQuestion`: captura **obrigatória só ao avançar pra uma etapa específica**,
+> configurável por tenant (não um campo livre editável a qualquer momento). Migração
+> (`prisma/migration-2026-08-13-crm-remove-cost-add-valor-estimado.sql`): `leads_staging.
+> valor_venda_estimado NUMERIC(15,2)` (nullable, NULL = "ainda não sabemos", nunca 0 por
+> padrão) + `kanban_colunas.requer_valor_estimado BOOLEAN DEFAULT false`. `kanban/colunas/
+> route.ts` aceita o novo campo (mútua consideração com `is_ganho` — desabilitado quando a
+> coluna já é etapa de Ganho, pedir estimativa ali é redundante). `kanban/move/route.ts`
+> aceita `valor_venda_estimado` opcional, mesma disciplina do `valor_venda` (servidor nunca
+> bloqueia duro — a barreira real é sempre no cliente). `/crm/config/kanban/page.tsx` ganhou o
+> checkbox "Exige valor estimado ao entrar nesta etapa" na seção de config da coluna. `/crm/
+> kanban/page.tsx` generalizou o padrão já existente do "Negócio Fechado 🎉"
+> (`requestMove`/`executeMove`/`confirmGanhoMove`) com um novo `confirmEstimativaMove` — mover
+> pra uma coluna com `requer_valor_estimado=true` sem estimativa ainda intercepta com um modal
+> "Estimativa de Valor 💰" (âmbar, distinto do verde do Ganho) antes de chamar a API. Badge no
+> card do Kanban e tile na ficha do lead: verde "R$X" quando `valor_venda` real existe, âmbar
+> "~R$X est." quando só existe a estimativa — nunca os dois no mesmo elemento, nunca a mesma
+> cor/peso.
+>
+> **Bug real encontrado E CORRIGIDO na própria verificação ao vivo desta fase, fora do escopo
+> original mas com a mesma causa raiz do problema que a Fase 2 existe pra resolver:**
+> `leads_staging.valor_venda` tinha `DEFAULT 0` no schema E `POST /api/crm/leads` gravava
+> `data.valor_venda || 0` no INSERT — ou seja, **todo lead já criado na plataforma, desde
+> sempre, tinha um "negócio fechado de R$ 0,00" fabricado**, nunca `NULL`. Confirmado ao vivo:
+> o badge âmbar novo nunca aparecia pra nenhum lead com estimativa, porque a condição
+> `valor_venda == null` nunca era verdadeira — todo card mostrava um badge verde "R$ 0,00"
+> permanente e fabricado. Causa raiz mais funda: `NovoLeadModal.tsx` ("+ Novo Lead") tinha um
+> campo "VGV Automático (Preço Imóvel)"/"Valor Base de Compra" que escrevia no `valor_venda`
+> REAL já na CRIAÇÃO do lead — o texto de ajuda do próprio campo dizia literalmente "informe
+> manualmente para cálculo de ROI em leads de perfil", um resíduo direto do modelo de ROI que
+> a Fase 0 já tinha matado, e hardcoded com termo específico de imóvel ("VGV"), violando a
+> regra de agnosticismo de segmento. **Corrigido:** campo removido por completo do
+> `NovoLeadModal.tsx` (state, auto-preenchimento do preço do imóvel, os 2 blocos de UI, o
+> campo no payload — `selectedImovel`/`imovel_id` continuam intocados, são legítimos);
+> `POST /api/crm/leads` corrigido pra `data.valor_venda ?? null` (nunca inventa 0);
+> `ALTER TABLE leads_staging ALTER COLUMN valor_venda DROP DEFAULT` +
+> `UPDATE ... SET valor_venda = NULL WHERE valor_venda = 0` (8 linhas reais corrigidas — 7 do
+> tenant Marketing Digital + 1 do Master, confirmado que nenhuma tinha valor genuinamente
+> positivo antes de zerar; 1 lead legado com `tenant_id NULL` e valor real positivo, já
+> documentado em sessão anterior, ficou intocado). Migração:
+> `prisma/migration-2026-08-13-fix-valor-venda-fake-zero.sql`.
+>
+> **Fase 3 — Performance por Vendedor + Motivos de Perda, 100% agnóstico por construção.**
+> Usuário, avaliando se reaproveitar `corretor_scores`/gamificação seria honesto mesmo sem
+> nenhum agente de aceleração ativo, e eu tendo achado 3 problemas reais nesse sistema
+> (`role.name='Corretor'` hardcoded, `vendas_realizadas` nunca escrito em lugar nenhum do
+> código, só cobre o fluxo legado `imovel_prospects`), decidiu: construir do zero, direto de
+> `leads_kanban`/`leads_staging`, **sem** passar por `corretor_scores`/gamificação, **sem**
+> hardcode de nome de cargo, "deverá funcionar impecavelmente para quaisquer segmentos de
+> negócio, de forma totalmente agnóstica". `pluralizePtBr` extraído de
+> `src/app/api/crm/analytics/insights/route.ts` pra `src/lib/intelligence/pluralize.ts`
+> (2º consumidor agora — evita duplicar a 3ª vez). Novo `GET /api/crm/analytics/
+> performance-vendedores`: agrupa por `leads_staging.corretor_atribuido_id` (o mesmo campo já
+> usado por TODAS as 4 estratégias de distribuição, independente de segmento — nunca
+> `corretor_scores`) — leads atribuídos, negócios fechados (qtd+valor real), negócios perdidos
+> (qtd+valor estimado, capturado antes de perder), pipeline em aberto, taxa de conversão,
+> tempo médio de 1ª resposta. Só lista quem tem ≥1 lead atribuído no período. Rótulo do painel
+> ("Corretores"/"Consultores de Vendas"/etc.) resolvido via
+> `resolveSegment(tenantId).distribution_role_name` pluralizado — só a legenda muda por
+> segmento, a query nunca sabe o nome do cargo. **Motivos de Perda** no mesmo endpoint:
+> `GROUP BY leads_kanban.motivo_perda`, contagem, top N — dado 100% real (texto que o próprio
+> usuário digitou ao perder o negócio), zero número inventado. Novo componente
+> `PerformanceVendedoresPanel.tsx` (tabela + mini-painel de motivos).
+>
+> **Fase 4 — montagem final de `/crm/page.tsx`.** Layout novo, sem nenhuma menção a ROI:
+> Linha 1 (5 KPIs: Leads Captados · Negócios Fechados · Negócios Perdidos · Pipeline Aberto ·
+> Taxa de Conversão) · Linha 2 (`KanbanFunnelWidget`, intocado) · Linha 3 (Gargalos & Ciclos +
+> Fila de Atenção, reaproveitando `GET /api/crm/pendencia/resgate` já existente, zero backend
+> novo) · Linha 4 (Top 5 Leads Quentes + Inteligência de Mercado, ambos já existentes) ·
+> Linha 5 (Performance por Vendedor + Motivos de Perda, Fase 3).
+>
+> **Fase 5 — `docs/ROTEIRO_TESTES_CRM.md` reescrito** pra refletir a nova realidade: item 1.1
+> reescrito por completo (novo layout, sem menção a `crm_segmentos_config`/`domainId=1`, que
+> não existe mais); item 1.2 ganhou o teste do modal "Estimativa de Valor 💰"; item 1.5 ganhou
+> o teste do checkbox novo (mútua consideração com Ganho); nota da Parte 3 sobre "Central de
+> Mídias vs. módulo real de Campanhas" removida (não existe mais Central de Mídia). Varredura
+> final (`grep -i "roi\|investido\|CAC\|CPL\|central de mídia"`) confirmou zero menção órfã.
+>
+> **Testado ao vivo, ponta a ponta, com dado real, nos dois tenants de teste desta frente**
+> (CRM SOZINHO — só CRM, segmento "Venda de Carros",
+> `distribution_role_name='Consultor de Vendas'` — e Marketing Digital — CRM+Campanhas+
+> Mensageria, segmento Imobiliário): dashboard `/crm` carrega sem nenhum card de custo em
+> nenhum dos dois · Performance por Vendedor confirmado agnóstico de verdade — mesmo endpoint,
+> mesma lógica, rótulo do painel muda ("Consultor de Vendas" vs. rótulo padrão) sem nenhum
+> branch de código por segmento · `POST /api/crm/kanban/move` com `valor_venda_estimado` real
+> testado direto via API antes da verificação visual — persistiu corretamente, refletiu em
+> Pipeline Aberto · **verificação visual final no navegador** (sessão real, tenant Marketing
+> Digital): badge âmbar "~R$ 85.000,00 est." confirmado renderizando corretamente no card do
+> Kanban do lead de teste — e, na mesma tela, confirmado que TODOS os outros leads reais
+> pré-existentes (Gisele, Roberto Severo etc.) pararam de mostrar o badge verde fabricado
+> "R$ 0,00" que tinham antes do fix do bug acima (nenhum deles tem valor real nem estimado —
+> comportamento correto e honesto, sem badge nenhum). `npx tsc --noEmit`: **0 erros** (mesma
+> baseline zerada desde 2026-07-31, nenhum erro novo em qualquer arquivo tocado/criado/
+> deletado desta frente inteira). Confirmado que `getRevenueAttribution`/Visão 4 real de
+> Campanhas (`/admin/campanhas/dashboard`) segue 100% intocada — nenhuma mudança desta sessão
+> chega perto desse código.
+>
+> **Limpeza:** lead de teste "TESTE VALOR ESTIMADO" removido (`leads_staging`+`leads_kanban`+
+> `leads_kanban_ciclos`, cascata confirmada `count(*)=0`); `kanban_colunas` id=34 ("Proposta
+> Enviada", Marketing Digital) revertida pra `requer_valor_estimado=false`; servidor de preview
+> de teste parado; tokens JWT temporários apagados do disco.
+>
+> **Pendência real, fora de escopo desta rodada, registrada honestamente:** os 3 leads
+> "TESTE..." mais antigos (Auto Atribuição, Backward Compat, Cliente Próprio) e o lead legado
+> com `tenant_id NULL` continuam no banco — nunca foram registrados como pendência de limpeza
+> minha em nenhuma sessão anterior (mesma disciplina já documentada: só apago o que registrei
+> como meu resíduo). Nenhum agente de aceleração de CRM ativado — decisão de negócio do
+> usuário/Master, fora de escopo técnico.
+
+---
+
+> **Atualizado em:** 2026-08-13 — **`/crm` dashboard (Dashboard de ROI CRM): 3 fontes de dado
+> estruturalmente quebradas corrigidas — Total Investido/CPL/CAC/ROI, "Nível 2" (project_roi) e
+> um funil real de CRM adicionado (nunca existia).** Nasceu da execução do item 1.1 do roteiro
+> de testes: usuário notou que o print de `/crm` não mostrava "funil, leads, negócios" nem o
+> filtro De/Até (esse já existia, só escondido atrás do botão "Personalizado" — não era bug).
+> Investigando os 4 KPIs financeiros do topo, achado bem mais sério: eles vinham de
+> `marketing_campanhas_orcamento` (verba manual da "Central de Mídia", `/crm/config/marketing`)
+> — **0 linhas em todo o banco, platform-wide** — e o próprio endpoint que grava nela nunca
+> preenchia `tenant_id` (bug real e latente, nunca exercitado por a feature nunca ter tido uso
+> real). O "Nível 2: Performance por Produto/Categoria" (`project_roi`) vinha de
+> `crm_segmentos_config`, **1 única linha no banco inteiro** (`domain_id=1`, hardcoded pra
+> `imoveis`), desconectada de `system_segments` — nenhum segmento além do Imobiliário jamais
+> teria equivalente, e o "nome de exibição" da entidade era um ternário hardcoded no próprio
+> `roi/route.ts` (`target_table === 'imoveis' ? 'titulo' : 'nome'`).
+>
+> **Discussão de arquitetura com o usuário antes de corrigir** (2 cenários de contratação):
+> (1) **só CRM contratado** — os KPIs financeiros continuam fazendo sentido, a fonte é a verba
+> manual (é exatamente pra isso que a Central de Mídia existe); corrigir = consertar o bug de
+> `tenant_id`, nunca esconder o card. (2) **CRM + Campanhas contratados** — usuário identificou
+> o risco real de somar as 2 fontes (manual + gasto sincronizado de verdade) às cegas: duplicação
+> (usuário digita manualmente uma campanha que já está sincronizada) e números que não batem
+> entre o dashboard do CRM e o de Campanhas, parecendo bug.
+>
+> **Achado que resolveu o risco #2 por construção, não por convenção:** já existia
+> `getRevenueAttribution()` (`src/lib/marketing/services/revenueAttributionService.ts`, F6 —
+> "Visão 4/Funil de Receita" do dashboard de Campanhas) calculando exatamente "gasto real
+> sincronizado × negócio fechado no CRM" por campanha. Reaproveitada aqui em vez de reagregar
+> `campanhasmarketingdigital."Insight"` de novo em `roi/route.ts` — garante que o "gasto
+> sincronizado" mostrado no CRM **nunca diverge** do que o dashboard de Campanhas já mostra,
+> porque são literalmente a mesma chamada de função, não dois cálculos que podem discordar.
+>
+> **Implementado:**
+> 1. **`src/app/api/crm/marketing/orcamento/route.ts`** — `getCurrentUser()` (mesmo padrão
+>    `admin_auth_token`/Bearer já usado no resto de `/api/crm/*`); POST/PUT passam a gravar
+>    `tenant_id`; GET filtra por `tenant_id`; 401 sem sessão nas 3 rotas.
+> 2. **`hasCampanhasModule()`** (novo, ao lado de `hasCrmModule` já existente em
+>    `revenueAttributionService.ts`) — inverso exato, `tenant_modules JOIN system_modules WHERE
+>    slug='trafego-pago'`. Reaproveita a mesma condição já usada em `/api/admin/clientes/
+>    tem-modulo-campanhas/route.ts`, sem duplicar a query, só extraída como função importável
+>    pro servidor chamar direto (sem round-trip HTTP).
+> 3. **`roi/route.ts` — breakdown, nunca soma cega:** `manual_investido` (verba da Central de
+>    Mídia, agora tenant-scoped) calculado sempre; `synced_investido` via `getRevenueAttribution`
+>    só quando `hasCampanhasModule` é `true`; `total_investido = manual + synced`. Resposta ganha
+>    `manual_investido`/`synced_investido`/`campanhas_contratado`. `cac_global`/`cpl_global`/
+>    `roi_global` mantêm a mesma fórmula de sempre, só que sobre a base agora correta.
+> 4. **`/crm/page.tsx`** — card "Total Investido" ganha uma 2ª linha ("R$X sincronizado
+>    (Campanhas) + R$Y manual (CRM)") só quando as 2 fontes contribuem de verdade — nunca some
+>    o número atrás de uma soma ambígua, mas também não polui a UI com "R$0" quando só 1 fonte
+>    existe (o caso comum).
+> 5. **`MarketingCampaignModal.tsx`** (Central de Mídia) — reduz a chance de duplicação na
+>    origem: quando o tenant tem Campanhas contratada (checado via `/api/admin/clientes/
+>    tem-modulo-campanhas`, endpoint já existente, reaproveitado), o toggle de canais só oferece
+>    opções offline (Impresso/Rádio/Evento/Indicação/Outro/Taboola) — os 4 canais digitais que o
+>    módulo de Campanhas já sincroniza automaticamente somem da lista, com uma nota explicando o
+>    porquê. Sem Campanhas contratada, todos os canais continuam disponíveis (única fonte real
+>    que esse tenant tem).
+> 6. **`project_roi` — migrado de `crm_segmentos_config`/`domain_id` solto pra a mesma tabela,
+>    agora conectada a `system_segments` de verdade.** Migração
+>    (`prisma/migration-2026-08-12-crm-segmentos-config-segment-id.sql`, aplicada): 2 colunas
+>    novas — `segment_id UUID REFERENCES system_segments(id)` + `target_name_column VARCHAR(100)
+>    DEFAULT 'nome'` — aditivas, a rota/tela pré-existente (`/api/crm/config/segmentos`, "Segment
+>    Builder" de enriquecimento de lead, keyed por `domain_id`) continua 100% intocada, sem
+>    nenhuma regressão. Backfill: a única linha real (domain_id=1) ganhou `segment_id` do
+>    Imobiliário + `target_name_column='titulo'` (preserva o comportamento exato do ternário
+>    antigo). `roi/route.ts` resolve o segmento real do tenant via `resolveSegment()` (já usado
+>    em `insights/route.ts`) e busca a config por `segment_id` — segmento sem nenhuma linha (ex.:
+>    "Venda de Carros") faz `project_roi` simplesmente não rodar (`project_roi_available:false`),
+>    honesto, sem inventar tabela nenhuma; a UI mostra um empty state distinto ("este segmento
+>    não tem entidade de produto/projeto configurada") em vez do genérico "aguardando dado".
+>    **Correção de rota feita a meio da implementação, antes de qualquer teste:** a 1ª tentativa
+>    tinha reaproveitado a config `owner_of_asset` de `segment_distribution_strategies` (curada
+>    pelo Master pro motor de distribuição de lead) — investigação mais funda revelou que o
+>    campo `targetIdColumn` daquela estratégia significa "PK na tabela do ativo"
+>    (`imoveis.id`), não "coluna FK em `leads_staging`/`marketing_campanhas_orcamento` que aponta
+>    pro ativo" (`imovel_id`) — são conceitos diferentes que só coincidem por acaso no caso real
+>    hoje. Corrigido antes de rodar qualquer query real, revertendo pra `crm_segmentos_config`
+>    (que já tinha o campo certo) só com a conexão a `segment_id` adicionada.
+> 7. **Funil real de CRM (novo, nunca existia em `/crm`).** `GET /api/crm/stats/dashboard` —
+>    a query que já alimentava `leads_por_status` (usada só internamente, nunca renderizada em
+>    lugar nenhum) ganhou `k.id, k.titulo_exibicao, k.cor, k.ordem`, filtro `k.ativa=true`,
+>    `ORDER BY k.ordem`. Novo `src/components/crm/KanbanFunnelWidget.tsx` — barra horizontal por
+>    coluna do Kanban (contagem + % do total, cor real da coluna), plugado logo abaixo dos 5
+>    cards de KPI. Deliberadamente distinto do funil de mídia paga já existente no dashboard de
+>    Campanhas (`StageFunnelWidget`, TOF/MOF/BOF por atribuição de anúncio) — este responde
+>    "onde estão meus negócios no funil de vendas", aquele "que campanha trouxe lead em qual
+>    estágio de anúncio"; sempre visível com CRM, independente de Campanhas contratada.
+>
+> **Testado ao vivo, ponta a ponta, contra os 2 tenants reais dos 2 cenários discutidos**
+> (`preview-alt`, porta 3050; JWTs reais com `userId` real de cada tenant, removidos depois):
+> **CRM SOZINHO** (só `cadastros`+`crm`, segmento Venda de Carros) — `GET /roi` inicial:
+> `manual_investido:0, synced_investido:0, campanhas_contratado:false, project_roi_available:
+> false` (honesto, sem inventar nada) · `POST /orcamento` com verba real de teste →
+> confirmado via SQL direto que `tenant_id` foi gravado corretamente (bug A fechado) · `GET
+> /roi` seguinte refletiu `manual_investido:500, total_investido:500` exato.
+> **Marketing Digital** (`cadastros`+`crm`+`mensageria`+`trafego-pago`, segmento Imobiliário,
+> com gasto real sincronizado de campanhas reais) — `GET /roi` (180 dias): `synced_investido:
+> 432144.30741740734, campanhas_contratado:true, project_roi_available:true` (segmento tem
+> config agora) · **cross-check direto contra SQL** replicando a mesma query de
+> `getRevenueAttribution`: `432144.30741740717` — bate exato (diferença de centésimos de
+> centavo é ruído de ponto flutuante em soma de várias linhas, não divergência real) — prova
+> que o número nunca sai dessincronizado do dashboard de Campanhas, por reaproveitar a mesma
+> função · `POST /orcamento` com verba manual de teste (canal "Impresso") → `GET /roi` seguinte:
+> `manual_investido:1234.56, synced_investido:432144.30741740734, total_investido:
+> 433378.86741740734` — soma exata das 2 fontes, nunca confundidas.
+> **Gate da Central de Mídia:** `GET /tem-modulo-campanhas` → `true` pra Marketing Digital,
+> `false` pra CRM SOZINHO — confirma que o toggle de canais restringe corretamente pra cada
+> cenário. **`stats/dashboard`** (fonte do funil novo): CRM SOZINHO retornou as 7 colunas reais
+> do Kanban (`id`/`titulo_exibicao`/`cor`/`ordem` corretos, `total:0` em todas — tenant
+> genuinamente vazio, sem erro). `npx tsc --noEmit`: 0 erros em todo o projeto (rodado limpo,
+> sem cache, 2x). Todo dado de teste removido depois (`DELETE` nas 2 verbas manuais, `count(*)
+> =0` confirmado), preview server parado, tokens temporários apagados do disco.
+>
+> **Pendência real, não atacada nesta rodada, registrada com honestidade:** `project_roi` não
+> foi testado com uma linha REAL e não-vazia (exigiria um tenant com imóveis reais E verba
+> manual vinculada a um `imovel_id` — nem "CRM SOZINHO" nem "Marketing Digital" têm imóveis
+> próprios cadastrados) — a mudança de mecanismo (config agora vem de `crm_segmentos_config`
+> conectada por `segment_id`, em vez do `domain_id` solto) foi validada por 2 caminhos
+> independentes (segmento COM config → `available:true`; segmento SEM config → `available:
+> false`, nenhum dos dois deu erro de SQL nas 2 execuções reais), mas o caminho "linha não-vazia
+> com nome de imóvel real resolvido via `target_name_column`" só foi verificado por revisão de
+> código, não por execução ao vivo. Vale testar contra o tenant "Imobiliaria XYZ" (que tem
+> imóveis reais) numa sessão futura, se o usuário quiser essa confirmação redundante.
+
+> **Atualizado em:** 2026-08-11 (continuação 4) — **Fix real, mesma classe do vazamento de
+> segurança corrigido momentos antes — 2ª rota irmã do mesmo dashboard (`GET /api/crm/
+> analytics/insights`, painel "Inteligência de Mercado" em `/crm`) também vazava dado
+> operacional entre tenants, mais um hardcode real-estate-específico junto.** Usuário testou
+> "CRM SOZINHO" (0 leads, segmento "Venda de Carros") e viu "Aviso: 6 leads estão estagnados
+> fora do SLA. Notificar corretores imediatamente" — apontou corretamente 2 problemas: o
+> número não podia ser real (tenant sem nenhum lead) e "corretores" não tem nenhuma relação
+> com o segmento de carros.
+>
+> **Causa raiz confirmada — idêntica à da rota `analytics/roi` corrigida na entrada anterior:**
+> zero extração de sessão, zero filtro de tenant nas 2 queries (`trendQuery` — tag de sonho em
+> alta; `bottleneckQuery` — contagem de leads fora do SLA). Confirmado por prova direta: os
+> "6 leads" eram na verdade o total platform-wide de leads fora do SLA (todos pertencentes ao
+> tenant "Marketing Digital", 5 no momento da nova checagem — a contagem é viva/muda com o
+> tempo, não é discrepância). Achado #2, incidental mas real: a mensagem "Notificar corretores
+> imediatamente" era um literal hardcoded no código — nunca variava por segmento, mesmo a
+> plataforma já tendo um campo dedicado pra isso (`system_segments.distribution_role_name`,
+> usado em todo o resto do CRM pra essa exata finalidade desde F7).
+>
+> **Corrigido** (`src/app/api/crm/analytics/insights/route.ts`): mesmo padrão de extração de
+> sessão/tenant já aplicado na rota irmã; `WHERE tenant_id = $1` nas 2 queries (`bottleneckQuery`
+> via `JOIN leads_staging`, já que `leads_kanban.tenant_id` também não é 100% confiável — 1 de
+> 7 linhas reais estava `NULL`); mensagem de aviso passa a usar `resolveSegment(...)
+> .distribution_role_name` (pluralizado por uma regra PT-BR simples: vogal final → `+s`, senão
+> `+es` — cobre Corretor→Corretores, Atendente→Atendentes, Vendedor→Vendedores) em vez do
+> literal "corretores".
+>
+> **Atendido — segmento "Venda de Carros" customizado com `distribution_role_name =
+> 'Consultor de Vendas'`** (decisão do usuário via `system_segments`, editável a qualquer
+> momento no modal "Editar Segmento" → seção "Distribuição de Leads — Cargo do Vendedor").
+>
+> **Bug real pego ANTES do usuário testar, na própria verificação desta correção:** o helper
+> `pluralizePtBr` pluralizava a STRING INTEIRA pela última letra — pra "Consultor de Vendas"
+> (termina em 's') isso geraria **"Consultor de Vendases"**, uma não-palavra. Corrigido pra
+> pluralizar só a PRIMEIRA palavra (o substantivo do cargo) preservando o resto —
+> "Consultor de Vendas" → "consultores de vendas"; testado também contra os demais casos reais
+> da plataforma (Corretor, Atendente, Vendedor, "Corretor de Imóveis") pra confirmar que a
+> mudança não quebrou nenhum caso simples de palavra única.
+>
+> **Testado ao vivo o branch exato que só dispara com >5 leads estagnados** (não exercitado
+> nos testes anteriores desta rodada, que só tinham `stale_leads` baixo): 6 leads de teste
+> temporários inseridos pro tenant "CRM SOZINHO" (Venda de Carros), `GET` real confirmou
+> `"Aviso: 6 leads estão estagnados fora do SLA. Notificar consultores de vendas
+> imediatamente."` — correto, sem a não-palavra, escopado só a esse tenant. Todo dado de
+> teste removido (`DELETE` em `leads_kanban`+`leads_staging`, `count(*)=0` confirmado).
+>
+> **Testado ao vivo, ponta a ponta:** `GET` real pro tenant "CRM SOZINHO" →
+> `stale_leads: 0` (antes vazava o total de outro tenant); mesma chamada pro tenant
+> "Marketing Digital" → `stale_leads: 5`, batendo exato com a contagem real e escopada desse
+> tenant (SQL direto confirma: os 5 leads fora do SLA no banco inteiro pertencem 100% a
+> Marketing Digital) — zero regressão de acesso legítimo; sem sessão → `401`. Confirmado
+> visualmente no navegador: painel "Gargalos & Ciclos (SLA)" mostra "Aguardando movimentações
+> de Kanban..." e "Inteligência de Mercado" mostra "Mantenha o monitoramento ativo dos novos
+> leads." pro tenant vazio, sem nenhum resíduo do dado de outro tenant. `npx tsc --noEmit`: 0
+> erros novos no arquivo tocado.
+
+> **Atualizado em:** 2026-08-11 (continuação 3) — **Fix real de segurança: vazamento de dado
+> operacional entre tenants em `/api/crm/analytics/roi` (Dashboard `/crm`, painel "Gargalos &
+> Ciclos (SLA)").** Achado pelo usuário testando o item 1.1 do roteiro com o tenant "CRM
+> SOZINHO" (0 leads, criado agora pra teste): o painel mostrava 3 linhas de dado com contagem
+> e horas específicas — "Lead Captado, 1 lead, 345.5h, Atraso Crítico" etc. — mesmo o tenant
+> não tendo nenhum lead nem movimentação de Kanban.
+>
+> **Causa raiz confirmada:** a rota inteira (`GET /api/crm/analytics/roi`, usada só por
+> `/crm`, "Dashboard de ROI CRM") nunca teve NENHUMA filtragem por tenant em NENHUMA das 4
+> queries (`kpiQuery`, `campaignROIQuery`, `projectROIQuery`, `cycleQuery`) — nem sequer
+> extraía o usuário autenticado da requisição. Já era uma pendência **documentada** desde a
+> sessão de hardening Ganho/Perda (2026-08-07: "não filtra por tenant_id em nenhuma query...
+> registrado como pendência real a investigar numa sessão futura se essa rota ainda for usada
+> por alguma tela") — mas nunca tinha sido confirmada com evidência concreta de vazamento real
+> até este teste. Confirmado por prova direta: os 3 valores exatos que apareciam pra "CRM
+> SOZINHO" batem byte a byte com o `leads_kanban_ciclos` real do tenant "Marketing Digital"
+> (único tenant com dado real nessa tabela).
+>
+> **Corrigido** (`src/app/api/crm/analytics/roi/route.ts`): (1) adicionada extração de
+> usuário/tenant via `verifyTokenNode` (mesmo padrão de `pendencia/resgate/route.ts` — Master
+> pode inspecionar outro tenant via `?tenant_id=`, tenant comum nunca sai do próprio escopo;
+> 401 sem sessão); (2) `WHERE tenant_id = $1` adicionado às 4 queries. Achado no processo:
+> `leads_kanban_ciclos.tenant_id` existe na tabela mas o trigger que a popula nunca o
+> preenche (mesmo achado já documentado em G0, sempre `NULL`) — o escopo dessa query teve que
+> vir via `JOIN leads_staging` (fonte confiável), nunca `lkc.tenant_id` direto. Achado
+> incidental, não corrigido por ser um problema separado: `marketing_campanhas_orcamento`
+> está **completamente vazia** (0 linhas) pra toda a plataforma — por isso os KPIs de "Nível
+> 1" (Total Investido, ROI Global, CAC, CPL) sempre mostram zero pra qualquer tenant,
+> independente do fix de tenant aqui; é uma tabela legada desconectada da fonte real de dados
+> de campanha (`campanhasmarketingdigital."Insight"`), registrada como achado, não corrigida
+> nesta rodada (fora do escopo — o vazamento entre tenants era o problema de segurança real).
+>
+> **Testado ao vivo, ponta a ponta, com prova direta:** `GET` real pro tenant "CRM SOZINHO"
+> (0 leads) → `cycle_heatmap: []` (correto, honesto); mesma chamada pro tenant "Marketing
+> Digital" (dono real do dado) → os mesmos 3 valores exatos que antes vazavam pra "CRM
+> SOZINHO" continuam aparecendo corretamente ali, sem regressão de acesso legítimo; sem
+> nenhuma sessão → `401`. `npx tsc --noEmit`: 0 erros novos no arquivo tocado.
+>
+> **Pendência real, fora de escopo desta rodada:** a arquitetura de segmento por trás desta
+> mesma rota (`crm_segmentos_config`/`domainId=1`, hardcoded pro Imobiliário) continua
+> desatualizada em relação ao `system_segments`/`resolveSegment` já padronizado no resto da
+> plataforma — só a filtragem por tenant foi corrigida aqui, o `domainId` legado permanece
+> como já estava documentado.
+
+> **Atualizado em:** 2026-08-11 (continuação) — **Fix real, mesma classe de bug encontrada
+> numa 2ª superfície do Master: 3 features do CRM (Catálogo de Atividades, Agentes de
+> Aceleração (CRM), Fila de Resgate) nunca linkadas ao módulo "CRM de Vendas", invisíveis em
+> QUALQUER tenant com o módulo contratado.** Usuário testou `/admin/master/cockpit` (ferramenta
+> de curadoria estrutural do catálogo — segmento→módulo→categoria→feature — distinta de
+> `/admin/master/provisioning`, já auditada na entrada anterior) e reportou: "Catálogo de
+> Atividades"/"Agentes de Aceleração (CRM)" apareciam corretamente atribuídas à categoria
+> "Configurações CRM" no cockpit, mas não apareciam na sidebar de "CRM SOZINHO" mesmo com o
+> módulo "CRM de Vendas" contratado. Também questionou se "Agentes de Aceleração (CRM)" é uma
+> página segregada de verdade ou só o modal do Master em `/admin/master/segments`.
+>
+> **Esclarecido — são 2 coisas diferentes, ambas reais:** o modal do Master
+> (`SegmentAgentesModal`, em `/admin/master/segments`) configura os PARÂMETROS dos 5 agentes
+> por segmento (acesso direto do Master, nunca passa por provisionamento). A feature 120 aqui
+> é a PÁGINA do TENANT (`/crm/config/agentes`, construída na fase G4) onde o tenant sobrepõe
+> os padrões do segmento e vê a fila "Aprovações Pendentes" — página real, só nunca ficou
+> acessível a nenhum tenant por causa do bug abaixo.
+>
+> **Causa raiz idêntica à da entrada anterior:** `system_categorias.module_id`/
+> `system_features.category_id` (o que o Cockpit cura) é uma dimensão de curadoria
+> COMPLETAMENTE SEPARADA de `system_feature_modules` (o que realmente decide se uma feature
+> vira candidata a `tenant_feature_overrides`, tanto na criação de tenant quanto no Coluna 4
+> de `/admin/master/provisioning`) — uma feature pode estar perfeitamente categorizada no
+> Cockpit e mesmo assim nunca ser provisionável em lugar nenhum, se faltar o segundo vínculo.
+> Auditoria completa (todas as features ativas com URL real sem nenhum vínculo em
+> `system_feature_modules`) confirmou 3 features do CRM nessa situação — Catálogo de
+> Atividades (119), Agentes de Aceleração (CRM) (120), Fila de Resgate (121, achada na mesma
+> varredura, mesmo sintoma, ainda não teria sido reportada mas já estava quebrada) — diferente
+> de todas as demais features CRM mais antigas (Kanban de Leads, Gestão de Leads, Central de
+> Mídias etc.), que já tinham o vínculo certo.
+>
+> **Corrigido** (`prisma/migration-2026-08-11-fix-crm-orphan-features-leak.sql`, aplicada): as
+> 3 linkadas ao módulo real "CRM de Vendas"; concedido retroativamente pros 7 tenants que já
+> têm esse módulo contratado (Imobiliaria XYZ, Imovitec, Marketing Digital + os 4 tenants de
+> teste com CRM) — é exatamente o que teria acontecido automaticamente se o vínculo já
+> existisse desde que essas features foram criadas.
+>
+> **Achado à parte, confirmado NÃO ser bug (documentado, não corrigido):** "Análise de
+> Ciclos" (73) já está corretamente linkada ao módulo e já está provisionada pra "CRM
+> SOZINHO" — mas continua invisível porque `system_features.url` está vazio pra ela (item de
+> catálogo sem página própria construída ainda). Comportamento deliberado do Filtro C, já
+> citado como exemplo no próprio `docs/ACCESS_CONTROL.md`.
+>
+> **Auditoria mais ampla, registrada como pendência real, não atacada nesta rodada** (por
+> prudência — risco de mapear pro módulo errado sem contexto suficiente): outras 7 features
+> ativas com URL real e também sem vínculo em `system_feature_modules` — 3 são páginas
+> exclusivas do Master (`/admin/master/prompts`, `/admin/master/ia-plataforma`,
+> `/admin/master/skills`, irrelevantes pra tenant comum já que Master bypassa os 2 filtros de
+> qualquer forma), 1 é uma skill (`/admin/skills/brainstorming`, modelo de provisionamento
+> possivelmente diferente, não investigado), e 3 parecem páginas legadas/mortas (`/admin/
+> dashboard`, `/admin/relatorios`, `/admin/logs/reports`, sem confirmação se ainda têm uso
+> real). Vale uma varredura dedicada numa sessão futura, se o usuário quiser garantir que não
+> há mais nenhum caso deste padrão.
+>
+> **Testado ao vivo:** `get_sidebar_menu_for_user()` real pro tenant "CRM SOZINHO" — as 3
+> features agora aparecem nas categorias certas (Catálogo de Atividades + Agentes de
+> Aceleração sob "Configurações CRM"; Fila de Resgate sob "CRM").
+
+> **Atualizado em:** 2026-08-11 — **Fix real: 4 features de Campanhas de Marketing Digital
+> vazando pra TODO tenant da plataforma, mesmo sem o módulo contratado — achado sistêmico,
+> não específico do tenant reportado.** Usuário reportou: tenant "CRM SOZINHO" mostrava na
+> sidebar as categorias "Campanhas de Marketing Digital" e "Gestão Administrativa de Imóveis",
+> nenhuma das duas provisionada para ele.
+>
+> **Causa raiz #1 (a mais séria) — features 106/107/108/109 ("Aprovações do Agente"/"Destinos
+> de CTA"/"Analytics de Captura"/"Mecanismos") nunca foram linkadas ao módulo "Gestão de
+> Campanhas de Marketing Digital" em `system_feature_modules`** — diferente de TODAS as outras
+> 14 irmãs da mesma categoria (`Galeria de Criativos`, `Painel de Campanhas`, `Leads`, etc.),
+> que já têm o vínculo. Pior: as 4 estavam com `is_default_tenant_admin_feature=true` — a
+> mesma flag que `POST /api/admin/master/tenants` usa pra decidir quais features são
+> "essenciais" e seedar automaticamente em TODO tenant novo, **independente de qual módulo
+> foi selecionado na criação**. Resultado real, confirmado via SQL, não hipotético: TODOS os 6
+> tenants reais/de teste da plataforma tinham essas 4 features em `tenant_feature_overrides` —
+> inclusive "CRM SOZINHO" e "CRM + MENSAGERIA" (nenhum dos dois com Campanhas contratado).
+>
+> **Causa raiz #2 — mapeamento de categoria legado e errado.** `system_feature_categorias`
+> tinha 1 linha órfã do tempo em que a plataforma era só imobiliária: a feature "Usuários"
+> (categoria padrão real = "Permissões") estava forçada pra categoria "Gestão Administrativa
+> Imóveis" — fazia uma feature legitimamente provisionada (todo tenant admin tem "Usuários"
+> por ser também `is_default_tenant_admin_feature`) aparecer sob um nome de categoria
+> completamente fora de contexto pra qualquer tenant de segmento não-imobiliário, reforçando a
+> mesma percepção de "categoria nunca provisionada".
+>
+> **Corrigido** (`prisma/migration-2026-08-11-fix-campanhas-orphan-features-leak.sql`,
+> aplicada): (1) as 4 features linkadas ao módulo real, igual as 14 irmãs; (2)
+> `is_default_tenant_admin_feature=false` nas 4 — só passam a ser provisionadas quando o
+> Master de fato seleciona o módulo de Campanhas pro tenant, nunca mais por padrão; (3) o
+> mapeamento de "Usuários" corrigido de volta pra "Permissões"; (4) limpeza retroativa — as
+> `tenant_feature_overrides` das 4 features removidas **só** dos tenants que não têm o módulo
+> de Campanhas contratado (`tenant_modules`) — os 6 tenants que têm (Imobiliaria XYZ, Imovitec,
+> Marketing Digital + os 3 tenants de teste com Campanhas) mantiveram acesso intacto, zero
+> regressão. Master Platform (bypassa Filtro B de qualquer forma, `v_is_master=true` na função
+> de sidebar) deixado fora da limpeza de propósito, por ser irrelevante funcionalmente.
+>
+> **Testado ao vivo:** `get_sidebar_menu_for_user()` real pro usuário `admxyz` no tenant "CRM
+> SOZINHO" — antes retornava 6 categorias incluindo "Campanhas de Marketing Digital" (4
+> features) e "Gestão Administrativa Imóveis" (1 feature, "Usuários" mal-categorizada); depois
+> retorna só as 5 categorias legítimas (Sistema, Permissões — com "Usuários" corretamente
+> aqui —, Cadastros, Configurações CRM, CRM). Confirmado via SQL que os 6 tenants com Campanhas
+> contratado continuam com as 4 features ativas (nenhuma perda de acesso real).
+
+> **Atualizado em:** 2026-08-09 (continuação 2) — **Fix real: módulo associado a um tenant
+> (`tenant_modules`) desaparecia da coluna "Módulos Assinados" em `/admin/master/provisioning`
+> quando o segmento do tenant não tinha esse módulo curado em `system_segment_modules`.**
+> Reportado pelo usuário: tenant "CRM SOZINHO" (segmento "Venda de Carros") tinha "Cadastros"
+> e "CRM de Vendas" associados, mas nenhum dos dois aparecia na coluna de módulos ao selecionar
+> o tenant.
+>
+> **Causa raiz confirmada:** a API (`GET /api/admin/master/provisioning?tenant_id=X`) sempre
+> retornou os 2 módulos corretamente (`tenant_modules` estava certo) — o bug era 100%
+> client-side, em `MasterProvisioningHub.tsx`: a Coluna 3 só iterava
+> `activeSegmentData.modules` (a árvore do segmento SELECIONADO, via `system_segment_modules`)
+> — nunca os módulos que o tenant de fato tem. "Venda de Carros" nunca teve nenhum módulo
+> curado nessa tabela (`0 rows`), então qualquer módulo atribuído a um tenant desse segmento
+> ficava invisível e sem checkbox pra gerenciar, mesmo persistido e devolvido pela API.
+> Confirmado que "Cadastros"/"CRM de Vendas" existem na árvore só sob "Imobiliário"/"Saúde
+> Digital".
+>
+> **Corrigido:** `modulesToShow` — achata TODOS os módulos de TODOS os segmentos da árvore
+> num mapa único (a forma de um módulo é a mesma onde aparecer, já que features são ligadas ao
+> módulo via `system_feature_modules`, não ao par segmento-módulo) e complementa a lista do
+> segmento ativo com qualquer módulo que o tenant já tenha fora dela — com um badge "Fora do
+> Segmento" pra deixar claro que é uma atribuição cruzada. A resolução de features da Coluna 4
+> (`featuresToShow`) também corrigida pra buscar em `modulesToShow`, não só na árvore do
+> segmento — senão selecionar um desses módulos "extras" nunca resolveria as features.
+>
+> **Testado ao vivo no navegador** (sessão Master real): tenant "CRM SOZINHO" → segmento
+> "Venda de Carros" selecionado → os 2 módulos aparecem corretamente com "FORA DO SEGMENTO" e
+> a contagem certa de features (12 pra CRM de Vendas, 2 pra Cadastros). `npx tsc --noEmit`: 0
+> erros. Nenhuma escrita no banco durante o teste (só leitura/seleção, nunca cliquei em
+> "Aplicar Contrato Master").
+>
+> **Pendência real, fora de escopo desta rodada:** 2 módulos ativos (`master-platform`,
+> `saude`) não estão linkados a NENHUM segmento em `system_segment_modules` — não afetados
+> pelo fix acima (que só resolve módulos presentes em ALGUM ramo da árvore), mas registrado
+> como o mesmo tipo de gap de curadoria que causou o bug original, caso algum tenant um dia
+> tenha um desses 2 módulos atribuído.
+
+> **Atualizado em:** 2026-08-09 (continuação) — **Execução real do `docs/ROTEIRO_TESTES_CRM.md`
+> (Partes 1 e 3, + spot-check da 4) — 3 achados reais, 2 corrigidos e verificados ponta a
+> ponta, 1 parcialmente corrigido aguardando input do usuário.** Pedido do usuário: "rode" o
+> roteiro de testes do CRM recém-escrito. Executado via API real (JWT gerado com `userId`
+> real, tenants Imobiliaria XYZ e Marketing Digital) + Browser pane pro Kanban visual.
+>
+> **Achado #1 (corrigido) — `POST /api/crm/leads` nunca lia o tenant da sessão autenticada,
+> só do corpo da requisição, com default silencioso pro tenant Master quando ausente.** O
+> modal "Novo Lead" da própria UI do Kanban (`NovoLeadModal.tsx`) **nunca envia `tenant_id`**
+> no payload — confirmado ao vivo: um lead criado por `admxyz` (Imobiliaria XYZ) via essa
+> rota, sem `tenant_id` explícito, era gravado silenciosamente sob o tenant Master. Os 5
+> chamadores servidor-a-servidor sem sessão (webhooks Meta/Google, `inboundProcessor` do
+> WhatsApp, mecanismo de CTA) sempre passaram `tenant_id` explícito corretamente — só o
+> caminho autenticado estava quebrado. **Corrigido:** `src/app/api/crm/leads/route.ts`
+> resolve `leadTenantId` com prioridade (1) sessão autenticada não-Master, (2) `tenant_id` do
+> corpo (preserva os 5 chamadores legítimos), (3) Master como último fallback. Testado ao
+> vivo: lead sem `tenant_id` no corpo, só sessão → grava no tenant certo + IA qualifica de
+> verdade (antes caía no fallback `crm_ia_ativa=false` do Master); chamada sem sessão com
+> `tenant_id` explícito → comportamento idêntico a antes, zero regressão.
+>
+> **Achado #2 (corrigido) — não existia, em NENHUM lugar da UI, um jeito de registrar quanto
+> valeu um negócio ao fechá-lo.** `POST /api/crm/kanban/move` nunca aceitava nem persistia
+> `valor_venda` — só move a coluna. O único lugar que já escrevia essa coluna era o form de
+> **criação** do lead (`NovoLeadModal.tsx`), o que não faz sentido de negócio (o valor da
+> venda só é conhecido no fechamento, não na captação). Resultado prático: a Visão 4
+> (CPA/ROAS real, F6) ficava silenciosamente zerada pra todo negócio fechado pelo fluxo normal
+> do Kanban. **Corrigido, com aprovação explícita do usuário antes de implementar** (2
+> opções propostas via `AskUserQuestion`, escolhida "Corrigir agora"): rota `kanban/move`
+> ganhou `valor_venda` opcional (validado, não-negativo) persistido junto do move; UI do
+> Kanban (`kanban/page.tsx`) ganhou um modal "Negócio Fechado 🎉" que intercepta qualquer move
+> pra uma coluna `is_ganho=true` e pede o valor antes de confirmar — `requestMove`/
+> `executeMove`/`confirmGanhoMove`, ponto único de decisão tanto pro drag-and-drop quanto pro
+> botão avançar/voltar da ficha. **Testado ponta a ponta com números reais:** lead real
+> atribuído à campanha "Alto Padrão — Alphaville" (Marketing Digital, gasto real R$11.927,02)
+> movido pra Fechamento com `valor_venda=950000` → replicada a query real de
+> `revenueAttributionService.ts` → **`leads:1, deals:1, revenue:950000.00`** na campanha certa
+> — confirma que o fix propaga corretamente até a Visão 4, não só até o banco. Validação de
+> negativo testada (`-100` → 400). `npx tsc --noEmit`: 0 erros.
+>
+> **Achado #3 (corrigido por completo) — as 7 tags curadas de qualificação por IA do segmento
+> Imobiliário (`crm_qualificacao_regras_segmento.tag_resultante`) tinham o emoji corrompido em
+> `??`** ("?? Primeiro Imóvel", "?? Proprietário (Venda)", etc.) — resíduo de uma migração de
+> sessão anterior aplicada via `curl` inline no Git Bash Windows (o mesmo padrão de corrupção
+> de UTF-8 multi-byte já documentado dezenas de vezes neste arquivo). **Confirmado que não é
+> bug de código:** testei o LLM (Groq, `llama-3.3-70b-versatile`, provider real configurado
+> pra esse tenant) direto, fora da aplicação, pedindo pra ecoar "🏠 Primeiro Imóvel" — voltou
+> com o emoji intacto (`f0 9f 8f a0` em hex, UTF-8 correto). O lead de teste que expôs o
+> achado tinha caído no fallback por palavra-chave (não no LLM), copiando o `tag_resultante`
+> corrompido verbatim do banco. Corrigida na hora só a linha com confirmação textual do valor
+> original ("🏠 Primeiro Imóvel", citado várias vezes neste arquivo em sessões anteriores) —
+> as outras 6 não foram adivinhadas de propósito (nenhum registro do valor original em
+> lugar nenhum). **Usuário confirmou não lembrar o original também** — resolvido escolhendo
+> 6 emojis novos e coerentes (não é recuperação de dado, é curadoria nova, mesma coisa que o
+> Master faria manualmente na tela): 💰 Proprietário (Venda), 🔑 Proprietário (Locação),
+> 🔄 Interesse em Permuta, ⏰ Urgência de Mudança, 📈 Investidor de Ativos, ⬆️ Upgrade
+> Residencial. Aplicado via arquivo `.sql` (nunca inline no bash — é literalmente o mesmo bug
+> que causou a corrupção original), confirmado via SQL que as 7 linhas têm UTF-8 correto
+> (`tag_resultante ~ '\?\?'` = false em todas). Editável a qualquer momento em
+> `/admin/master/segments` → "Qualificação de Lead por IA (CRM)" se o usuário quiser trocar.
+>
+> **Confirmado funcionando, sem achados, via API real:** gate `crm_ia_ativa`
+> (`/api/crm/segment-status`), ficha do lead completa (atividades — criar/editar/excluir/
+> validação de 15 caracteres/badge IA vs humano —, Kanban move entre etapas), Catálogo de
+> Atividades (CRUD, reuso de nome após soft-delete, bloqueio de exclusão em uso — não
+> re-testado nesta rodada, já coberto em sessão anterior), mútua exclusão `is_ganho`/
+> `is_perda` via API, `/api/crm/config/ia` e `/api/crm/config/agentes` (GET refletindo as 7
+> regras reais + catálogo de agentes), Fila de Resgate (vazia, como esperado), disponibilidade
+> de atendente (`PATCH .../disponibilidade` — marcar, validar data no passado→400, validar
+> usuário de outro tenant→404, liberar), e a convergência do Match Engine (Parte 4.3: mesmo
+> telefone em 2 formatos diferentes + e-mail → mesmo `lead_uuid`, confirmado `count(*)=1`).
+>
+> **Partes 2 e a maior parte da 4 não re-executadas nesta rodada** — os mecanismos centrais
+> (bot M4.1 gravando atividade com badge IA, reativação automática G6) já tinham sido testados
+> ponta a ponta na sessão imediatamente anterior a esta (ver entrada abaixo, "Badge 'Agente de
+> IA'..."), incluindo com LLM real. Fica registrado como pendência re-executar o roteiro
+> completo da Parte 2/4 (bot + reativação + fluxo de aprovação PIN via WhatsApp real) numa
+> próxima rodada, se o usuário quiser essa confirmação redundante.
+>
+> **Limpeza:** todo lead/tipo de atividade de teste removido (`count(*)=0` real, os 2 tipos de
+> teste ficaram soft-deletados — mesma convenção reversível de sempre, invisíveis pra
+> aplicação), disponibilidade de `jucarvalho` revertida, tokens JWT temporários apagados do
+> disco. `git status` confirmado limpo (só os arquivos de código realmente tocados).
+>
+> **Atualizado em:** 2026-08-09 — **Badge "Agente de IA" vs "Atendente" nas Atividades do CRM
+> — concluído e testado.** Pedido direto do usuário: na aba "Atividades" da ficha do lead
+> (Kanban do CRM), destacar quando uma resposta ao lead foi dada pela IA em vez de por um
+> atendente humano. Esclarecido via `AskUserQuestion` (2 perguntas, ambíguas o bastante pra
+> justificar): (1) tela — confirmado "Aba Atividades do CRM", não a thread de conversa da
+> Mensageria (que já tinha um badge parcial, só pra `sender_type='bot'`, nunca pra `'system'`
+> nem com um badge explícito pro lado humano); (2) fontes que contam como "IA" — confirmado
+> **ambas**: a reativação automática (G6, `reactivationExecutor.autoSendReactivation`) e o
+> chatbot (M4.1, `botAdapter.maybeRunBot`).
+>
+> **Implementado:** `prisma/migration-2026-08-09-atividades-origem-ia.sql` (aplicada) —
+> `atividades_lead.origem varchar(10) DEFAULT 'humano'` (CHECK `IN ('humano','ia')`) + seed de
+> um tipo novo por tenant com Kanban configurado ("Resposta Automática (IA)", ícone
+> `lucide-Bot`, cor `#c5a028`/gold-premium — mesmo acento de IA já usado em toda a plataforma,
+> `is_entrada=false` porque é sempre ação NOSSA). `src/lib/crm/atividades/logAiAtividade.ts`
+> (novo) — helper único e best-effort (nunca derruba o envio real se falhar), compartilhado
+> pelos dois hooks: resolve `coluna_id` via `leads_kanban`, resolve o tipo "Resposta Automática
+> (IA)" com cascata cliente→tenant, insere com `origem='ia'`/`usuario_id=NULL`. Chamado em 2
+> pontos: `reactivationExecutor.autoSendReactivation()` (só no outcome `'sent'` — envio
+> automático de verdade, não no caminho aprovado por humano) e `botAdapter.maybeRunBot()` (nos
+> 3 formatos de resposta do bot — fallback, cards, texto plano — sempre que o contato já está
+> vinculado a um lead real via `mensageria.contacts.lead_uuid`; a mensagem de handoff pra
+> humano é deliberadamente excluída, não é uma resposta real). Deliberadamente **não** chama
+> `touchPendency()` — os dois caminhos já enviam a mensagem via `ingestMessage()`, que já
+> dispara esse gancho desde G0; duplicar aqui só arriscaria os dois divergirem no futuro.
+> `AtividadesLead.tsx` — campo `origem` na interface + badge dourado "🤖 Agente de IA" no lugar
+> do nome do atendente quando `origem==='ia'`, preservando o `· {usuario_nome}` de sempre pro
+> caso humano (default).
+>
+> **Testado ao vivo, ponta a ponta, com dado real, tenant Marketing Digital** (lead de teste
+> criado e removido depois): atividade humana via `POST /api/crm/atividades` real →
+> `origem:'humano'`, badge de nome do atendente preservado. Bot (M4.1) — vinculado o contato
+> de teste real do endpoint `/api/admin/mensageria/bot/test` ao lead de teste (simulando o que
+> o Match Engine faz em produção) e mandada uma mensagem real pra inbox `webform` (canal sem
+> risco de envio real — `deliverIfWhatsApp` só age em `channel_type==='whatsapp'`) → bot
+> respondeu de verdade (LLM real) e gravou a atividade com `origem:'ia'`, `tipo_atividade_id`
+> correto, `usuario_id` nulo, `coluna_id` resolvido certo. Reativação automática (G6) — como
+> nenhum servidor Evolution real está acessível neste ambiente de dev (`localhost:8081`
+> configurado na inbox real deste tenant não responde, confirmado antes de qualquer teste) e
+> `outcome:'sent'` exige uma resposta HTTP 2xx real, subido um mock local
+> (`scripts/mock-evolution-server.js`, script temporário, removido ao final) e apontada a
+> inbox WhatsApp real do tenant pra ele **temporariamente** (config original capturado antes,
+> restaurado byte-a-byte depois, confirmado por SQL) — inserida 1 `crm_agent_actions` real
+> (`agent_key='reactivation'`) + chamada real de `autoSendReactivation()` via rota de API
+> temporária (`src/app/api/test-autosend-tmp/`, removida ao final) → `outcome:'sent'` confirmado
+> (mock recebeu o POST), `crm_agent_actions.status='EXECUTED'`, atividade gravada com
+> `origem:'ia'` e a mensagem real da reativação na descrição. Toda infraestrutura de teste
+> removida (mock server morto, rota deletada, script deletado); todo dado de teste removido
+> (lead + kanban + atividades + ação, cascata confirmada `count(*)=0` em 4 tabelas); contato
+> reusável de teste do bot (`mensageria.contacts`, tenant Marketing Digital) restaurado ao
+> estado original (`lead_uuid=NULL`) — é reutilizado entre sessões de teste do admin, não
+> deletado; a conversa de teste em si (com todo o histórico, inclusive um resíduo de uma
+> sessão anterior nunca limpo) foi apagada via o próprio `DELETE` do endpoint real de teste.
+> Credenciais reais de Evolution do tenant confirmadas restauradas (comparação byte-a-byte
+> com o valor capturado antes do teste). `npx tsc --noEmit`: 0 erros (incluindo depois de
+> remover a rota temporária — 1 artefato stale em `.next/types` referenciando o arquivo já
+> deletado, removido manualmente, mesmo padrão de "cache do Next mascarando estado real" já
+> documentado várias vezes neste arquivo).
+>
+> **Achado incidental, não relacionado ao trabalho desta rodada, registrado:** a conversa de
+> teste reusável do bot (`/api/admin/mensageria/bot/test`, tenant Marketing Digital, telefone
+> fixo `5500000000001`) tinha histórico de uma sessão de teste anterior nunca limpo (mensagens
+> de 2026-07-20 sobre "troca de bateria de celular", visíveis ao reabrir a conversa nesta
+> sessão) — resolvido de brinde ao apagar a conversa inteira via o `DELETE` real do endpoint,
+> já que eu mesmo ia reutilizá-la e sujá-la mais.
+
+> **Atualizado em:** 2026-08-08 — **Nova frente: Vigilância de Pendência de Atendimento
+> ("de quem é a bola"). Plano completo escrito e aprovado; fase G0 (fundação) concluída e
+> testada.** Nasceu de uma pergunta do usuário sobre o alcance real do F1
+> (`speed_to_lead`): "e se o 3º ou 4º contato ficar sem resposta? E se o atendente adoecer ou
+> ganhar na loteria?". A auditoria confirmou que a preocupação era muito maior do que a
+> pergunta supunha — **três buracos independentes**, todos com a mesma raiz: *todo prazo que
+> existe na plataforma é prazo de PRIMEIRO toque*.
+>
+> **Buraco A — lead sem dono nunca é reprocessado.** `DistributionEngine` pode não achar
+> candidato; nesse caso `corretor_atribuido_id` fica NULL e o transbordo exige o contrário
+> (`AND corretor_atribuido_id IS NOT NULL`). O F1 alerta uma vez e nunca mais. No banco: leads
+> com telefone válido, sem dono, zero atividade, o mais antigo parado há 107 dias.
+> **Buraco B — o caminho de atribuição MAIS COMUM nasce fora da rede.**
+> `api/crm/leads/route.ts:272` grava `atribuicao_expira_em = NULL` quando a atribuição é para o
+> dono do ativo ou plantonista — e `owner_of_asset` é a estratégia de prioridade 1 do segmento
+> Imobiliário. É literalmente "o corretor dono da carteira adoeceu": todo lead dele apodrece em
+> silêncio, permanentemente.
+> **Buraco C — os três relógios existentes são todos de 1º toque:** F1 para de olhar na 1ª
+> atividade; `scanAndAlertBreaches()` da Mensageria para na 1ª resposta (`first_response_at IS
+> NULL`); `atribuicao_expira_em` é one-shot, nenhum endpoint renova.
+> **Buraco D (achado pela lente nova) — o F4 despacha a ação errada:** mede
+> `MAX(atividades_lead.created_at)` sem noção de direção, então um lead em que *o cliente
+> escreveu e nós nunca respondemos* vira candidato a "mensagem de reativação" — mandaríamos um
+> "sentimos sua falta" para quem está esperando resposta nossa.
+>
+> **Decisões do usuário (2026-08-08), com a moldura de missão que as justifica** ("a plataforma
+> automatiza call centers com grande número de atendentes; não pode haver espera por decisão
+> manual, e do 2º toque em diante o atendimento a lead parado tem que ser totalmente
+> sistemático — seja a parada causada pelo cliente ou, principalmente, pelo atendente"):
+> (1) existe estado de indisponibilidade temporária, que suspende a punição de SLA mas mantém e
+> acelera a reatribuição — adoecer não é relaxar; (2) **nenhuma fila de aprovação** em degrau
+> interno, tudo automático; (3) `is_entrada` no catálogo de atividades (mesmo remédio do
+> `is_ganho`); (4) o F1 é **absorvido**, não coexiste — janela livre agora porque nenhum agente
+> está ativado em produção.
+>
+> **Plano completo em `docs/PLANO_PENDENCIA_ATENDIMENTO.md`** — conceito unificador (um relógio
+> por lead: bola com a gente / com o cliente / encerrado, este último já resolvido pelo
+> `is_ganho`/`is_perda` de ontem), idempotência **por degrau por episódio de pendência** (a
+> chave do episódio é o próprio `bola_desde`, sem tabela nova), fontes por módulo contratado
+> via adapter (ninguém fica sem cobertura, ninguém é obrigado a contratar módulo), escada de
+> escalonamento 100% automática terminando em reatribuição pelo `DistributionEngine` que já
+> existe, e fases G0-G5.
+>
+> **G0 concluída e testada** (detalhe completo no §6.2 do plano): migração aplicada
+> (`bola_com`/`bola_desde` + CHECKs + índices parciais, `tipos_atividade.is_entrada`,
+> `users.indisponivel_ate`), regra canônica única em `src/lib/crm/pendencia/pendencyState.ts`,
+> ganchos nos 6 caminhos de escrita reais, cron de reconciliação às 03:30, e `is_entrada` no
+> CRUD do catálogo de atividades. **3 achados que só apareceram testando o caminho real:**
+> (1) `ingest.ts` NÃO é o "ponto único de ingestão" que declara — o endpoint de resposta do
+> atendente grava direto na tabela, e sem gancho dedicado o motor escalaria um lead recém
+> respondido; (2) nota interna não pode devolver a bola (a 1ª versão contava qualquer
+> `outbound`); (3) re-manifestação de lead existente não movia nada — resolvido usando
+> `marketing_eventos` (1 linha por toque) como fonte. Testado ponta a ponta via APIs reais nos
+> 8 cenários, backfill de 23 leads, reconciliação idempotente, todo dado de teste removido
+> (`count(*)=0` em 7 tabelas), `npx tsc --noEmit`: 0 erros.
+>
+> **G1 concluída e testada na mesma sessão** (detalhe no §6.3 do plano): agente
+> `pendencia_atendimento` com degraus 1-2, limiar distinto entre 1º contato (30min) e
+> continuidade (240min), pulo direto pro escalonamento quando o responsável está indisponível,
+> **idempotência por degrau por episódio** (chave = o próprio `bola_desde`, sem tabela nova) e
+> **digest anti-flood** (uma notificação por tenant por rodada, agrupada por responsável, em vez
+> de uma por lead — obrigatório na escala de call center). `speed_to_lead` (F1) foi absorvido e
+> **removido do disco e do catálogo**: era o caso particular de ordinal 1 do mesmo relógio.
+>
+> **Mudança na página `/admin/master/segments`:** nenhuma na mecânica — o modal "Agentes de
+> Aceleração" é genérico desde F0 e deriva de `CRM_AGENT_CATALOG`, então o agente novo aparece
+> sozinho (com seus 3 `paramHints` como chips clicáveis) e o antigo some sozinho. A única edição
+> foi no painel de Ajuda, que tem um bloco de texto por `agent.key` — aproveitado para escrever
+> também o bloco do `score_recalibration`, que caía no fallback genérico desde F5.
+>
+> **Testado ao vivo, 10 cenários** (tenant Marketing Digital, canais Evolution/Slack reais
+> nulados antes de cada varredura e restaurados ao valor exato depois): degrau 1 aos 45min ·
+> degrau 2 direto às 5h · lead de 2min não dispara · responsável indisponível pula pro degrau 2 ·
+> 2ª varredura imediata `fired:0` · progressão 1→2 sem repetir · bola devolvida sai da vigilância ·
+> **cliente volta e passam 45min → não dispara** (limiar agora é o de continuidade) · **cliente
+> volta e passam 5h → degrau 1 DE NOVO com `ehPrimeiroContato:false`** (o rearme, que responde
+> exatamente à pergunta que originou a frente) · 23 disparos numa rodada → `digests: 1`.
+>
+> **O que a 1ª varredura revelou:** além dos 4 leads de teste, o motor capturou **19 leads
+> parados entre 231h e 839h** — leads sobre os quais nenhum mecanismo da plataforma jamais teria
+> levantado a mão. São os Buracos A e C, agora visíveis.
+>
+> **Armadilha de teste registrada (2ª vez nesta base, a 1ª foi em F2):** backdatar `bola_desde`
+> sem mover junto as ações do episódio anterior cria linha do tempo impossível e faz a
+> idempotência parecer quebrada. Em produção não ocorre (episódio novo sempre começa em `now()`).
+>
+> **Limpeza:** todo dado de teste removido, canais restaurados (confirmado por SQL), reconciliação
+> final `corrigidos: 0`, `npx tsc --noEmit` 0 erros. Aproveitado para remover os 15 leads
+> `TESTE PAGINACAO` — pendência minha registrada desde 2026-07-29, agora fechada.
+>
+> **G2 concluída e testada na mesma sessão** (detalhe no §6.4 do plano) — o degrau que transforma
+> o motor de *alarme* em *correção*, **sem migração nova**: reaproveita integralmente o
+> `DistributionEngine` e o catálogo de estratégias por segmento. Entregue: filtro de
+> indisponibilidade nas **4 estratégias de distribuição** (cobre de uma vez captação inicial,
+> transbordo e reatribuição — não só o caminho deste agente); `CrmAgent.execute?()` (contrato
+> novo — o agente declara seu efeito colateral real, o runner chama sem saber o que é);
+> `src/lib/crm/pendencia/reassignExecutor.ts`; degrau 3 com `fator_reatribuicao` (default 6); o
+> digest passa a mostrar o que a máquina corrigiu sozinha. Guarda-corpo deliberado:
+> `limiarReatribuicao = max(limiarBase × fator, limiarEscalonamento + 1)` — reatribuir antes de
+> ter avisado alguém seria tirar o lead pelas costas do responsável.
+>
+> **Testado ao vivo:** lead parado 200min com responsável **de atestado** → reatribuído
+> (Fernanda → Roberto) · **penalidade de SLA nunca chamada** na pessoa ausente (ela não tem
+> sequer linha em `corretor_scores`) · indisponível não recebeu nenhum dos 6 leads
+> reatribuídos · histórico de atribuição com as 2 linhas certas · **todos** os atendentes
+> indisponíveis → não crasha, relata "sem atendente disponível" e o lead segue pendente.
+>
+> **O teste explicou o Buraco A concretamente:** os 2 usuários do tenant não têm linha em
+> `user_role_assignments`, e as 4 estratégias filtram por ele — por isso o `DistributionEngine`
+> nunca achou candidato e 21 leads ficaram órfãos. Não é bug do motor, é configuração de acesso
+> incompleta daquele tenant — mas prova que a fila de resgate visível (degrau 4, G3) é
+> indispensável, porque hoje esse estado é silencioso. Com os papéis corrigidos no teste, **os 5
+> leads órfãos reais (sem dono há 34–107 dias) ganharam responsável automaticamente** — Buraco A
+> corrigido de fato, não só alertado; todos revertidos ao estado original na limpeza.
+>
+> **G3 concluída e testada na mesma sessão** (detalhe no §6.5 do plano) — e a primeira
+> descoberta foi que **o Buraco B não precisava de conserto, e "consertá-lo" teria sido o erro**:
+> `atribuicao_expira_em` significa *prazo de ACEITE*, e lead auto-aceito corretamente não tem
+> prazo pendente — dar valor a ele faria o transbordo reatribuir um lead que FOI aceito. O motor
+> de pendência não referencia esse campo (é dirigido só por `bola_com`/`bola_desde`), então já
+> cobre o caso por um mecanismo melhor. Confirmado ao vivo com um lead nesse exato estado.
+>
+> **Entregue:** `rescueQueue.ts` (`runRescueRetries()` + `getRescueQueue()`), retentativa plugada
+> no cron de varredura rodando **antes** dela, degrau 4 no agente,
+> `GET /api/crm/pendencia/resgate` (UI fica pra G4), marca 🆘 no digest. **Duas cadências de
+> propósito:** retentar atribuição a cada rodada (o lead precisa sair da fila no minuto em que
+> alguém ficar disponível); alertar sobre a fila uma vez por episódio.
+>
+> **2 achados reais que só apareceram testando, ambos corrigidos:** (1) a escada esgotada era
+> **herdada** pelo novo responsável — depois de uma reatribuição, todos os degraus já haviam
+> disparado e o novo dono ficava sem relógio nenhum; corrigido movendo a janela de idempotência
+> para `GREATEST(bola_desde, última reatribuição)`. (2) Com esse fix, o lead **quicaria entre
+> atendentes** — reatribuído após 400min, disparava o degrau 3 no instante seguinte e seria
+> repassado de novo, cada pessoa perdendo o lead antes de ter tido chance real; corrigido
+> separando **dois relógios**: `minutosParado` (espera REAL do cliente) governa o texto das
+> mensagens, `minutosNaJanela` (tempo sob o responsável atual) governa os degraus. `bola_desde`
+> nunca é resetado — resetá-lo faria a plataforma subestimar a espera real da pessoa.
+>
+> **Testado ao vivo:** órfão → degrau 3 (reatribuição falha) → degrau 4 · fila via API real
+> (`total:7, semResponsavel:6`) · **um atendente fica elegível → `resgate: {examinados:8,
+> atribuidos:6}`** e a fila de órfãos esvazia sozinha (Buraco A fechado) · leads recém-reatribuídos
+> não disparam de novo. Limpeza completa, canais restaurados, `tsc` 0 erros.
+>
+> **G4 concluída e testada na mesma sessão** (detalhe no §6.6 do plano). **Config dos degraus não
+> precisou de nada novo** — os 4 parâmetros já são editáveis pelo editor genérico que existe desde
+> F0 (`/admin/master/segments` → "Agentes de Aceleração" e `/crm/config/agentes`, ambos derivando
+> de `paramHints`). A UI nova é só o que não tinha superfície nenhuma:
+> `PATCH /api/admin/usuarios/[id]/disponibilidade` (endpoint dedicado, não campo no formulário de
+> edição — marcar atestado é ação operacional, não edição de cadastro; valida data futura e
+> confirma que o usuário é do tenant de quem pede) · badge "AUSENTE" + botão "Ausência"/"Liberar"
+> em `/admin/usuarios`, com modal que **exige data de retorno** em vez de booleano (toggle sem
+> prazo depende de alguém lembrar de desmarcar; com data a pessoa volta sozinha) · página
+> `/crm/resgate` + migração de sidebar na categoria **CRM** (operação, não configuração),
+> deliberadamente somente-leitura porque o sistema já retenta sozinho — o que a tela entrega é o
+> DIAGNÓSTICO, já que a saída costuma estar fora do CRM.
+>
+> **Bug real encontrado testando a UI de verdade:** o badge "AUSENTE" não aparecia — eu o tinha
+> colocado dentro do bloco que só renderiza para `role_name === 'Corretor'`, e a atendente de teste
+> tem o cargo "Atendente". É exatamente a suposição por vertical que esta frente vem removendo (o
+> cargo de distribuição é configurável por segmento via `distribution_role_name`). Movido para fora
+> do bloco.
+>
+> **Testado ao vivo:** ausência via endpoint real ✅ · data no passado → 400 ✅ · usuário de outro
+> tenant → 404 ✅ · **efeito real na distribuição** (ausente e única com o cargo → `atribuidos:0`;
+> liberada pelo mesmo endpoint → `atribuidos:1` e o lead ganha dona) ✅ · sidebar confirmada pela
+> função real do banco ✅ · página renderizando KPIs, badges e tempo de espera ✅.
+>
+> **G5 concluída e testada na mesma sessão — a frente está formalmente completa** (§6.7/§6.8 do
+> plano). `reactivationAgent` deixa de medir `MAX(atividades_lead.created_at)` (sem noção de
+> direção) e passa a ler o estado: candidato é lead com `bola_com='cliente'`, e o silêncio conta
+> desde `bola_desde` — o silêncio DELE, não "a última coisa que aconteceu no lead". `evaluate()`
+> revalida a bola antes de propor (ela pode ter voltado pra nós entre a varredura e a avaliação).
+> Duas simplificações de brinde: o piso de 6h vira silêncio do cliente, e a exclusão de etapa
+> terminal some do agente — lead ganho/perdido já tem `bola_com` NULL pelo motor canônico.
+>
+> **Testado com dois leads de contraste, ambos parados há 10 dias, sobre os MESMOS dados:** com a
+> lógica ANTIGA os dois virariam candidatos — inclusive o que espera resposta NOSSA, que receberia
+> um "sentimos sua falta"; com a NOVA, só o lead em que o cliente sumiu. A falha foi demonstrada
+> lado a lado, não assumida. **Domínios disjuntos provados na mesma rodada:** o lead esperando
+> nossa resposta foi capturado por `pendencia_atendimento` (degrau 3) e o lead do cliente sumido
+> **não foi tocado** por ele — um relógio, duas direções, ações opostas.
+>
+> **Os 4 buracos do §1 estão fechados:** A (G3), B (já coberto por G1/G2, sem precisar de
+> conserto), C (G0/G1), D (G5).
+>
+> **G6 — reativação automática (a pendência do §8, decidida e implementada na mesma sessão).**
+> Usuário: "não espera decisão manual". O `type` do F4 deixou de ser fixo e passou a refletir o
+> que de fato acontece: **sem** `requer_revisao_extra` → `DEFENSIVE`, o `execute()` **envia
+> sozinho** e o tenant é notificado depois com o texto exato; **com** a flag → `OFFENSIVE`,
+> `PENDING_APPROVAL` + PIN, fluxo de F4 intocado. O freio virou o que sempre deveria ter sido:
+> a chave que separa segmento comum de segmento regulado. O envio real foi extraído para
+> `deliverReactivation()`, compartilhado pelos dois caminhos ("quem autorizou" separado de "como
+> se entrega"); `CrmAgent.execute()` passou a receber o `actionId`; e a notificação 1:1 agora
+> inclui `🤖 Ação automática:` + o texto integral enviado — sem isso o tenant descobriria só
+> depois que uma mensagem saiu para o cliente dele.
+>
+> **Testado com LLM real e credenciais de envio deliberadamente neutralizadas:** sem a flag →
+> `DEFENSIVE`/`EXECUTED` com mensagem real da IA, e linha `outbound`/`system` em
+> `mensageria.messages` com `delivery_status: failed` (falha esperada e **segura** — nada chegou
+> a telefone real) · com a flag → `OFFENSIVE`/`PENDING_APPROVAL`+PIN e **zero** contatos criados,
+> provando que nem a tentativa de envio acontece. Texto de Ajuda do Master reescrito (dizia "a
+> mensagem nunca sai sozinha", o que passou a ser falso por padrão).
+>
+> **Nada está ativado em produção** — todos os agentes nascem desligados; ativar por segmento e
+> escolher os limiares reais é decisão de negócio do usuário/Master. ⚠️ **`reactivation` é o
+> único agente que fala com o cliente sem passar por ninguém** — antes de ligá-lo num segmento,
+> decidir conscientemente se aquele segmento precisa de `requer_revisao_extra=true`.
+
+> **Atualizado em:** 2026-08-07 (continuação) — **Hardening real de agnosticismo de
+> segmento: etapa de Ganho/Perda do Kanban vira atributo booleano explícito, não mais
+> inferido do nome da coluna.** Usuário, revisando o texto do botão "Ajuda" dos Agentes de
+> Aceleração (que citava "Imobiliário" como exemplo dinâmico), questionou diretamente se
+> toda a lógica dos 5 agentes foi de fato implementada agnosticamente a qualquer segmento
+> de negócio — não assumido, auditado via grep em todo `src/`. Confirmado que os 5 agentes
+> em si (catálogo, `evaluate()`, `findCandidates()`, resolução de config efetiva) não têm
+> nenhum branch por slug/nome de segmento. **Achado real, porém, num nível mais baixo:** 4
+> consumidores (`revenueAttributionService.ts` — CPA/ROAS real da Visão 4 de Campanhas;
+> `scoreRecalibrationService.ts` — F5; `reactivationAgent.ts` — F4, exclusão de leads já em
+> etapa terminal; `api/crm/analytics/roi/route.ts`, 4 ocorrências) reconheciam "negócio
+> fechado"/"perdido" só comparando `kanban_colunas.nome` contra os literais
+> `'fechamento'`/`'perdido'` — o mesmo `nome` que `/api/crm/kanban/colunas` (POST) sempre
+> permitiu qualquer tenant editar livremente, sem nenhum aviso de que aquele texto também
+> carregava um significado oculto de ciclo de vida do negócio. Um tenant de um segmento
+> não-imobiliário (ou até um tenant Imobiliário) renomeando sua etapa de vitória pra um
+> termo natural do próprio negócio ("Contrato Assinado", "Venda Concluída") quebraria
+> silenciosamente CPA/ROAS real, a recalibração de score e a elegibilidade de reativação de
+> lead — sem nenhum erro visível, só dado errado. Usuário propôs a correção diretamente:
+> 2 atributos booleanos (`is_ganho`/`is_perda`) na configuração da etapa do Kanban,
+> editáveis pelo próprio tenant, com os agentes/relatórios passando a se basear neles em
+> vez do nome.
+>
+> **Implementado:** `prisma/migration-2026-08-07-kanban-etapa-ganho-perda.sql` (aplicada) —
+> `kanban_colunas.is_ganho`/`is_perda` (boolean, default false) + backfill preservando
+> exatamente o comportamento implícito de antes (`is_ganho=true WHERE nome='fechamento'`,
+> idem `perdido`) + CHECK de mútua exclusão (`NOT (is_ganho AND is_perda)`). Seed de tenant
+> novo (`api/admin/master/tenants/route.ts`) atualizado pra já gravar os 2 flags corretos na
+> criação, não só via backfill histórico. `api/crm/kanban/colunas/route.ts` (POST, INSERT e
+> UPDATE) passa a aceitar/persistir os 2 campos, com a mesma validação de mútua exclusão
+> replicada no servidor (400 explícito se os dois vierem `true` juntos — nunca confia só na
+> UI). `/crm/config/kanban` (Personalização Kanban) ganhou a seção "Etapa Terminal
+> (opcional)" no modal de edição — 2 checkboxes com mútua exclusão automática no cliente +
+> nota explicando que é esse atributo, não o nome, que os Agentes/relatórios usam — e um
+> badge "GANHO"/"PERDA" na tabela ao lado do título de exibição de cada etapa. Os 4
+> consumidores migrados de `kc.nome = 'fechamento'` pra `kc.is_ganho = true` (mecânico,
+> mesma semântica); `reactivationAgent.ts` perdeu o array `ETAPAS_TERMINAIS` — a exclusão de
+> leads em etapa terminal virou `kc.is_ganho IS NOT TRUE AND kc.is_perda IS NOT TRUE`
+> (`IS NOT TRUE` em vez de `<> true`/`= false` porque a query usa `LEFT JOIN` até
+> `kanban_colunas` — lead sem nenhuma etapa registrada tem `kc` inteiro `NULL`, e
+> `NULL IS NOT TRUE` avalia corretamente como verdadeiro, mantendo esse lead elegível).
+>
+> **Testado ao vivo, ponta a ponta, provando a vulnerabilidade original e a correção juntas**
+> (tenant Marketing Digital, lead de teste real): inserido lead com `valor_venda=R$500.000`
+> na etapa `id=35` ("fechamento", `is_ganho=true`) → **renomeado o `nome` da etapa** pra
+> `'Negocio_Ganho_Renomeado_TESTE'` (simulando exatamente a ação que um tenant tem liberdade
+> de fazer hoje) → SQL com a lógica ANTIGA (`kc.nome = 'fechamento'`) voltou `0` vendas/R$0 —
+> confirma a vulnerabilidade real, não hipotética; SQL com a lógica NOVA (`kc.is_ganho =
+> true`) continuou retornando `1` venda/R$500.000,00 corretamente, e a query de
+> `reactivationAgent.findCandidates` corretamente **excluiu** esse lead da elegibilidade de
+> reativação (0 candidatos), mesmo com o nome já não batendo mais com nada hardcoded.
+> Testado também via API real (`POST /api/crm/kanban/colunas` com JWT real do tenant):
+> `is_ganho:true` + `is_perda:true` juntos → 400 "Uma etapa não pode ser Ganho e Perda ao
+> mesmo tempo" · rename revertido pra `'fechamento'` pela mesma API, mantendo `is_ganho:true`
+> intacto · sessão real no navegador (JWT+cookie+localStorage injetados): tabela real
+> renderizou os badges "GANHO"/"PERDA" nas etapas certas; modal de edição abriu com os
+> checkboxes refletindo o estado real do banco (Ganho marcado, Perda desmarcado); clique real
+> (trusted, via `computer` tool — um `dispatchEvent` sintético forçado não bastou, só um
+> clique de verdade aciona o `onChange` controlado do React corretamente) no checkbox
+> "Etapa de Perda" desmarcou automaticamente "Etapa de Ganho" no cliente, confirmando a
+> mútua exclusão também na UI; modal fechado sem salvar, confirmado por SQL que nada mudou
+> no banco. Todo dado de teste removido (lead + kanban), `count(*)=0` confirmado. `npx tsc
+> --noEmit`: 0 erros.
+>
+> **Decisão consciente de escopo:** `src/app/api/crm/analytics/roi/route.ts` tem outros
+> problemas pré-existentes e não relacionados (usa uma tabela de config legada
+> `crm_segmentos_config`/`domain_id` diferente do `system_segments`/`resolveSegment` já
+> padronizado no resto da plataforma, e não filtra por `tenant_id` em nenhuma query) — fora
+> de escopo desta rodada, só a troca mecânica `nome='fechamento'`→`is_ganho=true` foi feita
+> ali, registrado aqui como pendência real a investigar numa sessão futura se essa rota
+> ainda for usada por alguma tela.
+
+> **Atualizado em:** 2026-08-07 — **F0 a F5 dos Agentes de Aceleração do CRM concluídas e
+> testadas — `docs/PLANO_AGENTES_ACELERACAO_CRM.md` está formalmente completo, os 5 agentes
+> implementados.** F4 (Reativação) foi o 1º agente `OFFENSIVE` de verdade do catálogo (fala
+> diretamente com o lead, exige aprovação humana PIN+WhatsApp); F5 (Recalibração de Score),
+> concluída na sequência na mesma sessão, é o único agente que opera sobre REGRAS em vez de
+> leads — reordena por conversão real (automático) e sugere ajuste de score (aprovação
+> 1-clique). Implementação iniciada numa sessão anterior (plano aprovado antes, nunca
+> implementado até então). Usuário pediu relato passo-a-passo das fases antes de começar;
+> confirmou F4 ganharia trava extra por segmento sensível (Saúde) e pediu esclarecimento sobre
+> F1 — nesse esclarecimento, achado real: o catálogo original marcava `speed_to_lead` como
+> `ON_LEAD_CREATED`, mas isso não funciona sozinho (no instante da criação, "0 minutos se
+> passaram" sempre) — corrigido no plano pra registrar que F1 na prática precisa ser uma
+> varredura por cron, mesmo padrão já usado pelo `sla-check` da Mensageria. Usuário confirmou
+> seguir com F0, depois "prossiga" fase a fase até F5 (ver resumo completo de F4 e F5 logo
+> abaixo, após F0-F3).
+>
+> **F5 — Recalibração de Score: ✅ concluída e testada.** Achado real que muda o desenho
+> literal do plano original: o editor do Master/tenant faz **replace-all** (DELETE+reinsert) a
+> cada save de `crm_qualificacao_regras_segmento`/`_tenant` — guardar as estatísticas de
+> conversão como COLUNAS da própria regra (como o plano original propunha) seria apagado no
+> próximo save, mesmo sem nenhuma mudança de conteúdo. Corrigido: estatísticas SEMPRE
+> computadas ao vivo por `(escopo, tag_resultante)` — nunca persistidas — em
+> `src/lib/crm/agents/scoreRecalibrationService.ts`. Único agente que não opera por lead (opera
+> sobre regras) — por isso tem fila própria, `crm_score_recalibration_suggestions` (não
+> reaproveita `crm_agent_actions`, que exige `lead_uuid`), aprovação 1-clique in-app (sem PIN —
+> Master/tenant já autenticado na mesma tela). Job diário dedicado
+> (`POST /api/cron/crm/score-recalibration`, 04h, separado do scan de 5 em 5 min dos outros 4
+> agentes) reordena `ordem` das regras pela conversão real (automático, sem aprovação — só
+> prioridade interna de match, `ConciergeService` já usa essa coluna) e gera sugestão de ajuste
+> de score quando a divergência é grande. Decisão sempre resolve a regra pelo `tag_resultante`
+> real (nunca pelo `rule_id` bruto, tolerante ao replace-all) — regra já deletada/editada entre
+> a sugestão nascer e ser decidida vira `outcome:'stale'`, nunca crasha.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital, segmento
+> Imobiliário): 3 regras de teste inseridas via SQL direto (nunca pelo replace-all do Master,
+> pra não arriscar as 7 regras reais de produção) + 1 regra via a API real do tenant — 40 leads
+> reais (10% conversão, forte divergência de `score_base=9`) — cron real gerou as sugestões e
+> reordenou (as 7 regras reais preservaram sua ordem RELATIVA entre si, sort estável) —
+> caminhos aplicar/descartar/stale/ownership todos confirmados nos dois escopos (segmento via
+> Master, tenant via `/crm/config/ia`) — UI real, clique em "Aplicar" no navegador persistiu o
+> novo score no banco. Todo dado de teste removido e a **ordem original das 7 regras reais de
+> produção restaurada byte-a-byte** (confirmado por diff contra snapshot). `npx tsc --noEmit`:
+> 0 erros.
+>
+> **Implementado** (`prisma/migration-2026-08-06-crm-agentes-f0.sql`, aplicada):
+> `crm_agentes_config_segmento` (sem `tenant_id` — mesmo modelo, já comprovado, de
+> `crm_qualificacao_regras_segmento`/`system_benchmarks`), `crm_agentes_config_tenant`
+> (`tenant_id` sempre real), `crm_agent_actions` (mirror de
+> `campanhasmarketingdigital."AgentAction"`, mesma taxonomia DEFENSIVE/OFFENSIVE + PIN de
+> aprovação já validada em produção no módulo de Campanhas). `src/lib/crm/agents/types.ts`
+> (`CrmAgentContext`/`CrmAgentResult`/`CrmAgent`, mesmo molde de
+> `src/lib/routing/strategies/types.ts`) + `src/lib/crm/agents/index.ts`
+> (`CRM_AGENTS`/`CRM_AGENT_CATALOG`) — **deliberadamente vazios nesta fase**: nenhum agente
+> real existe ainda (cada fase F1-F5 registra 1 entrada), então a API/UI nunca expõe um toggle
+> "de mentira" pra capacidade que ainda não roda de verdade — mesma disciplina já usada no
+> gate `crm_ia_ativa` (sessão de 2026-08-04). `GET/PUT /api/admin/master/segments/[id]/agentes`
+> (PUT valida `agent_key` contra o catálogo, rejeita qualquer chave não registrada) +
+> `SegmentAgentesModal.tsx` + botão "Agentes de Aceleração" (ícone raio, laranja) em
+> `/admin/master/segments`.
+>
+> **Testado ao vivo:** `GET .../agentes` retorna `{catalog:[], config:[]}` pro segmento
+> Imobiliário · `PUT` com `agent_key:"speed_to_lead"` (ainda não registrado) → 400 explícito,
+> confirma que nenhuma fase futura pode ser "ligada" antes de existir de verdade · sem cookie
+> → 403 · segmento inexistente → 404 · sessão Master real no navegador: os 6 botões "Agentes
+> de Aceleração" renderizam (1 por segmento), modal abre mostrando honestamente "Nenhum
+> agente disponível ainda" (não uma lista vazia sem explicação) + botão Salvar desabilitado
+> enquanto o catálogo estiver vazio. `npx tsc --noEmit`: 0 erros em todos os arquivos
+> novos/tocados.
+>
+> **F0.5 — Score de Fit (ICP): ✅ concluída e testada, mesma sessão.**
+> `prisma/migration-2026-08-06-crm-fit-f05.sql` (aplicada) — `crm_fit_criterios_segmento`
+> (sem `tenant_id`) + `crm_fit_criterios_tenant` (`tenant_id` sempre real), mesma dupla camada
+> já validada em `crm_qualificacao_regras_*`; `leads_staging.score_fit INTEGER` (aditivo);
+> as 2 linhas de `crm_lead_qualification` (global + Imobiliário) ganham a seção
+> `{{criterios_fit}}` + o 4º campo `score_fit` no JSON de saída — mesma 1 chamada de LLM que
+> já resolve `score_prontidao`, agora resolve os 2 juntos. `ConciergeService.qualifyLead()`
+> busca critérios (tenant+segmento) em paralelo com as regras, injeta no prompt, parseia
+> `score_fit` (clamp 0-10) — fallback por palavra-chave nunca inventa fit (sempre `null`).
+> `GET/PUT /api/admin/master/segments/[id]/fit-criteria` + `SegmentFitCriteriaModal.tsx` +
+> botão "Critérios de Fit (ICP)" em `/admin/master/segments`. `/api/crm/config/ia` +
+> `/crm/config/ia` ganham "Critérios de Fit do Segmento" (leitura) + "Seus Critérios de Fit"
+> (CRUD do tenant).
+>
+> **2 achados reais no processo, ambos corrigidos:**
+> 1. `/crm/kanban` — a ficha do lead tinha um tile **"IPVE"** que sempre foi um número
+>    **fabricado** (`score_prontidao + 15`, sem nenhum dado real por trás, resíduo de antes
+>    desta sessão) — substituído pelo tile real "Fit". Card do Kanban ganha `· Xx Fit` só
+>    quando `score_fit` existe de verdade (nunca um chip vazio/fabricado pros leads antigos).
+> 2. Com Gemini (`gemini-flash-latest`, provider real do tenant de teste), o JSON de resposta
+>    veio truncado no meio repetidas vezes depois que o prompt ganhou a 2ª dimensão de
+>    julgamento — `maxTokens` subiu de 500 pra 700 (prompt objetivamente mais longo/complexo
+>    agora). Confirmado que, mesmo truncando, o sistema nunca fabrica `score_fit` — cai pro
+>    fallback por regra corretamente. Testado com Groq (`llama-3.3-70b-versatile`) que a
+>    chamada completa (JSON limpo) retorna `score_fit` certo.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital, segmento
+> Imobiliário): `POST /api/crm/leads` real → `score_prontidao=90`/`score_fit=80` persistidos
+> (mesma convenção `×10` de `score_prontidao`) · `GET /api/crm/leads` expõe `score_fit` ·
+> Master criou/consultou critérios reais via API e no modal (navegador, sessão real) · tenant
+> criou/removeu critério próprio via `/crm/config/ia` (API + navegador) · Kanban real
+> (navegador): card mostrou `"90% Match · 80% Fit"`, demais leads reais (sem fit) mostraram só
+> `"50% Match"`, sem chip fabricado · ficha do lead mostrou "Intenção 90%"/"Fit 80%" reais,
+> "IPVE" confirmado ausente. Todo dado de teste removido (lead + 2 critérios de segmento + 1
+> de tenant), `count(*)=0` confirmado nas 3 tabelas. `npx tsc --noEmit`: 0 erros.
+>
+> **Incidente registrado, resolvido:** ao testar contra Groq, sobrescrevi
+> `Settings.llmApiKey` do tenant de teste sem capturar o valor original primeiro — recuperado
+> com alta confiança (mesmo comprimento do `GEMINI_API_KEY` global do `.env`, plausível já que
+> é o tenant de desenvolvimento da própria plataforma) e **verificado funcionalmente**
+> (chamada real à API do Gemini autenticou com sucesso) antes de seguir. Lição: sempre
+> capturar o valor completo de uma credencial real antes de sobrescrever pra teste, não só
+> metadados (provider/model/tamanho).
+>
+> **F1 — Velocidade de 1º Contato: ✅ concluída e testada, mesma sessão. Primeiro agente real
+> do catálogo.** `src/lib/crm/agents/speedToLeadAgent.ts` — sem LLM, `trigger:
+> 'SCHEDULED_SCAN'` (corrigido do `ON_LEAD_CREATED` original — achado da rodada anterior:
+> no instante da criação "0 minutos se passaram" sempre, não dá pra saber se vai estourar o
+> prazo). `evaluate(ctx)` julga 1 lead: dispara `DEFENSIVE` quando não há `atividades_lead`
+> real há mais de `params.minutos_alerta` (fallback de código = 30min só quando ativo sem
+> valor configurado). `src/lib/crm/agents/runner.ts` (`runCrmAgentScans`) acha candidatos com
+> 1 query global (últimas 48h, sem atividade, sem ação já registrada — mesma disciplina de
+> idempotência do `scanAndAlertBreaches()` da Mensageria), resolve config efetiva por tenant
+> (override > default do segmento, cache em memória por rodada), e quando dispara grava
+> `crm_agent_actions` + notifica via `notifyWhatsApp`/`notifySlack` — **mesmas funções já
+> usadas pelos agentes de Campanhas e pelo SLA da Mensageria**, notificam o WhatsApp/Slack do
+> TENANT (não um número pessoal de corretor — esse canal não existe em nenhum lugar da
+> plataforma hoje; reusar o canal já provado é mais seguro que inventar um novo nesta fase).
+> `POST /api/cron/crm/agentes-scan` (novo, `x-cron-secret`) — mesmo padrão exato do
+> `/api/cron/mensageria/sla-check`; registrado em `scripts/feed-cron-scheduler.js`, a cada 5
+> minutos.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital, segmento
+> Imobiliário, `minutos_alerta:1` só pra acelerar o teste): 4 leads reais — sem atividade e
+> backdatado 5min → disparou; sem atividade que envelheceu ~2min durante o próprio teste →
+> disparou; recém-criado (segundos) → não disparou, ainda dentro do prazo; com atividade real
+> registrada e backdatado 5min → nunca virou candidato (excluído já na query SQL, nem chega a
+> chamar `evaluate()`). Scan re-rodado uma 2ª vez → `fired:0`, `count(*)` confirma zero linha
+> duplicada (idempotência). `crm_agent_actions` só tinha as 2 linhas esperadas em toda a base
+> — confirma que nenhum outro tenant/lead real foi afetado (o agente só estava ativo pro
+> tenant/segmento de teste). Todo dado de teste removido (leads + kanban + atividade, cascata
+> confirmada), toggle do Master revertido pra `ativo:false` — decisão de ativar de verdade +
+> escolher `minutos_alerta` real fica com o usuário/Master, não decidida nesta sessão.
+> `npx tsc --noEmit`: 0 erros.
+>
+> **F2 — Estagnação por Etapa: ✅ concluída e testada, mesma sessão. 2º agente real do
+> catálogo.** `src/lib/crm/agents/stageStagnationAgent.ts` — sem LLM, reaproveita 3 coisas que
+> já existiam e nunca tinham sido ligadas a nenhuma ação: `kanban_colunas.sla_hours` (já por
+> etapa, já por tenant, default 24h — feature "Personalização Kanban", nunca antes consumida
+> por nada), `leads_kanban_ciclos.data_entrada` do ciclo aberto (`data_saida IS NULL` = etapa
+> atual do lead), e `atividades_lead` desde que entrou na etapa (toque humano recente cancela
+> o alerta mesmo com SLA técnico estourado). Coluna sem `sla_hours` nunca gera candidato.
+> **Idempotência escopada ao CICLO** (diferente de F1, que é por lead pra sempre) — uma ação
+> antiga de uma etapa anterior não bloqueia um alerta novo quando o lead avança e estagna de
+> novo numa etapa diferente.
+>
+> **Runner generalizado** (`src/lib/crm/agents/runner.ts`) — antes hardcoded só pro
+> `speed_to_lead`, agora itera qualquer agente `SCHEDULED_SCAN` com `findCandidates()`
+> (método novo, opcional, em `CrmAgent`/`types.ts`) — cada agente sabe achar os próprios
+> candidatos com a própria condição, o runner só orquestra. `speedToLeadAgent.ts` também
+> migrado pro novo formato.
+>
+> **Bug real encontrado e corrigido durante o teste ao vivo:** `leads_kanban_ciclos` tem
+> colunas `tenant_id`/`client_id` no schema, mas o trigger que a popula
+> (`trg_log_kanban_ciclos`) nunca as preenche — ficam sempre `NULL`. A 1ª versão do
+> `findCandidates()` lia esses campos direto de `leads_kanban_ciclos` — resultado: todo
+> candidato vinha com `tenantId: null`, `resolveSegment` sempre retornava `null`, e o agente
+> nunca disparava pra ninguém (`scanned:9, fired:0` no 1º teste). Corrigido com `JOIN
+> leads_staging` pra pegar o tenant/cliente reais (fonte confiável, mesma usada por F1).
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital, coluna real
+> "Lead Captado", `sla_hours=2`, ativado só via override de tenant): lead sem atividade,
+> ciclo backdatado 3h → disparou (`"Lead parado em 'Lead Captado' há 3h"`) · lead com
+> atividade real registrada 1h após a entrada na etapa → nunca virou candidato · lead com
+> ciclo backdatado só 30min (dentro do SLA de 2h) → não disparou · scan re-rodado → `fired:0`,
+> sem duplicata · **teste de idempotência por ciclo**: o lead estagnado movido pra uma 2ª
+> coluna real ("Em Análise", `sla_hours=4`), backdatado com timestamps internamente coerentes
+> (ação antiga movida pra 10 dias atrás, novo ciclo pra 9 dias atrás — necessário porque um
+> backdate solto de poucas horas cria ordem cronológica impossível numa sessão de teste de
+> minutos) → disparou um 2º alerta independente pra etapa nova, sem apagar nem duplicar o da
+> etapa anterior · coluna real sem nenhum lead antes do teste, com `sla_hours` zerado pra
+> `NULL` temporariamente + lead backdatado 100h → nunca virou candidato, `sla_hours` restaurado
+> logo em seguida · confirmado sem efeito em nenhum outro tenant (`crm_agent_actions` só com
+> linhas do tenant de teste). **Cuidado real tomado, não hipotético:** o tenant de teste tem
+> `slack_webhook_url`/`evolution_api_url` REAIS — como o scan também processa leads
+> genuinamente antigos já estagnados que já existiam no banco (ex. o lead real "Roberto
+> Severo"), os 2 canais foram temporariamente nulados antes de cada rodada de scan e
+> restaurados ao valor real exato depois, confirmado via SQL. Todo dado de teste removido (3
+> leads + cascata, as 7 linhas de `crm_agent_actions` geradas — incluindo as dos 5 leads reais
+> pré-existentes também genuinamente estagnados — removidas por completo, override de tenant
+> removido, `count(*)=0` em todas as tabelas tocadas). `npx tsc --noEmit`: 0 erros.
+>
+> **F3 — Next Best Action: ✅ concluída e testada, mesma sessão. 1º agente com LLM do
+> catálogo.** Trigger real `ON_STAGE_CHANGE` (+ sob demanda) — diferente de F1/F2, nunca
+> `SCHEDULED_SCAN`, então `nextBestActionAgent.ts` não tem `findCandidates()` (não faz sentido
+> varrer todos os leads a cada 5min pra sugerir a próxima ação de cada um, é sempre "este lead
+> específico, agora"). A resolução de config efetiva (tenant override > default do segmento)
+> foi extraída de `runner.ts` pra `src/lib/crm/agents/effectiveConfig.ts`
+> (`resolveEffectiveAgentConfig`), compartilhada entre o loop de scan (que envolve com cache
+> por-rodada) e o fluxo de 1-lead-por-vez de F3 (sem cache).
+>
+> `type: 'INFORMATIVE'` — novo valor no union de `CrmAgentResult.type`, ao lado de
+> `DEFENSIVE`/`OFFENSIVE`: nunca dispara WhatsApp/Slack, nunca exige PIN, é só uma sugestão de
+> texto reaproveitando `crm_agent_actions` (sem tabela nova) — coluna `type` alargada de
+> `varchar(10)` pra `varchar(20)` na migração desta fase (`INFORMATIVE` tem 11 chars).
+> `nextBestActionAgent.ts` monta o contexto real do lead (etapa atual + tempo nela via
+> `leads_kanban_ciclos`, qualificação já existente, N atividades mais recentes) e chama
+> `getLlmClient(tenantId)` com o Prompt Mestre do segmento (`crm_agent_next_best_action`,
+> cascata segmento→global igual `crm_lead_qualification`) — resposta é texto livre (1-3
+> frases), não JSON.
+>
+> **Achado do usuário, corrigido na mesma sessão — `LIMIT 5` cravado direto na query:** a 1ª
+> versão tinha o número de atividades de contexto fixo no código, quebrando a regra "zero
+> hardcoded" que o resto do plano já segue à risca (`speed_to_lead.minutos_alerta`,
+> `stage_stagnation.sla_hours` — sempre configuráveis via `params`, nunca uma constante).
+> Corrigido: `params.qtd_atividades_contexto` (fallback de código = 5 só quando o agente está
+> ativo sem valor configurado, clamp 1-20, mesmo padrão de `minutos_alerta`) — editável na
+> MESMA UI que já configura os outros agentes, `/admin/master/segments` → "Agentes de
+> Aceleração" → editor genérico de parâmetros (chave/valor livre, já existente desde F0, zero
+> UI nova) — e sobreponível por tenant em `crm_agentes_config_tenant`, igual todo o resto.
+> Verificado que `LIMIT $N` parametrizado funciona de verdade via o driver `pg` real (não só
+> lido no código). `npx tsc --noEmit`: 0 erros no arquivo tocado.
+>
+> **Achado real no teste ao vivo — `maxTokens`:** 300 veio cortado no meio de uma frase real;
+> 500 pareceu piorar (vazou rascunho/raciocínio interno do modelo, nunca a resposta final); só
+> em 1500 a resposta veio limpa e correta — mesma classe de comportamento já documentada em
+> F0.5 (Gemini consome parte do orçamento de tokens em conteúdo interno antes da resposta
+> visível). `maxTokens` fixado em 1500, com comentário explicando o porquê.
+>
+> `POST /api/crm/kanban/move` ganhou o trigger: depois de mover o lead com sucesso, chama
+> `refreshNextBestAction(...).catch(...)` sem `await` — best-effort, nunca bloqueia a resposta
+> do move (mesma disciplina de `notifyWhatsApp`/`notifySlack`). UI: `NextBestActionCard.tsx`
+> (card "Sugestão da IA" na ficha do lead, nunca renderiza nada quando o agente está
+> desativado — mesma disciplina de nunca expor capacidade "de mentira" desde F0) + botão
+> "Registrar como Atividade" (novo prop `prefill` em `AtividadesLead.tsx`, reabre o form de
+> Nova Atividade pré-preenchido). **Master — zero código novo**: `next_best_action` entrou em
+> `CRM_AGENT_CATALOG` e o modal genérico "Agentes de Aceleração" (já construído em F0) passou
+> a exibi-lo automaticamente, sem tela nova.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital, segmento
+> Imobiliário, ativado só pra este tenant): lead real criado com mensagem real ("quero comprar
+> um apartamento de 3 quartos em Boa Viagem, tenho a entrada guardada") → qualificação real
+> disparou · atividade real registrada (contato via WhatsApp, orçamento até R$650 mil) · `GET`
+> antes de gerar → `{enabled:true, suggestion:null}` (honesto, nunca inventa) · `POST` → 
+> sugestão real e específica citando os dados reais do lead ("Selecione e envie ao cliente via
+> WhatsApp de 2 a 3 opções de imóveis localizados em Boa Viagem, com 3 quartos e valor de até
+> R$ 650 mil...") — nunca genérica, nunca inventou dado não fornecido · `GET` seguinte
+> confirmou persistência · confirmado que nenhum outro tenant tem o agente ativo por padrão
+> (só o override deste 1 tenant, `crm_agentes_config_segmento` sem nenhuma linha pro agente).
+>
+> **Lacuna de verificação registrada com honestidade:** o trigger automático via
+> `POST /api/crm/kanban/move` usa a MESMA função (`refreshNextBestAction`) já provada correta
+> pelo teste direto do endpoint — revisão de código confirma a chamada (3 linhas, sem lógica
+> própria). A confirmação AO VIVO desse gatilho específico esbarrou na cota diária gratuita
+> real do Gemini (`RESOURCE_EXHAUSTED`, 20 requisições/dia, já consumida pelos testes de LLM
+> desta sessão inteira, F0.5 incluído) — 2 tentativas de mover o lead depois do teste
+> bem-sucedido do endpoint direto confirmaram a chamada sendo feita (resposta do move nunca
+> bloqueou) mas sem crédito de API restante pra completar a chamada real. Nenhum tenant tem
+> `anthropic_api_key` real configurado pra trocar de provider nesta sessão (mesma técnica já
+> usada em F0.5 exigiria uma credencial nova, fora de escopo). Todo dado de teste removido
+> (lead + atividade + cascata, override do tenant revertido pra 0 linhas), `count(*)=0`
+> confirmado em `leads_staging`/`crm_agent_actions`/`crm_agentes_config_tenant` pro
+> `agent_key='next_best_action'`. `npx tsc --noEmit`: 0 erros.
+>
+> **Follow-up mesma sessão — 2 achados reais do usuário testando o modal da Master, ambos
+> corrigidos.** (1) **`paramHints`** — `CrmAgent` ganhou `paramHints?: {key,label,default}[]`;
+> cada agente declara os próprios parâmetros reconhecidos (`minutos_alerta`,
+> `qtd_atividades_contexto`; `stage_stagnation` sem nenhum, de propósito — o limiar dele vive
+> em `kanban_colunas.sla_hours`). `CRM_AGENT_CATALOG` passou a ser DERIVADO de `CRM_AGENTS`
+> (não repetido campo a campo) — evita o catálogo divergir do agente real, exatamente o tipo
+> de erro que causou o achado original (`LIMIT 5` cravado direto no código, sem nenhuma UI
+> revelando o parâmetro). Modal da Master (e a página nova, item 2) renderizam os hints não
+> usados como chips clicáveis que já preenchem a linha com o valor padrão. (2)
+> **`/crm/config/agentes` construída de verdade** — o modal da Master sempre dizia "cada
+> tenant pode sobrepor em /crm/config/agentes", mas essa página nunca existiu; achado pelo
+> usuário lendo o próprio texto. O mecanismo de override (`crm_agentes_config_tenant`) já
+> existia no banco desde F0 (`resolveEffectiveAgentConfig` já lê ele), só faltava UI. Nova
+> página espelha exatamente `/crm/config/ia`: `GET/PUT /api/crm/config/agentes` (PUT só
+> escreve na tabela do tenant, nunca na do segmento; `ativo:null` explícito = herdar o
+> padrão) + página com 3 estados por agente ("Herdar do segmento"/"Forçar ativado"/"Forçar
+> desativado") + o padrão do segmento sempre visível ao lado, somente leitura. Registrada na
+> sidebar (categoria "Configurações CRM") pelo mesmo padrão idempotente de "Catálogo de
+> Atividades". Texto do modal da Master corrigido pra apontar pra página real.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital): `PUT` real
+> forçando `next_best_action` ativo com `qtd_atividades_contexto=7` → persistiu na mesma
+> linha que `resolveEffectiveAgentConfig` já lê (reaproveita o mecanismo já provado em F3) ·
+> `agent_key` inventado → 400 · 2º tenant real do mesmo segmento (Imobiliaria XYZ) →
+> `tenantOverrides` vazio, confirma isolamento · navegador real (sessão JWT do tenant, não
+> Master): página carregou o estado real (input com `qtd_atividades_contexto`/`7` confirmado
+> via JS, botão "Forçar ativado" com a classe visual ativa) · clique em "Herdar do segmento"
+> + "Salvar" pela própria UI → confirmado por SQL que persistiu `ativo=NULL` mantendo
+> `params` intacto · `get_sidebar_menu_for_user()` real confirma o item na sidebar, ao lado
+> de "Personalização Kanban"/"Catálogo de Atividades". Todo dado de teste removido
+> (`crm_agentes_config_tenant` zerado). `npx tsc --noEmit`: 0 erros.
+>
+> **F4 — Reativação: ✅ concluída e testada, mesma sessão. 1º agente `OFFENSIVE` de verdade do
+> catálogo — fala diretamente com o lead.** `src/lib/crm/agents/reactivationAgent.ts` —
+> `trigger: 'SCHEDULED_SCAN'`, `findCandidates()` acha leads sem nenhuma `atividades_lead` há
+> mais de um piso genérico de 6h (o corte real é `dias_inatividade`, resolvido por
+> `evaluate()`), exclui etapas terminais (`kanban_colunas.nome IN ('fechamento','perdido')`) e
+> leads sem telefone (nunca proporia reativação de algo impossível de enviar) — cooldown de 30
+> dias ou `PENDING_APPROVAL` em aberto evita reproposta repetida do mesmo lead a cada scan.
+> `evaluate()` chama o LLM (`crm_agent_reactivation_message`, mesma cascata segmento→global de
+> `crm_agent_next_best_action`) pra rascunhar a mensagem — `maxTokens=1500`, mesmo achado real
+> já documentado em F0.5/F3 (Gemini com teto baixo corta a resposta ou vaza raciocínio
+> interno). `paramHints`: `dias_inatividade` (default 7) e `requer_revisao_extra` (default
+> `'false'`).
+>
+> **`requer_revisao_extra`** (§7 item 2 do plano, decisão fechada nesta fase): quando `true` no
+> config efetivo (tenant > segmento), aprovar a sugestão NUNCA dispara envio automático — só
+> grava o rascunho revisado com status novo `APPROVED_MANUAL` (distinto de `EXECUTED`, pra
+> nunca sugerir "foi enviado" quando não foi). Sem essa flag, aprovar de fato envia via
+> WhatsApp real, reaproveitando a infra já provada da Mensageria (`resolveWhatsAppInbox` +
+> `ingestMessage` com `senderType:'system'` + `sendEvolutionMessage`) — mesmo trio que o bot
+> usa pra responder de verdade, nunca um canal novo inventado só pra este agente. Falha real de
+> envio (credencial ausente/API fora do ar) marca `EXECUTED` com `delivery_status='failed'` na
+> mensagem, nunca trava a decisão do humano nem esconde o rascunho.
+>
+> `src/lib/crm/agents/reactivationExecutor.ts` (novo, compartilhado pelos 2 fluxos de decisão
+> abaixo — a lógica de aprovar/rejeitar é idêntica, só muda COMO o humano se autentica):
+> - `src/app/api/crm/agent/approve|reject/[id]/route.ts` (novo) — mirror exato do fluxo
+>   HTML+PIN já em produção nos agentes de Campanhas
+>   (`src/app/api/agent/approve|reject/[id]/route.ts`): link de WhatsApp sem sessão, PIN de 6
+>   dígitos, formulário com a mensagem **editável** antes de confirmar (plano §5: "aprovar
+>   edita e envia").
+> - `src/app/api/crm/agent/approvals/route.ts` (novo) — equivalente autenticado (sem PIN,
+>   sessão JWT já é a prova de identidade), mesmo padrão de `/api/admin/master/aprovacoes`
+>   (Campanhas). Nunca confia em `tenant_id` do body — sempre resolve a ação real e compara
+>   contra o tenant da sessão antes de decidir (Master bypassa), testado ao vivo com JWT de um
+>   2º tenant real → 403 confirmado.
+> - `src/lib/crm/agents/runner.ts` — `recordAndNotify()` (extraído do corpo do loop) ramifica
+>   por `result.type`: OFFENSIVE gera PIN+expiração (mesmo `Math.floor(100000+Math.random()
+>   *900000)` de `agentDecisor.ts`), grava `status='PENDING_APPROVAL'` e notifica com PIN +
+>   links de aprovar/rejeitar; DEFENSIVE mantém o comportamento de sempre (F1/F2).
+> - `src/app/crm/config/agentes/page.tsx` — nova aba "Aprovações Pendentes" (badge com
+>   contagem real), lista com textarea editável + Aprovar/Rejeitar, mesmo padrão visual de
+>   `/admin/campanhas/aprovacoes`.
+> - `SegmentAgentesModal.tsx` — 4º bloco no painel de Ajuda já existente.
+>
+> **Testado ao vivo, ponta a ponta, com dado e LLM reais** (tenant Marketing Digital, segmento
+> Imobiliário): achado real no processo — a cota diária gratuita do Gemini já estava esgotada
+> (mesmo limite de 20 req/dia documentado em sessões anteriores), contornado trocando
+> temporariamente o provider do tenant de teste pra Groq (mesma técnica já usada em F0.5),
+> revertido ao Gemini original ao final. 4 leads de teste reais (sem atividade, backdatados 10
+> dias, fora de etapa terminal): **Caminho A (send real)** — aprovado via PIN com mensagem
+> editada → `status=EXECUTED`, `suggested_message` = texto editado (a edição prevalece sobre o
+> rascunho original), linha real criada em `mensageria.messages` (`direction=outbound,
+> sender_type=system, delivery_status=failed` — falha esperada e segura: as credenciais reais
+> de Evolution/Slack deste tenant foram temporariamente neutralizadas *antes* de qualquer scan,
+> mesmo cuidado já documentado em F2 ["o tenant de teste tem `evolution_api_url`/
+> `slack_webhook_url` REAIS"], restauradas ao valor exato depois, confirmado por SQL).
+> **Caminho B (rejeição via PIN)** — PIN errado → 422 com reformulário; PIN certo →
+> `REJECTED`. **Caminho C (`requer_revisao_extra=true`, via API autenticada)** — aprovado →
+> `status=APPROVED_MANUAL`, `executed_at` NULL, **zero linha criada em `mensageria.contacts`**
+> pro telefone do lead (confirma que nem a tentativa de envio chega a acontecer). **Caminho D
+> (ownership)** — JWT de um tenant diferente tentando decidir a ação → 403 real. **UI real,
+> clique a clique** (sessão JWT real do tenant + Master): aba "Aprovações Pendentes" renderiza
+> o item com o rascunho real da IA, clique em "Rejeitar" remove da lista e persiste `REJECTED`
+> no banco; painel de Ajuda do Master mostra a seção nova do 4º agente. Todo dado de teste
+> removido (5 leads + kanban + ações + trace de mensageria + override de tenant), credenciais
+> Evolution/Slack/LLM restauradas ao valor exato original (confirmado por SQL), `npx tsc
+> --noEmit`: 0 erros.
+>
+> **Próximo passo:** F5 (Recalibração de Score) — job diário de reordenação por conversão real
+> + fila de sugestão de novo score, exige aprovação; depende de F0 e F0.5.
+>
+> — **Sessão anterior (2026-08-04, continuação 7) — `/crm/config/ia` reconstruída do zero:**
+> motor de qualificação de lead por IA nunca funcionou de verdade pra nenhum tenant real, em
+> nenhum segmento — corrigido com arquitetura nova + gate explícito de uso do CRM.**
+>
+> Usuário pediu investigação profunda de `/crm/config/ia` (5 perguntas: funcionalidades reais,
+> tabelas/consumidores, por que não lê `system_segments`, o que "+ Nova Regra de IA" processa,
+> se já existem registros reais). Achado central: `config_segmentos`/`config_segmentos_
+> inteligencia` eram uma tabela de "segmento" paralela e desconectada do sistema real
+> (`public.system_segments`), só usada pelo tenant Master (nunca por nenhum tenant real —
+> Imobiliaria XYZ, Imovtec, Marketing Digital). Os 3 chamadores de
+> `ConciergeService.qualifyLead()` hardcodavam `segmentId=1`, e a cascata de "global" usava
+> `tenant_id IS NULL` — como as únicas linhas pertenciam ao tenant Master (`tenant_id` real,
+> não NULL), nenhum tenant real jamais batia na condição. Confirmado empiricamente: todo lead
+> real desta sessão sempre teve `resumo_ia` = o texto genérico hardcoded do fallback do
+> `ConciergeService`, nunca uma qualificação real — a tela existia, salvava, mas nunca teve
+> efeito nenhum em produção.
+>
+> **Usuário deu 4 diretivas obrigatórias antes de corrigir** (refinadas numa 2ª rodada, ver
+> plano completo salvo no arquivo de plano da sessão): (1) nunca `tenant_id NULL` em lugar
+> nenhum, nem pro tenant Master; (2) zero hardcoded, nenhuma lógica especial-casada por
+> segmento — tudo genérico pra qualquer vertical; (3) modelo LLM sempre o do tenant primeiro,
+> fallback pro padrão da plataforma; (4) visão holística de valor real (aceleração de
+> captação→venda, diferente de CRM passivo); (5) **não pode haver uso do CRM por um tenant
+> cujo segmento ainda não tenha IA configurada** — esclarecido com o usuário que o bloqueio
+> vale só pro uso INTERNO (Kanban/gestão), nunca pra captação pública de lead (nunca perder
+> lead real por config pendente).
+>
+> **Implementado** (`prisma/migration-2026-08-05-crm-ia-qualificacao.sql`, aplicada):
+> 1. `public.crm_qualificacao_regras_segmento` (nova) — regras padrão por segmento, Master-
+>    curated, sem `tenant_id` (mesmo modelo já comprovado de `system_benchmarks`/
+>    `system_prompt_templates` — segmento sem "dono", nada de sentinela NULL). Migradas as 7
+>    regras reais e não-órfãs de `config_segmentos_inteligencia` pro segmento real
+>    "Imobiliário" (`92e5ddd3-...`) — único conteúdo real que já existia, não uma meta de
+>    quantidade pra nenhum outro segmento (Master pode cadastrar 0, 3 ou 20 regras, o número
+>    nunca é parte do modelo). As 7 linhas órfãs (`segmento_id NULL`, lixo duplicado) descartadas.
+> 2. `public.crm_qualificacao_regras_tenant` (nova) — camada de override do próprio tenant,
+>    `tenant_id` sempre real e concreto (nunca sentinela — esta tabela existe justamente pra
+>    representar posse real).
+> 3. `system_segments.crm_ia_ativa BOOLEAN DEFAULT false` (nova coluna) — gate explícito da
+>    Master, mesmo padrão já usado por `imagens_por_ia` na mesma tabela; nunca inferido
+>    automaticamente da presença de regras. Ativado `true` pro segmento Imobiliário como parte
+>    da própria migração (curadoria inicial em nome da Master, evita regressão nos 3 tenants
+>    reais que já usam esse segmento).
+> 4. Prompt Mestre migrado pra `system_prompt_templates` (tabela já existente, já usada por
+>    Mensageria/Briefing) — novo `template_key='crm_lead_qualification'`, variante real do
+>    Imobiliário + fallback global — zero tabela nova pra isso.
+> 5. `DROP TABLE config_segmentos`/`config_segmentos_inteligencia` — sem FK de entrada além
+>    de si mesmas, confirmado antes de derrubar.
+> 6. `src/lib/ai/conciergeService.ts` reescrito — assinatura muda de `qualifyLead(mensagem,
+>    segmentId=1, tenantId?, rawJson?)` pra `qualifyLead(mensagem, tenantId, clientId,
+>    rawJson?)`: resolve segmento real via `resolveSegment` (já existente) → checa
+>    `crm_ia_ativa` (devolve resultado neutro e explícito se `false`, nunca finge qualificação)
+>    → LLM via `getLlmClient(tenantId)` (mesmo factory usado pelo bot de Mensageria — tenant
+>    primeiro, fallback padrão depois; substitui a chamada direta antiga ao SDK do Gemini) com
+>    o prompt do segmento (`resolvePromptTemplate`) + regras como contexto → fallback
+>    determinístico por palavra-chave (regras do tenant primeiro, depois do segmento) se o LLM
+>    falhar.
+> 7. Código morto deletado: `src/lib/ai/intelligenceCRM.ts` (nomes de tabela/coluna que não
+>    existem mais, só chamado por um script de teste avulso) + `src/scripts/test_ai.ts` (só
+>    testava o arquivo acima).
+> 8. 2 call sites corrigidos (`api/crm/leads/route.ts`, `api/public/imoveis/prospects/
+>    route.ts`) — usam `leadTenantId`/`leadClientId` reais, zero hardcode.
+> 9. `/api/crm/config/ia` reescrita — auth trocada pro padrão `getCurrentUser()`+
+>    `verifyTokenNode` (consistente com o resto de `/api/crm/*` tocado nesta sessão, antes
+>    usava `verifyToken`/`getTokenFromRequest` de um módulo diferente); GET retorna segmento
+>    resolvido + prompt + regras do segmento (leitura) + regras do tenant (CRUD); POST só
+>    `saveRule`/`deleteRule` sobre a tabela do tenant — `saveSegment`/"Adicionar Novo Segmento"
+>    removidos (não existe mais essa ideia; segmento é herdado, não criado pelo tenant aqui).
+> 10. `/crm/config/ia/page.tsx` reescrita — sem sidebar de "Setores de Atuação"; cabeçalho com
+>     segmento resolvido + badge de status; bloco "Prompt Mestre" (leitura); bloco "Regras
+>     Padrão do Segmento" (leitura, curadas pela Master); bloco "Suas Regras Personalizadas"
+>     (CRUD real do tenant).
+> 11. **Gate de uso interno do CRM** — novo `GET /api/crm/segment-status` (Master sempre
+>     bypassa) + `src/app/crm/CRMLayoutContent.tsx` bloqueia `{children}` com uma tela cheia
+>     ("CRM aguardando configuração de IA") quando o segmento do tenant não tem
+>     `crm_ia_ativa=true` — exceto a própria rota `/crm/config/ia`, que fica sempre acessível
+>     (é onde o tenant acompanha o status e cadastra as próprias regras enquanto aguarda).
+>     Captação pública (`/api/public/imoveis/prospects`, `/api/crm/leads` via webhook/form)
+>     nunca passa por este gate — só a UI interna.
+> 12. Master ganhou nova gaveta em `/admin/master/segments`: botão "Qualificação de Lead por
+>     IA (CRM)" (ícone `CpuChipIcon`, teal) abre `SegmentQualificationRulesModal.tsx` (mesmo
+>     padrão já estabelecido de `SegmentAnglesModal`/`SegmentDistributionModal` — lista
+>     editável, replace-all no save) + toggle `crm_ia_ativa` no topo do modal; novo
+>     `GET/PUT /api/admin/master/segments/[id]/qualification-rules`. Nova coluna "IA CRM" na
+>     tabela de segmentos (mesmo padrão visual de "IA Imagens").
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital, segmento
+> Imobiliário, `admmd`): `GET /api/crm/segment-status` → `ready:true` · `GET /api/crm/config/
+> ia` → segmento + prompt + as 7 regras migradas corretas · `POST /api/crm/leads` com mensagem
+> real ("Quero sair do aluguel, já tenho a entrada guardada...") → qualificação REAL via LLM
+> (sem fallback — confirmado por ausência do warning de erro nos logs), `tag_sonho='🏠
+> Primeiro Imóvel'`, `resumo_ia` correto, `score_prontidao=90` — batendo com a regra real
+> migrada, gravado em `leads_staging` de verdade. **Teste de generalidade, não hipotético**:
+> ativado `crm_ia_ativa=true` no segmento "Geral" (tenant de teste "Teste RAG —
+> Multi-Segmento", nunca teve nenhum conteúdo Imobiliário) via a API nova do Master, cadastrada
+> 1 regra genérica ("orçamento/preço") → `POST /api/crm/leads` com mensagem "quanto custa o
+> serviço" → qualificação correta (`tag_sonho='Interesse em Preço'`, resumo coerente, score 60)
+> — confirma que a MESMA implementação funciona pra um segmento recém-criado sem nenhum código
+> especial-casado. Navegador real (sessão JWT injetada, Marketing Digital): `/crm/kanban`
+> renderiza normalmente (não bloqueado, `crm_ia_ativa=true`); `/crm/config/ia` renderiza
+> "Inteligência de Qualificação", "Segmento: Imobiliário", badge "IA Ativa neste Segmento",
+> Prompt Mestre correto. **Não testado visualmente no navegador** (só via API + revisão de
+> código, para respeitar o pedido explícito do usuário de reduzir consumo de token com o
+> Browser pane): o estado BLOQUEADO da tela — já confirmado que `/api/crm/segment-status`
+> retorna `ready:false` corretamente pra segmento sem curadoria, e o condicional em
+> `CRMLayoutContent.tsx` é um `if` direto sobre esse valor, sem lógica adicional a validar.
+> `npx tsc --noEmit`: 0 erros em todos os arquivos novos/tocados (baseline zerada mantida).
+> Todo dado de teste removido: 2 leads de teste (+ cascata `leads_kanban`) deletados, segmento
+> "Geral" revertido (`crm_ia_ativa=false`, regra de teste removida) — confirmado por SQL
+> `count(*)=0` residual.
+>
+> **Pendência real, registrada e não atacada nesta rodada** (fora de escopo, explicitamente
+> adiada, mesmo padrão de fronteira já usado no plano de hardening de auth desta sessão):
+> endurecer as rotas administrativas individuais de `/api/crm/*` (kanban/move, leads
+> GET/PATCH, atividades etc.) contra chamada direta via API sem passar pela UI — o gate desta
+> rodada cobre o uso real (a UI, via `CRMLayoutContent.tsx`), não uma blindagem de API
+> completa.
+>
+> — **Sessão anterior (2026-08-04, continuação 6) — Fix real: tipo de atividade desativado
 > (soft-delete) bloqueava pra sempre a reutilização do nome, disparando "Já existe uma
 > atividade com esse nome nesse escopo." mesmo editando um campo qualquer de outro item.**
 > Usuário reportou o erro aparecendo ao salvar edições no CRUD; testes sistemáticos via API
@@ -1696,20 +3505,176 @@
 
 ## Tarefa em andamento
 
-**Nenhuma tarefa em andamento no momento.** Feature "Atividades por lead" concluída e testada
-(ver entrada no topo deste arquivo). Frente de CRM segue aberta — Redesign Premium do CRM
-(`CLAUDE.md` §1b) documentado mas não implementado, por decisão do usuário (prioriza
-funcionalidade nova primeiro; próxima feature de CRM a definir com o usuário).
+**Nenhuma.** Dono do lead manual (creator-as-owner) + exclusão híbrida de lead (permanente/
+reversível) estão concluídos e testados — ver entrada no topo deste arquivo ("Atualizado em:
+2026-08-16"). `/crm` (Caminho 1 — fim de ROI/custo, dashboard 100% CRM-nativo + Valor
+Estimado) está formalmente concluído — ver entrada no topo deste arquivo ("Atualizado em:
+2026-08-13 (continuação)"). `docs/PLANO_AGENTES_ACELERACAO_CRM.md` e
+`docs/PLANO_PENDENCIA_ATENDIMENTO.md`
+(G0-G6) estão formalmente concluídos, e o badge "Agente de IA" vs "Atendente" nas Atividades
+do CRM (pedido direto do usuário, ver entrada no topo deste arquivo, "Atualizado em:
+2026-08-09") também — implementado, testado ao vivo com dado real (bot M4.1 e reativação
+automática G6) e limpo. Nota histórica preservada abaixo (F0-F5 dos Agentes de Aceleração):
+F0 a F5 dos Agentes de Aceleração do CRM implementadas e testadas (ver entradas no topo deste
+arquivo, "F5 — Recalibração de Score" e "F4 — Reativação"). Os 5 agentes (`speed_to_lead`,
+`stage_stagnation`, `next_best_action`, `reactivation`, `score_recalibration`) existem, estão
+registrados no catálogo e têm UI completa de configuração/aprovação — falta só o
+usuário/Master decidir ATIVAR cada um de verdade e escolher os parâmetros reais, o que é uma
+decisão de negócio, não uma tarefa técnica pendente.
+
+**Nota real pro usuário/Master, não decidida nesta sessão:** os 5 agentes implementados estão
+testados e funcionais, mas ficam **desligados por padrão** (mesma disciplina de nunca ativar
+automaticamente uma capacidade nova) — pra usar de verdade, é preciso ativá-los em
+`/admin/master/segments` → "Agentes de Aceleração" (botão raio, laranja) por segmento, e
+decidir os parâmetros reais (`minutos_alerta` pro `speed_to_lead`, `qtd_atividades_contexto`
+pro `next_best_action`, `dias_inatividade`/`requer_revisao_extra` pro `reactivation`,
+`janela_dias`/`divergencia_minima_pct`/`min_leads_amostra` pro `score_recalibration` — todos
+aparecem como sugestão clicável no próprio modal, não precisa mais saber o nome de cabeça;
+`sla_hours` do `stage_stagnation` já existe por coluna via "Personalização Kanban", só falta o
+tenant/Master decidir valores reais por etapa em vez do default de 24h). Cada tenant também
+pode sobrepor o padrão do segmento, agente a agente, em `/crm/config/agentes` (sidebar →
+Configurações CRM) — a mesma tela tem a aba "Aprovações Pendentes" (fila de ações do
+`reactivation` aguardando decisão humana, sem precisar do link de WhatsApp+PIN). As sugestões
+de recalibração de score (`score_recalibration`) aparecem inline junto de cada regra em
+`/admin/master/segments` → "Qualificação de Lead por IA (CRM)" (Master) e `/crm/config/ia`
+(tenant), não na aba "Aprovações Pendentes" — decisão de UX tomada em F5 pra manter a
+sugestão junto do contexto da regra que ela afeta.
+
+**Decisão real pendente do usuário, específica de `reactivation`:** o plano previu
+`requer_revisao_extra` como trava extra pra segmentos sensíveis (Saúde foi o exemplo citado) —
+implementado e testado, mas **nenhum segmento tem essa flag ativada ainda**; decidir e
+configurar fica com o usuário/Master antes de ligar o agente de verdade pra Saúde.
+
+**Pendência real registrada, não endereçada:** F1/F2 notificam 1:1 (uma mensagem por lead),
+não em digest agrupado como o plano original (§7 item 3) propunha — não chegou a ser um
+problema real nos testes desta sessão, mas um tenant com muitos leads estagnados ao mesmo
+tempo pode gerar uma enxurrada de WhatsApp/Slack.
+
+Pendência real registrada em sessão anterior, deliberadamente fora de escopo: endurecer as
+rotas administrativas individuais de `/api/crm/*` contra chamada direta via API sem passar
+pela UI (o gate `crm_ia_ativa` cobre o uso real via `CRMLayoutContent.tsx`, não uma blindagem
+de API completa).
 
 Pendências mais antigas, ainda não atacadas: o caminho de SUCESSO do sync multi-rede
 (POST /insights/sync contra API real de rede, não verificado ao vivo — token de teste
-sintético bate num 403 genuíno de RBAC); remover os 15 leads de teste ("TESTE PAGINACAO
-1..15", tenant Marketing Digital) da paginação de `/admin/campanhas/leads`. Fora isso, todas
-as 4 fases da rodada de hardening (Fase -1/0/1/2) seguem implementadas e commitadas; Fase 3 e
-eliminação do token em localStorage fora de escopo por decisão do plano
-(`C:\Users\T-GAMER\.claude\plans\crystalline-riding-squid.md`).
+sintético bate num 403 genuíno de RBAC). Redesign Premium do CRM (`CLAUDE.md` §1b) documentado
+mas não implementado, por decisão do usuário. **(Os 15 leads "TESTE PAGINACAO" foram removidos
+em 2026-08-08 — pendência fechada.)**
+
+**Resíduo de teste NÃO removido, por não ser meu pra decidir:** 3 leads no tenant Marketing
+Digital com cara de teste de sessões antigas ("Teste Auto Atribuicao", "Teste Backward Compat",
+"Teste Cliente Proprio") — diferente dos "TESTE PAGINACAO", nunca foram registrados como
+pendência de limpeza minha, então ficaram intactos (mesma disciplina já aplicada a uma atividade
+de teste pré-existente em 2026-08-04). Confirmar com o usuário antes de apagar.
+
+**(Pendência antiga sobre `crm_segmentos_config`/`domain_id` em `roi/route.ts` — fechada em
+2026-08-13: a rota foi renomeada pra `performance/route.ts` e não usa mais aquela tabela
+legada em nenhum ponto; ver entrada no topo deste arquivo.)**
 
 ## Última tarefa concluída
+
+### Sessão 2026-08-13 (continuação) — `/crm`: fim de ROI/custo + dashboard CRM-nativo + Valor Estimado ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-13 (continuação)"). Caminho
+1 (supressão total de ROI/CAC/CPL) decidido pelo usuário depois de rejeitar até a versão
+"verificada e parcial" (Caminho 3) da rodada anterior mesma data. Substituído por Leads
+Captados/Negócios Fechados/Negócios Perdidos/Pipeline Aberto/Taxa de Conversão + Performance
+por Vendedor (100% agnóstico, via `corretor_atribuido_id`, sem gamificação) + Motivos de Perda
++ captura disciplinada de Valor Estimado por etapa configurável do Kanban. Bug real achado e
+corrigido na própria verificação: `valor_venda` tinha `DEFAULT 0` (não NULL) desde sempre,
+fabricando um "negócio fechado de R$0" em todo lead — corrigido na raiz (schema + API +
+`NovoLeadModal.tsx`, que também tinha um campo legado de captura prematura de valor real).
+
+### Sessão 2026-08-08 — Vigilância de Pendência de Atendimento: G0 a G5 ✅ — frente completa
+
+`docs/PLANO_PENDENCIA_ATENDIMENTO.md` está formalmente concluído (§6.2=G0 … §6.7=G5, §6.8 = o
+estado final). Nasceu de uma pergunta do usuário sobre o alcance do F1 e acabou substituindo os
+três relógios de "primeiro toque" da plataforma por um relógio contínuo por lead, com escada de
+escalonamento 100% automática que termina em reatribuição, fila de resgate visível, e a
+reativação (F4) finalmente despachando a ação certa. **Nada ativado em produção** — decisão de
+negócio do usuário/Master.
+
+### Sessão 2026-08-08 — Pendência de Atendimento G0 + G1 + G2 + G3 + G4 ✅
+
+Ver resumo no topo e o plano em `docs/PLANO_PENDENCIA_ATENDIMENTO.md` (§6.2=G0 … §6.6=G4).
+Com G4 a frente ganha superfície: dá pra marcar alguém de atestado pela tela (com data de
+retorno, para a pessoa voltar sozinha à fila) e a fila de resgate deixou de ser invisível.
+Falta só G5 (F4 lendo o estado, fechando o Buraco D).
+
+### Sessão 2026-08-08 — Pendência de Atendimento G0 + G1 + G2 + G3 ✅
+
+Ver resumo no topo e o plano em `docs/PLANO_PENDENCIA_ATENDIMENTO.md` (§6.2=G0, §6.3=G1,
+§6.4=G2, §6.5=G3). Com G3 o Buraco A está fechado (lead sem dono volta a ser oferecido à
+distribuição a cada rodada e tem fila visível) e o Buraco B foi verificado como já coberto —
+sem mexer em `atribuicao_expira_em`, o que teria sido a correção errada. Faltam G4 (UI) e
+G5 (F4 lendo o estado, Buraco D).
+
+### Sessão 2026-08-08 — Pendência de Atendimento G0 + G1 + G2 ✅
+
+Ver resumo completo no topo e o plano em `docs/PLANO_PENDENCIA_ATENDIMENTO.md`
+(§6.2 = G0, §6.3 = G1, §6.4 = G2). Com G2 a escada deixa de só avisar e passa a corrigir:
+reatribuição automática, indisponibilidade respeitada nas 4 estratégias de distribuição
+(cobrindo também captação inicial e transbordo), e ninguém punido por estar de licença.
+Faltam G3 (fila de resgate + fix do Buraco B), G4 (UI) e G5 (F4 lendo o estado, Buraco D).
+
+### Sessão 2026-08-08 — Pendência de Atendimento G0 + G1 ✅
+
+Ver resumo completo no topo deste arquivo e o plano em `docs/PLANO_PENDENCIA_ATENDIMENTO.md`
+(§6.2 = G0, §6.3 = G1). G1 entrega o motor que de fato vigia: escada de degraus automática,
+idempotência por episódio (rearma a cada ida e volta da bola), digest anti-flood, e a absorção
+do F1. Faltam G2 (reatribuição automática), G3 (fila de resgate + fix do Buraco B), G4 (UI) e
+G5 (F4 lendo o estado, fechando o Buraco D).
+
+### Sessão 2026-08-08 — Pendência de Atendimento G0 (fundação "de quem é a bola") ✅
+
+Ver resumo completo no topo deste arquivo e o plano em
+`docs/PLANO_PENDENCIA_ATENDIMENTO.md` (§6.2 tem o detalhe da G0 e os 3 achados de teste).
+Fundação do relógio contínuo que substitui os três relógios de "primeiro toque" da
+plataforma. Nada dispara ainda — o motor (G1) e a escada de escalonamento (G2/G3) são as
+próximas fases.
+
+### Sessão 2026-08-07 (continuação) — Hardening: Ganho/Perda do Kanban vira booleano explícito ✅
+
+Ver resumo completo no topo deste arquivo ("Hardening real de agnosticismo de segmento").
+Achado real de uma auditoria pedida pelo usuário (não hipotética): 4 consumidores
+reconheciam "negócio fechado"/"perdido" só comparando `kanban_colunas.nome` contra os
+literais `'fechamento'`/`'perdido'` — o mesmo campo que qualquer tenant sempre pôde renomear
+livremente. Corrigido com 2 colunas booleanas (`is_ganho`/`is_perda`), editáveis na mesma tela
+de Personalização Kanban, com mútua exclusão validada no servidor e no cliente. Provado ao
+vivo que a vulnerabilidade era real (renomear a etapa quebrava CPA/ROAS com a lógica antiga) e
+que a correção resolve (mesma etapa renomeada continua reconhecida corretamente com a lógica
+nova).
+
+### Sessão 2026-08-07 — F5 (Recalibração de Score) dos Agentes de Aceleração do CRM ✅ — plano completo
+
+Ver resumo completo no topo deste arquivo ("F5 — Recalibração de Score"). Último agente do
+catálogo — único que opera sobre regras (não leads); reordenação automática por conversão
+real + sugestão de ajuste de score com aprovação 1-clique, tolerante ao replace-all do editor
+de regras. Com esta fase, `docs/PLANO_AGENTES_ACELERACAO_CRM.md` está formalmente concluído.
+
+---
+
+### Sessão 2026-08-07 — F4 (Reativação) dos Agentes de Aceleração do CRM ✅
+
+Ver resumo completo no topo deste arquivo ("Atualizado em: 2026-08-07", seção "F4 — Reativação").
+1º agente `OFFENSIVE` de verdade do catálogo — fluxo de aprovação PIN+WhatsApp e aba
+"Aprovações Pendentes" autenticada, envio real via WhatsApp reaproveitando a infra da
+Mensageria, trava `requer_revisao_extra` pra segmentos sensíveis.
+
+---
+
+### Sessão 2026-08-06 — F0 (Fundação) + F0.5 (Score de Fit/ICP) + F1 (Velocidade de 1º Contato) + F2 (Estagnação por Etapa) + F3 (Next Best Action) dos Agentes de Aceleração do CRM ✅
+
+Ver resumo completo no topo deste arquivo ("F0 (Fundação)... concluídas e testadas").
+
+---
+
+### Sessão 2026-08-04 (continuação 7) — Reconstrução de `/crm/config/ia` (qualificação de lead por IA) ✅
+
+Ver resumo completo no topo deste arquivo ("continuação 7" logo abaixo da entrada de
+2026-08-06).
+
+---
 
 ### Sessão 2026-08-03 (continuação 6) — Filtro "vigente" no dropdown de Campanha, com toggle ✅
 

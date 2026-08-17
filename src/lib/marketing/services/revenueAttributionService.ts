@@ -59,6 +59,7 @@ export async function hasCrmModule(tenantId: string): Promise<boolean> {
   return rows.length > 0
 }
 
+
 export async function getRevenueAttribution(params: {
   tenantId: string
   /** undefined = todas as campanhas (próprias + clientes); null | 'own' = só próprias; uuid = só daquele cliente */
@@ -125,7 +126,7 @@ export async function getRevenueAttribution(params: {
       FROM cohort
       JOIN public.leads_staging ls ON ls.lead_uuid = cohort.lead_uuid
       JOIN public.leads_kanban lk ON lk.lead_uuid = ls.lead_uuid
-      JOIN public.kanban_colunas kc ON kc.id = lk.coluna_id AND kc.nome = 'fechamento'
+      JOIN public.kanban_colunas kc ON kc.id = lk.coluna_id AND kc.is_ganho = true
       GROUP BY cohort.campaign_id
     )
     SELECT

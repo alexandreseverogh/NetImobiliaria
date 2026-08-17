@@ -3,33 +3,99 @@
 import React, { useState, useEffect } from 'react'
 import {
   CircleStackIcon, PaintBrushIcon, Squares2X2Icon, PlusIcon, TrashIcon,
-  CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, DocumentPlusIcon
+  CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, DocumentPlusIcon, ArrowUturnLeftIcon
 } from '@heroicons/react/24/outline'
 import EnrichedLeadData from '@/components/crm/EnrichedLeadData'
 import { useTheme } from '@/hooks/useTheme'
 
+const EMPTY_CONFIG = {
+  target_table: '',
+  target_fk_column: 'imovel_id',
+  target_name_column: '',
+  target_label: '',
+  layout_json: { title_template: '', subtitle_template: '', badges: [] as any[] },
+  form_schema_json: [] as any[],
+}
+
 export default function SegmentConfigPage() {
   const t = useTheme()
-  const [config, setConfig] = useState<any>(null)
+  const [config, setConfig] = useState<any>(EMPTY_CONFIG)
+  /** null = nenhuma config em lugar nenhum (nem tenant, nem padrão do segmento) ainda. */
+  const [source, setSource] = useState<'tenant' | 'segment' | 'none'>('none')
+  const [hasTenantOverride, setHasTenantOverride] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [saveOk, setSaveOk] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => { fetchConfig() }, [])
 
   const fetchConfig = async () => {
+    setLoading(true)
     try {
-      const res = await fetch('/api/crm/config/segmentos')
+      const res = await fetch('/api/crm/config/segmentos', { credentials: 'include' })
       const data = await res.json()
-      if (data.success) setConfig(data.config[0])
-    } finally { setLoading(false) }
+      if (data.success) {
+        setHasTenantOverride(!!data.tenantOverride)
+        if (data.effective) {
+          setConfig({
+            target_table: data.effective.targetTable,
+            target_fk_column: data.effective.targetFkColumn,
+            target_name_column: data.effective.targetNameColumn,
+            target_label: data.effective.targetLabel,
+            layout_json: data.effective.layoutJson && Object.keys(data.effective.layoutJson).length
+              ? data.effective.layoutJson : EMPTY_CONFIG.layout_json,
+            form_schema_json: data.effective.formSchemaJson || [],
+          })
+          setSource(data.effective.source)
+        } else {
+          setConfig(EMPTY_CONFIG)
+          setSource('none')
+        }
+      } else {
+        setError(data.error || 'Erro ao carregar configuração.')
+      }
+    } catch {
+      setError('Erro ao carregar configuração.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSave = async () => {
-    setSaving(true)
+    setSaving(true); setError(''); setSaveOk(false)
     try {
-      await fetch('/api/crm/config/segmentos', { method: 'POST', body: JSON.stringify(config) })
-      alert('Configuração salva com sucesso!')
-    } finally { setSaving(false) }
+      const res = await fetch('/api/crm/config/segmentos', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao salvar')
+      setSaveOk(true)
+      setHasTenantOverride(true)
+      setSource('tenant')
+    } catch (e: any) {
+      setError(e.message || 'Erro ao salvar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleReset = async () => {
+    if (!confirm('Restaurar o padrão do segmento? Sua personalização atual será removida.')) return
+    setResetting(true); setError('')
+    try {
+      const res = await fetch('/api/crm/config/segmentos', { method: 'DELETE', credentials: 'include' })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao restaurar')
+      await fetchConfig()
+    } catch (e: any) {
+      setError(e.message || 'Erro ao restaurar padrão')
+    } finally {
+      setResetting(false)
+    }
   }
 
   const updateConfig = (field: string, value: any) => setConfig((prev: any) => ({ ...prev, [field]: value }))
@@ -71,15 +137,20 @@ export default function SegmentConfigPage() {
   }
 
   const getMockSnapshot = () => {
-    if (!config?.layout_json) return null
+    if (!config?.layout_json?.badges?.length) return null
     return {
-      title: 'Snapshot: Exemplo #1234',
-      subtitle: config.target_table === 'imoveis' ? 'Apartamento em Boa Viagem' : 'Consulta: Clínica Geral',
+      title: `Snapshot: Exemplo #1234`,
+      subtitle: config.target_label ? `${config.target_label} de exemplo` : 'Item de exemplo',
       badges: config.layout_json.badges.map((b: any) => ({ label: b.label, icone: b.icone, valor: `${b.prefixo || ''}123${b.sufixo || ''}` }))
     }
   }
 
   const inputCls = `w-full rounded-xl text-xs py-3 ${t.inputBg} border-none focus:outline-none`
+  // Vínculo Exato é opcional — mas ou os 3 campos vêm juntos (tabela real digitalizada), ou
+  // nenhum deles (só Perfil de Interesse, ex.: segmento sem inventário no banco ainda).
+  const ativoFieldsCount = [config?.target_table, config?.target_name_column, config?.target_label].filter((v: string) => v && v.trim()).length
+  const ativoPartial = ativoFieldsCount > 0 && ativoFieldsCount < 3
+  const canSave = !saving && !ativoPartial
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[400px]">
@@ -96,12 +167,50 @@ export default function SegmentConfigPage() {
         <div>
           <h2 className={`text-3xl font-black italic tracking-tighter ${t.textPrimary}`}>Segment <span className="text-blue-500">Builder</span></h2>
           <p className={`text-sm font-medium ${t.textSecondary}`}>Configure a identidade visual do enriquecimento via Metadados.</p>
+          <div className="mt-2 flex items-center gap-2">
+            {source === 'tenant' && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                Personalizado pra esta empresa
+              </span>
+            )}
+            {source === 'segment' && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                Herdando o padrão do segmento
+              </span>
+            )}
+            {source === 'none' && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                Nenhuma config ainda — nem padrão do segmento, nem sua
+              </span>
+            )}
+          </div>
         </div>
-        <button onClick={handleSave} disabled={saving}
-          className="px-8 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-500 text-white font-bold rounded-2xl transition-all shadow-xl active:scale-95">
-          {saving ? '⚡ Salvando...' : 'Salvar Configuração'}
-        </button>
+        <div className="flex items-center gap-3">
+          {hasTenantOverride && (
+            <button onClick={handleReset} disabled={resetting}
+              className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-gray-300/30 text-xs font-bold text-gray-500 hover:text-red-500 hover:border-red-300 transition-all">
+              <ArrowUturnLeftIcon className="h-4 w-4" />
+              {resetting ? 'Restaurando...' : 'Restaurar padrão do segmento'}
+            </button>
+          )}
+          <button onClick={handleSave} disabled={saving || !canSave}
+            className="px-8 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all shadow-xl active:scale-95">
+            {saving ? '⚡ Salvando...' : 'Salvar Configuração'}
+          </button>
+        </div>
       </div>
+
+      {error && <p className="text-sm text-red-500 font-medium">⚠️ {error}</p>}
+
+      {source === 'none' && (
+        <div className={`${t.cardBg} rounded-3xl p-6 border border-amber-500/20`}>
+          <p className={`text-sm font-medium ${t.textSecondary}`}>
+            Nenhuma configuração de ativo existe ainda pro seu segmento — nem um padrão curado
+            pelo Master, nem uma sua. Você pode configurar do zero abaixo (só vale pra sua
+            empresa), ou pedir pro Master curar um padrão pra todo o segmento.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Config Panel */}
@@ -110,17 +219,26 @@ export default function SegmentConfigPage() {
           <div className={`${t.cardBg} rounded-3xl p-8 space-y-6`}>
             <div className={`flex items-center space-x-3 border-b pb-4 ${t.borderSub}`}>
               <CircleStackIcon className="h-6 w-6 text-blue-500" />
-              <h3 className={`text-lg font-bold tracking-widest uppercase ${t.textPrimary}`}>1. Origem dos Dados</h3>
+              <div>
+                <h3 className={`text-lg font-bold tracking-widest uppercase ${t.textPrimary}`}>1. Origem dos Dados</h3>
+                <p className={`text-xs font-medium ${t.textMuted}`}>Opcional — só preencha se você já tem uma tabela real de inventário. Sem ela, Vínculo Exato fica indisponível mas o Formulário (seção 3) continua funcionando.</p>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-1">
-                <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>Entidade Principal</label>
-                <select value={config?.target_table} onChange={e => updateConfig('target_table', e.target.value)}
-                  className={`w-full rounded-2xl px-5 py-4 text-sm focus:outline-none ${t.inputBg}`}>
-                  <option value="imoveis">🔑 Imóveis (Real Estate)</option>
-                  <option value="pacientes">🏥 Pacientes (Saúde)</option>
-                  <option value="alunos">🎓 Alunos (Educação)</option>
-                </select>
+                <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>Entidade / Tabela</label>
+                <input value={config?.target_table} onChange={e => updateConfig('target_table', e.target.value)}
+                  placeholder="ex: imoveis" className={`${inputCls} font-mono px-5`} />
+              </div>
+              <div className="space-y-1">
+                <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>Rótulo (como chamar na tela)</label>
+                <input value={config?.target_label} onChange={e => updateConfig('target_label', e.target.value)}
+                  placeholder="ex: Imóvel" className={`${inputCls} px-5`} />
+              </div>
+              <div className="space-y-1">
+                <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>Coluna de Nome</label>
+                <input value={config?.target_name_column} onChange={e => updateConfig('target_name_column', e.target.value)}
+                  placeholder="ex: titulo" className={`${inputCls} font-mono px-5`} />
               </div>
               <div className="space-y-1 opacity-60">
                 <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>FK de Vínculo</label>
@@ -128,6 +246,13 @@ export default function SegmentConfigPage() {
                   className={`w-full rounded-2xl px-5 py-4 text-sm font-mono ${t.inputBg} opacity-60`} />
               </div>
             </div>
+            {ativoPartial && (
+              <p className="text-xs text-amber-500 font-semibold">
+                ⚠️ Preencha Entidade/Tabela, Rótulo e Coluna de Nome juntos pra ativar Vínculo
+                Exato — ou apague os {ativoFieldsCount} campos preenchidos pra usar só o
+                Formulário (seção 3).
+              </p>
+            )}
           </div>
 
           {/* 2. Layout Badges */}
@@ -203,7 +328,10 @@ export default function SegmentConfigPage() {
             <div className={`flex items-center justify-between border-b pb-4 ${t.borderSub}`}>
               <div className="flex items-center space-x-3">
                 <DocumentPlusIcon className="h-6 w-6 text-purple-500" />
-                <h3 className={`text-lg font-bold tracking-widest uppercase ${t.textPrimary}`}>3. Formulário (+ Novo Lead)</h3>
+                <div>
+                  <h3 className={`text-lg font-bold tracking-widest uppercase ${t.textPrimary}`}>3. Formulário (+ Novo Lead)</h3>
+                  <p className={`text-xs font-medium ${t.textMuted}`}>Independente da seção 1 — funciona mesmo sem nenhuma tabela de inventário configurada.</p>
+                </div>
               </div>
               <button onClick={addFormField} className="p-3 bg-purple-500/10 text-purple-500 rounded-2xl hover:bg-purple-500 hover:text-white transition-all active:scale-90">
                 <PlusIcon className="h-5 w-5" />
@@ -257,8 +385,8 @@ export default function SegmentConfigPage() {
           </div>
 
           <div className="flex justify-end pt-4">
-            <button onClick={handleSave} disabled={saving}
-              className="px-10 py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-500 text-white font-black text-lg uppercase tracking-widest rounded-3xl transition-all shadow-2xl active:scale-95 flex items-center">
+            <button onClick={handleSave} disabled={saving || !canSave}
+              className="px-10 py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-black text-lg uppercase tracking-widest rounded-3xl transition-all shadow-2xl active:scale-95 flex items-center">
               {saving ? '⚡ PROCESSANDO...' : 'SALVAR TODAS AS ALTERAÇÕES'}
             </button>
           </div>

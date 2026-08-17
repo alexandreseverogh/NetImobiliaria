@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 386" role="img" aria-label="Ícone do WhatsApp, representando o canal de mensageria integrado">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="880" y2="386" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#020c1b"/>
+      <stop offset="0.55" stop-color="#0a1f2b"/>
+      <stop offset="1" stop-color="#0f2e2a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.46" r="0.55">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.35"/>
+      <stop offset="0.55" stop-color="#0f766e" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#0f766e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wa" x1="336" y1="88" x2="544" y2="292" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3fdc84"/>
+      <stop offset="1" stop-color="#20b855"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="880" height="386" fill="url(#bg)"/>
+
+  <!-- textura sutil de grade — mesmo espírito "cibernético" do resto da página -->
+  <g stroke="#14b8a6" stroke-opacity="0.08" stroke-width="1">
+    <path d="M0 96H880"/>
+    <path d="M0 193H880"/>
+    <path d="M0 290H880"/>
+    <path d="M147 0V386"/>
+    <path d="M294 0V386"/>
+    <path d="M440 0V386"/>
+    <path d="M587 0V386"/>
+    <path d="M733 0V386"/>
+  </g>
+
+  <circle cx="440" cy="178" r="230" fill="url(#glow)"/>
+
+  <!-- bolhas de conversa flutuantes, decorativas -->
+  <rect x="118" y="272" width="118" height="44" rx="14" fill="#ffffff" fill-opacity="0.05"/>
+  <rect x="642" y="86" width="128" height="44" rx="14" fill="#ffffff" fill-opacity="0.05"/>
+  <rect x="602" y="272" width="94" height="32" rx="12" fill="#2dd4bf" fill-opacity="0.10"/>
+
+  <!-- bolha de chat + fone, estilo WhatsApp -->
+  <path d="M368 252 L344 296 L392 266 Z" fill="url(#wa)"/>
+  <rect x="336" y="88" width="208" height="176" rx="58" fill="url(#wa)"/>
+  <rect x="336" y="88" width="208" height="176" rx="58" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="2"/>
+
+  <g transform="translate(392 128) scale(4)">
+    <path d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5z" fill="#ffffff"/>
+  </g>
+
+  <text x="440" y="336" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" font-weight="800" letter-spacing="4" fill="#5eead4" fill-opacity="0.85" style="text-transform:uppercase">WhatsApp Integrado</text>
+</svg>

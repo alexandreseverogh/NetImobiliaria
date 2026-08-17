@@ -69,6 +69,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { id, nome, icone, cor, ordem, client_id } = body
+    // G0 — direção da atividade (docs/PLANO_PENDENCIA_ATENDIMENTO.md §3.1): registra ação do
+    // CLIENTE (entrada, a bola passa a ser nossa) ou ação NOSSA (saída, padrão).
+    const isEntrada = body.is_entrada === true
     if (!nome || !nome.trim()) {
       return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
     }
@@ -79,12 +82,12 @@ export async function POST(request: NextRequest) {
     if (id) {
       const query = `
         UPDATE tipos_atividade
-        SET nome = $1, icone = $2, cor = $3, ordem = $4, client_id = $5, updated_at = NOW()
+        SET nome = $1, icone = $2, cor = $3, ordem = $4, client_id = $5, is_entrada = $8, updated_at = NOW()
         WHERE id = $6 AND tenant_id = $7
         RETURNING *
       `
       try {
-        const { rows } = await pool.query(query, [nome.trim(), icone || null, cor || '#3B82F6', ordem ?? 0, client_id || null, id, tenantId])
+        const { rows } = await pool.query(query, [nome.trim(), icone || null, cor || '#3B82F6', ordem ?? 0, client_id || null, id, tenantId, isEntrada])
         if (rows.length === 0) return NextResponse.json({ error: 'Atividade não encontrada ou sem permissão.' }, { status: 404 })
         return NextResponse.json({ success: true, tipo: rows[0] })
       } catch (e: any) {
@@ -95,12 +98,12 @@ export async function POST(request: NextRequest) {
       }
     } else {
       const query = `
-        INSERT INTO tipos_atividade (tenant_id, client_id, nome, icone, cor, ordem)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO tipos_atividade (tenant_id, client_id, nome, icone, cor, ordem, is_entrada)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
       `
       try {
-        const { rows } = await pool.query(query, [tenantId, client_id || null, nome.trim(), icone || null, cor || '#3B82F6', ordem ?? 0])
+        const { rows } = await pool.query(query, [tenantId, client_id || null, nome.trim(), icone || null, cor || '#3B82F6', ordem ?? 0, isEntrada])
         return NextResponse.json({ success: true, tipo: rows[0] })
       } catch (e: any) {
         if (e.code === '23505') {

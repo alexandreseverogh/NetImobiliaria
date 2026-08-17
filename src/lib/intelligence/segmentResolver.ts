@@ -24,6 +24,9 @@ export interface Segment {
   distribution_target_table: string | null;
   distribution_target_id_column: string | null;
   distribution_owner_column: string | null;
+  /** Gate explícito da Master — segmento pronto pra qualificação de lead por IA (CRM).
+   *  Ver src/lib/ai/conciergeService.ts e o bloqueio em src/app/crm/CRMLayoutContent.tsx. */
+  crm_ia_ativa: boolean;
 }
 
 export interface SegmentOption {

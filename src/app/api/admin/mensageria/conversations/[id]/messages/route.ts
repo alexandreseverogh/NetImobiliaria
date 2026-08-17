@@ -5,6 +5,7 @@ import { sendEvolutionMessage } from '@/lib/mensageria/channels/evolutionSend'
 import { publishMensageriaEvent } from '@/lib/mensageria/realtime'
 import { checkFirstResponseBreach } from '@/lib/mensageria/sla'
 import { resolveMensageriaScope, isTenantAdminFromPayload, scopeToSql } from '@/lib/mensageria/visibilityScope'
+import { touchPendencyByConversation } from '@/lib/crm/pendencia/pendencyState'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,6 +64,18 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     [params.id, isPrivate],
   )
   if (!isPrivate) await checkFirstResponseBreach(params.id).catch(() => {})
+
+  // G0 — pendência de atendimento (docs/PLANO_PENDENCIA_ATENDIMENTO.md): esta é a devolução
+  // de bola mais importante do sistema — o atendente respondendo o cliente. Diferente de
+  // checkFirstResponseBreach acima (que só olha a 1ª resposta e depois fica cego pra sempre),
+  // o estado de pendência é contínuo e vale do 2º toque em diante.
+  // Nota interna não devolve bola nenhuma — o motor canônico já filtra is_private, mas nem
+  // chamamos aqui pra não gastar a query à toa.
+  if (!isPrivate) {
+    await touchPendencyByConversation(params.id).catch((err) => {
+      console.error('[mensageria/messages] falha ao atualizar pendência de atendimento:', err)
+    })
+  }
 
   // 2. Envio real pelo canal (pulado para notas internas)
   let sendResult: { ok: boolean; externalId?: string; error?: string } = { ok: true }

@@ -3,6 +3,7 @@ import pool from '@/lib/database/connection'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import { uploadToS3, getS3Url } from '@/lib/storage/s3-client'
 import { randomUUID } from 'crypto'
+import { touchPendency } from '@/lib/crm/pendencia/pendencyState'
 
 /**
  * ATIVIDADES POR LEAD (CRM)
@@ -155,6 +156,12 @@ export async function POST(request: NextRequest) {
       lead.tenant_id, lead.client_id,
     ])
 
+    // G0 — registrar atividade muda de quem é a bola (ver docs/PLANO_PENDENCIA_ATENDIMENTO.md).
+    // Qual direção depende de tipos_atividade.is_entrada, resolvido dentro do motor canônico.
+    await touchPendency(leadUuid).catch((err) => {
+      console.error('[crm/atividades] falha ao atualizar pendência de atendimento:', err)
+    })
+
     return NextResponse.json({ success: true, atividade: rows[0] })
   } catch (error: any) {
     console.error('POST /crm/atividades error:', error)
@@ -242,6 +249,14 @@ export async function PATCH(request: NextRequest) {
       ],
     )
 
+    // G0 — trocar o TIPO da atividade pode inverter a direção (is_entrada), então a pendência
+    // precisa ser recomputada também na edição, não só na criação.
+    if (rows[0]?.lead_uuid) {
+      await touchPendency(rows[0].lead_uuid).catch((err) => {
+        console.error('[crm/atividades] falha ao atualizar pendência de atendimento:', err)
+      })
+    }
+
     return NextResponse.json({ success: true, atividade: rows[0] })
   } catch (error: any) {
     console.error('PATCH /crm/atividades error:', error)
@@ -265,12 +280,18 @@ export async function DELETE(request: NextRequest) {
     const { rows } = await pool.query(
       `UPDATE atividades_lead SET deleted_at = NOW(), updated_at = NOW()
         WHERE id = $1 AND deleted_at IS NULL ${!isMaster ? 'AND tenant_id = $2' : ''}
-        RETURNING id`,
+        RETURNING id, lead_uuid`,
       !isMaster ? [id, currentUser.tenantId] : [id],
     )
     if (rows.length === 0) {
       return NextResponse.json({ error: 'Atividade não encontrada ou sem permissão.' }, { status: 404 })
     }
+
+    // G0 — remover a atividade pode fazer a bola VOLTAR pra nós (se era a única ação nossa
+    // registrada). O motor canônico ignora atividades com deleted_at, então basta recomputar.
+    await touchPendency(rows[0].lead_uuid).catch((err) => {
+      console.error('[crm/atividades] falha ao atualizar pendência de atendimento:', err)
+    })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

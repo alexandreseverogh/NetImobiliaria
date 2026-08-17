@@ -326,6 +326,79 @@ cron.schedule('*/5 * * * *', async () => {
   timezone: 'America/Sao_Paulo'
 });
 
+// CRM — Agentes de Aceleração, varredura SCHEDULED_SCAN (F1 Velocidade de 1º Contato):
+// a cada 5 minutos. docs/PLANO_AGENTES_ACELERACAO_CRM.md.
+cron.schedule('*/5 * * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/crm/agentes-scan`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [crm-agentes-scan] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    if (data.fired > 0) {
+      console.log(`✅ [crm-agentes-scan] scanned=${data.scanned} fired=${data.fired}`);
+    }
+  } catch (error) {
+    console.error('❌ [crm-agentes-scan] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
+// CRM — Agentes de Aceleração, recalibração de score (F5): job DIÁRIO, não lead-scoped
+// como os outros 4 agentes — nunca passa pelo scan de 5 em 5 min. 04:00, janela de baixo
+// tráfego. docs/PLANO_AGENTES_ACELERACAO_CRM.md §3.2.
+cron.schedule('0 4 * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/crm/score-recalibration`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [crm-score-recalibration] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    console.log(`✅ [crm-score-recalibration] segments=${data.segmentsProcessed} tenants=${data.tenantsProcessed} suggestions=${data.suggestionsCreated} reordered=${data.reorderedScopes}`);
+  } catch (error) {
+    console.error('❌ [crm-score-recalibration] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
+// CRM — Pendência de Atendimento (G0): reconciliação do estado "de quem é a bola".
+// Rede de segurança, não caminho principal — a materialização acontece na escrita
+// (touchPendency). Este job recomputa da fonte real e corrige divergências; `corrigidos`
+// consistentemente > 0 significa que algum caminho de escrita não está chamando o helper.
+// 03:30, entre o feed sync (03:00) e a recalibração de score (04:00).
+// docs/PLANO_PENDENCIA_ATENDIMENTO.md §5.
+cron.schedule('30 3 * * *', async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cron/crm/pendencia-reconciliar`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': CRON_SECRET, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      console.error(`❌ [crm-pendencia-reconciliar] Erro (${response.status})`);
+      return;
+    }
+    const data = await response.json();
+    console.log(`✅ [crm-pendencia-reconciliar] corrigidos=${data.corrigidos} em ${data.elapsedMs}ms`);
+  } catch (error) {
+    console.error('❌ [crm-pendencia-reconciliar] Erro de conexão:', error.message);
+  }
+}, {
+  scheduled: true,
+  timezone: 'America/Sao_Paulo'
+});
+
 console.log('✅ Agendador configurado:');
 console.log('   • Feed sync diário        → 03:00 (America/Sao_Paulo)');
 console.log('   • Transbordo de leads     → a cada 5 min');
@@ -333,6 +406,9 @@ console.log('   • Audit report mensal     → 1º dia do mês às 09:00');
 console.log('   • Audit report semanal    → domingos às 18:00');
 console.log('   • Publicação orgânica     → a cada 5 min (agendadas)');
 console.log('   • Mensageria SLA check    → a cada 5 min');
+console.log('   • CRM agentes (scan)      → a cada 5 min');
+console.log('   • CRM pendência (reconc.) → diário às 03:30');
+console.log('   • CRM recalibração score  → diário às 04:00');
 console.log('\n🚀 Agendador rodando... (Ctrl+C para parar)\n');
 
 // Removido o boot sync imediato para respeitar a janela das 03:00h conforme solicitado pelo usuário.

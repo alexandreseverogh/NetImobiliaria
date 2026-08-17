@@ -46,13 +46,15 @@ export async function GET(request: NextRequest) {
     // 3. Leads captados nas últimas 24h (para cálculo de crescimento)
     const recentLeadsQuery = `SELECT count(*) as total_24h FROM leads_staging WHERE created_at > NOW() - INTERVAL '24 hours' ${tenantConditionAnd ? tenantConditionAnd.replace('l.tenant_id', 'tenant_id') : ''}`
 
-    // 4. Contagem por status principal
+    // 4. Contagem por coluna do Kanban — alimenta o funil real de CRM (/crm) além do card
+    // legado "leads_por_status". Só colunas ativas, na ordem real do funil.
     const statusQuery = `
-      SELECT k.nome, count(lk.id) as total 
+      SELECT k.id, k.nome, k.titulo_exibicao, k.cor, k.ordem, count(lk.id)::int as total
       FROM kanban_colunas k
       LEFT JOIN leads_kanban lk ON k.id = lk.coluna_id ${tenantConditionAnd.replace('l.tenant_id', 'lk.tenant_id')}
-      ${!isMaster ? 'WHERE k.tenant_id = $1' : ''}
-      GROUP BY k.nome
+      WHERE k.ativa = true ${!isMaster ? 'AND k.tenant_id = $1' : ''}
+      GROUP BY k.id, k.nome, k.titulo_exibicao, k.cor, k.ordem
+      ORDER BY k.ordem ASC
     `
 
     const [totalRes, avgRes, recentRes, statusRes] = await Promise.all([

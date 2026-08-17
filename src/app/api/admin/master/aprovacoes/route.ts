@@ -2,16 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database/connection';
 import { executeAction } from '@/lib/marketing/services/agentDecisor';
 import { prisma } from '@/lib/marketing/prisma';
+import { verifyTokenNode } from '@/lib/auth/jwt-node';
 
 export const dynamic = 'force-dynamic';
 
-function getPayload(req: NextRequest) {
-  const auth = req.headers.get('authorization') ?? '';
-  const token = auth.replace('Bearer ', '');
-  if (!token) return null;
+/**
+ * Achado real (docs/CHECKPOINT.md, 2026-08-14): esta rota autenticava decodificando o payload
+ * cru do JWT (base64) sem NUNCA verificar a assinatura — qualquer token forjado com um
+ * `userId` qualquer passava. Como o POST executa de verdade ações ofensivas do agente (SCALE,
+ * REALLOCATE_BUDGET — mexem em orçamento real), isso era uma falha grave, não teórica.
+ * Corrigido pro mesmo padrão real (verifyTokenNode) já usado no resto da plataforma.
+ */
+function getCurrentUser(req: NextRequest): { userId: string; tenantId?: string; is_system_role?: boolean } | null {
   try {
-    const base64 = token.split('.')[1];
-    return JSON.parse(Buffer.from(base64, 'base64url').toString());
+    const token = req.cookies.get('admin_auth_token')?.value ||
+      req.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) return null;
+    const decoded = verifyTokenNode(token) as any;
+    if (!decoded?.userId) return null;
+    return { userId: decoded.userId, tenantId: decoded.tenantId, is_system_role: decoded.is_system_role === true };
   } catch {
     return null;
   }
@@ -19,8 +28,8 @@ function getPayload(req: NextRequest) {
 
 // GET /api/admin/master/aprovacoes
 export async function GET(req: NextRequest) {
-  const payload = getPayload(req);
-  if (!payload?.userId) {
+  const currentUser = getCurrentUser(req);
+  if (!currentUser) {
     return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   }
 
@@ -29,8 +38,15 @@ export async function GET(req: NextRequest) {
   const limit   = Math.min(parseInt(searchParams.get('limit') ?? '50'), 200);
   const offset  = parseInt(searchParams.get('offset') ?? '0');
 
-  const jwtTenantId = payload.tenantId ?? null;
-  const tenantId = jwtTenantId ?? (searchParams.get('tenantId') ?? null);
+  const isMaster = currentUser.is_system_role === true;
+  // Master pode inspecionar qualquer tenant (ou todos, se não passar nenhum) — mesmo padrão
+  // já usado em /api/crm/pendencia/resgate. Tenant comum NUNCA sai do próprio escopo: nunca
+  // confia em tenantId vindo da query pra quem não é Master (era exatamente essa a brecha —
+  // antes, sem tenantId no JWT forjado, o parâmetro de query decidia sozinho).
+  const tenantId = isMaster ? (searchParams.get('tenantId') || null) : currentUser.tenantId;
+  if (!isMaster && !tenantId) {
+    return NextResponse.json({ error: 'Sessão sem tenant associado' }, { status: 403 });
+  }
 
   // EXPIRED é tratado como status virtual: PENDING_APPROVAL com pin expirado
   const isExpired = status === 'EXPIRED';
@@ -118,8 +134,8 @@ export async function GET(req: NextRequest) {
 // POST /api/admin/master/aprovacoes
 // Body: { id, decision: 'approve' | 'reject', customBudget?: number (centavos) }
 export async function POST(req: NextRequest) {
-  const payload = getPayload(req);
-  if (!payload?.userId) {
+  const currentUser = getCurrentUser(req);
+  if (!currentUser) {
     return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   }
 
@@ -143,6 +159,16 @@ export async function POST(req: NextRequest) {
     if (!action) {
       return NextResponse.json({ error: 'Ação não encontrada' }, { status: 404 });
     }
+
+    // Nunca confia no id sozinho pra decidir — resolve a ação real e compara contra o tenant
+    // da sessão antes de aprovar/rejeitar (Master bypassa). Fechava aqui o 2º problema real:
+    // mesmo com assinatura válida, qualquer tenant conseguia decidir a ação de OUTRO tenant só
+    // sabendo o id (nenhuma checagem de posse existia antes deste fix).
+    const isMaster = currentUser.is_system_role === true;
+    if (!isMaster && action.tenantId !== currentUser.tenantId) {
+      return NextResponse.json({ error: 'Esta ação não pertence ao seu tenant' }, { status: 403 });
+    }
+
     if (action.status !== 'PENDING_APPROVAL') {
       return NextResponse.json({ error: `Status "${action.status}" não permite esta operação` }, { status: 409 });
     }

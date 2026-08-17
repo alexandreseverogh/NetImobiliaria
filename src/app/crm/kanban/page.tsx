@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   ListBulletIcon,
   MagnifyingGlassIcon,
@@ -19,25 +19,41 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CalendarIcon,
-  PencilSquareIcon
+  PencilSquareIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
+import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import EnrichedLeadData from '@/components/crm/EnrichedLeadData'
 import NovoLeadModal from '@/components/crm/NovoLeadModal'
 import AgendarVisitaModal from '@/components/crm/AgendarVisitaModal'
 import AgendamentosLead from '@/components/crm/AgendamentosLead'
 import AtividadesLead from '@/components/crm/AtividadesLead'
+import NextBestActionCard from '@/components/crm/NextBestActionCard'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
 
 interface Lead {
   lead_uuid: string; nome: string; email: string; telefone?: string;
   tag_sonho: string; resumo_ia?: string; coluna_nome: string;
-  score_prontidao: number; imovel_id?: number | null;
+  score_prontidao: number;
+  /** Encaixe no perfil ideal de cliente (docs/PLANO_AGENTES_ACELERACAO_CRM.md §3.1) —
+   *  dimensão separada de score_prontidao (intenção). null = ainda não avaliado. */
+  score_fit?: number | null;
+  imovel_id?: number | null;
   enriquecimento_cache?: any; created_at?: string; match?: string;
   client_id?: string | null; atividades_count?: number;
+  /** valor_venda = REAL, só existe depois do fechamento. valor_venda_estimado = palpite de
+   *  quem está atendendo, nunca confundido com o real — sempre rotulados de forma distinta na
+   *  UI (docs/CHECKPOINT.md, 2026-08-13). */
+  valor_venda?: number | null;
+  valor_venda_estimado?: number | null;
+  corretor_atribuido_id?: string | null;
+  corretor_nome?: string | null;
+  corretor_tem_foto?: boolean;
+  deleted_at?: string | null;
 }
-interface Coluna { id: number; nome: string; titulo_exibicao: string; cor: string; icone: string; }
+interface Coluna { id: number; nome: string; titulo_exibicao: string; cor: string; icone: string; is_ganho?: boolean; is_perda?: boolean; requer_valor_estimado?: boolean; }
 
 const formatPhone = (phone?: string) => {
   if (!phone) return 'S/ Telefone'
@@ -58,6 +74,32 @@ export default function KanbanPage() {
   const [isAgendarOpen, setIsAgendarOpen] = useState(false)
   const [isCalendarioViewOpen, setIsCalendarioViewOpen] = useState(false)
   const [tenantConfig, setTenantConfig] = useState<any>(null)
+  // F3 — "Registrar como Atividade" no card "Sugestão da IA" pré-preenche o form de
+  // Nova Atividade (AtividadesLead.tsx); nonce garante reabrir o form mesmo se o
+  // atendente clicar 2x seguidas na mesma sugestão.
+  const [activityPrefill, setActivityPrefill] = useState<{ text: string; nonce: number } | undefined>(undefined)
+  const handleUseSuggestionAsActivity = (text: string) => setActivityPrefill({ text, nonce: Date.now() })
+  // Achado real (roteiro de testes, 2026-08-09): mover um lead pra uma etapa de Ganho nunca
+  // teve como registrar quanto valeu o negócio — nenhuma UI escrevia valor_venda depois da
+  // criação do lead. Intercepta o move quando a coluna destino é is_ganho e pede o valor antes
+  // de confirmar; qualquer outra coluna (inclusive is_perda) move direto, sem prompt.
+  const [pendingGanhoMove, setPendingGanhoMove] = useState<{ lead: Lead; targetCol: Coluna; revert?: string } | null>(null)
+  const [valorVendaInput, setValorVendaInput] = useState('')
+  // Valor Estimado (2026-08-13) — mesmo mecanismo do Ganho, generalizado: qualquer coluna
+  // marcada requer_valor_estimado intercepta o move se o lead ainda não tem estimativa. Nunca
+  // pergunta de novo se já existe uma (o atendente edita na ficha se quiser atualizar).
+  const [pendingEstimativaMove, setPendingEstimativaMove] = useState<{ lead: Lead; targetCol: Coluna } | null>(null)
+  const [valorEstimadoInput, setValorEstimadoInput] = useState('')
+  // Exclusão de lead (docs/CHECKPOINT.md, 2026-08-14) — filtro "Mostrar leads excluídos" e
+  // estado de exclusão/restauração em andamento (desabilita os botões enquanto processa).
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [deletingLead, setDeletingLead] = useState(false)
+  // Filtros de dono do lead + período de criação (pedido do usuário, 2026-08-16) — client-side,
+  // mesmo padrão do searchTerm: filtram o board sobre os leads já carregados, sem round-trip
+  // novo. '__none__' é o sentinela pra "sem dono atribuído".
+  const [filterOwnerId, setFilterOwnerId] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
 
   const getInitials = (name: string) => {
     if (!name) return 'LD'
@@ -80,7 +122,7 @@ export default function KanbanPage() {
       const newUrl = window.location.pathname
       window.history.replaceState({}, '', newUrl)
     }
-  }, [searchParams?.get('google_auth')])
+  }, [searchParams?.get('google_auth'), showDeleted])
 
   const fetchTenantConfig = async () => {
     try {
@@ -98,7 +140,8 @@ export default function KanbanPage() {
 
   const fetchData = async () => {
     try {
-      const [colsRes, leadsRes] = await Promise.all([adminFetch('/api/crm/kanban/colunas'), adminFetch('/api/crm/leads')])
+      const leadsUrl = `/api/crm/leads${showDeleted ? '?includeDeleted=1' : ''}`
+      const [colsRes, leadsRes] = await Promise.all([adminFetch('/api/crm/kanban/colunas'), adminFetch(leadsUrl)])
       const [colsData, leadsData] = await Promise.all([colsRes.json(), leadsRes.json()])
       if (colsData.success) setColunas(colsData.colunas)
       if (leadsData.success) setLeads(leadsData.leads)
@@ -114,31 +157,175 @@ export default function KanbanPage() {
     return idx > 0 ? colunas[idx - 1] : null
   }
 
-  const moveLead = async (lead: Lead, direction: 'forward' | 'backward' = 'forward') => {
-    const targetCol = direction === 'forward' ? getNextColumn(lead.coluna_nome) : getPrevColumn(lead.coluna_nome)
-    if (!targetCol) return
+  // Move de verdade — sempre passa por aqui, seja pelo botão de avançar/voltar ou pelo
+  // drag-and-drop. valorVenda só é enviado quando a coluna é is_ganho e o atendente já
+  // confirmou o modal (requestMove/confirmGanhoMove abaixo).
+  const executeMove = async (lead: Lead, targetCol: Coluna, valorVenda?: number, valorEstimado?: number) => {
     setMovingLead(true)
+    const oldColumnName = lead.coluna_nome
+    setLeads(prev => prev.map(l => l.lead_uuid === lead.lead_uuid ? { ...l, coluna_nome: targetCol.nome, ...(valorVenda !== undefined ? { valor_venda: valorVenda } : {}), ...(valorEstimado !== undefined ? { valor_venda_estimado: valorEstimado } : {}) } : l))
+    setSelectedLead(prev => prev && prev.lead_uuid === lead.lead_uuid ? { ...prev, coluna_nome: targetCol.nome } : prev)
     try {
       const res = await adminFetch('/api/crm/kanban/move', {
         method: 'POST',
-        body: JSON.stringify({ lead_uuid: lead.lead_uuid, coluna_id: targetCol.id })
+        body: JSON.stringify({
+          lead_uuid: lead.lead_uuid,
+          coluna_id: targetCol.id,
+          ...(valorVenda !== undefined ? { valor_venda: valorVenda } : {}),
+          ...(valorEstimado !== undefined ? { valor_venda_estimado: valorEstimado } : {}),
+        })
       })
       const data = await res.json()
-      if (data.success) {
-        setLeads(prev => prev.map(l => l.lead_uuid === lead.lead_uuid ? { ...l, coluna_nome: targetCol.nome } : l))
-        setSelectedLead(prev => prev ? { ...prev, coluna_nome: targetCol.nome } : null)
+      if (!data.success) {
+        setLeads(prev => prev.map(l => l.lead_uuid === lead.lead_uuid ? { ...l, coluna_nome: oldColumnName } : l))
+        setSelectedLead(prev => prev && prev.lead_uuid === lead.lead_uuid ? { ...prev, coluna_nome: oldColumnName } : prev)
       }
+    } catch {
+      setLeads(prev => prev.map(l => l.lead_uuid === lead.lead_uuid ? { ...l, coluna_nome: oldColumnName } : l))
+      setSelectedLead(prev => prev && prev.lead_uuid === lead.lead_uuid ? { ...prev, coluna_nome: oldColumnName } : prev)
     } finally { setMovingLead(false) }
+  }
+
+  // Ponto único de decisão: coluna de Ganho pede o valor REAL da venda; coluna marcada
+  // requer_valor_estimado (e o lead ainda sem estimativa) pede o valor ESTIMADO; qualquer
+  // outra move direto, sem prompt.
+  const requestMove = (lead: Lead, targetCol: Coluna) => {
+    if (targetCol.is_ganho) {
+      setValorVendaInput('')
+      setPendingGanhoMove({ lead, targetCol })
+      return
+    }
+    if (targetCol.requer_valor_estimado && (lead.valor_venda_estimado === null || lead.valor_venda_estimado === undefined)) {
+      setValorEstimadoInput('')
+      setPendingEstimativaMove({ lead, targetCol })
+      return
+    }
+    executeMove(lead, targetCol)
+  }
+
+  const confirmGanhoMove = () => {
+    if (!pendingGanhoMove) return
+    const digits = valorVendaInput.replace(/\D/g, '')
+    const valor = digits ? parseInt(digits, 10) / 100 : 0
+    executeMove(pendingGanhoMove.lead, pendingGanhoMove.targetCol, valor)
+    setPendingGanhoMove(null)
+  }
+
+  const confirmEstimativaMove = () => {
+    if (!pendingEstimativaMove) return
+    const digits = valorEstimadoInput.replace(/\D/g, '')
+    const valor = digits ? parseInt(digits, 10) / 100 : 0
+    executeMove(pendingEstimativaMove.lead, pendingEstimativaMove.targetCol, undefined, valor)
+    setPendingEstimativaMove(null)
+  }
+
+  const moveLead = (lead: Lead, direction: 'forward' | 'backward' = 'forward') => {
+    const targetCol = direction === 'forward' ? getNextColumn(lead.coluna_nome) : getPrevColumn(lead.coluna_nome)
+    if (!targetCol) return
+    requestMove(lead, targetCol)
+  }
+
+  // Dono do lead — lista derivada dos leads já carregados (mesma fonte de verdade do avatar/
+  // legenda do card), não uma chamada nova a /api/admin/usuarios: só faz sentido oferecer no
+  // filtro quem de fato tem lead atribuído neste board.
+  const ownerOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    let hasUnassigned = false
+    leads.forEach(l => {
+      if (l.corretor_atribuido_id && l.corretor_nome) map.set(l.corretor_atribuido_id, l.corretor_nome)
+      else if (!l.corretor_atribuido_id) hasUnassigned = true
+    })
+    return {
+      owners: Array.from(map.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+      hasUnassigned,
+    }
+  }, [leads])
+
+  const hasActiveFilters = !!(searchTerm || filterOwnerId || filterDateFrom || filterDateTo)
+  const clearFilters = () => {
+    setSearchTerm('')
+    setFilterOwnerId('')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+  }
+
+  // Data de criação em horário LOCAL (mesmo critério já usado pra exibir a data no card —
+  // new Date(...).toLocaleDateString — nunca a fatia crua do ISO em UTC, que desalinharia o
+  // filtro perto da meia-noite pro fuso do Brasil).
+  const localDateIso = (iso?: string) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   }
 
   const filterLeads = (col: Coluna) => leads.filter(l => {
     if (l.coluna_nome !== col.nome) return false
-    if (!searchTerm) return true
-    const s = searchTerm.toLowerCase()
-    return l.nome?.toLowerCase().includes(s) || l.email?.toLowerCase().includes(s) ||
-      l.tag_sonho?.toLowerCase().includes(s) ||
-      (l.enriquecimento_cache ? JSON.stringify(l.enriquecimento_cache).toLowerCase().includes(s) : false)
+    if (searchTerm) {
+      const s = searchTerm.toLowerCase()
+      const matches = l.nome?.toLowerCase().includes(s) || l.email?.toLowerCase().includes(s) ||
+        l.tag_sonho?.toLowerCase().includes(s) ||
+        (l.enriquecimento_cache ? JSON.stringify(l.enriquecimento_cache).toLowerCase().includes(s) : false)
+      if (!matches) return false
+    }
+    if (filterOwnerId) {
+      if (filterOwnerId === '__none__') {
+        if (l.corretor_atribuido_id) return false
+      } else if (l.corretor_atribuido_id !== filterOwnerId) {
+        return false
+      }
+    }
+    if (filterDateFrom || filterDateTo) {
+      const leadDate = localDateIso(l.created_at)
+      if (!leadDate) return false
+      if (filterDateFrom && leadDate < filterDateFrom) return false
+      if (filterDateTo && leadDate > filterDateTo) return false
+    }
+    return true
   })
+
+  // Exclusão de lead (docs/CHECKPOINT.md, 2026-08-14) — regra decidida pelo usuário: sem
+  // atividade registrada, o servidor exclui de vez; com atividade, exclui de forma reversível
+  // (lixeira) e devolve mode:'soft'|'hard' pra sabermos qual mensagem mostrar.
+  const handleDeleteLead = async (lead: Lead) => {
+    if (!confirm(
+      'Excluir este lead?\n\n' +
+      'Leads SEM nenhuma atividade registrada são removidos permanentemente.\n' +
+      'Leads COM atividades vão pra lixeira e podem ser restaurados depois.'
+    )) return
+    setDeletingLead(true)
+    try {
+      const res = await adminFetch(`/api/crm/leads/${lead.lead_uuid}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        alert(data.message)
+        setSelectedLead(null)
+        fetchData()
+      } else {
+        alert(data.error || 'Erro ao excluir lead.')
+      }
+    } finally {
+      setDeletingLead(false)
+    }
+  }
+
+  const handleRestoreLead = async (lead: Lead) => {
+    setDeletingLead(true)
+    try {
+      const res = await adminFetch(`/api/crm/leads/${lead.lead_uuid}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'restore' }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSelectedLead(null)
+        fetchData()
+      } else {
+        alert(data.error || 'Erro ao restaurar lead.')
+      }
+    } finally {
+      setDeletingLead(false)
+    }
+  }
 
   const handleDragStart = (e: React.DragEvent, lead: Lead) => {
     e.dataTransfer.setData('lead_uuid', lead.lead_uuid)
@@ -148,35 +335,13 @@ export default function KanbanPage() {
     e.preventDefault()
   }
 
-  const handleDrop = async (e: React.DragEvent, targetCol: Coluna) => {
+  const handleDrop = (e: React.DragEvent, targetCol: Coluna) => {
     e.preventDefault()
     const lead_uuid = e.dataTransfer.getData('lead_uuid')
     if (!lead_uuid) return
     const lead = leads.find(l => l.lead_uuid === lead_uuid)
     if (!lead || lead.coluna_nome === targetCol.nome) return
-
-    setMovingLead(true)
-    const oldColumnName = lead.coluna_nome
-    
-    // Atualização Otimista UI
-    setLeads(prev => prev.map(l => l.lead_uuid === lead_uuid ? { ...l, coluna_nome: targetCol.nome } : l))
-    if (selectedLead?.lead_uuid === lead_uuid) {
-      setSelectedLead(prev => prev ? { ...prev, coluna_nome: targetCol.nome } : null)
-    }
-
-    try {
-      const res = await adminFetch('/api/crm/kanban/move', {
-        method: 'POST',
-        body: JSON.stringify({ lead_uuid, coluna_id: targetCol.id })
-      })
-      const data = await res.json()
-      if (!data.success) {
-        // Reverte se a API falhar
-        setLeads(prev => prev.map(l => l.lead_uuid === lead_uuid ? { ...l, coluna_nome: oldColumnName } : l))
-      }
-    } catch {
-       setLeads(prev => prev.map(l => l.lead_uuid === lead_uuid ? { ...l, coluna_nome: oldColumnName } : l))
-    } finally { setMovingLead(false) }
+    requestMove(lead, targetCol)
   }
 
   return (
@@ -202,11 +367,69 @@ export default function KanbanPage() {
           <a href="/crm/config/atividades" className={`p-3 ${t.isDark ? t.textMuted : 'text-slate-400'} hover:text-blue-500 ${t.isDark ? t.cardBg : 'bg-white border-slate-200'} rounded-2xl transition-all border shadow-sm`} title="Configurar Tipos de Atividade">
             <PencilSquareIcon className="h-5 w-5" />
           </a>
+          {/* Filtro "Mostrar leads excluídos" (docs/CHECKPOINT.md, 2026-08-14) — leads
+              soft-deletados (com atividade registrada) só aparecem no board com isso ativo. */}
+          <button
+            onClick={() => setShowDeleted(v => !v)}
+            title={showDeleted ? 'Ocultar leads excluídos' : 'Mostrar leads excluídos'}
+            className={`p-3 rounded-2xl transition-all border shadow-sm ${
+              showDeleted
+                ? 'bg-red-500 text-white border-red-500'
+                : `${t.isDark ? t.textMuted + ' ' + t.cardBg : 'text-slate-400 bg-white border-slate-200'} hover:text-red-500`
+            }`}
+          >
+            <TrashIcon className="h-5 w-5" />
+          </button>
           <button onClick={() => setIsNovoLeadOpen(true)}
             className="flex items-center px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-bold rounded-2xl transition-all shadow-[0_8px_20px_-6px_rgba(37,99,235,0.4)] active:scale-95 border border-white/10">
             <PlusIcon className="h-5 w-5 mr-2" />Novo Lead
           </button>
         </div>
+      </div>
+
+      {/* Filtros de Dono do Lead + Período de Criação (pedido do usuário, 2026-08-16) */}
+      <div className={`flex flex-wrap items-center gap-3 ${t.isDark ? t.cardBg : 'bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.05)]'} p-4 rounded-[2rem]`}>
+        <div className="flex items-center gap-2">
+          <UserCircleIcon className={`h-5 w-5 ${t.isDark ? t.textMuted : 'text-slate-400'}`} />
+          <select
+            value={filterOwnerId}
+            onChange={e => setFilterOwnerId(e.target.value)}
+            className={`rounded-2xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium ${t.isDark ? t.inputBg : 'bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 border border-transparent focus:border-blue-200'}`}
+          >
+            <option value="">Todos os donos</option>
+            {ownerOptions.owners.map(o => (
+              <option key={o.id} value={o.id}>{o.nome}</option>
+            ))}
+            {ownerOptions.hasUnassigned && <option value="__none__">Sem dono atribuído</option>}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <CalendarDaysIcon className={`h-5 w-5 ${t.isDark ? t.textMuted : 'text-slate-400'}`} />
+          <span className={`text-xs font-bold uppercase tracking-wide ${t.isDark ? t.textMuted : 'text-slate-400'}`}>De</span>
+          <div className="w-32">
+            <DateInputPtBR
+              value={filterDateFrom}
+              onChange={setFilterDateFrom}
+              className={`w-full rounded-2xl py-2.5 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium ${t.isDark ? t.inputBg : 'bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 border border-transparent focus:border-blue-200'}`}
+            />
+          </div>
+          <span className={`text-xs font-bold uppercase tracking-wide ${t.isDark ? t.textMuted : 'text-slate-400'}`}>Até</span>
+          <div className="w-32">
+            <DateInputPtBR
+              value={filterDateTo}
+              onChange={setFilterDateTo}
+              className={`w-full rounded-2xl py-2.5 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium ${t.isDark ? t.inputBg : 'bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 border border-transparent focus:border-blue-200'}`}
+            />
+          </div>
+        </div>
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-xl transition-all ${t.isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-500 hover:bg-red-50'}`}
+          >
+            <XMarkIcon className="h-4 w-4" />Limpar filtros
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -221,6 +444,18 @@ export default function KanbanPage() {
                 <div className="flex items-center space-x-3">
                   <div className="h-2 w-2 rounded-full shadow-sm" style={{ backgroundColor: col.cor, boxShadow: `0 0 0 2px ${col.cor}40` }} />
                   <span className={`text-[11px] font-black uppercase tracking-[0.08em] ${t.isDark ? '' : 'text-slate-700'}`}>{col.titulo_exibicao}</span>
+                  {/* Badge Ganho/Perda (mesmo padrão visual de /crm/config/kanban) — item 1.2 do
+                      roteiro de testes pede isso no board em si, não só na tela de config. */}
+                  {col.is_ganho && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+                      Ganho
+                    </span>
+                  )}
+                  {col.is_perda && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide bg-red-500/15 text-red-500 border border-red-500/30">
+                      Perda
+                    </span>
+                  )}
                   <span className="px-2 py-0.5 rounded-md text-[10px] font-black text-white shadow-sm" style={{ backgroundColor: col.cor }}>
                     {filterLeads(col).length}
                   </span>
@@ -235,22 +470,53 @@ export default function KanbanPage() {
                    style={{ backgroundColor: t.isDark ? 'rgba(255,255,255,0.02)' : `${col.cor}06`, borderColor: t.isDark ? 'rgba(255,255,255,0.05)' : `${col.cor}25` }}>
                 {filterLeads(col).map(lead => (
                   <div key={lead.lead_uuid} onClick={() => setSelectedLead(lead)}
-                    draggable
+                    draggable={!lead.deleted_at}
                     onDragStart={(e) => handleDragStart(e, lead)}
                     className={`group relative p-4 rounded-2xl transition-all duration-300 cursor-pointer border hover:-translate-y-0.5 ${
-                      t.isDark 
-                        ? `${t.cardBgSolid} hover:border-blue-500/50 shadow-md` 
+                      t.isDark
+                        ? `${t.cardBgSolid} hover:border-blue-500/50 shadow-md`
                         : 'bg-white hover:shadow-lg'
-                    }`}
+                    } ${lead.deleted_at ? 'opacity-50 grayscale-[30%]' : ''}`}
                     style={{
                       borderColor: t.isDark ? 'transparent' : `${col.cor}30`,
                       boxShadow: t.isDark ? undefined : `0 4px 16px -4px ${col.cor}20`,
                     }}>
-                    
+                    {lead.deleted_at && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-red-500 text-white z-10">
+                        <TrashIcon className="h-3 w-3" />Excluído
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center space-x-3.5">
-                        <div className={`p-1.5 rounded-lg ${t.isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-100'} group-hover:bg-blue-50 transition-colors`}>
-                          <UserCircleIcon className={`h-6 w-6 ${t.isDark ? t.textMuted : 'text-slate-400'} group-hover:text-blue-500 transition-colors`} />
+                        <div
+                          className="flex flex-col items-center gap-1 shrink-0"
+                          title={lead.corretor_nome ? `Responsável: ${lead.corretor_nome}` : 'Sem responsável atribuído'}
+                        >
+                          <div
+                            className={`h-9 w-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0 ${t.isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-100'} group-hover:bg-blue-50 transition-colors`}
+                          >
+                            {lead.corretor_atribuido_id && lead.corretor_tem_foto ? (
+                              <img
+                                src={`/api/admin/usuarios/${lead.corretor_atribuido_id}/foto`}
+                                alt={lead.corretor_nome || 'Responsável'}
+                                className="h-9 w-9 object-cover"
+                              />
+                            ) : lead.corretor_nome ? (
+                              <div className="h-9 w-9 rounded-lg bg-blue-600 flex items-center justify-center text-[10px] font-black text-white">
+                                {getInitials(lead.corretor_nome)}
+                              </div>
+                            ) : (
+                              <UserCircleIcon className={`h-6 w-6 ${t.isDark ? t.textMuted : 'text-slate-400'} group-hover:text-blue-500 transition-colors`} />
+                            )}
+                          </div>
+                          {/* Nome do dono do lead — antes só existia no hover (title), agora
+                              sempre visível como legenda curta abaixo do avatar. */}
+                          {lead.corretor_nome && (
+                            <span className={`text-[9px] font-bold leading-none text-center max-w-[52px] truncate ${t.isDark ? t.textMuted : 'text-slate-400'}`}>
+                              {lead.corretor_nome.split(' ')[0]}
+                            </span>
+                          )}
                         </div>
                         <div>
                           <div className={`text-sm font-black leading-tight tracking-tight ${t.isDark ? t.textPrimary : 'text-slate-800'}`}>{lead.nome || 'Lead s/ Nome'}</div>
@@ -261,8 +527,24 @@ export default function KanbanPage() {
                         t.isDark ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' : 'text-blue-700 bg-blue-50 border-blue-200 shadow-sm'
                       }`}>
                         {lead.score_prontidao || 0}% Match
+                        {lead.score_fit != null && ` · ${lead.score_fit}% Fit`}
                       </div>
                     </div>
+
+                    {(lead.valor_venda_estimado != null || lead.valor_venda != null) && (
+                      <div className="flex items-center gap-1.5 -mt-1 mb-2">
+                        {lead.valor_venda != null && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.valor_venda)}
+                          </span>
+                        )}
+                        {lead.valor_venda == null && lead.valor_venda_estimado != null && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                            ~{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.valor_venda_estimado)} est.
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     <div className="mb-4 mt-3">
                       {lead.enriquecimento_cache ? (
@@ -428,16 +710,47 @@ export default function KanbanPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 mt-4">
-                      {[['Match', `${selectedLead.score_prontidao}%`], ['IPVE', `${Math.min(selectedLead.score_prontidao + 15, 99)}%`]].map(([label, val]) => (
+                      {/* Intenção (score_prontidao) e Fit (score_fit) — 2 dimensões SEPARADAS,
+                          nunca combinadas num 3º número sintético (docs/
+                          PLANO_AGENTES_ACELERACAO_CRM.md §3.1). O tile "IPVE" antigo aqui era
+                          um valor fabricado (score_prontidao + 15, sem nenhum dado real por
+                          trás) — substituído pelo Fit real. */}
+                      {[['Intenção', `${selectedLead.score_prontidao}%`], ['Fit', selectedLead.score_fit != null ? `${selectedLead.score_fit}%` : '—']].map(([label, val]) => (
                         <div key={label} className={`p-3 ${t.cardInner} rounded-xl border ${t.borderSub}`}>
                           <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.textMuted}`}>{label}</p>
                           <span className={`text-lg font-bold ${t.textPrimary}`}>{val}</span>
                         </div>
                       ))}
                     </div>
+
+                    {/* Valor Fechado (REAL, só existe no negócio ganho) e Valor Potencial
+                        (ESTIMADO, palpite editável durante o pipeline) — nunca no mesmo tile,
+                        nunca a mesma cor (docs/CHECKPOINT.md, 2026-08-13). */}
+                    {(selectedLead.valor_venda != null || selectedLead.valor_venda_estimado != null) && (
+                      <div className="grid grid-cols-2 gap-3 mt-3">
+                        {selectedLead.valor_venda != null && (
+                          <div className="p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20">
+                            <p className="text-[9px] font-bold uppercase tracking-widest mb-1 text-emerald-500">Valor Fechado (real)</p>
+                            <span className="text-lg font-bold text-emerald-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda)}</span>
+                          </div>
+                        )}
+                        {selectedLead.valor_venda_estimado != null && (
+                          <div className={`p-3 rounded-xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
+                            <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>Valor Potencial (estimado)</p>
+                            <span className={`text-lg font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda_estimado)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
+
+              {/* Sugestão da IA — F3 next_best_action, informativo, nunca bloqueante */}
+              <NextBestActionCard
+                leadUuid={selectedLead.lead_uuid}
+                onUseAsActivity={handleUseSuggestionAsActivity}
+              />
 
               {/* Histórico de Visitas Compacto */}
               <div className={`p-5 ${t.cardBg} rounded-3xl border border-indigo-500/10`}>
@@ -452,45 +765,175 @@ export default function KanbanPage() {
                 <AtividadesLead
                   leadUuid={selectedLead.lead_uuid}
                   clientId={selectedLead.client_id}
+                  prefill={activityPrefill}
                 />
               </div>
             </div>
 
-            <div className={`p-6 border-t ${t.borderSub} ${t.isDark ? 'bg-black/20' : 'bg-gray-50'} flex flex-wrap items-center justify-end gap-3`}>
-              <button onClick={() => setSelectedLead(null)} className={`px-6 py-3 text-xs font-bold uppercase tracking-widest ${t.textMuted} hover:text-blue-500 transition-all`}>Fechar</button>
-              {tenantConfig?.calendario && (
-                <button
-                  onClick={() => setIsAgendarOpen(true)}
-                  className="flex items-center px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all uppercase active:scale-95 shadow-lg shadow-indigo-500/20"
-                >
-                  <CalendarDaysIcon className="h-4 w-4 mr-2" />
-                  Agendar Visita
-                </button>
-              )}
-              {getPrevColumn(selectedLead.coluna_nome) && (
-                <button onClick={() => moveLead(selectedLead, 'backward')} disabled={movingLead}
-                  className={`flex items-center px-6 py-3 ${t.cardBg} disabled:opacity-50 ${t.textSecondary} text-xs font-bold rounded-xl transition-all uppercase active:scale-95`}>
+            <div className={`p-6 border-t ${t.borderSub} ${t.isDark ? 'bg-black/20' : 'bg-gray-50'} flex flex-wrap items-center justify-between gap-3`}>
+              {/* Exclusão/restauração (docs/CHECKPOINT.md, 2026-08-14) — só na Ficha, nunca no
+                  card do Kanban, pra evitar exclusão acidental por clique rápido demais. */}
+              {selectedLead.deleted_at ? (
+                <button onClick={() => handleRestoreLead(selectedLead)} disabled={deletingLead}
+                  className="flex items-center px-5 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all uppercase active:scale-95">
                   <ArrowUturnLeftIcon className="h-4 w-4 mr-2" />
-                  {movingLead ? 'Movendo...' : 'Recuar Etapa'}
-                </button>
-              )}
-              {getNextColumn(selectedLead.coluna_nome) ? (
-                <button onClick={() => moveLead(selectedLead, 'forward')} disabled={movingLead}
-                  className="flex items-center px-8 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-500 text-white text-xs font-bold rounded-xl transition-all uppercase active:scale-95">
-                  <CheckBadgeIcon className="h-4 w-4 mr-2" />
-                  {movingLead ? 'Movendo...' : `Avançar → ${getNextColumn(selectedLead.coluna_nome)?.titulo_exibicao}`}
+                  {deletingLead ? 'Restaurando...' : 'Restaurar Lead'}
                 </button>
               ) : (
-                <div className="flex items-center px-6 py-3 text-xs font-bold text-emerald-500 uppercase">
-                  <CheckBadgeIcon className="h-4 w-4 mr-2" />Pipeline Concluída
-                </div>
+                <button onClick={() => handleDeleteLead(selectedLead)} disabled={deletingLead}
+                  className="flex items-center px-5 py-3 text-red-500 hover:bg-red-500/10 disabled:opacity-50 text-xs font-bold rounded-xl transition-all uppercase active:scale-95 border border-red-500/20">
+                  <TrashIcon className="h-4 w-4 mr-2" />
+                  {deletingLead ? 'Excluindo...' : 'Excluir Lead'}
+                </button>
               )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button onClick={() => setSelectedLead(null)} className={`px-6 py-3 text-xs font-bold uppercase tracking-widest ${t.textMuted} hover:text-blue-500 transition-all`}>Fechar</button>
+                {!selectedLead.deleted_at && tenantConfig?.calendario && (
+                  <button
+                    onClick={() => setIsAgendarOpen(true)}
+                    className="flex items-center px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all uppercase active:scale-95 shadow-lg shadow-indigo-500/20"
+                  >
+                    <CalendarDaysIcon className="h-4 w-4 mr-2" />
+                    Agendar Visita
+                  </button>
+                )}
+                {!selectedLead.deleted_at && getPrevColumn(selectedLead.coluna_nome) && (
+                  <button onClick={() => moveLead(selectedLead, 'backward')} disabled={movingLead}
+                    className={`flex items-center px-6 py-3 ${t.cardBg} disabled:opacity-50 ${t.textSecondary} text-xs font-bold rounded-xl transition-all uppercase active:scale-95`}>
+                    <ArrowUturnLeftIcon className="h-4 w-4 mr-2" />
+                    {movingLead ? 'Movendo...' : 'Recuar Etapa'}
+                  </button>
+                )}
+                {selectedLead.deleted_at ? null : getNextColumn(selectedLead.coluna_nome) ? (
+                  <button onClick={() => moveLead(selectedLead, 'forward')} disabled={movingLead}
+                    className="flex items-center px-8 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-500 text-white text-xs font-bold rounded-xl transition-all uppercase active:scale-95">
+                    <CheckBadgeIcon className="h-4 w-4 mr-2" />
+                    {movingLead ? 'Movendo...' : `Avançar → ${getNextColumn(selectedLead.coluna_nome)?.titulo_exibicao}`}
+                  </button>
+                ) : (
+                  <div className="flex items-center px-6 py-3 text-xs font-bold text-emerald-500 uppercase">
+                    <CheckBadgeIcon className="h-4 w-4 mr-2" />Pipeline Concluída
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
       <NovoLeadModal isOpen={isNovoLeadOpen} onClose={() => setIsNovoLeadOpen(false)} onSuccess={fetchData} />
+
+      {/* Modal "Valor da Venda" — sempre que um lead entra numa etapa de Ganho */}
+      {pendingGanhoMove && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+          <div className={`${t.modalBg} w-full max-w-sm rounded-[2rem] p-7 shadow-2xl border border-white/10 animate-in zoom-in-95`}>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="h-11 w-11 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-lg flex-shrink-0">
+                <CheckBadgeIcon className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h3 className={`text-base font-black italic tracking-tight ${t.textPrimary}`}>Negócio Fechado 🎉</h3>
+                <p className={`text-[10px] font-bold ${t.textMuted}`}>{pendingGanhoMove.lead.nome}</p>
+              </div>
+            </div>
+            <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
+              Valor da Venda (opcional)
+            </label>
+            <div className="relative">
+              <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold ${t.textMuted}`}>R$</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoFocus
+                value={valorVendaInput}
+                onChange={e => {
+                  const digits = e.target.value.replace(/\D/g, '')
+                  const num = digits ? parseInt(digits, 10) / 100 : 0
+                  setValorVendaInput(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+                }}
+                onKeyDown={e => { if (e.key === 'Enter') confirmGanhoMove() }}
+                placeholder="0,00"
+                className={`w-full rounded-2xl py-3 pl-11 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${t.isDark ? t.inputBg : 'bg-slate-50 text-slate-700 border border-slate-200'}`}
+              />
+            </div>
+            <p className={`text-[10px] ${t.textMuted} mt-2 italic`}>
+              Alimenta o CPA/ROAS real de Campanhas — deixe em branco pra registrar sem valor.
+            </p>
+            <div className="mt-7 flex gap-3">
+              <button
+                onClick={() => setPendingGanhoMove(null)}
+                className={`flex-1 py-3 ${t.isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'} text-[10px] font-black uppercase tracking-widest rounded-xl transition-all`}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmGanhoMove}
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal "Estimativa de Valor" — etapa marcada requer_valor_estimado, lead ainda sem
+          estimativa. Nunca confundido com o "Negócio Fechado" acima (cor âmbar vs. verde,
+          "estimado" explícito no texto) — ver docs/CHECKPOINT.md, 2026-08-13. */}
+      {pendingEstimativaMove && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+          <div className={`${t.modalBg} w-full max-w-sm rounded-[2rem] p-7 shadow-2xl border border-white/10 animate-in zoom-in-95`}>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="h-11 w-11 rounded-2xl bg-amber-500 flex items-center justify-center shadow-lg flex-shrink-0">
+                <span className="text-xl">💰</span>
+              </div>
+              <div>
+                <h3 className={`text-base font-black italic tracking-tight ${t.textPrimary}`}>Estimativa de Valor</h3>
+                <p className={`text-[10px] font-bold ${t.textMuted}`}>{pendingEstimativaMove.lead.nome}</p>
+              </div>
+            </div>
+            <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
+              Valor Potencial Estimado
+            </label>
+            <div className="relative">
+              <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold ${t.textMuted}`}>R$</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoFocus
+                value={valorEstimadoInput}
+                onChange={e => {
+                  const digits = e.target.value.replace(/\D/g, '')
+                  const num = digits ? parseInt(digits, 10) / 100 : 0
+                  setValorEstimadoInput(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+                }}
+                onKeyDown={e => { if (e.key === 'Enter') confirmEstimativaMove() }}
+                placeholder="0,00"
+                className={`w-full rounded-2xl py-3 pl-11 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${t.isDark ? t.inputBg : 'bg-slate-50 text-slate-700 border border-slate-200'}`}
+              />
+            </div>
+            <p className={`text-[10px] ${t.textMuted} mt-2 italic`}>
+              Um palpite, não um fato — alimenta o Pipeline em Aberto do dashboard. Nunca é
+              confundido com o valor real, que só é pedido no fechamento.
+            </p>
+            <div className="mt-7 flex gap-3">
+              <button
+                onClick={() => setPendingEstimativaMove(null)}
+                className={`flex-1 py-3 ${t.isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'} text-[10px] font-black uppercase tracking-widest rounded-xl transition-all`}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmEstimativaMove}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Agendar Visita */}
       {isAgendarOpen && selectedLead && tenantConfig && (

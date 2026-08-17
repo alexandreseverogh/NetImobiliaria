@@ -184,13 +184,38 @@ export function MasterProvisioningHub() {
     )
     .slice(0, 50) // Limite de performance para milhares de itens
   const activeSegmentData = tree.find(s => s.id === selectedSegment)
-  
+
+  // Achado real (2026-08-09): um módulo pode estar associado a um tenant via tenant_modules
+  // sem que o SEGMENTO desse tenant tenha esse módulo linkado em system_segment_modules —
+  // ex.: tenant no segmento "Venda de Carros" com "Cadastros"/"CRM de Vendas" atribuídos
+  // (módulos curados só sob "Imobiliário"/"Saúde Digital"). A Coluna 3 (Módulos Assinados)
+  // antes só iterava `activeSegmentData.modules`, então esses módulos ficavam invisíveis e
+  // sem checkbox pra gerenciar, mesmo já persistidos e retornados pela API. Corrigido achatando
+  // TODOS os módulos de TODOS os segmentos da árvore num mapa único (a forma de um módulo —
+  // nome/features — é a mesma onde quer que apareça, já que features são ligadas ao módulo via
+  // system_feature_modules, não ao par segmento-módulo) e complementando a lista do segmento
+  // ativo com qualquer módulo que o tenant já tenha fora dela.
+  const allModulesById: Record<string, Module> = {}
+  for (const seg of tree) {
+    for (const mod of seg.modules) {
+      if (!allModulesById[mod.id]) allModulesById[mod.id] = mod
+    }
+  }
+  const segmentModuleIds = new Set((activeSegmentData?.modules ?? []).map(m => String(m.id)))
+  const extraProvisionedModules = provisioningData.modules
+    .filter(id => !segmentModuleIds.has(String(id)))
+    .map(id => allModulesById[id])
+    .filter((m): m is Module => !!m)
+  const modulesToShow: Module[] = [...(activeSegmentData?.modules ?? []), ...extraProvisionedModules]
+
   // Dados da Coluna 4 (Features a exibir)
   let featuresToShow: Feature[] = []
   if (selectedModuleForFeatures === 'orphans') {
     featuresToShow = orphanFeatures
-  } else if (selectedModuleForFeatures !== null && activeSegmentData) {
-    const activeMod = activeSegmentData.modules.find(m => String(m.id) === String(selectedModuleForFeatures))
+  } else if (selectedModuleForFeatures !== null) {
+    // Busca em modulesToShow (segmento + extras fora do segmento), não só na árvore do
+    // segmento ativo — senão selecionar um dos módulos "extras" nunca resolveria as features.
+    const activeMod = modulesToShow.find(m => String(m.id) === String(selectedModuleForFeatures))
     if (activeMod) featuresToShow = activeMod.features
   }
 
@@ -668,10 +693,11 @@ export function MasterProvisioningHub() {
              </div>
           ) : (
             <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar pr-2 space-y-4">
-              {activeSegmentData?.modules.map(module => {
+              {modulesToShow.map(module => {
                 const isSelected = selectedModuleForFeatures === module.id;
                 const isProvisioned = provisioningData.modules.includes(String(module.id));
                 const config = provisioningData.moduleConfigs[module.id] || { theme_mode: 'light' };
+                const isOutsideSegment = !segmentModuleIds.has(String(module.id));
 
                 return (
                   <div 
@@ -707,6 +733,14 @@ export function MasterProvisioningHub() {
                         <span className={`text-xs font-black uppercase tracking-widest ${isSelected ? 'text-indigo-700' : 'text-gray-700'}`}>
                           {module.name}
                         </span>
+                        {isOutsideSegment && (
+                          <span
+                            title="Este módulo está atribuído ao tenant mas não está curado no segmento dele em system_segment_modules"
+                            className="ml-2 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[8px] font-black uppercase tracking-wider"
+                          >
+                            Fora do segmento
+                          </span>
+                        )}
                       </div>
                       <ChevronRightIcon className={`h-4 w-4 text-gray-400 ${isSelected ? 'text-indigo-600' : ''}`} />
                     </div>

@@ -31,6 +31,7 @@ interface Atividade {
   tipo_icone?: string | null
   descricao: string
   usuario_nome?: string | null
+  origem?: 'humano' | 'ia'
   anexo_url?: string | null
   anexo_tipo?: 'audio' | 'imagem' | 'pdf' | null
   anexo_nome_original?: string | null
@@ -40,6 +41,11 @@ interface Atividade {
 interface Props {
   leadUuid: string
   clientId?: string | null
+  /** Preenche o formulário de Nova Atividade com um texto vindo de fora (ex.: "Registrar como
+   *  Atividade" no card "Sugestão da IA" — F3, docs/PLANO_AGENTES_ACELERACAO_CRM.md §5).
+   *  `nonce` precisa mudar a cada clique pra reabrir o form mesmo se o texto for o mesmo de
+   *  antes (useEffect só dispara em mudança de valor). */
+  prefill?: { text: string; nonce: number }
 }
 
 const MIN_DESCRICAO_LEN = 15
@@ -93,7 +99,7 @@ function AttachmentPreview({ atividade }: { atividade: Atividade }) {
 
 const ATTACH_ICON = { audio: SpeakerWaveIcon, imagem: PhotoIcon, pdf: DocumentIcon }
 
-export default function AtividadesLead({ leadUuid, clientId }: Props) {
+export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
   const t = useTheme()
   const [atividades, setAtividades] = useState<Atividade[]>([])
   const [tipos, setTipos] = useState<TipoAtividade[]>([])
@@ -111,6 +117,17 @@ export default function AtividadesLead({ leadUuid, clientId }: Props) {
   useEffect(() => {
     if (leadUuid) loadAll()
   }, [leadUuid])
+
+  useEffect(() => {
+    if (!prefill || !prefill.text) return
+    setEditingId(null)
+    setFormTipoId('')
+    setFormDescricao(prefill.text)
+    setFormFile(null)
+    setShowForm(true)
+    setError(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.nonce])
 
   const loadAll = async () => {
     setLoading(true)
@@ -278,7 +295,13 @@ export default function AtividadesLead({ leadUuid, clientId }: Props) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: a.tipo_cor }}>{a.tipo_nome}</span>
                         <span className={`text-[10px] ${t.textMuted}`}>{timeAgo(a.created_at)}</span>
-                        {a.usuario_nome && <span className={`text-[10px] ${t.textMuted} opacity-60`}>· {a.usuario_nome}</span>}
+                        {a.origem === 'ia' ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gold-premium/15 text-gold-premium flex items-center gap-1">
+                            🤖 Agente de IA
+                          </span>
+                        ) : (
+                          a.usuario_nome && <span className={`text-[10px] ${t.textMuted} opacity-60`}>· {a.usuario_nome}</span>
+                        )}
                       </div>
                       <p className={`text-xs mt-1 leading-relaxed ${t.textSecondary}`}>{a.descricao}</p>
                       {AttachIcon && <AttachmentPreview atividade={a} />}

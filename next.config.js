@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-07-27 — prisma generate BudgetReallocation (clearou global.prismaMarketing)
+// last-restart: 2026-08-14 — chunk stale de NovoLeadModal.tsx pós-rename (imovelSearch→ativoSearch)
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

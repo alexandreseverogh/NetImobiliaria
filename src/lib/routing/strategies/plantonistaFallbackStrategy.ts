@@ -43,6 +43,9 @@ export const plantonistaFallbackStrategy: DistributionStrategy = {
          SELECT corretor_atribuido_id as corretor_fk, created_at FROM public.leads_staging WHERE corretor_atribuido_id IS NOT NULL
       ) a ON a.corretor_fk = u.id
       WHERE u.ativo = true
+        -- Ausência temporária (férias/atestado) tira até o plantonista da fila — plantão de
+        -- alguém de licença não é plantão. Ver docs/PLANO_PENDENCIA_ATENDIMENTO.md §4.1.
+        AND (u.indisponivel_ate IS NULL OR u.indisponivel_ate <= now())
         AND utm.tenant_id = $4
         AND ur.name = $5
         AND COALESCE(u.is_plantonista, false) = true

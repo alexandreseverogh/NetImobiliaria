@@ -278,33 +278,36 @@ export async function POST(request: NextRequest) {
         // --- QUALIFICAÇÃO CONCIERGE IA ---
         let aiSummary = null;
         let aiScore = 0;
+        let aiScoreFit: number | null = null;
         try {
           const { ConciergeService } = await import('@/lib/ai/conciergeService');
-          const qualification = await ConciergeService.qualifyLead(row.mensagem || '', 1, row.tenant_id, { source: 'site_prospect', imovel_id: imovelId });
+          const qualification = await ConciergeService.qualifyLead(row.mensagem || '', row.tenant_id, null, { source: 'site_prospect', imovel_id: imovelId });
           aiSummary = qualification.resumo_ia;
           aiScore = Math.floor(qualification.score_prontidao * 10);
+          aiScoreFit = qualification.score_fit !== null ? Math.floor(qualification.score_fit * 10) : null;
         } catch (aiErr) {
           console.warn('⚠️ [ProspectSync] IA falhou, seguindo com score 0:', aiErr);
         }
 
         // INSERIR OU ATUALIZAR NA STAGING (E PEGAR O UUID PARA ENRIQUECER)
         const stgRes = await pool.query(
-          `INSERT INTO leads_staging (nome, email, telefone, imovel_id, raw_json, status, estado_fk, cidade_fk, tag_sonho, resumo_ia, score_prontidao, tenant_id)
-           VALUES ($1, $2, $3, $4, $5, 'lead_captado', $6, $7, $8, $9, $10, $11)
-           ON CONFLICT (email, imovel_id) 
-           DO UPDATE SET updated_at = NOW(), score_prontidao = EXCLUDED.score_prontidao
+          `INSERT INTO leads_staging (nome, email, telefone, imovel_id, raw_json, status, estado_fk, cidade_fk, tag_sonho, resumo_ia, score_prontidao, score_fit, tenant_id)
+           VALUES ($1, $2, $3, $4, $5, 'lead_captado', $6, $7, $8, $9, $10, $11, $12)
+           ON CONFLICT (email, imovel_id)
+           DO UPDATE SET updated_at = NOW(), score_prontidao = EXCLUDED.score_prontidao, score_fit = EXCLUDED.score_fit
            RETURNING lead_uuid`,
           [
-            row.cliente_nome, 
-            row.cliente_email, 
-            row.cliente_telefone, 
-            imovelId, 
-            JSON.stringify({ source: 'site_landpaging', prospect_id: prospectId, message: row.mensagem }), 
-            row.estado_fk, 
+            row.cliente_nome,
+            row.cliente_email,
+            row.cliente_telefone,
+            imovelId,
+            JSON.stringify({ source: 'site_landpaging', prospect_id: prospectId, message: row.mensagem }),
+            row.estado_fk,
             row.cidade_fk,
             'Interesse em Imóvel',
             aiSummary,
             aiScore,
+            aiScoreFit,
             row.tenant_id
           ]
         );
@@ -322,7 +325,7 @@ export async function POST(request: NextRequest) {
         // --- 🚀 NOVO: MOTOR DE ENRIQUECIMENTO GLOBAL (CRM AGNÓSTICO) ---
         if (leadUuid) {
            const { EnrichmentService } = await import('@/lib/crm/enrichmentService');
-           await EnrichmentService.enrichLead(leadUuid, 1, imovelId); // Domínio 1 = Imobiliário
+           await EnrichmentService.enrichLead(leadUuid, row.tenant_id, imovelId);
            console.log(`✅ [ProspectSync] Lead ${row.cliente_email} captado e enriquecido via metadados.`);
         }
       } else {
