@@ -1,5 +1,23 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 6) — **Agendar Visita: aviso não-bloqueante quando
+> o atendente logado não tem o próprio Google Calendar conectado.** Complemento direto do fix
+> anterior (empresa já basta, nunca mais bloqueia): usuário perguntou se a aplicação avisa o
+> atendente que ele não vai receber o evento no calendário pessoal — resposta honesta foi que
+> não, só o texto sutil do resumo final indicava isso.
+>
+> **Implementado** (`src/components/crm/AgendarVisitaModal.tsx`): banner âmbar dispensável nos
+> passos "Data"/"Horário" (só quando `!hasPersonalCalendar`, nunca nos demais passos) —
+> explica a consequência real ("o evento vai pro calendário da empresa, só não aparece no seu
+> Google Calendar pessoal, sem lembrete automático") + link "Conectar agora" (mesmo CTA de
+> OAuth já usado na tela de bloqueio antiga) + botão de dispensar (state `personalBannerDismissed`,
+> resetado toda vez que o modal reabre). Nunca bloqueia — só informa, exatamente como pedido.
+>
+> **Testado ao vivo:** banner renderiza com o texto certo assim que o modal abre pro atendente
+> sem calendário pessoal conectado; clique em "Dispensar" remove corretamente (confirmado numa
+> 2ª leitura do DOM — a 1ª leitura, na mesma call síncrona do clique, ainda pegou o state
+> antes do re-render do React aplicar). `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 5) — **Agendar Visita não bloqueia mais o fluxo
 > pedindo OAuth pessoal do Google Calendar quando o TENANT já tem o calendário da empresa
 > configurado.** Usuário reportou (print real): mesmo com `tenants.calendario=true` e

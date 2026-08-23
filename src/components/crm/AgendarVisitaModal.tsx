@@ -69,6 +69,7 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [agendamentoId, setAgendamentoId] = useState('')
+  const [personalBannerDismissed, setPersonalBannerDismissed] = useState(false)
 
   // Calendário visual — mês atual
   const today = new Date()
@@ -89,6 +90,7 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
       setSelectedSlot(null)
       setObservacoes('')
       setError('')
+      setPersonalBannerDismissed(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, canSchedule])
@@ -252,6 +254,39 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
             <div className="mb-4 flex items-start space-x-3 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
               <ExclamationTriangleIcon className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-400 font-medium">{error}</p>
+            </div>
+          )}
+
+          {/* Aviso não-bloqueante: calendário pessoal do atendente não conectado — o
+              agendamento funciona normalmente (calendário da empresa já cobre), mas ele não
+              recebe o evento no próprio Google Calendar sem isso. */}
+          {!hasPersonalCalendar && !personalBannerDismissed && (step === 'date' || step === 'slot') && (
+            <div className={`mb-4 flex items-start gap-3 p-4 rounded-2xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
+              <CalendarDaysIcon className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                  Seu Google Calendar pessoal não está conectado
+                </p>
+                <p className={`text-[11px] mt-1 leading-relaxed ${t.textSecondary}`}>
+                  Você pode agendar normalmente — o evento vai pro calendário da empresa. Só não
+                  vai aparecer no seu Google Calendar pessoal (sem lembrete automático) até você
+                  conectar.
+                </p>
+                <a
+                  href={`/api/auth/google/authorize?returnUrl=${encodeURIComponent('/crm/kanban')}`}
+                  className="inline-flex items-center gap-1 mt-2 text-[11px] font-bold text-amber-600 hover:text-amber-500 transition-colors"
+                >
+                  <LinkIcon className="h-3 w-3" />
+                  Conectar agora
+                </a>
+              </div>
+              <button
+                onClick={() => setPersonalBannerDismissed(true)}
+                title="Dispensar"
+                className={`flex-shrink-0 p-1 rounded-lg transition-all ${t.isDark ? 'text-white/30 hover:text-white/60 hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
             </div>
           )}
 
