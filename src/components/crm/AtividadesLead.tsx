@@ -100,6 +100,7 @@ function AttachmentEntry({
   pending?: boolean
   onRemove?: () => void
 }) {
+  const t = useTheme()
   const [lightbox, setLightbox] = useState(false)
 
   const body = (() => {
@@ -146,7 +147,7 @@ function AttachmentEntry({
         <button
           onClick={onRemove}
           title={pending ? 'Remover (ainda não salvo)' : 'Remover este anexo'}
-          className="flex-shrink-0 p-1 rounded-lg text-white/30 hover:text-red-500 hover:bg-red-500/10 transition-all"
+          className={`flex-shrink-0 p-1 rounded-lg transition-all hover:text-red-500 hover:bg-red-500/10 ${t.isDark ? 'text-white/40' : 'text-gray-400'}`}
         >
           <XMarkIcon className="h-3.5 w-3.5" />
         </button>

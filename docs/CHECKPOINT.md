@@ -1,5 +1,20 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 3) — **Fix real: botão de excluir anexo invisível
+> no tema claro — `text-white/30` hardcoded, nunca reagia ao tema.** Usuário mandou print real
+> do card no tema claro confirmando os 3 anexos listados mas nenhum botão de exclusão visível
+> — o botão existia (commit anterior) mas renderizava branco quase transparente sobre fundo
+> claro, efetivamente invisível.
+>
+> **Corrigido:** `AttachmentEntry` (`src/components/crm/AtividadesLead.tsx`) passou a chamar
+> `useTheme()` (não tinha acesso ao tema antes, só o componente pai tinha) e o botão de
+> remover troca `text-white/30` fixo por `t.isDark ? 'text-white/40' : 'text-gray-400'` —
+> mesmo padrão já usado nos botões de editar/excluir atividade no mesmo arquivo.
+>
+> **Testado ao vivo, tema claro** (mesma tela do print do usuário): `getComputedStyle` dos 3
+> botões de remover confirma `color: rgb(156, 163, 175)` (cinza-400 real, visível) em vez do
+> branco quase invisível de antes. `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 2) — **Atividades do CRM: botão de excluir anexo
 > individual passa a existir também no card de leitura, não só dentro do formulário de
 > edição.** Pedido direto do usuário: "tem que haver um botão de exclusão de anexos
