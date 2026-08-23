@@ -20,6 +20,15 @@ ao fim de cada sessão — mas depende de Claude ter atualizado o arquivo durant
 
 ---
 
+## ⚠️ Regra Obrigatória — Manutenção da Documentação Viva (Docsify)
+
+Ao criar novas funcionalidades, alterar rotas de API, adicionar modelos no Prisma ou alterar fluxos do sistema, **atualize obrigatoriamente**:
+1. A documentação técnica (`docs/01_...` a `docs/10_...` ou `docs/15_...` a `docs/17_...`).
+2. O manual operacional do usuário (`docs/20_...` a `docs/26_...`).
+3. Registre um novo arquivo em `docs/adr/` se for uma decisão de arquitetura relevante.
+
+---
+
 ## ⚠️ Regra Obrigatória — Múltiplas Frentes em Paralelo (Worktrees)
 
 **Encerrada em 2026-07-19 a colaboração com o agente Antigravity** — que trabalhava em paralelo

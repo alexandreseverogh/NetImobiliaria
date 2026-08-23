@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
+    "docs": "npx -y docsify-cli serve docs --port 3012",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
