@@ -187,7 +187,7 @@ async function qualifyWithLlm(
 
   const criteriosFit = fitCriteria.length
     ? fitCriteria.map((c) => `- ${c.criterio} (peso ${c.peso}/10)`).join('\n')
-    : 'Nenhum critério de fit cadastrado ainda — retorne score_fit: 5 (neutro).';
+    : 'Nenhum critério de fit cadastrado ainda — ignore o campo score_fit (será descartado).';
 
   const prompt = renderPrompt(template, { mensagem, regras_taticas: regrasTaticas, criterios_fit: criteriosFit });
 
@@ -205,8 +205,12 @@ async function qualifyWithLlm(
   const resumo = typeof parsed.resumo_ia === 'string' && parsed.resumo_ia.trim() ? parsed.resumo_ia.trim() : 'Análise via IA concluída.';
   const scoreRaw = Number(parsed.score_prontidao);
   const score = Number.isFinite(scoreRaw) ? Math.min(10, Math.max(0, Math.round(scoreRaw))) : 5;
+  // Sem nenhum critério de fit cadastrado, não existe nada real pra avaliar — mesmo que o LLM
+  // devolva um número (modelos nem sempre seguem a instrução de omitir), descartamos e forçamos
+  // null aqui, no código, não só no texto do prompt. Mesma disciplina do fallback por palavra-
+  // chave (matchByKeyword) logo acima, que já nunca inventa um score_fit.
   const fitRaw = Number(parsed.score_fit);
-  const scoreFit = Number.isFinite(fitRaw) ? Math.min(10, Math.max(0, Math.round(fitRaw))) : null;
+  const scoreFit = fitCriteria.length && Number.isFinite(fitRaw) ? Math.min(10, Math.max(0, Math.round(fitRaw))) : null;
 
   return { tag_sonho: tag, resumo_ia: resumo, score_prontidao: score, score_fit: scoreFit };
 }

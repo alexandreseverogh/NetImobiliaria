@@ -1,5 +1,64 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-23 (continuação 2) — **Roteiro de testes (item 1.2, passos 5/6/7):
+> bug real encontrado e corrigido — `score_fit` era fabricado (valor neutro 50%) quando o
+> segmento/tenant não tinha nenhum critério de Fit cadastrado, em vez de `null`/"—" como o
+> próprio roteiro (e o docstring do módulo) já exigia.** Testado ao vivo com dado real, tenant
+> CRM SOZINHO (segmento Venda de Carros, 0 critérios de Fit cadastrados — nem no segmento nem
+> no tenant).
+>
+> **Contexto:** usuário pediu pra testar minuciosamente 3 itens da ficha do lead: (5) os tiles
+> separados "Intenção X%"/"Fit X% ou —"; (6) `NextBestActionCard` (sugestão + botão "Registrar
+> como Atividade"); (7) `AgendamentosLead` (histórico de visitas).
+>
+> **Bug real encontrado testando o item 5, não hipotético:** `src/lib/ai/conciergeService.ts`,
+> `qualifyWithLlm()` — quando `fitCriteria.length === 0` (nenhum critério de Fit cadastrado pro
+> segmento/tenant), o prompt instruía o LLM a **"retorne score_fit: 5 (neutro)"** e o código
+> persistia esse valor fabricado direto — contradizendo o próprio docstring de
+> `QualificationResult.score_fit` ("null = nunca avaliado... nunca inventamos um número aqui")
+> e o fallback por palavra-chave (`matchByKeyword`, no mesmo arquivo), que já fazia a coisa
+> certa (`score_fit: null`) nesse mesmo cenário. Um lead de teste real qualificado pelo LLM
+> (Groq, mensagem real sobre picape 4x4) confirmou: `score_fit=50` persistido mesmo com 0 linhas
+> em `crm_fit_criterios_segmento`/`crm_fit_criterios_tenant` — a ficha mostraria "Fit 50%" como
+> se fosse uma avaliação real, quando não existe nenhum critério configurado pra avaliar nada.
+>
+> **Corrigido em 2 camadas** (texto do prompt sozinho não é suficiente — LLMs nem sempre seguem
+> a instrução de omitir um campo, mesma lição já registrada várias vezes nesta sessão pra outros
+> agentes): (1) o prompt passa a dizer "ignore o campo score_fit (será descartado)" em vez de
+> pedir um valor neutro; (2) **guarda dura no código**, não só no texto — `qualifyWithLlm` agora
+> força `scoreFit = null` sempre que `fitCriteria.length === 0`, independente do que o LLM
+> devolver, mesma disciplina já usada no fallback por palavra-chave.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant CRM SOZINHO, usuário real
+> `admxyz`/sessão JWT real injetada no navegador): lead de teste criado via `POST /api/crm/leads`
+> real (mensagem "Quero uma picape 4x4 usada, tenho até 90 mil pra dar de entrada") →
+> qualificação real via LLM (Groq) confirmada por SQL: `tag_sonho="Financiamento"`,
+> `score_prontidao=80`, **`score_fit=NULL`** (antes do fix: `50`) · ficha aberta no navegador
+> real confirmou os 2 tiles separados: "INTENÇÃO 80%" / "FIT —" — bate exato com o esperado pelo
+> roteiro · nenhuma ocorrência de "IPVE" em lugar nenhum da página (`document.body.innerText`
+> completo inspecionado) · **item 6**: `GET .../next-best-action` retornou `enabled:true`
+> (herdado do padrão do segmento "Venda de Carros", sem override no tenant) com
+> `suggestion:null` — card renderizou "Nenhuma sugestão gerada ainda" (nunca fabrica); clique em
+> "Atualizar sugestão" gerou uma sugestão real e coerente via LLM ("Envie imediatamente um
+> WhatsApp... com três sugestões de picapes 4x4... e solicite um horário para a primeira
+> simulação de financiamento"); clique em "Registrar como Atividade" abriu o formulário de Nova
+> Atividade com o `<textarea>` já preenchido com o texto EXATO da sugestão (confirmado via
+> `textarea.value`, não só visualmente) · **item 7**: inserido 1 agendamento real via SQL direto
+> em `public.agendamentos` (status `agendado`, corretor real, observação) — impossível testar a
+> CRIAÇÃO via UI real porque `AgendarVisitaModal` exige OAuth real do Google Calendar
+> (`google_calendar_authorized`/`has_google_token`), que não pode ser simulado nesta sessão;
+> reaberta a ficha → "HISTÓRICO DE VISITAS" renderizou corretamente o agendamento existente
+> (badge "AGENDADO", data/hora formatada em `America/Recife`, nome do corretor, observação) —
+> confirma que `AgendamentosLead.tsx` (componente puramente de leitura) funciona.
+>
+> Limpeza: lead de teste + agendamento de teste removidos (`leads_staging`/`leads_kanban`/
+> `agendamentos`, `count(*)=0` confirmado nas 3 tabelas). `npx tsc --noEmit`: 0 erros.
+>
+> **Pendência real, não atacada nesta rodada:** testar a CRIAÇÃO de agendamento via
+> `AgendarVisitaModal` com OAuth real do Google Calendar exige consentimento externo do usuário
+> — fora do que esta sessão consegue simular; se o usuário quiser essa confirmação, precisa ser
+> feito manualmente por ele ou numa sessão com credencial OAuth real já conectada.
+
 > **Atualizado em:** 2026-08-23 (continuação) — **Roteiro de testes (item 1.2, passos 4/4b):
 > fix real — `executeMove` não propagava `valor_venda`/`valor_venda_estimado` pro state da
 > ficha aberta, causando re-prompt indevido do modal "Estimativa de Valor" ao mover um lead
