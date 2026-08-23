@@ -1,5 +1,73 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-23 (continuação) — **Roteiro de testes (item 1.2, passos 4/4b):
+> fix real — `executeMove` não propagava `valor_venda`/`valor_venda_estimado` pro state da
+> ficha aberta, causando re-prompt indevido do modal "Estimativa de Valor" ao mover um lead
+> por 2 etapas que exigem estimativa na mesma sessão.** Testado ao vivo com dado real, tenant
+> CRM SOZINHO (segmento Venda de Carros).
+>
+> **Contexto:** usuário pediu pra testar o item "mover lead pra coluna GANHO... deve disparar
+> `refreshNextBestAction` em segundo plano" + o item novo "4b — Valor Estimado" (interceptar
+> com modal âmbar, não perguntar de novo se já tem estimativa). Perguntou também o que precisa
+> configurar pra ativar os agentes — resposta: `next_best_action` já estava ativo (herdado do
+> segmento "Venda de Carros", sem override no tenant) — só faltava uma chave de LLM configurada
+> pro tenant (nunca teve nenhuma linha em `campanhasmarketingdigital."Settings"`).
+>
+> **Bug real encontrado durante o próprio teste (não hipotético):** `src/app/crm/kanban/
+> page.tsx`, `executeMove()` — o `setLeads` (state do board) já mesclava corretamente
+> `valor_venda`/`valor_venda_estimado` no lead movido, mas o `setSelectedLead` (state da FICHA
+> ABERTA, é o que `requestMove()` lê pra decidir se intercepta) só atualizava `coluna_nome`,
+> nunca os valores. Resultado: dentro da MESMA sessão de modal, mover um lead pra uma 1ª coluna
+> que exige estimativa (preenche corretamente) e depois pra uma 2ª coluna que também exige
+> voltava a interceptar — o `lead.valor_venda_estimado` que `requestMove` lia ainda estava
+> `null`/`undefined` no `selectedLead` stale, mesmo já persistido no servidor. O 1º teste desta
+> mesma rodada (2 leads diferentes, com reload de página no meio) tinha mascarado o bug —
+> só apareceu ao reproduzir a sequência completa sem reload, exatamente como um atendente real
+> usaria (mover várias vezes seguidas na mesma ficha aberta).
+>
+> **Corrigido:** `setSelectedLead` agora recebe o mesmo spread condicional de `valorVenda`/
+> `valorEstimado` que `setLeads` já tinha — 1 linha. `npx tsc --noEmit`: 0 erros.
+>
+> **Testado ao vivo, ponta a ponta, reproduzindo a sequência exata do bug antes/depois do fix**
+> (2 leads de teste dedicados, tenant CRM SOZINHO): coluna "Em Análise" marcada com "Exige
+> valor estimado" (via UI real, `/crm/config/kanban`) · lead sem estimativa movido pra lá →
+> intercepta com modal âmbar "Estimativa de Valor 💰" (`bg-amber-500/10 text-amber-500`,
+> confirmado via `getComputedStyle`) · **cancelar** → mantém na coluna original, sem gravar
+> nada (confirmado via SQL) · **confirmar** com R$45.000,00 → move + persiste corretamente ·
+> 2ª coluna ("Entendimento da Dor") também marcada — mover o MESMO lead pra lá, ainda na mesma
+> sessão de modal → **antes do fix: interceptava de novo (bug reproduzido)** · **depois do
+> fix: não interceptou, seguiu direto** (retestado do zero com um 2º lead, resetado e refeito
+> a sequência completa sem reload) · card do Kanban confirmado com badge âmbar "~R$X est."
+> nunca no mesmo tile do badge verde de valor real · lead levado até "Fechamento" (GANHO) →
+> modal verde "Negócio Fechado 🎉" (distinto do âmbar), preenchido R$58.000,00 → ficha mostra
+> "VALOR FECHADO (REAL) R$ 58.000,00" (verde) e "VALOR POTENCIAL (ESTIMADO) R$ 60.000,00"
+> (âmbar) lado a lado, nunca confundidos.
+>
+> **`next_best_action` — disparo em segundo plano confirmado, com 1 achado real no caminho:**
+> a chave/modelo Groq já configurados globalmente na plataforma (`llama-3.3-70b-versatile`)
+> foram descontinuados pelo provider — confirmado via `GET https://api.groq.com/openai/v1/
+> models` (não está mais na lista) e via chamada direta (404 `model_not_found`). Trocado pro
+> modelo já cadastrado no catálogo `LlmModel` deste projeto, `openai/gpt-oss-120b` (mesmo
+> provider/chave, testado e funcionando via curl direto antes de aplicar). Configurada 1 linha
+> nova em `campanhasmarketingdigital."Settings"` pro tenant CRM SOZINHO (nunca tinha nenhuma —
+> por isso qualquer agente com LLM estava silenciosamente inoperante nesse tenant até agora,
+> "Não foi possível gerar a sugestão agora." sem detalhe do erro real pro usuário, por design
+> de segurança da rota). **Deixado configurado de propósito** (não é resíduo de teste — é uma
+> lacuna real de config do tenant, corrigida) para os próximos itens do roteiro que dependem de
+> LLM (`reactivation`, `score_recalibration`) já funcionarem sem precisar repetir esse setup.
+> Confirmado end-to-end: `refreshNextBestAction` disparado a cada move (fire-and-forget, nunca
+> bloqueou a resposta do move) e, com o modelo corrigido, gerou sugestão real e coerente
+> ("Envie imediatamente uma proposta por e-mail com os modelos de sedãs usados dentro do limite
+> de R$ 60 mil...", citando o contexto real do lead), persistida em `crm_agent_actions`
+> (`type='INFORMATIVE'`, `status='NOTIFIED'`).
+>
+> Limpeza: os 2 leads de teste removidos (cascata confirmada — `crm_agent_actions`/
+> `atividades_lead`/`leads_kanban` zerados), colunas "Em Análise"/"Entendimento da Dor"
+> revertidas pra `requer_valor_estimado=false` (config só de teste, não pedida como permanente).
+
+> **Atualizado em:** 2026-08-23 — **Concluída a Implementação da Documentação Viva & Manual Operacional no Browser (Padrão Docsify v4)**.
+> Criada a estrutura completa em `docs/` (`index.html`, `_sidebar.md`, 20 capítulos organizados nos 3 Pilares e ADRs), o script `npm run docs` no `package.json`, a rota interna em `/admin/documentacao` e as diretrizes obrigatórias de manutenção contínua da documentação em `CLAUDE.md` e `AGENTS.md`.
+
 > **Atualizado em:** 2026-08-16 (continuação 5) — **`/crm/leads`: adicionados os mesmos
 > filtros de período (7/30/90/Personalizado/Histórico) e foto do responsável já existentes
 > no dashboard `/crm` e no Kanban.** Pedido direto do usuário em 2 partes na mesma rodada:

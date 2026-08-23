@@ -164,7 +164,7 @@ export default function KanbanPage() {
     setMovingLead(true)
     const oldColumnName = lead.coluna_nome
     setLeads(prev => prev.map(l => l.lead_uuid === lead.lead_uuid ? { ...l, coluna_nome: targetCol.nome, ...(valorVenda !== undefined ? { valor_venda: valorVenda } : {}), ...(valorEstimado !== undefined ? { valor_venda_estimado: valorEstimado } : {}) } : l))
-    setSelectedLead(prev => prev && prev.lead_uuid === lead.lead_uuid ? { ...prev, coluna_nome: targetCol.nome } : prev)
+    setSelectedLead(prev => prev && prev.lead_uuid === lead.lead_uuid ? { ...prev, coluna_nome: targetCol.nome, ...(valorVenda !== undefined ? { valor_venda: valorVenda } : {}), ...(valorEstimado !== undefined ? { valor_venda_estimado: valorEstimado } : {}) } : prev)
     try {
       const res = await adminFetch('/api/crm/kanban/move', {
         method: 'POST',
