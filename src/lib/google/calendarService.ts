@@ -94,15 +94,18 @@ async function getServiceAccountToken(): Promise<string> {
 // ── Disponibilidade ────────────────────────────────────────────
 
 /**
- * Verifica slots disponíveis combinando calendário do usuário + empresa
+ * Verifica slots disponíveis combinando calendário do usuário + empresa. O do usuário é
+ * best-effort: quando o atendente logado não conectou a própria conta Google
+ * (`userRefreshToken` ausente), a checagem roda só com o calendário da empresa — nunca bloqueia
+ * o agendamento por falta de conexão pessoal, só reduz a checagem de conflito à empresa.
  * @param tenantEmail   E-mail Google da empresa (tenants.google_email)
- * @param userRefreshToken  refresh_token do corretor
+ * @param userRefreshToken  refresh_token do corretor, se ele já conectou a própria conta
  * @param date          Data a verificar (YYYY-MM-DD)
  * @param duracaoMin    Duração de cada slot em minutos
  */
 export async function getAvailableSlots(
   tenantEmail: string,
-  userRefreshToken: string,
+  userRefreshToken: string | null | undefined,
   date: string,
   duracaoMin: number = 60
 ): Promise<AvailableSlot[]> {
@@ -110,9 +113,17 @@ export async function getAvailableSlots(
   const dayStart = new Date(`${date}T07:00:00-03:00`).toISOString()
   const dayEnd   = new Date(`${date}T22:00:00-03:00`).toISOString()
 
-  // Buscar token do usuário
-  const userToken = await getAccessToken(userRefreshToken)
-  
+  // Token do usuário é opcional — sem ele, a disponibilidade é calculada só pelo calendário
+  // da empresa (nunca lança erro por falta de conexão pessoal).
+  let userToken: string | null = null
+  if (userRefreshToken) {
+    try {
+      userToken = await getAccessToken(userRefreshToken)
+    } catch (err) {
+      console.warn('⚠️ [CalendarService] Falha ao renovar token pessoal do usuário. Ignorando calendário pessoal.', err)
+    }
+  }
+
   let saToken = null
   try {
     saToken = await getServiceAccountToken()
@@ -128,18 +139,25 @@ export async function getAvailableSlots(
     items: [{ id: 'primary' }],
   }
 
-  const fetchPromises = [
-    fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${userToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(freeBusyBody),
-    }),
-  ]
+  const fetchPromises: Promise<Response>[] = []
+  const sources: ('user' | 'company')[] = []
+
+  if (userToken) {
+    sources.push('user')
+    fetchPromises.push(
+      fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(freeBusyBody),
+      })
+    )
+  }
 
   if (saToken && tenantEmail) {
+    sources.push('company')
     fetchPromises.push(
       fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
         method: 'POST',
@@ -153,11 +171,13 @@ export async function getAvailableSlots(
   }
 
   const responses = await Promise.all(fetchPromises)
-  const userJson = await responses[0].json()
-  const saJson = responses[1] ? await responses[1].json() : null
+  const jsons = await Promise.all(responses.map(r => r.json()))
+
+  const userJson = sources.includes('user') ? jsons[sources.indexOf('user')] : null
+  const saJson = sources.includes('company') ? jsons[sources.indexOf('company')] : null
 
   const userBusy: { start: string; end: string }[] =
-    userJson.calendars?.primary?.busy || []
+    userJson?.calendars?.primary?.busy || []
   const companyBusy: { start: string; end: string }[] =
     (saJson && tenantEmail && saJson.calendars?.[tenantEmail]?.busy) || []
 

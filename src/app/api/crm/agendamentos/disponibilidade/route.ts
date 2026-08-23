@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { rows: userRows } = await pool.query(
-      `SELECT utm.tenant_id, u.google_calendar_authorized 
+      `SELECT utm.tenant_id, u.google_calendar_authorized
        FROM users u
        JOIN user_tenant_membership utm ON u.id = utm.user_id
        WHERE u.id = $1 AND utm.tenant_id = $2 AND utm.is_active = true
@@ -48,17 +48,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Usuário ou empresa não encontrada' }, { status: 404 })
     }
 
-    const { tenant_id, google_calendar_authorized } = userRows[0]
-    console.log('📡 [Disponibilidade] Contexto identificado:', { userId, tenant_id, auth: google_calendar_authorized })
+    const { tenant_id } = userRows[0]
 
-    if (!google_calendar_authorized) {
-      return NextResponse.json(
-        { error: 'Google Calendar não autorizado', code: 'NOT_AUTHORIZED' },
-        { status: 403 }
-      )
-    }
-
-    // Buscar configuração do tenant
+    // Configuração do TENANT é o bloqueio real — o calendário pessoal do atendente logado é
+    // só um reforço opcional (checado mais abaixo), nunca motivo de bloquear o agendamento.
     const tenantConfig = await getTenantCalendarConfig(tenant_id)
     console.log('📡 [Disponibilidade] Config do Tenant:', tenantConfig)
 
@@ -70,19 +63,14 @@ export async function GET(request: NextRequest) {
     }
     if (!tenantConfig.google_email) {
       return NextResponse.json(
-        { error: 'E-mail Google da empresa não configurado', code: 'NO_COMPANY_EMAIL' },
+        { error: 'E-mail Google da empresa não configurado. Peça a um administrador para configurar em Configurações da Empresa.', code: 'NO_COMPANY_EMAIL' },
         { status: 503 }
       )
     }
 
-    // Buscar refresh_token do usuário
+    // Refresh token pessoal é opcional — sem ele, getAvailableSlots calcula a disponibilidade
+    // só pelo calendário da empresa.
     const refreshToken = await getUserRefreshToken(userId)
-    if (!refreshToken) {
-      return NextResponse.json(
-        { error: 'Token Google não encontrado', code: 'NOT_AUTHORIZED' },
-        { status: 403 }
-      )
-    }
 
     const slots = await getAvailableSlots(
       tenantConfig.google_email,

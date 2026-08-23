@@ -1,5 +1,56 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 5) — **Agendar Visita não bloqueia mais o fluxo
+> pedindo OAuth pessoal do Google Calendar quando o TENANT já tem o calendário da empresa
+> configurado.** Usuário reportou (print real): mesmo com `tenants.calendario=true` e
+> `tenants.google_email` configurados via `/admin/master/tenants` pro tenant CRM SOZINHO,
+> clicar em "+ Nova visita" no Kanban ainda mostrava a tela bloqueante "Conectar Google
+> Calendar" — e defendeu corretamente que esse tipo de aviso deveria viver na tela de
+> configuração do tenant, não interromper o fluxo de agendar visita.
+>
+> **Investigação confirmou que é decisão de arquitetura, não bug cosmético:** o agendamento
+> sempre usou DOIS calendários juntos — o da EMPRESA (Service Account + `tenants.google_email`,
+> já configurado) e o do ATENDENTE LOGADO individualmente (OAuth pessoal, refresh_token em
+> `users.google_refresh_token`) — ambos somados tanto pra checar disponibilidade quanto pra
+> criar o evento (o corretor também tem o compromisso no próprio Google Calendar). O gate do
+> modal (`AgendarVisitaModal`) e os 2 endpoints (`disponibilidade`/`POST agendamentos`) exigiam
+> o token PESSOAL do usuário logado como requisito OBRIGATÓRIO, ignorando por completo que o
+> calendário da empresa já bastaria sozinho.
+>
+> **Confirmado via `AskUserQuestion`** entre 2 opções (abandonar de vez o calendário pessoal vs.
+> manter os 2 mas parar de bloquear quando só o pessoal falta): usuário escolheu manter os 2,
+> só corrigir a degradação — calendário pessoal vira reforço opcional, nunca bloqueio.
+>
+> **Implementado:**
+> 1. `src/lib/google/calendarService.ts` — `getAvailableSlots` aceita `userRefreshToken`
+>    opcional (`string | null | undefined`); sem ele, a checagem de conflito roda só com o
+>    calendário da empresa, sem lançar erro.
+> 2. `src/app/api/crm/agendamentos/disponibilidade/route.ts` — reordenado: a config do TENANT
+>    (`calendario`/`google_email`) vira o bloqueio real (checada primeiro); o token pessoal do
+>    usuário logado deixou de ser obrigatório, só é lido e repassado se existir.
+> 3. `src/app/api/crm/agendamentos/route.ts` (POST) — removido o 403 que exigia
+>    `google_calendar_authorized`/`google_refresh_token` do usuário; `createEventUsuario` só é
+>    tentado quando o token existe, `createEventEmpresa` (que já rodava incondicional) segue
+>    sendo o caminho garantido.
+> 4. `src/components/crm/AgendarVisitaModal.tsx` — gate vira
+>    `tenantConfig.empresa_configurada || (google_calendar_authorized && has_google_token)`
+>    (era só a 2ª metade, obrigatória); texto do resumo de confirmação passa a ser condicional
+>    ("no seu Google Calendar e no calendário da empresa" só quando o pessoal está conectado,
+>    senão só "no calendário da empresa"); tela "connect" (agora só alcançável quando NEM a
+>    empresa está configurada) reescrita pra apontar pro admin configurar em Configurações da
+>    Empresa, com a conexão pessoal como alternativa, não mais como única saída.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant CRM SOZINHO, usuário real `admxyz`
+> sem token pessoal — confirmado via SQL `google_calendar_authorized=false`,
+> `has_token=false` — tenant COM `calendario=true`/`google_email` reais): `GET /api/crm/
+> config/tenant` confirma `empresa_configurada:true` · `GET .../disponibilidade` passou de
+> 403/503 pra `200` com slots reais · **sessão real no navegador**: clique em "+ Nova visita"
+> no Kanban pula direto pro passo "Data" (sem a tela de conectar) · avançado até "Confirmar" →
+> texto correto "Um evento será criado no calendário da empresa." (sem menção ao "seu Google
+> Calendar", confirmando o texto condicional) · `POST /api/crm/agendamentos` real (lead de
+> teste descartável) → `201`, agendamento criado com sucesso (antes: 403 `NOT_AUTHORIZED`).
+> `npx tsc --noEmit`: 0 erros. Lead + agendamento de teste removidos, `count(*)=0` confirmado.
+
 > **Atualizado em:** 2026-08-25 (continuação 4) — **Botão de excluir anexo: de um "×" cinza
 > discreto pra um botão explícito com texto+ícone de lixeira+borda vermelha.** O fix anterior
 > (cor visível no tema claro) já tinha resolvido o problema técnico, mas o usuário mandou novo

@@ -74,17 +74,24 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
   const today = new Date()
   const [calMonth, setCalMonth] = useState({ year: today.getFullYear(), month: today.getMonth() })
 
+  // Calendário da EMPRESA (configurado na tela de tenants) já é suficiente pra agendar — a
+  // conexão pessoal do atendente com o próprio Google Calendar é só um reforço opcional
+  // (aparece no calendário dele também, quando conectado), nunca um bloqueio. O passo
+  // "connect" só aparece no caso raro de a empresa também não ter calendário configurado.
+  const hasPersonalCalendar = tenantConfig.google_calendar_authorized && tenantConfig.has_google_token
+  const canSchedule = tenantConfig.empresa_configurada || hasPersonalCalendar
+
   useEffect(() => {
     if (isOpen) {
-      const isConfigured = tenantConfig.google_calendar_authorized && tenantConfig.has_google_token
-      setStep(isConfigured ? 'date' : 'connect')
+      setStep(canSchedule ? 'date' : 'connect')
       setSelectedDate('')
       setSlots([])
       setSelectedSlot(null)
       setObservacoes('')
       setError('')
     }
-  }, [isOpen, tenantConfig.google_calendar_authorized, tenantConfig.has_google_token])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, canSchedule])
 
   // ── Calendário ─────────────────────────────────────────────
 
@@ -255,10 +262,12 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
                 <CalendarDaysIcon className="h-10 w-10 text-blue-500" />
               </div>
               <div>
-                <h3 className={`text-lg font-black ${t.textPrimary}`}>Conectar Google Calendar</h3>
+                <h3 className={`text-lg font-black ${t.textPrimary}`}>Google Calendar não configurado</h3>
                 <p className={`text-sm mt-2 leading-relaxed ${t.textSecondary}`}>
-                  Para agendar visitas é necessário autorizar o acesso ao seu Google Calendar.
-                  Isso permite verificar sua disponibilidade e criar os eventos automaticamente.
+                  Esta empresa ainda não tem um calendário Google configurado — peça a um
+                  administrador para configurar em Configurações da Empresa. Como alternativa,
+                  você pode conectar sua própria conta Google abaixo para agendar usando o seu
+                  calendário pessoal enquanto isso.
                 </p>
               </div>
               <a
@@ -418,8 +427,10 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
               <div className={`flex items-start space-x-2 p-3 rounded-xl ${t.isDark ? 'bg-blue-500/5 border border-blue-500/15' : 'bg-blue-50 border border-blue-100'}`}>
                 <CalendarDaysIcon className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
                 <p className={`text-[10px] leading-relaxed ${t.textSecondary}`}>
-                  Um evento será criado no seu Google Calendar e no calendário da empresa.
-                  E-mails de confirmação serão enviados para você e para o cliente.
+                  {hasPersonalCalendar
+                    ? 'Um evento será criado no seu Google Calendar e no calendário da empresa.'
+                    : 'Um evento será criado no calendário da empresa.'}
+                  {' '}E-mails de confirmação serão enviados para você e para o cliente.
                 </p>
               </div>
             </div>

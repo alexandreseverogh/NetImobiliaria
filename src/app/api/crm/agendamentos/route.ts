@@ -78,12 +78,11 @@ export async function POST(request: NextRequest) {
       console.warn('❌ [Agendamento] Calendário desabilitado para tenant:', user.tenant_id)
       return NextResponse.json({ error: 'Módulo de agendamentos desabilitado para este tenant', code: 'MODULE_DISABLED' }, { status: 403 })
     }
-    if (!user.google_calendar_authorized || !user.google_refresh_token) {
-      return NextResponse.json({ error: 'Google Calendar não autorizado', code: 'NOT_AUTHORIZED' }, { status: 403 })
-    }
     if (!user.google_email) {
-      return NextResponse.json({ error: 'E-mail Google da empresa não configurado', code: 'NO_COMPANY_EMAIL' }, { status: 503 })
+      return NextResponse.json({ error: 'E-mail Google da empresa não configurado. Peça a um administrador para configurar em Configurações da Empresa.', code: 'NO_COMPANY_EMAIL' }, { status: 503 })
     }
+    // Conexão pessoal do atendente com o Google Calendar é opcional (ver 4. abaixo) — o
+    // calendário da EMPRESA (google_email + Service Account) já é suficiente pra agendar.
 
     // 2. Calcular data_hora_fim
     const duracao = user.duracao_visita || 60
@@ -121,12 +120,17 @@ export async function POST(request: NextRequest) {
       ],
     }
 
-    // 4. Criar eventos nos dois calendários em paralelo
+    // 4. Criar eventos nos dois calendários em paralelo — o pessoal só é tentado se o
+    // atendente já conectou a própria conta (best-effort, nunca bloqueia o agendamento);
+    // o da empresa (Service Account) é o que sempre roda, já que é o único garantido pela
+    // config do tenant.
     const [eventoUsuario, eventoEmpresa] = await Promise.all([
-      createEventUsuario(user.google_refresh_token, eventoBase).catch(e => {
-        console.error('[Agendamento] Erro ao criar evento usuário:', e.message)
-        return null
-      }),
+      user.google_calendar_authorized && user.google_refresh_token
+        ? createEventUsuario(user.google_refresh_token, eventoBase).catch(e => {
+            console.error('[Agendamento] Erro ao criar evento usuário:', e.message)
+            return null
+          })
+        : Promise.resolve(null),
       createEventEmpresa(user.google_email, {
         ...eventoBase,
         summary: `[${user.nome}] ${eventoBase.summary}`,
