@@ -23,6 +23,8 @@ interface Agendamento {
 interface Props {
   leadUuid: string
   onAgendar?: () => void
+  /** Muda a cada agendamento criado/cancelado alhures — força reload da lista. */
+  refreshKey?: number
 }
 
 const STATUS_CONFIG = {
@@ -40,7 +42,7 @@ function formatarDH(iso: string) {
   }
 }
 
-export default function AgendamentosLead({ leadUuid, onAgendar }: Props) {
+export default function AgendamentosLead({ leadUuid, onAgendar, refreshKey }: Props) {
   const t = useTheme()
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,7 +50,7 @@ export default function AgendamentosLead({ leadUuid, onAgendar }: Props) {
 
   useEffect(() => {
     if (leadUuid) loadAgendamentos()
-  }, [leadUuid])
+  }, [leadUuid, refreshKey])
 
   const loadAgendamentos = async () => {
     setLoading(true)

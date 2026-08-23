@@ -1,5 +1,33 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 8) — **Fix real: "Histórico de Visitas" só
+> refletia um agendamento novo depois de recarregar a página inteira.** Usuário pediu
+> explicitamente que o agendamento recém-salvo aparecesse na lista logo em seguida, sem
+> precisar recarregar.
+>
+> **Causa raiz confirmada:** `AgendamentosLead.tsx` só busca `GET /api/crm/agendamentos` uma
+> vez, no mount (`useEffect` chaveado só por `leadUuid`) — nada disparava um novo fetch depois
+> de criar um agendamento. `AgendarVisitaModal.onSuccess` (chamado ao clicar "Concluir" na tela
+> de sucesso, já depois do `POST` real ter retornado 201) só fechava o modal
+> (`setIsAgendarOpen(false)`), sem avisar o componente da lista.
+>
+> **Corrigido:** `AgendamentosLead` ganhou a prop opcional `refreshKey?: number`, incluída nas
+> deps do `useEffect` de carga — mudar o valor força um novo `loadAgendamentos()`.
+> `kanban/page.tsx` ganhou o state `agendamentosVersion`, incrementado dentro do `onSuccess` do
+> `AgendarVisitaModal` (`setAgendamentosVersion(v => v + 1)`), e repassado como `refreshKey` pro
+> `AgendamentosLead` da ficha do lead.
+>
+> **Testado ao vivo, ponta a ponta, com agendamento real** (tenant CRM SOZINHO, lead real
+> "Frank Aguiar", usuário real `admxyz`): fluxo completo Data→Horário→Confirmar→"Visita
+> Agendada!" → `POST` real criou o evento (Google Calendar + linha em `agendamentos`,
+> `status='agendado'`) → clique em "Concluir" → **sem nenhuma navegação/reload**, "Histórico de
+> Visitas" passou de 1 para 2 itens e o novo agendamento ("qua., 26 de ago. • 10:00–11:00")
+> apareceu imediatamente no topo da lista — confirmado via leitura do DOM logo após o clique,
+> não por suposição. Agendamento de teste cancelado em seguida pela própria UI (botão
+> "Cancelar visita", mesmo fluxo real que qualquer usuário usaria — remove o evento do Google
+> Calendar e marca `status='cancelado'`, nunca hard-delete), confirmado por SQL. `npx tsc
+> --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 7) — **Banner de calendário pessoal não conectado
 > passa a mostrar o e-mail cadastrado do atendente logado.** Complemento direto do banner da
 > continuação anterior — usuário perguntou explicitamente: "exibir 'Nenhum e-mail cadastrado'

@@ -72,6 +72,7 @@ export default function KanbanPage() {
   const [isNovoLeadOpen, setIsNovoLeadOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [isAgendarOpen, setIsAgendarOpen] = useState(false)
+  const [agendamentosVersion, setAgendamentosVersion] = useState(0)
   const [isCalendarioViewOpen, setIsCalendarioViewOpen] = useState(false)
   const [tenantConfig, setTenantConfig] = useState<any>(null)
   // F3 — "Registrar como Atividade" no card "Sugestão da IA" pré-preenche o form de
@@ -757,6 +758,7 @@ export default function KanbanPage() {
                 <AgendamentosLead
                   leadUuid={selectedLead.lead_uuid}
                   onAgendar={tenantConfig?.calendario ? () => setIsAgendarOpen(true) : undefined}
+                  refreshKey={agendamentosVersion}
                 />
               </div>
 
@@ -940,7 +942,7 @@ export default function KanbanPage() {
         <AgendarVisitaModal
           isOpen={isAgendarOpen}
           onClose={() => setIsAgendarOpen(false)}
-          onSuccess={() => { setIsAgendarOpen(false) }}
+          onSuccess={() => { setIsAgendarOpen(false); setAgendamentosVersion(v => v + 1) }}
           lead={selectedLead}
           tenantConfig={tenantConfig}
         />
