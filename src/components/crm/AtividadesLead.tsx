@@ -136,7 +136,7 @@ function AttachmentEntry({
   })()
 
   return (
-    <div className="mt-2 flex items-center gap-2">
+    <div className={`mt-2 flex items-center gap-2 rounded-lg px-2 py-1.5 ${t.isDark ? 'bg-white/[0.03]' : 'bg-gray-50'}`}>
       {body}
       {pending && (
         <span className="flex-shrink-0 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500">
@@ -147,9 +147,13 @@ function AttachmentEntry({
         <button
           onClick={onRemove}
           title={pending ? 'Remover (ainda não salvo)' : 'Remover este anexo'}
-          className={`flex-shrink-0 p-1 rounded-lg transition-all hover:text-red-500 hover:bg-red-500/10 ${t.isDark ? 'text-white/40' : 'text-gray-400'}`}
+          className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold transition-all
+            ${t.isDark
+              ? 'border-red-500/20 text-red-400/80 hover:border-red-500/50 hover:bg-red-500/15 hover:text-red-400'
+              : 'border-red-200 text-red-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600'}`}
         >
-          <XMarkIcon className="h-3.5 w-3.5" />
+          <TrashIcon className="h-3.5 w-3.5" />
+          <span>Remover</span>
         </button>
       )}
     </div>

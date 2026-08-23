@@ -1,5 +1,22 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 4) — **Botão de excluir anexo: de um "×" cinza
+> discreto pra um botão explícito com texto+ícone de lixeira+borda vermelha.** O fix anterior
+> (cor visível no tema claro) já tinha resolvido o problema técnico, mas o usuário mandou novo
+> print mostrando que o "×" pequeno ao lado de cada anexo (mesmo visível) não era percebido
+> como um botão de exclusão de verdade — só um caractere solto.
+>
+> **Corrigido:** `AttachmentEntry` — `XMarkIcon` sozinho virou `TrashIcon` + texto "Remover",
+> num botão com borda vermelha (`border-red-200`/`text-red-500` no claro,
+> `border-red-500/20`/`text-red-400` no escuro) — mesmo vocabulário de ícone já usado no botão
+> "Excluir" da atividade inteira, agora inconfundível como controle clicável. Cada linha de
+> anexo também ganhou um fundo sutil (`bg-gray-50`/`bg-white/[0.03]`) pra separar visualmente
+> um anexo do outro.
+>
+> **Testado ao vivo:** `getComputedStyle` dos 3 botões confirma texto "Remover", `color:
+> rgb(239, 68, 68)` (vermelho-500) e `border: rgb(254, 202, 202)` (vermelho-200) — visualmente
+> explícito, não mais um glifo isolado. `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 3) — **Fix real: botão de excluir anexo invisível
 > no tema claro — `text-white/30` hardcoded, nunca reagia ao tema.** Usuário mandou print real
 > do card no tema claro confirmando os 3 anexos listados mas nenhum botão de exclusão visível
