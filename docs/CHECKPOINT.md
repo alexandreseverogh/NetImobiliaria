@@ -1,5 +1,62 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 — **Atividades do CRM: múltiplos anexos por atividade (antes
+> só 1, sem histórico visível na edição).** Pedido direto do usuário: "na edição de uma
+> atividade, quando já existe um documento anteriormente anexado, não é exibido esse
+> histórico de anexos... se existirem documentos anteriores, devem ser exibidos e deverá ser
+> possível anexar outras mais". Confirmado via `AskUserQuestion` (2 opções — corrigir só a
+> exibição do único anexo existente vs. suporte real a múltiplos): usuário escolheu
+> **múltiplos anexos de verdade**.
+>
+> **Causa raiz:** `atividades_lead` guardava no máximo 1 anexo por atividade em 4 colunas
+> soltas (`anexo_url`/`anexo_tipo`/`anexo_nome_original`/`anexo_tamanho_bytes`) — o formulário
+> de edição (`startEdit()`) nunca lia nem exibia esse anexo já existente, e qualquer novo
+> upload durante a edição SUBSTITUÍA o anterior (o backend já preservava o anexo quando
+> nenhum arquivo novo vinha, mas não tinha como somar um 2º). Confirmado via grep que só 2
+> arquivos em todo o código liam essas colunas (`route.ts` + `AtividadesLead.tsx`).
+>
+> **Implementado:**
+> 1. `prisma/migration-2026-08-25-atividade-lead-anexos.sql` (aplicada) — nova tabela
+>    `public.atividade_lead_anexos` (N linhas por atividade, `s3_key`/`url`/`tipo`/
+>    `nome_original`/`tamanho_bytes`/`created_at`); backfill do único anexo real existente no
+>    banco (1 linha, atividade "Reunião para esclarecimento de políticas de preços", tenant
+>    CRM SOZINHO) — `s3_key` derivado do segmento estável `atividades/...` do path da URL
+>    (não hardcoded em `CDN_URL`/`S3_ENDPOINT`, funciona igual em dev/produção); as 4 colunas
+>    legadas removidas de `atividades_lead` na mesma migração, depois do backfill confirmado.
+> 2. `src/app/api/crm/atividades/route.ts` reescrita — `POST`/`PATCH` aceitam `arquivos`
+>    (multipart, múltiplos arquivos sob o mesmo campo) em vez de `arquivo` único; cada upload
+>    vira uma linha NOVA em `atividade_lead_anexos`, nunca substitui as existentes; `GET`
+>    embute `anexos: Anexo[]` em cada atividade via subquery `json_agg` correlacionada
+>    (`ORDER BY created_at ASC`, `COALESCE(...,'[]')` — nunca `null`).
+> 3. `src/app/api/crm/atividades/anexos/route.ts` (novo) — `DELETE ?id=X` remove 1 anexo
+>    específico (hard delete real, não soft — resíduo de upload errado não é "estado de
+>    negócio" a preservar); isolamento por tenant via JOIN com a atividade dona (nunca confia
+>    em `tenant_id` solto do anexo); remove o objeto do S3/MinIO best-effort (não bloqueia a
+>    resposta se o storage falhar).
+> 4. `src/components/crm/AtividadesLead.tsx` reescrita — `Atividade.anexos: Anexo[]` (era 3
+>    campos únicos); `AttachmentPreview` agora recebe 1 `Anexo` + `onRemove?` opcional (usado
+>    só dentro do formulário de edição, nunca no card de leitura); card de leitura lista TODOS
+>    os anexos da atividade + contador "N anexos" ao lado do autor; formulário de edição ganha
+>    seção "Anexos já registrados" (lista os existentes, cada um com botão remover — chama o
+>    endpoint novo na hora, sem esperar "Salvar") + input de arquivo com `multiple` ("pode
+>    escolher vários") + lista de "Novos anexos (ainda não salvos)" com remoção individual
+>    antes de enviar.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant CRM SOZINHO, atividade real com o
+> único anexo pré-existente da plataforma): `GET` confirma `anexos:[{...et_software.pdf...}]`
+> pra atividade com anexo e `anexos:[]` pra atividade sem nenhum · `PATCH` com um 2º arquivo
+> real (multipart) → confirmado por `GET` seguinte que os DOIS anexos coexistem (nunca
+> substituiu o 1º) · `DELETE /anexos?id=X` do 2º → confirmado que só ele sumiu (1º intacto) +
+> objeto real removido do MinIO (`404` confirmado direto na origem) · **sessão real no
+> navegador** (JWT+cookie+localStorage injetados, tenant CRM SOZINHO): card de leitura mostra
+> "· 1 anexo" + o link do PDF; clique em "Editar" abre o formulário com a seção "Anexos já
+> registrados" mostrando o PDF existente + botão "Remover este anexo" (confirmado ausente na
+> cópia do card de leitura, presente só na do formulário); input de arquivo confirmado
+> `multiple:true` via DOM. `npx tsc --noEmit`: 0 erros. Todo dado de teste (2º anexo inserido
+> só pra provar a soma) removido, descrição original da atividade restaurada
+> (`UPDATE` revertendo o texto de teste do PATCH via JSON usado no meio da verificação),
+> `atividade_lead_anexos` confirmada com só a 1 linha real (`count(*)=1`) ao final.
+
 > **Atualizado em:** 2026-08-23 (continuação 2) — **Roteiro de testes (item 1.2, passos 5/6/7):
 > bug real encontrado e corrigido — `score_fit` era fabricado (valor neutro 50%) quando o
 > segmento/tenant não tinha nenhum critério de Fit cadastrado, em vez de `null`/"—" como o
