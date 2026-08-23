@@ -1,5 +1,31 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação) — **Atividades do CRM: novo anexo escolhido na
+> edição aparece na hora, na MESMA lista dos já existentes (selo "Novo"), não mais numa seção
+> separada.** Ajuste direto pedido pelo usuário sobre a entrega anterior (múltiplos anexos por
+> atividade — ver entrada logo abaixo): confirmado via `AskUserQuestion` que o esperado era uma
+> lista única (não 2 seções, "Anexos já registrados" vs. "Novos anexos ainda não salvos").
+>
+> **Implementado** (`src/components/crm/AtividadesLead.tsx`): `formFiles: File[]` virou
+> `pendingFiles: PendingFile[]` (`{id, file, previewUrl, tipo}`) — `previewUrl` gerado via
+> `URL.createObjectURL(file)` no exato momento da seleção (preview real local, sem esperar
+> upload); `AttachmentPreview` generalizado pra `AttachmentEntry` (aceita `url`/`tipo`/
+> `nomeOriginal` normalizados, funciona tanto pra anexo já salvo quanto pendente) — mesma
+> renderização de áudio/imagem/PDF pros dois casos, prop `pending` só acrescenta o selo âmbar
+> "Novo"; a lista "Anexos" no formulário agora itera `editingAnexos` seguido de `pendingFiles`
+> sem nenhuma quebra visual entre os dois. `URL.revokeObjectURL` chamado ao remover um
+> pendente, ao resetar o form e num cleanup de unmount (evita vazamento de blob: no navegador).
+>
+> **Testado ao vivo no navegador** (tenant CRM SOZINHO, mesma atividade real com 1 anexo já
+> salvo): arquivo PDF sintético injetado no input real (`DataTransfer`+`change` — mesmo padrão
+> já usado nesta sessão pra simular seleção de arquivo sem picker nativo) → confirmado via DOM
+> que o novo anexo (`novo_documento_teste.pdf`, `blob:` local) aparece imediatamente logo após
+> o existente (`et_software.pdf`) na mesma lista, com exatamente 1 selo "Novo" — sem clicar em
+> Salvar · botão "Remover (ainda não salvo)" testado → item pendente removido do DOM
+> (`blobLinksRemaining:0`) sem nenhuma chamada à API (anexo real permanece intacto) ·
+> formulário cancelado sem salvar. `npx tsc --noEmit`: 0 erros. `atividade_lead_anexos`
+> confirmada com `count(*)=1` ao final (nenhum resíduo — nada chegou a ser persistido).
+
 > **Atualizado em:** 2026-08-25 — **Atividades do CRM: múltiplos anexos por atividade (antes
 > só 1, sem histórico visível na edição).** Pedido direto do usuário: "na edição de uma
 > atividade, quando já existe um documento anteriormente anexado, não é exibido esse

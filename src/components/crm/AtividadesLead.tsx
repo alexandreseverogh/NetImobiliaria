@@ -8,8 +8,6 @@ import {
   PencilSquareIcon,
   TrashIcon,
   DocumentIcon,
-  PhotoIcon,
-  SpeakerWaveIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/hooks/useTheme'
@@ -23,10 +21,12 @@ interface TipoAtividade {
   cor: string
 }
 
+type AnexoTipo = 'audio' | 'imagem' | 'pdf'
+
 interface Anexo {
   id: string
   url: string
-  tipo: 'audio' | 'imagem' | 'pdf'
+  tipo: AnexoTipo
   nome_original: string
   tamanho_bytes: number
   created_at: string
@@ -45,6 +45,15 @@ interface Atividade {
   created_at: string
 }
 
+/** Arquivo escolhido pelo usuário, ainda não enviado — preview via blob: local (sem round-trip
+ *  ao servidor), aparece na MESMA lista dos anexos já salvos, só com o selo "Novo". */
+interface PendingFile {
+  id: string
+  file: File
+  previewUrl: string
+  tipo: AnexoTipo
+}
+
 interface Props {
   leadUuid: string
   clientId?: string | null
@@ -56,7 +65,6 @@ interface Props {
 }
 
 const MIN_DESCRICAO_LEN = 15
-const ATTACH_ICON = { audio: SpeakerWaveIcon, imagem: PhotoIcon, pdf: DocumentIcon }
 
 function timeAgo(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime()
@@ -70,34 +78,46 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+/** Classifica um File local pelo mesmo vocabulário de tipo já usado nos anexos persistidos
+ *  (audio/imagem/pdf) — só pra escolher a preview certa antes do upload; a validação real de
+ *  MIME/tamanho continua sendo feita pelo servidor. */
+function classifyFile(file: File): AnexoTipo {
+  if (file.type.startsWith('audio/')) return 'audio'
+  if (file.type.startsWith('image/')) return 'imagem'
+  return 'pdf'
 }
 
-/** Preview de 1 anexo já persistido — usado tanto no card de leitura quanto na lista de
- *  "já anexados" dentro do formulário de edição (com `onRemove` só neste 2º caso). */
-function AttachmentPreview({ anexo, onRemove }: { anexo: Anexo; onRemove?: () => void }) {
+/** Preview de 1 anexo — já persistido (com URL real) ou ainda pendente de salvar (com blob:
+ *  local). Mesma lista, mesmo componente; `pending` só troca o selo visual, `onRemove` decide
+ *  se remove via API (existente) ou só do state local (pendente) — a chamada certa já vem
+ *  pronta de quem monta a lista. */
+function AttachmentEntry({
+  url, tipo, nomeOriginal, pending, onRemove,
+}: {
+  url: string
+  tipo: AnexoTipo
+  nomeOriginal: string
+  pending?: boolean
+  onRemove?: () => void
+}) {
   const [lightbox, setLightbox] = useState(false)
-  const Icon = ATTACH_ICON[anexo.tipo]
 
   const body = (() => {
-    if (anexo.tipo === 'audio') {
-      return <audio controls src={anexo.url} className="h-9 flex-1 min-w-0" />
+    if (tipo === 'audio') {
+      return <audio controls src={url} className="h-9 flex-1 min-w-0" />
     }
-    if (anexo.tipo === 'imagem') {
+    if (tipo === 'imagem') {
       return (
         <>
           <img
-            src={anexo.url}
-            alt={anexo.nome_original}
+            src={url}
+            alt={nomeOriginal}
             onClick={() => setLightbox(true)}
             className="h-14 w-14 rounded-lg object-cover border border-white/10 cursor-zoom-in hover:opacity-90 transition-opacity flex-shrink-0"
           />
           {lightbox && (
             <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-black/90" onClick={() => setLightbox(false)}>
-              <img src={anexo.url} alt="" className="max-h-[85vh] max-w-[90vw] rounded-xl" />
+              <img src={url} alt="" className="max-h-[85vh] max-w-[90vw] rounded-xl" />
               <button className="absolute top-6 right-6 p-2 text-white/70 hover:text-white"><XMarkIcon className="h-8 w-8" /></button>
             </div>
           )}
@@ -106,10 +126,10 @@ function AttachmentPreview({ anexo, onRemove }: { anexo: Anexo; onRemove?: () =>
     }
     // pdf
     return (
-      <a href={anexo.url} target="_blank" rel="noopener noreferrer"
+      <a href={url} target="_blank" rel="noopener noreferrer"
         className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-500 hover:text-blue-400 min-w-0 truncate">
         <DocumentIcon className="h-4 w-4 flex-shrink-0" />
-        <span className="truncate">{anexo.nome_original}</span>
+        <span className="truncate">{nomeOriginal}</span>
       </a>
     )
   })()
@@ -117,10 +137,15 @@ function AttachmentPreview({ anexo, onRemove }: { anexo: Anexo; onRemove?: () =>
   return (
     <div className="mt-2 flex items-center gap-2">
       {body}
+      {pending && (
+        <span className="flex-shrink-0 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500">
+          Novo
+        </span>
+      )}
       {onRemove && (
         <button
           onClick={onRemove}
-          title="Remover este anexo"
+          title={pending ? 'Remover (ainda não salvo)' : 'Remover este anexo'}
           className="flex-shrink-0 p-1 rounded-lg text-white/30 hover:text-red-500 hover:bg-red-500/10 transition-all"
         >
           <XMarkIcon className="h-3.5 w-3.5" />
@@ -143,12 +168,23 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
 
   const [formTipoId, setFormTipoId] = useState<string>('')
   const [formDescricao, setFormDescricao] = useState('')
-  const [formFiles, setFormFiles] = useState<File[]>([])
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pendingFilesRef = useRef<PendingFile[]>([])
+  pendingFilesRef.current = pendingFiles
 
   useEffect(() => {
     if (leadUuid) loadAll()
   }, [leadUuid])
+
+  // Revoga qualquer blob: local que ainda não foi limpo se o componente desmontar com o
+  // formulário aberto (troca de lead com a ficha aberta, por exemplo) — evita vazamento de
+  // memória do navegador.
+  useEffect(() => {
+    return () => {
+      pendingFilesRef.current.forEach(p => URL.revokeObjectURL(p.previewUrl))
+    }
+  }, [])
 
   useEffect(() => {
     if (!prefill || !prefill.text) return
@@ -156,7 +192,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
     setEditingAnexos([])
     setFormTipoId('')
     setFormDescricao(prefill.text)
-    setFormFiles([])
+    setPendingFiles(prev => { prev.forEach(p => URL.revokeObjectURL(p.previewUrl)); return [] })
     setShowForm(true)
     setError(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -179,7 +215,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
   const resetForm = () => {
     setFormTipoId('')
     setFormDescricao('')
-    setFormFiles([])
+    setPendingFiles(prev => { prev.forEach(p => URL.revokeObjectURL(p.previewUrl)); return [] })
     if (fileInputRef.current) fileInputRef.current.value = ''
     setEditingId(null)
     setEditingAnexos([])
@@ -192,7 +228,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
     setEditingAnexos(a.anexos || [])
     setFormTipoId(String(a.tipo_atividade_id))
     setFormDescricao(a.descricao)
-    setFormFiles([])
+    setPendingFiles(prev => { prev.forEach(p => URL.revokeObjectURL(p.previewUrl)); return [] })
     setShowForm(true)
     setError(null)
   }
@@ -215,12 +251,22 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
 
   const handleAddFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return
-    setFormFiles(prev => [...prev, ...Array.from(files)])
+    const newItems: PendingFile[] = Array.from(files).map(file => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+      tipo: classifyFile(file),
+    }))
+    setPendingFiles(prev => [...prev, ...newItems])
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleRemovePendingFile = (idx: number) => {
-    setFormFiles(prev => prev.filter((_, i) => i !== idx))
+  const handleRemovePendingFile = (id: string) => {
+    setPendingFiles(prev => {
+      const item = prev.find(p => p.id === id)
+      if (item) URL.revokeObjectURL(item.previewUrl)
+      return prev.filter(p => p.id !== id)
+    })
   }
 
   const handleSubmit = async () => {
@@ -235,7 +281,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
       const fd = new FormData()
       fd.append('tipo_atividade_id', formTipoId)
       fd.append('descricao', formDescricao.trim())
-      formFiles.forEach(f => fd.append('arquivos', f))
+      pendingFiles.forEach(p => fd.append('arquivos', p.file))
 
       let res: Response
       if (editingId) {
@@ -308,29 +354,16 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
             className={`w-full text-xs rounded-xl px-3 py-2.5 border ${t.borderSub} ${t.isDark ? 'bg-black/30 text-white placeholder:text-white/30' : 'bg-white text-slate-700'} focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none`}
           />
 
-          {editingId && editingAnexos.length > 0 && (
+          {(editingAnexos.length > 0 || pendingFiles.length > 0) && (
             <div className="space-y-1.5">
-              <p className={`text-[10px] font-bold uppercase tracking-widest ${t.textMuted}`}>
-                Anexos já registrados
-              </p>
+              <p className={`text-[10px] font-bold uppercase tracking-widest ${t.textMuted}`}>Anexos</p>
               {editingAnexos.map(an => (
-                <AttachmentPreview key={an.id} anexo={an} onRemove={() => handleRemoveExistingAnexo(an.id)} />
+                <AttachmentEntry key={an.id} url={an.url} tipo={an.tipo} nomeOriginal={an.nome_original}
+                  onRemove={() => handleRemoveExistingAnexo(an.id)} />
               ))}
-            </div>
-          )}
-
-          {formFiles.length > 0 && (
-            <div className="space-y-1">
-              <p className={`text-[10px] font-bold uppercase tracking-widest ${t.textMuted}`}>
-                Novos anexos (ainda não salvos)
-              </p>
-              {formFiles.map((f, idx) => (
-                <div key={`${f.name}-${idx}`} className="flex items-center gap-2 text-[10px]">
-                  <PaperClipIcon className={`h-3.5 w-3.5 flex-shrink-0 ${t.textMuted}`} />
-                  <span className={`truncate flex-1 ${t.textSecondary}`}>{f.name}</span>
-                  <span className={`flex-shrink-0 ${t.textMuted}`}>{formatBytes(f.size)}</span>
-                  <button onClick={() => handleRemovePendingFile(idx)} className="flex-shrink-0 text-red-500 font-bold hover:text-red-400">Remover</button>
-                </div>
+              {pendingFiles.map(p => (
+                <AttachmentEntry key={p.id} url={p.previewUrl} tipo={p.tipo} nomeOriginal={p.file.name}
+                  pending onRemove={() => handleRemovePendingFile(p.id)} />
               ))}
             </div>
           )}
@@ -392,7 +425,9 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
                       )}
                     </div>
                     <p className={`text-xs mt-1 leading-relaxed ${t.textSecondary}`}>{a.descricao}</p>
-                    {a.anexos?.map(an => <AttachmentPreview key={an.id} anexo={an} />)}
+                    {a.anexos?.map(an => (
+                      <AttachmentEntry key={an.id} url={an.url} tipo={an.tipo} nomeOriginal={an.nome_original} />
+                    ))}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
