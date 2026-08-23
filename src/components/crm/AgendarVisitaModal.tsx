@@ -39,6 +39,9 @@ interface Props {
     empresa_configurada: boolean
     google_calendar_authorized: boolean
     has_google_token: boolean
+    /** E-mail cadastrado do atendente LOGADO (users.email) — não é o e-mail do Google
+     *  conectado via OAuth, é o e-mail de cadastro da conta dele na plataforma. */
+    user_email?: string | null
   }
 }
 
@@ -271,6 +274,12 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
                   Você pode agendar normalmente — o evento vai pro calendário da empresa. Só não
                   vai aparecer no seu Google Calendar pessoal (sem lembrete automático) até você
                   conectar.
+                </p>
+                <p className={`text-[11px] mt-1.5 ${t.textMuted}`}>
+                  E-mail cadastrado:{' '}
+                  <span className={`font-bold ${tenantConfig.user_email ? t.textSecondary : 'italic'}`}>
+                    {tenantConfig.user_email || 'Nenhum e-mail cadastrado'}
+                  </span>
                 </p>
                 <a
                   href={`/api/auth/google/authorize?returnUrl=${encodeURIComponent('/crm/kanban')}`}

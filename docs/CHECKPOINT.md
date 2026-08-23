@@ -1,5 +1,27 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 7) — **Banner de calendário pessoal não conectado
+> passa a mostrar o e-mail cadastrado do atendente logado.** Complemento direto do banner da
+> continuação anterior — usuário perguntou explicitamente: "exibir 'Nenhum e-mail cadastrado'
+> quando não houver e-mail cadastrado para o atendente logado ou o e-mail que está cadastrado".
+>
+> **Implementado** (`src/components/crm/AgendarVisitaModal.tsx`): `Props.tenantConfig` ganhou o
+> campo `user_email?: string | null` (o dado já existia em runtime — `GET /api/crm/config/
+> tenant` já retorna `u.email as user_email`, só nunca tinha sido declarado no tipo nem lido
+> pelo componente); nova linha no banner "E-mail cadastrado: {tenantConfig.user_email ||
+> 'Nenhum e-mail cadastrado'}", com o valor de fallback em itálico pra se diferenciar
+> visualmente de um e-mail real.
+>
+> **Testado ao vivo, os dois ramos, mesmo cenário já validado antes** (tenant CRM SOZINHO,
+> usuário real `admxyz`, sessão JWT real): e-mail real cadastrado (`alexandreseverog@gmail.com`)
+> → banner mostra exatamente esse valor · e-mail temporariamente esvaziado no banco (`users.
+> email=''`, único jeito de reproduzir — a coluna é `NOT NULL`, nunca fica `NULL` de verdade)
+> → banner mostra "Nenhum e-mail cadastrado" em itálico (confirmado via `getComputedStyle`,
+> `font-style: italic`) · e-mail restaurado ao valor original logo em seguida, confirmado por
+> SQL. `npx tsc --noEmit`: 0 erros (1 erro de sintaxe JSX cometido e corrigido no meio do
+> processo — a 1ª edição cortou o `<a` da tag do link "Conectar agora" ao inserir a nova linha
+> antes dele).
+
 > **Atualizado em:** 2026-08-25 (continuação 6) — **Agendar Visita: aviso não-bloqueante quando
 > o atendente logado não tem o próprio Google Calendar conectado.** Complemento direto do fix
 > anterior (empresa já basta, nunca mais bloqueia): usuário perguntou se a aplicação avisa o
