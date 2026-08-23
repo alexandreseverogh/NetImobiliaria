@@ -233,7 +233,11 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
     setError(null)
   }
 
-  const handleRemoveExistingAnexo = async (anexoId: string) => {
+  /** Remove 1 anexo já salvo — funciona tanto no card de leitura (fora de edição) quanto na
+   *  lista dentro do formulário: atualiza os dois locais de state que podem estar exibindo o
+   *  mesmo anexo ao mesmo tempo (a atividade real está sempre visível na lista de baixo,
+   *  mesmo enquanto seu formulário de edição está aberto acima). */
+  const handleDeleteAnexo = async (anexoId: string, atividadeId: string) => {
     if (!confirm('Remover este anexo?')) return
     try {
       const res = await adminFetch(`/api/crm/atividades/anexos?id=${anexoId}`, { method: 'DELETE' })
@@ -242,8 +246,10 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
         setError(data.error || 'Erro ao remover anexo.')
         return
       }
+      setAtividades(prev => prev.map(a => a.id === atividadeId
+        ? { ...a, anexos: a.anexos.filter(an => an.id !== anexoId) }
+        : a))
       setEditingAnexos(prev => prev.filter(an => an.id !== anexoId))
-      loadAll()
     } catch (e: any) {
       setError(e.message || 'Erro ao remover anexo.')
     }
@@ -359,7 +365,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
               <p className={`text-[10px] font-bold uppercase tracking-widest ${t.textMuted}`}>Anexos</p>
               {editingAnexos.map(an => (
                 <AttachmentEntry key={an.id} url={an.url} tipo={an.tipo} nomeOriginal={an.nome_original}
-                  onRemove={() => handleRemoveExistingAnexo(an.id)} />
+                  onRemove={() => handleDeleteAnexo(an.id, editingId!)} />
               ))}
               {pendingFiles.map(p => (
                 <AttachmentEntry key={p.id} url={p.previewUrl} tipo={p.tipo} nomeOriginal={p.file.name}
@@ -426,7 +432,8 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
                     </div>
                     <p className={`text-xs mt-1 leading-relaxed ${t.textSecondary}`}>{a.descricao}</p>
                     {a.anexos?.map(an => (
-                      <AttachmentEntry key={an.id} url={an.url} tipo={an.tipo} nomeOriginal={an.nome_original} />
+                      <AttachmentEntry key={an.id} url={an.url} tipo={an.tipo} nomeOriginal={an.nome_original}
+                        onRemove={() => handleDeleteAnexo(an.id, a.id)} />
                     ))}
                   </div>
                 </div>

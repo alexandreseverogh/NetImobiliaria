@@ -1,5 +1,29 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 2) — **Atividades do CRM: botão de excluir anexo
+> individual passa a existir também no card de leitura, não só dentro do formulário de
+> edição.** Pedido direto do usuário: "tem que haver um botão de exclusão de anexos
+> individualmente" — confirmado via `AskUserQuestion` que o botão já existia (dentro de
+> "Editar"), mas faltava direto no card, sem precisar entrar em edição antes.
+>
+> **Implementado** (`src/components/crm/AtividadesLead.tsx`): `handleRemoveExistingAnexo`
+> generalizado pra `handleDeleteAnexo(anexoId, atividadeId)` — mesma chamada à API
+> (`DELETE /api/crm/atividades/anexos`), mas agora atualiza os DOIS locais de state que podem
+> exibir o mesmo anexo ao mesmo tempo: a lista `atividades` (card de leitura, sempre visível)
+> e `editingAnexos` (formulário de edição, quando aberto) — a atividade real continua
+> renderizada embaixo mesmo com o formulário dela aberto em cima, então os dois precisam ficar
+> consistentes. `<AttachmentEntry onRemove={...}>` agora passado também no card de leitura
+> (antes só dentro do form).
+>
+> **Testado ao vivo, ponta a ponta:** durante o teste, a mesma atividade real já tinha 2
+> anexos genuínos que o próprio usuário subiu entre as rodadas de teste anteriores
+> (`CEMIG_v10.pdf`, um comprovante de apartamento) — confirmado que NÃO eram meus, preservados
+> intactos. Adicionado um 4º anexo só de teste via API → confirmado renderizando no card de
+> leitura (sem precisar clicar em "Editar") → clique real no botão "Remover este anexo" direto
+> no card (com `window.confirm` interceptado só pra este teste automatizado) → removido com
+> sucesso, e os outros 3 (o legado + os 2 reais do usuário) confirmados intactos via SQL
+> (`nome_original` das 3 linhas batendo exato com o esperado). `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação) — **Atividades do CRM: novo anexo escolhido na
 > edição aparece na hora, na MESMA lista dos já existentes (selo "Novo"), não mais numa seção
 > separada.** Ajuste direto pedido pelo usuário sobre a entrega anterior (múltiplos anexos por
