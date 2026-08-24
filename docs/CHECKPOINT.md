@@ -1,5 +1,59 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 12) — **Fix real: calendário da empresa
+> nunca criava evento nenhum, em nenhum agendamento, mesmo com a Service Account
+> corretamente configurada e o calendário corretamente compartilhado.** Descoberto no
+> primeiro teste real depois da Fase 1-5 (Service Account configurada localmente,
+> `.env.local` com `GOOGLE_SERVICE_ACCOUNT_KEY` real) — usuário pediu pra testar geração
+> de evento nos dois calendários (empresa + atendente), sem envolver ainda o convite do
+> cliente.
+>
+> **Investigação, descartando hipóteses por ordem, sem adivinhar:** confirmado via rota de
+> diagnóstico temporária (`GET /api/diag-gsa-tmp-2026`, removida ao final — cuidado real
+> pego no processo: pasta com `_` no início é "privada" no App Router do Next.js e nunca
+> vira rota, 404 até renomear) que o `.env.local` estava sendo lido e parseado
+> **corretamente** pelo processo real (`parseOk:true`, `client_email` batendo exato) — não
+> era problema de leitura de env var. Confirmado também, via script standalone replicando
+> a mesma chamada fora do Next.js, que a MESMA chave criava evento real com sucesso — não
+> era problema de credencial nem de permissão do calendário. Isolado o erro real expondo
+> temporariamente a mensagem de exceção na resposta da API (revertido logo em seguida):
+> `"Service accounts cannot invite attendees without Domain-Wide Delegation of Authority."`
+> — restrição real e documentada da API do Google: uma Service Account sem Domain-Wide
+> Delegation nunca pode ter `attendees` num evento, mesmo com permissão de escrita no
+> calendário. Domain-Wide Delegation só existe pra contas Google Workspace — nunca pra
+> Gmail pessoal (o caso de `tenants.google_email` hoje) — não dá pra contornar via
+> configuração nenhuma. `eventoBase.attendees` sempre incluía pelo menos o e-mail do
+> próprio atendente logado, então TODO agendamento (não só os que convidam cliente)
+> sempre bloqueava a criação do evento da empresa, desde sempre.
+>
+> **Corrigido** (`src/app/api/crm/agendamentos/route.ts`): o evento da empresa passa a ser
+> criado sem `attendees` (destructuring de `eventoBase` excluindo o campo só nessa
+> chamada) — o convite nativo de verdade continua acontecendo pelo calendário PESSOAL do
+> atendente (`createEventUsuario`, sem essa restrição), e a notificação por e-mail
+> (atendente/cliente) continua pelos e-mails de confirmação customizados
+> (`sendConfirmacaoCorretor`/`sendConfirmacaoLead`), que nunca dependeram do Calendar.
+>
+> **Testado ao vivo, ponta a ponta, com agendamento real** (tenant CRM SOZINHO, lead real
+> Frank Aguiar, usuário real `admxyz` com calendário pessoal conectado): antes do fix,
+> `google_event_id_empresa` sempre `null`; depois do fix, **os dois IDs vieram preenchidos
+> na mesma resposta** — `google_event_id_usuario` e `google_event_id_empresa` — primeira
+> vez nesta sessão inteira que isso acontece. Todo evento/dado de teste criado durante a
+> investigação (2 na conta pessoal + 1 direto via script standalone na empresa, mais os 3
+> agendamentos de diagnóstico anteriores) removido/cancelado via a própria API + chamada
+> direta à Calendar API, `count(*)=0` confirmado. Instrumentação de diagnóstico
+> (rota temporária + variável de erro exposta na resposta) 100% revertida —
+> confirmado por `git status`/`git diff` vazio antes do commit do fix real. `npx tsc
+> --noEmit`: 0 erros (1 artefato stale de `.next/types` da rota de diagnóstico deletada,
+> mesmo padrão já documentado neste projeto, removido manualmente).
+>
+> **Também neste bloco:** usuário adicionou `imovitecadm@gmail.com` ("Roberto Severo",
+> tenant CRM SOZINHO) como usuário de teste na Tela de Permissão OAuth do Google Cloud —
+> desbloqueia o "Conectar agora" (calendário pessoal) pra esse usuário especificamente, que
+> antes batia em `Erro 403: access_denied` (app em modo Teste, só e-mails cadastrados como
+> testador conseguem passar pela tela de consentimento). Conexão em si (OAuth completo)
+> ainda não confirmada — `google_calendar_authorized` continua `false` pra esse usuário até
+> ele de fato completar o fluxo "Conectar agora" pela UI.
+
 > **Atualizado em:** 2026-08-25 (continuação 11) — **Setup real do Google Calendar +
 > SMTP de produção concluído (Google Cloud Console + Gmail), guiado passo a passo com o
 > usuário via prints. `scripts/deploy.sh` ganha um mecanismo de auto-preenchimento seguro

@@ -131,6 +131,16 @@ export async function POST(request: NextRequest) {
       ],
     }
 
+    // Google rejeita QUALQUER attendee vindo de uma Service Account sem Domain-Wide
+    // Delegation ("Service accounts cannot invite attendees without Domain-Wide
+    // Delegation of Authority") — inclusive o e-mail do próprio atendente. Domain-Wide
+    // Delegation só existe pra contas Google Workspace, nunca pra Gmail pessoal (o caso
+    // de tenants.google_email hoje), então o evento da empresa nunca pode ter attendees.
+    // O convite nativo de verdade acontece pelo calendário PESSOAL do atendente (abaixo,
+    // sem essa restrição); o e-mail de confirmação custom (sendConfirmacaoLead/Corretor)
+    // é quem notifica atendente/cliente quando o pessoal não está conectado.
+    const { attendees: _attendeesSoUsuario, ...eventoBaseSemAttendees } = eventoBase
+
     // 4. Criar eventos nos dois calendários em paralelo — o pessoal só é tentado se o
     // atendente já conectou a própria conta (best-effort, nunca bloqueia o agendamento);
     // o da empresa (Service Account) é o que sempre roda, já que é o único garantido pela
@@ -143,7 +153,7 @@ export async function POST(request: NextRequest) {
           })
         : Promise.resolve(null),
       createEventEmpresa(user.google_email, {
-        ...eventoBase,
+        ...eventoBaseSemAttendees,
         summary: `[${user.nome}] ${eventoBase.summary}`,
       }).catch(e => {
         console.error('[Agendamento] Erro ao criar evento empresa:', e.message)
