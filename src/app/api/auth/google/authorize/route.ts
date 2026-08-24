@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getGoogleRedirectUri } from '@/lib/google/calendarService'
 
 /**
  * GET /api/auth/google/authorize
@@ -6,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function GET(request: NextRequest) {
   const clientId    = process.env.GOOGLE_CLIENT_ID
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI
+  const redirectUri = getGoogleRedirectUri()
 
   if (!clientId || !redirectUri) {
     return NextResponse.json(

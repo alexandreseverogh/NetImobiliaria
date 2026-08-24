@@ -6,6 +6,19 @@
 
 import pool from '@/lib/database/connection'
 
+/**
+ * URI de callback do OAuth do Google Calendar, derivada de NEXT_PUBLIC_APP_URL (já correto
+ * por instância — prod/staging/dev cada um com seu próprio valor no ambiente) em vez de uma
+ * env var própria (GOOGLE_REDIRECT_URI) — um valor fixo nunca poderia estar certo pras duas
+ * instâncias de deploy ao mesmo tempo, já que apontam pra domínios diferentes.
+ * O URL resultante ainda precisa estar cadastrado como "URI de redirecionamento autorizado"
+ * no Client OAuth do Google Cloud Console (um cadastro por domínio real usado).
+ */
+export function getGoogleRedirectUri(): string | null {
+  const base = process.env.NEXT_PUBLIC_APP_URL
+  return base ? `${base}/api/auth/google/callback` : null
+}
+
 // ── Tipos ─────────────────────────────────────────────────────
 
 export interface GoogleEventInput {

@@ -1,5 +1,52 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 10) — **Deploy da VPS ganha as variáveis do
+> Google Calendar + SMTP (nenhuma delas passava pelo `scripts/deploy.sh` até agora) + fix
+> real: `GOOGLE_REDIRECT_URI` nunca poderia funcionar em produção do jeito que estava.**
+> Usuário perguntou, depois do resumo da rodada anterior, se o deploy preencheria
+> automaticamente essas variáveis em todas as instâncias — resposta honesta: não, e
+> nunca poderia, já que Google/SMTP são credenciais emitidas por terceiros (diferente de
+> senha de banco/JWT_SECRET, que `deploy.sh` já gera sozinho via `openssl`).
+>
+> **Achado real, mais sério que só "falta documentar":** `GOOGLE_REDIRECT_URI` era uma env
+> var única e fixa (`src/app/api/auth/google/authorize` e `.../callback`) — mas produção e
+> staging são domínios DIFERENTES, e o Google exige o `redirect_uri` batendo exato com o
+> que foi cadastrado. Um valor único nunca poderia estar certo pras duas instâncias ao
+> mesmo tempo. Corrigido derivando o callback em runtime a partir de
+> `NEXT_PUBLIC_APP_URL` (novo `getGoogleRedirectUri()` em `calendarService.ts`, usado nos
+> 2 pontos) — essa variável já é corretamente diferente por instância no
+> `docker-compose.vps.yml` (`PROD_APP_URL`/`STAGING_APP_URL`), então passa a funcionar
+> certo nas duas sem nenhuma env var nova. `GOOGLE_REDIRECT_URI` removida de `.env.local`
+> (não lida mais em lugar nenhum) — só falta cadastrar os 2 URLs de callback reais (prod +
+> staging) como "URIs de redirecionamento autorizados" no mesmo Client OAuth do Google
+> Cloud Console, passo manual único, fora do código.
+>
+> **`scripts/deploy.sh` + `docker-compose.vps.yml`** — mesmo padrão já usado pra
+> `ANTHROPIC_API_KEY`/`GEMINI_API_KEY` (placeholder vazio no `.env` gerado, preenchido
+> manualmente depois do deploy): `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/
+> `GOOGLE_SERVICE_ACCOUNT_KEY`/`SMTP_HOST`/`SMTP_PORT`/`SMTP_SECURE`/`SMTP_USER`/
+> `SMTP_PASS`/`SMTP_FROM_NAME` adicionadas ao template + no bloco `environment:` de
+> `prod_app` **e** `staging_app` (sem YAML anchor no arquivo — duplicado igual todo o
+> resto já era) — um valor só no `.env`, preenchido uma vez, ativa as duas instâncias
+> juntas (mesmo comportamento que os campos de LLM já têm).
+>
+> **Achado de segurança no processo, corrigido antes de virar problema real:**
+> `GOOGLE_SERVICE_ACCOUNT_KEY` é um blob JSON com aspas duplas internas — `deploy.sh` faz
+> `source .env` em bash pra carregar as variáveis; sem aspas simples envolvendo o valor
+> inteiro, bash trata as aspas duplas internas como delimitador e as remove, corrompendo o
+> JSON antes mesmo de chegar ao container (e, por `set -a`, esse valor corrompido ganha
+> precedência sobre o parsing correto que o próprio `docker compose` faria do `.env` cru).
+> `.env.google_calendar.example` corrigido pra mostrar o valor entre aspas simples
+> (`GOOGLE_SERVICE_ACCOUNT_KEY='{"type":...}'`) com o porquê explicado; mesmo aviso
+> replicado no comentário do placeholder gerado por `deploy.sh`.
+>
+> **Testado:** `npx tsc --noEmit` limpo · `docker-compose.vps.yml` validado como YAML
+> (`js-yaml`) confirmando as novas chaves presentes nos 2 serviços · `bash -n
+> scripts/deploy.sh` sem erro de sintaxe · `GET /api/auth/google/authorize` real (dev)
+> confirmou `redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Fauth%2Fgoogle%2Fcallback`
+> — idêntico ao valor hardcoded de antes, agora derivado de `NEXT_PUBLIC_APP_URL` em vez
+> de env var fixa, sem regressão no fluxo de dev.
+
 > **Atualizado em:** 2026-08-25 (continuação 9) — **Convite do cliente por Google Calendar
 > nativo (attendee) + achado real: a Service Account do calendário da empresa nunca esteve
 > configurada em nenhum ambiente.** Usuário pediu, depois de agendar uma visita, que o

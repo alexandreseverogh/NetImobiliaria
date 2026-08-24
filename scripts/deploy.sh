@@ -159,6 +159,24 @@ META_AD_ACCOUNT_ID=
 EVOLUTION_API_URL=
 EVOLUTION_API_KEY=
 SLACK_WEBHOOK_URL=
+
+# ── Google Calendar (preencher após deploy — ver .env.google_calendar.example
+# ── pro passo a passo completo, inclusive o cadastro do redirect URI no Google
+# ── Cloud Console). Valem pra produção E staging ao mesmo tempo (mesmo valor).
+# ── GOOGLE_SERVICE_ACCOUNT_KEY: cole o JSON ENVOLTO EM ASPAS SIMPLES, ex:
+# ──   GOOGLE_SERVICE_ACCOUNT_KEY='{"type":"service_account",...}'
+# ── (sem as aspas simples, o `source .env` deste script corrompe o valor). ──
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_SERVICE_ACCOUNT_KEY=
+
+# ── SMTP / E-mail (preencher após deploy — confirmação de agendamento) ────────
+SMTP_HOST=
+SMTP_PORT=
+SMTP_SECURE=
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM_NAME=
 EOF
 
     chmod 600 .env
