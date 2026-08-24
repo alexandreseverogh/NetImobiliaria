@@ -73,6 +73,11 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
   const [error, setError] = useState('')
   const [agendamentoId, setAgendamentoId] = useState('')
   const [personalBannerDismissed, setPersonalBannerDismissed] = useState(false)
+  // Convite do cliente por e-mail (Google Calendar nativo, via attendee — não exige nenhuma
+  // conexão OAuth do lado do cliente). Pré-preenchido com o e-mail já capturado no lead;
+  // editável aqui pra cobrir tanto "lead sem e-mail ainda" quanto "e-mail errado/desatualizado".
+  const [clienteEmail, setClienteEmail] = useState('')
+  const [convidarCliente, setConvidarCliente] = useState(true)
 
   // Calendário visual — mês atual
   const today = new Date()
@@ -94,6 +99,8 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
       setObservacoes('')
       setError('')
       setPersonalBannerDismissed(false)
+      setClienteEmail(lead.email || '')
+      setConvidarCliente(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, canSchedule])
@@ -169,6 +176,8 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
           tenant_id: tenantId,
           data_hora_inicio: selectedSlot.inicio,
           observacoes: observacoes || undefined,
+          cliente_email: clienteEmail.trim() || undefined,
+          convidar_cliente: convidarCliente,
         }),
       })
       const data = await res.json()
@@ -454,6 +463,36 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
                 ))}
               </div>
 
+              {/* Convite do cliente */}
+              <div>
+                <label className={`block text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>
+                  E-mail do cliente
+                </label>
+                <input
+                  type="email"
+                  value={clienteEmail}
+                  onChange={e => setClienteEmail(e.target.value)}
+                  placeholder="cliente@email.com"
+                  className={`w-full rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-all ${t.inputBg}`}
+                />
+                <label className="flex items-center space-x-2 mt-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={convidarCliente}
+                    onChange={e => setConvidarCliente(e.target.checked)}
+                    className="h-4 w-4 rounded accent-blue-600"
+                  />
+                  <span className={`text-[11px] font-medium ${t.textSecondary}`}>
+                    Convidar o cliente por e-mail (Google Calendar)
+                  </span>
+                </label>
+                {convidarCliente && !clienteEmail.trim() && (
+                  <p className="text-[10px] mt-1 text-amber-500">
+                    Sem e-mail informado, o cliente não será convidado.
+                  </p>
+                )}
+              </div>
+
               {/* Observações */}
               <div>
                 <label className={`block text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>
@@ -474,7 +513,10 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
                   {hasPersonalCalendar
                     ? 'Um evento será criado no seu Google Calendar e no calendário da empresa.'
                     : 'Um evento será criado no calendário da empresa.'}
-                  {' '}E-mails de confirmação serão enviados para você e para o cliente.
+                  {' '}
+                  {convidarCliente && clienteEmail.trim()
+                    ? `O cliente recebe um convite do Google Calendar e um e-mail de confirmação em ${clienteEmail.trim()}.`
+                    : 'Nenhum convite será enviado ao cliente por e-mail.'}
                 </p>
               </div>
             </div>

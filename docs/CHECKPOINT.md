@@ -1,5 +1,69 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 9) — **Convite do cliente por Google Calendar
+> nativo (attendee) + achado real: a Service Account do calendário da empresa nunca esteve
+> configurada em nenhum ambiente.** Usuário pediu, depois de agendar uma visita, que o
+> cliente também recebesse o evento no próprio Google Calendar — levantou 2 preocupações:
+> (1) lead ainda sem cadastro em `clientes`; (2) mesmo cadastrado, o e-mail pode não ser
+> conta Google.
+>
+> **Investigação (sem escrever código ainda) revelou que as duas preocupações eram, na
+> prática, dissolvidas por um mecanismo que já existia parcialmente:** os dois
+> `createEvent*` (`calendarService.ts`) já incluíam o e-mail do lead como `attendee` com
+> `sendUpdates=all` — o convite nativo do Google funciona pra qualquer provedor de e-mail
+> (não só Gmail), sem exigir OAuth do lado do cliente. Achado real, não hipotético, no
+> caminho: `GOOGLE_SERVICE_ACCOUNT_KEY` **nunca esteve configurada** — nem em `.env.local`
+> (dev), nem em `.env.example`/`docker-compose.vps.yml` (templates de deploy) — só existia
+> um arquivo de exemplo nunca preenchido. Por isso `google_event_id_empresa` sempre ficou
+> vazio em todo agendamento já criado nesta sessão; o único caminho que já criava evento
+> real era o pessoal (`createEventUsuario`, quando o atendente logado já conectou o
+> próprio Google Calendar via OAuth).
+>
+> **Resolvido em 2 frentes, conforme pedido ("vamos resolver as 2 questões"):**
+> 1. **Documentação do setup da Service Account** (`.env.google_calendar.example`) — passo
+>    extra que faltava documentado: além da chave, o calendário de `tenants.google_email`
+>    precisa ser compartilhado manualmente com o `client_email` da Service Account
+>    (permissão "Fazer alterações em eventos"), por tenant. Ação real de criar a Service
+>    Account/compartilhar o calendário depende do usuário (conta Google dele, fora do que
+>    esta sessão consegue automatizar) — documentado, não implementado nesta rodada.
+> 2. **Convite do cliente — UI/UX implementada e testada de ponta a ponta:**
+>    `prisma/migration-2026-08-25-agendamentos-email-convite.sql` — nova coluna
+>    `agendamentos.email_convite_destino` (audit trail de qual e-mail foi de fato
+>    convidado, `NULL` = nenhum convite). `POST /api/crm/agendamentos` — novo par
+>    `cliente_email`/`convidar_cliente` no body; e-mail efetivo resolvido com prioridade
+>    body > `clientes.email` (join já existente) > `leads_staging.email`, validado por
+>    regex simples; `convidar_cliente` é o interruptor único que governa TANTO o attendee
+>    do Google Calendar QUANTO o e-mail de confirmação customizado (nunca desacoplados —
+>    do ponto de vista do cliente é a mesma decisão de contato). Quando o lead ainda não
+>    tinha e-mail e o atendente digita um pra convidar, o valor é gravado de volta em
+>    `leads_staging.email` (só quando estava vazio — nunca sobrescreve um valor real
+>    já existente). `AgendarVisitaModal.tsx` — novo campo "E-mail do cliente" (editável,
+>    pré-preenchido com `lead.email`) + checkbox "Convidar o cliente por e-mail", com aviso
+>    âmbar quando marcado sem e-mail; texto do resumo final passa a citar o e-mail real
+>    que vai ser convidado, ou avisa explicitamente que nenhum convite será enviado.
+>
+> **Testado ao vivo, ponta a ponta, 3 cenários com agendamento real** (tenant CRM SOZINHO,
+> usuário real `admxyz` com Google Calendar pessoal conectado — confirma o caminho de
+> criação de evento de verdade, já que o da empresa segue bloqueado até a Service Account
+> ser configurada): (1) lead com e-mail já capturado (Frank Aguiar) → campo pré-preenchido,
+> resumo final citou o e-mail certo, `agendamentos.email_convite_destino` gravado igual ao
+> `attendee` do evento criado de fato · (2) lead novo sem nenhum e-mail (criado só pra este
+> teste) → campo veio vazio + aviso âmbar; digitado um e-mail na hora → agendamento criado
+> com esse e-mail como convite E `leads_staging.email` do lead passou a ter esse valor
+> (write-back confirmado por SQL, fechando a lacuna de cadastro pro futuro) · (3) chamada
+> direta com `convidar_cliente:false` e e-mail válido → `email_convite_destino` gravado
+> `NULL`, confirma que o interruptor suprime o convite mesmo com e-mail presente.
+> **Achado incidental, não-regressão** (mesmo comportamento presente em todos os 4
+> agendamentos de teste desta sessão, inclusive os de antes desta mudança):
+> `email_lead_enviado`/`email_corretor_enviado` nunca viram `true` apesar de SMTP
+> configurado em `.env.local` — pré-existente, fora do escopo desta rodada, registrado
+> honestamente como pendência a investigar se o usuário quiser confirmação de entrega real
+> do e-mail de confirmação (distinto do convite nativo do Google, que é o que este pedido
+> resolveu). Todo dado de teste (3 agendamentos + 1 lead descartável) removido via a
+> própria API (cancelamento real, apaga o evento do Google Calendar) + SQL, `count(*)=0`
+> confirmado; os 3 agendamentos reais pré-existentes deste tenant (não meus) intactos.
+> `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 8) — **Fix real: "Histórico de Visitas" só
 > refletia um agendamento novo depois de recarregar a página inteira.** Usuário pediu
 > explicitamente que o agendamento recém-salvo aparecesse na lista logo em seguida, sem

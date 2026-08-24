@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   try { body = await request.json() }
   catch { return NextResponse.json({ error: 'Body inválido' }, { status: 400 }) }
 
-  const { lead_uuid, data_hora_inicio, observacoes, tenant_id } = body
+  const { lead_uuid, data_hora_inicio, observacoes, tenant_id, cliente_email, convidar_cliente } = body
   if (!lead_uuid || !data_hora_inicio) {
     return NextResponse.json({ error: 'lead_uuid e data_hora_inicio são obrigatórios' }, { status: 400 })
   }
@@ -103,12 +103,23 @@ export async function POST(request: NextRequest) {
     const lead = leadRows[0]
     if (!lead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 })
 
+    // E-mail de convite do cliente: prioriza o que o atendente confirmou/corrigiu na tela
+    // (cliente_email do body) > cadastro casado em `clientes` > e-mail já capturado no lead.
+    // `convidar_cliente` é o interruptor único que governa TANTO o convite nativo do Google
+    // Calendar (attendee) QUANTO o e-mail de confirmação customizado — os dois são, do ponto
+    // de vista do cliente, "a empresa me avisou por e-mail", então nunca fazem sentido
+    // desacoplados aqui.
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const emailBruto = (typeof cliente_email === 'string' && cliente_email.trim()) || lead.cliente_email || lead.email || null
+    const emailConvite = emailBruto && EMAIL_RE.test(emailBruto) ? emailBruto : null
+    const enviarConvite = convidar_cliente !== false && !!emailConvite
+
     const eventoBase = {
       summary: `Visita: ${lead.nome || 'Cliente'}${lead.imovel_nome ? ` — ${lead.imovel_nome}` : ''}`,
       description: [
         `Cliente: ${lead.nome || '—'}`,
         `Telefone: ${lead.telefone || '—'}`,
-        `E-mail: ${lead.email || '—'}`,
+        `E-mail: ${emailConvite || lead.email || '—'}`,
         observacoes ? `Observações: ${observacoes}` : null,
         `Agendado por: ${user.nome}`,
       ].filter(Boolean).join('\n'),
@@ -116,7 +127,7 @@ export async function POST(request: NextRequest) {
       end:   { dateTime: fim.toISOString(),    timeZone: TZ },
       attendees: [
         { email: user.email, displayName: user.nome },
-        ...(lead.email ? [{ email: lead.email, displayName: lead.nome }] : []),
+        ...(enviarConvite ? [{ email: emailConvite!, displayName: lead.nome }] : []),
       ],
     }
 
@@ -144,8 +155,9 @@ export async function POST(request: NextRequest) {
     const { rows: insertRows } = await pool.query(
       `INSERT INTO agendamentos
          (tenant_id, lead_uuid, usuario_id, imovel_id, data_hora_inicio, data_hora_fim,
-          google_event_id_usuario, google_event_id_empresa, status, observacoes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'agendado',$9)
+          google_event_id_usuario, google_event_id_empresa, status, observacoes,
+          email_convite_destino)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'agendado',$9,$10)
        RETURNING *`,
       [
         user.tenant_id,
@@ -157,15 +169,26 @@ export async function POST(request: NextRequest) {
         eventoUsuario?.eventId || null,
         eventoEmpresa?.eventId || null,
         observacoes || null,
+        enviarConvite ? emailConvite : null,
       ]
     )
     const agendamento = insertRows[0]
+
+    // 5b. Se o lead ainda não tinha e-mail cadastrado e o atendente informou um pra convidar,
+    // aproveita pra fechar essa lacuna no cadastro — nunca sobrescreve um e-mail já existente
+    // (o atendente pode ter digitado algo diferente só pra este convite, não uma correção).
+    if (enviarConvite && emailConvite && !lead.email) {
+      pool.query(
+        `UPDATE leads_staging SET email = $1 WHERE lead_uuid = $2 AND (email IS NULL OR email = '')`,
+        [emailConvite, lead_uuid]
+      ).catch(e => console.warn('[Agendamento] Falha ao gravar e-mail do lead:', e.message))
+    }
 
     // 6. Enviar e-mails (em background — sem bloquear a resposta)
     const emailParams = {
       corretorNome:  user.nome,
       leadNome:      lead.nome || 'Cliente',
-      leadEmail:     lead.email || '',
+      leadEmail:     emailConvite || lead.email || '',
       leadTelefone:  lead.telefone,
       imovelNome:    lead.imovel_nome,
       dataHoraInicio: inicio.toISOString(),
@@ -179,9 +202,9 @@ export async function POST(request: NextRequest) {
         .then(() => pool.query('UPDATE agendamentos SET email_corretor_enviado=true WHERE id=$1', [agendamento.id]))
         .catch(e => console.warn('[Email Corretor]', e.message)),
 
-      (lead.cliente_email || lead.email)
+      enviarConvite
         ? sendConfirmacaoLead({
-            to: lead.cliente_email || lead.email,
+            to: emailConvite!,
             leadNome: lead.nome || 'Cliente',
             corretorNome: user.nome,
             imovelNome: lead.imovel_nome,
