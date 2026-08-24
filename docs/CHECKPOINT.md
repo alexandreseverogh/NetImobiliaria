@@ -1,5 +1,67 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 11) — **Setup real do Google Calendar +
+> SMTP de produção concluído (Google Cloud Console + Gmail), guiado passo a passo com o
+> usuário via prints. `scripts/deploy.sh` ganha um mecanismo de auto-preenchimento seguro
+> — nunca segredo real dentro de arquivo versionado.**
+>
+> **Feito no Google Cloud Console (projeto "Artemis4 CRM", reaproveitando o mesmo Client
+> OAuth já usado em dev, por decisão do usuário):**
+> 1. Redirect URIs de produção/staging cadastrados no Client OAuth existente:
+>    `https://www.artemis4.com.br/api/auth/google/callback` +
+>    `https://staging.artemis4.com.br/api/auth/google/callback`.
+> 2. Service Account `netimobiliaria-calendar-empresa` criada (e-mail técnico
+>    `artemis4-calendar-empresa@artemis4-crm.iam.gserviceaccount.com`), sem papel de IAM
+>    no projeto (não precisa — o acesso real é concedido direto no Google Calendar).
+> 3. Chave JSON gerada e baixada — **nunca compartilhada com esta sessão do Claude**, só o
+>    usuário teve acesso ao conteúdo, por decisão de segurança combinada antes de começar.
+> 4. Calendário de `alexandreseverog@gmail.com` compartilhado com o e-mail técnico da
+>    Service Account, permissão **"Fazer alterações e ver todos os detalhes dos eventos"**
+>    — achado real no processo: a permissão inicial que o Google sugere por padrão ao
+>    adicionar alguém é só leitura ("Mais detalhes de todos os eventos"), teria deixado a
+>    Service Account incapaz de criar evento nenhum; corrigido antes de prosseguir.
+> 5. Senha de app do Gmail gerada (`myaccount.google.com/apppasswords`, nome "Artemis4 CRM
+>    SMTP") — mesma disciplina: nunca compartilhada com esta sessão.
+>
+> **Pedido original do usuário — automatizar a inserção dessas variáveis no `.env` de
+> produção pra quando o deploy real acontecer — recusado na forma literal pedida (colar os
+> valores reais dentro de `scripts/deploy.sh`) e resolvido de forma segura:** `scripts/
+> deploy.sh` (arquivo rastreado pelo Git, já commitado/enviado ao GitHub várias vezes nesta
+> sessão) nunca deveria conter segredo real — uma vez commitado, fica no histórico do
+> repositório para sempre, mesmo que uma linha seja apagada num commit seguinte. Implementado
+> em vez disso um mecanismo de **arquivo de segredos separado, fora do Git**:
+> - `scripts/deploy.secrets.env` (novo, **adicionado ao `.gitignore`** — confirmado via
+>   `git check-ignore -v` que nunca aparece nem como untracked) — contém os valores reais.
+> - `scripts/deploy.secrets.env.example` (novo, este sim versionado) — template sem
+>   segredo nenhum, documentando os campos esperados.
+> - `scripts/deploy.sh` — antes de gerar o `.env`, checa se `scripts/deploy.secrets.env`
+>   existe; se existir, faz `source` nele (`set -a`) e usa os valores pra pré-preencher
+>   `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_SERVICE_ACCOUNT_KEY`/`SMTP_*` no `.env`
+>   gerado; se não existir, os campos ficam em branco — comportamento idêntico ao de antes,
+>   zero regressão pra quem não usar esse arquivo. Todo campo escrito no `.env` gerado agora
+>   sai entre aspas simples (`GOOGLE_CLIENT_ID='...'`), defesa em profundidade — inclusive
+>   pra campos que hoje não têm espaço/aspas (ex. `SMTP_FROM_NAME='Artemis4 CRM'`, achado
+>   ao revisar: o próprio valor default sugerido tem espaço, quebraria um `source` bash
+>   sem aspas).
+>
+> **Testado, sem tocar no repositório real:** simulação completa do round-trip (arquivo de
+> segredos fake com JSON+aspas internas e valor com espaço → `source` → geração do `.env`
+> via o mesmo heredoc do script → `source` do `.env` gerado, simulando tanto o passo
+> seguinte do próprio `deploy.sh` quanto a leitura que o `docker compose` faria) rodada
+> num diretório `/tmp` isolado — confirmado que o JSON sai válido depois do round-trip
+> completo (`JSON.parse` sem erro) e que `SMTP_FROM_NAME` sobrevive com o espaço intacto.
+> Caso sem arquivo de segredos (comportamento antigo) também testado — campos saem como
+> `''` (vazio, aspas simples), sem quebrar nada. `bash -n scripts/deploy.sh` sem erro de
+> sintaxe.
+>
+> `scripts/deploy.secrets.env` real já preenchido com os 2 valores não-sensíveis que esta
+> sessão já tinha (mesmo `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` de dev, reaproveitados) —
+> faltam só `GOOGLE_SERVICE_ACCOUNT_KEY` (colar o JSON baixado) e `SMTP_PASS` (colar a senha
+> de app), que só o usuário tem, com instrução completa de como preencher escrita dentro do
+> próprio arquivo (comentários). Quando a VPS existir de fato, o arquivo precisa ser levado
+> pra lá fora do Git (ex. `scp`) antes de rodar `./scripts/deploy.sh` — documentado no
+> próprio arquivo.
+
 > **Atualizado em:** 2026-08-25 (continuação 10) — **Deploy da VPS ganha as variáveis do
 > Google Calendar + SMTP (nenhuma delas passava pelo `scripts/deploy.sh` até agora) + fix
 > real: `GOOGLE_REDIRECT_URI` nunca poderia funcionar em produção do jeito que estava.**

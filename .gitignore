@@ -20,6 +20,11 @@ dist/
 .env.staging
 .env.vps
 
+# Segredos reais pro deploy automatizado (scripts/deploy.sh lê este arquivo se existir,
+# pra pré-preencher Google Calendar/SMTP no .env gerado) — NUNCA committar. Template
+# sem segredos fica em scripts/deploy.secrets.env.example, esse sim versionado.
+scripts/deploy.secrets.env
+
 # Runtime data
 pids
 *.pid
