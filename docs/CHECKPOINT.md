@@ -1,5 +1,27 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 27) — **Retomada a pendência da entrega
+> anterior: badge flutuante de `tag_sonho` (topo do card do Kanban) trocado de azul pra
+> âmbar — o card já tinha muito azul (avatar, Match/Aderência, CTA), e o usuário
+> questionou se dava pra diferenciar sem virar "carnaval".**
+>
+> Decisão fechada com o usuário antes de implementar: **um único acento novo, nunca uma
+> cor por categoria de tag** — com 7-8 tags possíveis por segmento, mapear cada uma pra
+> uma cor diferente é o cenário que genuinamente vira visualmente confuso; um acento único
+> resolve "muito azul" sem trocar um problema por outro. Cor escolhida: **âmbar**, não uma
+> cor nova sem relação com o resto — já é a cor usada em todo o resto desta mesma ficha
+> pra sinalizar "isto veio da IA" (Sugestão da IA, Valor Potencial estimado); `tag_sonho` é
+> exatamente isso (classificação gerada pela IA), então reforça o significado em vez de só
+> decorar. Violeta foi cogitada e descartada — colidiria com "Aderência", que já é violeta
+> na ficha.
+>
+> `src/app/crm/kanban/page.tsx` — badge do topo (`bg-blue-600`/`text-blue-600` +
+> `SparklesIcon` azul) → `bg-amber-600`/`text-amber-600` + `SparklesIcon` âmbar, mesma
+> estrutura, só a cor. Testado ao vivo: os 4 badges reais do board (Comprador à Vista,
+> Apenas Pesquisando, Interesse Geral ×2) confirmados via `getComputedStyle` —
+> `rgb(217,119,6)` (âmbar-600 exato) sobre branco com borda âmbar-200. `npx tsc --noEmit`:
+> 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 26) — **Card do Kanban mostrava o mesmo
 > `tag_sonho` 2x (badge flutuante no topo + badge no rodapé) — redundância apontada pelo
 > usuário via print real. Badge do rodapé substituído por "tempo desde a captação" (dias),

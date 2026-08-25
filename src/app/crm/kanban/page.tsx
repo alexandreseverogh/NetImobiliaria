@@ -634,13 +634,19 @@ export default function KanbanPage() {
                       </div>
                     </div>
 
+                    {/* Âmbar, não azul — reaproveita a mesma cor já usada em todo o resto
+                        da ficha pra sinalizar "conteúdo gerado pela IA" (Sugestão da IA,
+                        Valor Potencial estimado), em vez de somar mais um elemento azul
+                        aos vários que o card já tem (avatar, Match/Aderência, CTA). Um
+                        único acento pra qualquer tag_sonho — nunca uma cor por categoria,
+                        que com 7-8 tags possíveis por segmento viraria visualmente confuso. */}
                     <div className="absolute -top-2.5 -right-2">
                       <div className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-sm flex items-center border ${
-                        t.isDark 
-                          ? 'bg-blue-600 text-white border-blue-500' 
-                          : 'bg-white text-blue-600 border-blue-200 ring-4 ring-white'
+                        t.isDark
+                          ? 'bg-amber-600 text-white border-amber-500'
+                          : 'bg-white text-amber-600 border-amber-200 ring-4 ring-white'
                       }`}>
-                        <SparklesIcon className={`h-2.5 w-2.5 mr-1 ${t.isDark ? 'text-blue-200' : 'text-blue-500'}`} />
+                        <SparklesIcon className={`h-2.5 w-2.5 mr-1 ${t.isDark ? 'text-amber-200' : 'text-amber-500'}`} />
                         {lead.tag_sonho || 'NOVO'}
                       </div>
                     </div>
