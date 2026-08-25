@@ -1,5 +1,38 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 13) — **Convite do cliente via calendário
+> pessoal confirmado funcionando de ponta a ponta + achado real: SMTP de confirmação
+> nunca funcionou porque a senha de app salva estava com espaços (e, mesmo sem espaços,
+> é uma credencial antiga/inválida — trocada por uma nova gerada nesta sessão).**
+>
+> **Item 1 — convite do cliente, testado ao vivo com evento real:** agendamento criado
+> como o usuário Roberto (`imovitecadm@gmail.com`, calendário pessoal já conectado) com
+> `convidar_cliente:true` → buscado o evento real na Calendar API (não só o banco) →
+> `attendees` confirmado com o e-mail do cliente real (`tessddsff@gmail.com`,
+> `responseStatus:"needsAction"`) — prova que o Google de fato mandou o convite nativo.
+> Mecanismo já implementado numa sessão anterior, nunca antes confirmado funcionando de
+> verdade; agora confirmado.
+>
+> **Item 2 — achado real no SMTP:** `getTransporter()` (`emailService.ts`) sempre passou
+> `process.env.SMTP_PASS` cru pro nodemailer — a senha de app salva em `.env.local` tinha
+> os espaços que o Google mostra na tela (4 blocos de 4, 19 caracteres com espaço em vez
+> de 16), e o Gmail rejeita silenciosamente com espaço. Isolado via `nodemailer.
+> createTransport(...).verify()` fora do Next.js (mesmo padrão de diagnóstico das rodadas
+> anteriores) — confirmado que MESMO sem espaço a credencial específica salva ali
+> continuava sendo rejeitada (`535 Username and Password not accepted`) — ou seja, é uma
+> senha de app antiga/inválida, nunca de fato validada (bate com o achado já registrado
+> antes nesta sessão: "email_lead_enviado nunca virou true, pré-existente"). Vai ser
+> trocada pela senha nova gerada na Fase 5 do setup do Google Calendar desta mesma sessão.
+>
+> **Corrigido, independente da causa da senha:** `getTransporter()` agora sempre remove
+> espaços de `SMTP_PASS` (`.replace(/\s+/g, '')`) antes de autenticar — protege contra o
+> mesmo erro de cópia acontecer de novo no futuro (é fácil colar com espaço, já que é
+> assim que o Google exibe). `npx tsc --noEmit`: 0 erros.
+>
+> **Pendente:** usuário vai trocar `SMTP_PASS` no `.env.local` pela senha de app nova
+> (nunca compartilhada com esta sessão, mesma disciplina de sempre) e reiniciar o dev —
+> teste real de envio (`sendConfirmacaoLead`) ainda por confirmar depois da troca.
+
 > **Atualizado em:** 2026-08-25 (continuação 12) — **Fix real: calendário da empresa
 > nunca criava evento nenhum, em nenhum agendamento, mesmo com a Service Account
 > corretamente configurada e o calendário corretamente compartilhado.** Descoberto no

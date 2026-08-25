@@ -14,7 +14,11 @@ function getTransporter() {
     secure: process.env.SMTP_SECURE === 'true',
     auth: {
       user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      // Senha de app do Gmail costuma ser colada com os espaços que o Google exibe na
+      // tela (4 blocos de 4) — o valor real não tem espaço nenhum, e a autenticação
+      // SMTP rejeita silenciosamente se vier com eles. Remove aqui pra nunca depender de
+      // quem colou ter tirado os espaços manualmente.
+      pass: process.env.SMTP_PASS?.replace(/\s+/g, ''),
     },
   })
 }
