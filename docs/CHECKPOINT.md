@@ -1,5 +1,38 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 25) — **Fix real, sem nenhuma mudança de
+> código: foto do dono do lead não carregava no card do Kanban (ícone quebrado) — não era
+> a imagem em si, era o proxy de porta do Docker Desktop pra MinIO (porta 9000) travado,
+> mesma classe de incidente já documentada nesta sessão pro Postgres.**
+>
+> Usuário mandou print real de um card mostrando o avatar do "Roberto" como ícone quebrado
+> (não as iniciais, não o ícone genérico — literalmente o placeholder de imagem falha do
+> navegador), suspeitando do formato salvo. Investigação, do lead até a origem:
+> 1. Confirmado no banco 2 usuários reais chamados "Roberto Severo" (tenants diferentes,
+>    e-mails diferentes — Marketing Digital e CRM SOZINHO — não é duplicata, é legítimo);
+>    o lead da imagem (`corretor_atribuido_id`) aponta pro correto, o da CRM SOZINHO
+>    (`73ef6f74-...`), que TEM foto real salva (`storage_type='s3'`, `url_cdn` presente,
+>    56.453 bytes de bytea legado também presentes).
+> 2. `GET /api/admin/usuarios/[id]/foto` faz 302 pro `url_cdn`
+>    (`http://localhost:9000/net-imobiliaria/users/.../....jpg`) — testado direto via curl:
+>    conexão TCP abre, mas **resposta vazia** ("Empty reply from server"), mesmo sintoma
+>    exato já documentado nesta sessão pro Postgres (2026-08-25, "Docker Desktop port-
+>    forwarding proxy pode entrar num estado quebrado depois de uma interrupção abrupta do
+>    container").
+> 3. Confirmado que a imagem em si nunca esteve com problema: `docker exec netimobiliaria-
+>    minio curl ...` (a mesma URL, mas de DENTRO do container, sem passar pelo proxy do
+>    Windows) → `200 OK`, `56453` bytes — bate exato com o legado salvo no banco.
+>
+> **Corrigido com `docker restart netimobiliaria-minio`** (só o container do MinIO, não o
+> Docker Desktop inteiro — mesmo remédio já usado antes pro Postgres). Reconfirmado via
+> curl do host: `200 OK` depois do restart.
+>
+> **Testado ao vivo no navegador**, board real do Kanban (tenant CRM SOZINHO): os 3
+> avatares reais do board (Roberto, Eustroncio, Clementina) confirmados via
+> `naturalWidth`/`naturalHeight`/`complete` — todos carregando imagem de verdade agora
+> (`498×521`, `554×554`, `620×494`), nenhum placeholder quebrado. Nenhuma mudança de
+> código — puramente operacional, mesma disciplina do incidente anterior de Postgres.
+
 > **Atualizado em:** 2026-08-25 (continuação 24) — **3 ajustes visuais pontuais na ficha do
 > Kanban: rótulo "Análise Concierge IA" → "Análise por IA"; tiles Intenção/Aderência
 > ganham cor de fundo própria e distinta (azul/violeta, discreta); labels "Histórico de
