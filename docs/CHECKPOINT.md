@@ -1,5 +1,26 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 28) — **2 ajustes pontuais de UI no Kanban:
+> campo de data do filtro (De/Até) truncava o "dd/mm/aaaa"; data de criação no rodapé do
+> card muda de "24 DE AGO." pra "dd/mm/aaaa".**
+>
+> 1. **Filtro de data (`De`/`Até`)** — o wrapper era `w-32` (128px); o `DateInputPtBR`
+>    reserva `paddingRight:28px` fixo pro botão do calendário (posição interna do
+>    componente, não ajustável via className) + `pl-4` (16px) do próprio uso aqui = só
+>    84px de content-box pro texto "dd/mm/aaaa", que mede ~84px na fonte usada — no limite
+>    exato, cortando o último "a". Corrigido alargando pra `w-36` (144px) — não mexeu no
+>    ícone em si (ele continua na mesma posição relativa), só deu mais espaço pro texto
+>    caber por inteiro.
+> 2. **Data de criação no card** — `toLocaleDateString('pt-BR', {day:'2-digit',
+>    month:'short'})` ("24 DE AGO.") → `toLocaleDateString('pt-BR')` (formato numérico
+>    padrão `dd/mm/aaaa`), mesmo padrão de data já obrigatório em toda a UI (`CLAUDE.md`).
+>
+> **Testado ao vivo:** medido via canvas `measureText` com a mesma fonte real do input —
+> texto do placeholder mede 84,3px, cabe com folga nos 98px de content-box agora
+> disponíveis (era ~84px antes, no limite exato do corte relatado); `scrollWidth ===
+> clientWidth` nos dois campos, sem overflow. Card confirmado sem nenhuma ocorrência de
+> "DE AGO" no board, formato `dd/mm/aaaa` presente. `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 27) — **Retomada a pendência da entrega
 > anterior: badge flutuante de `tag_sonho` (topo do card do Kanban) trocado de azul pra
 > âmbar — o card já tinha muito azul (avatar, Match/Aderência, CTA), e o usuário

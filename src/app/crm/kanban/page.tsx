@@ -420,7 +420,10 @@ export default function KanbanPage() {
         <div className="flex items-center gap-2">
           <CalendarDaysIcon className={`h-5 w-5 ${t.isDark ? t.textMuted : 'text-slate-400'}`} />
           <span className={`text-xs font-bold uppercase tracking-wide ${t.isDark ? t.textMuted : 'text-slate-400'}`}>De</span>
-          <div className="w-32">
+          {/* w-36 (era w-32) — em 128px o texto "dd/mm/aaaa" colidia com o espaço já
+              reservado pro ícone (paddingRight:28 fixo no próprio DateInputPtBR),
+              truncando o último "a". Alargar o campo, não mexer no padding do ícone. */}
+          <div className="w-36">
             <DateInputPtBR
               value={filterDateFrom}
               onChange={setFilterDateFrom}
@@ -428,7 +431,7 @@ export default function KanbanPage() {
             />
           </div>
           <span className={`text-xs font-bold uppercase tracking-wide ${t.isDark ? t.textMuted : 'text-slate-400'}`}>Até</span>
-          <div className="w-32">
+          <div className="w-36">
             <DateInputPtBR
               value={filterDateTo}
               onChange={setFilterDateTo}
@@ -584,8 +587,8 @@ export default function KanbanPage() {
                           {getInitials(lead.nome)}
                         </div>
                         {lead.created_at && (
-                          <span className={`text-[10px] font-bold uppercase tracking-widest ${t.isDark ? t.textMuted : 'text-slate-400'}`}>
-                            {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          <span className={`text-[10px] font-bold tracking-widest ${t.isDark ? t.textMuted : 'text-slate-400'}`}>
+                            {new Date(lead.created_at).toLocaleDateString('pt-BR')}
                           </span>
                         )}
                         {!!lead.atividades_count && (
