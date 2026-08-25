@@ -1,5 +1,31 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 18) — **Coluna "Fit" adicionada à tabela de
+> `/crm/leads`, ao lado de "Intenção" — mesmo tratamento honesto já usado no drawer/ficha
+> (número real quando o segmento/tenant tem critério de fit configurado, "—" quando não).**
+>
+> Pedido direto do usuário, seguindo a decisão registrada na entrega anterior (Fit só
+> aparecia no drawer, não na tabela). Usuário perguntou antes se precisaria configurar algo
+> novo em Segmentos — esclarecido que não: a coluna só reflete o `score_fit` já existente
+> (`crm_fit_criterios_segmento`/`_tenant`, curado em `/admin/master/segments` → "Critérios
+> de Fit (ICP)" ou sobreposto pelo tenant em `/crm/config/ia`) — segmento sem nenhum
+> critério cadastrado (caso real de "Venda de Carros" hoje) continua mostrando "—".
+>
+> **Implementado** (`src/app/crm/leads/page.tsx`): array de cabeçalho da tabela ganhou
+> `'Fit'` entre `'Intenção'` e `'Responsável'` (7→8 colunas, índices de alinhamento
+> centralizado/direita ajustados); nova célula com a mesma lógica de cor por faixa já usada
+> em Intenção (verde >80%, azul >50%, neutro senão) e fallback `'—'` quando `score_fit` é
+> `null`; `colSpan={7}→{8}` nas 2 linhas de estado especial (carregando/vazio), senão
+> ficariam desalinhadas com a tabela de 8 colunas.
+>
+> **Testado ao vivo, os 2 ramos, com dado real** (tenant CRM SOZINHO): estado atual (nenhum
+> lead com fit real, segmento sem critério) → coluna "FIT" renderiza "—" nas 3 linhas,
+> confirmado via `innerText` · como nenhum lead do banco inteiro tem `score_fit` não-nulo
+> hoje, setado temporariamente `score_fit=90` num lead real de teste ("Frank Aguiar") via
+> SQL direto → recarregada a página → célula confirmada via `getComputedStyle`:
+> `"90%"`, `color: rgb(34, 197, 94)` (verde-500, threshold >80% correto) — revertido pra
+> `NULL` logo em seguida, confirmado por SQL. `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 17) — **Varredura completa por "IPVE" no
 > código encontrou uma 3ª ocorrência, pior que as duas anteriores: um card de KPI
 > chamado "Taxa de Match IPVE" cujo valor era `Math.random() * 20 + 70` — nem sequer

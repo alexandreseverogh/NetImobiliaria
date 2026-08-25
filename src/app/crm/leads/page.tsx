@@ -163,15 +163,17 @@ export default function LeadsStagingPage() {
               {/* "Score IPVE" era o nome antigo dessa coluna — resíduo de quando a
                   plataforma era só Imobiliário, mas o valor exibido sempre foi
                   score_prontidao (Intenção), nunca nada específico de IPVE. Renomeado
-                  pra bater com o mesmo rótulo já usado na ficha do Kanban. */}
-              {['Identidade', 'Dados Enriquecidos', 'Tag do Sonho', 'Intenção', 'Responsável', 'Origem / Data', 'Ação'].map((h, i) => (
-                <th key={h} className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-widest ${i === 1 ? 'text-emerald-500' : t.textMuted} ${i >= 3 && i <= 4 ? 'text-center' : ''} ${i === 6 ? 'text-right' : ''}`}>{h}</th>
+                  pra bater com o mesmo rótulo já usado na ficha do Kanban. Coluna "Fit"
+                  (score_fit) adicionada ao lado — mesma dimensão separada já exibida no
+                  drawer, "—" honesto quando o segmento/tenant não tem critério cadastrado. */}
+              {['Identidade', 'Dados Enriquecidos', 'Tag do Sonho', 'Intenção', 'Fit', 'Responsável', 'Origem / Data', 'Ação'].map((h, i) => (
+                <th key={h} className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-widest ${i === 1 ? 'text-emerald-500' : t.textMuted} ${i >= 3 && i <= 5 ? 'text-center' : ''} ${i === 7 ? 'text-right' : ''}`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className={`divide-y ${t.borderSub}`}>
             {loading ? (
-              <tr><td colSpan={7} className="py-20 text-center text-blue-500 animate-pulse font-bold italic">Sincronizando Leads...</td></tr>
+              <tr><td colSpan={8} className="py-20 text-center text-blue-500 animate-pulse font-bold italic">Sincronizando Leads...</td></tr>
             ) : filteredLeads.length > 0 ? filteredLeads.map(lead => (
               <tr key={lead.lead_uuid} className={`group transition-all ${t.hoverBg}`}>
                 <td className="px-6 py-4">
@@ -220,6 +222,11 @@ export default function LeadsStagingPage() {
                     {lead.score_prontidao}%
                   </span>
                 </td>
+                <td className="px-6 py-4 text-center">
+                  <span className={`text-xs font-bold ${lead.score_fit == null ? t.textMuted : lead.score_fit > 80 ? 'text-green-500' : lead.score_fit > 50 ? 'text-blue-500' : t.textMuted}`}>
+                    {lead.score_fit != null ? `${lead.score_fit}%` : '—'}
+                  </span>
+                </td>
                 <td className="px-6 py-4">
                   <div className="flex justify-center">
                     <OwnerAvatar lead={lead} isDark={t.isDark} />
@@ -242,7 +249,7 @@ export default function LeadsStagingPage() {
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={7} className={`py-20 text-center italic ${t.textMuted}`}>Nenhum lead encontrado.</td></tr>
+              <tr><td colSpan={8} className={`py-20 text-center italic ${t.textMuted}`}>Nenhum lead encontrado.</td></tr>
             )}
           </tbody>
         </table>
