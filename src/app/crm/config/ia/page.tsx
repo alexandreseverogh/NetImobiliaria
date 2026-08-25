@@ -284,7 +284,7 @@ export default function AIConfigPage() {
 
         <div className="space-y-4">
           <h3 className={`text-xl font-bold flex items-center ${t.textPrimary}`}>
-            <ScaleIcon className="h-6 w-6 text-violet-500 mr-2" />Critérios de Fit do Segmento (ICP)
+            <ScaleIcon className="h-6 w-6 text-violet-500 mr-2" />Critérios de Aderência do Segmento (ICP)
           </h3>
           <p className={`text-xs ${t.textMuted}`}>
             Curados pela equipe da plataforma — descrevem o quão bem um lead se encaixa no perfil ideal de cliente
@@ -305,7 +305,7 @@ export default function AIConfigPage() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className={`text-xl font-bold flex items-center ${t.textPrimary}`}>
-              <ScaleIcon className="h-6 w-6 text-violet-500 mr-2" />Seus Critérios de Fit
+              <ScaleIcon className="h-6 w-6 text-violet-500 mr-2" />Seus Critérios de Aderência
             </h3>
             <button onClick={() => { setCurrentFit(EMPTY_FIT_FORM); setIsEditingFit(true) }}
               className="flex items-center px-6 py-3 bg-violet-600 text-white text-xs font-black uppercase rounded-2xl hover:bg-violet-500 transition-all">

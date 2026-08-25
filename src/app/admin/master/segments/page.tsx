@@ -373,7 +373,7 @@ export default function MasterSegmentsPage() {
                       <button
                         onClick={() => setFitCriteriaSegment(segment)}
                         className="p-2 rounded-lg text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 transition-colors"
-                        title="Critérios de Fit (ICP)"
+                        title="Critérios de Aderência (ICP)"
                       >
                         <ScaleIcon className="h-4 w-4" />
                       </button>

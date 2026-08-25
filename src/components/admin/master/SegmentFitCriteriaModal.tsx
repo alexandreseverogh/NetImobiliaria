@@ -76,7 +76,7 @@ export function SegmentFitCriteriaModal({ segment, onClose }: Props) {
             <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest mb-0.5">
               Segmento · {segment.name}
             </p>
-            <h2 className="text-lg font-black text-gray-900">Critérios de Fit (ICP)</h2>
+            <h2 className="text-lg font-black text-gray-900">Critérios de Aderência (ICP)</h2>
             <p className="text-xs text-gray-400 mt-0.5">
               O quão bem um lead se encaixa no perfil ideal de cliente deste segmento — dimensão
               separada da intenção (Qualificação). Cada tenant pode complementar em
@@ -104,7 +104,7 @@ export function SegmentFitCriteriaModal({ segment, onClose }: Props) {
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {showHelp && (
             <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-4 space-y-2 text-xs text-gray-600">
-              <p><span className="font-black text-gray-900">Fit</span> mede encaixe, não interesse — um lead pode estar muito engajado (alta intenção) mas fora do perfil ideal, ou o contrário. Nunca é combinado num "score geral" com a intenção; os dois aparecem separados na ficha do lead.</p>
+              <p><span className="font-black text-gray-900">Aderência</span> mede encaixe, não interesse — um lead pode estar muito engajado (alta intenção) mas fora do perfil ideal, ou o contrário. Nunca é combinado num "score geral" com a intenção; os dois aparecem separados na ficha do lead.</p>
               <p>Descreva o critério em texto livre (ex.: "orçamento declarado compatível com o portfólio ativo", "está dentro da área de cobertura atendida") — a IA avalia com base na mensagem do lead, sem inventar dado que não foi dito.</p>
               <p><span className="font-black text-gray-900">Peso</span>: 0 a 10, o quanto esse critério pesa na avaliação geral de fit.</p>
             </div>

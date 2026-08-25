@@ -528,7 +528,7 @@ export default function KanbanPage() {
                         t.isDark ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' : 'text-blue-700 bg-blue-50 border-blue-200 shadow-sm'
                       }`}>
                         {lead.score_prontidao || 0}% Match
-                        {lead.score_fit != null && ` · ${lead.score_fit}% Fit`}
+                        {lead.score_fit != null && ` · ${lead.score_fit}% Aderência`}
                       </div>
                     </div>
 
@@ -716,7 +716,7 @@ export default function KanbanPage() {
                           PLANO_AGENTES_ACELERACAO_CRM.md §3.1). O tile "IPVE" antigo aqui era
                           um valor fabricado (score_prontidao + 15, sem nenhum dado real por
                           trás) — substituído pelo Fit real. */}
-                      {[['Intenção', `${selectedLead.score_prontidao}%`], ['Fit', selectedLead.score_fit != null ? `${selectedLead.score_fit}%` : '—']].map(([label, val]) => (
+                      {[['Intenção', `${selectedLead.score_prontidao}%`], ['Aderência', selectedLead.score_fit != null ? `${selectedLead.score_fit}%` : '—']].map(([label, val]) => (
                         <div key={label} className={`p-3 ${t.cardInner} rounded-xl border ${t.borderSub}`}>
                           <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.textMuted}`}>{label}</p>
                           <span className={`text-lg font-bold ${t.textPrimary}`}>{val}</span>

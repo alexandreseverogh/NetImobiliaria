@@ -1,5 +1,25 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 19) — **Rótulo "Fit" (inglês) renomeado pra
+> "Aderência" em toda a UI — usuário apontou que muitas pessoas no Brasil não sabem o que
+> "Fit" significa.** Também confirmado no banco, a pedido do usuário, que "Venda de Carros"
+> (segmento da entrega anterior) não tem NENHUM critério de fit cadastrado ainda — nem no
+> padrão do segmento, nem em override do tenant CRM SOZINHO (`fit_segmento=0`,
+> `fit_tenant=0`) — o "—" mostrado é honesto, não bug.
+>
+> **9 pontos de texto visível corrigidos** (grep `\bFit\b` em `*.tsx`, confirmado ao final
+> que só sobraram comentários de código, nunca texto renderizado): cabeçalho da tabela e
+> tile do drawer em `/crm/leads`; badge do card e tile da ficha em `/crm/kanban`; título do
+> modal + texto de ajuda em `SegmentFitCriteriaModal.tsx` (Master); tooltip do botão em
+> `/admin/master/segments`; os 2 headings de `/crm/config/ia` (tenant). Identificadores
+> internos de código (`score_fit`, `FitCriterion`, `crm_fit_criterios_*`, nomes de função)
+> **não** foram tocados — só texto exibido ao usuário, exatamente o que foi pedido.
+>
+> **Testado ao vivo:** `/crm/leads` recarregado confirma cabeçalho "ADERÊNCIA" (via
+> `innerText`) e drawer do lead "Frank Aguiar" confirma `"INTENÇÃO\n\n30%\n\nADERÊNCIA\n\n—"`
+> — mesmo lead/cenário da entrega anterior, agora com o rótulo em português. `npx tsc
+> --noEmit`: 0 erros (2 execuções, incluindo uma em background).
+
 > **Atualizado em:** 2026-08-25 (continuação 18) — **Coluna "Fit" adicionada à tabela de
 > `/crm/leads`, ao lado de "Intenção" — mesmo tratamento honesto já usado no drawer/ficha
 > (número real quando o segmento/tenant tem critério de fit configurado, "—" quando não).**

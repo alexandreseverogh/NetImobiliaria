@@ -166,7 +166,7 @@ export default function LeadsStagingPage() {
                   pra bater com o mesmo rótulo já usado na ficha do Kanban. Coluna "Fit"
                   (score_fit) adicionada ao lado — mesma dimensão separada já exibida no
                   drawer, "—" honesto quando o segmento/tenant não tem critério cadastrado. */}
-              {['Identidade', 'Dados Enriquecidos', 'Tag do Sonho', 'Intenção', 'Fit', 'Responsável', 'Origem / Data', 'Ação'].map((h, i) => (
+              {['Identidade', 'Dados Enriquecidos', 'Tag do Sonho', 'Intenção', 'Aderência', 'Responsável', 'Origem / Data', 'Ação'].map((h, i) => (
                 <th key={h} className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-widest ${i === 1 ? 'text-emerald-500' : t.textMuted} ${i >= 3 && i <= 5 ? 'text-center' : ''} ${i === 7 ? 'text-right' : ''}`}>{h}</th>
               ))}
             </tr>
@@ -308,7 +308,7 @@ export default function LeadsStagingPage() {
                       substituído pelo Fit real, mesmo tratamento já usado na ficha do
                       Kanban (/crm/kanban). */}
                   <div className="grid grid-cols-2 gap-4 mt-4">
-                    {[['Intenção', `${selectedLead.score_prontidao}%`], ['Fit', selectedLead.score_fit != null ? `${selectedLead.score_fit}%` : '—']].map(([label, val]) => (
+                    {[['Intenção', `${selectedLead.score_prontidao}%`], ['Aderência', selectedLead.score_fit != null ? `${selectedLead.score_fit}%` : '—']].map(([label, val]) => (
                       <div key={label} className={`p-4 ${t.cardInner} rounded-2xl`}>
                         <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${t.textMuted}`}>{label}</p>
                         <span className={`text-2xl font-bold ${t.textPrimary}`}>{val}</span>
