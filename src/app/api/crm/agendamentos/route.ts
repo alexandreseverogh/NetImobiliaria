@@ -13,6 +13,8 @@ import {
   sendConfirmacaoCorretor,
   sendConfirmacaoLead,
 } from '@/lib/google/emailService'
+import { resolveSegment } from '@/lib/intelligence/segmentResolver'
+import { resolveAtivoConfig, IDENT_RE } from '@/lib/crm/resolveAtivoConfig'
 
 const TZ = 'America/Recife'
 
@@ -89,15 +91,39 @@ export async function POST(request: NextRequest) {
     const inicio = new Date(data_hora_inicio)
     const fim = new Date(inicio.getTime() + duracao * 60 * 1000)
 
-    // 3. Carregar dados do lead + imóvel
+    // CRM agnóstico de segmento — "corretor" e "imóvel" nunca podem ser hardcoded, a
+    // plataforma serve Saúde/Carros/etc. com o mesmo código. `distribution_role_name`
+    // (já usado em Performance por Vendedor) resolve o cargo real do atendente por
+    // segmento; `resolveAtivoConfig` resolve a tabela/coluna/rótulo do "ativo" vinculado
+    // ao lead (imóvel pro Imobiliário, veículo pra Carros quando configurado, etc.) —
+    // mesmo mecanismo já usado em EnrichmentService/leads/route.ts, revalidado aqui com
+    // IDENT_RE antes de interpolar em SQL cru (defesa em profundidade).
+    const segment = await resolveSegment(user.tenant_id)
+    const roleLabel = segment?.distribution_role_name || 'Atendente'
+    const ativoConfig = await resolveAtivoConfig(user.tenant_id)
+    const ativoLabel = ativoConfig?.targetLabel || undefined
+    const hasAtivo = !!(
+      ativoConfig?.targetTable && ativoConfig?.targetFkColumn && ativoConfig?.targetNameColumn &&
+      IDENT_RE.test(ativoConfig.targetTable) && IDENT_RE.test(ativoConfig.targetFkColumn) &&
+      IDENT_RE.test(ativoConfig.targetNameColumn)
+    )
+
+    // 3. Carregar dados do lead + ativo vinculado (se o segmento tiver um configurado)
     const { rows: leadRows } = await pool.query(
-      `SELECT ls.nome, ls.email, ls.telefone, ls.imovel_id,
-              c.email as cliente_email,
-              i.titulo as imovel_nome
-       FROM leads_staging ls
-       LEFT JOIN clientes c ON c.email = ls.email
-       LEFT JOIN imoveis i ON i.id = ls.imovel_id
-       WHERE ls.lead_uuid = $1`,
+      hasAtivo
+        ? `SELECT ls.nome, ls.email, ls.telefone, ls."${ativoConfig!.targetFkColumn}" as imovel_id,
+                  c.email as cliente_email,
+                  i."${ativoConfig!.targetNameColumn}" as imovel_nome
+           FROM leads_staging ls
+           LEFT JOIN clientes c ON c.email = ls.email
+           LEFT JOIN "${ativoConfig!.targetTable}" i ON i.id = ls."${ativoConfig!.targetFkColumn}"
+           WHERE ls.lead_uuid = $1`
+        : `SELECT ls.nome, ls.email, ls.telefone, NULL::integer as imovel_id,
+                  c.email as cliente_email,
+                  NULL::text as imovel_nome
+           FROM leads_staging ls
+           LEFT JOIN clientes c ON c.email = ls.email
+           WHERE ls.lead_uuid = $1`,
       [lead_uuid]
     )
     const lead = leadRows[0]
@@ -197,10 +223,12 @@ export async function POST(request: NextRequest) {
     // 6. Enviar e-mails (em background — sem bloquear a resposta)
     const emailParams = {
       corretorNome:  user.nome,
+      roleLabel,
       leadNome:      lead.nome || 'Cliente',
       leadEmail:     emailConvite || lead.email || '',
       leadTelefone:  lead.telefone,
       imovelNome:    lead.imovel_nome,
+      ativoLabel,
       dataHoraInicio: inicio.toISOString(),
       dataHoraFim:   fim.toISOString(),
       observacoes,
@@ -217,7 +245,9 @@ export async function POST(request: NextRequest) {
             to: emailConvite!,
             leadNome: lead.nome || 'Cliente',
             corretorNome: user.nome,
+            roleLabel,
             imovelNome: lead.imovel_nome,
+            ativoLabel,
             dataHoraInicio: inicio.toISOString(),
             dataHoraFim: fim.toISOString(),
             observacoes,

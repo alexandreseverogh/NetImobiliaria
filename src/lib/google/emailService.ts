@@ -88,6 +88,9 @@ export async function sendConfirmacaoCorretor(params: {
   leadEmail: string
   leadTelefone?: string
   imovelNome?: string
+  /** Rótulo do "ativo" vinculado (Imóvel/Veículo/etc.) — resolvido por segmento, nunca
+   *  hardcoded. Sem valor, o bloco de ativo simplesmente não aparece. */
+  ativoLabel?: string
   dataHoraInicio: string
   dataHoraFim: string
   observacoes?: string
@@ -130,9 +133,9 @@ export async function sendConfirmacaoCorretor(params: {
       </div>
       ${params.imovelNome ? `
       <div class="info-row">
-        <div class="info-icon">🏠</div>
+        <div class="info-icon">📌</div>
         <div>
-          <div class="info-label">Imóvel</div>
+          <div class="info-label">${params.ativoLabel || 'Item vinculado'}</div>
           <div class="info-value">${params.imovelNome}</div>
         </div>
       </div>` : ''}
@@ -166,7 +169,11 @@ export async function sendConfirmacaoLead(params: {
   to: string
   leadNome: string
   corretorNome: string
+  /** Cargo de quem atendeu (Corretor/Consultor de Vendas/Atendente/etc.) — resolvido por
+   *  segmento (system_segments.distribution_role_name), nunca hardcoded. */
+  roleLabel: string
   imovelNome?: string
+  ativoLabel?: string
   dataHoraInicio: string
   dataHoraFim: string
   observacoes?: string
@@ -176,7 +183,7 @@ export async function sendConfirmacaoLead(params: {
 
   const html = baseHtml(`
     <div class="header">
-      <div class="header-icon">🏠</div>
+      <div class="header-icon">📅</div>
       <h1>Sua Visita foi Agendada!</h1>
       <div style="margin-top:10px;"><span class="badge">✓ Confirmado</span></div>
     </div>
@@ -201,15 +208,15 @@ export async function sendConfirmacaoLead(params: {
       <div class="info-row">
         <div class="info-icon">👤</div>
         <div>
-          <div class="info-label">Seu Corretor</div>
+          <div class="info-label">${params.roleLabel}</div>
           <div class="info-value">${params.corretorNome}</div>
         </div>
       </div>
       ${params.imovelNome ? `
       <div class="info-row">
-        <div class="info-icon">🏠</div>
+        <div class="info-icon">📌</div>
         <div>
-          <div class="info-label">Imóvel</div>
+          <div class="info-label">${params.ativoLabel || 'Item vinculado'}</div>
           <div class="info-value">${params.imovelNome}</div>
         </div>
       </div>` : ''}
@@ -222,7 +229,7 @@ export async function sendConfirmacaoLead(params: {
         </div>
       </div>` : ''}
       <div class="cta-box">
-        <p>Em caso de dúvidas ou necessidade de reagendamento, entre em contato com seu corretor.</p>
+        <p>Em caso de dúvidas ou necessidade de reagendamento, entre em contato.</p>
       </div>
     </div>
   `)

@@ -1075,7 +1075,7 @@ function CalendarioGeralView({ isOpen, onClose, onNovoAgendamento, tenantId }: {
                              <div className="flex justify-between items-start">
                                <div className="flex items-center space-x-4">
                                  <div className={`h-12 w-12 rounded-2xl ${color.bg} flex flex-col items-center justify-center border ${color.border}`}><span className={`text-xs font-black ${color.text}`}>{formatTime(ag.data_hora_inicio).split(':')[0]}</span><span className={`text-[10px] font-bold ${color.text} opacity-50`}>{formatTime(ag.data_hora_inicio).split(':')[1]}</span></div>
-                                 <div className="overflow-hidden"><h4 className={`text-sm font-black uppercase tracking-tight ${t.textPrimary} truncate`}>{ag.lead_name}</h4><p className={`text-[10px] ${t.textMuted} mt-1 font-medium truncate italic`}>{ag.imovel_nome || 'Consultar imóvel'}</p></div>
+                                 <div className="overflow-hidden"><h4 className={`text-sm font-black uppercase tracking-tight ${t.textPrimary} truncate`}>{ag.lead_name}</h4><p className={`text-[10px] ${t.textMuted} mt-1 font-medium truncate italic`}>{ag.imovel_nome || 'Consultar detalhes'}</p></div>
                                </div>
                                <MagnifyingGlassIcon className={`h-4 w-4 ${color.text} opacity-40`} />
                              </div>
@@ -1174,7 +1174,7 @@ function CalendarioGeralView({ isOpen, onClose, onNovoAgendamento, tenantId }: {
                      </div>
                      <div className="flex items-center space-x-3 py-3 border-t border-white/5">
                         <MapPinIcon className="h-5 w-5 text-rose-500" />
-                        <span className={`text-xs font-medium ${t.textSecondary}`}>{selectedAgendamento.imovel_nome || 'Endereço sob consulta'}</span>
+                        <span className={`text-xs font-medium ${t.textSecondary}`}>{selectedAgendamento.imovel_nome || 'Detalhes sob consulta'}</span>
                      </div>
                   </div>
 

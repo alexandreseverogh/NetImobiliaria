@@ -1,5 +1,58 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 15) — **Fix real de agnosticismo de segmento:
+> o e-mail/agenda de visita tinha "corretor" e "imóvel" hardcoded — quebraria em qualquer
+> tenant fora do Imobiliário.** Usuário revisou o resumo da entrega anterior (convite do
+> cliente) e apontou a violação diretamente: o texto "data, horário, nome do corretor,
+> imóvel (se houver), observações" contradiz o pilar central do projeto (plataforma
+> agnóstica de segmento, zero hardcoded de vocabulário de negócio) — a aplicação também
+> serve Saúde, Venda de Carros, etc., e nada nesse fluxo podia assumir que o atendente se
+> chama "corretor" nem que o ativo vinculado é sempre "imóvel".
+>
+> **Achado real, confirmado por leitura de código antes de corrigir:** `POST /api/crm/
+> agendamentos`, `GET .../usuario` e os 2 templates de e-mail (`sendConfirmacaoCorretor`/
+> `sendConfirmacaoLead` em `calendarService`→`emailService.ts`) tinham `JOIN imoveis i ON
+> i.id = ls.imovel_id` cravado em SQL cru, e os templates tinham "🏠 Imóvel"/"Seu Corretor"
+> como texto fixo — mesmo com o resto da sessão (Performance por Vendedor, `resolveSegment`,
+> `resolveAtivoConfig`) já tendo resolvido exatamente esse problema em outras partes do CRM.
+>
+> **Corrigido reaproveitando os 2 mecanismos já existentes e comprovados na sessão, sem
+> nenhum conceito novo:** `resolveSegment(tenantId).distribution_role_name` (cargo real do
+> atendente por segmento, cai em "Atendente" se o segmento não tiver customizado) +
+> `resolveAtivoConfig(tenantId)` (tabela/coluna FK/coluna de nome/rótulo do "ativo"
+> vinculado ao lead — imóvel no Imobiliário, veículo em Carros quando configurado, `null`
+> em segmentos sem nada configurado). `POST /api/crm/agendamentos` e `GET .../usuario`
+> passaram a montar a query do "ativo" dinamicamente (`hasAtivo` computado com `IDENT_RE`
+> revalidando cada identificador antes de interpolar em SQL cru — mesma defesa em
+> profundidade já usada em `EnrichmentService`/`leads/route.ts`); sem config nenhuma, cai
+> num fallback `NULL::text as imovel_nome` honesto, nunca quebra. Os 2 templates de e-mail
+> ganharam `roleLabel`/`ativoLabel` como parâmetros obrigatórios/opcionais — "Seu Corretor"
+> virou `${roleLabel}` (sem o prefixo "Seu " pra não brigar com concordância de gênero em
+> outros cargos), o bloco de "🏠 Imóvel" virou "📌 ${ativoLabel || 'Item vinculado'}".
+> `crm/kanban/page.tsx` (`CalendarioGeralView`) teve os 2 fallbacks textuais
+> "Consultar imóvel"/"Endereço sob consulta" trocados por "Consultar detalhes"/"Detalhes
+> sob consulta" — o fallback `'Objeto de interesse'` e o ícone `MapPinIcon` já eram
+> genéricos o bastante, deixados como estavam.
+>
+> **Testado ao vivo, ponta a ponta, tenant CRM SOZINHO (segmento "Venda de Carros",
+> `distribution_role_name='Consultor de Vendas'`, sem nenhum `crm_ativo_config_segmento`
+> configurado — exatamente o caso que provaria o fix, já que é o cenário onde o hardcoded
+> antigo mais quebraria):** `POST /api/crm/agendamentos` real (lead + convite de cliente)
+> → sucesso, `imovel_id:null` (fallback sem-ativo funcionando, sem crash), os 2 eventos
+> reais do Google Calendar criados (confirma que o fix não regrediu nada do fix anterior de
+> `attendees` na conta da empresa) · aguardado o envio assíncrono → `email_corretor_
+> enviado:true` e `email_lead_enviado:true` — confirma que os templates renderizam sem erro
+> usando `roleLabel`/`ativoLabel` reais (`"Consultor de Vendas"`, `undefined`). Agendamento
+> de teste cancelado (remove os eventos do Google Calendar) + removido via `DELETE` direto,
+> confirmado `count(*)=0`. `npx tsc --noEmit`: 0 erros.
+>
+> **Pendência real, não atacada nesta rodada:** o caminho "hasAtivo=true" (tenant com
+> `crm_ativo_config_segmento` real configurado, ex. Imobiliaria XYZ/Marketing Digital no
+> segmento Imobiliário) não foi reexercitado ao vivo nesta correção especificamente — a
+> mesma mecânica (`resolveAtivoConfig`/`IDENT_RE`) já foi testada exaustivamente em outras
+> sessões (`EnrichmentService`, `leads/route.ts`), então o risco de regressão é baixo, mas
+> fica registrado como confirmação redundante possível numa sessão futura.
+
 > **Atualizado em:** 2026-08-25 (continuação 14) — **Convite do cliente: SMTP corrigido
 > (senha de app nova, funcionando) + texto do modal passa a refletir honestamente os 2
 > cenários (com/sem calendário pessoal do atendente conectado). Frente "convite pro
