@@ -1,5 +1,41 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 20) — **Critérios de Aderência (Fit/ICP)
+> cadastrados pela primeira vez pros segmentos Imobiliário e Venda de Carros — só dado
+> curado, sem mudança de código. A coluna "Aderência" (entregas anteriores) deixa de
+> mostrar "—" pra esses 2 segmentos e passa a exibir a nota real da IA.**
+>
+> Pedido direto do usuário ("baseado no seu vasto conhecimento... preencha os critérios de
+> aderência"). Escritos pra ficar coerentes com as regras de qualificação de Intenção já
+> existentes de cada segmento (7 regras cada, lidas do banco antes de escrever) — mesmo
+> vocabulário de negócio, sem contradição. 6 critérios por segmento, `peso` 5-9/10, gravados
+> via a rota real do Master (`PUT /api/admin/master/segments/[id]/fit-criteria`, replace-all
+> transacional — o mesmo caminho que a UI usaria), não SQL direto:
+>
+> **Imobiliário:** orçamento/financiamento compatível com o portfólio · região de atuação
+> real · finalidade (moradia/investimento/comercial) compatível · prazo de decisão
+> realista · é o próprio decisor · situação cadastral/crédito compatível com financiamento.
+>
+> **Venda de Carros:** capacidade financeira/crédito compatível com o veículo · categoria
+> desejada dentro do estoque real · prazo de compra realista · é o próprio comprador/
+> decisor · localização compatível pra visita/test drive · veículo de troca compatível com
+> o que a loja aceita.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant CRM SOZINHO, segmento Venda de
+> Carros): `GET` confirma os 2 conjuntos persistidos com UTF-8 correto (escrito via arquivo,
+> não inline em curl — lição já documentada nesta sessão) · lead de teste real criado via
+> `POST /api/crm/leads` (mensagem realista: picape, R$80mil de entrada + financiamento,
+> decisor próprio, mora perto, Corolla 2019 de troca) → `ConciergeService.qualifyLead` real
+> (LLM Groq `openai/gpt-oss-120b`) retornou `score_prontidao=90, score_fit=90` (antes desta
+> entrega, `score_fit` seria sempre `null` pra esse segmento — 0 critérios cadastrados) ·
+> confirmado na tabela real de `/crm/leads`: "90% 90%" (Intenção/Aderência), ambos em verde
+> (`rgb(34,197,94)`, threshold >80% correto). Lead de teste removido depois, `count(*)=0`
+> confirmado em `leads_staging`/`leads_kanban`.
+>
+> Nenhum arquivo de código tocado nesta rodada — só dado (curadoria, mesma natureza das 14
+> regras de qualificação já existentes). Master pode editar/ajustar livremente a qualquer
+> momento em `/admin/master/segments` → botão "Critérios de Aderência (ICP)".
+
 > **Atualizado em:** 2026-08-25 (continuação 19) — **Rótulo "Fit" (inglês) renomeado pra
 > "Aderência" em toda a UI — usuário apontou que muitas pessoas no Brasil não sabem o que
 > "Fit" significa.** Também confirmado no banco, a pedido do usuário, que "Venda de Carros"
