@@ -303,11 +303,11 @@ export default function LeadsStagingPage() {
               <tr className={`group transition-all ${t.hoverBg}`}>
                 <td className="px-6 py-4">
                   <div className="flex items-center">
-                    {/* Ícone tradicional de "usuário" (rosto), unificado pros dois estados —
-                        antes distinguia imovel_id via ícone/gradiente diferente (azul-índigo
-                        saturado vs. verde/slate), mas o usuário pediu algo mais simples: um
-                        único ícone de pessoa, com fundo leve e colorido (nunca preto/cinza). */}
-                    <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 border ${t.isDark ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-500'}`}>
+                    {/* Ícone tradicional de "usuário" (rosto) — laranja claro, deliberadamente
+                        diferente do azul (já o acento dominante no resto da tela: filtros,
+                        badge de telefone, "Abrir Ficha") porque o cliente é a informação mais
+                        importante da linha e precisa se destacar visualmente das demais. */}
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 border ${t.isDark ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-orange-50 border-orange-200 text-orange-500'}`}>
                       <UserIcon className="h-5 w-5" />
                     </div>
                     <div className="ml-4">

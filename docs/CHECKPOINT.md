@@ -1,5 +1,18 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 39) — **Ícone do avatar em `/crm/leads`
+> (coluna Identidade) trocado de azul pra laranja claro — usuário apontou que o cliente é a
+> informação mais importante da linha e merece se destacar do azul, já o acento dominante no
+> resto da tela (filtros, badge de telefone, "Abrir Ficha").**
+>
+> `src/app/crm/leads/page.tsx` — mesma estrutura da continuação 38 (fundo leve + `UserIcon`),
+> só a cor muda: `bg-blue-50/text-blue-500` → `bg-orange-50/text-orange-500` (claro),
+> `bg-blue-500/10/text-blue-400` → `bg-orange-500/10/text-orange-400` (escuro).
+>
+> **Testado ao vivo**: confirmado via `getComputedStyle` — `rgb(255,247,237)`/`rgb(249,115,22)`
+> (orange-50/orange-500 exatos) nos 3 primeiros avatares reais, consistente. `npx tsc
+> --noEmit`: 0 erros.
+>
 > **Atualizado em:** 2026-08-25 (continuação 38) — **Ícone do avatar em `/crm/leads`
 > (coluna Identidade) unificado — antes distinguia `imovel_id` via ícone/gradiente diferente
 > (`UsersIcon` azul-índigo saturado vs. `MapPinIcon` slate, este último trocado de verde pra
