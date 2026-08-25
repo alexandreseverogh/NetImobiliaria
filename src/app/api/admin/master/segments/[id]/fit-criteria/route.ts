@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/jwt';
 import pool from '@/lib/database/connection';
+import type { PoolClient } from 'pg';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'Acesso Master requerido' }, { status: 403 });
   }
   try {
-    const segRes = await pool.query(`SELECT id FROM public.system_segments WHERE id = $1::uuid LIMIT 1`, [params.id]);
+    const segRes = await pool.query(
+      `SELECT id, next_best_action_captacao_fit_minimo FROM public.system_segments WHERE id = $1::uuid LIMIT 1`,
+      [params.id],
+    );
     if (segRes.rows.length === 0) {
       return NextResponse.json({ error: 'Segmento não encontrado' }, { status: 404 });
     }
@@ -42,7 +46,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         ORDER BY ordem ASC`,
       [params.id],
     );
-    return NextResponse.json({ criteria: rows });
+    return NextResponse.json({
+      criteria: rows,
+      captacaoFitMinimo: segRes.rows[0].next_best_action_captacao_fit_minimo,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -52,7 +59,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   if (!(await requireMaster(request))) {
     return NextResponse.json({ error: 'Acesso Master requerido' }, { status: 403 });
   }
-  const client = await pool.connect();
+  let client: PoolClient | null = null;
   try {
     const body = await request.json();
     const criteria = Array.isArray(body?.criteria) ? body.criteria : [];
@@ -63,12 +70,41 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       }
     }
 
+    // Aderência mínima pra disparo automático na captação — null desativa (nunca dispara
+    // sem valor explícito). Campo ausente no body preserva o valor já salvo (não confunde
+    // "não mandou" com "quer desativar").
+    const hasCaptacaoFitMinimo = Object.prototype.hasOwnProperty.call(body ?? {}, 'captacaoFitMinimo');
+    let captacaoFitMinimo: number | null | undefined = undefined;
+    if (hasCaptacaoFitMinimo) {
+      const raw = body.captacaoFitMinimo;
+      if (raw === null || raw === '') {
+        captacaoFitMinimo = null;
+      } else {
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n < 0 || n > 100) {
+          return NextResponse.json({ error: 'Aderência mínima de captação precisa ser um número entre 0 e 100 (ou vazio).' }, { status: 400 });
+        }
+        captacaoFitMinimo = Math.round(n);
+      }
+    }
+
+    // Achado no caminho, corrigido de brinde: as 2 validações acima (nunca uma conexão
+    // aberta cedo demais — client só é adquirido depois de tudo validado, sem risco de
+    // vazar conexão do pool num early-return).
+    client = await pool.connect();
     await client.query('BEGIN');
 
     const segRes = await client.query(`SELECT id FROM public.system_segments WHERE id = $1::uuid LIMIT 1`, [params.id]);
     if (segRes.rows.length === 0) {
       await client.query('ROLLBACK');
       return NextResponse.json({ error: 'Segmento não encontrado' }, { status: 404 });
+    }
+
+    if (hasCaptacaoFitMinimo) {
+      await client.query(
+        `UPDATE public.system_segments SET next_best_action_captacao_fit_minimo = $1 WHERE id = $2::uuid`,
+        [captacaoFitMinimo, params.id],
+      );
     }
 
     await client.query(`DELETE FROM public.crm_fit_criterios_segmento WHERE segment_id = $1::uuid`, [params.id]);
@@ -93,9 +129,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     await client.query('COMMIT');
     return NextResponse.json({ ok: true, inserted });
   } catch (err: any) {
-    await client.query('ROLLBACK');
+    if (client) await client.query('ROLLBACK');
     return NextResponse.json({ error: err.message }, { status: 500 });
   } finally {
-    client.release();
+    client?.release();
   }
 }

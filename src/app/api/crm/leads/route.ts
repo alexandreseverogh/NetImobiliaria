@@ -3,6 +3,8 @@ import pool from '@/lib/database/connection'
 import { DistributionEngine } from '@/lib/routing/distributionEngine'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
 import { resolveTimeframeRange } from '@/lib/crm/resolveTimeframeRange'
+import { resolveSegment } from '@/lib/intelligence/segmentResolver'
+import { refreshNextBestAction } from '@/lib/crm/agents/nextBestActionService'
 
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/
 
@@ -258,6 +260,26 @@ export async function POST(request: NextRequest) {
         leadUuid,
       ]
     )
+
+    // 3b. DISPARO AUTOMÁTICO DA SUGESTÃO DA IA JÁ NA CAPTAÇÃO
+    // Evita gastar LLM em lead frio: só dispara quando o segmento tem um piso explícito
+    // configurado (next_best_action_captacao_fit_minimo, null = desativado) E a Aderência
+    // deste lead específico bate ou passa desse piso. refreshNextBestAction() já checa
+    // internamente se o agente está ativo pro tenant/segmento — mesma disciplina de
+    // POST /api/crm/kanban/move (fire-and-forget, nunca bloqueia a resposta do lead).
+    if (qualification.score_fit !== null) {
+      const scoreFitPct = qualification.score_fit * 10
+      resolveSegment(leadTenantId, leadClientId)
+        .then((segment) => {
+          const minimo = segment?.next_best_action_captacao_fit_minimo
+          if (minimo != null && scoreFitPct >= minimo) {
+            return refreshNextBestAction(leadTenantId, leadUuid, leadClientId)
+          }
+        })
+        .catch((err) => {
+          console.warn('[crm/leads] Falha ao avaliar disparo de Sugestão da IA na captação (não bloqueante):', err)
+        })
+    }
 
     // 4. DONO DO LEAD
     //

@@ -27,6 +27,11 @@ export interface Segment {
   /** Gate explícito da Master — segmento pronto pra qualificação de lead por IA (CRM).
    *  Ver src/lib/ai/conciergeService.ts e o bloqueio em src/app/crm/CRMLayoutContent.tsx. */
   crm_ia_ativa: boolean;
+  /** Aderência mínima (score_fit, 0-100) pra disparar a Sugestão da IA (next_best_action)
+   *  já na captação do lead, sem esperar mudança de etapa. null = desativado — nunca
+   *  dispara na captação sem valor explícito (evita gasto de LLM em lead frio). Ver
+   *  src/app/api/crm/leads/route.ts. */
+  next_best_action_captacao_fit_minimo: number | null;
 }
 
 export interface SegmentOption {

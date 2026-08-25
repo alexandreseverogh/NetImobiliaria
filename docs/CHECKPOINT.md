@@ -1,5 +1,68 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 23) — **Disparo automático da Sugestão da IA
+> (next_best_action) já na captação do lead, gatilhado por um piso de Aderência
+> configurável por segmento — fecha a lacuna discutida com o usuário ("por que só dispara
+> em mudança de etapa?").**
+>
+> **Decisão de arquitetura, fechada com o usuário antes de implementar:** disparar a
+> sugestão em TODO lead capturado gastaria LLM à toa em lead frio (captação pode ser alto
+> volume e 100% automática — webhook, formulário público, WhatsApp orgânico). Solução:
+> novo parâmetro numérico por segmento — "Aderência mínima" (0-100) — só dispara na
+> captação quando `score_fit` do lead recém-qualificado bate ou passa esse piso. Sem valor
+> configurado (`null`), comportamento atual é preservado (nunca dispara na captação, só em
+> mudança de etapa/botão manual). Usuário pediu 80% pros dois segmentos já configurados
+> nesta sessão (Imobiliário, Venda de Carros).
+>
+> **Implementado:**
+> 1. `prisma/migration-2026-08-25-segment-nba-captacao-fit-minimo.sql` — `system_segments.
+>    next_best_action_captacao_fit_minimo INTEGER` (nullable, CHECK 0-100).
+> 2. `segmentResolver.ts` — campo novo na interface `Segment` (`SELECT ss.*` já cobre
+>    automaticamente, sem mudar a query).
+> 3. `GET/PUT /api/admin/master/segments/[id]/fit-criteria` estendida — GET retorna
+>    `captacaoFitMinimo`; PUT aceita o campo (opcional — ausente preserva o valor já salvo,
+>    nunca confunde "não mandou" com "quer zerar"), valida 0-100, persiste em
+>    `system_segments` na mesma transação do replace-all dos critérios. Achado de
+>    passagem, corrigido: a função já tinha uma conexão do pool adquirida ANTES das
+>    validações que podem retornar cedo (vazava a conexão em qualquer erro 400) — corrigido
+>    adquirindo o client só depois de tudo validado.
+> 4. `SegmentFitCriteriaModal.tsx` — novo campo numérico ("Disparo automático da Sugestão
+>    da IA na captação"), card âmbar próprio (distinto da lista de critérios), vazio =
+>    desativado.
+> 5. `POST /api/crm/leads` — depois de persistir a qualificação, se `score_fit !== null`,
+>    resolve o segmento de novo (1 query leve extra, só na captação) e — se
+>    `next_best_action_captacao_fit_minimo` estiver configurado E o score bater ou passar —
+>    chama `refreshNextBestAction()` fire-and-forget (mesma disciplina de `POST /api/crm/
+>    kanban/move`, nunca bloqueia a resposta do lead; a função já checa internamente se o
+>    agente está `ativo` pro tenant/segmento, sem duplicar essa lógica aqui).
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant CRM SOZINHO, piso real de 80%
+> configurado via a API real do Master, critérios existentes preservados — 6 em cada
+> segmento, confirmado por SQL antes/depois): lead com perfil forte (sedan popular à
+> vista, R$45mil, decisor próprio, mora perto, sem troca) → `score_fit=90` → confirmado
+> `crm_agent_actions` com 1 linha `next_best_action`/`INFORMATIVE` real, gerada na hora, **sem
+> nenhuma mudança de etapa nem clique manual** · lead de perfil frio ("só olhando por
+> curiosidade, sem pressa") → `score_fit=50` (abaixo do piso) → confirmado `count(*)=0` em
+> `crm_agent_actions`, nenhum disparo. `npx tsc --noEmit`: 0 erros.
+>
+> **Achado real no processo de teste, não é bug da aplicação:** 4 tentativas seguidas
+> mostraram `resumo_ia` genérico ("Qualificação por IA ainda não configurada...") mesmo
+> pro tenant certo — investigado a fundo (rota de diagnóstico temporária confirmou
+> `resolveSegment()` retornando `crm_ia_ativa:true` corretamente) até achar a causa raiz
+> real: o cwd do Bash desta sessão tinha migrado pra dentro de `scratch/` num comando
+> anterior (`cd scratch && node ...`), e ficou lá persistindo entre chamadas — os `node -e
+> "require('dotenv').config({path:'.env.local'})"` seguintes procuravam o arquivo relativo
+> a esse cwd errado, carregavam 0 variáveis, `JWT_SECRET` undefined, e o `jwt.sign()`
+> falhava silenciosamente (só a linha de aviso do dotenv sobrava no stdout, capturada por
+> engano como se fosse o token). O token corrompido falhava a verificação, `sessionUser`
+> virava `null`, e o lead caía no tenant Master por padrão — nada relacionado a
+> `resolveSegment`/qualificação. Corrigido voltando o cwd pra raiz do projeto antes de
+> gerar o token; os 6 leads de teste (4 deles acidentalmente criados sob o tenant Master
+> por causa desse bug de tooling) removidos, cascata confirmada `count(*)=0` em
+> `leads_staging`/`crm_agent_actions`/`leads_kanban`. Rota de diagnóstico temporária e o
+> touch de `next.config.js` (tentativa de fix por restart, que não era a causa real)
+> revertidos por completo.
+
 > **Atualizado em:** 2026-08-25 (continuação 22) — **Badge "✨ Sugerido pela IA" em
 > Atividades — quando o atendente clica "Registrar como Atividade" no card "Sugestão da
 > IA" (F3, `next_best_action`) e salva, a atividade resultante passa a exibir esse badge,

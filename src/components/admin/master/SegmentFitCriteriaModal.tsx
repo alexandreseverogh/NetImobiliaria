@@ -32,11 +32,18 @@ export function SegmentFitCriteriaModal({ segment, onClose }: Props) {
   const [saveOk, setSaveOk] = useState(false);
   const [error, setError] = useState('');
   const [showHelp, setShowHelp] = useState(false);
+  /** Aderência mínima (0-100) pra disparar a Sugestão da IA já na captação — string vazia =
+   *  desativado. Guardado como string (não number) pra permitir campo vazio no input sem
+   *  virar 0 silenciosamente. */
+  const [captacaoFitMinimo, setCaptacaoFitMinimo] = useState('');
 
   useEffect(() => {
     fetch(`/api/admin/master/segments/${segment.id}/fit-criteria`, { credentials: 'include' })
       .then(r => r.json())
-      .then(d => setCriteria(Array.isArray(d.criteria) ? d.criteria : []))
+      .then(d => {
+        setCriteria(Array.isArray(d.criteria) ? d.criteria : []);
+        setCaptacaoFitMinimo(d.captacaoFitMinimo != null ? String(d.captacaoFitMinimo) : '');
+      })
       .catch(() => setCriteria([]))
       .finally(() => setLoading(false));
   }, [segment.id]);
@@ -55,7 +62,10 @@ export function SegmentFitCriteriaModal({ segment, onClose }: Props) {
       const res = await fetch(`/api/admin/master/segments/${segment.id}/fit-criteria`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ criteria: clean }),
+        body: JSON.stringify({
+          criteria: clean,
+          captacaoFitMinimo: captacaoFitMinimo.trim() === '' ? null : Number(captacaoFitMinimo),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao salvar');
@@ -107,8 +117,27 @@ export function SegmentFitCriteriaModal({ segment, onClose }: Props) {
               <p><span className="font-black text-gray-900">Aderência</span> mede encaixe, não interesse — um lead pode estar muito engajado (alta intenção) mas fora do perfil ideal, ou o contrário. Nunca é combinado num "score geral" com a intenção; os dois aparecem separados na ficha do lead.</p>
               <p>Descreva o critério em texto livre (ex.: "orçamento declarado compatível com o portfólio ativo", "está dentro da área de cobertura atendida") — a IA avalia com base na mensagem do lead, sem inventar dado que não foi dito.</p>
               <p><span className="font-black text-gray-900">Peso</span>: 0 a 10, o quanto esse critério pesa na avaliação geral de fit.</p>
+              <p><span className="font-black text-gray-900">Disparo automático na captação</span>: opcional — evita gastar chamada de LLM em lead frio. Vazio nunca dispara nada na captação (comportamento padrão); só um valor explícito ativa.</p>
             </div>
           )}
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-black text-gray-900">Disparo automático da Sugestão da IA na captação</p>
+              <p className="text-[11px] text-gray-500 mt-0.5 max-w-md">
+                Quando a Aderência de um lead recém-captado for maior ou igual a este valor, a
+                Próxima Ação Sugerida é gerada na hora, sem esperar o lead mudar de etapa.
+                Vazio = desativado (nunca dispara na captação).
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <input type="number" min={0} max={100} value={captacaoFitMinimo}
+                onChange={e => setCaptacaoFitMinimo(e.target.value)}
+                placeholder="—"
+                className="w-20 px-2.5 py-1.5 rounded-lg border border-amber-200 text-sm text-center text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              <span className="text-xs font-bold text-gray-500">%</span>
+            </div>
+          </div>
 
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{criteria.length} critério(s)</p>
