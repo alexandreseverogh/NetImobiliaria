@@ -1,5 +1,38 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 34) — **Botão de impressão digital na coluna
+> "Ação" de `/crm/leads` (ao lado de "Abrir Ficha") era UI morta desde o primeiro commit da
+> tela — sem `onClick`, sem tooltip, sem nenhuma função. Usuário perguntou pra que servia;
+> investigado (confirmado via `git log -S`, existe desde 27/05/2026 sem nenhuma alteração
+> depois) e, junto com o usuário, transformado em algo real: abre um painel explicando como o
+> Match Engine (F4) resolveu aquele lead.**
+>
+> `src/app/api/crm/leads/route.ts` — `match_method` (já gravado no banco desde F4, nunca
+> exposto pelo `GET`) adicionado ao `SELECT`. `src/app/crm/leads/page.tsx` —
+> `MATCH_METHOD_INFO` (rótulo + explicação em PT-BR pros 4 valores reais: `email`/`telefone`/
+> `manual`/`novo`); botão vira funcional (`onClick`, `title`, fundo azul quando o painel está
+> aberto) — `state` `openMatchInfo` (`Set<string>`, por `lead_uuid`, independente entre
+> linhas, mesmo padrão já usado pro expand de mensagem original); painel abre como uma linha
+> extra da tabela (`colSpan={9}`, fundo azul claro) logo abaixo do lead, não um popover
+> flutuante — evita qualquer risco de recorte pelo `overflow-hidden` do container da tabela.
+> Lead anterior à existência da coluna (`match_method IS NULL`) cai num fallback honesto
+> ("Não registrado"), nunca inventa um método.
+>
+> **Testado ao vivo, os 3 estados reais, com dado real** (tenant Marketing Digital): lead
+> criado via `POST /api/crm/leads` com `utm_source:'CRM Manual'` → painel "Cadastro Manual" ·
+> 2º `POST` reenviando o mesmo e-mail de um lead já existente (sem `utm_source`) → Match
+> Engine mesclou no mesmo `lead_uuid`, confirmado por SQL `match_method='email'`, painel
+> exibiu "E-mail" com a explicação certa · lead real de 04/07/2026 (anterior a F4/Match
+> Engine, `match_method` `NULL` no banco) → painel exibiu corretamente "Não registrado" · os
+> 2 primeiros testados abertos AO MESMO TEMPO, confirmando que o toggle é independente por
+> linha. Leads de teste removidos depois, `count(*)=0` confirmado. `npx tsc --noEmit`: 0
+> erros.
+>
+> **Atualizado em:** 2026-08-25 (continuação 33) — Título de `/crm/leads` renomeado de
+> "CENTRO DE STAGING (CAPTAÇÃO)" / "Gerenciamento de leads qualificados pela Inteligência
+> Concierge." para "LEADS" / "Gerenciamento de Leads" — pedido direto do usuário, texto puro,
+> sem mudança de lógica. Confirmado ao vivo no navegador.
+>
 > **Atualizado em:** 2026-08-25 (continuação 32) — **Snippet de mensagem original em
 > `/crm/leads` ganha botão de expandir/recolher — antes só dava pra ver a íntegra no hover do
 > `title` nativo (pouco descobrível, inútil em touch) ou abrindo a ficha inteira.**

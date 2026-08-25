@@ -41,9 +41,35 @@ interface LeadStaging {
   client_id?: string | null;
   valor_venda?: number | null;
   valor_venda_estimado?: number | null;
+  /** Como o Match Engine (F4) resolveu este registro — 'email'/'telefone' = mesclado com um
+   *  lead já existente; 'novo' = nenhuma correspondência encontrada; 'manual' = cadastrado
+   *  direto pelo "+ Novo Lead". null/undefined = lead anterior à existência desta coluna. */
+  match_method?: string | null;
 }
 
 interface Coluna { id: number; nome: string; titulo_exibicao: string }
+
+/** Rótulo + explicação de cada valor real de `match_method` (docs/CHECKPOINT.md, 2026-07-21 —
+ *  "F4: Match Engine real"). Único lugar de tradução — se um método novo for adicionado no
+ *  backend, cai no fallback abaixo em vez de quebrar. */
+const MATCH_METHOD_INFO: Record<string, { label: string; desc: string }> = {
+  email: {
+    label: 'E-mail',
+    desc: 'Já existia um lead com este e-mail — os dados foram mesclados no mesmo registro, sem criar duplicata.',
+  },
+  telefone: {
+    label: 'Telefone',
+    desc: 'Já existia um lead com este telefone (comparado só pelos dígitos, tolerante a formatação/+55) — os dados foram mesclados no mesmo registro, sem criar duplicata.',
+  },
+  manual: {
+    label: 'Cadastro Manual',
+    desc: 'Criado direto no CRM pelo botão "+ Novo Lead", sem passar pelo motor de correspondência automática.',
+  },
+  novo: {
+    label: 'Lead Novo',
+    desc: 'Nenhum lead existente batia com o e-mail/telefone informados — um registro novo foi criado.',
+  },
+}
 
 const formatPhone = (phone: string) => {
   if (!phone) return 'S/ Telefone'
@@ -118,6 +144,18 @@ export default function LeadsStagingPage() {
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
   const toggleMessageExpand = (leadUuid: string) => {
     setExpandedMessages(prev => {
+      const next = new Set(prev)
+      if (next.has(leadUuid)) next.delete(leadUuid)
+      else next.add(leadUuid)
+      return next
+    })
+  }
+  // Ícone de impressão digital na coluna Ação — antes um botão morto (sem onClick, sem
+  // tooltip, herdado do scaffold original desta tela). Agora abre/fecha um painel inline
+  // explicando como o Match Engine (F4) resolveu aquele registro (match_method).
+  const [openMatchInfo, setOpenMatchInfo] = useState<Set<string>>(new Set())
+  const toggleMatchInfo = (leadUuid: string) => {
+    setOpenMatchInfo(prev => {
       const next = new Set(prev)
       if (next.has(leadUuid)) next.delete(leadUuid)
       else next.add(leadUuid)
@@ -258,7 +296,8 @@ export default function LeadsStagingPage() {
             {loading ? (
               <tr><td colSpan={9} className="py-20 text-center text-blue-500 animate-pulse font-bold italic">Sincronizando Leads...</td></tr>
             ) : filteredLeads.length > 0 ? filteredLeads.map(lead => (
-              <tr key={lead.lead_uuid} className={`group transition-all ${t.hoverBg}`}>
+              <React.Fragment key={lead.lead_uuid}>
+              <tr className={`group transition-all ${t.hoverBg}`}>
                 <td className="px-6 py-4">
                   <div className="flex items-center">
                     <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white border transition-all ${lead.imovel_id ? 'bg-gradient-to-tr from-blue-600 to-indigo-600' : 'bg-gradient-to-tr from-emerald-600 to-green-600'}`}>
@@ -354,7 +393,15 @@ export default function LeadsStagingPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end space-x-2">
-                    <button className={`p-2 ${t.textMuted} ${t.hoverBg} ${t.cardBg} rounded-lg transition-all`}>
+                    {/* Antes um botão morto (sem onClick/tooltip, resíduo do scaffold
+                        original desta tela) — agora abre um painel explicando como o Match
+                        Engine (F4) resolveu este registro (match_method). */}
+                    <button
+                      type="button"
+                      onClick={() => toggleMatchInfo(lead.lead_uuid)}
+                      title="Como este lead foi identificado (Match Engine)"
+                      className={`p-2 rounded-lg transition-all ${openMatchInfo.has(lead.lead_uuid) ? 'bg-blue-600 text-white' : `${t.textMuted} ${t.hoverBg} ${t.cardBg}`}`}
+                    >
                       <FingerPrintIcon className="h-4 w-4" />
                     </button>
                     <button onClick={() => setSelectedLead(lead)}
@@ -364,6 +411,27 @@ export default function LeadsStagingPage() {
                   </div>
                 </td>
               </tr>
+              {openMatchInfo.has(lead.lead_uuid) && (() => {
+                const info = (lead.match_method && MATCH_METHOD_INFO[lead.match_method]) || null
+                return (
+                  <tr className={t.isDark ? 'bg-blue-500/5' : 'bg-blue-50/60'}>
+                    <td colSpan={9} className="px-6 py-3">
+                      <div className="flex items-start gap-2">
+                        <FingerPrintIcon className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                        <div>
+                          <p className={`text-[10px] font-bold uppercase tracking-widest ${t.isDark ? 'text-blue-400' : 'text-blue-700'}`}>
+                            Match Engine — {info ? info.label : 'Não registrado'}
+                          </p>
+                          <p className={`text-xs mt-0.5 ${t.textSecondary}`}>
+                            {info ? info.desc : 'Este lead foi criado antes de o Match Engine passar a registrar como cada registro foi identificado — sem esse dado para exibir aqui.'}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })()}
+              </React.Fragment>
             )) : (
               <tr><td colSpan={9} className={`py-20 text-center italic ${t.textMuted}`}>Nenhum lead encontrado.</td></tr>
             )}
