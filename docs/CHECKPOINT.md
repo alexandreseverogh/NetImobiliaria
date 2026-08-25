@@ -1,5 +1,23 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 38) — **Ícone do avatar em `/crm/leads`
+> (coluna Identidade) unificado — antes distinguia `imovel_id` via ícone/gradiente diferente
+> (`UsersIcon` azul-índigo saturado vs. `MapPinIcon` slate, este último trocado de verde pra
+> slate na continuação 37), usuário pediu algo mais simples.**
+>
+> `src/app/crm/leads/page.tsx` — os 2 estados viram 1 só: `UserIcon` (o ícone tradicional de
+> perfil/rosto, `@heroicons/react/24/outline`, nunca usado nesta tela antes — `UsersIcon`
+> plural continua importado, ainda usado em `OwnerAvatar` e no header da ficha) sobre fundo
+> leve e colorido (`bg-blue-50`/`text-blue-500` claro, `bg-blue-500/10`/`text-blue-400`
+> escuro) — nunca preto nem cinza, como pedido explicitamente; reaproveita o mesmo azul já
+> usado como acento único no resto da página (filtros ativos, "Abrir Ficha"), em vez de um
+> gradiente saturado.
+>
+> **Testado ao vivo, com dado real** (6 leads reais, tenant Marketing Digital): confirmado via
+> `getComputedStyle` que os 6 avatares têm exatamente o mesmo `backgroundColor`
+> (`rgb(239,246,255)` = blue-50) e `color` (`rgb(59,130,246)` = blue-500) — consistente entre
+> todas as linhas, independente de `imovel_id`. `npx tsc --noEmit`: 0 erros.
+>
 > **Atualizado em:** 2026-08-25 (continuação 37) — **3 ajustes de UI em `/crm/leads`, todos
 > pedidos direto pelo usuário: remoção do botão "Importar CSV/Planilha" (decorativo, agora
 > pendência documentada), ícone verde ao lado do nome do lead trocado por neutro, e padding

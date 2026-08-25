@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import {
-  UsersIcon, MagnifyingGlassIcon, EnvelopeIcon, PhoneIcon,
+  UsersIcon, UserIcon, MagnifyingGlassIcon, EnvelopeIcon, PhoneIcon,
   FingerPrintIcon, ArrowPathIcon, XMarkIcon, SparklesIcon,
   CheckBadgeIcon, ChatBubbleBottomCenterTextIcon, ChatBubbleLeftRightIcon, MapPinIcon,
   ArrowTrendingUpIcon, CalendarDaysIcon, ChevronDownIcon, ChevronUpIcon
@@ -303,12 +303,12 @@ export default function LeadsStagingPage() {
               <tr className={`group transition-all ${t.hoverBg}`}>
                 <td className="px-6 py-4">
                   <div className="flex items-center">
-                    {/* Verde/emerald anterior competia visualmente com o significado já
-                        estabelecido dessa cor no resto da tela (Valor Fechado real) e ficava
-                        "carnavalesco" ao lado do azul do outro estado — trocado por slate
-                        neutro, mesma paleta discreta já usada no badge de Etapa. */}
-                    <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white border transition-all ${lead.imovel_id ? 'bg-gradient-to-tr from-blue-600 to-indigo-600' : 'bg-gradient-to-tr from-slate-500 to-slate-600'}`}>
-                      {lead.imovel_id ? <UsersIcon className="h-5 w-5" /> : <MapPinIcon className="h-5 w-5" />}
+                    {/* Ícone tradicional de "usuário" (rosto), unificado pros dois estados —
+                        antes distinguia imovel_id via ícone/gradiente diferente (azul-índigo
+                        saturado vs. verde/slate), mas o usuário pediu algo mais simples: um
+                        único ícone de pessoa, com fundo leve e colorido (nunca preto/cinza). */}
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 border ${t.isDark ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-500'}`}>
+                      <UserIcon className="h-5 w-5" />
                     </div>
                     <div className="ml-4">
                       <div className={`text-sm font-bold leading-tight ${t.textPrimary}`}>{lead.nome || 'Não Identificado'}</div>
