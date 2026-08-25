@@ -1,5 +1,68 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 36) — **Snippet de mensagem original em
+> `/crm/leads` alargado — usuário apontou que sobrava muito espaço em branco à direita do
+> texto truncado antes de precisar clicar em expandir.**
+>
+> Causa: o snippet (recolhido) tinha `max-w-[220px]`, mas a coluna "Dados Enriquecidos" já é
+> naturalmente mais larga que isso — o conteúdo irmão logo acima (`EnrichedLeadData`, quando
+> o lead tem dados enriquecidos) usa `max-w-sm` (384px), e como colunas de tabela HTML em
+> `table-layout: auto` compartilham a largura mais larga entre TODAS as linhas, a coluna já
+> media 384px de qualquer forma — o snippet só não aproveitava esse espaço já reservado.
+>
+> `src/app/crm/leads/page.tsx` — `max-w-[220px]` → `max-w-sm`, mesmo valor já usado pelo
+> `EnrichedLeadData` irmão (reaproveita o teto já existente em vez de inventar um novo);
+> ternário `isExpanded ? 'max-w-sm' : 'max-w-[220px]'` simplificado pra um valor único fixo
+> (recolhido e expandido usam a mesma largura máxima agora — a diferença entre os dois
+> estados passou a ser só `truncate` vs. `whitespace-pre-wrap` no `<span>` interno, não mais
+> também a largura do container).
+>
+> **Testado ao vivo com dado real**: mesma mensagem de teste, mesma posição de corte medida
+> via `scrollWidth`/`clientWidth` — largura do botão confirmada em 384px (era 220px);
+> conteúdo visível antes das reticências quase dobrou de tamanho na prática. Lead de teste
+> removido depois, `count(*)=0` confirmado. `npx tsc --noEmit`: 0 erros.
+>
+> **Atualizado em:** 2026-08-25 (continuação 35) — **Pendência futura registrada: "Importar
+> CSV/Planilha" em `/crm/leads` — investigado, nada implementado (pedido explícito do
+> usuário: "vamos deixar para implementar isso depois").**
+>
+> Mesmo padrão do botão de impressão digital (continuação 34): o botão existe desde o
+> primeiro commit da tela (27/05/2026), sem `onClick`, 100% decorativo. Pesquisa (agente
+> Explore) confirmou que **não existe absolutamente nenhuma infraestrutura** por trás disso
+> hoje — nem rota de API, nem pacote npm de parsing (CSV/XLSX), nem menção em nenhum doc de
+> planejamento do projeto, nem tela parecida em qualquer outro lugar da aplicação pra servir
+> de referência (o único endpoint de import existente, `mensageria/knowledge/import`, é
+> "1 arquivo → 1 registro", não import tabular linha a linha).
+>
+> **Decisões reais que vão precisar ser tomadas quando isso for atacado, registradas aqui pra
+> não perder o levantamento:**
+> 1. **Biblioteca de parsing** — nenhuma instalada (`papaparse` p/ CSV; `.xlsx` real exigiria
+>    algo como `exceljs`/`xlsx` também, já que o botão promete os dois formatos).
+> 2. **Qual semântica de duplicata usar na importação em massa** — o ponto mais delicado. O
+>    CRM já tem 2 comportamentos bem diferentes hoje pra criação de lead: o Match Engine
+>    automático (`POST /api/crm/leads` sem `utm_source='CRM Manual'`) funde num lead
+>    existente por e-mail OU telefone normalizado (últimos 10 dígitos), com email tendo
+>    prioridade, dentro do mesmo `tenant_id`; já o "+ Novo Lead" manual sempre cria um card
+>    novo, mesmo duplicado, de propósito. Uma planilha de centenas/milhares de linhas precisa
+>    escolher um dos dois — mesclar tudo automaticamente arrisca perder dado real se a
+>    planilha tiver ruído de e-mail/telefone; nunca mesclar arrisca duplicar em massa.
+> 3. **Nenhuma validação no banco** — `leads_staging` não tem `NOT NULL` em quase nenhuma
+>    coluna (só a PK), toda validação de negócio hoje é só na camada da API (`POST
+>    /api/crm/leads` exige e-mail OU telefone, exceto quando `utm_source='CRM Manual'`). Um
+>    importador que gravasse linha crua direto no banco sem passar pela mesma validação
+>    encheria a tabela de lixo.
+> 4. **`UNIQUE(email, imovel_id)`** — constraint real no banco (`idx_leads_staging_
+>    unificacao`), diferente da chave que o Match Engine da aplicação usa (tenant+e-mail/
+>    telefone) — um importador ingênuo pode violar essa constraint sem perceber, ou vice-versa
+>    deixar passar duplicata que o app consideraria a mesma pessoa.
+> 5. **UI de pré-visualização/erro por linha** — não existe nenhum precedente na aplicação
+>    (upload de imagem/documento/PDF não serve de referência pra parsing tabular). Precisaria
+>    decidir: preview antes de confirmar, sinalização linha a linha do que é válido/inválido,
+>    e processamento síncrono vs. job em background pra planilhas grandes.
+>
+> Nada implementado nesta rodada — só investigação + registro. Retomar quando o usuário
+> priorizar.
+>
 > **Atualizado em:** 2026-08-25 (continuação 34) — **Botão de impressão digital na coluna
 > "Ação" de `/crm/leads` (ao lado de "Abrir Ficha") era UI morta desde o primeiro commit da
 > tela — sem `onClick`, sem tooltip, sem nenhuma função. Usuário perguntou pra que servia;

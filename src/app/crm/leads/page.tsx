@@ -332,7 +332,10 @@ export default function LeadsStagingPage() {
                       texto completo com quebra de linha, sem depender só do hover (`title`,
                       mantido como reforço, mas pouco descobrível e inútil em touch). A íntegra
                       também está sempre disponível na ficha ("Abrir Ficha" → "Mensagem
-                      Original do Lead"). */}
+                      Original do Lead"). `max-w-sm` (mesmo valor já usado pelo `EnrichedLeadData`
+                      logo acima, nesta mesma coluna) — a coluna já é alargada até esse tamanho
+                      por causa dele; usar o mesmo teto aqui aproveita o espaço que já existe em
+                      vez de truncar cedo demais deixando espaço em branco à direita. */}
                   {lead.mensagem_original && (() => {
                     const isExpanded = expandedMessages.has(lead.lead_uuid)
                     return (
@@ -340,7 +343,7 @@ export default function LeadsStagingPage() {
                         type="button"
                         onClick={() => toggleMessageExpand(lead.lead_uuid)}
                         title={isExpanded ? 'Recolher mensagem' : lead.mensagem_original}
-                        className={`mt-1.5 flex items-start gap-1 text-[10px] italic text-left transition-colors ${t.textMuted} ${t.isDark ? 'hover:text-white' : 'hover:text-gray-700'} ${isExpanded ? 'max-w-sm' : 'max-w-[220px]'}`}
+                        className={`mt-1.5 flex items-start gap-1 text-[10px] italic text-left transition-colors max-w-sm ${t.textMuted} ${t.isDark ? 'hover:text-white' : 'hover:text-gray-700'}`}
                       >
                         <ChatBubbleLeftRightIcon className="h-3 w-3 mt-px shrink-0" />
                         <span className={isExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'}>
