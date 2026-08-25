@@ -156,6 +156,7 @@ export async function POST(request: NextRequest) {
     const leadUuid = formData.get('lead_uuid') as string | null
     const tipoAtividadeId = formData.get('tipo_atividade_id') as string | null
     const descricao = (formData.get('descricao') as string | null)?.trim()
+    const sugeridoPorIa = formData.get('sugerido_por_ia') === 'true'
     const files = formData.getAll('arquivos').filter((f): f is File => f instanceof File)
 
     if (!leadUuid || !tipoAtividadeId || !descricao) {
@@ -194,13 +195,13 @@ export async function POST(request: NextRequest) {
     const insertQuery = `
       INSERT INTO atividades_lead (
         lead_uuid, tipo_atividade_id, descricao, coluna_id, usuario_id,
-        tenant_id, client_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        tenant_id, client_id, sugerido_por_ia
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id
     `
     const { rows } = await pool.query(insertQuery, [
       leadUuid, parseInt(tipoAtividadeId, 10), descricao, lead.coluna_id || null, currentUser.userId,
-      lead.tenant_id, lead.client_id,
+      lead.tenant_id, lead.client_id, sugeridoPorIa,
     ])
     const atividadeId = rows[0].id
 

@@ -1,5 +1,63 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 22) — **Badge "✨ Sugerido pela IA" em
+> Atividades — quando o atendente clica "Registrar como Atividade" no card "Sugestão da
+> IA" (F3, `next_best_action`) e salva, a atividade resultante passa a exibir esse badge,
+> distinto do já existente "🤖 Agente de IA" (que significa a IA agiu sozinha, sem
+> humano).**
+>
+> Pedido do usuário junto com 2 perguntas sobre a mesma tela (Ficha do Lead): (1) por que
+> Aderência deu 60% pra um lead real ("Severina Bastos", Venda de Carros); (2) se "Sugestão
+> da IA" só dispara manualmente.
+>
+> **Resposta à pergunta 1 (investigação, sem mudança de código):** confirmado no banco que
+> o `resumo_ia` real desse lead é "busca pickup semi-nova a diesel com orçamento máximo de
+> R$50.000, pronto para fechar a compra". Cruzando com os 6 critérios de Aderência de
+> "Venda de Carros" (cadastrados na entrega anterior desta sessão): "prazo de compra
+> realista" (peso 6) bate forte e positivo ("pronto para fechar"); "É o próprio comprador"/
+> "localização"/"veículo de troca" (peso 6+6+5) não têm nenhuma informação na mensagem →
+> neutros por design (o prompt explicitamente instrui a nunca penalizar ausência de dado);
+> e o critério de maior peso, "capacidade financeira compatível com o veículo" (peso 9),
+> plausivelmente pesou como fraco/moderado — pickup semi-nova a diesel no mercado real
+> brasileiro tipicamente custa bem mais que R$50.000, então há uma tensão real entre
+> orçamento declarado e categoria de veículo desejada. A combinação (1 critério pesado
+> fraco + 1 forte + 3 neutros) é coerente com 60%. Não é uma fórmula auditável linha a
+> linha (o LLM decide holisticamente, sem expor o raciocínio), mas o resultado é plausível
+> e não é bug.
+>
+> **Resposta à pergunta 2:** não, não é só manual — `refreshNextBestAction()` já dispara
+> automaticamente (fire-and-forget) toda vez que um lead muda de etapa no Kanban (`POST
+> /api/crm/kanban/move`, `ON_STAGE_CHANGE`), além do botão manual (ícone laranja
+> "Atualizar sugestão"). O card da Severina estava vazio só porque o lead nunca mudou de
+> etapa desde a captação (ainda em "Lead Captado") — testado ao vivo clicando o botão
+> manual, gerou sugestão real na hora.
+>
+> **Implementado (pergunta 3, feature real):** `prisma/migration-2026-08-25-atividades-
+> sugerido-por-ia.sql` — `atividades_lead.sugerido_por_ia BOOLEAN NOT NULL DEFAULT false`
+> (aditiva). `POST /api/crm/atividades` aceita e persiste o campo. `AtividadesLead.tsx` —
+> novo state `formSugeridoPorIa`, setado `true` só pelo efeito de `prefill` (o texto que
+> vem do card "Sugestão da IA"), resetado `false` em `resetForm`/`startEdit` (nunca vaza
+> pra uma edição de atividade não-relacionada); enviado só na criação (nunca no PATCH — a
+> proveniência não muda depois de criada). Badge novo (`✨ Sugerido pela IA`, âmbar, eco da
+> cor do próprio card "Sugestão da IA") ao lado da atribuição humana normal (`· Nome do
+> Atendente`) — nunca substitui essa atribuição, porque aqui um humano sempre clicou
+> Salvar; é conceitualmente diferente do badge dourado "🤖 Agente de IA" (ação 100%
+> autônoma, sem humano, `origem='ia'`).
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (mesmo lead da imagem do usuário,
+> tenant CRM SOZINHO): clicado "Atualizar sugestão" → sugestão real gerada pela IA (Groq) ·
+> "Registrar como Atividade" → form abriu pré-preenchido com o texto exato da sugestão ·
+> tipo "WhatsApp" selecionado + "Registrar" → atividade real criada, confirmado via API
+> `sugerido_por_ia:true, origem:"humano"` · confirmado visualmente: `"· Alexandre Severo
+> Campos Lima"` (atribuição humana preservada) **+** `"✨ Sugerido pela IA"` lado a lado,
+> cor âmbar confirmada via `getComputedStyle` (`rgb(217,119,6)` sobre fundo
+> `rgba(245,158,11,0.15)`). Atividade de teste removida depois — achado real no processo:
+> a remoção via SQL cru (em vez do endpoint DELETE real) deixou `leads_staging.bola_com`
+> desatualizado (`'cliente'`, refletindo a atividade já apagada) — corrigido rodando o cron
+> real de reconciliação (`POST /api/cron/crm/pendencia-reconciliar`), que confirmou e
+> corrigiu exatamente `corrigidos:1`, restaurando `bola_com='nos'` (honesto — lead sem
+> nenhuma atividade real deve mesmo estar com a bola conosco). `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 21) — **UI de cadastro/edição de Critérios de
 > Aderência: campo de texto vira `<textarea>` multi-linha nas 2 telas onde existe (Master e
 > tenant) — antes era `<input>` de 1 linha, exigindo scroll horizontal com o mouse pra ler

@@ -41,6 +41,10 @@ interface Atividade {
   descricao: string
   usuario_nome?: string | null
   origem?: 'humano' | 'ia'
+  /** true = conteúdo nasceu de uma sugestão da IA (NextBestActionCard, "Registrar como
+   *  Atividade"), mesmo tendo sido um humano quem clicou Salvar — distinto de origem='ia'
+   *  (a IA executou sozinha, sem humano no meio). */
+  sugerido_por_ia?: boolean
   anexos: Anexo[]
   created_at: string
 }
@@ -173,6 +177,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
 
   const [formTipoId, setFormTipoId] = useState<string>('')
   const [formDescricao, setFormDescricao] = useState('')
+  const [formSugeridoPorIa, setFormSugeridoPorIa] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingFilesRef = useRef<PendingFile[]>([])
@@ -197,6 +202,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
     setEditingAnexos([])
     setFormTipoId('')
     setFormDescricao(prefill.text)
+    setFormSugeridoPorIa(true)
     setPendingFiles(prev => { prev.forEach(p => URL.revokeObjectURL(p.previewUrl)); return [] })
     setShowForm(true)
     setError(null)
@@ -220,6 +226,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
   const resetForm = () => {
     setFormTipoId('')
     setFormDescricao('')
+    setFormSugeridoPorIa(false)
     setPendingFiles(prev => { prev.forEach(p => URL.revokeObjectURL(p.previewUrl)); return [] })
     if (fileInputRef.current) fileInputRef.current.value = ''
     setEditingId(null)
@@ -233,6 +240,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
     setEditingAnexos(a.anexos || [])
     setFormTipoId(String(a.tipo_atividade_id))
     setFormDescricao(a.descricao)
+    setFormSugeridoPorIa(false)
     setPendingFiles(prev => { prev.forEach(p => URL.revokeObjectURL(p.previewUrl)); return [] })
     setShowForm(true)
     setError(null)
@@ -300,6 +308,7 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
         res = await adminFetch(`/api/crm/atividades`, { method: 'PATCH', body: fd })
       } else {
         fd.append('lead_uuid', leadUuid)
+        fd.append('sugerido_por_ia', formSugeridoPorIa ? 'true' : 'false')
         res = await adminFetch(`/api/crm/atividades`, { method: 'POST', body: fd })
       }
       const data = await res.json()
@@ -428,6 +437,13 @@ export default function AtividadesLead({ leadUuid, clientId, prefill }: Props) {
                         </span>
                       ) : (
                         a.usuario_nome && <span className={`text-[10px] ${t.textMuted} opacity-60`}>· {a.usuario_nome}</span>
+                      )}
+                      {/* Distinto de "Agente de IA" acima: aqui um humano sempre clicou Salvar —
+                          só o CONTEÚDO nasceu de uma sugestão (NextBestActionCard). */}
+                      {a.sugerido_por_ia && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 flex items-center gap-1">
+                          ✨ Sugerido pela IA
+                        </span>
                       )}
                       {a.anexos?.length > 0 && (
                         <span className={`text-[10px] ${t.textMuted} opacity-60`}>
