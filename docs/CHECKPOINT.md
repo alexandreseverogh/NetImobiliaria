@@ -1,5 +1,31 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 32) — **Snippet de mensagem original em
+> `/crm/leads` ganha botão de expandir/recolher — antes só dava pra ver a íntegra no hover do
+> `title` nativo (pouco descobrível, inútil em touch) ou abrindo a ficha inteira.**
+>
+> Pedido direto do usuário na sequência da entrega anterior (continuação 31, mesmo dia): "na
+> visualização da mensagem original do lead, deveria ter uma opção de expandir para
+> visualização da mensagem original na íntegra".
+>
+> `src/app/crm/leads/page.tsx` — snippet da tabela virou um `<button>` clicável (ícone de
+> balão + texto + chevron ↓/↑) em vez de um `<div>` estático: novo state `expandedMessages`
+> (`Set<string>` de `lead_uuid`, por linha, independente entre leads) + `toggleMessageExpand`.
+> Recolhido: `truncate` (1 linha, reticências) em `max-w-[220px]`, chevron pra baixo. Expandido:
+> `whitespace-pre-wrap break-words` (texto completo, com quebra de linha real) em `max-w-sm`,
+> chevron pra cima. `title` nativo mantido nos dois estados como reforço (texto completo
+> recolhido / "Recolher mensagem" expandido), nunca removido — só deixou de ser o único jeito
+> de ver a íntegra sem sair da lista.
+>
+> **Testado ao vivo, os dois sentidos, com dado real** (lead de teste, mensagem de ~420
+> caracteres): recolhido → `span.className="truncate"`, `scrollWidth(2024) > clientWidth(188)`
+> (corte real confirmado, não só corte de viewport) · clique → expandido →
+> `span.className="whitespace-pre-wrap break-words"`, `button.title="Recolher mensagem"`,
+> altura do botão salta pra 420px (texto genuinamente quebrando em várias linhas, não mais 1
+> linha cortada) · clique de novo → volta ao estado recolhido, `title` volta a ser o texto
+> completo. Confirmado visualmente via screenshot (chevron ▲ visível, texto em 3+ linhas).
+> Lead de teste removido depois, `count(*)=0` confirmado. `npx tsc --noEmit`: 0 erros.
+>
 > **Atualizado em:** 2026-08-25 (continuação 31) — **Mensagem original do lead nunca era
 > persistida em lugar nenhum — só a reescrita da IA (`resumo_ia`) sobrevivia. Nova coluna
 > `mensagem_original`, exibida na íntegra na ficha (Kanban + `/crm/leads`), snippet truncado

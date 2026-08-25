@@ -5,7 +5,7 @@ import {
   UsersIcon, MagnifyingGlassIcon, EnvelopeIcon, PhoneIcon,
   FingerPrintIcon, ArrowPathIcon, XMarkIcon, SparklesIcon,
   CheckBadgeIcon, ChatBubbleBottomCenterTextIcon, ChatBubbleLeftRightIcon, MapPinIcon,
-  ArrowTrendingUpIcon, CalendarDaysIcon
+  ArrowTrendingUpIcon, CalendarDaysIcon, ChevronDownIcon, ChevronUpIcon
 } from '@heroicons/react/24/outline'
 import EnrichedLeadData from '@/components/crm/EnrichedLeadData'
 import AgendamentosLead from '@/components/crm/AgendamentosLead'
@@ -111,6 +111,19 @@ export default function LeadsStagingPage() {
   // atendente clicar 2x seguidas na mesma sugestão).
   const [activityPrefill, setActivityPrefill] = useState<{ text: string; nonce: number } | undefined>(undefined)
   const handleUseSuggestionAsActivity = (text: string) => setActivityPrefill({ text, nonce: Date.now() })
+  // Expandir/recolher o snippet de mensagem original na listagem — lista densa (muitos leads
+  // por tela) nunca mostra a mensagem inteira por padrão, mas o hover no `title` nativo é
+  // pouco descobrível e não funciona em touch; este toggle dá uma forma explícita e clicável
+  // de ver a íntegra sem precisar abrir a ficha inteira.
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
+  const toggleMessageExpand = (leadUuid: string) => {
+    setExpandedMessages(prev => {
+      const next = new Set(prev)
+      if (next.has(leadUuid)) next.delete(leadUuid)
+      else next.add(leadUuid)
+      return next
+    })
+  }
 
   useEffect(() => { fetchLeads() }, [timeframe])
   useEffect(() => { fetchColunas(); fetchTenantConfig() }, [tenantId])
@@ -274,19 +287,34 @@ export default function LeadsStagingPage() {
                       <MapPinIcon className="h-3 w-3 mr-1" />Captação Genérica
                     </div>
                   )}
-                  {/* Snippet de 1 linha da mensagem original — nunca a mensagem inteira aqui
-                      (lista densa, muitos leads por tela). `truncate` corta com reticências,
-                      `title` dá o texto completo no hover nativo do navegador; a íntegra
-                      sempre visível na ficha ("Abrir Ficha" → card "Mensagem Original"). */}
-                  {lead.mensagem_original && (
-                    <div
-                      className={`mt-1.5 flex items-center text-[10px] italic truncate max-w-[220px] ${t.textMuted}`}
-                      title={lead.mensagem_original}
-                    >
-                      <ChatBubbleLeftRightIcon className="h-3 w-3 mr-1 shrink-0" />
-                      <span className="truncate">"{lead.mensagem_original}"</span>
-                    </div>
-                  )}
+                  {/* Snippet de 1 linha da mensagem original, com botão de expandir — nunca a
+                      mensagem inteira por padrão aqui (lista densa, muitos leads por tela).
+                      `truncate` corta com reticências no estado recolhido; expandido mostra o
+                      texto completo com quebra de linha, sem depender só do hover (`title`,
+                      mantido como reforço, mas pouco descobrível e inútil em touch). A íntegra
+                      também está sempre disponível na ficha ("Abrir Ficha" → "Mensagem
+                      Original do Lead"). */}
+                  {lead.mensagem_original && (() => {
+                    const isExpanded = expandedMessages.has(lead.lead_uuid)
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => toggleMessageExpand(lead.lead_uuid)}
+                        title={isExpanded ? 'Recolher mensagem' : lead.mensagem_original}
+                        className={`mt-1.5 flex items-start gap-1 text-[10px] italic text-left transition-colors ${t.textMuted} ${t.isDark ? 'hover:text-white' : 'hover:text-gray-700'} ${isExpanded ? 'max-w-sm' : 'max-w-[220px]'}`}
+                      >
+                        <ChatBubbleLeftRightIcon className="h-3 w-3 mt-px shrink-0" />
+                        <span className={isExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'}>
+                          "{lead.mensagem_original}"
+                        </span>
+                        {isExpanded ? (
+                          <ChevronUpIcon className="h-3 w-3 mt-px shrink-0" />
+                        ) : (
+                          <ChevronDownIcon className="h-3 w-3 mt-px shrink-0" />
+                        )}
+                      </button>
+                    )
+                  })()}
                 </td>
                 <td className="px-6 py-4 text-center">
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold border uppercase ${lead.imovel_id ? 'bg-blue-600/10 text-blue-500 border-blue-500/20' : 'bg-emerald-600/10 text-emerald-500 border-emerald-500/20'}`}>
