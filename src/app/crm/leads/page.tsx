@@ -175,9 +175,9 @@ export default function LeadsStagingPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className={`text-2xl font-bold tracking-tight italic flex items-center ${t.textPrimary}`}>
-            CENTRO DE <span className="text-blue-500 ml-2">STAGING (CAPTAÇÃO)</span>
+            <span className="text-blue-500">LEADS</span>
           </h2>
-          <p className={`mt-1 text-sm ${t.textSecondary}`}>Gerenciamento de leads qualificados pela Inteligência Concierge.</p>
+          <p className={`mt-1 text-sm ${t.textSecondary}`}>Gerenciamento de Leads</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Filtro de período — mesmo seletor 7/30/90/Personalizado/Histórico de /crm */}
