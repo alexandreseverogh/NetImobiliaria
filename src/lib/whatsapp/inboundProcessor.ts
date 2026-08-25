@@ -127,7 +127,10 @@ export async function processInboundWhatsAppMessage(
         utm_campaign: resolved?.campaignName ?? ref ?? null,
         campaign_id: resolved?.campaignId ?? null,
         origem,
-        mensagem_inicial: text || null,
+        // Nome de campo real esperado por POST /api/crm/leads — antes era `mensagem_inicial`,
+        // nunca lido pela rota (que só destructura `data.mensagem`), então todo lead vindo de
+        // WhatsApp orgânico era qualificado pela IA com string vazia, sempre, silenciosamente.
+        mensagem: text || null,
         payload_extra: { pushName, ref, ad_id: resolved?.adId ?? null },
       }),
     })

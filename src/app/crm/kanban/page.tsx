@@ -37,6 +37,9 @@ import { useTheme } from '@/hooks/useTheme'
 interface Lead {
   lead_uuid: string; nome: string; email: string; telefone?: string;
   tag_sonho: string; resumo_ia?: string; coluna_nome: string;
+  /** Texto literal digitado/enviado pelo lead na captação — nunca reescrito pela IA (resumo_ia
+   *  é a versão dela). null pra leads anteriores a esta coluna, ou sem nenhuma mensagem livre. */
+  mensagem_original?: string | null;
   score_prontidao: number;
   /** Encaixe no perfil ideal de cliente (docs/PLANO_AGENTES_ACELERACAO_CRM.md §3.1) —
    *  dimensão separada de score_prontidao (intenção). null = ainda não avaliado. */
@@ -703,6 +706,23 @@ export default function KanbanPage() {
                   )
                 })}
               </div>
+
+              {/* Mensagem Original — texto literal digitado/enviado pelo lead, nunca a reescrita
+                  da IA (essa vive em "Análise por IA" logo abaixo). Deliberadamente NEUTRO (não
+                  azul/âmbar) — essas cores já significam "isto é trabalho da IA" nesta UI, e este
+                  bloco é o oposto disso: a palavra exata do lead. Só renderiza quando existe —
+                  leads anteriores a esta coluna nunca tiveram esse texto persistido. */}
+              {selectedLead.mensagem_original && (
+                <div className={`p-5 ${t.cardBg} rounded-3xl border ${t.borderSub}`}>
+                  <div className="flex items-center space-x-2 mb-3">
+                    <ChatBubbleLeftRightIcon className={`h-4 w-4 ${t.textMuted}`} />
+                    <span className={`text-xs font-bold uppercase tracking-widest ${t.textMuted}`}>Mensagem Original do Lead</span>
+                  </div>
+                  <p className={`text-sm leading-relaxed whitespace-pre-wrap ${t.textPrimary}`}>
+                    "{selectedLead.mensagem_original}"
+                  </p>
+                </div>
+              )}
 
               {/* Grid 2 colunas para dados principais */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">

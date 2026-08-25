@@ -1,5 +1,76 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 31) — **Mensagem original do lead nunca era
+> persistida em lugar nenhum — só a reescrita da IA (`resumo_ia`) sobrevivia. Nova coluna
+> `mensagem_original`, exibida na íntegra na ficha (Kanban + `/crm/leads`), snippet truncado
+> na listagem, e incluída na busca por texto. Achado de brinde, mais sério: leads de WhatsApp
+> orgânico eram qualificados pela IA com string vazia, sempre — bug de nome de campo.**
+>
+> **Contexto:** usuário reportou que a mensagem original informada na captação do lead nunca
+> aparecia por inteiro — nem no card do Kanban, nem em `/crm/leads` — só a versão já
+> reescrita pela IA. Pediu também: (1) como exibir isso em `/crm/leads` sem virar UI feia
+> numa lista densa, se a mensagem for grande; (2) incluir o conteúdo da mensagem original na
+> busca por texto (hoje só nome/telefone/email/tag do sonho).
+>
+> **Causa raiz confirmada com dado real** (lead "Severina Bastos", criado nesta mesma sessão):
+> `POST /api/crm/leads` recebe `data.mensagem` só como insumo passageiro pro
+> `ConciergeService.qualifyLead()` — gera `tag_sonho`/`resumo_ia`/scores e descarta em
+> seguida; nenhuma coluna de `leads_staging` guarda o texto verbatim. `raw_json` só tem os
+> campos estruturados do formulário (`faixa_preco`, `ano_desejado`...), nunca a "Demanda do
+> Cliente" que a pessoa efetivamente digitou.
+>
+> **Achado extra, mais grave, no mesmo caminho:** `src/lib/whatsapp/inboundProcessor.ts`
+> mandava o campo como `mensagem_inicial` (não `mensagem`) e `payload_extra` (não `raw_json`)
+> pra `POST /api/crm/leads` — nomes que a rota nunca lê (só destructura `data.mensagem`).
+> Resultado: **todo lead vindo de WhatsApp orgânico era qualificado pela IA com string vazia,
+> sempre**, silenciosamente — não era só "mensagem não exibida", a IA nunca via o texto real
+> desses leads.
+>
+> **Implementado:**
+> 1. `prisma/migration-2026-08-25-leads-staging-mensagem-original.sql` —
+>    `leads_staging.mensagem_original TEXT` (nullable, sem backfill possível — o texto já
+>    tinha sido perdido pra todo lead anterior a esta coluna).
+> 2. `src/app/api/crm/leads/route.ts` — persiste `data.mensagem` em `mensagem_original` tanto
+>    no INSERT quanto no UPDATE (Match Engine); no UPDATE usa
+>    `COALESCE(mensagem_original, $novo)` — **nunca sobrescreve**, preserva sempre o texto do
+>    PRIMEIRO contato mesmo quando o mesmo lead volta a se manifestar depois (exatamente como
+>    o usuário descreveu: "a mensagem original informada na geração do primeiro lead").
+>    `GET` (lista, consumida por Kanban e `/crm/leads`) passa a expor a coluna.
+> 3. `src/lib/whatsapp/inboundProcessor.ts` — `mensagem_inicial` → `mensagem` (nome de campo
+>    real esperado pela rota) — corrige o bug de qualificação vazia pra leads de WhatsApp.
+> 4. `src/app/api/public/imoveis/prospects/route.ts` — mesmo tratamento no 2º (e último)
+>    caminho de INSERT direto em `leads_staging` (fluxo "Tenho Interesse" da página de
+>    imóvel) — `mensagem_original` gravado na criação, nunca tocado no `ON CONFLICT DO
+>    UPDATE` (mesma semântica de nunca sobrescrever).
+> 5. **Ficha do lead (Kanban e `/crm/leads`, mesmo componente/estilo nos dois)** — novo card
+>    "Mensagem Original do Lead", neutro (não azul/âmbar — essas cores já significam "isto é
+>    trabalho da IA" nesta UI, e este bloco é o oposto: a palavra exata do lead), posicionado
+>    ANTES do card "Análise por IA", texto completo com `whitespace-pre-wrap` (preserva quebra
+>    de linha que o lead tenha digitado). Só renderiza quando existe — leads anteriores à
+>    coluna nunca têm esse texto.
+> 6. **`/crm/leads` (lista)** — snippet de 1 linha truncado (`truncate` + `title` nativo pro
+>    texto completo no hover) na coluna "Dados Enriquecidos", ícone de balão de mensagem;
+>    nunca a mensagem inteira na linha da tabela (lista densa, muitos leads por tela) — a
+>    íntegra sempre visível na ficha. Busca por texto (`filteredLeads`) estendida pra
+>    comparar também `mensagem_original`; placeholder do campo atualizado.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital): `POST
+> /api/crm/leads` com mensagem real de ~400 caracteres → `mensagem_original` persistido
+> verbatim, distinto de `resumo_ia` (a reescrita da IA) · 2º `POST` simulando um recontato
+> (mesmo email/telefone, mensagem DIFERENTE) → confirmado via SQL que o Match Engine mesclou
+> no mesmo `lead_uuid` e `mensagem_original` permaneceu o texto do PRIMEIRO contato, não
+> sobrescrito · `/crm/leads`: snippet truncado confirmado via `getBoundingClientRect`
+> (`span.clientWidth=204 < scrollWidth=2027`, corte real com `text-overflow:ellipsis`, não só
+> corte de viewport) e `title` com os 414 caracteres completos · busca por
+> `"financiamento bancário"` (substring só presente na mensagem, ausente de nome/telefone/
+> email/tag) → filtrou corretamente pro único lead que bate · ficha aberta em `/crm/leads` E
+> em `/crm/kanban` (mesmo lead) → as duas confirmaram "MENSAGEM ORIGINAL DO LEAD" com o texto
+> completo, card neutro, posicionado antes de "Análise por IA" (que mostrava corretamente o
+> `resumo_ia` mais recente — da 2ª mensagem, comportamento correto e distinto: mensagem
+> original é congelada no primeiro contato, já a análise da IA reflete sempre o estado mais
+> recente). Lead de teste removido depois, `count(*)=0` confirmado. `npx tsc --noEmit`: 0
+> erros em todos os 4 arquivos tocados.
+>
 > **Atualizado em:** 2026-08-25 (continuação 30) — **`/crm/leads` ganha os 3 campos que o
 > roteiro de testes apontou como ausentes (Etapa na tabela, filtro de Etapa real, telefone na
 > busca) + a ficha do lead ("Abrir Ficha") passa a ter paridade real com a ficha do Kanban.**

@@ -173,6 +173,9 @@ export async function POST(request: NextRequest) {
           cidade_fk = COALESCE($5, cidade_fk),
           raw_json = COALESCE(raw_json || $6::jsonb, $6::jsonb),
           match_method = $8,
+          -- Nunca sobrescreve — preserva a mensagem literal do PRIMEIRO contato mesmo quando
+          -- o mesmo lead volta a se manifestar depois (Match Engine mesclando via email/telefone).
+          mensagem_original = COALESCE(mensagem_original, $9),
           updated_at = NOW()
         WHERE lead_uuid = $7
         RETURNING lead_uuid
@@ -185,13 +188,14 @@ export async function POST(request: NextRequest) {
         inheritedCidade,
         JSON.stringify(raw_json || {}),
         leadUuid,
-        matchMethod
+        matchMethod,
+        data.mensagem || null
       ])
     } else {
       // Lead NOVO -> INSERT
       const insertQuery = `
-        INSERT INTO leads_staging (nome, email, telefone, tag_sonho, raw_json, imovel_id, estado_fk, cidade_fk, utm_campaign, valor_venda, tenant_id, client_id, match_method)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO leads_staging (nome, email, telefone, tag_sonho, raw_json, imovel_id, estado_fk, cidade_fk, utm_campaign, valor_venda, tenant_id, client_id, match_method, mensagem_original)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING lead_uuid
       `
       const { rows: insertRows } = await pool.query(insertQuery, [
@@ -207,7 +211,8 @@ export async function POST(request: NextRequest) {
         data.valor_venda ?? null,
         leadTenantId,
         leadClientId,
-        isManual ? 'manual' : 'novo'
+        isManual ? 'manual' : 'novo',
+        data.mensagem || null
       ])
       leadUuid = insertRows[0].lead_uuid
 
@@ -431,6 +436,7 @@ export async function GET(request: NextRequest) {
 
     const query = `
       SELECT l.lead_uuid, l.nome, l.email, l.telefone, l.status, l.score_prontidao, l.score_fit, l.tag_sonho, l.resumo_ia,
+             l.mensagem_original,
              l.imovel_id, l.estado_fk, l.cidade_fk, l.created_at, l.enriquecimento_cache, l.client_id,
              l.valor_venda, l.valor_venda_estimado, l.deleted_at,
              k.id as coluna_id, k.nome as coluna_nome, k.titulo_exibicao as coluna_titulo,

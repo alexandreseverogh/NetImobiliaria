@@ -291,8 +291,8 @@ export async function POST(request: NextRequest) {
 
         // INSERIR OU ATUALIZAR NA STAGING (E PEGAR O UUID PARA ENRIQUECER)
         const stgRes = await pool.query(
-          `INSERT INTO leads_staging (nome, email, telefone, imovel_id, raw_json, status, estado_fk, cidade_fk, tag_sonho, resumo_ia, score_prontidao, score_fit, tenant_id)
-           VALUES ($1, $2, $3, $4, $5, 'lead_captado', $6, $7, $8, $9, $10, $11, $12)
+          `INSERT INTO leads_staging (nome, email, telefone, imovel_id, raw_json, status, estado_fk, cidade_fk, tag_sonho, resumo_ia, score_prontidao, score_fit, tenant_id, mensagem_original)
+           VALUES ($1, $2, $3, $4, $5, 'lead_captado', $6, $7, $8, $9, $10, $11, $12, $13)
            ON CONFLICT (email, imovel_id)
            DO UPDATE SET updated_at = NOW(), score_prontidao = EXCLUDED.score_prontidao, score_fit = EXCLUDED.score_fit
            RETURNING lead_uuid`,
@@ -308,7 +308,10 @@ export async function POST(request: NextRequest) {
             aiSummary,
             aiScore,
             aiScoreFit,
-            row.tenant_id
+            row.tenant_id,
+            // ON CONFLICT DO UPDATE deliberadamente não toca mensagem_original — mesma
+            // semântica de "nunca sobrescreve o primeiro contato" da rota geral.
+            row.mensagem || null
           ]
         );
         

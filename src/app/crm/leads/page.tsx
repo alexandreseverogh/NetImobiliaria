@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import {
   UsersIcon, MagnifyingGlassIcon, EnvelopeIcon, PhoneIcon,
   FingerPrintIcon, ArrowPathIcon, XMarkIcon, SparklesIcon,
-  CheckBadgeIcon, ChatBubbleBottomCenterTextIcon, MapPinIcon,
+  CheckBadgeIcon, ChatBubbleBottomCenterTextIcon, ChatBubbleLeftRightIcon, MapPinIcon,
   ArrowTrendingUpIcon, CalendarDaysIcon
 } from '@heroicons/react/24/outline'
 import EnrichedLeadData from '@/components/crm/EnrichedLeadData'
@@ -19,6 +19,9 @@ import { useTheme } from '@/hooks/useTheme'
 interface LeadStaging {
   lead_uuid: string; nome: string; email: string; telefone: string;
   status: string; tag_sonho: string; resumo_ia: string;
+  /** Texto literal digitado/enviado pelo lead na captação — nunca reescrito pela IA (resumo_ia
+   *  é a versão dela). null pra leads anteriores a esta coluna, ou sem nenhuma mensagem livre. */
+  mensagem_original?: string | null;
   score_prontidao: number;
   /** Encaixe no perfil ideal de cliente — dimensão separada de score_prontidao
    *  (intenção). null = ainda não avaliado (sem critério de fit cadastrado pro
@@ -147,6 +150,7 @@ export default function LeadsStagingPage() {
       l.nome?.toLowerCase().includes(search.toLowerCase()) ||
       l.email?.toLowerCase().includes(search.toLowerCase()) ||
       l.tag_sonho?.toLowerCase().includes(search.toLowerCase()) ||
+      l.mensagem_original?.toLowerCase().includes(search.toLowerCase()) ||
       (searchDigits.length > 0 && l.telefone?.replace(/\D/g, '').includes(searchDigits))
     const matchesEtapa = filterColunaId === '' || l.coluna_id === filterColunaId
     return matchesSearch && matchesEtapa
@@ -201,7 +205,7 @@ export default function LeadsStagingPage() {
       <div className={`flex flex-col md:flex-row gap-4 ${t.cardBg} p-4 rounded-2xl`}>
         <div className="relative flex-1">
           <MagnifyingGlassIcon className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${t.textMuted}`} />
-          <input type="text" placeholder="Filtrar por nome, telefone, email ou tag de sonho..."
+          <input type="text" placeholder="Filtrar por nome, telefone, email, tag de sonho ou mensagem original..."
             value={search} onChange={e => setSearch(e.target.value)}
             className={`w-full rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-blue-500/50 transition-all font-medium ${t.inputBg}`} />
         </div>
@@ -268,6 +272,19 @@ export default function LeadsStagingPage() {
                   ) : (
                     <div className={`flex items-center text-[10px] font-medium italic ${t.textMuted}`}>
                       <MapPinIcon className="h-3 w-3 mr-1" />Captação Genérica
+                    </div>
+                  )}
+                  {/* Snippet de 1 linha da mensagem original — nunca a mensagem inteira aqui
+                      (lista densa, muitos leads por tela). `truncate` corta com reticências,
+                      `title` dá o texto completo no hover nativo do navegador; a íntegra
+                      sempre visível na ficha ("Abrir Ficha" → card "Mensagem Original"). */}
+                  {lead.mensagem_original && (
+                    <div
+                      className={`mt-1.5 flex items-center text-[10px] italic truncate max-w-[220px] ${t.textMuted}`}
+                      title={lead.mensagem_original}
+                    >
+                      <ChatBubbleLeftRightIcon className="h-3 w-3 mr-1 shrink-0" />
+                      <span className="truncate">"{lead.mensagem_original}"</span>
                     </div>
                   )}
                 </td>
@@ -362,6 +379,23 @@ export default function LeadsStagingPage() {
             </div>
 
             <div className="p-6 space-y-6 overflow-y-auto max-h-[75vh]">
+              {/* Mensagem Original — texto literal digitado/enviado pelo lead, nunca a reescrita
+                  da IA (essa vive em "Análise por IA" logo abaixo). Deliberadamente NEUTRO (não
+                  azul/âmbar) — essas cores já significam "isto é trabalho da IA" nesta UI, e este
+                  bloco é o oposto disso: a palavra exata do lead. Só renderiza quando existe —
+                  leads anteriores a esta coluna nunca tiveram esse texto persistido. */}
+              {selectedLead.mensagem_original && (
+                <div className={`p-5 ${t.cardBg} rounded-3xl border ${t.borderSub}`}>
+                  <div className="flex items-center space-x-2 mb-3">
+                    <ChatBubbleLeftRightIcon className={`h-4 w-4 ${t.textMuted}`} />
+                    <span className={`text-xs font-bold uppercase tracking-widest ${t.textMuted}`}>Mensagem Original do Lead</span>
+                  </div>
+                  <p className={`text-sm leading-relaxed whitespace-pre-wrap ${t.textPrimary}`}>
+                    "{selectedLead.mensagem_original}"
+                  </p>
+                </div>
+              )}
+
               {/* Grid 2 colunas para dados principais */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 {/* Coluna 1: Dados Enriquecidos */}
