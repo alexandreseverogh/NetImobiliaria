@@ -1,5 +1,44 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 14) — **Convite do cliente: SMTP corrigido
+> (senha de app nova, funcionando) + texto do modal passa a refletir honestamente os 2
+> cenários (com/sem calendário pessoal do atendente conectado). Frente "convite pro
+> cliente" fechada — os 3 itens levantados (attendee via calendário pessoal, e-mail de
+> confirmação, texto da UI) testados e confirmados.**
+>
+> **SMTP:** senha de app trocada pela nova ("Artemis4 CRM SMTP", gerada na Fase 5 desta
+> sessão) no `.env.local` — testado isolado (`nodemailer.verify()`) e depois via
+> agendamento real: `email_corretor_enviado`/`email_lead_enviado` **ambos `true`** pela
+> primeira vez nesta sessão inteira.
+>
+> **Texto do modal** (`AgendarVisitaModal.tsx`, resumo do passo "Confirmar"): a frase
+> "o cliente recebe um convite do Google Calendar" só é verdadeira quando o atendente tem
+> calendário pessoal conectado (a empresa não pode mais convidar ninguém, ver fix da
+> continuação 12) — antes disso, o texto afirmava isso incondicionalmente sempre que
+> `convidarCliente` estava marcado. Corrigido pra 2 variantes: com calendário pessoal,
+> mantém o texto original; sem, passa a dizer "recebe um e-mail de confirmação... (sem
+> convite do Google Calendar — só o calendário da empresa cria evento, e ele não pode
+> convidar ninguém; conecte seu calendário pessoal pra isso funcionar)".
+>
+> **Testado ao vivo no navegador, os 2 ramos, com usuários reais do tenant CRM SOZINHO:**
+> Eustroncio Pinto (`google_calendar_authorized:false`) → texto correto do ramo sem
+> calendário pessoal · Roberto Severo (`google_calendar_authorized:true`) → texto correto
+> do ramo com calendário pessoal. `npx tsc --noEmit`: 0 erros. Nenhum agendamento real foi
+> criado nesses 2 testes (só navegação até o passo de confirmação, sem submeter) — nada
+> pra limpar.
+>
+> **Achado incidental nesta rodada, resolvido no processo:** Docker foi interrompido
+> abruptamente em algum momento (não um `docker compose down` limpo) — Postgres se
+> recuperou sozinho via WAL replay, mas o encaminhamento de porta do Docker Desktop pro
+> Windows (`127.0.0.1:15432`) ficou num estado quebrado (aceitava TCP, mas o handshake do
+> protocolo do Postgres nunca completava — `pg.Pool` do host sempre recebia "Connection
+> terminated unexpectedly", mesmo com o container "healthy" e acessível por dentro via
+> `docker exec`). Resolvido com `docker restart netimobiliaria-db` — sem precisar reiniciar
+> o Docker Desktop inteiro. Registrado aqui porque não é a primeira vez que esse projeto
+> documenta esse tipo de sintoma de pool/rede (ver "Fix Login Loop — DB Pool Exhaustion",
+> 2026-06-01) — mas desta vez a causa raiz real era outra (proxy de porta do Docker Desktop,
+> não exaustão de conexões do Postgres em si).
+
 > **Atualizado em:** 2026-08-25 (continuação 13) — **Convite do cliente via calendário
 > pessoal confirmado funcionando de ponta a ponta + achado real: SMTP de confirmação
 > nunca funcionou porque a senha de app salva estava com espaços (e, mesmo sem espaços,

@@ -515,7 +515,9 @@ export default function AgendarVisitaModal({ isOpen, onClose, onSuccess, lead, t
                     : 'Um evento será criado no calendário da empresa.'}
                   {' '}
                   {convidarCliente && clienteEmail.trim()
-                    ? `O cliente recebe um convite do Google Calendar e um e-mail de confirmação em ${clienteEmail.trim()}.`
+                    ? hasPersonalCalendar
+                      ? `O cliente recebe um convite do Google Calendar e um e-mail de confirmação em ${clienteEmail.trim()}.`
+                      : `O cliente recebe um e-mail de confirmação em ${clienteEmail.trim()} (sem convite do Google Calendar — só o calendário da empresa cria evento, e ele não pode convidar ninguém; conecte seu calendário pessoal pra isso funcionar).`
                     : 'Nenhum convite será enviado ao cliente por e-mail.'}
                 </p>
               </div>
