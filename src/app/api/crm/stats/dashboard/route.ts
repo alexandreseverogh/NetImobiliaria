@@ -23,8 +23,13 @@ function getCurrentUser(request: NextRequest): { userId: string, tenantId?: stri
 }
 
 /**
- * DASHBOARD STATS API (REAL INTELLIGENCE)
- * Consolida métricas reais do banco para o Dashboard /crm
+ * DASHBOARD STATS API
+ * Alimenta o funil real de CRM (KanbanFunnelWidget em /crm) com a contagem por coluna
+ * do Kanban. Só isso — o array `stats` antigo (Total Leads/CPLQ/Prontidão/"Taxa de Match
+ * IPVE") era resíduo pré-"Caminho 1" (docs/CHECKPOINT.md, 2026-08-13): nunca lido pelo
+ * consumidor real (só `leads_por_status` é usado), "CPLQ" era um "R$ 0,00" fixo, e "Taxa
+ * de Match IPVE" era `Math.random() * 20 + 70` — um número sem nenhum dado real por trás,
+ * com um "+4%" de variação também fixo. Removido por completo, não só desligado da UI.
  */
 
 export async function GET(request: NextRequest) {
@@ -33,70 +38,22 @@ export async function GET(request: NextRequest) {
     const tenantId = currentUser?.tenantId || null
     const isMaster = currentUser?.is_system_role === true
 
-    const tenantCondition = !isMaster ? 'WHERE tenant_id = $1' : ''
-    const tenantConditionAnd = !isMaster ? 'AND l.tenant_id = $1' : ''
     const params = !isMaster ? [tenantId] : []
 
-    // 1. Total de Leads na Staging
-    const totalLeadsQuery = `SELECT count(*) as total FROM leads_staging ${tenantCondition}`
-    
-    // 2. Média de Score IPVE/Prontidão
-    const avgScoreQuery = `SELECT AVG(score_prontidao) as avg_score FROM leads_staging ${tenantCondition}`
-
-    // 3. Leads captados nas últimas 24h (para cálculo de crescimento)
-    const recentLeadsQuery = `SELECT count(*) as total_24h FROM leads_staging WHERE created_at > NOW() - INTERVAL '24 hours' ${tenantConditionAnd ? tenantConditionAnd.replace('l.tenant_id', 'tenant_id') : ''}`
-
-    // 4. Contagem por coluna do Kanban — alimenta o funil real de CRM (/crm) além do card
-    // legado "leads_por_status". Só colunas ativas, na ordem real do funil.
+    // Contagem por coluna do Kanban, só colunas ativas, na ordem real do funil.
     const statusQuery = `
       SELECT k.id, k.nome, k.titulo_exibicao, k.cor, k.ordem, count(lk.id)::int as total
       FROM kanban_colunas k
-      LEFT JOIN leads_kanban lk ON k.id = lk.coluna_id ${tenantConditionAnd.replace('l.tenant_id', 'lk.tenant_id')}
+      LEFT JOIN leads_kanban lk ON k.id = lk.coluna_id ${!isMaster ? 'AND lk.tenant_id = $1' : ''}
       WHERE k.ativa = true ${!isMaster ? 'AND k.tenant_id = $1' : ''}
       GROUP BY k.id, k.nome, k.titulo_exibicao, k.cor, k.ordem
       ORDER BY k.ordem ASC
     `
 
-    const [totalRes, avgRes, recentRes, statusRes] = await Promise.all([
-      pool.query(totalLeadsQuery, params),
-      pool.query(avgScoreQuery, params),
-      pool.query(recentLeadsQuery, params),
-      pool.query(statusQuery, params)
-    ])
+    const statusRes = await pool.query(statusQuery, params)
 
-    const totalLeads = parseInt(totalRes.rows[0].total)
-    const avgScore = parseFloat(avgRes.rows[0].avg_score || 0).toFixed(1)
-    const total24h = parseInt(recentRes.rows[0].total_24h)
-
-    // Formatação para o formato esperado pelo Dashboard
     return NextResponse.json({
       success: true,
-      stats: [
-        { 
-          name: 'Total Leads (Staging)', 
-          stat: totalLeads.toLocaleString(), 
-          change: total24h > 0 ? `+${total24h} hoje` : '0 hoje',
-          changeType: 'increase' 
-        },
-        { 
-          name: 'CPLQ (Consolidado)', 
-          stat: 'R$ 0,00', // Será calculado na Fase 2 com APIs de Marketing
-          change: 'Aguardando CAPI', 
-          changeType: 'neutral' 
-        },
-        { 
-          name: 'Média de Prontidão', 
-          stat: `${avgScore}%`, 
-          change: 'Estável', 
-          changeType: 'increase' 
-        },
-        { 
-          name: 'Taxa de Match IPVE', 
-          stat: totalLeads > 0 ? `${(Math.random() * 20 + 70).toFixed(0)}%` : '0%', // Simulação IPVE até Fase 2
-          change: '+4%', 
-          changeType: 'increase' 
-        }
-      ],
       leads_por_status: statusRes.rows
     })
 

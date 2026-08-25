@@ -1,5 +1,37 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 17) — **Varredura completa por "IPVE" no
+> código encontrou uma 3ª ocorrência, pior que as duas anteriores: um card de KPI
+> chamado "Taxa de Match IPVE" cujo valor era `Math.random() * 20 + 70` — nem sequer
+> derivado de dado real — e que nunca era exibido em lugar nenhum (payload morto).**
+>
+> **Contexto:** usuário perguntou, depois dos 2 fixes anteriores, se a questão do IPVE
+> estava de fato resolvida — pedido que motivou uma varredura (`grep -r IPVE src/`) em vez
+> de assumir que os 2 pontos já achados eram os únicos.
+>
+> **Achado:** `GET /api/crm/stats/dashboard` — endpoint consumido só por `/crm/page.tsx`
+> — retornava um array `stats` com 4 cards: "Total Leads (Staging)" (real), "CPLQ
+> (Consolidado)" (`'R$ 0,00'` fixo, comentário "Será calculado na Fase 2"), "Média de
+> Prontidão" (real), e **"Taxa de Match IPVE"** (`Math.random() * 20 + 70`, `change: '+4%'`
+> também fixo). Confirmado por grep que **nenhum desses 4 campos é lido em lugar nenhum**
+> do frontend — `crm/page.tsx` só destrutura `statsData.leads_por_status` (que alimenta o
+> `KanbanFunnelWidget`) — resíduo do dashboard antigo, anterior à reescrita "Caminho 1"
+> (2026-08-13, ver entrada correspondente neste arquivo) que substituiu esses 4 cards
+> pelos 5 KPIs reais atuais (Leads Captados/Negócios Fechados/Perdidos/Pipeline/Conversão)
+> sem que ninguém tivesse limpado o payload morto do endpoint que ficou pra trás.
+>
+> **Corrigido:** removido por completo o array `stats` e as 3 queries que só existiam pra
+> alimentar ele (`totalLeadsQuery`/`avgScoreQuery`/`recentLeadsQuery`) — endpoint agora só
+> roda a query real (`statusQuery`, contagem por coluna do Kanban) e retorna
+> `{success, leads_por_status}`, exatamente o único campo que o consumidor real usa.
+>
+> **Testado ao vivo:** `GET /api/crm/stats/dashboard` real (tenant CRM SOZINHO) confirma
+> resposta limpa (`success`+`leads_por_status`, sem `stats`); `/crm` recarregado no
+> navegador real renderiza 100% normal — os 5 KPIs, funil, gargalos, fila de atenção, top
+> leads, performance por vendedor — nada dependia do payload removido. `npx tsc --noEmit`:
+> 0 erros. Varredura final (`grep -r IPVE src/`) confirma zero ocorrência fora de
+> comentário explicativo (histórico do fix, nunca texto visível ao usuário).
+
 > **Atualizado em:** 2026-08-25 (continuação 16) — **Segunda tela com o mesmo resíduo
 > imobiliário-específico: `/crm/leads` (lista de leads, drawer de detalhe) ainda tinha
 > "Score IPVE" e "Aderência IPVE" — o mesmo bug já corrigido na ficha do Kanban em
