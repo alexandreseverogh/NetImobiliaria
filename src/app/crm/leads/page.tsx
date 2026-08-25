@@ -246,9 +246,9 @@ export default function LeadsStagingPage() {
             className={`p-2.5 ${t.textMuted} ${t.hoverBg} ${t.cardBg} rounded-xl transition-all`} title="Atualizar">
             <ArrowPathIcon className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg">
-            Importar CSV/Planilha
-          </button>
+          {/* "Importar CSV/Planilha" removido — era 100% decorativo (sem onClick, sem
+              backend), fica registrado como pendência futura em docs/CHECKPOINT.md até ter
+              uma implementação real por trás. */}
         </div>
       </div>
 
@@ -288,7 +288,10 @@ export default function LeadsStagingPage() {
                   drawer, "—" honesto quando o segmento/tenant não tem critério cadastrado.
                   Coluna "Etapa" nova, ao lado de "Tag do Sonho". */}
               {['Identidade', 'Dados Enriquecidos', 'Tag do Sonho', 'Etapa', 'Intenção', 'Aderência', 'Responsável', 'Origem / Data', 'Ação'].map((h, i) => (
-                <th key={h} className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-widest ${i === 1 ? 'text-emerald-500' : t.textMuted} ${i >= 3 && i <= 6 ? 'text-center' : ''} ${i === 8 ? 'text-right' : ''}`}>{h}</th>
+                // Intenção/Aderência/Responsável/Origem-Data (4-7) usam padding mais estreito
+                // (px-3) — conteúdo curto (%, avatar, data), o px-6 padrão deixava espaço em
+                // branco desperdiçado entre essas colunas numa tela larga.
+                <th key={h} className={`${i >= 4 && i <= 7 ? 'px-3' : 'px-6'} py-4 text-left text-xs font-bold uppercase tracking-widest ${i === 1 ? 'text-emerald-500' : t.textMuted} ${i >= 3 && i <= 6 ? 'text-center' : ''} ${i === 8 ? 'text-right' : ''}`}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -300,14 +303,18 @@ export default function LeadsStagingPage() {
               <tr className={`group transition-all ${t.hoverBg}`}>
                 <td className="px-6 py-4">
                   <div className="flex items-center">
-                    <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white border transition-all ${lead.imovel_id ? 'bg-gradient-to-tr from-blue-600 to-indigo-600' : 'bg-gradient-to-tr from-emerald-600 to-green-600'}`}>
+                    {/* Verde/emerald anterior competia visualmente com o significado já
+                        estabelecido dessa cor no resto da tela (Valor Fechado real) e ficava
+                        "carnavalesco" ao lado do azul do outro estado — trocado por slate
+                        neutro, mesma paleta discreta já usada no badge de Etapa. */}
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white border transition-all ${lead.imovel_id ? 'bg-gradient-to-tr from-blue-600 to-indigo-600' : 'bg-gradient-to-tr from-slate-500 to-slate-600'}`}>
                       {lead.imovel_id ? <UsersIcon className="h-5 w-5" /> : <MapPinIcon className="h-5 w-5" />}
                     </div>
                     <div className="ml-4">
                       <div className={`text-sm font-bold leading-tight ${t.textPrimary}`}>{lead.nome || 'Não Identificado'}</div>
                       <div className={`flex items-center text-[10px] mt-1 space-x-2 ${t.textMuted}`}>
-                        <span className="flex items-center font-bold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
-                          <PhoneIcon className="h-3 w-3 mr-1" />{formatPhone(lead.telefone)}
+                        <span className="flex items-center whitespace-nowrap shrink-0 font-bold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+                          <PhoneIcon className="h-3 w-3 mr-1 shrink-0" />{formatPhone(lead.telefone)}
                         </span>
                         <span className="flex items-center"><EnvelopeIcon className="h-3 w-3 mr-1" />{lead.email || 'S/ Email'}</span>
                       </div>
@@ -375,24 +382,24 @@ export default function LeadsStagingPage() {
                     {lead.coluna_titulo || 'Sem etapa'}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-center">
+                <td className="px-3 py-4 text-center">
                   <span className={`text-xs font-bold ${lead.score_prontidao > 80 ? 'text-green-500' : lead.score_prontidao > 50 ? 'text-blue-500' : t.textMuted}`}>
                     {lead.score_prontidao}%
                   </span>
                 </td>
-                <td className="px-6 py-4 text-center">
+                <td className="px-3 py-4 text-center">
                   <span className={`text-xs font-bold ${lead.score_fit == null ? t.textMuted : lead.score_fit > 80 ? 'text-green-500' : lead.score_fit > 50 ? 'text-blue-500' : t.textMuted}`}>
                     {lead.score_fit != null ? `${lead.score_fit}%` : '—'}
                   </span>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-3 py-4">
                   <div className="flex justify-center">
                     <OwnerAvatar lead={lead} isDark={t.isDark} />
                   </div>
                 </td>
-                <td className="px-6 py-4">
-                  <div className={`text-xs ${t.textSecondary}`}>{new Date(lead.created_at).toLocaleDateString('pt-BR')} às {new Date(lead.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
-                  <div className="text-[10px] text-blue-500/50 uppercase font-black tracking-widest">{lead.imovel_id ? 'API LANDPAGING' : 'CAMPANHA GENÉRICA'}</div>
+                <td className="px-3 py-4">
+                  <div className={`text-[11px] whitespace-nowrap ${t.textSecondary}`}>{new Date(lead.created_at).toLocaleDateString('pt-BR')} às {new Date(lead.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div className="text-[9px] whitespace-nowrap text-blue-500/50 uppercase font-black tracking-wide">{lead.imovel_id ? 'API LANDPAGING' : 'CAMPANHA GENÉRICA'}</div>
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end space-x-2">

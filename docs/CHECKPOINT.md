@@ -1,5 +1,52 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 37) — **3 ajustes de UI em `/crm/leads`, todos
+> pedidos direto pelo usuário: remoção do botão "Importar CSV/Planilha" (decorativo, agora
+> pendência documentada), ícone verde ao lado do nome do lead trocado por neutro, e padding
+> mais estreito nas colunas Intenção/Aderência/Responsável/Origem-Data pra fechar o espaço em
+> branco entre elas + telefone e "Origem/Data" garantidos em 1 linha só.**
+>
+> 1. **Botão "Importar CSV/Planilha" removido** — `src/app/crm/leads/page.tsx`, era o mesmo
+>    tipo de UI morta do botão de impressão digital (continuação 34), só que sem função
+>    nenhuma ainda planejada pra virar; a pendência real já ficou documentada na continuação
+>    anterior (35), o botão em si não devia continuar visível prometendo algo que não existe.
+> 2. **Ícone circular ao lado do nome (quando o lead não tem `imovel_id`) — verde/emerald
+>    trocado por slate neutro** (`bg-gradient-to-tr from-emerald-600 to-green-600` →
+>    `from-slate-500 to-slate-600`). O verde competia com o significado já estabelecido dessa
+>    cor no resto da tela (Valor Fechado real, docs/CHECKPOINT.md 2026-08-13) e ficava
+>    "carnavalesco" ao lado do azul do outro estado (lead com `imovel_id`); slate é a mesma
+>    paleta discreta já usada no badge de Etapa.
+> 3. **Espaço em branco entre Intenção/Aderência/Responsável/Origem-Data** — as 4 colunas
+>    tinham `px-6` (24px de cada lado) mesmo com conteúdo bem curto (%, avatar pequeno, 2
+>    linhas de texto); reduzido pra `px-3` no header E no corpo da tabela (mantendo os dois
+>    em sincronia, senão cabeçalho e célula ficam desalinhados). De brinde, telefone (badge
+>    azul na coluna Identidade) e as 2 linhas de "Origem/Data" ganharam `whitespace-nowrap`
+>    (nunca mais quebram em 2 linhas); "Origem/Data" também teve a fonte reduzida (`text-xs`→
+>    `text-[11px]`, `text-[10px]`→`text-[9px]`) e `tracking-widest`→`tracking-wide` no rótulo,
+>    dando mais folga sem precisar alargar a coluna.
+>
+> **Achado real no meio da verificação, resolvido:** depois de editar o arquivo várias vezes
+> em sequência rápida, o compilador SWC do dev server ficou preso mostrando um erro de sintaxe
+> stale (`Unexpected token 'div'`) mesmo com `npx tsc --noEmit` limpo e o arquivo genuinamente
+> correto — mesmo padrão de "cache do Next mascarando estado real" já documentado várias vezes
+> neste arquivo. Resolvido com o mesmo remédio de sempre (editar o comentário `last-restart` em
+> `next.config.js`, força reinício completo do processo). Confirmado depois que os erros que
+> persistiam no `read_console_messages` eram só histórico acumulado da sessão do navegador
+> (o tool não limpa entradas antigas sozinho) — a página em si já estava renderizando
+> corretamente havia várias checagens antes disso ser percebido.
+>
+> **Testado ao vivo, com dado real** (tenant Marketing Digital, 6 leads reais via Histórico):
+> botão CSV confirmado ausente do DOM · ícones dos 5 leads sem `imovel_id` confirmados slate
+> via inspeção de classe (não mais `emerald`/`green`) · larguras reais das colunas medidas via
+> `getBoundingClientRect` — Intenção 96,8px / Aderência 105,3px / Responsável 125,1px /
+> Origem-Data 132,8px (bem mais estreitas que antes, com `px-6` cada uma reservaria 48px só de
+> padding) · badge de telefone confirmado 1 linha só (`scrollWidth === clientWidth`, `white-
+> space: nowrap`) · as 2 linhas de "Origem/Data" confirmadas 1 linha cada (`height:16.5px` e
+> `13.5px`, alturas de linha única, sem overflow) — a altura maior da célula como um todo
+> (90,5px) vem da coluna Identidade (nome+telefone+e-mail, 3 linhas), que dita a altura da
+> linha inteira da tabela, não de quebra dentro da própria célula de Origem/Data. `npx tsc
+> --noEmit`: 0 erros.
+>
 > **Atualizado em:** 2026-08-25 (continuação 36) — **Snippet de mensagem original em
 > `/crm/leads` alargado — usuário apontou que sobrava muito espaço em branco à direita do
 > texto truncado antes de precisar clicar em expandir.**

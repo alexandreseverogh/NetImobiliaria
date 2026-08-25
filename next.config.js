@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-08-14 — chunk stale de NovoLeadModal.tsx pós-rename (imovelSearch→ativoSearch)
+// last-restart: 2026-08-25 — SWC preso num erro de parse stale de crm/leads/page.tsx (tsc limpo, arquivo válido)
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'
