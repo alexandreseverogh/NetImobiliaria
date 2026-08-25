@@ -14,7 +14,12 @@ import { useTheme } from '@/hooks/useTheme'
 interface LeadStaging {
   lead_uuid: string; nome: string; email: string; telefone: string;
   status: string; tag_sonho: string; resumo_ia: string;
-  score_prontidao: number; imovel_id: number | null;
+  score_prontidao: number;
+  /** Encaixe no perfil ideal de cliente — dimensão separada de score_prontidao
+   *  (intenção). null = ainda não avaliado (sem critério de fit cadastrado pro
+   *  segmento/tenant), nunca um número inventado. */
+  score_fit?: number | null;
+  imovel_id: number | null;
   enriquecimento_cache?: any; created_at: string; coluna_nome: string;
   corretor_atribuido_id?: string | null;
   corretor_nome?: string | null;
@@ -155,7 +160,11 @@ export default function LeadsStagingPage() {
         <table className="min-w-full">
           <thead className={`${t.isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
             <tr>
-              {['Identidade', 'Dados Enriquecidos', 'Tag do Sonho', 'Score IPVE', 'Responsável', 'Origem / Data', 'Ação'].map((h, i) => (
+              {/* "Score IPVE" era o nome antigo dessa coluna — resíduo de quando a
+                  plataforma era só Imobiliário, mas o valor exibido sempre foi
+                  score_prontidao (Intenção), nunca nada específico de IPVE. Renomeado
+                  pra bater com o mesmo rótulo já usado na ficha do Kanban. */}
+              {['Identidade', 'Dados Enriquecidos', 'Tag do Sonho', 'Intenção', 'Responsável', 'Origem / Data', 'Ação'].map((h, i) => (
                 <th key={h} className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-widest ${i === 1 ? 'text-emerald-500' : t.textMuted} ${i >= 3 && i <= 4 ? 'text-center' : ''} ${i === 6 ? 'text-right' : ''}`}>{h}</th>
               ))}
             </tr>
@@ -284,14 +293,18 @@ export default function LeadsStagingPage() {
                     <span className="bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full text-xs font-black uppercase border border-blue-500/20">{selectedLead.tag_sonho}</span>
                   </div>
                   <div className={`text-sm leading-relaxed italic ${t.textSecondary}`}>"{selectedLead.resumo_ia || 'A IA ainda não processou este lead.'}"</div>
+                  {/* Intenção (score_prontidao) e Fit (score_fit) — 2 dimensões SEPARADAS,
+                      nunca combinadas num 3º número sintético (docs/
+                      PLANO_AGENTES_ACELERACAO_CRM.md §3.1). O tile "Aderência IPVE" antigo
+                      aqui era um valor fabricado (score_prontidao + 15, sem nenhum dado real
+                      por trás, resíduo de quando a plataforma era só Imobiliário) —
+                      substituído pelo Fit real, mesmo tratamento já usado na ficha do
+                      Kanban (/crm/kanban). */}
                   <div className="grid grid-cols-2 gap-4 mt-4">
-                    {[['Prontidão para Compra', `${selectedLead.score_prontidao}%`, 'Top Match'], ['Aderência IPVE', `${Math.min((selectedLead.score_prontidao || 70) + 15, 99)}%`, 'Score Real']].map(([label, val, badge]) => (
+                    {[['Intenção', `${selectedLead.score_prontidao}%`], ['Fit', selectedLead.score_fit != null ? `${selectedLead.score_fit}%` : '—']].map(([label, val]) => (
                       <div key={label} className={`p-4 ${t.cardInner} rounded-2xl`}>
                         <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${t.textMuted}`}>{label}</p>
-                        <div className="flex items-end space-x-2">
-                          <span className={`text-2xl font-bold ${t.textPrimary}`}>{val}</span>
-                          <span className="text-[10px] text-blue-500 font-bold uppercase mb-1">{badge}</span>
-                        </div>
+                        <span className={`text-2xl font-bold ${t.textPrimary}`}>{val}</span>
                       </div>
                     ))}
                   </div>

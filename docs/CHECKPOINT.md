@@ -1,5 +1,46 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 16) — **Segunda tela com o mesmo resíduo
+> imobiliário-específico: `/crm/leads` (lista de leads, drawer de detalhe) ainda tinha
+> "Score IPVE" e "Aderência IPVE" — o mesmo bug já corrigido na ficha do Kanban em
+> 2026-08-23, só que numa 2ª tela nunca alcançada por aquele fix.**
+>
+> **Contexto:** pedido pelo usuário depois de uma explicação detalhada de como
+> `score_prontidao`/`score_fit` funcionam ponta a ponta (`ConciergeService.qualifyLead`,
+> cascata tenant→segmento de regras/critérios, prompt `crm_lead_qualification`, conversão
+> ×10 na persistência) — usuário questionou diretamente se o conceito "IPVE" deveria sequer
+> existir, apontando que foi implementado quando a plataforma era só Imobiliário.
+>
+> **Achado, confirmado por leitura de código antes de corrigir:** `src/app/crm/leads/
+> page.tsx` tinha 2 resíduos independentes do mesmo problema, nenhum tocado pelo fix da
+> ficha do Kanban (arquivo diferente): (1) cabeçalho da coluna da tabela dizia **"Score
+> IPVE"**, mas a célula sempre exibiu `score_prontidao` (Intenção) — nunca nada
+> específico de IPVE, um rótulo simplesmente errado; (2) o drawer de detalhe tinha 2 tiles,
+> "Prontidão para Compra" (`score_prontidao`, correto) e **"Aderência IPVE"** — um valor
+> 100% fabricado (`Math.min(score_prontidao + 15, 99)`, sem nenhum critério de fit real por
+> trás), com um badge "Score Real" que emprestava falsa credibilidade ao número inventado.
+>
+> **Corrigido, mesmo tratamento já usado na ficha do Kanban:** coluna renomeada "Score
+> IPVE" → "Intenção"; os 2 tiles do drawer viraram "Intenção" (`score_prontidao`) / "Fit"
+> (`score_fit` real, ou "—" quando o segmento/tenant não tem nenhum critério de fit
+> cadastrado — nunca inventa) — mesmos rótulos, mesmo comportamento honesto, zero badge
+> decorativo. `LeadStaging.score_fit` adicionado à interface (o backend, `GET /api/crm/
+> leads`, já retornava esse campo desde a sessão de 2026-08-23 — só o frontend desta tela
+> nunca lia).
+>
+> **Testado ao vivo no navegador**, tenant CRM SOZINHO (segmento "Venda de Carros", mesmo
+> cenário do print original do usuário — 0 critérios de fit cadastrados): cabeçalho da
+> coluna confirmado "INTENÇÃO"; drawer do lead "Frank Aguiar" (score 30%) confirmado via
+> `innerText` do overlay real: `"INTENÇÃO\n\n30%\n\nFIT\n\n—"` — sem nenhum traço de
+> "IPVE"/"Aderência"/badge fabricado. `npx tsc --noEmit`: 0 erros.
+>
+> **Pergunta do usuário ("ainda não sei se realmente deve existir esse IPVE") permanece em
+> aberto, não decidida nesta rodada** — o conceito de "Fit"/ICP em si é real e generalizado
+> (`docs/PLANO_AGENTES_ACELERACAO_CRM.md` §3.1, já usado em outras partes do CRM); o que foi
+> corrigido agora foi só o nome/rótulo "IPVE" (sigla imobiliária) e o valor fabricado por
+> trás dele nesta 2ª tela — a decisão de produto sobre se "Fit" deveria ganhar mais
+> destaque/uso em `/crm/leads` (ex.: coluna própria na tabela) não foi levantada nem pedida.
+
 > **Atualizado em:** 2026-08-25 (continuação 15) — **Fix real de agnosticismo de segmento:
 > o e-mail/agenda de visita tinha "corretor" e "imóvel" hardcoded — quebraria em qualquer
 > tenant fora do Imobiliário.** Usuário revisou o resumo da entrega anterior (convite do
