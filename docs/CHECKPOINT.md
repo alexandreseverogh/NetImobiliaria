@@ -1,5 +1,29 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 21) — **UI de cadastro/edição de Critérios de
+> Aderência: campo de texto vira `<textarea>` multi-linha nas 2 telas onde existe (Master e
+> tenant) — antes era `<input>` de 1 linha, exigindo scroll horizontal com o mouse pra ler
+> o critério inteiro.**
+>
+> Pedido direto do usuário, depois de usar a tela recém-populada com os critérios reais da
+> entrega anterior. Achado: o card de EXIBIÇÃO (`FitCard`, só leitura) já quebrava linha
+> naturalmente (`<p>`) — o problema era só nos 2 formulários de EDIÇÃO:
+> `SegmentFitCriteriaModal.tsx` (Master) e a seção "Seus Critérios de Aderência" de
+> `/crm/config/ia` (tenant).
+>
+> **Implementado:** `<input>` → `<textarea rows={2} className="... resize-y">` nos dois
+> lugares. No modal do Master, o campo de texto (que dividia a linha com Peso/Ativo/Excluir)
+> passou a ocupar sozinho a linha de cima, com Peso/Ativo/Excluir numa 2ª linha abaixo (rótulo
+> "Peso" adicionado, já que a posição não deixa mais isso implícito). Na tela do tenant, o
+> textarea manteve o mesmo grid `md:col-span-3` já usado pelo input.
+>
+> **Testado ao vivo no navegador**, sessão Master real: modal do segmento "Venda de Carros"
+> confirma 6 `<textarea>` reais (um por critério, texto completo já visível, sem truncar) ·
+> digitado um texto de teste bem mais longo num deles → confirmado via `scrollHeight`/
+> `clientHeight` que quebra em múltiplas linhas dentro do campo · fechado com "Fechar" (sem
+> clicar em Salvar) → confirmado por SQL que os 6 critérios reais da entrega anterior
+> permanecem intactos, nenhum resíduo do texto de teste. `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 20) — **Critérios de Aderência (Fit/ICP)
 > cadastrados pela primeira vez pros segmentos Imobiliário e Venda de Carros — só dado
 > curado, sem mudança de código. A coluna "Aderência" (entregas anteriores) deixa de

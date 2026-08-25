@@ -319,9 +319,10 @@ export default function AIConfigPage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="md:col-span-3 space-y-1">
                   <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>Critério de encaixe</label>
-                  <input type="text" value={currentFit.criterio} placeholder="Ex.: orçamento declarado compatível com o portfólio ativo"
+                  <textarea value={currentFit.criterio} placeholder="Ex.: orçamento declarado compatível com o portfólio ativo"
                     onChange={e => setCurrentFit({ ...currentFit, criterio: e.target.value })}
-                    className={`w-full rounded-xl px-4 py-3 text-sm ${t.inputBg}`} />
+                    rows={2}
+                    className={`w-full rounded-xl px-4 py-3 text-sm leading-snug resize-y ${t.inputBg}`} />
                 </div>
                 <div className="space-y-1">
                   <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>Peso (0-10)</label>

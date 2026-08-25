@@ -129,15 +129,17 @@ export function SegmentFitCriteriaModal({ segment, onClose }: Props) {
             <div className="space-y-3">
               {criteria.map((c, i) => (
                 <div key={i} className="rounded-xl border border-gray-200 p-3 bg-gray-50/50 space-y-2">
+                  <textarea value={c.criterio}
+                    onChange={e => updateCriterion(i, { criterio: e.target.value })}
+                    placeholder="Ex.: orçamento declarado compatível com o portfólio ativo"
+                    rows={2}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 leading-snug resize-y focus:outline-none focus:ring-2 focus:ring-violet-400" />
                   <div className="flex items-center gap-2">
-                    <input value={c.criterio}
-                      onChange={e => updateCriterion(i, { criterio: e.target.value })}
-                      placeholder="Ex.: orçamento declarado compatível com o portfólio ativo"
-                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Peso</span>
                     <input type="number" min={0} max={10} value={c.peso}
                       onChange={e => updateCriterion(i, { peso: parseInt(e.target.value) || 0 })}
                       className="w-20 px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm text-center text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400" />
-                    <label className="flex items-center gap-1 text-[10px] font-bold text-gray-500 whitespace-nowrap">
+                    <label className="flex items-center gap-1 text-[10px] font-bold text-gray-500 whitespace-nowrap ml-auto">
                       <input type="checkbox" checked={c.ativo} onChange={e => updateCriterion(i, { ativo: e.target.checked })} className="accent-violet-600" />
                       Ativo
                     </label>
