@@ -20,7 +20,8 @@ import {
   ArrowRightIcon,
   CalendarIcon,
   PencilSquareIcon,
-  TrashIcon
+  TrashIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
@@ -107,6 +108,18 @@ export default function KanbanPage() {
     const parts = name.trim().split(' ')
     return parts.length > 1 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : name.substring(0, 2).toUpperCase()
   }
+
+  /** Dias corridos desde a captação — mesmo cálculo em dia civil (não frações de 24h) já
+   *  usado no resto da ficha, pra bater com o que "24 DE AGO." ao lado já comunica. */
+  const daysSinceCreation = (iso?: string) => {
+    if (!iso) return null
+    const created = new Date(iso)
+    const today = new Date()
+    const createdDay = Date.UTC(created.getFullYear(), created.getMonth(), created.getDate())
+    const todayDay = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+    return Math.round((todayDay - createdDay) / 86400000)
+  }
+  const daysSinceCreationLabel = (days: number) => days <= 0 ? 'Hoje' : days === 1 ? '1 dia' : `${days} dias`
 
   const { user } = useAuth()
   const tenantId = user?.currentTenant?.id
@@ -601,13 +614,23 @@ export default function KanbanPage() {
                             <CalendarDaysIcon className="h-4 w-4" />
                           </button>
                         )}
-                        <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md border tracking-widest shadow-sm ${
-                          t.isDark 
-                            ? 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20' 
-                            : 'text-indigo-700 bg-indigo-50 border-indigo-200/60'
-                        }`}>
-                          {lead.tag_sonho || 'TBD'}
-                        </span>
+                        {/* Antes repetia o mesmo tag_sonho já exibido no badge do topo do
+                            card (redundância apontada pelo usuário) — substituído pelo tempo
+                            desde a captação, informação nova, não duplicada em lugar nenhum
+                            do card. */}
+                        {lead.created_at && (
+                          <span
+                            className={`flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-md border tracking-widest shadow-sm ${
+                              t.isDark
+                                ? 'text-slate-300 bg-white/5 border-white/10'
+                                : 'text-slate-500 bg-slate-50 border-slate-200'
+                            }`}
+                            title="Tempo desde a captação do lead"
+                          >
+                            <ClockIcon className="h-3 w-3" />
+                            {daysSinceCreationLabel(daysSinceCreation(lead.created_at)!)}
+                          </span>
+                        )}
                       </div>
                     </div>
 

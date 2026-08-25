@@ -1,5 +1,31 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 26) — **Card do Kanban mostrava o mesmo
+> `tag_sonho` 2x (badge flutuante no topo + badge no rodapé) — redundância apontada pelo
+> usuário via print real. Badge do rodapé substituído por "tempo desde a captação" (dias),
+> informação nova, nunca exibida em lugar nenhum do card antes.**
+>
+> `src/app/crm/kanban/page.tsx` — o badge índigo no rodapé (`{lead.tag_sonho || 'TBD'}`)
+> tirado; no lugar, novo cálculo `daysSinceCreation()` (dias corridos em dia civil, mesmo
+> critério já usado pela data "24 DE AGO." ao lado — nunca fração de 24h) + badge neutro
+> (slate, `ClockIcon`) com "Hoje"/"1 dia"/"N dias". Badge do topo (o pill flutuante com
+> `SparklesIcon`) mantido intocado — é o único lugar que ainda mostra `tag_sonho` no card.
+> Cor deliberadamente neutra (slate), não mais uma cor nova — o usuário tinha levantado a
+> preocupação de "já ter muita cor azul nos cards" antes de interromper a própria mensagem
+> sem chegar a uma decisão sobre isso; escolhida a opção que resolve sem adicionar mais uma
+> cor à paleta do card.
+>
+> **Testado ao vivo no navegador**, board real (tenant CRM SOZINHO, os mesmos leads da
+> imagem do usuário): confirmado por contagem de texto que cada tag (`COMPRADOR À VISTA`/
+> `APENAS PESQUISANDO`) aparece exatamente 1x agora (antes 2x no mesmo card); os 4 badges de
+> dias confirmados via `getComputedStyle` — cor neutra (`rgb(100,116,139)`/slate-500 sobre
+> `rgb(248,250,252)`/slate-50), com ícone de relógio, valores reais ("1 dia", "9 dias")
+> batendo com a data de criação de cada lead. `npx tsc --noEmit`: 0 erros.
+>
+> **Pendência real, não decidida:** a pergunta original do usuário sobre trocar a cor azul
+> dos badges de status (`COMPRADOR À VISTA` etc.) por outra cor — mensagem interrompida
+> antes de eu responder, nunca retomada. Fica em aberto pra próxima vez que for pedido.
+
 > **Atualizado em:** 2026-08-25 (continuação 25) — **Fix real, sem nenhuma mudança de
 > código: foto do dono do lead não carregava no card do Kanban (ícone quebrado) — não era
 > a imagem em si, era o proxy de porta do Docker Desktop pra MinIO (porta 9000) travado,
