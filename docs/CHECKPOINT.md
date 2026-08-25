@@ -1,5 +1,21 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 29) — **Badge "X% Match · Y% Aderência" no
+> canto superior direito do card do Kanban vira 2 linhas ("X% Match" numa, "Y% Aderência"
+> na outra) em vez de 1 linha só separada por " · ".**
+>
+> `src/app/crm/kanban/page.tsx` — cada valor (`score_prontidao`/`score_fit`) passou a ser
+> seu próprio `<div>` dentro do badge (em vez de concatenado por string), com o container
+> ganhando `text-right leading-tight`. Card sem Aderência (`score_fit == null`) continua
+> mostrando só 1 linha, sem espaço vazio — a condicional que já existia (`lead.score_fit !=
+> null && ...`) não mudou, só o jeito de renderizar quando presente.
+>
+> **Testado ao vivo**, mesmo lead real da imagem do usuário ("Severina Bastos"): confirmado
+> via `getBoundingClientRect()` que as 2 linhas ("80% Match"/"60% Aderência") estão em
+> `top` diferentes (502px vs 515.75px) mas mesmo `left` (248px) e mesma `width` (85.7px) —
+> genuinamente empilhadas, não lado a lado. Os demais cards do board (só `score_prontidao`,
+> sem Aderência) confirmados com 1 linha só, sem regressão. `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 28) — **2 ajustes pontuais de UI no Kanban:
 > campo de data do filtro (De/Até) truncava o "dd/mm/aaaa"; data de criação no rodapé do
 > card muda de "24 DE AGO." pra "dd/mm/aaaa".**

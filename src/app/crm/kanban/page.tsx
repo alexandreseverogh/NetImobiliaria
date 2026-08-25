@@ -540,11 +540,11 @@ export default function KanbanPage() {
                           <div className={`text-[11px] font-bold mt-0.5 ${t.isDark ? t.textMuted : 'text-slate-500'}`}>{lead.telefone || lead.email || 'Sem contato'}</div>
                         </div>
                       </div>
-                      <div className={`text-[11px] font-black px-2 py-0.5 rounded-md border ${
+                      <div className={`text-[11px] font-black px-2 py-0.5 rounded-md border text-right leading-tight ${
                         t.isDark ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' : 'text-blue-700 bg-blue-50 border-blue-200 shadow-sm'
                       }`}>
-                        {lead.score_prontidao || 0}% Match
-                        {lead.score_fit != null && ` · ${lead.score_fit}% Aderência`}
+                        <div>{lead.score_prontidao || 0}% Match</div>
+                        {lead.score_fit != null && <div>{lead.score_fit}% Aderência</div>}
                       </div>
                     </div>
 
