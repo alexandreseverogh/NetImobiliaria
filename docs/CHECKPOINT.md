@@ -1,5 +1,35 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 24) — **3 ajustes visuais pontuais na ficha do
+> Kanban: rótulo "Análise Concierge IA" → "Análise por IA"; tiles Intenção/Aderência
+> ganham cor de fundo própria e distinta (azul/violeta, discreta); labels "Histórico de
+> Visitas"/"Atividades" passam a ler como negrito de verdade.**
+>
+> Pedido direto do usuário. `src/app/crm/kanban/page.tsx` — (1) label do card renomeado;
+> (2) os 2 tiles (antes neutros, `t.cardInner` sem cor) ganharam fundo próprio: Intenção em
+> azul (eco do card "Análise por IA" que os envolve), Aderência em violeta (mesma cor já
+> usada em todo o resto da plataforma pra esse conceito — `SegmentFitCriteriaModal.tsx`,
+> Master) — opacidade baixa (`bg-blue-50`/`bg-violet-50` claro, `/10` escuro), mesmo padrão
+> restrito já usado nos tiles de Valor Fechado/Potencial logo abaixo, pra nunca competir
+> com o resto da UI.
+>
+> **Achado real no processo, pego antes de virar bug visual:** `AgendamentosLead.tsx` e
+> `AtividadesLead.tsx` já tinham `font-black` (peso 900, o mais pesado do Tailwind) nesses
+> 2 labels — tecnicamente já "negrito" — mas na cor `t.textMuted` (cinza apagado), que
+> visualmente não lê como ênfase nenhuma nesse tamanho de fonte. Corrigido trocando pra
+> `t.textPrimary` (mesma lógica de contraste que outros labels claramente em negrito da
+> mesma ficha, ex. "Perfil Emocional", já usam) — o peso não mudou, mas agora lê como
+> negrito de verdade.
+>
+> **Testado ao vivo, no navegador, com o mesmo lead real da imagem do usuário** ("Severina
+> Bastos", tenant CRM SOZINHO): "ANÁLISE POR IA" confirmado no cabeçalho do card ·
+> `getComputedStyle` dos 2 tiles confirma `bg-blue-50`/`text-blue-700` (Intenção) e
+> `bg-violet-50`/`text-violet-700` (Aderência), cores distintas e discretas · `getComputedStyle`
+> dos 2 labels confirma `font-weight:900` sobre `rgb(17,24,39)` (gray-900, alto contraste) em
+> vez do cinza apagado de antes. **Achado incidental, limpo no processo:** o mesmo lead tinha
+> 2 sugestões da IA (`crm_agent_actions`) residuais de testes anteriores desta sessão (nunca
+> removidas) — apagadas, `count(*)=0` confirmado. `npx tsc --noEmit`: 0 erros.
+
 > **Atualizado em:** 2026-08-25 (continuação 23) — **Disparo automático da Sugestão da IA
 > (next_best_action) já na captação do lead, gatilhado por um piso de Aderência
 > configurável por segmento — fecha a lacuna discutida com o usuário ("por que só dispara

@@ -692,7 +692,7 @@ export default function KanbanPage() {
                 {/* Coluna 2: Análise IA */}
                 <div className={`p-5 ${t.cardBg} rounded-3xl border border-blue-500/20 relative h-full flex flex-col`}>
                   <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-blue-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-blue-500/20">
-                    <SparklesIcon className="h-3 w-3" /><span>Análise Concierge IA</span>
+                    <SparklesIcon className="h-3 w-3" /><span>Análise por IA</span>
                   </div>
                   
                   <div className="mt-4 flex-1">
@@ -711,15 +711,31 @@ export default function KanbanPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 mt-4">
-                      {/* Intenção (score_prontidao) e Fit (score_fit) — 2 dimensões SEPARADAS,
-                          nunca combinadas num 3º número sintético (docs/
-                          PLANO_AGENTES_ACELERACAO_CRM.md §3.1). O tile "IPVE" antigo aqui era
-                          um valor fabricado (score_prontidao + 15, sem nenhum dado real por
-                          trás) — substituído pelo Fit real. */}
-                      {[['Intenção', `${selectedLead.score_prontidao}%`], ['Aderência', selectedLead.score_fit != null ? `${selectedLead.score_fit}%` : '—']].map(([label, val]) => (
-                        <div key={label} className={`p-3 ${t.cardInner} rounded-xl border ${t.borderSub}`}>
-                          <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.textMuted}`}>{label}</p>
-                          <span className={`text-lg font-bold ${t.textPrimary}`}>{val}</span>
+                      {/* Intenção (score_prontidao) e Aderência (score_fit) — 2 dimensões
+                          SEPARADAS, nunca combinadas num 3º número sintético (docs/
+                          PLANO_AGENTES_ACELERACAO_CRM.md §3.1). Cor de fundo distinta por
+                          tile — azul pra Intenção (eco do card "Análise por IA" que as
+                          envolve), violeta pra Aderência (mesma cor já usada em todo o resto
+                          da plataforma pra esse conceito — SegmentFitCriteriaModal.tsx) —
+                          opacidade baixa, mesmo padrão restrito já usado nos tiles de Valor
+                          Fechado/Potencial logo abaixo, pra nunca roubar atenção da UI. */}
+                      {[
+                        {
+                          label: 'Intenção',
+                          val: `${selectedLead.score_prontidao}%`,
+                          bg: t.isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200',
+                          fg: t.isDark ? 'text-blue-400' : 'text-blue-700',
+                        },
+                        {
+                          label: 'Aderência',
+                          val: selectedLead.score_fit != null ? `${selectedLead.score_fit}%` : '—',
+                          bg: t.isDark ? 'bg-violet-500/10 border-violet-500/20' : 'bg-violet-50 border-violet-200',
+                          fg: t.isDark ? 'text-violet-400' : 'text-violet-700',
+                        },
+                      ].map(({ label, val, bg, fg }) => (
+                        <div key={label} className={`p-3 rounded-xl border ${bg}`}>
+                          <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${fg}`}>{label}</p>
+                          <span className={`text-lg font-bold ${fg}`}>{val}</span>
                         </div>
                       ))}
                     </div>

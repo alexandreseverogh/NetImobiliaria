@@ -87,7 +87,7 @@ export default function AgendamentosLead({ leadUuid, onAgendar, refreshKey }: Pr
   return (
     <div className="space-y-3">
       <div className={`flex items-center justify-between`}>
-        <div className={`flex items-center space-x-2 text-xs font-black uppercase tracking-widest ${t.textMuted}`}>
+        <div className={`flex items-center space-x-2 text-xs font-black uppercase tracking-widest ${t.textPrimary}`}>
           <CalendarDaysIcon className="h-4 w-4 text-blue-500" />
           <span>Histórico de Visitas</span>
           {agendamentos.length > 0 && (
