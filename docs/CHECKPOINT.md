@@ -1,5 +1,56 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 30) — **`/crm/leads` ganha os 3 campos que o
+> roteiro de testes apontou como ausentes (Etapa na tabela, filtro de Etapa real, telefone na
+> busca) + a ficha do lead ("Abrir Ficha") passa a ter paridade real com a ficha do Kanban.**
+>
+> **Contexto:** usuário testando o item 1.3 do `docs/ROTEIRO_TESTES_CRM.md` ("busca/filtro:
+> nome, telefone, e-mail, etapa, período") apontou que a coluna "Etapa" não existia na
+> listagem. Investigação achou mais 2 gaps reais no caminho: o dropdown de filtro
+> "Todos os Status/Novos/Duplicados" nunca teve `value`/`onChange` — decorativo, sem nenhum
+> efeito no filtro real — e a busca por texto nunca incluía o campo telefone. Usuário aprovou
+> corrigir os 3 juntos, e pediu adicionalmente que a ficha aberta via "Abrir Ficha" (o drawer
+> desta tela) passasse a trazer os mesmos campos já exibidos na ficha do Kanban (Atividades,
+> Visitas, etc.) — até então uma versão bem mais pobre da mesma informação.
+>
+> **Implementado:**
+> 1. `src/app/api/crm/leads/route.ts` — `SELECT` do endpoint passou a expor `k.id as
+>    coluna_id` e `k.titulo_exibicao as coluna_titulo` (antes só `k.nome as coluna_nome`, o
+>    slug interno, nunca o rótulo amigável que o tenant configura em `/crm/config/kanban`).
+> 2. `src/app/crm/leads/page.tsx` — coluna "Etapa" nova na tabela (exibe `coluna_titulo`);
+>    dropdown "Todos os Status" trocado por um filtro de Etapa real, populado via
+>    `GET /api/crm/kanban/colunas` (as etapas de verdade do tenant, na ordem do board) e
+>    ligado a `filteredLeads` por `coluna_id`; busca por texto passou a incluir telefone, com
+>    comparação normalizada por dígito (`replace(/\D/g,'')`) — tolerante a `+55`/formatação,
+>    mesmo padrão de robustez já usado no Match Engine (F4, `docs/CHECKPOINT.md` 2026-07-21).
+> 3. Ficha do lead (drawer) reescrita pra reaproveitar os mesmos componentes já usados e
+>    testados na ficha do Kanban, em vez de duplicar uma versão resumida: tiles de
+>    Intenção/Aderência com a mesma cor distinta (azul/violeta) já usada lá; tiles de Valor
+>    Fechado (real, verde)/Valor Potencial (estimado, âmbar) quando presentes;
+>    `NextBestActionCard` (Sugestão da IA); `AgendamentosLead` (Histórico de Visitas, com
+>    "Agendar Visita" condicionado a `tenantConfig.calendario`, via novo `AgendarVisitaModal`
+>    nesta tela); `AtividadesLead` (Atividades, com o mesmo mecanismo de pré-preenchimento a
+>    partir da Sugestão da IA — "Registrar como Atividade" — já usado no Kanban). Campos
+>    `coluna_id`/`coluna_titulo`/`client_id`/`valor_venda`/`valor_venda_estimado` já vinham do
+>    backend (adicionados nesta e em sessões anteriores) — não precisou de nenhum campo novo
+>    além de `coluna_id`/`coluna_titulo` no passo 1. Deliberadamente fora de escopo (navegação
+>    de board, não "campo do lead"): barra de progresso de etapa, botões Avançar/Recuar Etapa,
+>    Excluir/Restaurar Lead — esta tela nunca teve o conceito de "próxima coluna" a oferecer.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant Marketing Digital, sessão real via
+> JWT com `userId` real de `admmd`): filtro de Etapa real testado (selecionar "Lead Captado"
+> excluiu corretamente o único lead em "Entendimento da Dor" dos 6 reais do tenant) · busca por
+> telefone testada (`"998000047"`, sem o prefixo `+55` armazenado, achou corretamente "Roberto
+> Severo") · ficha aberta confirmou, via rede real (não simulada): `GET .../next-best-action`,
+> `GET /agendamentos`, `GET /atividades`, `GET /atividades/tipos`, todos `200`, e renderizando
+> corretamente "Sugestão da IA" (`enabled:true, suggestion:null` → "Nenhuma sugestão gerada
+> ainda"), "Histórico de Visitas" e "Atividades" (ambos vazios, honesto — lead de teste real
+> sem histórico) · confirmado visualmente (screenshot) que os tiles "Intenção"/"Aderência" saem
+> azul/violeta reais, headers "Histórico de Visitas"/"Atividades" em negrito · botão "Agendar
+> Visita" corretamente AUSENTE (tenant com `calendario:false`, mesma condicional já usada no
+> Kanban) — confirma que a paridade não é só visual, a lógica condicional também foi
+> reaproveitada corretamente. `npx tsc --noEmit`: 0 erros (nos 2 arquivos tocados e no total).
+>
 > **Atualizado em:** 2026-08-25 (continuação 29) — **Badge "X% Match · Y% Aderência" no
 > canto superior direito do card do Kanban vira 2 linhas ("X% Match" numa, "Y% Aderência"
 > na outra) em vez de 1 linha só separada por " · ".**
