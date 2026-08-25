@@ -1,5 +1,38 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 40) — **Fix real: em `/crm/config/atividades`,
+> clicar num filtro de categoria ou numa aba de biblioteca (Lucide/Material/Heroicons) dentro
+> do seletor de ícone submetia o formulário de "Nova Atividade" por engano, fechando o modal
+> e "pulando" os campos seguintes — usuário relatou percebendo isso ao escolher um ícone.**
+>
+> **Causa raiz:** 6 `<button>` dentro dos 3 componentes do seletor de ícone
+> (`HybridIconSelector.tsx`, `LucideIconSelector.tsx`, `MaterialIconSelector.tsx`) nunca
+> tinham `type="button"` — as abas de biblioteca (✨ Lucide / 🎨 Material / ⚡ Heroicons), os
+> filtros de categoria de cada biblioteca, e o botão "Limpar" da busca do Lucide. Como esses
+> componentes vivem DENTRO do `<form onSubmit={handleSave}>` da tela de atividades, o HTML
+> trata qualquer `<button>` sem `type` explícito como `type="submit"` por padrão — clicar em
+> qualquer um desses (não só no ícone final) disparava `handleSave()` com o formulário ainda
+> incompleto, salvando e fechando o modal na hora. Só o botão do ícone individual em si (o
+> quadradinho clicável de cada ícone) já tinha `type="button"` correto nos 3 componentes —
+> por isso o problema só aparecia ao interagir com abas/filtros ANTES de clicar no ícone
+> escolhido, não sempre.
+>
+> **Corrigido:** `type="button"` adicionado nos 6 pontos. Sem mudança de comportamento
+> nenhuma além de parar de submeter sozinho — o clique em cada aba/filtro continua fazendo
+> exatamente o que já fazia (trocar biblioteca, filtrar categoria, limpar busca).
+>
+> **Testado ao vivo, reproduzindo a sequência exata do bug e confirmando a correção**
+> (tenant Marketing Digital, via `/crm/config/atividades` → "+ Nova Atividade" → abrir
+> seletor de ícone): clique na aba "🎨 Material (Otimizado)" → modal continuou aberto,
+> trocou de biblioteca corretamente (confirmado por `type="button"` no DOM real e pelo
+> conteúdo da tela mudando para "Material UI Icons... 30 ícones") · clique no filtro
+> "Business (2)" → modal continuou aberto, filtrou corretamente · clique no ícone real
+> "Apartment" → seletor fechou (comportamento esperado), modal principal continuou aberto
+> com Nome/Ordem/Cor/Direção/Salvar ainda visíveis, campo Ícone preenchido com
+> `mui-Apartment` — fluxo completo, do jeito que deveria ter funcionado desde sempre. Modal
+> fechado sem salvar (`Fechar`), confirmado por SQL que nada foi persistido
+> (`count(*)=0` pra `icone='mui-Apartment'`). `npx tsc --noEmit`: 0 erros.
+>
 > **Atualizado em:** 2026-08-25 (continuação 39) — **Ícone do avatar em `/crm/leads`
 > (coluna Identidade) trocado de azul pra laranja claro — usuário apontou que o cliente é a
 > informação mais importante da linha e merece se destacar do azul, já o acento dominante no

@@ -57,7 +57,8 @@ export function LucideIconSelector({ selected, onSelect }: LucideIconSelectorPro
         />
         <Lucide.Search className="absolute left-4 top-3.5 w-5 h-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
         {search && (
-          <button 
+          <button
+            type="button"
             onClick={() => setSearch('')}
             className="absolute right-4 top-3.5 text-[10px] font-black text-gray-400 hover:text-red-500 uppercase transition-colors"
           >

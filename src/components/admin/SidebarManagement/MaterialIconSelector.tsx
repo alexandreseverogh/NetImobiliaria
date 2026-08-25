@@ -123,6 +123,7 @@ export function MaterialIconSelector({ selected, onSelect }: MaterialIconSelecto
         {categories.map(category => (
           <button
             key={category}
+            type="button"
             onClick={() => setSelectedCategory(category)}
             className={`px-3 py-1 text-sm rounded-full transition-colors ${
               selectedCategory === category

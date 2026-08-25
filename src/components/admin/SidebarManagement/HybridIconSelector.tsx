@@ -114,6 +114,7 @@ function LegacyIconSelector({ selected, onSelect }: { selected?: string; onSelec
         {categories.map(category => (
           <button
             key={category}
+            type="button"
             onClick={() => setSelectedCategory(category)}
             className={`px-3 py-1 text-sm rounded-full transition-colors ${
               selectedCategory === category
@@ -185,6 +186,7 @@ export function HybridIconSelector({ selected, onSelect }: { selected?: string; 
       {/* Toggle entre bibliotecas */}
       <div className="flex gap-2 p-1 bg-gray-100 rounded-2xl">
         <button
+          type="button"
           onClick={() => setLibrary('lucide')}
           className={`flex-1 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
             library === 'lucide'
@@ -195,6 +197,7 @@ export function HybridIconSelector({ selected, onSelect }: { selected?: string; 
           ✨ Lucide Premium (4.000+)
         </button>
         <button
+          type="button"
           onClick={() => setLibrary('material')}
           className={`flex-1 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
             library === 'material'
@@ -205,6 +208,7 @@ export function HybridIconSelector({ selected, onSelect }: { selected?: string; 
           🎨 Material (Otimizado)
         </button>
         <button
+          type="button"
           onClick={() => setLibrary('legacy')}
           className={`flex-1 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
             library === 'legacy'
