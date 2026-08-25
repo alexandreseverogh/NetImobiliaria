@@ -1,12 +1,12 @@
 # 23 Gestão de CRM, Fila de Leads e Webchat
 
-> **Manual do Usuário — Guia Ilustrado de Operação do CRM Kanban, Fila de Leads, Webchat Público e Transbordo**
+> **Manual do Usuário — Guia Ilustrado de Operação do CRM Kanban, Fila de Leads, Webchat Público, Transbordo e Recomendação de Feed**
 
 ---
 
 ## 1. Fluxo de Vida do Lead no CRM
 
-O gerenciamento de oportunidades segue um fluxo automatizado que une Inteligência Artificial e atendimento humano:
+O gerenciamento de oportunidades segue um fluxo automatizado que une Inteligência Artificial, recomendação de conteúdo e atendimento humano:
 
 ```mermaid
 graph TD
@@ -15,9 +15,10 @@ graph TD
     C --> D{Interesse Qualificado?}
     D -- Não / Dúvida Simples --> E[Resposta Automática pelo Bot 🤖]
     D -- Sim / Solicita Atendente --> F[4. Disparo do Roteador de Transbordo]
-    F --> G[5. Atribuição ao Operador Responsável - Round Robin]
-    G --> H[6. Notificação Sonora + Destaque Visual no CRM 🔔]
-    H --> I[7. Atendimento Humano / Agendamento / Proposta]
+    F --> G[5. IA Recomenda Artigo do Feed durante a Espera 📰]
+    G --> H[6. Atribuição ao Operador Responsável - Round Robin]
+    H --> I[7. Notificação Sonora + Destaque Visual no CRM 🔔]
+    I --> J[8. Atendimento Humano / Agendamento / Proposta]
 ```
 
 ---
@@ -43,56 +44,27 @@ Abaixo encontra-se a representação do quadro Kanban de atendimento a leads:
 
 ---
 
-## 3. Interpretação dos Elementos dos Cards de Leads
+## 3. Tela de Atendimento ao Vivo, Transbordo e Recomendação de Feed
 
-Cada card no Kanban fornece informações resumidas e acionáveis sobre a oportunidade:
-
-1. **Badge de Score / Urgência**:
-   * 🔴 **Score 80 a 100 (Quente / HOT)**: Lead com alta intenção de compra imediata ou orçamento aprovado.
-   * 🟡 **Score 50 a 79 (Morno / WARM)**: Lead em fase de pesquisa de mercado.
-   * 🔵 **Score 0 a 49 (Frio / COLD)**: Lead em prospecção futura.
-2. **Badge de Origem**:
-   * `[Meta Ads]` (Lead Ads do Instagram/Facebook), `[Google Ads]` (Busca do Google), `[Webchat]` (Chat do site público), `[Direto]` (Cadastro manual).
-3. **Avatar do Responsável (`OwnerAvatar`)**:
-   * Exibe a foto do corretor/operador responsável. Se o lead ainda não tiver atendente, exibirá `[👤 Sem Dono]`.
-4. **Tempo de Espera ⏱️**:
-   * Mostra há quanto tempo o lead aguarda interação humana.
-
----
-
-## 4. Matriz de Filtros de Período do CRM
-
-A barra superior do CRM conta com seletores flexíveis para análise temporal dos leads:
-
-| Opção de Filtro | Intervalo de Datas Considerado | Finalidade de Uso |
-| :--- | :--- | :--- |
-| **7 Dias** | Últimos 7 dias a partir de hoje. | Foco na operação semanal e acompanhamento de leads recentes. |
-| **30 Dias** | Últimos 30 dias corridos (Padrão). | Visão mensal do funil comercial e metas da equipe. |
-| **90 Dias** | Últimos 3 meses. | Análise trimestral de conversão de leads lentos. |
-| **Personalizado** | Seleção manual via `DateInputPtBR` (De / Até). | Auditoria de campanhas específicas ou eventos promocionais. |
-| **Histórico Completo** | Todos os registros da base de dados. | Avaliação completa da carteira histórica de clientes. |
-
----
-
-## 5. Tela de Atendimento ao Vivo e Transbordo de Atendimento
-
-Ao clicar em **[💬 Chat]** no card do lead, a janela de atendimento em tempo real é aberta:
+Ao clicar em **[💬 Chat]** no card do lead, a janela de atendimento em tempo real exibe a interação entre o robô e o visitante:
 
 ```
 +---------------------------------------------------------------------------------------------------------+
 |  💬 CHAT COM: João Carlos Silva (Lead #803)                  [👤 Atribuído: Paulo Silva] [Assumir Chat] |
 +---------------------------------------------------------------------------------------------------------+
-|  🤖 [BOT IA]: Olá João! Vi que você se interessou pelo Apartamento em Boa Viagem.                       |
-|  👤 [JOÃO]: Sim! Gostaria de saber o valor do condomínio e agendar uma visita amanhã.                    |
-|  🤖 [BOT IA]: O condomínio é R$ 850/mês. Vou chamar o corretor Paulo para confirmar o horário.          |
+|  🤖 [BOT IA]: Olá João! Vi que você se interessou pela nossa solução de automação de atendimentos.      |
+|  👤 [JOÃO]: Sim! Gostaria de saber os valores e falar com um consultor.                                 |
+|  🤖 [BOT IA]: Perfeito! Estou transferindo você para o especialista Paulo Silva.                        |
+|  📰 [BOT IA]: Enquanto ele conecta (tempo est. 1 min), confira esta leitura rápida sobre IA e ROI:     |
+|              👉 "Como Empresas Reduziram em 60% o Tempo de Resposta com Chatbots Inteligentes"          |
 |  ------------------ 🔔 SISTEMA: TRANSBORDO EXECUTADO - CHAT TRANSFERIDO PARA PAULO -------------------  |
-|  👨‍💼 [PAULO SILVA]: Olá João! Tudo bem? Posso confirmar sua visita para amanhã às 15h?                   |
+|  👨‍💼 [PAULO SILVA]: Olá João! Tudo bem? Sou o Paulo, como posso te ajudar com a sua operação?            |
 +---------------------------------------------------------------------------------------------------------+
 |  [ Digite sua mensagem aqui...                                                         ]  [ Enviar 🚀 ] |
 +---------------------------------------------------------------------------------------------------------+
 ```
 
-### Regras do Robô de Transbordo Automatizado:
-1. Quando o bot solicita um atendente humano, o robô dispara a rotação *Round-Robin*.
-2. O sistema seleciona o próximo corretor da lista que estiver com o status **🟢 Online**.
-3. Se o corretor não responder em até **15 minutos**, o robô remove a atribuição e repassa o lead para o próximo profissional da fila, registrando a ocorrência nos logs do CRM.
+### Regras do Recomendador de Feed no Chatbot:
+1. Assim que o transbordo para o operador humano é acionado, o robô consulta no banco `feed.feed_conteudos` o artigo mais recente e relevante para o segmento do lead.
+2. O bot envia o link e o resumo de 1 linha do artigo na conversa.
+3. Isso **retém a atenção do lead**, diminui a percepção de tempo de espera e educa o cliente antes da conversa com o consultor.
