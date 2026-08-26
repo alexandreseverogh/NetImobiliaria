@@ -1,5 +1,25 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-26 (continuação 3) — **`/crm/leads`: Valor Fechado (real) passa a
+> aparecer logo no resumo da linha (coluna "Dados Enriquecidos"), não mais só dentro da ficha
+> — pedido direto do usuário: "quando um lead tiver passado pela fase de fechamento... esse
+> valor de fechamento também é para ser exibido logo no resumo do lead".**
+>
+> `src/app/crm/leads/page.tsx` — badge `lead.valor_venda != null` inserido no topo da célula
+> "Dados Enriquecidos", antes do bloco `EnrichedLeadData`/snippet de mensagem — mesma cor/
+> formato já usado no card do Kanban (`bg-emerald-500/10 text-emerald-500`), pra manter o
+> mesmo vocabulário visual de "isto é o valor REAL de um negócio fechado" em toda a
+> plataforma. Escopo deliberadamente restrito ao valor REAL (`valor_venda`) — o pedido foi
+> especificamente sobre "fase de fechamento"; `valor_venda_estimado` (Pipeline em aberto) não
+> foi tocado nesta rodada, sem que tenha sido pedido.
+>
+> **Testado ao vivo, com dado real** (tenant CRM SOZINHO): 2 leads reais já fechados
+> ("Severina Bastos" R$45.000,00, "Julieta Maria Lima" R$55.000,00) confirmados via DOM —
+> `getComputedStyle` mostra `rgb(16,185,129)`/`rgba(16,185,129,0.1)` (emerald-500 exato) só
+> nesses 2 valores, distinto dos demais valores em texto simples (Faixa de Preço/Orçamento
+> Previsto, que continuam neutros) — os 3 leads sem fechamento não mostram nenhum badge extra.
+> `npx tsc --noEmit`: zero erros no arquivo tocado.
+>
 > **Atualizado em:** 2026-08-26 (continuação 2) — **Modal "Negócio Fechado" do Kanban passa a
 > mostrar, como referência desabilitada, o valor de interesse que o PRÓPRIO lead declarou —
 > genérico por segmento, feito na mesma investigação do rótulo "Faixa de Valor".**

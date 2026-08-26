@@ -322,6 +322,15 @@ export default function LeadsStagingPage() {
                   </div>
                 </td>
                 <td className="px-4 py-3">
+                  {/* Valor Fechado (REAL) — só aparece depois que o lead passou pela etapa de
+                      Ganho e o valor foi informado (kanban/page.tsx, modal "Negócio Fechado").
+                      Mesma cor/formato já usado no card do Kanban (bg-emerald-500/10), pra que
+                      o resumo desta lista dê a mesma informação sem precisar abrir a ficha. */}
+                  {lead.valor_venda != null && (
+                    <span className="inline-flex items-center mb-1.5 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.valor_venda)}
+                    </span>
+                  )}
                   {lead.enriquecimento_cache ? (
                     <div className="min-w-[240px] max-w-sm"><EnrichedLeadData cache={lead.enriquecimento_cache} /></div>
                   ) : lead.imovel_id ? (
