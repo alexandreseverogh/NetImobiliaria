@@ -1,5 +1,25 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-26 (continuação) — **Rótulo "Faixa de Preço" → "Faixa de Valor"
+> no segmento Venda de Carros + esclarecido pro usuário: `raw_json.faixa_preco` (Perfil de
+> Interesse, na criação) e `valor_venda`/`valor_venda_estimado` (Pipeline/Fechamento, no
+> Kanban) são 3 colunas 100% independentes em `leads_staging` — confirmado lendo
+> `kanban/move/route.ts`, o `UPDATE` do move monta um `SET` dinâmico que só toca `status`/
+> `valor_venda`/`valor_venda_estimado`/`updated_at`, nunca `raw_json`. Informar o valor de
+> fechamento nunca sobrescreve nem apaga o que foi digitado em "Faixa de Valor" — coexistem
+> na mesma linha, cada um com seu propósito (interesse declarado × estimativa de pipeline ×
+> valor real fechado).
+>
+> Mudança em si é só de rótulo — `name: "faixa_preco"` (a chave interna, usada dentro de
+> `raw_json` e lida pelo `EnrichmentService`) preservado intacto de propósito, pra não quebrar
+> a leitura de nenhum dado já gravado; só o `label` exibido mudou. Feito via a mesma API real
+> do Master (`PUT /api/admin/master/segments/[id]/ativo-config`), sem SQL direto.
+>
+> **Testado ao vivo:** round-trip da API confirma `label:"Faixa de Valor"` com `name`/`type`/
+> `required` intactos; sessão real no navegador → "+ Novo Lead" → Passo 2 confirma o rótulo
+> "FAIXA DE VALOR" renderizado corretamente. Modal fechado sem submeter, confirmado por SQL
+> que nenhum lead de teste foi criado (`count(*)=0`).
+>
 > **Atualizado em:** 2026-08-26 — **Campo redundante removido do "Perfil de Interesse" do
 > segmento Venda de Carros: "Orçamento Previsto" e "Faixa de Preço" eram 2 campos de moeda
 > separados perguntando essencialmente a mesma coisa — usuário apontou via print real do
