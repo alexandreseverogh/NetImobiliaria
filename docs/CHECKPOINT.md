@@ -1,8 +1,43 @@
 # CHECKPOINT — Estado Atual do Projeto
 
-> **Atualizado em:** 2026-08-25 (continuação 41) — **Fix real: sidebar mantinha 2 itens
-> destacados ao mesmo tempo (ex.: "Dashboard de ROI CRM" e "Personalização Kanban"
-> simultaneamente) — usuário reportou com print real.**
+> **Atualizado em:** 2026-08-26 — **Campo redundante removido do "Perfil de Interesse" do
+> segmento Venda de Carros: "Orçamento Previsto" e "Faixa de Preço" eram 2 campos de moeda
+> separados perguntando essencialmente a mesma coisa — usuário apontou via print real do
+> `NovoLeadModal.tsx` e pediu análise de todo o módulo de CRM antes de decidir qual ficava.**
+>
+> **Investigação (sem tocar em nada), ponta a ponta, confirmou zero distinção funcional entre
+> os dois em qualquer lugar do código:** (1) `NovoLeadModal.tsx` renderiza o formulário 100%
+> genérico a partir do `form_schema_json` do segmento — nenhuma linha reconhece nenhum dos 2
+> nomes; (2) `POST /api/crm/leads` grava os dois juntos, sem distinção, dentro do mesmo blob
+> `raw_json`; (3) `ConciergeService.qualifyLead` recebe `raw_json` só como flag booleana
+> ("existe dado estruturado?") — o conteúdo NUNCA é injetado no prompt do LLM, só `mensagem`
+> (texto livre) vai pra IA, então nenhum dos 2 campos influencia score/qualificação hoje; (4)
+> `EnrichmentService.enrichGenericLead` (os badges de "Dados Enriquecidos") itera o schema
+> campo a campo sem nenhum `if` por nome — os dois, sendo `type:"currency"`, recebiam
+> exatamente o mesmo ícone, formatação e `full_width:true`; (5) nenhum dos 2 se conecta a
+> `valor_venda`/`valor_venda_estimado` (os campos reais de Pipeline/Fechamento) — essa
+> captura é 100% independente, feita depois, ao mover o lead no Kanban. Única diferença real
+> encontrada: `faixa_preco` era `required:true`, `orcamento_previsto` era `required:false`.
+>
+> **Decisão do usuário, depois da análise:** manter só "Faixa de Preço" (o obrigatório).
+> Corrigido via a própria API real do Master (`GET`+`PUT
+> /api/admin/master/segments/[id]/ativo-config`, replace-all — nunca SQL direto), removendo
+> só a entrada `orcamento_previsto` do `form_schema_json` do segmento Venda de Carros; os
+> outros 5 campos (`marca_desejada`, `faixa_preco`, `ano_desejado`, `tipo_veiculo`,
+> `comentario`) e `target_table`/`layout_json`/`is_active` preservados exatamente como
+> estavam. Nenhum tenant tinha override próprio desse schema (`crm_ativo_config_tenant`
+> confirmado vazio pra ambos os nomes) — só a config do segmento precisou de ajuste.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant CRM SOZINHO, sessão real):
+> round-trip da API confirma os 5 campos certos, `orcamento_previsto` ausente · sessão real no
+> navegador → "+ Novo Lead" → Passo 2 "Perfil de Interesse" confirma só 5 campos renderizados
+> (Marca Desejada/Faixa de Preço/Ano Desejado/Tipo de Veículo/Comentário), sem "Orçamento
+> Previsto" · confirmado que leads JÁ EXISTENTES (ex. "Julieta Maria Lima", "Frank Aguiar" na
+> coluna "Em Análise") continuam mostrando o badge "ORÇAMENTO PREVISTO" no card do Kanban —
+> comportamento esperado e correto, é o `enriquecimento_cache` já gravado no momento da
+> criação de cada um, a mudança só afeta lead criado daqui pra frente, nunca reprocessa
+> retroativamente dado histórico. Modal fechado sem submeter, confirmado por SQL que nenhum
+> lead de teste foi criado (`count(*)=0`).
 >
 > **Causa raiz:** `AdminSidebar.tsx`, `isActive(href)` usava `pathname.startsWith(href)` sem
 > nenhum limite — `/crm` (Dashboard de ROI CRM) é literalmente um prefixo de string de
