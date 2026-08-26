@@ -437,7 +437,7 @@ export async function GET(request: NextRequest) {
     const query = `
       SELECT l.lead_uuid, l.nome, l.email, l.telefone, l.status, l.score_prontidao, l.score_fit, l.tag_sonho, l.resumo_ia,
              l.mensagem_original, l.match_method,
-             l.imovel_id, l.estado_fk, l.cidade_fk, l.created_at, l.enriquecimento_cache, l.client_id,
+             l.imovel_id, l.estado_fk, l.cidade_fk, l.created_at, l.enriquecimento_cache, l.raw_json, l.client_id,
              l.valor_venda, l.valor_venda_estimado, l.deleted_at,
              k.id as coluna_id, k.nome as coluna_nome, k.titulo_exibicao as coluna_titulo,
              k.is_ganho, k.is_perda, k.requer_valor_estimado,

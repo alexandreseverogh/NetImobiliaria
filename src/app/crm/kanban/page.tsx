@@ -46,6 +46,10 @@ interface Lead {
   score_fit?: number | null;
   imovel_id?: number | null;
   enriquecimento_cache?: any; created_at?: string; match?: string;
+  /** Respostas cruas do Perfil de Interesse (NovoLeadModal), chaveadas pelo `name` de cada
+   *  campo do form_schema_json do segmento/tenant — nunca lido por nome fixo aqui (ver
+   *  ativoFormSchema/referenceValueField abaixo), pra continuar 100% agnóstico de segmento. */
+  raw_json?: Record<string, any> | null;
   client_id?: string | null; atividades_count?: number;
   /** valor_venda = REAL, só existe depois do fechamento. valor_venda_estimado = palpite de
    *  quem está atendendo, nunca confundido com o real — sempre rotulados de forma distinta na
@@ -105,6 +109,11 @@ export default function KanbanPage() {
   const [filterOwnerId, setFilterOwnerId] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
+  // Schema do Perfil de Interesse (mesmo formSchema que o NovoLeadModal usa pra montar o
+  // formulário) — usado só pra achar, de forma agnóstica de segmento, qual campo é o de
+  // valor declarado pelo lead (o único/primeiro type:"currency" do schema), pra mostrar como
+  // referência no modal de "Negócio Fechado" abaixo. Nunca lido por nome fixo.
+  const [ativoFormSchema, setAtivoFormSchema] = useState<{ name: string; type: string; label: string }[]>([])
 
   const getInitials = (name: string) => {
     if (!name) return 'LD'
@@ -131,6 +140,7 @@ export default function KanbanPage() {
   useEffect(() => {
     fetchData()
     fetchTenantConfig()
+    fetchAtivoFormSchema()
 
     // Se detectar sucesso no Google Auth, limpa URL e refaz fetch
     if (searchParams?.get('google_auth') === 'success') {
@@ -152,6 +162,16 @@ export default function KanbanPage() {
       if (data.success) setTenantConfig(data.config)
     } catch (err) {
       console.error('❌ [CRM] Erro ao carregar config do tenant:', err)
+    }
+  }
+
+  const fetchAtivoFormSchema = async () => {
+    try {
+      const res = await adminFetch('/api/crm/ativo/config')
+      const data = await res.json()
+      if (data.success) setAtivoFormSchema(data.formSchema || [])
+    } catch (err) {
+      console.error('❌ [CRM] Erro ao carregar schema do Perfil de Interesse:', err)
     }
   }
 
@@ -241,6 +261,16 @@ export default function KanbanPage() {
     if (!targetCol) return
     requestMove(lead, targetCol)
   }
+
+  // O campo de valor que o PRÓPRIO lead declarou no Perfil de Interesse (ex.: "Faixa de
+  // Valor" em Venda de Carros, "Valor" em Imobiliário) — sempre o 1º campo type:"currency"
+  // do schema resolvido pro tenant/segmento, nunca um nome fixo. Mostrado como referência,
+  // desabilitado, no modal de "Negócio Fechado" — o atendente vê o que o lead pediu antes de
+  // informar o valor real fechado.
+  const referenceValueField = useMemo(
+    () => ativoFormSchema.find(f => f.type === 'currency'),
+    [ativoFormSchema]
+  )
 
   // Dono do lead — lista derivada dos leads já carregados (mesma fonte de verdade do avatar/
   // legenda do card), não uma chamada nova a /api/admin/usuarios: só faz sentido oferecer no
@@ -894,7 +924,7 @@ export default function KanbanPage() {
 
       <NovoLeadModal isOpen={isNovoLeadOpen} onClose={() => setIsNovoLeadOpen(false)} onSuccess={fetchData} />
 
-      {/* Modal "Valor da Venda" — sempre que um lead entra numa etapa de Ganho */}
+      {/* Modal "Valor de Fechamento" — sempre que um lead entra numa etapa de Ganho */}
       {pendingGanhoMove && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
           <div className={`${t.modalBg} w-full max-w-sm rounded-[2rem] p-7 shadow-2xl border border-white/10 animate-in zoom-in-95`}>
@@ -907,8 +937,25 @@ export default function KanbanPage() {
                 <p className={`text-[10px] font-bold ${t.textMuted}`}>{pendingGanhoMove.lead.nome}</p>
               </div>
             </div>
+            {/* Referência: o valor que o PRÓPRIO lead declarou no Perfil de Interesse (ex.:
+                "Faixa de Valor"), sempre desabilitado — nunca editável aqui, é só contexto pra
+                o atendente comparar com o que vai informar como fechamento real abaixo. Só
+                aparece quando o segmento tem esse campo configurado E o lead de fato preencheu. */}
+            {referenceValueField && pendingGanhoMove.lead.raw_json?.[referenceValueField.name] && (
+              <div className="mb-4">
+                <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
+                  {referenceValueField.label} (declarado pelo lead)
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={String(pendingGanhoMove.lead.raw_json[referenceValueField.name])}
+                  className={`w-full rounded-2xl py-3 px-4 text-sm font-bold cursor-not-allowed opacity-60 ${t.isDark ? t.inputBg : 'bg-slate-100 text-slate-500 border border-slate-200'}`}
+                />
+              </div>
+            )}
             <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
-              Valor da Venda (opcional)
+              Valor de Fechamento (opcional)
             </label>
             <div className="relative">
               <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold ${t.textMuted}`}>R$</span>

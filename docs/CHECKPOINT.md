@@ -1,5 +1,47 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-26 (continuação 2) — **Modal "Negócio Fechado" do Kanban passa a
+> mostrar, como referência desabilitada, o valor de interesse que o PRÓPRIO lead declarou —
+> genérico por segmento, feito na mesma investigação do rótulo "Faixa de Valor".**
+>
+> **Correção de premissa, antes de agir:** o usuário presumiu que "Faixa de Preço"/"Orçamento
+> Previsto" (entrada anterior) fossem colunas reais de `leads_staging` e pediu pra excluir a
+> que sobrou. Confirmado via `\d leads_staging`: **nunca existiu coluna nenhuma com esses
+> nomes** — são só chaves dentro do `raw_json` (JSONB genérico), geradas dinamicamente pelo
+> `form_schema_json` que o Master cura por segmento. `raw_json.faixa_preco`,
+> `valor_venda_estimado` e `valor_venda` são as 3 colunas de valor reais da tabela, 100%
+> independentes entre si — confirmado lendo `kanban/move/route.ts`: o `UPDATE` do move monta
+> um `SET` dinâmico que só toca `status`/`valor_venda`/`valor_venda_estimado`/`updated_at`,
+> nunca `raw_json`. Informar o valor de fechamento nunca sobrescreve o que foi digitado em
+> "Faixa de Valor". Achado 1 resíduo histórico real (1 lead com `orcamento_previsto` ainda no
+> `raw_json`, de antes da remoção do campo) — deixado intacto, dado congelado, mesmo padrão já
+> adotado no projeto pra não reprocessar histórico sem pedido explícito.
+>
+> **Implementado (pedido real, não hipotético):** no modal "Negócio Fechado 🎉" (dispara ao
+> mover um lead pra uma coluna de Ganho), o atendente agora vê, acima do campo de valor real,
+> um campo **desabilitado** com o valor que o próprio lead declarou no Perfil de Interesse —
+> rótulo "Faixa de Valor (declarado pelo lead)" hoje, mas **calculado dinamicamente**: sempre
+> o 1º campo `type:"currency"` do `form_schema_json` resolvido pro tenant/segmento
+> (`GET /api/crm/ativo/config`, já existente, reaproveitado) — zero nome de campo/segmento
+> fixo, funciona igual em Imobiliário (`preco`) ou qualquer segmento futuro com um campo de
+> moeda no Perfil de Interesse. Só aparece quando o segmento tem esse campo configurado E o
+> lead de fato preencheu (nunca um campo vazio). O campo real de baixo foi renomeado de
+> "Valor da Venda (opcional)" pra **"Valor de Fechamento (opcional)"**, como pedido.
+>
+> `l.raw_json` adicionado ao `SELECT` de `GET /api/crm/leads` (não vinha antes) —
+> `kanban/page.tsx` ganhou `raw_json` no tipo `Lead`, novo state `ativoFormSchema` (fetch de
+> `/api/crm/ativo/config` no mount) e `referenceValueField` (useMemo, acha o campo currency).
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant CRM SOZINHO, lead real "Frank
+> Aguiar", `raw_json.faixa_preco="R$ 20.000,00"`): avançado etapa a etapa (Lead Captado →
+> ... → Proposta Enviada → tentativa de mover pra Fechamento) até disparar o modal — campo
+> desabilitado confirmado via DOM (`disabled:true, value:"R$ 20.000,00"`), rótulo "FAIXA DE
+> VALOR (DECLARADO PELO LEAD)" renderizado corretamente, campo "VALOR DE FECHAMENTO
+> (OPCIONAL)" vazio ao lado. Modal cancelado (não fechei negócio de verdade nesse lead real) e
+> o lead recuado etapa a etapa de volta pra "Lead Captado" — confirmado por SQL que
+> `valor_venda`/`valor_venda_estimado` permanecem `NULL`, sem nenhum resíduo da verificação.
+> `npx tsc --noEmit`: zero erros nos 2 arquivos tocados.
+>
 > **Atualizado em:** 2026-08-26 (continuação) — **Rótulo "Faixa de Preço" → "Faixa de Valor"
 > no segmento Venda de Carros + esclarecido pro usuário: `raw_json.faixa_preco` (Perfil de
 > Interesse, na criação) e `valor_venda`/`valor_venda_estimado` (Pipeline/Fechamento, no
