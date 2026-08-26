@@ -1,5 +1,32 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-25 (continuação 41) — **Fix real: sidebar mantinha 2 itens
+> destacados ao mesmo tempo (ex.: "Dashboard de ROI CRM" e "Personalização Kanban"
+> simultaneamente) — usuário reportou com print real.**
+>
+> **Causa raiz:** `AdminSidebar.tsx`, `isActive(href)` usava `pathname.startsWith(href)` sem
+> nenhum limite — `/crm` (Dashboard de ROI CRM) é literalmente um prefixo de string de
+> `/crm/config/kanban` (Personalização Kanban), então os dois casavam ao mesmo tempo pra
+> qualquer página dentro de `/crm/*`. O código já tinha um caso especial pra `/admin` exigindo
+> match exato (`href === '/admin' ? pathname === '/admin' : ...`) — sinal de que esse mesmo
+> problema já tinha sido notado ali antes, só nunca generalizado pra outros caminhos curtos
+> como `/crm`.
+>
+> **Corrigido, sem quebrar o caso legítimo de rota dinâmica aninhada** (ex.: uma lista
+> continuar destacada enquanto se edita um registro dela, tipo `/algo/42/editar`): agora
+> `isActive` só considera um item "ativo por ancestralidade" quando **nenhum outro item do
+> menu é um match mais específico** (mais longo) pro `pathname` atual — calculado achatando
+> todos os `path` reais cadastrados no menu (`allMenuPaths`) e comparando comprimento. Como
+> `/crm/config/kanban` É um item real do próprio menu, ele sempre vence `/crm` como o match
+> mais específico, e `/crm` para de acender à toa.
+>
+> **Testado ao vivo, os dois sentidos, com dado real** (tenant Marketing Digital, mesma
+> estrutura de menu do print do usuário): em `/crm/config/kanban` → só "Personalização
+> Kanban" com fundo destacado (`rgb(26,43,60)`), "Dashboard de ROI CRM" transparente (bug
+> original confirmado corrigido) · em `/crm` → só "Dashboard de ROI CRM" destacado, todos os
+> irmãos (Personalização Kanban, Catálogo de Atividades, Agentes de Aceleração, Field
+> Builder) transparentes — nenhuma regressão no sentido inverso. `npx tsc --noEmit`: 0 erros.
+>
 > **Atualizado em:** 2026-08-25 (continuação 40) — **Fix real: em `/crm/config/atividades`,
 > clicar num filtro de categoria ou numa aba de biblioteca (Lucide/Material/Heroicons) dentro
 > do seletor de ícone submetia o formulário de "Nova Atividade" por engano, fechando o modal

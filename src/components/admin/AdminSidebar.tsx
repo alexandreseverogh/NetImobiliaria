@@ -89,12 +89,30 @@ export default function AdminSidebar({
     )
   }
 
+  // Achata todos os `path` reais cadastrados no menu (categorias têm path null, só folhas
+  // navegam) — usado por isActive() pra decidir qual item é o match MAIS ESPECÍFICO pro
+  // pathname atual, evitando 2 itens acesos ao mesmo tempo quando um caminho curto (ex.
+  // "/crm") é prefixo real de outro item também cadastrado (ex. "/crm/config/kanban").
+  const allMenuPaths: string[] = []
+  const collectPaths = (items: any[]) => {
+    for (const item of items) {
+      if (item.path) allMenuPaths.push(item.path)
+      if (item.children?.length) collectPaths(item.children)
+    }
+  }
+  collectPaths(menuItems || [])
+
   const isActive = (href: string | null) => {
     if (!href) return false
-    if (href === '/admin') {
-      return pathname === '/admin'
-    }
-    return pathname.startsWith(href)
+    if (pathname === href) return true
+    // Não é a própria página — só conta como "ancestral ativo" (ex.: lista destacada
+    // enquanto se edita um registro dinâmico dela, tipo /admin/imoveis/42/edicao) se
+    // NENHUM outro item do menu casar de forma mais específica com o pathname atual.
+    if (!pathname.startsWith(href + '/')) return false
+    const moreSpecificMatchExists = allMenuPaths.some(
+      p => p !== href && p.length > href.length && (pathname === p || pathname.startsWith(p + '/'))
+    )
+    return !moreSpecificMatchExists
   }
 
   const toggleMenu = (menuId: string) => {
