@@ -94,11 +94,14 @@ export default function KanbanPage() {
   // de confirmar; qualquer outra coluna (inclusive is_perda) move direto, sem prompt.
   const [pendingGanhoMove, setPendingGanhoMove] = useState<{ lead: Lead; targetCol: Coluna; revert?: string } | null>(null)
   const [valorVendaInput, setValorVendaInput] = useState('')
-  // Valor Estimado (2026-08-13) — mesmo mecanismo do Ganho, generalizado: qualquer coluna
-  // marcada requer_valor_estimado intercepta o move se o lead ainda não tem estimativa. Nunca
-  // pergunta de novo se já existe uma (o atendente edita na ficha se quiser atualizar).
-  const [pendingEstimativaMove, setPendingEstimativaMove] = useState<{ lead: Lead; targetCol: Coluna } | null>(null)
-  const [valorEstimadoInput, setValorEstimadoInput] = useState('')
+  // Valor Estimado (revisado em 2026-08-27, docs/CHECKPOINT.md) — não é mais um modal que
+  // intercepta o move (nem gatilhado pelo drag-and-drop do card, nem por config de coluna):
+  // vira um campo editável DENTRO da ficha do lead. Sincronizado sempre que a ficha abre pra
+  // um lead diferente (useEffect abaixo); "Avançar/Recuar Etapa" (ambos dentro da ficha)
+  // carregam o valor atual desse input junto do move — sem popup nenhum. Um botão de salvar
+  // dedicado permite atualizar sem precisar mudar de etapa.
+  const [fichaValorEstimadoInput, setFichaValorEstimadoInput] = useState('')
+  const [savingValorEstimado, setSavingValorEstimado] = useState(false)
   // Exclusão de lead (docs/CHECKPOINT.md, 2026-08-14) — filtro "Mostrar leads excluídos" e
   // estado de exclusão/restauração em andamento (desabilita os botões enquanto processa).
   const [showDeleted, setShowDeleted] = useState(false)
@@ -150,6 +153,21 @@ export default function KanbanPage() {
       window.history.replaceState({}, '', newUrl)
     }
   }, [searchParams?.get('google_auth'), showDeleted])
+
+  // Sincroniza o campo editável de Valor Estimado da ficha só quando um lead DIFERENTE é
+  // aberto (chaveado por lead_uuid, não pelo objeto inteiro) — nunca sobrescreve o que o
+  // atendente está digitando só porque outro campo de selectedLead mudou (ex.: depois de
+  // saveFichaValorEstimado atualizar o próprio valor_venda_estimado em memória).
+  useEffect(() => {
+    if (selectedLead) {
+      setFichaValorEstimadoInput(
+        selectedLead.valor_venda_estimado != null
+          ? Number(selectedLead.valor_venda_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : ''
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLead?.lead_uuid])
 
   const fetchTenantConfig = async () => {
     try {
@@ -224,12 +242,15 @@ export default function KanbanPage() {
   }
 
   // Ponto único de decisão (revisado em 2026-08-27 — docs/CHECKPOINT.md): coluna de Ganho pede
-  // o valor REAL da venda; coluna de Perda move direto, sem nenhum valor; qualquer OUTRA etapa
-  // (intermediária, aberta) sempre oferece a opção de atualizar o Valor Estimado — pré-
-  // preenchido com o que o lead já tem, nunca um gate bloqueante por config de coluna
-  // (requer_valor_estimado foi aposentado: o valor agora nasce na criação do lead e só vai
-  // sendo refinado a cada etapa, não é mais "exigido" pontualmente).
-  const requestMove = (lead: Lead, targetCol: Coluna) => {
+  // o valor REAL da venda (único caso que ainda intercepta com modal — é um evento de negócio
+  // que sempre precisa ser confirmado). Coluna de Perda move direto, sem nenhum valor.
+  // Qualquer OUTRA etapa move direto também — o Valor Estimado NÃO é mais um popup atrelado ao
+  // move (nem pelo drag-and-drop do card no board, nem por config de coluna): é um campo
+  // editável na própria ficha do lead (ver fichaValorEstimadoInput/saveFichaValorEstimado
+  // abaixo). `valorEstimadoOverride` só chega aqui quando o move partiu de dentro da ficha
+  // (Avançar/Recuar Etapa) — carrega o que já está no campo, sem popup nenhum; o
+  // drag-and-drop no board (handleDrop) nunca passa esse argumento.
+  const requestMove = (lead: Lead, targetCol: Coluna, valorEstimadoOverride?: number) => {
     if (targetCol.is_ganho) {
       setValorVendaInput('')
       setPendingGanhoMove({ lead, targetCol })
@@ -239,12 +260,7 @@ export default function KanbanPage() {
       executeMove(lead, targetCol)
       return
     }
-    setValorEstimadoInput(
-      lead.valor_venda_estimado != null
-        ? lead.valor_venda_estimado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        : ''
-    )
-    setPendingEstimativaMove({ lead, targetCol })
+    executeMove(lead, targetCol, undefined, valorEstimadoOverride)
   }
 
   const confirmGanhoMove = () => {
@@ -255,20 +271,39 @@ export default function KanbanPage() {
     setPendingGanhoMove(null)
   }
 
-  const confirmEstimativaMove = () => {
-    if (!pendingEstimativaMove) return
-    const digits = valorEstimadoInput.replace(/\D/g, '')
-    // Campo vazio = "não alterar" (undefined nunca é enviado ao servidor, preserva o que já
-    // existe) — nunca sobrescreve um valor real com zero só porque o atendente não mexeu nele.
-    const valor = digits ? parseInt(digits, 10) / 100 : undefined
-    executeMove(pendingEstimativaMove.lead, pendingEstimativaMove.targetCol, undefined, valor)
-    setPendingEstimativaMove(null)
+  // Salva o Valor Estimado sem precisar mudar de etapa — reusa o endpoint de move mandando a
+  // MESMA coluna que o lead já está (a API já trata isso: status vira o mesmo, só
+  // valor_venda_estimado muda). Não usa `movingLead` (evita os botões "Avançar/Recuar Etapa"
+  // mostrarem "Movendo..." por uma ação que não muda etapa nenhuma).
+  const saveFichaValorEstimado = async () => {
+    if (!selectedLead) return
+    const digits = fichaValorEstimadoInput.replace(/\D/g, '')
+    if (!digits) return // nada digitado, nada a salvar
+    const valor = parseInt(digits, 10) / 100
+    const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
+    if (!currentCol) return
+    setSavingValorEstimado(true)
+    try {
+      const res = await adminFetch('/api/crm/kanban/move', {
+        method: 'POST',
+        body: JSON.stringify({ lead_uuid: selectedLead.lead_uuid, coluna_id: currentCol.id, valor_venda_estimado: valor })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setLeads(prev => prev.map(l => l.lead_uuid === selectedLead.lead_uuid ? { ...l, valor_venda_estimado: valor } : l))
+        setSelectedLead(prev => prev && prev.lead_uuid === selectedLead.lead_uuid ? { ...prev, valor_venda_estimado: valor } : prev)
+      }
+    } finally {
+      setSavingValorEstimado(false)
+    }
   }
 
   const moveLead = (lead: Lead, direction: 'forward' | 'backward' = 'forward') => {
     const targetCol = direction === 'forward' ? getNextColumn(lead.coluna_nome) : getPrevColumn(lead.coluna_nome)
     if (!targetCol) return
-    requestMove(lead, targetCol)
+    const digits = fichaValorEstimadoInput.replace(/\D/g, '')
+    const valorEstimadoOverride = digits ? parseInt(digits, 10) / 100 : undefined
+    requestMove(lead, targetCol, valorEstimadoOverride)
   }
 
   // O campo de valor que o PRÓPRIO lead declarou no Perfil de Interesse (ex.: "Faixa de
@@ -832,25 +867,63 @@ export default function KanbanPage() {
                       ))}
                     </div>
 
-                    {/* Valor Fechado (REAL, só existe no negócio ganho) e Valor Potencial
-                        (ESTIMADO, palpite editável durante o pipeline) — nunca no mesmo tile,
-                        nunca a mesma cor (docs/CHECKPOINT.md, 2026-08-13). */}
-                    {(selectedLead.valor_venda != null || selectedLead.valor_venda_estimado != null) && (
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        {selectedLead.valor_venda != null && (
-                          <div className="p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20">
-                            <p className="text-[9px] font-bold uppercase tracking-widest mb-1 text-emerald-500">Valor Fechado (real)</p>
-                            <span className="text-lg font-bold text-emerald-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda)}</span>
+                    {/* Valor Fechado (REAL, só existe no negócio ganho) e Valor Estimado —
+                        nunca no mesmo tile, nunca a mesma cor. Valor Estimado (revisado em
+                        2026-08-27, docs/CHECKPOINT.md) é editável DIRETO AQUI, na ficha —
+                        nunca mais um popup atrelado ao move do card. Fica só leitura quando a
+                        etapa atual já é terminal (Ganho/Perda), onde não faz mais sentido
+                        editar uma estimativa de negócio que já foi decidido. */}
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      {selectedLead.valor_venda != null && (
+                        <div className="p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20">
+                          <p className="text-[9px] font-bold uppercase tracking-widest mb-1 text-emerald-500">Valor Fechado (real)</p>
+                          <span className="text-lg font-bold text-emerald-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda)}</span>
+                        </div>
+                      )}
+                      {(() => {
+                        const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
+                        const isTerminal = !!(currentCol?.is_ganho || currentCol?.is_perda)
+                        return (
+                          <div className={`p-3 rounded-xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'} ${selectedLead.valor_venda == null ? 'col-span-2' : ''}`}>
+                            <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>Valor Estimado</p>
+                            {isTerminal ? (
+                              <span className={`text-lg font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                                {selectedLead.valor_venda_estimado != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda_estimado) : '—'}
+                              </span>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <div className="relative flex-1">
+                                  <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>R$</span>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={fichaValorEstimadoInput}
+                                    onChange={e => {
+                                      const digits = e.target.value.replace(/\D/g, '')
+                                      if (!digits) { setFichaValorEstimadoInput(''); return }
+                                      const num = parseInt(digits, 10) / 100
+                                      setFichaValorEstimadoInput(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+                                    }}
+                                    onKeyDown={e => { if (e.key === 'Enter') saveFichaValorEstimado() }}
+                                    placeholder="0,00"
+                                    className={`w-full rounded-lg py-1.5 pl-8 pr-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${t.isDark ? 'bg-black/20 text-amber-300' : 'bg-white text-amber-700 border border-amber-200'}`}
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={saveFichaValorEstimado}
+                                  disabled={savingValorEstimado}
+                                  title="Salvar Valor Estimado"
+                                  className={`p-1.5 rounded-lg transition-all shrink-0 ${savingValorEstimado ? 'opacity-50' : ''} bg-amber-500 hover:bg-amber-400 text-white`}
+                                >
+                                  <CheckBadgeIcon className="h-4 w-4" />
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {selectedLead.valor_venda_estimado != null && (
-                          <div className={`p-3 rounded-xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
-                            <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>Valor Potencial (estimado)</p>
-                            <span className={`text-lg font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda_estimado)}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                        )
+                      })()}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -999,67 +1072,6 @@ export default function KanbanPage() {
                 className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"
               >
                 Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal "Estimativa de Valor" — mostrado em TODA transição pra uma etapa intermediária
-          (não-Ganho, não-Perda), pré-preenchido com o valor já existente do lead. Não é mais
-          um gate por config de coluna (requer_valor_estimado aposentado em 2026-08-27, docs/
-          CHECKPOINT.md) — é sempre uma oportunidade opcional de refinar o valor conforme o
-          negócio avança. Campo vazio ao confirmar = move sem alterar nada. Nunca confundido
-          com o "Negócio Fechado" acima (cor âmbar vs. verde, "estimado" explícito no texto). */}
-      {pendingEstimativaMove && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-          <div className={`${t.modalBg} w-full max-w-sm rounded-[2rem] p-7 shadow-2xl border border-white/10 animate-in zoom-in-95`}>
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="h-11 w-11 rounded-2xl bg-amber-500 flex items-center justify-center shadow-lg flex-shrink-0">
-                <span className="text-xl">💰</span>
-              </div>
-              <div>
-                <h3 className={`text-base font-black italic tracking-tight ${t.textPrimary}`}>Atualizar Valor Estimado?</h3>
-                <p className={`text-[10px] font-bold ${t.textMuted}`}>{pendingEstimativaMove.lead.nome}</p>
-              </div>
-            </div>
-            <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
-              Valor Potencial Estimado (opcional)
-            </label>
-            <div className="relative">
-              <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold ${t.textMuted}`}>R$</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                autoFocus
-                value={valorEstimadoInput}
-                onChange={e => {
-                  const digits = e.target.value.replace(/\D/g, '')
-                  const num = digits ? parseInt(digits, 10) / 100 : 0
-                  setValorEstimadoInput(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
-                }}
-                onKeyDown={e => { if (e.key === 'Enter') confirmEstimativaMove() }}
-                placeholder="0,00"
-                className={`w-full rounded-2xl py-3 pl-11 pr-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${t.isDark ? t.inputBg : 'bg-slate-50 text-slate-700 border border-slate-200'}`}
-              />
-            </div>
-            <p className={`text-[10px] ${t.textMuted} mt-2 italic`}>
-              Um palpite, não um fato — alimenta o Pipeline em Aberto do dashboard. Deixe em
-              branco pra mover sem alterar. Nunca confundido com o valor real, que só é pedido
-              no fechamento.
-            </p>
-            <div className="mt-7 flex gap-3">
-              <button
-                onClick={() => setPendingEstimativaMove(null)}
-                className={`flex-1 py-3 ${t.isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'} text-[10px] font-black uppercase tracking-widest rounded-xl transition-all`}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmEstimativaMove}
-                className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"
-              >
-                Mover
               </button>
             </div>
           </div>

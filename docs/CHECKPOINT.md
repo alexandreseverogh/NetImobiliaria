@@ -1,5 +1,58 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 4) — **Valor Estimado deixa de ser um popup que
+> intercepta o move do card e vira campo editável direto na ficha do lead — pedido explícito
+> do usuário depois de testar o mecanismo da continuação anterior ("o valor editável quando o
+> lead se mover para outra fase, deverá funcionar não logo antes da exibição do card do lead,
+> e sim no modal do proprio lead").**
+>
+> **Implementado** (`src/app/crm/kanban/page.tsx`): removido por completo o popup "Estimativa
+> de Valor 💰" (`pendingEstimativaMove`/`confirmEstimativaMove`, ~60 linhas de JSX) — mover um
+> lead pra qualquer coluna não-terminal nunca mais interrompe o fluxo pedindo valor. No lugar,
+> a ficha ganhou um tile "Valor Estimado" sempre visível ao lado de "Valor Fechado (real)":
+> **editável** (input mascarado + botão de salvar, `saveFichaValorEstimado` — reaproveita o
+> próprio `POST /api/crm/kanban/move` passando o MESMO `coluna_id` atual, sem mudar de etapa)
+> enquanto a etapa corrente não é Ganho/Perda; vira **somente leitura** (`—` ou o valor
+> formatado) assim que o lead entra numa etapa terminal, onde estimar não faz mais sentido.
+> Os botões "Avançar Etapa"/"Recuar Etapa" (`moveLead`) passam a levar consigo o valor que já
+> está no campo da ficha (`requestMove(lead, targetCol, valorEstimadoOverride)`) — o
+> drag-and-drop do board (`handleDrop`) continua chamando `requestMove` **sem** esse 3º
+> argumento, de propósito: mover pelo board nunca deveria alterar silenciosamente uma
+> estimativa que o atendente não está olhando naquele momento.
+>
+> **Bug real pego na própria verificação, corrigido:** o input da ficha mostrava o valor cru
+> sem máscara (`"100000.00"` em vez de `"100.000,00"`) — causa raiz: o driver `pg` devolve
+> coluna `NUMERIC` como **string** em JS, e `string.toLocaleString('pt-BR', {...})` cai no
+> `Object.prototype.toLocaleString` (que ignora os argumentos e só devolve `.toString()`), não
+> no `Number.prototype.toLocaleString` que de fato formata — silencioso, sem erro nenhum.
+> Corrigido envolvendo em `Number(...)` antes de formatar (o `Intl.NumberFormat.format()` já
+> usado no resto da ficha/card não tem esse problema, por isso só esse ponto quebrava).
+>
+> **Achado operacional, mesma classe já documentada várias vezes neste arquivo:** editar
+> `pendingEstimativaMove`/`confirmEstimativaMove` pra fora do arquivo deixou o bundle do
+> dev-server (HMR) preso numa versão anterior — `ReferenceError: pendingEstimativaMove is not
+> defined` ao vivo no navegador, mesmo com `npx tsc --noEmit` limpo e o grep confirmando zero
+> referência no source. Resolvido com o mesmo remédio de sempre (editar o comentário
+> `// last-restart:` em `next.config.js`, força reinício completo do processo Next — confirmado
+> via `Get-CimInstance Win32_Process` que um novo `start-server.js` de fato subiu depois do
+> edit) + abrir uma aba NOVA do navegador (a aba antiga mantinha o runtime webpack antigo
+> carregado em memória mesmo depois do servidor reiniciar).
+>
+> **Testado ao vivo, ponta a ponta, com lead real** ("Gisele Cesse Campos", tenant CRM
+> SOZINHO, coluna real "Em Análise", `valor_venda_estimado` real = R$100.000,00): input da
+> ficha confirmado exibindo `"100.000,00"` (formatado) depois do fix · salvamento autônomo
+> (sem trocar etapa) testado alterando pra R$105.000,00 e clicando salvar → confirmado por SQL
+> `valor_venda_estimado=105000.00` com `coluna_id` **inalterado** (59, Em Análise) · "Avançar
+> Etapa" testado em seguida → confirmado por SQL `coluna_id` mudou pra 60 (Entendimento da
+> Dor) **e** `valor_venda_estimado` permaneceu 105000.00 (não foi resetado/perdido pelo move) ·
+> drag-and-drop confirmado por leitura de código não passando o 3º argumento (`handleDrop` →
+> `requestMove(lead, targetCol)`, sem `valorEstimadoOverride`) · modo somente-leitura
+> confirmado ao vivo abrindo a ficha de um lead real já em etapa Ganho (Severina Bastos,
+> `valor_venda_estimado` NULL) — `hasEditableInput:false`, exibindo `"—"` honesto, sem input
+> nenhum. Lead real "Gisele Cesse Campos" **restaurada ao estado exato de antes do teste**
+> (coluna_id=59/Em Análise, valor_venda_estimado=100000.00, valor_venda ainda NULL),
+> confirmado por SQL final. `npx tsc --noEmit`: zero erros no arquivo tocado.
+
 > **Atualizado em:** 2026-08-27 (continuação 3) — **Fecha o loop de feedback da IA no "+ Novo
 > Lead" + corrige 2 textos enganosos, depois de uma discussão de fundo sobre "qual é o papel
 > real da IA nesta tela pra acelerar vendas".**

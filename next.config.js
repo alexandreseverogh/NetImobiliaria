@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-08-25 — SWC preso num erro de parse stale de crm/leads/page.tsx (tsc limpo, arquivo válido)
+// last-restart: 2026-08-27 — bundle stale referenciando pendingEstimativaMove (removido do source) em crm/kanban/page.tsx (tsc limpo, arquivo válido)
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'
