@@ -1,5 +1,49 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-26 (continuação 4) — **3 correções reais no resumo do lead,
+> reportadas por 2 prints (card do Kanban + ficha detalhe): (1) badge de valor fechado no
+> card sem rótulo, difícil de identificar como "Valor Fechado" de longe; (2) leads antigos
+> ainda mostrando o rótulo congelado "Faixa de Preço" mesmo depois do rename pra "Faixa de
+> Valor" (config já corrigida numa entrada anterior); (3) ícone de calendário do card pedido
+> em verde claro.**
+>
+> **(1) Badge "Valor Fechado" ganha rótulo explícito** — nos dois lugares que já mostravam o
+> valor bruto sem contexto (`bg-emerald-500/10`, card do Kanban e resumo de `/crm/leads`),
+> adicionado o prefixo `"Valor Fechado:"` dentro do próprio badge — mesma nomenclatura já
+> usada na ficha ("VALOR FECHADO (REAL)"), agora reconhecível também no resumo sem precisar
+> abrir a ficha.
+>
+> **(2) Cache de enriquecimento regenerado pros 5 leads reais afetados** — achado real,
+> confirmado por SQL: `enriquecimento_cache` é congelado no momento da criação do lead
+> (mesmo padrão já documentado várias vezes neste arquivo) — os 5 leads reais do segmento
+> Venda de Carros (tenant CRM SOZINHO) criados antes do rename continuavam com o texto
+> "Faixa de Preço" fossilizado, mesmo com `form_schema_json` já dizendo "Faixa de Valor".
+> Como `EnrichmentService.reEnrichAllLeads()` só cobre o caminho de Vínculo Exato (exige
+> `target_fk_column`, que este segmento não tem — só usa Perfil de Interesse), não havia
+> nenhum mecanismo de lote pra esse caso. Regenerado via chamada real a
+> `EnrichmentService.enrichLead(leadUuid, tenantId, null)` (o mesmo código que roda na
+> criação de um lead novo) pelos 5 leads reais, através de uma rota temporária
+> (`/api/admin/reenrich-tmp-2026`, Master-only, removida ao final — mesmo padrão de rotas
+> de diagnóstico já usado várias vezes nesta sessão). Confirmado por SQL:
+> `enriquecimento_cache::text LIKE '%Faixa de Preço%'` → `count=0` em toda a base depois.
+> De brinde, o resíduo "Orçamento Previsto" (que ainda existia no `raw_json` de 1 lead, de
+> antes da remoção do campo) também saiu do badge — a reconstrução usa o schema ATUAL, que
+> não tem mais esse campo, então ele deixa de aparecer mesmo sem apagar o dado bruto.
+>
+> **(3) Ícone de "Agendar Visita" no card do Kanban — azul → verde claro** (pedido direto do
+> usuário) — `border-blue-*`/`text-blue-*` trocado por `border-emerald-*`/`text-emerald-*`
+> nos dois temas (claro/escuro). Só o ícone inline do CARD, não o botão grande "Agendar
+> Visita" da ficha (que continua indigo, fora de escopo — não foi pedido).
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant CRM SOZINHO, 5 leads reais):
+> "FAIXA DE VALOR" confirmado em todos os 5 cards, zero ocorrência de "FAIXA DE PREÇO"/
+> "ORÇAMENTO PREVISTO" restante · "Valor Fechado: R$ 45.000,00"/"R$ 55.000,00" confirmados
+> com o rótulo novo nos 2 leads reais já fechados · ícone de calendário confirmado via
+> `getComputedStyle` — `color: rgb(5,150,105)` / `borderColor: rgb(167,243,208)` (emerald-
+> 600/emerald-200 exatos) nos 5 botões reais do board. `npx tsc --noEmit`: zero erros nos 2
+> arquivos tocados. Rota temporária de re-enriquecimento removida, confirmado ausente do
+> `git status`.
+>
 > **Atualizado em:** 2026-08-26 (continuação 3) — **`/crm/leads`: Valor Fechado (real) passa a
 > aparecer logo no resumo da linha (coluna "Dados Enriquecidos"), não mais só dentro da ficha
 > — pedido direto do usuário: "quando um lead tiver passado pela fase de fechamento... esse

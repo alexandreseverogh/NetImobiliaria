@@ -585,6 +585,7 @@ export default function KanbanPage() {
                       <div className="flex items-center gap-1.5 -mt-1 mb-2">
                         {lead.valor_venda != null && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                            <span className="font-bold opacity-70 mr-1">Valor Fechado:</span>
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.valor_venda)}
                           </span>
                         )}
@@ -641,9 +642,9 @@ export default function KanbanPage() {
                               setIsAgendarOpen(true);
                             }}
                             className={`p-1.5 rounded-lg border transition-all z-10 ${
-                              t.isDark 
-                                ? 'border-blue-500/50 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white' 
-                                : 'border-blue-200 bg-white shadow-sm text-blue-600 hover:bg-blue-50 hover:border-blue-300'
+                              t.isDark
+                                ? 'border-emerald-500/50 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white'
+                                : 'border-emerald-200 bg-white shadow-sm text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300'
                             }`}
                             title="Agendar Visita"
                           >
