@@ -65,9 +65,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Uma etapa não pode ser Ganho e Perda ao mesmo tempo.' }, { status: 400 })
     }
     // Exigir valor estimado numa etapa que já é Ganho é redundante — o Ganho já pede o valor
-    // REAL de fechamento (via kanban/move). A UI já desabilita essa combinação, servidor
-    // reforça normalizando pra false em vez de confiar só no cliente.
-    const requerValorEstimado = body.requer_valor_estimado === true && !isGanho
+    // REAL de fechamento (via kanban/move). Numa etapa de Perda também não faz sentido — o
+    // negócio morreu, não há mais pipeline aberto pra estimar. A UI já desabilita as duas
+    // combinações, servidor reforça normalizando pra false em vez de confiar só no cliente.
+    const requerValorEstimado = body.requer_valor_estimado === true && !isGanho && !isPerda
 
     if (id) {
       // UPDATE — nunca em coluna de outro tenant

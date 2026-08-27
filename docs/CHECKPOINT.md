@@ -1,5 +1,35 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 — **Fix real: "Exige valor estimado ao entrar nesta etapa"
+> só era desabilitado/desmarcado automaticamente pra "Etapa de Ganho" — "Etapa de Perda" não
+> tinha a mesma trava, mesmo a lógica de negócio sendo idêntica nos dois casos.**
+>
+> **Contexto:** revisando o print da tela "Editar Etapa" (`/crm/config/kanban`), usuário
+> questionou por que só Ganho desabilita esse checkbox, já que pedir valor estimado de
+> pipeline aberto pra uma etapa marcada como Perda também não faz sentido — o negócio já
+> morreu, não há mais nada a estimar. Confirmado no código (`kanban/page.tsx` linhas 222-225)
+> que a trava (`disabled`/`checked` mascarado) só considerava `is_ganho`, nunca `is_perda` —
+> lacuna real, não intencional (o texto de ajuda ao lado já dizia "Não aplicável na Etapa de
+> Ganho", nunca mencionava Perda).
+>
+> **Corrigido nos 2 lados:**
+> 1. `src/app/api/crm/kanban/colunas/route.ts` — `requerValorEstimado` (a normalização que já
+>    existia só pra `!isGanho`) agora exige também `!isPerda` antes de persistir `true`.
+> 2. `src/app/crm/config/kanban/page.tsx` — checkbox "Exige valor estimado" desabilitado
+>    quando `is_ganho || is_perda` (antes só `is_ganho`); os onChange de "Etapa de Ganho" e
+>    "Etapa de Perda" passaram a zerar `requer_valor_estimado` no state do cliente assim que
+>    marcados (higiene — evita um `requer_valor_estimado:true` obsoleto sobrevivendo no
+>    `currentEdit` só porque o checkbox ficou visualmente desmarcado/desabilitado, mesmo o
+>    servidor já normalizando isso de qualquer forma). Texto de ajuda atualizado citando os
+>    dois casos.
+>
+> **Testado ao vivo, com dado real** (tenant CRM SOZINHO, coluna real "Em Análise" — sem
+> nenhum dos 3 atributos ativos): marcar "Etapa de Perda" → "Exige valor estimado" confirmado
+> `disabled:true, checked:false` na hora, via DOM · desmarcar "Etapa de Perda" → checkbox
+> volta a `disabled:false` · modal fechado sem salvar, confirmado por SQL que a coluna real
+> permanece com os 3 campos `false`, sem nenhum resíduo do teste. `npx tsc --noEmit`: zero
+> erros nos 2 arquivos tocados.
+>
 > **Atualizado em:** 2026-08-26 (continuação 4) — **3 correções reais no resumo do lead,
 > reportadas por 2 prints (card do Kanban + ficha detalhe): (1) badge de valor fechado no
 > card sem rótulo, difícil de identificar como "Valor Fechado" de longe; (2) leads antigos

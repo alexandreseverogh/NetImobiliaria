@@ -200,13 +200,13 @@ export default function KanbanConfigPage() {
                 <div className="flex items-center gap-6 pl-1">
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input type="checkbox" checked={currentEdit.is_ganho === true}
-                      onChange={e => setCurrentEdit({ ...currentEdit, is_ganho: e.target.checked, is_perda: e.target.checked ? false : currentEdit.is_perda })}
+                      onChange={e => setCurrentEdit({ ...currentEdit, is_ganho: e.target.checked, is_perda: e.target.checked ? false : currentEdit.is_perda, requer_valor_estimado: e.target.checked ? false : currentEdit.requer_valor_estimado })}
                       className="h-4 w-4 rounded accent-emerald-500" />
                     <span className="text-sm font-bold text-emerald-500">Etapa de Ganho</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input type="checkbox" checked={currentEdit.is_perda === true}
-                      onChange={e => setCurrentEdit({ ...currentEdit, is_perda: e.target.checked, is_ganho: e.target.checked ? false : currentEdit.is_ganho })}
+                      onChange={e => setCurrentEdit({ ...currentEdit, is_perda: e.target.checked, is_ganho: e.target.checked ? false : currentEdit.is_ganho, requer_valor_estimado: e.target.checked ? false : currentEdit.requer_valor_estimado })}
                       className="h-4 w-4 rounded accent-red-500" />
                     <span className="text-sm font-bold text-red-500">Etapa de Perda</span>
                   </label>
@@ -217,11 +217,12 @@ export default function KanbanConfigPage() {
                 <p className={`text-[11px] pl-1 ${t.textMuted}`}>
                   Exige que o atendente informe um valor estimado do negócio ao mover um lead
                   pra esta etapa (nunca confundido com o valor REAL — esse só é pedido no
-                  fechamento). Não aplicável na Etapa de Ganho, que já pede o valor real.
+                  fechamento). Não aplicável na Etapa de Ganho (que já pede o valor real) nem
+                  na Etapa de Perda (negócio perdido não tem mais pipeline aberto a estimar).
                 </p>
-                <label className={`flex items-center gap-2 pl-1 select-none ${currentEdit.is_ganho ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
-                  <input type="checkbox" checked={currentEdit.requer_valor_estimado === true && !currentEdit.is_ganho}
-                    disabled={currentEdit.is_ganho === true}
+                <label className={`flex items-center gap-2 pl-1 select-none ${(currentEdit.is_ganho || currentEdit.is_perda) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
+                  <input type="checkbox" checked={currentEdit.requer_valor_estimado === true && !currentEdit.is_ganho && !currentEdit.is_perda}
+                    disabled={currentEdit.is_ganho === true || currentEdit.is_perda === true}
                     onChange={e => setCurrentEdit({ ...currentEdit, requer_valor_estimado: e.target.checked })}
                     className="h-4 w-4 rounded accent-amber-500" />
                   <span className={`text-sm font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>Exige valor estimado ao entrar nesta etapa</span>
