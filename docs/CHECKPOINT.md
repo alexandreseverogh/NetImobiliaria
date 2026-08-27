@@ -1,5 +1,31 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 5) — **Fix real: campo "Demanda do Cliente" no
+> "+ Novo Lead" sobrepunha texto digitado ao ultrapassar as linhas visíveis** — reportado pelo
+> usuário ("quando atinge um limite, o que é digitado começa a cobrir palavras e letras
+> anteriores").
+>
+> **Causa raiz:** a `<textarea>` (`NovoLeadModal.tsx`) não declarava `overflow-y-auto` própria
+> e vivia aninhada dentro do corpo do modal, que já é rolável
+> (`max-h-[60vh] overflow-y-auto`) — com o overflow do campo ambíguo (dependendo do default do
+> navegador), o comportamento de "manter o cursor visível ao digitar" ficava indefinido:
+> assim que o texto passava das 3 linhas visíveis, a nova linha era desenhada por cima da
+> última linha já renderizada em vez de rolar o conteúdo do próprio campo pra baixo.
+>
+> **Corrigido:** `rows={3}` → `rows={4}` (mais espaço antes de precisar rolar) +
+> `overflow-y-auto` explícito + `max-h-48` (trava a altura máxima do próprio campo, garante
+> que ele sempre role internamente a partir daí) + `leading-relaxed` (espaçamento de linha
+> mais folgado).
+>
+> **Testado ao vivo, ponta a ponta:** texto de 12 linhas digitado no campo real →
+> `scrollHeight:570` vs `clientHeight:115` (confirma que o conteúdo excede a área visível) →
+> `scrollTop` avançou corretamente até `455` (o máximo possível) ao posicionar o cursor no
+> fim do texto — o campo rolou o próprio conteúdo pra manter o cursor visível, em vez de
+> sobrepor texto. Confirmado visualmente por screenshot: barra de rolagem própria do campo,
+> últimas 2 linhas ("Linha 11"/"Linha 12") legíveis e sem nenhuma sobreposição. Modal fechado
+> sem submeter, confirmado por SQL que nenhum lead de teste foi criado (`count(*)=0`). `npx
+> tsc --noEmit`: zero erros no arquivo tocado.
+
 > **Atualizado em:** 2026-08-27 (continuação 4) — **Valor Estimado deixa de ser um popup que
 > intercepta o move do card e vira campo editável direto na ficha do lead — pedido explícito
 > do usuário depois de testar o mecanismo da continuação anterior ("o valor editável quando o

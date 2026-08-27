@@ -343,8 +343,8 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
                         <textarea
                            value={demanda}
                            onChange={e => setDemanda(e.target.value)}
-                           rows={3}
-                           className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-white text-sm focus:border-blue-500 outline-none transition-all resize-none"
+                           rows={4}
+                           className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-white text-sm leading-relaxed focus:border-blue-500 outline-none transition-all resize-none overflow-y-auto max-h-48"
                            placeholder="O que o cliente disse/pediu, em texto livre. A IA usa este texto pra estimar Intenção e Aderência do lead."
                         />
                      </div>
