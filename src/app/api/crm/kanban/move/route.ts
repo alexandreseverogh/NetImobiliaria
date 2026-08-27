@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar se a coluna destino existe e está ativa (no tenant correto)
     const colCheck = await pool.query(
-      `SELECT id, nome FROM kanban_colunas WHERE id = $1 AND ativa = true ${!isMaster ? 'AND tenant_id = $2' : ''}`,
+      `SELECT id, nome, is_ganho FROM kanban_colunas WHERE id = $1 AND ativa = true ${!isMaster ? 'AND tenant_id = $2' : ''}`,
       !isMaster ? [coluna_id, tenantId] : [coluna_id]
     )
     if (colCheck.rows.length === 0) {
@@ -95,6 +95,21 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       )
     }
+
+    // Achado real (2026-08-27): sair da etapa de Ganho pra QUALQUER outra (recuo, avanço, ou
+    // indo direto pra Perda — que na ordem das colunas vem DEPOIS de Fechamento) nunca zerava
+    // valor_venda — o negócio reaberto continuava mostrando "Valor Fechado" com o valor antigo,
+    // como se ainda estivesse ganho. A regra é sobre SAIR do Ganho, não sobre a direção do
+    // move, então checa direto is_ganho da coluna atual × da coluna destino, sem depender de
+    // "recuar"/"avançar". Nunca confia em valor_venda vindo do cliente pra decidir isso — a
+    // única fonte confiável é o estado real das 2 colunas.
+    const currentColCheck = await pool.query(
+      `SELECT kc.is_ganho FROM leads_kanban lk JOIN kanban_colunas kc ON kc.id = lk.coluna_id WHERE lk.lead_uuid = $1`,
+      [lead_uuid]
+    )
+    const wasGanho = currentColCheck.rows[0]?.is_ganho === true
+    const targetIsGanho = colCheck.rows[0].is_ganho === true
+    const leavingGanho = wasGanho && !targetIsGanho
 
     // Mover o lead (UPSERT para segurança)
     await pool.query(
@@ -110,7 +125,13 @@ export async function POST(request: NextRequest) {
     const colNome = colCheck.rows[0].nome
     const setParts = ['status = $1', 'updated_at = NOW()']
     const updateParams: any[] = [colNome]
-    if (hasValorVenda) {
+    if (leavingGanho) {
+      // Zera o valor real de fechamento — negócio reaberto não é mais um negócio ganho.
+      // Nunca no mesmo branch de hasValorVenda: esta condição sempre vence, mesmo que por
+      // algum motivo um valor_venda tenha vindo no body (não deveria, mas o servidor não
+      // confia nisso).
+      setParts.push('valor_venda = NULL')
+    } else if (hasValorVenda) {
       updateParams.push(valor_venda)
       setParts.push(`valor_venda = $${updateParams.length}`)
     }

@@ -1,5 +1,34 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 10) — **Fix real: recuar (ou avançar direto pra
+> Perda) um lead que estava na etapa de Ganho nunca zerava `valor_venda` — negócio reaberto
+> continuava exibindo "Valor Fechado" com o valor antigo, como se ainda estivesse ganho.**
+> Pergunta direta do usuário ("concorda?"); generalizei a regra: não é sobre "recuar"
+> especificamente, é sobre **sair da etapa de Ganho pra qualquer outra** — cobre recuo,
+> avanço, e ir direto pra Perda (que na ordem das colunas vem DEPOIS de Fechamento, então
+> tecnicamente seria "avançar").
+>
+> **Achado ao vivo, não hipotético:** ao investigar, a lead real "Severina Bastos" já estava
+> manifestando o bug em produção — movida por testes anteriores nesta sessão pra "Proposta
+> Enviada" mas ainda com `valor_venda=45000.00` "grudado", como se o negócio continuasse
+> fechado numa etapa que não é mais terminal.
+>
+> **Corrigido em `src/app/api/crm/kanban/move/route.ts`** (o único ponto por onde toda
+> movimentação passa — botão ou drag-and-drop): nova query busca `is_ganho` da coluna ATUAL do
+> lead (via `leads_kanban` → `kanban_colunas`) antes do move; se a coluna atual é Ganho e a
+> coluna destino não é, força `valor_venda = NULL` no UPDATE — **sempre**, independente do que
+> o cliente mandar no body (o servidor nunca confia nisso pra essa decisão, só no estado real
+> das 2 colunas). `valor_venda_estimado` nunca é tocado por essa regra — campo independente,
+> faz sentido manter a estimativa mesmo com o negócio reaberto.
+>
+> **Testado ao vivo, ponta a ponta, via API real, com a mesma lead real** ("Severina Bastos"):
+> movida pra Fechamento com `valor_venda=45000` (simulando o fluxo do modal "Negócio Fechado")
+> → confirmado `valor_venda=45000.00` · movida pra "Proposta Enviada" (recuo) → confirmado por
+> SQL `valor_venda` zerado (NULL), `valor_venda_estimado` intocado (permanecia NULL) · repetido
+> o ciclo indo de Fechamento direto pra "Perdido" (o caso "avanço", não recuo) → mesmo
+> resultado, `valor_venda` zerado. Lead restaurada ao estado original de antes de toda a
+> investigação (Fechamento, R$45.000,00). `npx tsc --noEmit`: zero erros no arquivo tocado.
+
 > **Atualizado em:** 2026-08-27 (continuação 9) — **Fix real: o auto-scroll da rodada anterior
 > (continuação 8) causou uma regressão pior — passou a bloquear o recuo pra 2ª E 1ª etapa,
 > não só a 1ª — corrigido no mesmo dia, reportado pelo usuário quase imediatamente.**
