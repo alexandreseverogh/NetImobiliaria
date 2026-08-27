@@ -883,6 +883,14 @@ export default function KanbanPage() {
                       {(() => {
                         const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
                         const isTerminal = !!(currentCol?.is_ganho || currentCol?.is_perda)
+                        // Botão de salvar só aparece quando o campo tem alteração real pendente
+                        // — compara contra o valor JÁ PERSISTIDO (não contra um estado "original"
+                        // separado, pra não dessincronizar depois de um save bem-sucedido, que já
+                        // atualiza selectedLead.valor_venda_estimado em memória).
+                        const savedFormatted = selectedLead.valor_venda_estimado != null
+                          ? Number(selectedLead.valor_venda_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          : ''
+                        const hasUnsavedChange = fichaValorEstimadoInput !== savedFormatted
                         return (
                           <div className={`p-3 rounded-xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'} ${selectedLead.valor_venda == null ? 'col-span-2' : ''}`}>
                             <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>Valor Estimado</p>
@@ -909,15 +917,17 @@ export default function KanbanPage() {
                                     className={`w-full rounded-lg py-1.5 pl-8 pr-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${t.isDark ? 'bg-black/20 text-amber-300' : 'bg-white text-amber-700 border border-amber-200'}`}
                                   />
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={saveFichaValorEstimado}
-                                  disabled={savingValorEstimado}
-                                  title="Salvar Valor Estimado"
-                                  className={`p-1.5 rounded-lg transition-all shrink-0 ${savingValorEstimado ? 'opacity-50' : ''} bg-amber-500 hover:bg-amber-400 text-white`}
-                                >
-                                  <CheckBadgeIcon className="h-4 w-4" />
-                                </button>
+                                {hasUnsavedChange && (
+                                  <button
+                                    type="button"
+                                    onClick={saveFichaValorEstimado}
+                                    disabled={savingValorEstimado}
+                                    title="Salvar Valor Estimado"
+                                    className={`p-1.5 rounded-lg transition-all shrink-0 animate-in fade-in zoom-in-95 duration-150 ${savingValorEstimado ? 'opacity-50' : ''} bg-amber-500 hover:bg-amber-400 text-white`}
+                                  >
+                                    <CheckBadgeIcon className="h-4 w-4" />
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>

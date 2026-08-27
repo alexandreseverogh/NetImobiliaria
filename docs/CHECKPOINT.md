@@ -1,5 +1,28 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 6) — **Botão de salvar do Valor Estimado (ficha
+> do lead) passa a só aparecer quando o campo tem alteração real pendente** — apontado pelo
+> usuário como "issue ingênuo" da implementação anterior: o botão ficava sempre visível,
+> mesmo sem nenhuma mudança digitada.
+>
+> **Implementado** (`src/app/crm/kanban/page.tsx`): computado `savedFormatted` (o valor JÁ
+> PERSISTIDO em `selectedLead.valor_venda_estimado`, formatado com o mesmo `Number(...)
+> .toLocaleString('pt-BR', {...})` já usado no sync inicial) e comparado contra
+> `fichaValorEstimadoInput` (o que está no campo agora) — `hasUnsavedChange` só é `true`
+> quando os dois divergem. O botão "Salvar Valor Estimado" (`CheckBadgeIcon`) só renderiza
+> nesse caso, com uma pequena animação de entrada (`animate-in fade-in zoom-in-95`); some
+> sozinho depois de um save bem-sucedido, porque `saveFichaValorEstimado` já atualiza
+> `selectedLead.valor_venda_estimado` em memória com o mesmo valor recém-persistido — os dois
+> lados da comparação convergem sem precisar de nenhum estado "dirty" separado pra resetar.
+>
+> **Testado ao vivo, ponta a ponta, com a mesma lead real** ("Gisele Cesse Campos", tenant CRM
+> SOZINHO): campo sem alteração → botão ausente (`saveButtonVisible:false`) · valor alterado
+> pra R$110.000,00 → botão aparece (`saveButtonVisibleAfterEdit:true`) · clique em salvar →
+> `200 OK`, botão some (`saveButtonVisibleAfterSave:false`), confirmado por SQL que persistiu
+> `valor_venda_estimado=110000.00` com `coluna_id` inalterado (59, Em Análise) · valor
+> restaurado pra R$100.000,00 e salvo de novo, confirmado por SQL o estado exato de antes do
+> teste. `npx tsc --noEmit`: zero erros no arquivo tocado.
+
 > **Atualizado em:** 2026-08-27 (continuação 5) — **Fix real: campo "Demanda do Cliente" no
 > "+ Novo Lead" sobrepunha texto digitado ao ultrapassar as linhas visíveis** — reportado pelo
 > usuário ("quando atinge um limite, o que é digitado começa a cobrir palavras e letras
