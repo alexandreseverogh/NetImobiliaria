@@ -1,5 +1,48 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 11) — **Fix real da causa raiz de verdade do
+> auto-scroll (continuação 8/9): recuar pra 1ª/2ª etapa via drag continuava falhando no
+> navegador real do usuário mesmo depois do fix de `preventDefault` — o diagnóstico de
+> "bundle stale, só reiniciar o servidor" (dado na resposta anterior) estava errado, e o
+> usuário corretamente recusou aceitar isso sem prova, pedindo profissionalismo.**
+>
+> **Causa raiz de verdade, só visível simulando hover SUSTENTADO (não um evento isolado):**
+> `handleBoardDragOver` mutava `container.scrollLeft` **direto dentro do próprio handler de
+> `dragover`**, que dispara em alta frequência durante um arrasto real (muito mais do que um
+> único evento sintético). Como as colunas 1ª/2ª ficam fisicamente perto do início do scroll
+> do board, soltar um card ali exige que o cursor fique **dentro da própria zona de gatilho
+> do auto-scroll durante todo o tempo em que o usuário tenta completar o drop** — não é um
+> "passar rápido pela borda", é o próprio alvo do drop coincidindo com a zona de gatilho. A
+> reatribuição repetida de `scrollLeft` a cada `dragover` (mesmo travada em 0, sem nenhuma
+> mudança visual) já bastava pra atrapalhar a sessão nativa de drag do navegador. Explica por
+> que "5ª pra 4ª" nunca foi afetado (colunas mais à direita não caem nessa zona) e por que meus
+> testes anteriores (sempre um único evento `dragover` sintético, nunca uma sequência
+> simulando hover real) nunca reproduziram o problema.
+>
+> **Corrigido de verdade** (`src/app/crm/kanban/page.tsx`): o `dragover` deixa de mutar o DOM
+> diretamente — só atualiza uma `ref` de direção (`autoScrollDirRef`, sem custo nenhum de
+> reflow). Quem de fato rola é um loop próprio via `requestAnimationFrame`
+> (`runAutoScrollLoop`), numa cadência suave e desacoplada de quantos `dragover` disparam por
+> segundo — mesmo padrão usado por implementações reais desse tipo de auto-scroll (dnd-kit
+> etc.). Guarda extra: só mexe em `scrollLeft` quando há margem real pra rolar
+> (`scrollLeft > 0` / `< scrollWidth-clientWidth`), nunca reatribui o mesmo valor à toa. Loop
+> para via `stopAutoScroll()` tanto no `drop` bem-sucedido quanto no `dragend` (cobre drag
+> cancelado/solto fora de qualquer coluna).
+>
+> **Testado ao vivo, ponta a ponta, com lead real** ("Gisele Cesse Campos"), reproduzindo o
+> padrão que faltava nos testes anteriores — **hover sustentado, não um evento isolado**: 50
+> eventos `dragover` seguidos com o cursor posicionado DENTRO da própria 1ª coluna (a mesma
+> zona de gatilho do auto-scroll) antes do `drop` → confirmado por SQL, moveu corretamente pra
+> "Lead Captado" · repetido pra 2ª coluna ("Em Análise") com o mesmo padrão de 50 eventos
+> sustentados → confirmado por SQL, moveu corretamente, `valor_venda_estimado` intocado.
+> `npx tsc --noEmit`: zero erros no arquivo tocado.
+>
+> **Lição registrada:** as 2 rodadas anteriores (continuação 8/9) testaram só com um único
+> evento `dragover` sintético antes do drop — suficiente pra provar que a lógica de move em
+> si funciona, mas incapaz de reproduzir um bug que só se manifesta com a frequência de
+> eventos de um hover real e sustentado. "Reiniciar o servidor resolveu no meu teste" não é
+> prova de causa raiz quando o teste em si não reproduz o padrão de uso real.
+
 > **Atualizado em:** 2026-08-27 (continuação 10) — **Fix real: recuar (ou avançar direto pra
 > Perda) um lead que estava na etapa de Ganho nunca zerava `valor_venda` — negócio reaberto
 > continuava exibindo "Valor Fechado" com o valor antigo, como se ainda estivesse ganho.**

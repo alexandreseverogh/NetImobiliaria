@@ -77,6 +77,16 @@ export default function KanbanPage() {
   // faz auto-scroll confiável de um <div> customizado durante um HTML5 drag nativo, só da
   // janela. Mesmo padrão usado por qualquer Kanban real (Trello, Jira etc.).
   const boardScrollRef = useRef<HTMLDivElement>(null)
+  // Direção ativa do auto-scroll ('left'/'right'/null) + handle do requestAnimationFrame.
+  // Desacoplados de propósito do evento dragover em si (ver handleBoardDragOver) — mutar
+  // scrollLeft direto dentro do handler, que dispara em alta frequência durante um arrasto
+  // real, mostrou-se capaz de atrapalhar a sessão nativa de drag do navegador bem antes de
+  // "bater na borda" (o problema real não era só nas bordas — era o próprio hover contínuo
+  // sobre as colunas 1ª/2ª, que já ficam dentro da zona de gatilho por estarem perto do
+  // início do scroll). O rAF roda numa cadência própria, independente de quantos dragover
+  // disparam por segundo.
+  const autoScrollDirRef = useRef<'left' | 'right' | null>(null)
+  const autoScrollRafRef = useRef<number | null>(null)
   const [colunas, setColunas] = useState<Coluna[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
@@ -431,31 +441,73 @@ export default function KanbanPage() {
     e.preventDefault()
   }
 
-  // Dispara continuamente enquanto o card arrastado passa perto da borda esquerda/direita do
-  // board — rola o container na direção certa, revelando colunas fora da área visível (ex.:
-  // "Lead Captado" quando o drag começou lá na "Proposta Enviada"). `dragover` nativo já
-  // repete sozinho durante o gesto, então não precisa de setInterval — só reagir a cada evento.
+  // Loop próprio de auto-scroll, rodando via requestAnimationFrame — nunca muta scrollLeft
+  // direto dentro do handler de dragover (ver histórico abaixo). Só mexe no scroll quando há
+  // margem real pra rolar (container.scrollLeft > 0 / < scrollWidth-clientWidth); sem essa
+  // guarda, ficar em cima da 1ª coluna (scrollLeft já em 0) reatribuía o mesmo valor a cada
+  // frame de qualquer forma, o que já bastava pra atrapalhar.
+  const stopAutoScroll = () => {
+    autoScrollDirRef.current = null
+    if (autoScrollRafRef.current !== null) {
+      cancelAnimationFrame(autoScrollRafRef.current)
+      autoScrollRafRef.current = null
+    }
+  }
+
+  const runAutoScrollLoop = () => {
+    const container = boardScrollRef.current
+    const dir = autoScrollDirRef.current
+    if (!container || !dir) {
+      autoScrollRafRef.current = null
+      return
+    }
+    if (dir === 'left' && container.scrollLeft > 0) {
+      container.scrollLeft = Math.max(0, container.scrollLeft - 14)
+    } else if (dir === 'right' && container.scrollLeft < container.scrollWidth - container.clientWidth) {
+      container.scrollLeft = Math.min(container.scrollWidth - container.clientWidth, container.scrollLeft + 14)
+    }
+    autoScrollRafRef.current = requestAnimationFrame(runAutoScrollLoop)
+  }
+
+  // Achado real (2026-08-27): a 1ª versão mutava `container.scrollLeft` direto dentro deste
+  // handler — `dragover` dispara em alta frequência durante um arrasto real (muito mais do
+  // que num evento sintético isolado), e como as colunas 1ª/2ª ficam fisicamente perto do
+  // início do scroll, o usuário precisa pairar o cursor DENTRO da própria zona de gatilho
+  // durante TODO o tempo em que tenta soltar o card ali — não só de passagem. A reatribuição
+  // repetida de scrollLeft (mesmo travada em 0, sem mudança visual) bastava pra atrapalhar a
+  // sessão nativa de drag do navegador, quebrando o recuo pra 1ª/2ª coluna especificamente
+  // (colunas mais à direita, como a 4ª, nunca caem nessa zona por padrão, por isso "5ª pra
+  // 4ª" nunca foi afetado). Corrigido: o handler só ATUALIZA A DIREÇÃO (uma escrita de ref,
+  // sem tocar no DOM) — quem de fato rola é o loop de rAF acima, numa cadência própria e
+  // suave, desacoplada de quantos dragover disparam por segundo.
   const handleBoardDragOver = (e: React.DragEvent) => {
     // Sem isso, qualquer dragover que borbulha até aqui sem ter passado por uma zona de drop
     // de coluna (a margem entre colunas, por cima do header, etc.) fica sem NENHUM
     // preventDefault na cadeia — o navegador entende como "não pode soltar aqui" pra aquele
     // evento específico, e isso é o bastante pra atrapalhar o gesto inteiro em alguns
-    // navegadores (não só perto da borda — foi o que quebrou o recuo pra 2ª/1ª coluna).
+    // navegadores.
     e.preventDefault()
     const container = boardScrollRef.current
     if (!container) return
     const rect = container.getBoundingClientRect()
-    const edgeZone = 90
-    const scrollStep = 28
-    if (e.clientX < rect.left + edgeZone) {
-      container.scrollLeft -= scrollStep
-    } else if (e.clientX > rect.right - edgeZone) {
-      container.scrollLeft += scrollStep
+    const edgeZone = 60
+    let dir: 'left' | 'right' | null = null
+    if (e.clientX < rect.left + edgeZone) dir = 'left'
+    else if (e.clientX > rect.right - edgeZone) dir = 'right'
+
+    if (dir !== autoScrollDirRef.current) {
+      autoScrollDirRef.current = dir
+      if (dir && autoScrollRafRef.current === null) {
+        autoScrollRafRef.current = requestAnimationFrame(runAutoScrollLoop)
+      } else if (!dir) {
+        stopAutoScroll()
+      }
     }
   }
 
   const handleDrop = (e: React.DragEvent, targetCol: Coluna) => {
     e.preventDefault()
+    stopAutoScroll()
     const lead_uuid = e.dataTransfer.getData('lead_uuid')
     if (!lead_uuid) return
     const lead = leads.find(l => l.lead_uuid === lead_uuid)
@@ -557,7 +609,7 @@ export default function KanbanPage() {
       {loading ? (
         <div className="flex items-center justify-center p-20 text-blue-500 font-bold italic animate-pulse">Sincronizando Inteligência...</div>
       ) : (
-        <div ref={boardScrollRef} onDragOver={handleBoardDragOver} className="flex space-x-6 overflow-x-auto pb-8 pt-4 custom-scrollbar">
+        <div ref={boardScrollRef} onDragOver={handleBoardDragOver} onDragEnd={stopAutoScroll} className="flex space-x-6 overflow-x-auto pb-8 pt-4 custom-scrollbar">
           {colunas.map(col => (
             <div key={col.id} className="flex-shrink-0 w-[340px] flex flex-col space-y-4">
               {/* Header da Coluna */}

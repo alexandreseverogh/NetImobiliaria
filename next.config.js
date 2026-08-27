@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-08-27 (2) — Avancar/Recuar Etapa sumiram do DOM sem erro nenhum, mesma classe de bundle stale de HMR em crm/kanban/page.tsx
+// last-restart: 2026-08-27 (3) — recuo pra 1a/2a coluna via drag reincidiu apos varios edits seguidos em kanban/page.tsx; API confirmada OK via fetch direto, suspeita de HMR stale
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'
