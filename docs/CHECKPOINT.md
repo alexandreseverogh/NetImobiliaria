@@ -1,5 +1,27 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 14) — **Modal "Negócio Fechado" (etapa de Ganho)
+> ganha um 2º campo de referência desabilitado: "Valor Estimado"** — pedido direto do
+> usuário, complementando o campo de referência que já existia ("Faixa de Valor declarado
+> pelo lead"). Agora o atendente vê os DOIS pontos de referência (o que o lead disse que
+> queria gastar, e o que o próprio pipeline já vinha estimando ao longo das etapas) antes de
+> informar o valor real de fechamento.
+>
+> **Implementado** (`src/app/crm/kanban/page.tsx`) — mesmo padrão visual/estrutural do campo
+> de referência já existente (input desabilitado, `opacity-60`, `cursor-not-allowed`): novo
+> bloco condicional (`pendingGanhoMove.lead.valor_venda_estimado != null`) logo abaixo do
+> "declarado pelo lead", mostrando `valor_venda_estimado` formatado como moeda real
+> (`Intl.NumberFormat`). Nunca editável neste modal — é só contexto, o valor real continua
+> sendo digitado no campo "Valor de Fechamento" logo abaixo, como já era.
+>
+> **Testado ao vivo, com lead real** ("Gisele Cesse Campos", `valor_venda_estimado=
+> R$100.000,00`): drag pra coluna de Ganho abriu o modal corretamente com o campo "Valor
+> Estimado" desabilitado mostrando `R$ 100.000,00` (confirmado lendo `input.value` diretamente
+> — o `innerText` não pega valor de `<input>`, só o rótulo). Modal cancelado sem confirmar
+> (não fechei negócio de verdade numa lead real) — confirmado por SQL que nem `valor_venda`
+> nem `coluna_id` foram alterados pelo teste em si. `npx tsc --noEmit`: zero erros no arquivo
+> tocado.
+
 > **Atualizado em:** 2026-08-27 (continuação 13) — **Causa raiz de verdade encontrada: NÃO
 > era código de drag-and-drop — era pressão intermitente no pool de conexões Postgres,** o
 > mesmo tipo de incidente já documentado neste projeto ("Fix Login Loop — DB Pool

@@ -1047,6 +1047,23 @@ export default function KanbanPage() {
                 />
               </div>
             )}
+            {/* Referência: o Valor Estimado que o próprio pipeline já vinha acumulando (editável
+                na ficha ao longo das etapas, docs/CHECKPOINT.md 2026-08-27) — desabilitado aqui,
+                nunca editável neste modal: é só contexto pra comparar com o valor real de
+                fechamento que o atendente vai informar abaixo. Só aparece quando existe. */}
+            {pendingGanhoMove.lead.valor_venda_estimado != null && (
+              <div className="mb-4">
+                <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
+                  Valor Estimado
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pendingGanhoMove.lead.valor_venda_estimado)}
+                  className={`w-full rounded-2xl py-3 px-4 text-sm font-bold cursor-not-allowed opacity-60 ${t.isDark ? t.inputBg : 'bg-slate-100 text-slate-500 border border-slate-200'}`}
+                />
+              </div>
+            )}
             <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
               Valor de Fechamento (opcional)
             </label>
