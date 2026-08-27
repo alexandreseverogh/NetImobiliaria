@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-08-27 (3) — recuo pra 1a/2a coluna via drag reincidiu apos varios edits seguidos em kanban/page.tsx; API confirmada OK via fetch direto, suspeita de HMR stale
+// last-restart: 2026-08-27 (4) — REVERTIDO por completo o auto-scroll do board (destruia avanco/recuo entre qualquer par de colunas); kanban/page.tsx restaurado ao estado do commit 6b2f9ce
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

@@ -1,5 +1,42 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 12) — **Revertido por completo o recurso de
+> auto-scroll do board (continuações 8, 9 e 11)** — depois de 3 tentativas seguidas de
+> corrigir um problema que eu nunca consegui reproduzir de forma confiável com as ferramentas
+> de teste automatizado disponíveis, o usuário reportou que a última tentativa piorou a
+> situação a ponto de quebrar avanço/recuo entre QUALQUER par de colunas (1ª→2ª, 2ª→3ª, 4ª→3ª)
+> — funcionalidade que "funcionava bem ontem". Decisão: parar de tentar consertar às cegas e
+> reverter por completo, priorizando restaurar o que já funcionava sobre insistir numa
+> melhoria que eu não conseguia validar de verdade.
+>
+> **Ação:** `src/app/crm/kanban/page.tsx` restaurado via `git checkout 6b2f9ce --` para o
+> estado exato de ANTES de qualquer mudança de auto-scroll — remove por completo
+> `boardScrollRef`, `autoScrollDirRef`/`autoScrollRafRef`, `handleBoardDragOver`,
+> `runAutoScrollLoop`/`stopAutoScroll`, e o `onDragOver`/`onDragEnd`/`ref` que tinham sido
+> adicionados ao container do board. Volta ao mecanismo original e simples: só
+> `handleDragOver`/`handleDrop` nas zonas de drop de cada coluna individualmente, sem nenhuma
+> lógica de scroll automático.
+>
+> **Testado ao vivo, reinício completo do servidor + aba nova, com lead real** ("Gisele Cesse
+> Campos"), reproduzindo EXATAMENTE os 4 casos que o usuário reportou quebrados nesta rodada:
+> 2ª→3ª (avanço) ✅ · 3ª→2ª (recuo) ✅ · 2ª→1ª (recuo, o caso original) ✅ · 1ª→2ª (avanço) ✅ —
+> todos confirmados por SQL, lead terminou de volta em "Em Análise" (seu estado correto),
+> `valor_venda_estimado` intacto. `npx tsc --noEmit`: zero erros no arquivo tocado.
+>
+> **Decisão consciente, não reabrir sem pedido explícito:** o problema ORIGINAL que motivou o
+> auto-scroll (arrastar um lead de uma coluna distante — ex. 5ª — de volta pra uma coluna fora
+> da área visível, tipo a 1ª, quando o board não cabe todas as colunas na tela) **continua sem
+> solução** — voltou a ser fisicamente impossível via drag, exatamente como estava antes desta
+> frente inteira começar. Não tentar de novo sem confirmação explícita do usuário: as 3
+> tentativas anteriores (edge-trigger direto, +preventDefault, +requestAnimationFrame) foram
+> cada vez mais cuidadosas e ainda assim todas comprovadamente quebraram alguma coisa que só
+> aparecia com um arrasto físico real, que nenhuma ferramenta de automação disponível
+> consegue simular com fidelidade suficiente pra validar esse tipo de mudança com segurança.
+> Alternativa mais segura, se o usuário quiser resolver isso no futuro: rolar o board
+> manualmente ANTES de iniciar o arrasto (já funciona, scroll comum não precisa de nenhum
+> código especial) — ou usar os botões "Avançar Etapa"/"Recuar Etapa" na ficha do lead, que
+> nunca dependeram de scroll nenhum.
+
 > **Atualizado em:** 2026-08-27 (continuação 11) — **Fix real da causa raiz de verdade do
 > auto-scroll (continuação 8/9): recuar pra 1ª/2ª etapa via drag continuava falhando no
 > navegador real do usuário mesmo depois do fix de `preventDefault` — o diagnóstico de
