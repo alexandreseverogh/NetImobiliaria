@@ -345,7 +345,6 @@ export default function SegmentConfigPage() {
                     <select value={field.type} onChange={e => updateFormField(idx, 'type', e.target.value)} className={inputCls}>
                       <option value="text">A - Texto Curto</option>
                       <option value="number">123 - Número</option>
-                      <option value="currency">R$ - Moeda</option>
                       <option value="select">▼ - Lista Suspensa</option>
                     </select>
                   </div>

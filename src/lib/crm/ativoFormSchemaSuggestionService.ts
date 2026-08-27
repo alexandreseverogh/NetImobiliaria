@@ -9,11 +9,15 @@ import { invokeWithTemplate } from '@/lib/intelligence/llmInvoker'
 export interface SuggestedFormField {
   name: string
   label: string
-  type: 'text' | 'number' | 'currency' | 'select'
+  type: 'text' | 'number' | 'select'
   required: boolean
 }
 
-const VALID_TYPES = new Set(['text', 'number', 'currency', 'select'])
+// "currency" deliberadamente fora — desde 2026-08-27 (docs/CHECKPOINT.md) o valor do negócio
+// é sempre o campo fixo "Valor Estimado" de NovoLeadModal.tsx, nunca um campo dinâmico do
+// Perfil de Interesse; um valor sugerido como currency é rebaixado pra "text" abaixo, nunca
+// quebra a sugestão.
+const VALID_TYPES = new Set(['text', 'number', 'select'])
 
 function slugifyName(raw: string): string {
   return raw

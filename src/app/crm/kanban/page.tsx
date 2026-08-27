@@ -223,21 +223,28 @@ export default function KanbanPage() {
     } finally { setMovingLead(false) }
   }
 
-  // Ponto único de decisão: coluna de Ganho pede o valor REAL da venda; coluna marcada
-  // requer_valor_estimado (e o lead ainda sem estimativa) pede o valor ESTIMADO; qualquer
-  // outra move direto, sem prompt.
+  // Ponto único de decisão (revisado em 2026-08-27 — docs/CHECKPOINT.md): coluna de Ganho pede
+  // o valor REAL da venda; coluna de Perda move direto, sem nenhum valor; qualquer OUTRA etapa
+  // (intermediária, aberta) sempre oferece a opção de atualizar o Valor Estimado — pré-
+  // preenchido com o que o lead já tem, nunca um gate bloqueante por config de coluna
+  // (requer_valor_estimado foi aposentado: o valor agora nasce na criação do lead e só vai
+  // sendo refinado a cada etapa, não é mais "exigido" pontualmente).
   const requestMove = (lead: Lead, targetCol: Coluna) => {
     if (targetCol.is_ganho) {
       setValorVendaInput('')
       setPendingGanhoMove({ lead, targetCol })
       return
     }
-    if (targetCol.requer_valor_estimado && (lead.valor_venda_estimado === null || lead.valor_venda_estimado === undefined)) {
-      setValorEstimadoInput('')
-      setPendingEstimativaMove({ lead, targetCol })
+    if (targetCol.is_perda) {
+      executeMove(lead, targetCol)
       return
     }
-    executeMove(lead, targetCol)
+    setValorEstimadoInput(
+      lead.valor_venda_estimado != null
+        ? lead.valor_venda_estimado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : ''
+    )
+    setPendingEstimativaMove({ lead, targetCol })
   }
 
   const confirmGanhoMove = () => {
@@ -251,7 +258,9 @@ export default function KanbanPage() {
   const confirmEstimativaMove = () => {
     if (!pendingEstimativaMove) return
     const digits = valorEstimadoInput.replace(/\D/g, '')
-    const valor = digits ? parseInt(digits, 10) / 100 : 0
+    // Campo vazio = "não alterar" (undefined nunca é enviado ao servidor, preserva o que já
+    // existe) — nunca sobrescreve um valor real com zero só porque o atendente não mexeu nele.
+    const valor = digits ? parseInt(digits, 10) / 100 : undefined
     executeMove(pendingEstimativaMove.lead, pendingEstimativaMove.targetCol, undefined, valor)
     setPendingEstimativaMove(null)
   }
@@ -996,9 +1005,12 @@ export default function KanbanPage() {
         </div>
       )}
 
-      {/* Modal "Estimativa de Valor" — etapa marcada requer_valor_estimado, lead ainda sem
-          estimativa. Nunca confundido com o "Negócio Fechado" acima (cor âmbar vs. verde,
-          "estimado" explícito no texto) — ver docs/CHECKPOINT.md, 2026-08-13. */}
+      {/* Modal "Estimativa de Valor" — mostrado em TODA transição pra uma etapa intermediária
+          (não-Ganho, não-Perda), pré-preenchido com o valor já existente do lead. Não é mais
+          um gate por config de coluna (requer_valor_estimado aposentado em 2026-08-27, docs/
+          CHECKPOINT.md) — é sempre uma oportunidade opcional de refinar o valor conforme o
+          negócio avança. Campo vazio ao confirmar = move sem alterar nada. Nunca confundido
+          com o "Negócio Fechado" acima (cor âmbar vs. verde, "estimado" explícito no texto). */}
       {pendingEstimativaMove && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
           <div className={`${t.modalBg} w-full max-w-sm rounded-[2rem] p-7 shadow-2xl border border-white/10 animate-in zoom-in-95`}>
@@ -1007,12 +1019,12 @@ export default function KanbanPage() {
                 <span className="text-xl">💰</span>
               </div>
               <div>
-                <h3 className={`text-base font-black italic tracking-tight ${t.textPrimary}`}>Estimativa de Valor</h3>
+                <h3 className={`text-base font-black italic tracking-tight ${t.textPrimary}`}>Atualizar Valor Estimado?</h3>
                 <p className={`text-[10px] font-bold ${t.textMuted}`}>{pendingEstimativaMove.lead.nome}</p>
               </div>
             </div>
             <label className={`block text-[9px] font-black uppercase tracking-widest ${t.textMuted} mb-2`}>
-              Valor Potencial Estimado
+              Valor Potencial Estimado (opcional)
             </label>
             <div className="relative">
               <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold ${t.textMuted}`}>R$</span>
@@ -1032,8 +1044,9 @@ export default function KanbanPage() {
               />
             </div>
             <p className={`text-[10px] ${t.textMuted} mt-2 italic`}>
-              Um palpite, não um fato — alimenta o Pipeline em Aberto do dashboard. Nunca é
-              confundido com o valor real, que só é pedido no fechamento.
+              Um palpite, não um fato — alimenta o Pipeline em Aberto do dashboard. Deixe em
+              branco pra mover sem alterar. Nunca confundido com o valor real, que só é pedido
+              no fechamento.
             </p>
             <div className="mt-7 flex gap-3">
               <button
@@ -1046,7 +1059,7 @@ export default function KanbanPage() {
                 onClick={confirmEstimativaMove}
                 className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"
               >
-                Confirmar
+                Mover
               </button>
             </div>
           </div>

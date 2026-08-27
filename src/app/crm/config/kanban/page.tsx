@@ -110,11 +110,6 @@ export default function KanbanConfigPage() {
                         Perda
                       </span>
                     )}
-                    {col.requer_valor_estimado && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-500 border border-amber-500/30">
-                        Exige valor est.
-                      </span>
-                    )}
                   </div>
                 </td>
                 <td className={`px-6 py-4 text-sm font-black ${t.textPrimary}`}>
@@ -213,20 +208,13 @@ export default function KanbanConfigPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className={`text-xs font-bold uppercase tracking-widest pl-1 ${t.textMuted}`}>Valor Estimado (opcional)</label>
+                <label className={`text-xs font-bold uppercase tracking-widest pl-1 ${t.textMuted}`}>Valor Estimado</label>
                 <p className={`text-[11px] pl-1 ${t.textMuted}`}>
-                  Exige que o atendente informe um valor estimado do negócio ao mover um lead
-                  pra esta etapa (nunca confundido com o valor REAL — esse só é pedido no
-                  fechamento). Não aplicável na Etapa de Ganho (que já pede o valor real) nem
-                  na Etapa de Perda (negócio perdido não tem mais pipeline aberto a estimar).
+                  Desde 2026-08-27, o Valor Estimado nasce já na criação do lead e o atendente
+                  tem a opção de atualizá-lo automaticamente a cada troca de etapa (exceto
+                  Ganho, que pede o valor REAL do fechamento, e Perda, que não pede valor
+                  nenhum) — não é mais uma exigência configurável por coluna.
                 </p>
-                <label className={`flex items-center gap-2 pl-1 select-none ${(currentEdit.is_ganho || currentEdit.is_perda) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
-                  <input type="checkbox" checked={currentEdit.requer_valor_estimado === true && !currentEdit.is_ganho && !currentEdit.is_perda}
-                    disabled={currentEdit.is_ganho === true || currentEdit.is_perda === true}
-                    onChange={e => setCurrentEdit({ ...currentEdit, requer_valor_estimado: e.target.checked })}
-                    className="h-4 w-4 rounded accent-amber-500" />
-                  <span className={`text-sm font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>Exige valor estimado ao entrar nesta etapa</span>
-                </label>
               </div>
               <div className="space-y-2">
                 <label className={`text-xs font-bold uppercase tracking-widest pl-1 ${t.textMuted}`}>Cor Hex</label>

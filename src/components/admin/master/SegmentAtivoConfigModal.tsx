@@ -281,7 +281,6 @@ export function SegmentAtivoConfigModal({ segment, onClose }: Props) {
                     <select value={f.type} onChange={e => updateField(i, { type: e.target.value })} className={cn(inputCls, 'col-span-2 py-1')}>
                       <option value="text">Texto</option>
                       <option value="number">Número</option>
-                      <option value="currency">Moeda</option>
                       <option value="select">Lista</option>
                     </select>
                     <input value={f.label} onChange={e => updateField(i, { label: e.target.value })} placeholder="Rótulo" className={cn(inputCls, 'col-span-4 py-1')} />

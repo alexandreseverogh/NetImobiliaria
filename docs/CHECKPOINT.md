@@ -1,5 +1,85 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 3) — **Fecha o loop de feedback da IA no "+ Novo
+> Lead" + corrige 2 textos enganosos, depois de uma discussão de fundo sobre "qual é o papel
+> real da IA nesta tela pra acelerar vendas".**
+>
+> **Contexto — pergunta direta do usuário sobre a frase "Estes dados engatilham a IA!"**
+> (no bloco "Perfil de Interesse"): investigação em `ConciergeService.qualifyLead()` confirmou
+> que a frase estava **errada** — `raw_json` (os campos dinâmicos tipo Marca Desejada/Ano
+> Desejado) nunca é injetado no prompt do LLM, só serve de trava booleana ("existe dado
+> estruturado?"); quem de fato alimenta a classificação é só o campo **"Demanda do Cliente"**
+> (texto livre). Usuário pediu uma análise mais profunda, se colocando no lugar de um
+> atendente/vendedor brasileiro médio — não técnico, sem paciência pra "IA nos bastidores" sem
+> retorno visível. Meu diagnóstico, aceito pelo usuário: a qualificação acontecia **100% em
+> silêncio** (o atendente digitava a Demanda, salvava, o modal fechava, e nada na tela mostrava
+> o resultado — só reaparecia depois, escondido dentro da ficha) — o oposto de "acelerar
+> vendas". Contrastado com os 5 Agentes de Aceleração (que ainda vamos testar): cada um entrega
+> uma ação **visível e imediata** (alerta, sugestão pronta, mensagem de reativação já escrita),
+> nunca um "score silencioso".
+>
+> **Implementado (3 itens, aprovados e implementados juntos):**
+> 1. **Fecha o loop de feedback** — `POST /api/crm/leads` agora retorna `qualification`
+>    (`tag_sonho`, `score_prontidao`, `score_fit`, sempre em %, honesto mesmo quando é "A
+>    Definir" por falta de dado — nunca maquiado). `NovoLeadModal.tsx` ganha um **Passo 3**
+>    ("Lead registrado") mostrando a tag real + os 2 scores + uma frase explicando o porquê
+>    ("ajuda a priorizar quem atacar primeiro"), antes de fechar — substitui o fechamento
+>    imediato e silencioso de antes.
+> 2. **Rótulo da "Demanda do Cliente" reescrito** — ganha o sufixo "— ajuda a priorizar quem
+>    atacar primeiro" e o placeholder passa a dizer explicitamente "A IA usa este texto pra
+>    estimar Intenção e Aderência do lead" — nomeando o ganho real em linguagem de vendedor,
+>    não de tecnologia.
+> 3. **Frase errada do "Perfil de Interesse" corrigida** — "Estes dados engatilham a IA!" virou
+>    "Os campos abaixo ficam salvos como referência rápida pra você e pro time — quem alimenta
+>    a classificação por IA é a 'Demanda do Cliente', acima." — aponta pro campo certo.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant CRM SOZINHO): lead criado com
+> demanda real ("Cliente quer fechar hoje, tem o dinheiro em mãos, só está decidindo a cor.")
+> → Passo 3 mostrou corretamente "Comprador à Vista" / Intenção 100% / Aderência 70% →
+> confirmado por SQL que bate exatamente com o que foi persistido (`tag_sonho`,
+> `score_prontidao`, `score_fit`). Lead de teste removido depois, `count(*)=0` confirmado.
+> `npx tsc --noEmit`: zero erros nos 2 arquivos tocados.
+>
+> **Atualizado em:** 2026-08-27 (continuação 2) — **"Faixa de Valor" (campo dinâmico do Perfil
+> de Interesse) e "Valor Estimado" (campo do Pipeline) eram genuinamente redundantes — os dois
+> perguntavam "quanto o negócio vale", só que em momentos e por pessoas diferentes. Decisão do
+> usuário: consolidar em só 2 valores no ciclo de vida do lead — Valor Estimado (nasce na
+> criação, editável a cada troca de coluna) e Valor de Fechamento (real, automático em Ganho)
+> — eliminando "Faixa de Valor" e o gate "Exige valor estimado" por coluna.**
+>
+> **Arquitetura nova, 100% agnóstica de segmento:**
+> 1. **`NovoLeadModal.tsx`** — novo campo **fixo** "Valor Estimado (opcional)" (não depende
+>    mais de `form_schema_json` do segmento) — grava direto em `valor_venda_estimado`, nunca
+>    em `raw_json`. Campos `type:"currency"` do schema dinâmico deixam de ser renderizados
+>    (substituídos por este campo único) — filtrados tanto na renderização quanto na
+>    validação de obrigatório.
+> 2. **`form_schema_json` dos 2 segmentos com campo de moeda** (Imobiliário `preco`, Venda de
+>    Carros `faixa_preco`) — removidos via a API real do Master (`PUT .../ativo-config`).
+>    Opção "Moeda" removida dos 2 seletores de tipo de campo (`SegmentAtivoConfigModal.tsx`
+>    Master, `crm/config/segmentos/page.tsx` tenant) e do prompt de sugestão por IA
+>    (`crm_ativo_form_schema_suggestion`, banco) — pra nenhum novo segmento recriar o campo
+>    morto no futuro.
+> 3. **`POST /api/crm/leads`** — aceita `valor_venda_estimado` na criação; no merge (Match
+>    Engine, lead re-contata), atualiza só se um valor novo vier (`COALESCE`), nunca apaga um
+>    valor já existente com null.
+> 4. **`kanban/page.tsx` — `requestMove`** reescrito: coluna de Ganho e Perda continuam como
+>    estavam (sem mudança); **qualquer outra coluna intermediária** agora SEMPRE oferece o
+>    modal "Atualizar Valor Estimado?" pré-preenchido com o valor já existente do lead — não é
+>    mais um gate condicionado a config de coluna (`requer_valor_estimado` aposentado, coluna
+>    do banco mantida mas sem uso, sem migração destrutiva). Campo vazio ao confirmar = move
+>    sem alterar nada (nunca zera um valor real só porque o atendente não mexeu).
+> 5. **`/crm/config/kanban`** — checkbox "Exige valor estimado" removido (substituído por um
+>    texto explicando o novo mecanismo automático); badge "Exige valor est." removido da
+>    listagem.
+>
+> **Testado ao vivo, ponta a ponta, via API real** (tenant CRM SOZINHO): lead criado com
+> `valor_venda_estimado=85000` → confirmado no banco, `raw_json` sem nenhuma chave de moeda ·
+> movido pra coluna intermediária com novo valor (90000) → atualizado corretamente · movido de
+> novo SEM passar valor → `valor_venda_estimado` permaneceu 90000, intocado · movido pra
+> Ganho com `valor_venda=92000` → os dois campos (`valor_venda_estimado=90000`,
+> `valor_venda=92000`) coexistiram sem se sobrescrever, exatamente como desenhado. Dado de
+> teste removido depois. `npx tsc --noEmit`: zero erros em todos os 7 arquivos tocados.
+>
 > **Atualizado em:** 2026-08-27 — **Fix real: "Exige valor estimado ao entrar nesta etapa"
 > só era desabilitado/desmarcado automaticamente pra "Etapa de Ganho" — "Etapa de Perda" não
 > tinha a mesma trava, mesmo a lógica de negócio sendo idêntica nos dois casos.**

@@ -176,6 +176,10 @@ export async function POST(request: NextRequest) {
           -- Nunca sobrescreve — preserva a mensagem literal do PRIMEIRO contato mesmo quando
           -- o mesmo lead volta a se manifestar depois (Match Engine mesclando via email/telefone).
           mensagem_original = COALESCE(mensagem_original, $9),
+          -- Valor Estimado — ao contrário de mensagem_original, este PODE ser atualizado a cada
+          -- novo contato (o valor vai variando conforme o negócio anda); só substitui quando um
+          -- novo valor de fato vem no payload, nunca apaga um já existente com null.
+          valor_venda_estimado = COALESCE($10, valor_venda_estimado),
           updated_at = NOW()
         WHERE lead_uuid = $7
         RETURNING lead_uuid
@@ -189,13 +193,14 @@ export async function POST(request: NextRequest) {
         JSON.stringify(raw_json || {}),
         leadUuid,
         matchMethod,
-        data.mensagem || null
+        data.mensagem || null,
+        data.valor_venda_estimado ?? null
       ])
     } else {
       // Lead NOVO -> INSERT
       const insertQuery = `
-        INSERT INTO leads_staging (nome, email, telefone, tag_sonho, raw_json, imovel_id, estado_fk, cidade_fk, utm_campaign, valor_venda, tenant_id, client_id, match_method, mensagem_original)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        INSERT INTO leads_staging (nome, email, telefone, tag_sonho, raw_json, imovel_id, estado_fk, cidade_fk, utm_campaign, valor_venda, tenant_id, client_id, match_method, mensagem_original, valor_venda_estimado)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING lead_uuid
       `
       const { rows: insertRows } = await pool.query(insertQuery, [
@@ -212,7 +217,8 @@ export async function POST(request: NextRequest) {
         leadTenantId,
         leadClientId,
         isManual ? 'manual' : 'novo',
-        data.mensagem || null
+        data.mensagem || null,
+        data.valor_venda_estimado ?? null
       ])
       leadUuid = insertRows[0].lead_uuid
 
@@ -383,7 +389,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       lead_uuid: leadUuid,
-      message: existingRows.length > 0 ? 'Lead enriquecido com sucesso.' : 'Novo lead captado e registrado.'
+      message: existingRows.length > 0 ? 'Lead enriquecido com sucesso.' : 'Novo lead captado e registrado.',
+      // Fecha o loop de feedback pro atendente que acabou de criar o lead — sem isso, a
+      // classificação da IA acontece 100% em silêncio e ninguém vê o resultado na hora
+      // (docs/CHECKPOINT.md, 2026-08-27). Sempre honesto: mesmo "A Definir"/score baixo por
+      // falta de dado é mostrado, nunca escondido — o ponto é dar visibilidade, não maquiar.
+      qualification: {
+        tag_sonho: qualification.tag_sonho,
+        score_prontidao: qualification.score_prontidao * 10,
+        score_fit: qualification.score_fit !== null ? qualification.score_fit * 10 : null,
+      }
     })
 
   } catch (error: any) {
