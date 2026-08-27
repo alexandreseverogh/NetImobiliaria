@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   ListBulletIcon,
   MagnifyingGlassIcon,
@@ -72,6 +72,11 @@ const formatPhone = (phone?: string) => {
 
 export default function KanbanPage() {
   const t = useTheme()
+  // Board rola horizontalmente (overflow-x-auto) — sem isso, arrastar um card de volta pra uma
+  // coluna fora da área visível (ex.: da 5ª pra 1ª) é fisicamente impossível: o navegador não
+  // faz auto-scroll confiável de um <div> customizado durante um HTML5 drag nativo, só da
+  // janela. Mesmo padrão usado por qualquer Kanban real (Trello, Jira etc.).
+  const boardScrollRef = useRef<HTMLDivElement>(null)
   const [colunas, setColunas] = useState<Coluna[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
@@ -426,6 +431,23 @@ export default function KanbanPage() {
     e.preventDefault()
   }
 
+  // Dispara continuamente enquanto o card arrastado passa perto da borda esquerda/direita do
+  // board — rola o container na direção certa, revelando colunas fora da área visível (ex.:
+  // "Lead Captado" quando o drag começou lá na "Proposta Enviada"). `dragover` nativo já
+  // repete sozinho durante o gesto, então não precisa de setInterval — só reagir a cada evento.
+  const handleBoardDragOver = (e: React.DragEvent) => {
+    const container = boardScrollRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const edgeZone = 90
+    const scrollStep = 28
+    if (e.clientX < rect.left + edgeZone) {
+      container.scrollLeft -= scrollStep
+    } else if (e.clientX > rect.right - edgeZone) {
+      container.scrollLeft += scrollStep
+    }
+  }
+
   const handleDrop = (e: React.DragEvent, targetCol: Coluna) => {
     e.preventDefault()
     const lead_uuid = e.dataTransfer.getData('lead_uuid')
@@ -529,7 +551,7 @@ export default function KanbanPage() {
       {loading ? (
         <div className="flex items-center justify-center p-20 text-blue-500 font-bold italic animate-pulse">Sincronizando Inteligência...</div>
       ) : (
-        <div className="flex space-x-6 overflow-x-auto pb-8 pt-4 custom-scrollbar">
+        <div ref={boardScrollRef} onDragOver={handleBoardDragOver} className="flex space-x-6 overflow-x-auto pb-8 pt-4 custom-scrollbar">
           {colunas.map(col => (
             <div key={col.id} className="flex-shrink-0 w-[340px] flex flex-col space-y-4">
               {/* Header da Coluna */}

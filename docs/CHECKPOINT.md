@@ -1,5 +1,45 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 8) — **Fix real, causa raiz diferente da
+> investigada na rodada anterior: arrastar um lead de volta pra 1ª coluna ("Lead Captado")
+> falhava especificamente quando a coluna de origem já não estava mais visível na tela** —
+> usuário refinou o relato ("consigo recuar da 3ª pra 2ª, da 5ª pra 2ª... o problema é o
+> recuo, COM O MOUSE, pra primeira etapa"), isolando que o padrão nunca dependia da coluna de
+> origem, só do destino ser especificamente a 1ª.
+>
+> **Causa raiz confirmada, não suposta:** o board rola horizontalmente
+> (`overflow-x-auto`) e a lógica de move em si sempre esteve correta (confirmado reproduzindo
+> via `DragEvent`+`DataTransfer` reais — moveu certo mesmo antes do fix) — o que falha é
+> puramente físico/espacial: com mais de ~3 colunas visíveis por vez num viewport real
+> (confirmado `scrollWidth:2524` vs `clientWidth:1041` numa tela de 1440px), arrastar de volta
+> pra uma coluna fora da área visível (a 1ª, quando o usuário está olhando a 3ª/5ª/etc.) exige
+> que o navegador role o container ENQUANTO o card está sendo arrastado — e auto-scroll nativo
+> do HTML5 Drag and Drop não é confiável pra `<div>` customizado com `overflow-x-auto` (só
+> funciona de verdade pra rolagem da JANELA em muitos navegadores). Sem esse mecanismo, o
+> usuário fisicamente não consegue soltar o card em cima de uma coluna que a tela não mostra.
+>
+> **Corrigido** (`src/app/crm/kanban/page.tsx`) — auto-scroll durante o drag, mesmo padrão já
+> usado por qualquer Kanban real (Trello, Jira etc.): novo `boardScrollRef` (`useRef`) no
+> container rolável + `handleBoardDragOver` — a cada evento nativo `dragover` (que já repete
+> sozinho durante o gesto, sem precisar de `setInterval`), se o cursor está a menos de 90px da
+> borda esquerda/direita do container, rola 28px nessa direção. Aditivo — não interfere no
+> `handleDragOver`/`handleDrop` já existentes nas colunas individuais (`dragover` borbulha
+> normalmente, os dois handlers coexistem).
+>
+> **Testado ao vivo, ponta a ponta, com lead real** ("Gisele Cesse Campos", tenant CRM
+> SOZINHO), reproduzindo o cenário exato do relato numa tela de 1440px (>3 colunas exigem
+> scroll): (1) confirmado que um único evento `dragover` perto da borda esquerda já reduz
+> `scrollLeft` em 28px · (2) 30 eventos seguidos (simulando o cursor parado perto da borda
+> durante um arrasto real seguro) levam `scrollLeft` corretamente a 0, sem passar do limite ·
+> (3) **fluxo completo**: lead movida pra "Proposta Enviada" (5ª coluna, mesmo exemplo citado
+> pelo usuário) → board rolado todo pra direita (a 5ª coluna fica fora da view da 1ª) →
+> `dragstart` no card real → 60 `dragover` seguidos perto da borda esquerda (simula segurar o
+> card ali) → `scrollLeft` chega a 0 (1ª coluna revelada) → `drop` na 1ª coluna → confirmado
+> por SQL: `coluna_id=58` ("Lead Captado"), exatamente o resultado que o usuário não
+> conseguia obter com o mouse. Lead restaurada ao estado anterior ao teste (Entendimento da
+> Dor, `valor_venda_estimado` intocado — confirma que o drag-and-drop nunca mexe nesse campo,
+> mesmo depois do fix). `npx tsc --noEmit`: zero erros no arquivo tocado.
+
 > **Atualizado em:** 2026-08-27 (continuação 7) — **2 itens: (1) investigado e descartado —
 > "drag-and-drop/Avançar/Recuar parou de funcionar" era artefato do ambiente de teste, não
 > regressão real; (2) rótulo "Mensagem Original do Lead" → "Mensagem do Lead"** (Kanban e
