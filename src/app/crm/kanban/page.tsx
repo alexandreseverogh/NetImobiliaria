@@ -436,6 +436,12 @@ export default function KanbanPage() {
   // "Lead Captado" quando o drag começou lá na "Proposta Enviada"). `dragover` nativo já
   // repete sozinho durante o gesto, então não precisa de setInterval — só reagir a cada evento.
   const handleBoardDragOver = (e: React.DragEvent) => {
+    // Sem isso, qualquer dragover que borbulha até aqui sem ter passado por uma zona de drop
+    // de coluna (a margem entre colunas, por cima do header, etc.) fica sem NENHUM
+    // preventDefault na cadeia — o navegador entende como "não pode soltar aqui" pra aquele
+    // evento específico, e isso é o bastante pra atrapalhar o gesto inteiro em alguns
+    // navegadores (não só perto da borda — foi o que quebrou o recuo pra 2ª/1ª coluna).
+    e.preventDefault()
     const container = boardScrollRef.current
     if (!container) return
     const rect = container.getBoundingClientRect()

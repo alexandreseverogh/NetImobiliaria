@@ -1,5 +1,32 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 9) — **Fix real: o auto-scroll da rodada anterior
+> (continuação 8) causou uma regressão pior — passou a bloquear o recuo pra 2ª E 1ª etapa,
+> não só a 1ª — corrigido no mesmo dia, reportado pelo usuário quase imediatamente.**
+>
+> **Causa raiz:** `handleBoardDragOver` (o novo handler no container rolável) nunca chamava
+> `e.preventDefault()`. Pela spec de HTML5 Drag and Drop, um evento `dragover` cujo caminho de
+> propagação não teve `preventDefault()` chamado em NENHUM listener é tratado pelo navegador
+> como "não pode soltar aqui" — e isso vale por evento, não só nas bordas. Qualquer momento em
+> que o cursor passa por uma área do board que não é exatamente a `div` de drop de uma coluna
+> (a margem entre colunas, por cima do cabeçalho de uma coluna, etc.) borbulha até o handler
+> novo sem preventDefault em lugar nenhum da cadeia — o suficiente, em navegadores reais, pra
+> corromper o gesto de arrasto inteiro, não só o instante daquele evento específico.
+>
+> **Corrigido:** `e.preventDefault()` adicionado no topo de `handleBoardDragOver` — mesmo
+> padrão já usado por `handleDragOver` das colunas individuais, e prática padrão documentada
+> em qualquer implementação real desse tipo de auto-scroll-durante-drag (mesmo em bibliotecas
+> como dnd-kit/react-beautiful-dnd). Só isso, nenhuma outra mudança de lógica.
+>
+> **Testado ao vivo, ponta a ponta, com lead real** ("Gisele Cesse Campos"), reconfirmando os
+> 3 cenários relevantes na mesma sessão: (1) 3ª→2ª etapa (sem precisar de scroll) → OK · (2)
+> **2ª→1ª etapa — o caso relatado como quebrado nesta rodada** → confirmado por SQL,
+> `coluna_id` mudou corretamente pra 58 (Lead Captado) · (3) 5ª→1ª com auto-scroll completo
+> (mesmo teste da rodada anterior, tela de 1440px) → `scrollLeft` chega a 0 durante o arrasto
+> segurado, drop na 1ª coluna confirmado por SQL — a correção do auto-scroll (continuação 8)
+> não foi perdida ao corrigir esta regressão. Lead restaurada ao estado anterior (Entendimento
+> da Dor, valor estimado intocado). `npx tsc --noEmit`: zero erros no arquivo tocado.
+
 > **Atualizado em:** 2026-08-27 (continuação 8) — **Fix real, causa raiz diferente da
 > investigada na rodada anterior: arrastar um lead de volta pra 1ª coluna ("Lead Captado")
 > falhava especificamente quando a coluna de origem já não estava mais visível na tela** —
