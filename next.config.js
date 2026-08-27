@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-08-27 (4) — REVERTIDO por completo o auto-scroll do board (destruia avanco/recuo entre qualquer par de colunas); kanban/page.tsx restaurado ao estado do commit 6b2f9ce
+// last-restart: 2026-08-27 (5) — snap-back intermitente ao mover lead era pressao no pool de conexoes (docker restart netimobiliaria-db aplicado) + query extra removida em move/route.ts
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

@@ -1,5 +1,55 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 13) — **Causa raiz de verdade encontrada: NÃO
+> era código de drag-and-drop — era pressão intermitente no pool de conexões Postgres,** o
+> mesmo tipo de incidente já documentado neste projeto ("Fix Login Loop — DB Pool
+> Exhaustion", 2026-06-01). Reincidiu depois do revert completo (continuação 12) porque o
+> revert só cobria `kanban/page.tsx`; a causa real estava no ambiente + numa query extra que
+> eu tinha deixado em `move/route.ts`.
+>
+> **Como cheguei lá:** pedi ao usuário o Network/Console do navegador (nunca tinha pedido
+> antes nesta sessão inteira — errei ao ficar só tentando adivinhar via automação, que não
+> reproduz um arrasto físico real). O usuário reportou um sintoma decisivo — **"com o
+> DevTools aberto, consigo arrastar"** — clássico de bug sensível a timing, não de lógica
+> quebrada. Ao pedir o log, o usuário colou sem querer o **terminal do servidor** (não o
+> console do navegador) — mas isso acabou sendo mais revelador ainda: mostrava o pool sendo
+> reiniciado seguido de ~15 linhas de "Nova conexão PostgreSQL estabelecida" em rajada,
+> exatamente o padrão do incidente de 2026-06-01. Bate com o histórico do dia: reiniciei o
+> servidor Next.js **5 vezes** ao longo desta sessão (cada stale-bundle "resolvido" com um
+> restart), e cada restart gera um pool novo — sob esse tipo de estresse repetido, mais uma
+> query por request (a que eu tinha adicionado na continuação 10, `currentColCheck`) era o
+> suficiente pra ocasionalmente estourar a janela de conexões disponíveis (`max=10` em dev) e
+> fazer aquela requisição específica de `move` estourar timeout → `executeMove` cai no catch
+> → reverte visualmente (o "snap-back" que o usuário via).
+>
+> **Corrigido em 2 frentes:**
+> 1. `src/app/api/crm/kanban/move/route.ts` — a query extra (`currentColCheck`, adicionada na
+>    continuação 10 pra checar `is_ganho` da coluna atual) foi **fundida** dentro do
+>    `leadCheck` já existente (LEFT JOIN pra `leads_kanban`+`kanban_colunas`, nunca quebra a
+>    checagem de "lead não encontrado" — `leads_staging` continua tendo 1 linha mesmo sem
+>    match no LEFT JOIN). Resultado: mesma correção do valor_venda (continuação 10) preservada
+>    100%, só que com uma query a menos por requisição de move — reduz a pressão que eu mesmo
+>    tinha introduzido no pool.
+> 2. `docker restart netimobiliaria-db` — limpa qualquer conexão zumbi acumulada pelos vários
+>    restarts do dia (mesmo remédio do incidente de 2026-06-01) + 1 último restart limpo do
+>    Next.js.
+>
+> **Testado ao vivo, ponta a ponta, com lead real** ("Gisele Cesse Campos", aba nova, sessão
+> real): sequência de **8 movimentos consecutivos e rápidos** (2ª→1ª→Lead Captado→Em Análise→
+> Entendimento da Dor→Visita Agendada→Entendimento da Dor→Em Análise, sem pausa manual entre
+> eles) → confirmado por SQL que a lead terminou EXATAMENTE na posição prevista pela sequência
+> — nenhuma falha/reversão em nenhum dos 8 passos · contagem de conexões Postgres confirmada
+> saudável antes e depois (2, bem abaixo do limite de 100) · `npx tsc --noEmit`: zero erros no
+> arquivo tocado.
+>
+> **Lição registrada, a mais importante desta frente inteira:** o sintoma "funciona com
+> DevTools aberto" é um sinal clássico de bug de timing/recursos, não de lógica — deveria ter
+> pedido essa informação ao usuário bem mais cedo, em vez de insistir em reproduzir via
+> automação (que não recria a cadência real de um arrasto físico nem a pressão real de uso
+> concorrente) por 3 rodadas seguidas antes de errar a ponto de destruir funcionalidade que
+> já funcionava. Pedir dado de diagnóstico real ao usuário, quando a própria automação já
+> provou ser insuficiente, deveria ter vindo antes, não depois.
+
 > **Atualizado em:** 2026-08-27 (continuação 12) — **Revertido por completo o recurso de
 > auto-scroll do board (continuações 8, 9 e 11)** — depois de 3 tentativas seguidas de
 > corrigir um problema que eu nunca consegui reproduzir de forma confiável com as ferramentas
