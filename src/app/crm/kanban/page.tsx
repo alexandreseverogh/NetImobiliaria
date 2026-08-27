@@ -102,6 +102,14 @@ export default function KanbanPage() {
   // dedicado permite atualizar sem precisar mudar de etapa.
   const [fichaValorEstimadoInput, setFichaValorEstimadoInput] = useState('')
   const [savingValorEstimado, setSavingValorEstimado] = useState(false)
+  // Informações do Lead (revisado em 2026-08-27, docs/CHECKPOINT.md) — todo campo que o
+  // próprio lead "trouxe" na criação (Perfil de Interesse dinâmico + Demanda do Cliente) vira
+  // editável na ficha, em qualquer etapa do Kanban — não só o Valor Estimado. Mesma disciplina
+  // de sincronização: só reseta quando abre um lead DIFERENTE (useEffect abaixo), nunca some o
+  // que o atendente está digitando por causa de outro campo de selectedLead mudando.
+  const [fichaRawJsonEdits, setFichaRawJsonEdits] = useState<Record<string, string>>({})
+  const [fichaMensagemEdit, setFichaMensagemEdit] = useState('')
+  const [savingInfoLead, setSavingInfoLead] = useState(false)
   // Exclusão de lead (docs/CHECKPOINT.md, 2026-08-14) — filtro "Mostrar leads excluídos" e
   // estado de exclusão/restauração em andamento (desabilita os botões enquanto processa).
   const [showDeleted, setShowDeleted] = useState(false)
@@ -165,6 +173,16 @@ export default function KanbanPage() {
           ? Number(selectedLead.valor_venda_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
           : ''
       )
+      // raw_json: string livre por campo (sempre texto no input, independente do type do
+      // schema — a coerção pro tipo real, se algum dia precisar, é problema do backend/
+      // enrichment, não da ficha). Campo do schema sem valor ainda no raw_json começa vazio.
+      const rawJsonNow: Record<string, string> = {}
+      for (const field of ativoFormSchema) {
+        const v = selectedLead.raw_json?.[field.name]
+        rawJsonNow[field.name] = v != null ? String(v) : ''
+      }
+      setFichaRawJsonEdits(rawJsonNow)
+      setFichaMensagemEdit(selectedLead.mensagem_original || '')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLead?.lead_uuid])
@@ -296,6 +314,64 @@ export default function KanbanPage() {
     } finally {
       setSavingValorEstimado(false)
     }
+  }
+
+  // Salva o Perfil de Interesse (raw_json) + Demanda do Cliente (mensagem_original) editados na
+  // ficha — endpoint dedicado (nunca o de move, que é só sobre etapa/valor). Sempre manda o
+  // raw_json INTEIRO (replace, não merge — mesmo padrão já usado em outras telas de
+  // replace-all deste projeto), então o servidor sempre reflete exatamente o que está nos
+  // campos agora. A resposta já vem com enriquecimento_cache regenerado — atualiza o card/
+  // ficha na hora, sem precisar de um refetch completo do board.
+  const saveFichaInfoLead = async () => {
+    if (!selectedLead) return
+    setSavingInfoLead(true)
+    try {
+      const res = await adminFetch(`/api/crm/leads/${selectedLead.lead_uuid}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'update_fields',
+          raw_json: fichaRawJsonEdits,
+          mensagem_original: fichaMensagemEdit,
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        const patch = { raw_json: data.raw_json, mensagem_original: data.mensagem_original, enriquecimento_cache: data.enriquecimento_cache }
+        setLeads(prev => prev.map(l => l.lead_uuid === selectedLead.lead_uuid ? { ...l, ...patch } : l))
+        setSelectedLead(prev => prev && prev.lead_uuid === selectedLead.lead_uuid ? { ...prev, ...patch } : prev)
+      }
+    } finally {
+      setSavingInfoLead(false)
+    }
+  }
+
+  // Único lugar que decide "tem algo pendente pra salvar" no container "Informações do Lead"
+  // — usado tanto pra mostrar/esconder o botão único de salvar quanto pelo próprio save
+  // combinado abaixo, pra nunca os dois discordarem sobre o que precisa ser persistido.
+  const fichaInfoDirty = useMemo(() => {
+    if (!selectedLead) return { rawJsonDirty: false, mensagemDirty: false, valorDirty: false, any: false }
+    const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
+    const isTerminal = !!(currentCol?.is_ganho || currentCol?.is_perda)
+    const valorSavedFormatted = selectedLead.valor_venda_estimado != null
+      ? Number(selectedLead.valor_venda_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : ''
+    const valorDirty = !isTerminal && fichaValorEstimadoInput !== valorSavedFormatted
+    const rawJsonDirty = ativoFormSchema.some(f => {
+      const saved = selectedLead.raw_json?.[f.name] != null ? String(selectedLead.raw_json[f.name]) : ''
+      return (fichaRawJsonEdits[f.name] ?? '') !== saved
+    })
+    const mensagemDirty = fichaMensagemEdit !== (selectedLead.mensagem_original || '')
+    return { rawJsonDirty, mensagemDirty, valorDirty, any: rawJsonDirty || mensagemDirty || valorDirty }
+  }, [selectedLead, colunas, fichaValorEstimadoInput, fichaRawJsonEdits, fichaMensagemEdit, ativoFormSchema])
+
+  // Botão único do container "Informações do Lead" — dispara só as chamadas realmente
+  // necessárias (raw_json/mensagem vão pro endpoint dedicado; Valor Estimado continua no
+  // endpoint de move, que já sabe tratar "mesma coluna" como update sem trocar etapa).
+  const saveFichaInfoLeadCombined = async () => {
+    const calls: Promise<void>[] = []
+    if (fichaInfoDirty.rawJsonDirty || fichaInfoDirty.mensagemDirty) calls.push(saveFichaInfoLead())
+    if (fichaInfoDirty.valorDirty) calls.push(saveFichaValorEstimado())
+    await Promise.all(calls)
   }
 
   const moveLead = (lead: Lead, direction: 'forward' | 'backward' = 'forward') => {
@@ -782,39 +858,102 @@ export default function KanbanPage() {
                 })}
               </div>
 
-              {/* Mensagem Original — texto literal digitado/enviado pelo lead, nunca a reescrita
-                  da IA (essa vive em "Análise por IA" logo abaixo). Deliberadamente NEUTRO (não
-                  azul/âmbar) — essas cores já significam "isto é trabalho da IA" nesta UI, e este
-                  bloco é o oposto disso: a palavra exata do lead. Só renderiza quando existe —
-                  leads anteriores a esta coluna nunca tiveram esse texto persistido. */}
-              {selectedLead.mensagem_original && (
-                <div className={`p-5 ${t.cardBg} rounded-3xl border ${t.borderSub}`}>
-                  <div className="flex items-center space-x-2 mb-3">
-                    <ChatBubbleLeftRightIcon className={`h-4 w-4 ${t.textMuted}`} />
-                    <span className={`text-xs font-bold uppercase tracking-widest ${t.textMuted}`}>Mensagem do Lead</span>
-                  </div>
-                  <p className={`text-sm leading-relaxed whitespace-pre-wrap ${t.textPrimary}`}>
-                    "{selectedLead.mensagem_original}"
-                  </p>
-                </div>
-              )}
-
               {/* Grid 2 colunas para dados principais */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                {/* Coluna 1: Dados Enriquecidos */}
-                {selectedLead.enriquecimento_cache ? (
-                  <div className={`p-5 ${t.cardBg} rounded-3xl border-emerald-500/20 border relative h-full`}>
-                    <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-emerald-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-emerald-500/20">
-                      <CheckBadgeIcon className="h-3 w-3" /><span>Dashboard de Interesse</span>
+                {/* Coluna 1: Informações do Lead (era "Dashboard de Interesse" — renomeado e
+                    tornado editável em 2026-08-27, docs/CHECKPOINT.md: TODO campo que o lead
+                    trouxe na criação (Perfil de Interesse dinâmico via raw_json + a Demanda do
+                    Cliente/mensagem_original) passa a ser editável em qualquer etapa do Kanban,
+                    junto com o Valor Estimado (migrado de "Análise por IA" — esse continua
+                    virando somente-leitura em etapa terminal, onde estimar não faz mais
+                    sentido). Um único botão salva as 3 categorias juntas, só quando há
+                    alteração real pendente (fichaInfoDirty). */}
+                <div className={`p-5 ${t.cardBg} rounded-3xl border-emerald-500/20 border relative h-full`}>
+                  <div className="absolute -top-3 left-6 flex items-center space-x-2 bg-emerald-600 text-[9px] font-bold text-white px-3 py-0.5 rounded-full uppercase shadow-lg shadow-emerald-500/20">
+                    <CheckBadgeIcon className="h-3 w-3" /><span>Informações do Lead</span>
+                  </div>
+                  <div className="mt-4 space-y-4">
+                    {ativoFormSchema.filter(f => f.type !== 'currency').length > 0 && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {ativoFormSchema.filter(f => f.type !== 'currency').map((field) => (
+                          <div key={field.name} className={`space-y-1 ${field.type === 'text' ? 'md:col-span-2' : ''}`}>
+                            <label className={`block text-[9px] font-black uppercase tracking-widest ml-1 ${t.textMuted}`}>{field.label}</label>
+                            <input
+                              type={field.type === 'number' ? 'number' : 'text'}
+                              value={fichaRawJsonEdits[field.name] ?? ''}
+                              onChange={e => setFichaRawJsonEdits(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              className={`w-full rounded-xl py-2 px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${t.isDark ? t.inputBg : 'bg-white text-slate-700 border border-slate-200'}`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {!selectedLead.enriquecimento_cache && ativoFormSchema.length === 0 && (
+                      <p className={`text-xs italic ${t.textMuted}`}>Nenhum campo de Perfil de Interesse configurado para este segmento.</p>
+                    )}
+
+                    <div className="space-y-1">
+                      <label className={`block text-[9px] font-black uppercase tracking-widest ml-1 flex items-center gap-1.5 ${t.textMuted}`}>
+                        <ChatBubbleLeftRightIcon className="h-3.5 w-3.5" />Mensagem do Lead
+                      </label>
+                      <textarea
+                        value={fichaMensagemEdit}
+                        onChange={e => setFichaMensagemEdit(e.target.value)}
+                        rows={3}
+                        placeholder="Nenhuma mensagem registrada."
+                        className={`w-full rounded-xl py-2 px-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-y max-h-48 ${t.isDark ? t.inputBg : 'bg-white text-slate-700 border border-slate-200'}`}
+                      />
                     </div>
-                    <div className="mt-2"><EnrichedLeadData cache={selectedLead.enriquecimento_cache} /></div>
+
+                    {/* Valor Estimado — migrado de "Análise por IA" (docs/CHECKPOINT.md, 2026-08-27) */}
+                    {(() => {
+                      const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
+                      const isTerminal = !!(currentCol?.is_ganho || currentCol?.is_perda)
+                      return (
+                        <div className={`p-3 rounded-xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
+                          <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>Valor Estimado</p>
+                          {isTerminal ? (
+                            <span className={`text-lg font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                              {selectedLead.valor_venda_estimado != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda_estimado) : '—'}
+                            </span>
+                          ) : (
+                            <div className="relative">
+                              <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>R$</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={fichaValorEstimadoInput}
+                                onChange={e => {
+                                  const digits = e.target.value.replace(/\D/g, '')
+                                  if (!digits) { setFichaValorEstimadoInput(''); return }
+                                  const num = parseInt(digits, 10) / 100
+                                  setFichaValorEstimadoInput(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+                                }}
+                                placeholder="0,00"
+                                className={`w-full rounded-lg py-1.5 pl-8 pr-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${t.isDark ? 'bg-black/20 text-amber-300' : 'bg-white text-amber-700 border border-amber-200'}`}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+
+                    {/* Botão único — cobre raw_json, mensagem e Valor Estimado juntos, só
+                        aparece com alteração real pendente (fichaInfoDirty). */}
+                    {fichaInfoDirty.any && (
+                      <button
+                        type="button"
+                        onClick={saveFichaInfoLeadCombined}
+                        disabled={savingInfoLead || savingValorEstimado}
+                        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all animate-in fade-in zoom-in-95 duration-150 ${(savingInfoLead || savingValorEstimado) ? 'opacity-50' : ''} bg-emerald-600 hover:bg-emerald-500 text-white`}
+                      >
+                        <CheckBadgeIcon className="h-4 w-4" />
+                        {(savingInfoLead || savingValorEstimado) ? 'Salvando...' : 'Salvar Alterações'}
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <div className={`p-5 ${t.cardBg} rounded-3xl border-dashed border ${t.borderSub} flex flex-col items-center justify-center text-center min-h-[200px]`}>
-                    <SparklesIcon className="h-8 w-8 text-blue-500/20 mb-3" />
-                    <p className={`text-xs font-bold ${t.textMuted}`}>Aguardando Enriquecimento de Dados</p>
-                  </div>
-                )}
+                </div>
 
                 {/* Coluna 2: Análise IA */}
                 <div className={`p-5 ${t.cardBg} rounded-3xl border border-blue-500/20 relative h-full flex flex-col`}>
@@ -867,73 +1006,15 @@ export default function KanbanPage() {
                       ))}
                     </div>
 
-                    {/* Valor Fechado (REAL, só existe no negócio ganho) e Valor Estimado —
-                        nunca no mesmo tile, nunca a mesma cor. Valor Estimado (revisado em
-                        2026-08-27, docs/CHECKPOINT.md) é editável DIRETO AQUI, na ficha —
-                        nunca mais um popup atrelado ao move do card. Fica só leitura quando a
-                        etapa atual já é terminal (Ganho/Perda), onde não faz mais sentido
-                        editar uma estimativa de negócio que já foi decidido. */}
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      {selectedLead.valor_venda != null && (
-                        <div className="p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20">
-                          <p className="text-[9px] font-bold uppercase tracking-widest mb-1 text-emerald-500">Valor Fechado (real)</p>
-                          <span className="text-lg font-bold text-emerald-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda)}</span>
-                        </div>
-                      )}
-                      {(() => {
-                        const currentCol = colunas.find(c => c.nome === selectedLead.coluna_nome)
-                        const isTerminal = !!(currentCol?.is_ganho || currentCol?.is_perda)
-                        // Botão de salvar só aparece quando o campo tem alteração real pendente
-                        // — compara contra o valor JÁ PERSISTIDO (não contra um estado "original"
-                        // separado, pra não dessincronizar depois de um save bem-sucedido, que já
-                        // atualiza selectedLead.valor_venda_estimado em memória).
-                        const savedFormatted = selectedLead.valor_venda_estimado != null
-                          ? Number(selectedLead.valor_venda_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          : ''
-                        const hasUnsavedChange = fichaValorEstimadoInput !== savedFormatted
-                        return (
-                          <div className={`p-3 rounded-xl border ${t.isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'} ${selectedLead.valor_venda == null ? 'col-span-2' : ''}`}>
-                            <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>Valor Estimado</p>
-                            {isTerminal ? (
-                              <span className={`text-lg font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-                                {selectedLead.valor_venda_estimado != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda_estimado) : '—'}
-                              </span>
-                            ) : (
-                              <div className="flex items-center gap-1.5">
-                                <div className="relative flex-1">
-                                  <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${t.isDark ? 'text-amber-400' : 'text-amber-600'}`}>R$</span>
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    value={fichaValorEstimadoInput}
-                                    onChange={e => {
-                                      const digits = e.target.value.replace(/\D/g, '')
-                                      if (!digits) { setFichaValorEstimadoInput(''); return }
-                                      const num = parseInt(digits, 10) / 100
-                                      setFichaValorEstimadoInput(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
-                                    }}
-                                    onKeyDown={e => { if (e.key === 'Enter') saveFichaValorEstimado() }}
-                                    placeholder="0,00"
-                                    className={`w-full rounded-lg py-1.5 pl-8 pr-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${t.isDark ? 'bg-black/20 text-amber-300' : 'bg-white text-amber-700 border border-amber-200'}`}
-                                  />
-                                </div>
-                                {hasUnsavedChange && (
-                                  <button
-                                    type="button"
-                                    onClick={saveFichaValorEstimado}
-                                    disabled={savingValorEstimado}
-                                    title="Salvar Valor Estimado"
-                                    className={`p-1.5 rounded-lg transition-all shrink-0 animate-in fade-in zoom-in-95 duration-150 ${savingValorEstimado ? 'opacity-50' : ''} bg-amber-500 hover:bg-amber-400 text-white`}
-                                  >
-                                    <CheckBadgeIcon className="h-4 w-4" />
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })()}
-                    </div>
+                    {/* Valor Fechado (REAL, só existe no negócio ganho) — o Valor Estimado saiu
+                        daqui em 2026-08-27 (docs/CHECKPOINT.md), migrado pra "Informações do
+                        Lead" junto com os demais campos editáveis. */}
+                    {selectedLead.valor_venda != null && (
+                      <div className="mt-3 p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20">
+                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1 text-emerald-500">Valor Fechado (real)</p>
+                        <span className="text-lg font-bold text-emerald-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedLead.valor_venda)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

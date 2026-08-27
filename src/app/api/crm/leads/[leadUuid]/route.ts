@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/database/connection'
 import { verifyTokenNode } from '@/lib/auth/jwt-node'
+import { EnrichmentService } from '@/lib/crm/enrichmentService'
 
 /**
  * Exclusão/restauração de lead — regra de negócio decidida pelo usuário (docs/CHECKPOINT.md,
@@ -64,7 +65,17 @@ export async function DELETE(request: NextRequest, { params }: { params: { leadU
   }
 }
 
-/** PATCH { action: 'restore' } — desfaz o soft-delete. */
+/**
+ * PATCH { action: 'restore' } — desfaz o soft-delete.
+ * PATCH { action: 'update_fields', raw_json?, mensagem_original? } — edita, a qualquer etapa
+ * do Kanban, os campos que o próprio lead "trouxe" na criação (docs/CHECKPOINT.md,
+ * 2026-08-27): o Perfil de Interesse dinâmico (raw_json, curado por segmento via
+ * ativoFormSchema) e a Demanda do Cliente (mensagem_original). Nunca toca em
+ * valor_venda/valor_venda_estimado aqui — esses têm seu próprio endpoint dedicado
+ * (POST /api/crm/kanban/move, com a regra de negócio de etapa terminal). raw_json é sempre
+ * um REPLACE completo do objeto (não merge) — o cliente manda o form inteiro editado, mesmo
+ * padrão já usado em outras telas de replace-all deste projeto.
+ */
 export async function PATCH(request: NextRequest, { params }: { params: { leadUuid: string } }) {
   const currentUser = getCurrentUser(request)
   if (!currentUser) return NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 })
@@ -73,8 +84,53 @@ export async function PATCH(request: NextRequest, { params }: { params: { leadUu
   if (!scope) return NextResponse.json({ success: false, error: 'Lead não encontrado ou sem permissão.' }, { status: 404 })
 
   const body = await request.json().catch(() => ({}))
+
+  if (body?.action === 'update_fields') {
+    const hasRawJson = body.raw_json !== undefined && body.raw_json !== null && typeof body.raw_json === 'object'
+    const hasMensagem = typeof body.mensagem_original === 'string'
+    if (!hasRawJson && !hasMensagem) {
+      return NextResponse.json({ success: false, error: 'Nada pra salvar — envie raw_json e/ou mensagem_original.' }, { status: 400 })
+    }
+
+    const setParts: string[] = ['updated_at = NOW()']
+    const updateParams: any[] = []
+    if (hasRawJson) {
+      updateParams.push(JSON.stringify(body.raw_json))
+      setParts.push(`raw_json = $${updateParams.length}::jsonb`)
+    }
+    if (hasMensagem) {
+      updateParams.push(body.mensagem_original)
+      setParts.push(`mensagem_original = $${updateParams.length}`)
+    }
+    updateParams.push(params.leadUuid)
+    await pool.query(
+      `UPDATE leads_staging SET ${setParts.join(', ')} WHERE lead_uuid = $${updateParams.length}::uuid`,
+      updateParams
+    )
+
+    // Reflete a edição nos badges já exibidos na ficha/card — mesma disciplina usada quando o
+    // rótulo de um campo é renomeado pelo Master (docs/CHECKPOINT.md, 2026-08-26): nunca deixa
+    // o cache do enriquecimento dessincronizado do raw_json real.
+    if (hasRawJson) {
+      await EnrichmentService.enrichLead(params.leadUuid, scope.tenantId, null).catch((err) => {
+        console.warn('[crm/leads/:leadUuid PATCH update_fields] Falha ao re-enriquecer (não bloqueante):', err)
+      })
+    }
+
+    const { rows } = await pool.query(
+      `SELECT raw_json, mensagem_original, enriquecimento_cache FROM leads_staging WHERE lead_uuid = $1::uuid`,
+      [params.leadUuid]
+    )
+    return NextResponse.json({
+      success: true,
+      raw_json: rows[0]?.raw_json ?? null,
+      mensagem_original: rows[0]?.mensagem_original ?? null,
+      enriquecimento_cache: rows[0]?.enriquecimento_cache ?? null,
+    })
+  }
+
   if (body?.action !== 'restore') {
-    return NextResponse.json({ success: false, error: "Ação inválida — use { action: 'restore' }." }, { status: 400 })
+    return NextResponse.json({ success: false, error: "Ação inválida — use { action: 'restore' } ou { action: 'update_fields' }." }, { status: 400 })
   }
   if (!scope.deletedAt) {
     return NextResponse.json({ success: false, error: 'Este lead não está excluído.' }, { status: 409 })

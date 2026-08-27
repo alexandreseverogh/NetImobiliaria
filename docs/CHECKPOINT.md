@@ -1,5 +1,68 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 15) — **"Dashboard de Interesse" vira
+> "Informações do Lead": TODO campo que o lead trouxe na criação passa a ser editável, em
+> qualquer etapa do Kanban — Perfil de Interesse dinâmico (raw_json), Demanda do Cliente
+> (mensagem_original) e o Valor Estimado (migrado de dentro de "Análise por IA" pra cá).**
+> Pedido direto do usuário: "o modal de exibição de todos os dados do lead, deve permitir
+> edição em todos os campos que foram inicialmente inseridos na inclusão do lead... o campo
+> mensagem também poderá ser editável... deverá existir um botão de Salvar".
+>
+> **Implementado** (`src/app/crm/kanban/page.tsx` + novo endpoint em
+> `src/app/api/crm/leads/[leadUuid]/route.ts`):
+> 1. **`PATCH /api/crm/leads/{leadUuid}` ganha `action: 'update_fields'`** — aceita
+>    `raw_json`/`mensagem_original` opcionais (pelo menos 1 dos dois), grava via `UPDATE`
+>    dinâmico; `raw_json` é sempre um **replace completo** do objeto (o cliente manda o form
+>    inteiro editado, nunca um merge — mesmo padrão replace-all já usado em outras telas deste
+>    projeto). Quando `raw_json` foi tocado, chama `EnrichmentService.enrichLead(leadUuid,
+>    tenantId, null)` (best-effort, nunca bloqueia a resposta) — regenera
+>    `enriquecimento_cache` na hora, então os badges do card/ficha refletem a edição sem
+>    precisar de refresh manual nem esperar reprocessamento em lote. Retorna
+>    `raw_json`/`mensagem_original`/`enriquecimento_cache` já atualizados.
+> 2. **Container "Dashboard de Interesse" renomeado pra "Informações do Lead" e reescrito**
+>    — em vez de só exibir `EnrichedLeadData` (badges somente-leitura), agora renderiza 1
+>    `<input>` editável por campo do `ativoFormSchema` (o mesmo schema dinâmico por segmento/
+>    tenant já usado no "+ Novo Lead" — `type="number"` pros campos numéricos, `text` pro
+>    resto, excluindo `type==='currency'` mesmo padrão já usado alhures), um `<textarea>`
+>    pra "Mensagem do Lead" (movida do card avulso que existia acima da grade — esse card foi
+>    removido, o conteúdo virou este textarea editável), e o tile de **Valor Estimado**
+>    (migrado de dentro de "Análise por IA" — continua virando somente-leitura quando a etapa
+>    atual já é terminal, `is_ganho`/`is_perda`, mesma lógica de antes, só que agora morando
+>    aqui). "Análise por IA" perdeu o tile de Valor Estimado, mantendo só Perfil Emocional,
+>    resumo da IA, Intenção/Aderência e Valor Fechado (real).
+> 3. **Um único botão "Salvar Alterações"** — só aparece quando há alteração real pendente em
+>    QUALQUER dos 3 grupos (`fichaInfoDirty`, um `useMemo` central que compara cada campo
+>    editável contra o valor já persistido em `selectedLead`, a mesma disciplina de
+>    "dirty-check contra o valor salvo" já usada no Valor Estimado antes desta consolidação).
+>    O clique (`saveFichaInfoLeadCombined`) dispara só as chamadas realmente necessárias:
+>    raw_json/mensagem vão pro endpoint novo, Valor Estimado continua indo pro
+>    `POST /api/crm/kanban/move` (mandando a MESMA coluna atual — o endpoint já sabe tratar
+>    isso como update sem trocar de etapa, mecanismo que já existia).
+>
+> **Testado ao vivo, ponta a ponta, com lead real** ("Antonia Maria", tenant CRM SOZINHO,
+> segmento Venda de Carros, coluna real "Lead Captado"): modal aberto confirma "INFORMAÇÕES
+> DO LEAD" (renomeado) com os 4 campos do schema real (Marca Desejada/Ano Desejado/Tipo de
+> Veículo/Comentário) já pré-preenchidos com o `raw_json` real, a mensagem real no textarea, e
+> o Valor Estimado (`R$ 50.000,00`) — nada disso mais aparece em "Análise por IA", confirmado
+> via inspeção do container (`hasValorEstimadoInAnaliseIA:false`) · botão "Salvar Alterações"
+> confirmado **ausente** sem nenhuma edição (`fichaInfoDirty.any` corretamente `false`) ·
+> editado só o campo "Comentário" (antes vazio) → botão apareceu → salvo → confirmado por SQL
+> que `raw_json.comentario` persistiu e os outros 3 campos permaneceram intocados (replace-all
+> funcionando, não um merge acidental) → `enriquecimento_cache` regenerado com o badge
+> "Comentário" novo → card do Kanban (sem reload de página) mostrou o badge novo na hora ·
+> editados mensagem + Valor Estimado juntos (2 grupos dirty ao mesmo tempo) → 1 clique único →
+> confirmado por SQL que as DUAS chamadas dispararam corretamente
+> (`mensagem_original`="...editada E2E", `valor_venda_estimado=75000.00`) · tudo revertido ao
+> estado exato de antes do teste pela própria UI (mesmos 3 campos, mensagem original, R$
+> 50.000,00) — confirmado por SQL final que `enriquecimento_cache` voltou a exibir só os 3
+> badges originais (o `EnrichmentService` filtra corretamente campo vazio, não sobra badge
+> "Comentário: " vazio) e o card do board voltou ao texto idêntico ao do início do teste.
+> Terminal-stage (Ganho/Perda) não foi reexercitado ao vivo nesta rodada — nenhum lead real
+> deste tenant está em coluna terminal agora (Ganho/Perdido = 0); a lógica `isTerminal` em si
+> é cópia byte-a-byte do que já existia e tinha sido testada em sessão anterior, risco baixo.
+> `npx tsc --noEmit`: **zero erros em todo o projeto** (baseline zerada desde 2026-07-31,
+> confirmada intacta).
+>
 > **Atualizado em:** 2026-08-27 (continuação 14) — **Modal "Negócio Fechado" (etapa de Ganho)
 > ganha um 2º campo de referência desabilitado: "Valor Estimado"** — pedido direto do
 > usuário, complementando o campo de referência que já existia ("Faixa de Valor declarado
