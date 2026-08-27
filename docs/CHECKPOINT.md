@@ -1,5 +1,39 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 7) — **2 itens: (1) investigado e descartado —
+> "drag-and-drop/Avançar/Recuar parou de funcionar" era artefato do ambiente de teste, não
+> regressão real; (2) rótulo "Mensagem Original do Lead" → "Mensagem do Lead"** (Kanban e
+> `/crm/leads`), a pedido do usuário — raciocínio: com o precedente do Valor Estimado (agora
+> editável ao longo do pipeline), qualquer campo capturado na criação do lead pode se tornar
+> editável no futuro, então "original" deixa de comunicar a garantia de imutabilidade que o
+> nome sugeria.
+>
+> **Investigação do item 1, mais longa que o esperado:** os botões "Avançar Etapa"/"Recuar
+> Etapa" pareciam ausentes do DOM em checks via `document.body.innerText` — mas confirmado por
+> **screenshot real** (não só leitura de DOM) que sempre estiveram lá, renderizando
+> corretamente; o `innerText` só não capturava porque o footer do modal ficava abaixo da
+> dobra do viewport pequeno (606x526) usado pela automação, combinado com o conteúdo rolável
+> do corpo do modal — `innerText` não é confiável pra conteúdo fora do viewport visível nesse
+> ambiente, `textContent`/screenshot são a fonte confiável. Clique real confirmou o botão
+> "Avançar" funcionando (moveu lead 58→59, revertido depois).
+>
+> **Drag-and-drop — achado real, mas de causa ambiental, não de código:** simulação de
+> `left_click_drag` (mouse-based) não dispara os eventos nativos HTML5 (`dragstart`/
+> `dragover`/`drop`) — limitação conhecida de automação, não bug da aplicação. Reconstruído
+> com `DragEvent`+`DataTransfer` reais via JS — a 1ª tentativa retornou `404 "Lead não
+> encontrado ou sem permissão"` no `POST /api/crm/kanban/move`, e a causa raiz real era o
+> **token JWT de teste ter expirado** durante a investigação (`exp` no passado, confirmado
+> decodificando o token) — nada relacionado a `handleDragStart`/`handleDrop`. Gerado token
+> novo (3h), reconfirmado com o MESMO mecanismo de `DragEvent`+`DataTransfer`: moveu o lead
+> corretamente (58→59), revertido em seguida (59→58) com o mesmo mecanismo. **Nenhuma mudança
+> de código foi necessária** — o drag-and-drop e os botões Avançar/Recuar continuam
+> funcionando exatamente como antes; nenhuma das mudanças desta sessão os afetou.
+>
+> **Item 2 testado ao vivo:** ficha de "Gisele Cesse Campos" aberta via Kanban e via
+> `/crm/leads` (botão "Abrir Ficha") — as duas confirmaram "MENSAGEM DO LEAD" (rótulo novo),
+> zero ocorrência de "MENSAGEM ORIGINAL DO LEAD" restante. `npx tsc --noEmit`: zero erros nos
+> 2 arquivos tocados (`crm/kanban/page.tsx`, `crm/leads/page.tsx`).
+
 > **Atualizado em:** 2026-08-27 (continuação 6) — **Botão de salvar do Valor Estimado (ficha
 > do lead) passa a só aparecer quando o campo tem alteração real pendente** — apontado pelo
 > usuário como "issue ingênuo" da implementação anterior: o botão ficava sempre visível,

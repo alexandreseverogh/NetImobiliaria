@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-08-27 — bundle stale referenciando pendingEstimativaMove (removido do source) em crm/kanban/page.tsx (tsc limpo, arquivo válido)
+// last-restart: 2026-08-27 (2) — Avancar/Recuar Etapa sumiram do DOM sem erro nenhum, mesma classe de bundle stale de HMR em crm/kanban/page.tsx
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

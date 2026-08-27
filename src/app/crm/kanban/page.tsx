@@ -791,7 +791,7 @@ export default function KanbanPage() {
                 <div className={`p-5 ${t.cardBg} rounded-3xl border ${t.borderSub}`}>
                   <div className="flex items-center space-x-2 mb-3">
                     <ChatBubbleLeftRightIcon className={`h-4 w-4 ${t.textMuted}`} />
-                    <span className={`text-xs font-bold uppercase tracking-widest ${t.textMuted}`}>Mensagem Original do Lead</span>
+                    <span className={`text-xs font-bold uppercase tracking-widest ${t.textMuted}`}>Mensagem do Lead</span>
                   </div>
                   <p className={`text-sm leading-relaxed whitespace-pre-wrap ${t.textPrimary}`}>
                     "{selectedLead.mensagem_original}"
