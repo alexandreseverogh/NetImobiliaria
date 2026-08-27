@@ -1,5 +1,23 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-27 (continuação 16) — **Campo "WhatsApp" do "+ Novo Lead"
+> ganha máscara `(99) 99999-9999`** — pedido direto do usuário. Era um `<input>` de texto
+> livre, sem formatação nenhuma, desde sempre.
+>
+> **Implementado** (`src/components/crm/NovoLeadModal.tsx`): `formatPhoneNumber()` — mesmo
+> formatador já usado em `EditUserModal.tsx`/`CreateUserModal.tsx` (replicado aqui, não
+> extraído pra componente compartilhado — só 1 campo usa isso nesta tela, sem necessidade real
+> de abstração nova ainda) — aplicado no `onChange` do campo e também quando o autofill de
+> cliente existente preenche o telefone (`selectClient`), pra nunca mostrar um número cru sem
+> máscara vindo do cadastro. Placeholder atualizado pra `(99) 99999-9999`.
+>
+> **Testado ao vivo, dígito a dígito, no navegador real**: simulada a digitação progressiva
+> de `81998765432` → confirmado que a máscara se forma corretamente a cada dígito
+> (`8`→`81`→`(81) 9`→...→`(81) 99876-5432`) · um 12º dígito extra digitado além dos 11
+> reais confirmado sem efeito (`(81) 99876-5432` continua igual, a máscara já limita
+> naturalmente) · modal fechado sem submeter, nenhum lead de teste criado. `npx tsc
+> --noEmit`: zero erros.
+>
 > **Atualizado em:** 2026-08-27 (continuação 15) — **"Dashboard de Interesse" vira
 > "Informações do Lead": TODO campo que o lead trouxe na criação passa a ser editável, em
 > qualquer etapa do Kanban — Perfil de Interesse dinâmico (raw_json), Demanda do Cliente

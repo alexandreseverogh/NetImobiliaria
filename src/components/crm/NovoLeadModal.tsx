@@ -138,11 +138,22 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
     }
   }, [ativoSearch])
 
+  // Máscara de telefone/WhatsApp (99) 99999-9999 — mesmo formatador já usado em
+  // EditUserModal.tsx/CreateUserModal.tsx (sem componente compartilhado ainda; único campo
+  // aqui, então replicado em vez de extrair abstração nova pra 1 caso de uso).
+  const formatPhoneNumber = (value: string): string => {
+    const numbers = value.replace(/\D/g, '')
+    if (numbers.length <= 2) return numbers
+    if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`
+    if (numbers.length <= 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`
+  }
+
   const selectClient = (c: any) => {
     setSelectedClient(c)
     setNome(c.nome)
     setEmail(c.email || '')
-    setTelefone(c.telefone || '')
+    setTelefone(formatPhoneNumber(c.telefone || ''))
     setClientSearch('')
     setClientResults([])
   }
@@ -298,7 +309,7 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
                         </div>
                         <div className="space-y-1">
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">WhatsApp</label>
-                            <input value={telefone} onChange={e => setTelefone(e.target.value)} className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-white text-sm" placeholder="Opcional" />
+                            <input value={telefone} onChange={e => setTelefone(formatPhoneNumber(e.target.value))} className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-white text-sm" placeholder="(99) 99999-9999" inputMode="numeric" />
                         </div>
                         <div className="space-y-1">
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">E-mail</label>
