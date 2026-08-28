@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChatBubbleBottomCenterIcon, CheckBadgeIcon, ArrowUturnLeftIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
+import { ChatBubbleBottomCenterIcon, CheckBadgeIcon, ArrowUturnLeftIcon, PencilSquareIcon, DocumentMagnifyingGlassIcon } from '@heroicons/react/24/outline'
 
 interface Props {
   templateKey: string
@@ -35,6 +35,8 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
   const [resolvedContent, setResolvedContent] = useState<string | null>(null)
   const [resolvedLevel, setResolvedLevel] = useState<string>('global')
   const [overrideContent, setOverrideContent] = useState<string | null>(null)
+  const [masterReferenceContent, setMasterReferenceContent] = useState<string | null>(null)
+  const [masterReferenceLevel, setMasterReferenceLevel] = useState<string>('global')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
 
@@ -55,6 +57,8 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
       setResolvedContent(data.resolvedContent)
       setResolvedLevel(data.resolvedLevel)
       setOverrideContent(data.overrideContent)
+      setMasterReferenceContent(data.masterReferenceContent ?? null)
+      setMasterReferenceLevel(data.masterReferenceLevel ?? 'global')
       setEditing(false)
     } catch (e: any) {
       setError(e.message ?? 'Erro ao carregar')
@@ -114,6 +118,22 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
   }
 
   const isOverriddenAtThisLevel = clientId ? resolvedLevel === 'client' : resolvedLevel === 'tenant'
+  // Só vale mostrar como bloco separado quando difere do que já está na tela (sem override
+  // nenhum ganhando, masterReferenceContent === resolvedContent — mostrar seria redundante).
+  const showMasterReference = !!masterReferenceContent && masterReferenceContent !== resolvedContent
+  const masterReferenceLabel = masterReferenceLevel === 'segment' ? 'do segmento' : 'global'
+
+  const masterReferenceBlock = showMasterReference ? (
+    <details className={`mt-3 rounded-2xl border ${t.isDark ? 'border-white/10' : 'border-gray-200'}`}>
+      <summary className={`flex items-center gap-1.5 cursor-pointer select-none px-4 py-2.5 text-[11px] font-black uppercase tracking-wide transition-colors ${t.textMuted} hover:text-blue-500`}>
+        <DocumentMagnifyingGlassIcon className="h-4 w-4" />
+        Ver prompt do Master ({masterReferenceLabel}) — referência
+      </summary>
+      <pre className={`whitespace-pre-wrap text-xs leading-relaxed px-4 pb-4 font-medium max-h-72 overflow-y-auto ${t.textMuted}`}>
+        {masterReferenceContent}
+      </pre>
+    </details>
+  ) : null
 
   return (
     <div className={`${t.isDark ? 'bg-blue-600/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'} border p-6 rounded-3xl`}>
@@ -122,10 +142,10 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
           <ChatBubbleBottomCenterIcon className="h-5 w-5 text-blue-500 mr-2" />
           {label}
         </h3>
-        <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${
+        <span className={`font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
           isOverriddenAtThisLevel
-            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-            : `${t.isDark ? 'bg-white/5' : 'bg-gray-100'} ${t.textMuted}`
+            ? 'text-[9px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+            : 'text-[11px] bg-red-500/10 text-red-500 border border-red-500/30'
         }`}>
           {LEVEL_LABEL[resolvedLevel] || resolvedLevel}
         </span>
@@ -161,6 +181,7 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
               Cancelar
             </button>
           </div>
+          {masterReferenceBlock}
         </div>
       ) : (
         <>
@@ -188,6 +209,7 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
               </button>
             )}
           </div>
+          {masterReferenceBlock}
         </>
       )}
     </div>

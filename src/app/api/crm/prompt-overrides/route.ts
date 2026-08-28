@@ -57,8 +57,12 @@ export async function GET(request: NextRequest) {
   try {
     const segment = await resolveSegment(tenantId, clientId)
 
-    const [resolvedContent, clientRow, tenantRow, segmentRow] = await Promise.all([
+    const [resolvedContent, masterReferenceContent, clientRow, tenantRow, segmentRow] = await Promise.all([
       resolvePromptTemplate(templateKey, { segmentId: segment?.id ?? null, tenantId, clientId }),
+      // Referência do Master — mesma cascata, mas pulando cliente/tenant (só segmento→global).
+      // Sempre disponível, mesmo com override ativo, pra o tenant comparar/copiar ideias sem
+      // precisar apagar a própria sobrescrita pra "espiar" o padrão curado pela plataforma.
+      resolvePromptTemplate(templateKey, { segmentId: segment?.id ?? null }),
       clientId
         ? pool.query(
             `SELECT content FROM public.system_prompt_templates
@@ -97,6 +101,11 @@ export async function GET(request: NextRequest) {
       resolvedContent,
       resolvedLevel,
       overrideContent,
+      // Só faz sentido mostrar como referência separada quando ela de fato difere do que está
+      // em uso (i.e., há override de cliente/tenant valendo) — quando resolvedLevel já é
+      // 'segment'/'global', masterReferenceContent === resolvedContent, a UI decide esconder.
+      masterReferenceContent,
+      masterReferenceLevel: segmentRow.rows[0] ? 'segment' : 'global',
       editingLevel: clientId ? 'client' : 'tenant',
     })
   } catch (error: any) {
