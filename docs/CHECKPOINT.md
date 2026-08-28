@@ -1,5 +1,41 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-28 (continuação 3) — **2 fixes reais no `PromptOverrideCard`,
+> achados testando o roteiro de testes (item 1.6, passo 2b) ao vivo.** (Entre esta entrada e a
+> anterior, um pequeno refinamento não registrado à parte: botão **"Limpar"** adicionado ao
+> lado de "Cancelar" no modo de edição — o texto pré-preenchido com o prompt herdado, ao clicar
+> "Sobrescrever", exigia selecionar tudo e apagar manualmente pra quem quisesse escrever do
+> zero; "Limpar" zera o campo direto, e se auto-desabilita junto do botão de salvar quando já
+> vazio.)
+>
+> **(1) Botão de salvar tinha o MESMO texto do botão que abre a edição** ("Sobrescrever para
+> este tenant"), diferindo só por ícone/cor (outline+lápis vs. preenchido+check) — usuário
+> reportou não ter certeza de que existia um botão de salvar separado. Renomeado o botão de
+> salvar pra **"Salvar Sobrescrita"**, inequívoco nos 2 estados.
+>
+> **(2) Bug real de cor, achado testando exatamente o cenário do item 1.6 passo 2b do roteiro**
+> ("Se o cliente nunca teve override, o badge deve refletir o mesmo nível herdado que o TENANT
+> está usando agora"): simulado o cenário (override temporário no tenant + override real do
+> Frank Aguiar removido temporariamente) — o badge mostrou o texto certo ("Sobrescrito para
+> este tenant") mas a **cor veio vermelha**, contradizendo o próprio texto (vermelho até então
+> só significava "ainda no padrão do Master"). Causa: a cor usava a mesma variável
+> `isOverriddenAtThisLevel` que controla o botão "Restaurar padrão" — essa variável só é `true`
+> quando o nível resolvido bate com o nível que ESTA instância específica do card está editando
+> (o cliente, nesse caso) — mas o texto do badge fala do TENANT, um nível diferente. Corrigido
+> separando os 2 conceitos: `isOverriddenAtThisLevel` continua só controlando o botão Restaurar
+> (só faz sentido restaurar o que esta tela tem permissão de mexer); nova `isCustomized`
+> (`client` OU `tenant`, independente de quem está editando agora) controla a cor — vermelho
+> passa a significar de verdade "só o padrão do Master (segmento/global)", verde "há
+> customização real, seja do cliente ou do tenant acima".
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant "CRM SOZINHO", cliente real "Frank
+> Aguiar" — único cliente real deste tenant): reproduzido o bug (badge vermelho + texto
+> "Sobrescrito", contradição confirmada via `getComputedStyle`) → aplicado o fix → mesmo
+> cenário agora mostra badge verde (`rgb(16,185,129)`) consistente com o texto → estado real
+> restaurado (override temporário do tenant removido; prompt real do Frank restaurado e
+> confirmado **byte a byte** contra um backup tirado antes do teste, não só por tamanho).
+> `npx tsc --noEmit`: zero erros.
+
 > **Atualizado em:** 2026-08-28 (continuação 2) — **Legenda dinâmica no `PromptOverrideCard` +
 > primeiro prompt real de segmento (Venda de Carros) + primeiro override real de cliente
 > (Frank Aguiar).**

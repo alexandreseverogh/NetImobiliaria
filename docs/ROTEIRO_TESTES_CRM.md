@@ -226,7 +226,11 @@ verificáveis; o roteiro sinaliza onde isso importa.
 2b. Trocar o `ClientSelector` pra um cliente real de teste (escopo = cliente):
    - ✅ Se o cliente nunca teve override, o badge deve refletir o mesmo nível herdado que o
      TENANT está usando agora (não pula direto pro global ignorando um override do tenant, se
-     houver um).
+     houver um) — **e nesse caso específico (cliente sem override, tenant COM override) o badge
+     deve ser VERDE** ("Sobrescrito para este tenant"), nunca vermelho — vermelho é só quando o
+     nível resolvido é `segment`/`global` (bug real encontrado e corrigido em 2026-08-28: a cor
+     usava a variável errada, que só considera o nível que ESTA tela específica edita, não o
+     nível REAL que está valendo — ver `docs/CHECKPOINT.md`).
    - Clique "Sobrescrever para este cliente" → texto de teste bem diferente e identificável
      (`TESTE ROTEIRO CRM - responda SEMPRE com tag_sonho "TESTE_OVERRIDE_CLIENTE"`, no mesmo
      formato JSON que o prompt real espera) → salvar.
