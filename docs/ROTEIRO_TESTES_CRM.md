@@ -311,6 +311,26 @@ verificáveis; o roteiro sinaliza onde isso importa.
 4. 🧹 Remova qualquer lead de teste criado neste bloco e confirme que os overrides de A e B
    voltaram ao estado que você pretende deixar (teste ou nenhum).
 
+### 1.6d — "Copiar de outro cliente" (v1, sem IA) [novo, 2026-08-28]
+
+> Sem embedding/IA nesta v1 — o admin escolhe manualmente, com o próprio conhecimento de
+> negócio, entre os clientes do MESMO tenant que já têm PROMPT próprio (não é sobre modelo de
+> LLM, que é uma cascata independente — ver 1.6b).
+
+1. Escolha (ou crie) um cliente de teste **sem** override de prompt ainda. Selecione-o no
+   `ClientSelector` e clique "Sobrescrever para este cliente". ✅ Se existir pelo menos 1 outro
+   cliente deste tenant com prompt próprio (ex.: o Cliente A de 1.6c), aparece um `<select>`
+   **"Copiar de outro cliente…"** entre "Limpar" e "Cancelar".
+2. Se este for o único cliente do tenant com algum prompt próprio, ou o primeiro cliente deste
+   nicho, ✅ o `<select>` simplesmente não deve aparecer (cold-start honesto, sem erro).
+3. Selecione um peer da lista. ✅ O texto do textarea é substituído pelo prompt REAL daquele
+   cliente na hora — nada é salvo ainda, só preenchido; o `<select>` volta pro placeholder.
+4. Confirme que o botão "Salvar Sobrescrita" continua exigindo clique explícito — escolher um
+   peer nunca salva sozinho.
+5. Cancele sem salvar (ou ajuste o texto copiado e salve, se quiser testar o fluxo completo).
+6. 🧹 Se criou um cliente só pra este teste, remova-o ao final (`DELETE FROM public.clientes`,
+   sem cascata de FK sensível pra um cliente sem nenhum lead/atividade vinculado).
+
 ### 1.7 — Agentes de Aceleração (`/crm/config/agentes`)
 
 **Aba principal (configuração):**

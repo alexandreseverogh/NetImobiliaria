@@ -1,5 +1,44 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-28 (continuação 5) — **"Copiar de outro cliente" — sugestão de
+> prompt por similaridade, v1 sem IA.**
+>
+> Discussão de arquitetura: a plataforma foi pensada pra um tenant configurar LLM/prompt por
+> cliente — cenário natural: tenant cadastra um cliente novo do mesmo nicho de um cliente já
+> existente (ex.: outra revenda de carros usados) e não tem como reaproveitar o prompt já
+> funcional, só reescrever do zero. Cogitado usar embedding/IA pra sugerir automaticamente —
+> **descartado pra v1** por 2 razões concretas: (1) um cliente recém-criado ainda não tem
+> nenhum texto próprio, então não há o que comparar/embeddar nesse momento (a busca semântica
+> simplesmente não tem query); (2) rotular um prompt existente como "performático" exigiria um
+> elo lead→prompt que a plataforma não guarda hoje (sabe o resultado da qualificação, não qual
+> linha de `system_prompt_templates` gerou ele).
+>
+> **Achado de escopo, corrigido durante a discussão:** a sugestão inicial era listar clientes
+> que têm **modelo de LLM próprio** (`Settings`, cascata de 1.6b) — corrigido para clientes com
+> **prompt próprio** (`system_prompt_templates`, cascata de 1.6): são cascatas independentes,
+> um cliente pode ter modelo customizado sem prompt customizado e vice-versa; pra "copiar
+> prompt de cliente parecido" o sinal certo é quem já tem TEXTO próprio, não quem trocou de
+> provider.
+>
+> **v1 implementada — 100% manual, sem IA:** novo `GET /api/crm/prompt-overrides/peers?
+> templateKey=X&excludeClientId=Y` lista os clientes do MESMO tenant (nunca cruza tenants —
+> dado de negócio de outro cliente da plataforma) com override ATIVO pra esse `templateKey`.
+> `PromptOverrideCard.tsx` ganha um `<select>` "Copiar de outro cliente…" no modo de edição —
+> só aparece quando `clientId` está presente (não faz sentido pro nível tenant, que não tem
+> conceito de "outro tenant parecido" nesta v1) **e** há pelo menos 1 peer real (sem IA
+> nenhuma, cold-start — segmento/tenant sem nenhum cliente com prompt próprio ainda — cai
+> naturalmente no estado "nada a mostrar", o `<select>` simplesmente não renderiza). Ao
+> escolher um peer, o `draft` é substituído pelo conteúdo real dele — não salva sozinho, admin
+> ainda confirma com "Salvar Sobrescrita" (mesma disciplina do botão "Limpar").
+>
+> **Testado ao vivo, com dado real:** criado cliente de teste mínimo (`TESTE ROTEIRO CRM -
+> Cliente Novo`, sem nenhum override) → aberto o modo de edição dele → dropdown listou
+> corretamente **só** "Frank Aguiar" (o único peer real, com prompt próprio sobre usados) →
+> selecionado → textarea trocou pro texto real dele (2600 caracteres, "veículos USADOS...",
+> conferido via DOM real) → cancelado sem salvar. Cliente de teste removido depois,
+> `count(*)=0` confirmado (tanto o cliente quanto qualquer resíduo em
+> `system_prompt_templates`). `npx tsc --noEmit`: zero erros.
+
 > **Atualizado em:** 2026-08-28 (continuação 3) — **2 fixes reais no `PromptOverrideCard`,
 > achados testando o roteiro de testes (item 1.6, passo 2b) ao vivo.** (Entre esta entrada e a
 > anterior, um pequeno refinamento não registrado à parte: botão **"Limpar"** adicionado ao
