@@ -1,5 +1,36 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-28 (continuação) — **`PromptOverrideCard.tsx` — 2 refinamentos de
+> UX pedidos pelo usuário ao revisar a cascata de LLM/prompts (entrada anterior deste
+> arquivo).**
+>
+> (1) O badge "Herdado do padrão do segmento"/"Herdado do padrão global" era cinza neutro,
+> passando despercebido — usuário pediu destaque visual pra chamar atenção de que o tenant
+> está usando o padrão do Master, não um texto próprio. Trocado pra vermelho
+> (`bg-red-500/10 text-red-500 border-red-500/30`) + fonte maior (9px→11px). O badge
+> "Sobrescrito para este cliente/tenant" (quando há override ativo) continua verde, intocado.
+>
+> (2) Usuário perguntou se seria útil o tenant conseguir ver o prompt do Master mesmo com um
+> override próprio ativo, "para efeitos de comparação... talvez copiar algumas ideias" — hoje
+> isso era estruturalmente impossível: o card só mostra o texto EM USO, e a única forma de ver
+> o do Master de volta era clicar "Restaurar padrão", que apaga a sobrescrita. Implementado
+> bloco colapsável (`<details>`) "Ver prompt do Master (segmento/global) — referência",
+> somente leitura, que só aparece quando `masterReferenceContent !== resolvedContent` (i.e.,
+> há override de cliente/tenant valendo — sem isso, mostrar seria redundante, o texto exibido
+> já é o do Master). `GET /api/crm/prompt-overrides` ganhou `masterReferenceContent`/
+> `masterReferenceLevel` — mesma cascata, mas resolvida pulando cliente/tenant
+> (`resolvePromptTemplate(templateKey, { segmentId })`, sem `tenantId`/`clientId`), sempre em
+> paralelo com a resolução normal. Aparece automaticamente nos 4 usos reais do componente
+> (`/crm/config/ia`, persona do bot na Mensageria, os 2 agentes de CRM).
+>
+> **Testado ao vivo** (tenant "CRM SOZINHO", playbook de JWT de teste já documentado nesta
+> sessão): badge vermelho confirmado via `getComputedStyle` (`rgb(239,68,68)`, `11px`,
+> `font-weight:900`) · override de tenant criado via API → bloco de referência aparece com o
+> texto real do prompt global, expande/colapsa corretamente (`details.open` alterna) ·
+> override removido (`Restaurar padrão`) → bloco some sozinho (`resolvedContent ===
+> masterReferenceContent`), sem ficar redundante. `npx tsc --noEmit`: zero erros. Nenhum
+> resíduo de teste (override removido no processo do próprio teste).
+
 > **Atualizado em:** 2026-08-28 — **Cascata Cliente → Tenant → Segmento(Master) → Global(Master)
 > pra MODELO DE LLM e PROMPTS, restrita a CRM + Mensageria** — pedido direto do usuário, depois
 > de uma pergunta de arquitetura ampla sobre a hierarquia real de LLM em toda a plataforma:

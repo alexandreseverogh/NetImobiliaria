@@ -209,13 +209,20 @@ verificáveis; o roteiro sinaliza onde isso importa.
      (`Sobrescrito para este tenant` / `Herdado do padrão do segmento` / `Herdado do padrão
      global`). Se este tenant nunca sobrescreveu nada, o badge deve ser "Herdado do padrão do
      segmento" (se o segmento tiver uma variante curada pela Master) ou "Herdado do padrão
-     global" (senão).
+     global" (senão) — **e nesses dois casos o badge deve estar em VERMELHO e um pouco maior**
+     que o normal (chama atenção de que o tenant ainda está no padrão do Master, não tem nada
+     próprio); "Sobrescrito para este tenant/cliente" continua verde.
    - Clique "Sobrescrever para este tenant" → edite o texto num campo de teste
      (`TESTE ROTEIRO CRM - prompt customizado do tenant`) → salvar. ✅ Badge muda pra
-     "Sobrescrito para este tenant" e o botão "Restaurar padrão" aparece.
-   - Clique "Restaurar padrão". ✅ Volta a mostrar o prompt herdado (segmento/global) e o
-     botão "Restaurar padrão" some — nunca apaga a linha do segmento/global em si, só a do
-     tenant.
+     "Sobrescrito para este tenant" (verde) e o botão "Restaurar padrão" aparece; um novo
+     bloco colapsável **"Ver prompt do Master (referência)"** aparece abaixo dos botões —
+     abra-o. ✅ Mostra o texto real do prompt herdado (segmento/global), somente leitura, útil
+     pra comparar/copiar ideias sem precisar apagar a sua sobrescrita pra "espiar" o original.
+   - Clique "Restaurar padrão". ✅ Volta a mostrar o prompt herdado (segmento/global, badge
+     vermelho de novo) e o botão "Restaurar padrão" some — nunca apaga a linha do segmento/
+     global em si, só a do tenant. **O bloco "Ver prompt do Master" também deve sumir** —
+     sem override ativo, mostrá-lo separado seria redundante (o texto exibido já é o do
+     Master).
 2b. Trocar o `ClientSelector` pra um cliente real de teste (escopo = cliente):
    - ✅ Se o cliente nunca teve override, o badge deve refletir o mesmo nível herdado que o
      TENANT está usando agora (não pula direto pro global ignorando um override do tenant, se
