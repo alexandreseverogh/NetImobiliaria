@@ -4,9 +4,11 @@ import React, { useState, useEffect } from 'react'
 import {
   AdjustmentsHorizontalIcon, BeakerIcon, PlusIcon, TrashIcon,
   ExclamationCircleIcon, TagIcon, CpuChipIcon,
-  ChatBubbleBottomCenterIcon, CheckBadgeIcon, ClockIcon, ScaleIcon, ArrowTrendingUpIcon
+  CheckBadgeIcon, ClockIcon, ScaleIcon, ArrowTrendingUpIcon
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/hooks/useTheme'
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
+import { PromptOverrideCard } from '@/components/crm/PromptOverrideCard'
 
 interface Rule {
   id: string
@@ -52,7 +54,6 @@ const EMPTY_FIT_FORM = { id: '', criterio: '', peso: 5, ativo: true }
 export default function AIConfigPage() {
   const t = useTheme()
   const [segment, setSegment] = useState<SegmentInfo | null>(null)
-  const [prompt, setPrompt] = useState<string | null>(null)
   const [segmentRules, setSegmentRules] = useState<Rule[]>([])
   const [tenantRules, setTenantRules] = useState<Rule[]>([])
   const [segmentFitCriteria, setSegmentFitCriteria] = useState<FitCriterion[]>([])
@@ -66,6 +67,14 @@ export default function AIConfigPage() {
   const [isEditingFit, setIsEditingFit] = useState(false)
   const [currentFit, setCurrentFit] = useState<any>(EMPTY_FIT_FORM)
 
+  // Escopo da EDIÇÃO do prompt (docs/CHECKPOINT.md, 2026-08-28) — 'own' = override do próprio
+  // tenant; uuid = override de um cliente específico (cadastrado pelo admin do tenant em nome
+  // dele, já que cliente nunca loga na aplicação). Só afeta o PromptOverrideCard abaixo — as
+  // regras/critérios de fit desta página continuam 100% tenant-only, fora desta cascata.
+  const { clients: overrideClients, loading: overrideClientsLoading, clientFilter: overrideClientFilter, setClientFilter: setOverrideClientFilter } =
+    useClientSelector('crm-ia-prompt-override')
+  const promptOverrideClientId = overrideClientFilter === 'own' || overrideClientFilter === 'segment' ? null : overrideClientFilter
+
   useEffect(() => { fetchData() }, [])
 
   const fetchData = async () => {
@@ -75,7 +84,6 @@ export default function AIConfigPage() {
       const data = await res.json()
       if (data.success) {
         setSegment(data.segment)
-        setPrompt(data.prompt)
         setSegmentRules(data.segmentRules || [])
         setTenantRules(data.tenantRules || [])
         setSegmentFitCriteria(data.segmentFitCriteria || [])
@@ -166,7 +174,7 @@ export default function AIConfigPage() {
             <h2 className={`text-3xl font-black italic tracking-tighter uppercase ${t.textPrimary}`}>
               Inteligência <span className="text-blue-500">de Qualificação</span>
             </h2>
-            <p className={`text-sm font-medium ${t.textSecondary}`}>
+            <p className={`text-xl font-bold mt-1 ${segment ? (t.isDark ? 'text-blue-400' : 'text-blue-600') : t.textSecondary}`}>
               {segment ? `Segmento: ${segment.name}` : 'Segmento não identificado para este tenant.'}
             </p>
           </div>
@@ -196,18 +204,28 @@ export default function AIConfigPage() {
           </div>
         )}
 
-        {prompt && (
-          <div className={`${t.isDark ? 'bg-blue-600/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'} border p-8 rounded-3xl`}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className={`text-xl font-black italic tracking-tighter uppercase flex items-center ${t.textPrimary}`}>
-                <ChatBubbleBottomCenterIcon className="h-6 w-6 text-blue-500 mr-2" />
-                Prompt Mestre
-              </h3>
-              <span className={`text-[9px] font-black uppercase tracking-widest ${t.textMuted}`}>Gerenciado pela plataforma</span>
-            </div>
-            <pre className={`whitespace-pre-wrap text-xs leading-relaxed rounded-2xl px-6 py-5 font-medium ${t.inputBg} ${t.textSecondary}`}>{prompt}</pre>
-          </div>
-        )}
+        {/* Sobrescrita de prompt em cascata (docs/CHECKPOINT.md, 2026-08-28) — o texto MESTRE
+            continua curado pela Master por segmento; aqui o tenant pode sobrescrever pro
+            próprio tenant OU, escolhendo um cliente abaixo, em nome desse cliente
+            especificamente (cliente nunca loga na aplicação). */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <p className={`text-[10px] font-black uppercase tracking-widest ${t.textMuted}`}>Editando para</p>
+          <ClientSelector
+            value={overrideClientFilter}
+            onChange={setOverrideClientFilter}
+            clients={overrideClients}
+            loading={overrideClientsLoading}
+            variant="toggle"
+            allowSegment={false}
+            storageKey="crm-ia-prompt-override"
+          />
+        </div>
+        <PromptOverrideCard
+          templateKey="crm_lead_qualification"
+          clientId={promptOverrideClientId}
+          label="Prompt Mestre"
+          t={t}
+        />
 
         <div className="space-y-4">
           <h3 className={`text-xl font-bold flex items-center ${t.textPrimary}`}>

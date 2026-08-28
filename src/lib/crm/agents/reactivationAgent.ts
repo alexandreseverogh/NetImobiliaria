@@ -94,7 +94,9 @@ export const reactivationAgent: CrmAgent = {
     const diasInativo = formatDays(Date.now() - new Date(lead.bola_desde).getTime())
     if (diasInativo < diasInatividade) return null
 
-    const template = await resolvePromptTemplate('crm_agent_reactivation_message', ctx.segment.id)
+    const template = await resolvePromptTemplate('crm_agent_reactivation_message', {
+      segmentId: ctx.segment.id, tenantId: ctx.tenantId, clientId: ctx.clientId,
+    })
     if (!template) return null
 
     const prompt = renderPrompt(template, {
@@ -117,7 +119,7 @@ export const reactivationAgent: CrmAgent = {
     const requerRevisaoExtra = ctx.params?.requer_revisao_extra === true ||
       ctx.params?.requer_revisao_extra === 'true'
 
-    const llm = await getLlmClient(ctx.tenantId)
+    const llm = await getLlmClient(ctx.tenantId, ctx.clientId)
     // 1500 — mesmo achado real já documentado em F0.5/F3 (ConciergeService.qualifyLead,
     // nextBestActionAgent): com Gemini, tetos menores (300-500) vinham cortados no meio ou
     // vazando raciocínio interno do modelo em vez da resposta final. A resposta em si é curta.

@@ -66,6 +66,7 @@ export async function runCrmAgentScans(): Promise<{ scanned: number; fired: numb
       const result = await agent.evaluate({
         tenantId: c.tenantId,
         leadUuid: c.leadUuid,
+        clientId: c.clientId,
         segment: cfg.segment,
         params: cfg.params,
       })
@@ -83,7 +84,7 @@ export async function runCrmAgentScans(): Promise<{ scanned: number; fired: numb
       if (agent.execute) {
         try {
           resumoExecucao = await agent.execute(
-            { tenantId: c.tenantId, leadUuid: c.leadUuid, segment: cfg.segment, params: cfg.params },
+            { tenantId: c.tenantId, leadUuid: c.leadUuid, clientId: c.clientId, segment: cfg.segment, params: cfg.params },
             result,
             actionId,
           )

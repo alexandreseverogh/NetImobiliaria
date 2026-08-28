@@ -78,14 +78,49 @@ function getPool(): Pool {
   return _pool;
 }
 
-/** Busca configuração LLM do tenant (provider, model, apiKey) */
-async function getTenantLlmConfig(tenantId: string) {
+type LlmSettingsRow = { llmProvider: string; llmModel: string; llmApiKey: string | null };
+
+/** Busca configuração LLM do CLIENTE (override cadastrado pelo admin do tenant, já que
+ *  cliente nunca loga na aplicação) — nível mais específico da cascata. */
+async function getClientLlmConfig(tenantId: string, clientId: string): Promise<LlmSettingsRow | null> {
   try {
     const res = await getPool().query(
       `SELECT "llmProvider", "llmModel", "llmApiKey"
        FROM campanhasmarketingdigital."Settings"
-       WHERE tenant_id = $1::uuid LIMIT 1`,
+       WHERE tenant_id = $1::uuid AND client_id = $2::uuid LIMIT 1`,
+      [tenantId, clientId]
+    );
+    return res.rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Busca configuração LLM do tenant (provider, model, apiKey) */
+async function getTenantLlmConfig(tenantId: string): Promise<LlmSettingsRow | null> {
+  try {
+    const res = await getPool().query(
+      `SELECT "llmProvider", "llmModel", "llmApiKey"
+       FROM campanhasmarketingdigital."Settings"
+       WHERE tenant_id = $1::uuid AND client_id IS NULL LIMIT 1`,
       [tenantId]
+    );
+    return res.rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Busca o default do Master PRA UM SEGMENTO (tenant_id IS NULL, segment_id = X) — nível
+ *  entre "tenant sem config" e a linha global de sempre (tenant_id IS NULL, segment_id
+ *  IS NULL). Curado em /admin/master/segments. */
+async function getSegmentLlmDefault(segmentId: string): Promise<LlmSettingsRow | null> {
+  try {
+    const res = await getPool().query(
+      `SELECT "llmProvider", "llmModel", "llmApiKey"
+       FROM campanhasmarketingdigital."Settings"
+       WHERE tenant_id IS NULL AND segment_id = $1::uuid LIMIT 1`,
+      [segmentId]
     );
     return res.rows[0] || null;
   } catch {
@@ -311,9 +346,19 @@ export async function getLlmClientForCampaigns(): Promise<LlmClient> {
 }
 
 /**
- * Retorna um LlmClient configurado para o tenant.
+ * Retorna um LlmClient configurado para o tenant — cascata de 4 níveis (docs/CHECKPOINT.md,
+ * 2026-08-28), só pra CRM/Mensageria (Campanhas de Marketing Digital usa
+ * getLlmClientForCampaigns, sempre global, sem essa cascata, de propósito):
+ *
+ *   1. Cliente  — Settings com tenant_id+client_id (cadastrado pelo admin do TENANT em nome
+ *      do cliente, já que cliente nunca loga na aplicação).
+ *   2. Tenant   — Settings do tenant (client_id IS NULL) — comportamento de sempre.
+ *   3. Segmento — default do Master PRA O SEGMENTO do tenant/cliente (resolveSegment já
+ *      respeita um segmento próprio do cliente, se ele tiver um).
+ *   4. Global   — a única linha do Master de antes desta cascata (tenant_id IS NULL,
+ *      segment_id IS NULL) — fallback final quando o segmento ainda não tem default próprio.
  */
-export async function getLlmClient(tenantId?: string | null): Promise<LlmClient> {
+export async function getLlmClient(tenantId?: string | null, clientId?: string | null): Promise<LlmClient> {
   let provider = 'anthropic';
   let model    = 'claude-sonnet-4-5';
   let apiKey   = '';
@@ -325,12 +370,23 @@ export async function getLlmClient(tenantId?: string | null): Promise<LlmClient>
   // ("sua_chave_aqui"), então a chave real do provider configurado (ex.: Gemini) nunca era usada;
   // a API rejeitava com "Please pass a valid API key" e o bot de mensageria falhava pra qualquer
   // tenant configurado com provider != anthropic.
-  if (tenantId) {
-    const cfg = await getTenantLlmConfig(tenantId);
-    if (cfg?.llmProvider) provider = cfg.llmProvider;
-    if (cfg?.llmModel)    model    = cfg.llmModel;
-    if (cfg?.llmApiKey)   apiKey   = cfg.llmApiKey;
+  let cfg: LlmSettingsRow | null = null;
+  if (tenantId && clientId) cfg = await getClientLlmConfig(tenantId, clientId);
+  if (!cfg && tenantId) cfg = await getTenantLlmConfig(tenantId);
+  if (!cfg && tenantId) {
+    // Nem cliente nem tenant têm config própria — tenta o default do Master pro segmento
+    // resolvido (client→tenant→'geral', mesma função já usada em todo o resto da plataforma).
+    try {
+      const { resolveSegment } = await import('../../intelligence/segmentResolver');
+      const segment = await resolveSegment(tenantId, clientId ?? null);
+      if (segment?.id) cfg = await getSegmentLlmDefault(segment.id);
+    } catch {
+      // segmento não resolvido — segue pro fallback global de sempre
+    }
   }
+  if (cfg?.llmProvider) provider = cfg.llmProvider;
+  if (cfg?.llmModel)    model    = cfg.llmModel;
+  if (cfg?.llmApiKey)   apiKey   = cfg.llmApiKey;
 
   if (provider === 'anthropic' && !apiKey) {
     try {

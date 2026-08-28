@@ -409,9 +409,19 @@ model BudgetReallocation {
   @@map("BudgetReallocation")
 }
 
+// Cascata Client -> Tenant -> Segmento(Master) -> Global(Master) (2026-08-28, CRM/Mensageria).
+// tenant_id + client_id ambos NULL = linha global do Master (fallback final);
+// tenant_id NULL + segment_id preenchido = default do Master pro segmento;
+// tenant_id preenchido + client_id NULL = linha do próprio tenant;
+// tenant_id + client_id preenchidos = override de um cliente específico (cadastrado pelo
+// admin do tenant em nome dele, já que cliente nunca loga na aplicação).
+// Índices únicos parciais reais ficam só na migração SQL (raw SQL obrigatório pra esta
+// tabela, ver CLAUDE.md — nunca lida/escrita via Prisma Client em runtime, só tipagem aqui).
 model Settings {
   id              String  @id @default(uuid())
-  tenantId        String? @unique @map("tenant_id") @db.Uuid
+  tenantId        String? @map("tenant_id") @db.Uuid
+  clientId        String? @map("client_id") @db.Uuid
+  segmentId       String? @map("segment_id") @db.Uuid
   creativesPath   String?
   publicDomain    String?
   llmProvider     String  @default("anthropic")

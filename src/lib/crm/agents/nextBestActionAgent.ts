@@ -77,7 +77,9 @@ export const nextBestActionAgent: CrmAgent = {
       [ctx.leadUuid, qtdAtividades],
     )
 
-    const template = await resolvePromptTemplate('crm_agent_next_best_action', ctx.segment.id)
+    const template = await resolvePromptTemplate('crm_agent_next_best_action', {
+      segmentId: ctx.segment.id, tenantId: ctx.tenantId, clientId: ctx.clientId,
+    })
     if (!template) return null
 
     const tempoNaEtapa = lead.data_entrada ? `${formatDuration(Date.now() - new Date(lead.data_entrada).getTime())}` : 'tempo desconhecido'
@@ -100,7 +102,7 @@ export const nextBestActionAgent: CrmAgent = {
       atividades_recentes: atividadesRecentes,
     })
 
-    const llm = await getLlmClient(ctx.tenantId)
+    const llm = await getLlmClient(ctx.tenantId, ctx.clientId)
     // 1500, não um teto menor — mesmo achado real de F0.5 (ConciergeService.qualifyLead) e
     // confirmado de novo aqui ao vivo: com Gemini, 300-500 ainda vinha cortado no meio da
     // frase (ou vazando rascunho/raciocínio interno em vez da resposta final). A resposta em

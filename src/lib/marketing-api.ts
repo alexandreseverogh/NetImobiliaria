@@ -281,14 +281,19 @@ export interface LlmModelsResponse {
   flat: LlmModelOption[];
 }
 
-export const getLlmSettings = () =>
-  api.get<LlmSettings>('/settings/llm').then(r => r.data);
+// clientId opcional (docs/CHECKPOINT.md, 2026-08-28) — cascata Cliente→Tenant→Segmento→Global,
+// só CRM/Mensageria. Sem clientId, opera na config do próprio tenant (comportamento de sempre).
+export const getLlmSettings = (clientId?: string | null) =>
+  api.get<LlmSettings>('/settings/llm', { params: clientId ? { clientId } : undefined }).then(r => r.data);
 
 export const getLlmModels = () =>
   api.get<LlmModelsResponse>('/settings/llm/models').then(r => r.data);
 
-export const updateLlmSettings = (data: { llmProvider?: string; llmModel?: string; llmApiKey?: string }) =>
+export const updateLlmSettings = (data: { llmProvider?: string; llmModel?: string; llmApiKey?: string; clientId?: string | null }) =>
   api.put('/settings/llm', data).then(r => r.data);
+
+export const deleteLlmSettings = (clientId: string) =>
+  api.delete('/settings/llm', { params: { clientId } }).then(r => r.data);
 
 export const testLlmConnection = () =>
   api.post<{ success: boolean; provider: string; model: string; response?: string; error?: string }>('/settings/llm/test').then(r => r.data);

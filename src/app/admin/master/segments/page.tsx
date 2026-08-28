@@ -19,6 +19,7 @@ import {
   BoltIcon,
   ScaleIcon,
   ArchiveBoxIcon,
+  BeakerIcon,
 } from '@heroicons/react/24/outline'
 import { CreateGuard, UpdateGuard } from '@/components/admin/PermissionGuard'
 import { SegmentInterestsModal } from '@/components/admin/master/SegmentInterestsModal'
@@ -31,6 +32,7 @@ import { SegmentQualificationRulesModal } from '@/components/admin/master/Segmen
 import { SegmentAgentesModal } from '@/components/admin/master/SegmentAgentesModal'
 import { SegmentFitCriteriaModal } from '@/components/admin/master/SegmentFitCriteriaModal'
 import { SegmentAtivoConfigModal } from '@/components/admin/master/SegmentAtivoConfigModal'
+import { SegmentLlmDefaultModal } from '@/components/admin/master/SegmentLlmDefaultModal'
 
 interface Segment {
   id: string
@@ -72,6 +74,7 @@ export default function MasterSegmentsPage() {
   const [qualificationSegment, setQualificationSegment] = useState<Segment | null>(null)
   const [agentesSegment, setAgentesSegment] = useState<Segment | null>(null)
   const [fitCriteriaSegment, setFitCriteriaSegment] = useState<Segment | null>(null)
+  const [llmDefaultSegment, setLlmDefaultSegment] = useState<Segment | null>(null)
   const [ativoConfigSegment, setAtivoConfigSegment] = useState<Segment | null>(null)
   
   const [formData, setFormData] = useState({
@@ -383,6 +386,13 @@ export default function MasterSegmentsPage() {
                         title="Config do Ativo (Vínculo Exato)"
                       >
                         <ArchiveBoxIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setLlmDefaultSegment(segment)}
+                        className="p-2 rounded-lg text-sky-600 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors"
+                        title="Modelo de IA Padrão do Segmento (CRM/Mensageria)"
+                      >
+                        <BeakerIcon className="h-4 w-4" />
                       </button>
                       <UpdateGuard resource="master-segments">
                         <button
@@ -718,6 +728,14 @@ export default function MasterSegmentsPage() {
         <SegmentAtivoConfigModal
           segment={ativoConfigSegment}
           onClose={() => setAtivoConfigSegment(null)}
+        />
+      )}
+
+      {/* Modelo de IA Padrão do Segmento (cascata Cliente→Tenant→Segmento→Global) */}
+      {llmDefaultSegment && (
+        <SegmentLlmDefaultModal
+          segment={llmDefaultSegment}
+          onClose={() => setLlmDefaultSegment(null)}
         />
       )}
     </div>

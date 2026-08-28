@@ -14,6 +14,9 @@ import type { Segment } from '@/lib/intelligence/segmentResolver'
 export interface CrmAgentContext {
   tenantId: string
   leadUuid: string
+  /** Cascata de LLM (docs/CHECKPOINT.md, 2026-08-28) — repassado pra getLlmClient/
+   *  resolvePromptTemplate; null quando o lead é próprio do tenant, sem cliente associado. */
+  clientId: string | null
   segment: Segment
   /** Config efetiva já resolvida: override do tenant > default do segmento. */
   params: Record<string, any>

@@ -52,6 +52,7 @@ export async function refreshNextBestAction(
   const result = await nextBestActionAgent.evaluate({
     tenantId,
     leadUuid,
+    clientId,
     segment: cfg.segment,
     params: cfg.params,
   })

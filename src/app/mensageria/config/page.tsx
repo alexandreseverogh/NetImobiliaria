@@ -8,6 +8,8 @@ import {
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { adminFetch } from '@/lib/auth/adminFetch'
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
+import { PromptOverrideCard } from '@/components/crm/PromptOverrideCard'
 
 type Tab = 'inboxes' | 'teams' | 'labels' | 'canned' | 'sla' | 'bot' | 'knowledge'
 
@@ -771,6 +773,13 @@ function BotTab() {
   const [testError, setTestError] = useState('')
   const testScrollRef = useRef<HTMLDivElement>(null)
 
+  // Sobrescrita de persona em cascata (docs/CHECKPOINT.md, 2026-08-28) — 'own' = override do
+  // próprio tenant; uuid = override de um cliente específico (o admin do tenant cadastra em
+  // nome dele, já que cliente nunca loga na aplicação).
+  const { clients: personaClients, loading: personaClientsLoading, clientFilter: personaClientFilter, setClientFilter: setPersonaClientFilter } =
+    useClientSelector('mensageria-bot-persona-override')
+  const personaOverrideClientId = personaClientFilter === 'own' || personaClientFilter === 'segment' ? null : personaClientFilter
+
   async function load() {
     setLoading(true)
     try {
@@ -902,12 +911,33 @@ function BotTab() {
         <div className="rounded-lg bg-[#112240] border border-white/8 px-3.5 py-2.5 mb-3">
           <p className="text-xs text-slate-400">
             <span className="text-[#d4af37] font-medium">Persona &amp; conhecimento:</span> a personalidade e as
-            instruções do bot são definidas por <strong>segmento de negócio</strong> pelo Master, na página{' '}
-            <span className="font-mono text-slate-300">Editor de Prompts</span> (template{' '}
-            <span className="font-mono text-slate-300">mensageria_bot_persona</span>). Cada segmento tem seu próprio
-            prompt; sem um específico, vale o global de fallback. Regras/políticas/FAQ ficam na aba{' '}
+            instruções do bot partem do padrão curado pelo Master por <strong>segmento de negócio</strong> (template{' '}
+            <span className="font-mono text-slate-300">mensageria_bot_persona</span>, editado em{' '}
+            <span className="font-mono text-slate-300">/admin/master/prompts</span>) — você pode sobrescrever pro seu
+            tenant ou pra um cliente específico logo abaixo. Regras/políticas/FAQ ficam na aba{' '}
             <span className="font-mono text-slate-300">Base de Conhecimento</span>, ao lado.
           </p>
+        </div>
+
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Editando persona para</p>
+          <ClientSelector
+            value={personaClientFilter}
+            onChange={setPersonaClientFilter}
+            clients={personaClients}
+            loading={personaClientsLoading}
+            variant="toggle"
+            allowSegment={false}
+            storageKey="mensageria-bot-persona-override"
+          />
+        </div>
+        <div className="mb-3">
+          <PromptOverrideCard
+            templateKey="mensageria_bot_persona"
+            clientId={personaOverrideClientId}
+            label="Persona do Bot"
+            t={{ isDark: true, cardBg: '', textPrimary: 'text-white', textMuted: 'text-slate-500', textSecondary: 'text-slate-300', inputBg: 'bg-[#112240] border border-white/8' }}
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">

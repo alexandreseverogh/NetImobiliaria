@@ -1,0 +1,195 @@
+'use client'
+
+/**
+ * Card de prompt com override em cascata (docs/CHECKPOINT.md, 2026-08-28) — mostra o texto
+ * REALMENTE em uso agora (Cliente → Tenant → Segmento → Global) e deixa sobrescrever pro
+ * nível que esta instância está editando (tenant, quando clientId=null; ou um cliente
+ * específico, quando clientId vem preenchido — sempre cadastrado pelo admin do TENANT em
+ * nome do cliente, já que cliente nunca loga na aplicação). Reaproveitado em 4 lugares reais:
+ * /crm/config/ia (crm_lead_qualification), /mensageria/config aba Bot (mensageria_bot_persona),
+ * /crm/config/agentes (crm_agent_reactivation_message, crm_agent_next_best_action).
+ */
+
+import { useState, useEffect, useCallback } from 'react'
+import { ChatBubbleBottomCenterIcon, CheckBadgeIcon, ArrowUturnLeftIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
+
+interface Props {
+  templateKey: string
+  clientId: string | null
+  label: string
+  /** Tema leve — reaproveita o padrão { isDark, cardBg, textPrimary, textMuted, inputBg, borderSub } já usado nas telas do CRM/Mensageria. */
+  t: any
+}
+
+const LEVEL_LABEL: Record<string, string> = {
+  client: 'Sobrescrito para este cliente',
+  tenant: 'Sobrescrito para este tenant',
+  segment: 'Herdado do padrão do segmento',
+  global: 'Herdado do padrão global',
+}
+
+export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [resolvedContent, setResolvedContent] = useState<string | null>(null)
+  const [resolvedLevel, setResolvedLevel] = useState<string>('global')
+  const [overrideContent, setOverrideContent] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  const editingLevelLabel = clientId ? 'este cliente' : 'este tenant'
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const qs = new URLSearchParams({ templateKey })
+      if (clientId) qs.set('clientId', clientId)
+      const token = localStorage.getItem('admin-auth-token')
+      const res = await fetch(`/api/crm/prompt-overrides?${qs.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Falha ao carregar')
+      setResolvedContent(data.resolvedContent)
+      setResolvedLevel(data.resolvedLevel)
+      setOverrideContent(data.overrideContent)
+      setEditing(false)
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao carregar')
+    } finally {
+      setLoading(false)
+    }
+  }, [templateKey, clientId])
+
+  useEffect(() => { load() }, [load])
+
+  const startEditing = () => {
+    setDraft(overrideContent ?? resolvedContent ?? '')
+    setEditing(true)
+  }
+
+  const handleSave = async () => {
+    if (!draft.trim()) return
+    setSaving(true)
+    setError('')
+    try {
+      const token = localStorage.getItem('admin-auth-token')
+      const res = await fetch('/api/crm/prompt-overrides', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ templateKey, clientId, content: draft }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Falha ao salvar')
+      await load()
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao salvar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRestore = async () => {
+    if (!confirm(`Restaurar o padrão herdado, apagando a sobrescrita de ${editingLevelLabel}?`)) return
+    setSaving(true)
+    setError('')
+    try {
+      const qs = new URLSearchParams({ templateKey })
+      if (clientId) qs.set('clientId', clientId)
+      const token = localStorage.getItem('admin-auth-token')
+      const res = await fetch(`/api/crm/prompt-overrides?${qs.toString()}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Falha ao restaurar')
+      await load()
+    } catch (e: any) {
+      setError(e.message ?? 'Erro ao restaurar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const isOverriddenAtThisLevel = clientId ? resolvedLevel === 'client' : resolvedLevel === 'tenant'
+
+  return (
+    <div className={`${t.isDark ? 'bg-blue-600/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'} border p-6 rounded-3xl`}>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 className={`text-base font-black italic tracking-tighter uppercase flex items-center ${t.textPrimary}`}>
+          <ChatBubbleBottomCenterIcon className="h-5 w-5 text-blue-500 mr-2" />
+          {label}
+        </h3>
+        <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${
+          isOverriddenAtThisLevel
+            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+            : `${t.isDark ? 'bg-white/5' : 'bg-gray-100'} ${t.textMuted}`
+        }`}>
+          {LEVEL_LABEL[resolvedLevel] || resolvedLevel}
+        </span>
+      </div>
+
+      {error && <p className="text-xs text-red-500 font-medium mb-2">⚠️ {error}</p>}
+
+      {loading ? (
+        <div className="h-24 rounded-2xl bg-gray-200/40 animate-pulse" />
+      ) : editing ? (
+        <div className="space-y-3">
+          <textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            rows={10}
+            className={`w-full rounded-2xl px-4 py-3 text-xs leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${t.isDark ? t.inputBg : 'bg-white text-slate-700 border border-slate-200'}`}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !draft.trim()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white transition-all"
+            >
+              <CheckBadgeIcon className="h-4 w-4" />
+              {saving ? 'Salvando...' : `Sobrescrever para ${editingLevelLabel}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold ${t.isDark ? 'text-white/60 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <pre className={`whitespace-pre-wrap text-xs leading-relaxed rounded-2xl px-6 py-5 font-medium max-h-72 overflow-y-auto ${t.inputBg} ${t.textSecondary}`}>
+            {resolvedContent || '(nenhum prompt configurado ainda)'}
+          </pre>
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              type="button"
+              onClick={startEditing}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide transition-all ${t.isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'}`}
+            >
+              <PencilSquareIcon className="h-4 w-4" />
+              Sobrescrever para {editingLevelLabel}
+            </button>
+            {isOverriddenAtThisLevel && (
+              <button
+                type="button"
+                onClick={handleRestore}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide text-amber-500 hover:text-amber-400 disabled:opacity-50 transition-all"
+              >
+                <ArrowUturnLeftIcon className="h-4 w-4" />
+                Restaurar padrão
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

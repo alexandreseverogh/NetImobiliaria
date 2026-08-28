@@ -7,6 +7,15 @@ import {
   XCircleIcon, ClockIcon, PencilSquareIcon,
 } from '@heroicons/react/24/outline'
 import { useTheme } from '@/hooks/useTheme'
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector'
+import { PromptOverrideCard } from '@/components/crm/PromptOverrideCard'
+
+// Nem todo agente do catálogo usa LLM (speed_to_lead/stage_stagnation são regra pura) — só os
+// 2 abaixo têm prompt sobrescrevível em cascata (docs/CHECKPOINT.md, 2026-08-28).
+const AGENT_PROMPT_TEMPLATE_KEY: Record<string, string> = {
+  reactivation: 'crm_agent_reactivation_message',
+  next_best_action: 'crm_agent_next_best_action',
+}
 
 interface ParamHint { key: string; label: string; default: string }
 interface CatalogAgent { key: string; label: string; description: string; paramHints?: ParamHint[] }
@@ -37,6 +46,12 @@ export default function CrmAgentesConfigPage() {
   const [saveOk, setSaveOk] = useState(false)
   const [error, setError] = useState('')
   const [showHelp, setShowHelp] = useState(false)
+
+  // Sobrescrita dos prompts dos agentes em cascata — 'own' = override do próprio tenant;
+  // uuid = override de um cliente específico (admin do tenant cadastra em nome dele).
+  const { clients: promptClients, loading: promptClientsLoading, clientFilter: promptClientFilter, setClientFilter: setPromptClientFilter } =
+    useClientSelector('crm-agentes-prompt-override')
+  const promptOverrideClientId = promptClientFilter === 'own' || promptClientFilter === 'segment' ? null : promptClientFilter
 
   useEffect(() => { fetchData() }, [])
 
@@ -201,6 +216,20 @@ export default function CrmAgentesConfigPage() {
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Escopo dos overrides de prompt (docs/CHECKPOINT.md, 2026-08-28) — vale pra
+              qualquer card abaixo que tenha "Sobrescrever para..." (reactivation/next_best_action). */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <p className={`text-[10px] font-black uppercase tracking-widest ${t.textMuted}`}>Editando prompts para</p>
+            <ClientSelector
+              value={promptClientFilter}
+              onChange={setPromptClientFilter}
+              clients={promptClients}
+              loading={promptClientsLoading}
+              variant="toggle"
+              allowSegment={false}
+              storageKey="crm-agentes-prompt-override"
+            />
+          </div>
           {catalog.map((agent, i) => {
             const def = segmentDefaults[agent.key]
             const defAtivo = !!def?.ativo
@@ -274,6 +303,15 @@ export default function CrmAgentesConfigPage() {
                       </button>
                     ))}
                   </div>
+                )}
+
+                {AGENT_PROMPT_TEMPLATE_KEY[agent.key] && (
+                  <PromptOverrideCard
+                    templateKey={AGENT_PROMPT_TEMPLATE_KEY[agent.key]}
+                    clientId={promptOverrideClientId}
+                    label={`Prompt — ${agent.label}`}
+                    t={t}
+                  />
                 )}
               </div>
             )

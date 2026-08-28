@@ -104,14 +104,14 @@ const NEVER_ANSWER_WITHOUT_TOOL_GUARDRAIL =
 const PHOTO_FOLLOWUP_GUARDRAIL =
   '\n\n- Se o visitante perguntar sobre foto(s)/imagem(ns) a qualquer momento da conversa — mesmo sobre itens já mencionados antes sem foto —, sempre chame de novo a ferramenta de consulta pedindo a foto explicitamente; nunca responda sobre fotos só de memória do histórico, sem confirmar via ferramenta. Você NUNCA deve dizer que "não pode exibir imagens" ou "não pode mostrar fotos diretamente aqui" — isso é falso: quando existir foto real, a plataforma sempre envia ela de verdade como mensagem separada, automaticamente. Se, depois de consultar, não houver foto disponível, diga isso claramente — nunca invente uma desculpa sobre a sua própria capacidade de mostrar imagem.'
 
-// Persona é 100% dirigida por segmento, editada em /admin/master/prompts (template
-// `mensageria_bot_persona`): resolvePromptTemplate faz segmento → fallback global.
-// Não há override por tenant — o prompt por segmento é a única fonte (decisão do usuário).
-async function resolvePersona(tenantId: string, segmentId: string | null): Promise<string> {
+// Persona é dirigida por segmento (curada em /admin/master/prompts, template
+// `mensageria_bot_persona`) com override em cascata Cliente → Tenant → Segmento → Global
+// (docs/CHECKPOINT.md, 2026-08-28) — resolvePromptTemplate faz a cascata inteira.
+async function resolvePersona(tenantId: string, clientId: string | null, segmentId: string | null): Promise<string> {
   const { rows } = await pool.query(`SELECT name FROM public.tenants WHERE id = $1`, [tenantId])
   const tenantName = rows[0]?.name || 'nossa empresa'
 
-  const template = await resolvePromptTemplate('mensageria_bot_persona', segmentId)
+  const template = await resolvePromptTemplate('mensageria_bot_persona', { segmentId, tenantId, clientId })
   const base = template ? renderPrompt(template, { tenant_name: tenantName }) : DEFAULT_PERSONA_FALLBACK
   return base + TOOL_GUARDRAIL + NEVER_ANSWER_WITHOUT_TOOL_GUARDRAIL + PHOTO_FOLLOWUP_GUARDRAIL
 }
@@ -231,7 +231,7 @@ async function runBotReply(
   extraContext?: string | null,
 ): Promise<BotReply> {
   const segment = await resolveSegment(tenantId, clientId)
-  let persona = await resolvePersona(tenantId, segment?.id ?? null)
+  let persona = await resolvePersona(tenantId, clientId, segment?.id ?? null)
   // Contexto de página (M4.4 — widget público embutido numa página de item específico, ex.:
   // detalhe de imóvel) — hint textual só pra ESTE turno, resolvido fresco a cada chamada (nunca
   // fica obsoleto). Nunca vira mensagem visível na thread, só é lido pelo LLM.
@@ -257,10 +257,11 @@ async function runBotReply(
   }
 
   const history = await loadHistory(conversationId)
-  // Bot é por-tenant (cada empresa escolhe seu provider/modelo em Configurações → IA), não a
-  // config global de campanhas — usava getLlmClientForCampaigns() por engano (bug real: sempre
-  // caía no modelo Groq global, ignorando o Gemini configurado pra este tenant especificamente).
-  const llm = await getLlmClient(tenantId)
+  // Bot é por-tenant/cliente (cascata Cliente → Tenant → Segmento → Global, docs/
+  // CHECKPOINT.md 2026-08-28), não a config global de campanhas — usava
+  // getLlmClientForCampaigns() por engano numa sessão anterior (bug real: sempre caía no
+  // modelo Groq global, ignorando o Gemini configurado pra este tenant especificamente).
+  const llm = await getLlmClient(tenantId, clientId)
 
   const messages: LlmMessage[] = [...history]
   let finalText = ''

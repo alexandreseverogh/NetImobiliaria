@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-08-27 (5) — snap-back intermitente ao mover lead era pressao no pool de conexoes (docker restart netimobiliaria-db aplicado) + query extra removida em move/route.ts
+// last-restart: 2026-08-28 (1) — cascata Client/Tenant/Segmento/Global de modelo LLM e prompts (novo Prisma Client + rotas novas)
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

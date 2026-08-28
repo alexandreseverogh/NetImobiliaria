@@ -1,5 +1,131 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-28 — **Cascata Cliente → Tenant → Segmento(Master) → Global(Master)
+> pra MODELO DE LLM e PROMPTS, restrita a CRM + Mensageria** — pedido direto do usuário, depois
+> de uma pergunta de arquitetura ampla sobre a hierarquia real de LLM em toda a plataforma:
+> "Existe, em toda a aplicação, hierarquia de modelos de LLM, nessa ordem: Master, Tenant e
+> Client... Os prompts devem ser direcionados ao segmento de negocio do tenant... quando um
+> administrador de um tenant se loga, ele deverá ter acesso à funcionalidade de edição dos
+> prompts, obviamente associados ao tenant... como também esse administrador terá acesso aos
+> prompts dos clientes abaixo do tenant associado a esse administrador." Escopo fechado com o
+> usuário em 2 rodadas de esclarecimento + 1 ratificação espontânea no meio da conversa:
+> **Campanhas de Marketing Digital fica de fora, de propósito — continua com modelo único e
+> global do Master** ("ratifico que, para o modulo de Campanhas Digitais, o modelo de LLM será
+> unico que é o do Master", `getLlmClientForCampaigns`/`invokeForContext` **intocados**); como
+> **cliente nunca loga na aplicação**, é sempre o admin do TENANT quem cadastra o override de
+> LLM/prompt de um cliente, em nome dele; prompts seguem padrão "overlay" (Master cura
+> segmento/global, tenant/cliente sobrepõem), não "destacado pra sempre"; a camada de
+> regras de qualificação/critérios de fit do CRM (já tem Segmento+Tenant separados) ficou
+> **fora de escopo** nesta frente, por decisão explícita do usuário.
+>
+> **Achado-chave da investigação, antes de implementar:** os 6 pontos de consumo reais em
+> CRM/Mensageria (`conciergeService.ts`, `botAdapter.ts`, `reactivationAgent.ts`,
+> `nextBestActionAgent.ts`, + os 2 resolvers centrais) **já tinham `tenantId` E `clientId`
+> disponíveis no escopo** antes de chamar `getLlmClient`/`resolvePromptTemplate` — o `clientId`
+> só não era repassado pra essas 2 funções ainda. Extensão mecânica dos pontos de consumo, não
+> reescrita.
+>
+> **Schema** (`prisma/migration-2026-08-28-llm-cascade-client-tenant-segment.sql`, aplicada):
+> `campanhasmarketingdigital."Settings"` ganha `client_id`/`segment_id` — troca o
+> `UNIQUE(tenant_id)` simples por 3 índices únicos parciais (`idx_settings_tenant_own` — linha
+> do próprio tenant; `idx_settings_tenant_client` — 1 linha por cliente; `idx_settings_segment_
+> default` — 1 default por segmento curado pelo Master, `tenant_id IS NULL`). `public.
+> system_prompt_templates` ganha `tenant_id`/`client_id` — 2 novos índices únicos parciais
+> espelhando os já existentes de `segment_id` (`idx_prompt_templates_client_unique`,
+> `idx_prompt_templates_tenant_unique`).
+>
+> **2 bugs reais achados testando ao vivo, corrigidos na hora, refletidos direto no arquivo de
+> migração (nunca commitado antes da correção — editar a fonte de verdade, não empilhar
+> patch):**
+> 1. `ON CONFLICT (tenant_id) WHERE client_id IS NULL` (em `settings/llm/route.ts`) não batia
+>    com o índice real (`WHERE tenant_id IS NOT NULL AND client_id IS NULL`) — Postgres exige o
+>    predicado do `ON CONFLICT` bater EXATAMENTE com o da definição do índice pra servir de
+>    "arbiter". `"there is no unique or exclusion constraint matching the ON CONFLICT
+>    specification"` reproduzido ao vivo, corrigido igualando os 2 predicados.
+> 2. `idx_prompt_templates_global_unique` (índice PRÉ-EXISTENTE, `UNIQUE(template_key, version)
+>    WHERE segment_id IS NULL`) colidia com as linhas NOVAS de tenant/cliente — que também têm
+>    `segment_id IS NULL` por ser um eixo ortogonal — travando o 1º `PUT` de override de
+>    cliente com `"duplicate key value violates unique constraint
+>    \"idx_prompt_templates_global_unique\""`. Corrigido redefinindo o índice pra também exigir
+>    `tenant_id IS NULL` — só a linha global genuína.
+>
+> **Resolução em cascata:**
+> - `getLlmClient(tenantId?, clientId?)` (`src/lib/marketing/services/llmClient.ts`) — nova
+>   ordem: `Settings` do cliente → `Settings` do tenant → default do Master pro segmento
+>   resolvido (via `resolveSegment(tenantId, clientId)`, já reaproveitando a função existente —
+>   respeita um segmento próprio do CLIENTE se ele tiver um) → linha global do Master
+>   (`tenant_id IS NULL AND segment_id IS NULL`, a única linha de antes desta cascata) →
+>   fallback hardcoded literal (igual sempre foi). `getLlmClientForCampaigns` **100% intocada**.
+> - `resolvePromptTemplate(templateKey, scope)` (`src/lib/intelligence/promptResolver.ts`) —
+>   assinatura mudou de posicional (`segmentId: string|null`) pra objeto
+>   (`{segmentId?, tenantId?, clientId?}`), com overload retrocompatível aceitando a forma
+>   antiga (`typeof scope === 'object'` — cuidado real: `typeof null === 'object'` em JS,
+>   tratado explicitamente). Nova ordem: cliente → tenant → segmento → global.
+> - `CrmAgentContext` (`src/lib/crm/agents/types.ts`) ganhou `clientId: string | null` — 3
+>   pontos de construção atualizados (`runner.ts` ×2, `nextBestActionService.ts`).
+>
+> **UI — Master: default de LLM por segmento** — `SegmentLlmDefaultModal.tsx` (mesmo molde de
+> `SegmentFitCriteriaModal.tsx`) + botão novo (`BeakerIcon`, azul-céu) em cada linha de
+> `/admin/master/segments`. Novo `GET/PUT /api/admin/master/segments/[id]/llm-default`.
+>
+> **UI — Tenant: prompt (próprio + por cliente)** — novo `PromptOverrideCard.tsx` (reutilizável,
+> mostra o prompt RESOLVIDO com indicação de qual nível está valendo — cliente/tenant/segmento/
+> global — + botões Sobrescrever/Restaurar padrão) + rota genérica `/api/crm/prompt-overrides`
+> (GET/PUT/DELETE, whitelist de 4 `templateKey` — `crm_lead_qualification`,
+> `mensageria_bot_persona`, `crm_agent_reactivation_message`, `crm_agent_next_best_action` —
+> nunca os templates de Campanhas). Plugado nos 3 lugares reais onde cada prompt já era
+> mostrado/configurado (sem tela nova centralizada): `/crm/config/ia` (troca o `<pre>`
+> somente-leitura antigo), `/mensageria/config` aba Bot ("Persona do Bot"), `/crm/config/
+> agentes` (1 card por agente de Reativação/Next Best Action). As 3 páginas ganharam
+> `ClientSelector`/`useClientSelector` no topo — `'own'` = editando o override do próprio
+> tenant, cliente real selecionado = editando o override daquele cliente (o admin do tenant
+> configura em nome do cliente, que nunca loga).
+>
+> **UI — Tenant: modelo de LLM (próprio + por cliente)** — `/admin/campanhas/configuracoes`
+> ganhou o mesmo `ClientSelector`; `GET/PUT/DELETE /api/admin/campanhas/settings/llm` (`src/
+> app/api/admin/campanhas/settings/llm/route.ts`, reescrita) aceitam `clientId` opcional —
+> upsert com `ON CONFLICT` no índice parcial certo por nível; novo `DELETE` restaura a herança
+> (exige `clientId`, nunca apaga a linha do próprio tenant).
+>
+> **Testado ao vivo, ponta a ponta, com dado real, tenant "CRM SOZINHO"/segmento "Venda de
+> Carros", cliente real "Frank Aguiar" (único cliente real deste tenant):**
+>
+> Cascata de MODELO (via `settings/llm`, os 3 níveis testáveis via HTTP): tenant sem override
+> → default hardcoded · `PUT` tenant (gemini) → `GET` tenant confirma · `PUT` cliente (groq) →
+> `GET` cliente confirma groq, `GET` tenant confirma que continua gemini (isolamento, sem
+> contaminação) · `DELETE` cliente → `GET` cliente volta a `null` (herança restaurada) ·
+> `GET/PUT` do novo endpoint de default por segmento do Master (`llm-default`) confirmados
+> (deepseek gravado e lido corretamente). Nível "Segmento" e a cascata completa dentro de
+> `getLlmClient` confirmados por revisão de código (ordem sequencial idêntica ao já testado
+> camada a camada) + pelo teste E2E abaixo, que exercita a função real.
+>
+> **Cascata de PROMPT — teste E2E completo, exercitando o caminho real de produção (`POST
+> /api/crm/leads` → `qualifyLead` → `qualifyWithLlm` → `resolvePromptTemplate` +
+> `getLlmClient`, não só a rota de configuração):** confirmado antes que este tenant/segmento
+> não tem nenhuma linha de prompt própria (só Imobiliário + Global existem hoje — qualificação
+> real cai no Global) · criado override de prompt pro CLIENTE real via `/api/crm/prompt-
+> overrides`, forçando uma saída determinística e inconfundível (`tag_sonho:
+> "CASCATA_CLIENTE_OK"`, nunca produzida pelo prompt real com uma mensagem real sobre "sedan
+> usado") · `GET` confirmou `resolvedLevel: 'client'` antes do teste · criado lead REAL pro
+> cliente via a mesma rota pública que qualquer lead de produção usa → resposta da API já veio
+> com `tag_sonho: "CASCATA_CLIENTE_OK"` · **confirmado via SQL direto no banco** (não só na
+> resposta HTTP) que persistiu exatamente assim (`score_prontidao/score_fit=70`, a mesma
+> convenção ×10 já documentada em várias sessões anteriores). Prova, com dado real de ponta a
+> ponta, que o override de CLIENTE tem precedência sobre tenant/segmento/global dentro do
+> caminho de produção real, não só nas rotas de configuração isoladas.
+>
+> **Limpeza:** lead de teste removido (cascata `leads_kanban`/`leads_kanban_ciclos`/
+> `marketing_eventos` confirmada), override de prompt do cliente removido, default de LLM do
+> segmento "Venda de Carros" (usado só pra testar o nível 3 via HTTP) removido, config LLM do
+> tenant restaurada byte-a-byte ao valor original (`groq`/`openai/gpt-oss-120b`) — confirmado
+> por SQL final: `count(*)=0` nos 3 resíduos, tenant com o provider/model exatos de antes do
+> teste. `npx tsc --noEmit`: **zero erros em todo o projeto**.
+>
+> **Fora de escopo desta frente, por decisão explícita do usuário:** regras de qualificação/
+> critérios de fit do CRM (`crm_qualificacao_regras_segmento/tenant`, `crm_fit_criterios_
+> segmento/tenant`) — já tinham Segmento+Tenant, não ganharam nível de Cliente aqui. Módulo de
+> Campanhas de Marketing Digital — modelo único e global do Master, intocado de propósito.
+
 > **Atualizado em:** 2026-08-27 (continuação 16) — **Campo "WhatsApp" do "+ Novo Lead"
 > ganha máscara `(99) 99999-9999`** — pedido direto do usuário. Era um `<input>` de texto
 > livre, sem formatação nenhuma, desde sempre.
@@ -5808,7 +5934,10 @@
 
 ## Tarefa em andamento
 
-**Nenhuma.** Dono do lead manual (creator-as-owner) + exclusão híbrida de lead (permanente/
+**Nenhuma.** Cascata Cliente → Tenant → Segmento(Master) → Global(Master) de modelo LLM e
+prompts (CRM + Mensageria, Campanhas fora de propósito) está formalmente concluída e testada
+ponta a ponta com dado real — ver entrada no topo deste arquivo ("Atualizado em: 2026-08-28").
+Dono do lead manual (creator-as-owner) + exclusão híbrida de lead (permanente/
 reversível) estão concluídos e testados — ver entrada no topo deste arquivo ("Atualizado em:
 2026-08-16"). `/crm` (Caminho 1 — fim de ROI/custo, dashboard 100% CRM-nativo + Valor
 Estimado) está formalmente concluído — ver entrada no topo deste arquivo ("Atualizado em:

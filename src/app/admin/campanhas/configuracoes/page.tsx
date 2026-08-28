@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   getSettings, updateSettings,
   getWhatsAppConfig, updateWhatsAppConfig,
-  getLlmSettings, updateLlmSettings, testLlmConnection, testWhatsAppBriefing,
+  getLlmSettings, updateLlmSettings, deleteLlmSettings, testLlmConnection, testWhatsAppBriefing,
   getLlmModels,
   getClientCreativePaths, updateClientCreativePath,
   getMetaIdentity, updateMetaIdentity,
@@ -35,6 +35,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/marketing-utils';
 import { UpdateGuard } from '@/components/admin/PermissionGuard';
+import ClientSelector, { useClientSelector } from '@/components/marketing/ClientSelector';
 
 // ─── Helpers compartilhados ───────────────────────────────────────────────────
 
@@ -407,6 +408,17 @@ function MasterSettingsView() {
   const [llmSaved,      setLlmSaved]       = useState(false);
   const [llmTesting,    setLlmTesting]     = useState(false);
   const [llmTestResult, setLlmTestResult]  = useState<{ success: boolean; message: string } | null>(null);
+  const [llmLoading,    setLlmLoading]     = useState(false);
+  const [llmHasOverride, setLlmHasOverride] = useState(false);
+
+  // Escopo do MODELO de LLM (docs/CHECKPOINT.md, 2026-08-28) — cascata Cliente→Tenant→
+  // Segmento→Global, só CRM/Mensageria (Campanhas continua com o modelo global único do
+  // Master, de propósito). 'own' = editando a config do próprio tenant; uuid = editando o
+  // override de um cliente específico (o admin do tenant cadastra em nome dele, já que
+  // cliente nunca loga na aplicação).
+  const { clients: llmClients, loading: llmClientsLoading, clientFilter: llmClientFilter, setClientFilter: setLlmClientFilter } =
+    useClientSelector('campanhas-config-llm-cliente');
+  const llmScopeClientId = llmClientFilter === 'own' || llmClientFilter === 'segment' ? null : llmClientFilter;
 
   const [briefingTesting,    setBriefingTesting]    = useState(false);
   const [briefingTestResult, setBriefingTestResult] = useState<string | null>(null);
@@ -445,9 +457,35 @@ function MasterSettingsView() {
       setLlmProvider(l.llmProvider || 'anthropic');
       setLlmModel(l.llmModel       || 'claude-sonnet-4-5');
       setLlmApiKeySet(l.llmApiKeySet);
+      setLlmHasOverride(!!(l.llmProvider || l.llmModel || l.llmApiKeySet));
       setLlmModels(m);
     } catch { /* primeiro carregamento pode falhar */ }
   }
+
+  // Recarrega só o bloco de LLM quando o escopo (tenant vs. cliente) muda — o restante da
+  // página (Meta, WhatsApp, caminhos de criativos) nunca depende disso.
+  async function loadLlmForScope(clientId: string | null) {
+    setLlmLoading(true);
+    setLlmTestResult(null);
+    try {
+      const l = await getLlmSettings(clientId);
+      // Sem override no nível do cliente, os 3 campos vêm null (rota já sinaliza isso) — não
+      // finge um valor herdado aqui, deixa a UI mostrar honestamente "sem override próprio".
+      setLlmProvider(l.llmProvider || (clientId ? '' : 'anthropic'));
+      setLlmModel(l.llmModel || (clientId ? '' : 'claude-sonnet-4-5'));
+      setLlmApiKeySet(l.llmApiKeySet);
+      setLlmHasOverride(!!(l.llmProvider || l.llmModel || l.llmApiKeySet));
+      setLlmApiKey('');
+    } catch { /* mantém o estado anterior visível em vez de zerar tudo */ }
+    finally { setLlmLoading(false); }
+  }
+
+  useEffect(() => {
+    // No mount, loadAll() já carrega o próprio tenant — só recarrega quando o escopo
+    // efetivamente vira um cliente específico ou volta pro tenant depois disso.
+    if (llmModels) loadLlmForScope(llmScopeClientId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [llmScopeClientId]);
 
   function handleProviderChange(p: string) {
     setLlmProvider(p);
@@ -460,14 +498,26 @@ function MasterSettingsView() {
   async function handleSaveLlm() {
     setLlmSaving(true);
     try {
-      const payload: any = { llmProvider, llmModel };
+      const payload: any = { llmProvider, llmModel, clientId: llmScopeClientId };
       if (llmApiKey) payload.llmApiKey = llmApiKey;
       await updateLlmSettings(payload);
       setLlmSaved(true);
       setLlmApiKeySet(!!llmApiKey || llmApiKeySet);
+      setLlmHasOverride(true);
       setLlmApiKey('');
       setTimeout(() => setLlmSaved(false), 3000);
     } catch { alert('Erro ao salvar configuração LLM'); }
+    finally { setLlmSaving(false); }
+  }
+
+  async function handleRestoreLlm() {
+    if (!llmScopeClientId) return;
+    if (!confirm('Restaurar a herança da cascata pra este cliente, apagando o modelo próprio dele?')) return;
+    setLlmSaving(true);
+    try {
+      await deleteLlmSettings(llmScopeClientId);
+      await loadLlmForScope(llmScopeClientId);
+    } catch { alert('Erro ao restaurar configuração LLM'); }
     finally { setLlmSaving(false); }
   }
 
@@ -549,10 +599,32 @@ function MasterSettingsView() {
 
       {/* ── LLM ─── */}
       <SectionCard icon={CpuChipIcon} title="Inteligência Artificial (LLM)"
-        description="Para briefings estratégicos e análises de campanha">
+        description="Modelo usado pelo CRM/Mensageria — cascata Cliente → Tenant → Segmento → Global (docs/CHECKPOINT.md). Campanhas de Marketing Digital sempre usa o modelo global do Master, à parte.">
+        <div className="flex items-center justify-between flex-wrap gap-3 -mt-1 mb-1">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Editando modelo para</p>
+          <ClientSelector
+            value={llmClientFilter}
+            onChange={setLlmClientFilter}
+            clients={llmClients}
+            loading={llmClientsLoading}
+            variant="toggle"
+            allowSegment={false}
+            storageKey="campanhas-config-llm-cliente"
+          />
+        </div>
+
+        {llmScopeClientId && !llmLoading && !llmHasOverride && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+            Este cliente ainda não tem modelo próprio — está herdando do tenant (ou do padrão do
+            segmento, se o tenant também não tiver). Escolha um provider/modelo abaixo e salve
+            pra criar um override só pra ele.
+          </div>
+        )}
+
         <div>
           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Provider</label>
-          <select value={llmProvider} onChange={e => handleProviderChange(e.target.value)} className={selectCls}>
+          <select value={llmProvider} onChange={e => handleProviderChange(e.target.value)} className={selectCls} disabled={llmLoading}>
+            {llmScopeClientId && <option value="">— Sem override (herda a cascata) —</option>}
             {providerList.map(p => (
               <option key={p.key} value={p.key}>{p.label}</option>
             ))}
@@ -608,13 +680,23 @@ function MasterSettingsView() {
               {llmSaving ? 'Salvando...' : 'Salvar IA'}
             </button>
           </UpdateGuard>
-          <button onClick={handleTestLlm} disabled={llmTesting}
-            className="px-5 py-2.5 bg-gray-100 text-gray-700 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50">
-            <span className="flex items-center gap-2">
-              <WifiIcon className="h-3.5 w-3.5" />
-              {llmTesting ? 'Testando...' : 'Testar Conexão'}
-            </span>
-          </button>
+          {!llmScopeClientId && (
+            <button onClick={handleTestLlm} disabled={llmTesting}
+              className="px-5 py-2.5 bg-gray-100 text-gray-700 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50">
+              <span className="flex items-center gap-2">
+                <WifiIcon className="h-3.5 w-3.5" />
+                {llmTesting ? 'Testando...' : 'Testar Conexão'}
+              </span>
+            </button>
+          )}
+          {llmScopeClientId && llmHasOverride && (
+            <UpdateGuard resource="configuracoes-campanhas">
+              <button onClick={handleRestoreLlm} disabled={llmSaving}
+                className="px-5 py-2.5 bg-white border border-amber-300 text-amber-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-amber-50 transition-colors disabled:opacity-50">
+                Restaurar herança
+              </button>
+            </UpdateGuard>
+          )}
           {llmSaved && (
             <span className="flex items-center gap-1.5 text-xs font-black text-emerald-600">
               <CheckCircleIcon className="h-4 w-4" /> Salvo

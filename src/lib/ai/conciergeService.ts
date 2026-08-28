@@ -98,7 +98,7 @@ export class ConciergeService {
     const fitCriteria = [...tenantFit, ...segmentFit];
 
     try {
-      const llmResult = await qualifyWithLlm(text, tenantId, segment.id, rules, fitCriteria);
+      const llmResult = await qualifyWithLlm(text, tenantId, clientId ?? null, segment.id, rules, fitCriteria);
       if (llmResult) return llmResult;
     } catch (err) {
       console.warn('[ConciergeService] Qualificação via LLM falhou, usando fallback por regra:', err);
@@ -174,11 +174,12 @@ function matchByKeyword(text: string, rules: QualificationRule[]): Qualification
 async function qualifyWithLlm(
   mensagem: string,
   tenantId: string,
+  clientId: string | null,
   segmentId: string,
   rules: QualificationRule[],
   fitCriteria: FitCriterion[],
 ): Promise<QualificationResult | null> {
-  const template = await resolvePromptTemplate('crm_lead_qualification', segmentId);
+  const template = await resolvePromptTemplate('crm_lead_qualification', { segmentId, tenantId, clientId });
   if (!template) return null;
 
   const regrasTaticas = rules.length
@@ -191,7 +192,7 @@ async function qualifyWithLlm(
 
   const prompt = renderPrompt(template, { mensagem, regras_taticas: regrasTaticas, criterios_fit: criteriosFit });
 
-  const llm = await getLlmClient(tenantId);
+  const llm = await getLlmClient(tenantId, clientId);
   // 700, não 500 — o prompt agora pede 2 dimensões de julgamento (intenção + fit), não 1;
   // com o teto antigo, respostas de alguns providers (confirmado ao vivo com Gemini) vinham
   // truncadas no meio do JSON antes de fechar score_fit.

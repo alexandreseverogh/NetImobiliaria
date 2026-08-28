@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [promptContent, segmentRulesRes, tenantRulesRes, segmentFitRes, tenantFitRes, tenantSuggestionsRes] = await Promise.all([
-      resolvePromptTemplate('crm_lead_qualification', segment.id),
+      resolvePromptTemplate('crm_lead_qualification', { segmentId: segment.id, tenantId, clientId }),
       pool.query(
         `SELECT id, palavras_chave, tag_resultante, resumo_modelo, score_base, ordem, ativa
            FROM crm_qualificacao_regras_segmento
