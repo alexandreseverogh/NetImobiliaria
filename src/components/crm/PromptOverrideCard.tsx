@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChatBubbleBottomCenterIcon, CheckBadgeIcon, ArrowUturnLeftIcon, PencilSquareIcon, DocumentMagnifyingGlassIcon, BackspaceIcon } from '@heroicons/react/24/outline'
+import { ChatBubbleBottomCenterIcon, CheckBadgeIcon, ArrowUturnLeftIcon, PencilSquareIcon, DocumentMagnifyingGlassIcon, BackspaceIcon, UserGroupIcon } from '@heroicons/react/24/outline'
 
 interface Props {
   templateKey: string
@@ -51,8 +51,29 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
   const [masterReferenceLevel, setMasterReferenceLevel] = useState<string>('global')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  // "Copiar de outro cliente" (v1, sem IA — docs/CHECKPOINT.md 2026-08-28): lista os clientes
+  // do MESMO tenant que já têm PROMPT próprio pra este templateKey (não é sobre modelo de LLM,
+  // são cascatas independentes). Só faz sentido no nível cliente — nunca cruza tenants.
+  const [peers, setPeers] = useState<{ clientId: string; clientName: string; content: string }[]>([])
 
   const editingLevelLabel = clientId ? 'este cliente' : 'este tenant'
+
+  const loadPeers = useCallback(async () => {
+    if (!clientId) return
+    try {
+      const qs = new URLSearchParams({ templateKey, excludeClientId: clientId })
+      const token = localStorage.getItem('admin-auth-token')
+      const res = await fetch(`/api/crm/prompt-overrides/peers?${qs.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const data = await res.json()
+      if (res.ok) setPeers(data.peers ?? [])
+    } catch {
+      // best-effort — a ausência de sugestões nunca deve bloquear a edição normal do prompt
+    }
+  }, [templateKey, clientId])
+
+  useEffect(() => { loadPeers() }, [loadPeers])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -210,6 +231,26 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
               <BackspaceIcon className="h-4 w-4" />
               Limpar
             </button>
+            {peers.length > 0 && (
+              <div className="relative">
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const peer = peers.find((p) => p.clientId === e.target.value)
+                    if (peer) setDraft(peer.content)
+                    e.target.value = ''
+                  }}
+                  title="Usa o prompt de outro cliente seu (do mesmo negócio) como ponto de partida — escolha baseada no seu próprio conhecimento, a plataforma não mede performance ainda"
+                  className={`appearance-none pl-9 pr-3 py-2 rounded-xl text-xs font-bold cursor-pointer ${t.isDark ? 'bg-white/5 hover:bg-white/10 text-white/80' : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'}`}
+                >
+                  <option value="" disabled>Copiar de outro cliente…</option>
+                  {peers.map((p) => (
+                    <option key={p.clientId} value={p.clientId}>{p.clientName}</option>
+                  ))}
+                </select>
+                <UserGroupIcon className={`h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${t.isDark ? 'text-white/50' : 'text-gray-400'}`} />
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setEditing(false)}
