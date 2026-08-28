@@ -28,6 +28,18 @@ const LEVEL_LABEL: Record<string, string> = {
   global: 'Herdado do padrão global',
 }
 
+// Legenda dinâmica abaixo do título — complementa o badge (que já diz o nível) com uma frase
+// legível dizendo de quem é o texto exibido agora. Feito dinâmico (não um título estático tipo
+// "Prompt Mestre do Segmento") de propósito: o mesmo card mostra 4 níveis diferentes ao longo
+// do tempo (o usuário pode sobrescrever/restaurar a qualquer momento) — um texto fixo ficaria
+// errado assim que o nível mudasse.
+const LEVEL_CAPTION: Record<string, string> = {
+  client: 'Prompt personalizado deste cliente.',
+  tenant: 'Prompt personalizado deste tenant.',
+  segment: 'Prompt padrão do segmento, curado pelo Master.',
+  global: 'Este segmento ainda não tem prompt próprio — usando o padrão global do Master.',
+}
+
 export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -150,6 +162,11 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
           {LEVEL_LABEL[resolvedLevel] || resolvedLevel}
         </span>
       </div>
+      {!loading && (
+        <p className={`text-xs font-medium mb-3 ${resolvedLevel === 'global' || resolvedLevel === 'segment' ? 'text-red-500' : t.textMuted}`}>
+          {LEVEL_CAPTION[resolvedLevel] || ''}
+        </p>
+      )}
 
       {error && <p className="text-xs text-red-500 font-medium mb-2">⚠️ {error}</p>}
 
