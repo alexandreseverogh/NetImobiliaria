@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChatBubbleBottomCenterIcon, CheckBadgeIcon, ArrowUturnLeftIcon, PencilSquareIcon, DocumentMagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { ChatBubbleBottomCenterIcon, CheckBadgeIcon, ArrowUturnLeftIcon, PencilSquareIcon, DocumentMagnifyingGlassIcon, BackspaceIcon } from '@heroicons/react/24/outline'
 
 interface Props {
   templateKey: string
@@ -189,6 +189,16 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
             >
               <CheckBadgeIcon className="h-4 w-4" />
               {saving ? 'Salvando...' : `Sobrescrever para ${editingLevelLabel}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDraft('')}
+              disabled={!draft}
+              title="Apaga o texto herdado que veio pré-preenchido, pra começar do zero"
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold disabled:opacity-40 transition-all ${t.isDark ? 'text-white/60 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}
+            >
+              <BackspaceIcon className="h-4 w-4" />
+              Limpar
             </button>
             <button
               type="button"
