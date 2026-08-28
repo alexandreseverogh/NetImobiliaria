@@ -129,7 +129,17 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
     }
   }
 
+  // Controla o botão "Restaurar padrão" — só existe algo pra apagar NESTE nível específico
+  // (o que esta instância do card tem permissão de mexer: tenant quando clientId=null, o
+  // próprio cliente quando presente).
   const isOverriddenAtThisLevel = clientId ? resolvedLevel === 'client' : resolvedLevel === 'tenant'
+  // Controla a COR do badge/legenda — bug real encontrado ao vivo: usar isOverriddenAtThisLevel
+  // aqui fazia um cliente SEM override próprio, mas herdando de um TENANT que TEM override,
+  // mostrar o texto certo ("Sobrescrito para este tenant") só que em vermelho — contradição
+  // visual (o texto diz que há uma customização real, a cor dizia "ainda no padrão do
+  // Master"). isCustomized é sobre o NÍVEL RESOLVIDO em si (há negócio real customizando,
+  // client OU tenant), não sobre se ESTA instância específica é a dona do override.
+  const isCustomized = resolvedLevel === 'client' || resolvedLevel === 'tenant'
   // Só vale mostrar como bloco separado quando difere do que já está na tela (sem override
   // nenhum ganhando, masterReferenceContent === resolvedContent — mostrar seria redundante).
   const showMasterReference = !!masterReferenceContent && masterReferenceContent !== resolvedContent
@@ -155,7 +165,7 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
           {label}
         </h3>
         <span className={`font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
-          isOverriddenAtThisLevel
+          isCustomized
             ? 'text-[9px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
             : 'text-[11px] bg-red-500/10 text-red-500 border border-red-500/30'
         }`}>
@@ -163,7 +173,7 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
         </span>
       </div>
       {!loading && (
-        <p className={`text-xs font-medium mb-3 ${resolvedLevel === 'global' || resolvedLevel === 'segment' ? 'text-red-500' : t.textMuted}`}>
+        <p className={`text-xs font-medium mb-3 ${isCustomized ? t.textMuted : 'text-red-500'}`}>
           {LEVEL_CAPTION[resolvedLevel] || ''}
         </p>
       )}
