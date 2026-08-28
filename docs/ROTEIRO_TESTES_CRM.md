@@ -196,10 +196,45 @@ verificáveis; o roteiro sinaliza onde isso importa.
 
 ### 1.6 — Inteligência Artificial (`/crm/config/ia`)
 
+> **Atualizado em 2026-08-28** — o bloco "Prompt Mestre" deixou de ser somente-leitura: agora
+> resolve em cascata **Cliente → Tenant → Segmento → Global** (só CRM/Mensageria — Campanhas
+> de Marketing Digital continua fora dessa cascata, ver 3.6). Como cliente nunca loga na
+> aplicação, é sempre o admin do TENANT quem cadastra o override em nome do cliente.
+
 1. Abrir a tela. ✅ Cabeçalho mostra o segmento resolvido do tenant + badge de status ("IA
    Ativa neste Segmento" ou aviso de bloqueio).
-2. Bloco **"Prompt Mestre"** — somente leitura, mostra o prompt real usado pra qualificar
-   lead (segmento + fallback global). ✅ Nota apontando pro Editor de Prompts do Master.
+2. Bloco **"Prompt Mestre"** — logo acima dele, label "Editando para" + `ClientSelector`
+   (Minha Empresa / cliente específico). Com "Minha Empresa" selecionado (escopo = tenant):
+   - ✅ O texto exibido é o prompt REALMENTE em uso agora — badge no canto confirma o nível
+     (`Sobrescrito para este tenant` / `Herdado do padrão do segmento` / `Herdado do padrão
+     global`). Se este tenant nunca sobrescreveu nada, o badge deve ser "Herdado do padrão do
+     segmento" (se o segmento tiver uma variante curada pela Master) ou "Herdado do padrão
+     global" (senão).
+   - Clique "Sobrescrever para este tenant" → edite o texto num campo de teste
+     (`TESTE ROTEIRO CRM - prompt customizado do tenant`) → salvar. ✅ Badge muda pra
+     "Sobrescrito para este tenant" e o botão "Restaurar padrão" aparece.
+   - Clique "Restaurar padrão". ✅ Volta a mostrar o prompt herdado (segmento/global) e o
+     botão "Restaurar padrão" some — nunca apaga a linha do segmento/global em si, só a do
+     tenant.
+2b. Trocar o `ClientSelector` pra um cliente real de teste (escopo = cliente):
+   - ✅ Se o cliente nunca teve override, o badge deve refletir o mesmo nível herdado que o
+     TENANT está usando agora (não pula direto pro global ignorando um override do tenant, se
+     houver um).
+   - Clique "Sobrescrever para este cliente" → texto de teste bem diferente e identificável
+     (`TESTE ROTEIRO CRM - responda SEMPRE com tag_sonho "TESTE_OVERRIDE_CLIENTE"`, no mesmo
+     formato JSON que o prompt real espera) → salvar.
+   - Crie um lead novo pra ESTE cliente (via `/api/crm/leads` com `client_id` dele, ou
+     formulário público se o tenant tiver um vinculado a esse cliente). ✅ A ficha do lead no
+     Kanban deve mostrar `tag_sonho` = exatamente o valor forçado pelo prompt — prova que o
+     override de CLIENTE está de fato influenciando o caminho real de qualificação (`POST
+     /api/crm/leads` → `qualifyLead` → `getLlmClient`/`resolvePromptTemplate` com `clientId`),
+     não só a tela de configuração.
+   - Volte o `ClientSelector` pra "Minha Empresa". ✅ O prompt do TENANT deve continuar
+     intocado (o texto de teste sobrescrito no cliente não vaza pro tenant nem pra outros
+     clientes) — confirme abrindo um 2º cliente de teste (sem override) e vendo que ele
+     continua herdando normalmente, sem o texto forçado do 1º cliente.
+   - 🧹 Clique "Restaurar padrão" no cliente de teste antes de sair — e remova o lead de teste
+     criado nesse passo.
 3. Bloco **"Regras Padrão do Segmento"** — somente leitura, lista as regras curadas pela
    Master (palavra-chave → tag/resumo/score).
 4. Bloco **"Suas Regras Personalizadas"** — CRUD real do tenant:
@@ -219,6 +254,51 @@ verificáveis; o roteiro sinaliza onde isso importa.
    se o tenant tiver um) com uma mensagem que bata numa regra conhecida (do segmento ou do
    tenant). ✅ `tag_sonho`/`resumo_ia`/`score_prontidao` (e `score_fit`, se houver critério
    configurado) aparecem certos na ficha do Kanban.
+
+### 1.6b — Modelo de LLM em cascata (`/admin/campanhas/configuracoes` → "IA (LLM)") [novo, 2026-08-28]
+
+> Mesma cascata **Cliente → Tenant → Segmento → Global**, mas pro MODELO/provider/API key
+> usado (não o texto do prompt). Também só CRM/Mensageria — o modelo usado pelas Campanhas de
+> Marketing Digital deste mesmo tenant é 100% independente (fica em `/admin/master/ia-plataforma`,
+> global, e não muda com nada testado aqui — ver 3.6).
+
+1. Abrir `/admin/campanhas/configuracoes`, seção **"Inteligência Artificial (LLM)"**. ✅ Label
+   "Editando modelo para" + `ClientSelector` acima dos campos de provider/modelo/API key.
+2. Com "Minha Empresa" selecionado: anote o provider/modelo atual (o que já está configurado
+   pro tenant). Trocar provider/modelo pra algo diferente de teste, salvar ("Salvar IA"). ✅
+   Persiste; botão "Testar Conexão" disponível (só aparece no escopo tenant, nunca no escopo
+   cliente).
+3. Trocar o `ClientSelector` pra um cliente real de teste sem override ainda. ✅ Deve aparecer
+   o aviso âmbar "Este cliente ainda não tem modelo próprio — está herdando do tenant (ou do
+   padrão do segmento...)" e o dropdown de Provider mostra a opção extra "— Sem override
+   (herda a cascata) —" selecionada.
+4. Escolher um provider/modelo diferente do que o tenant está usando, salvar. ✅ Some o aviso
+   âmbar; aparece o botão "Restaurar herança" (só existe no escopo cliente, nunca no tenant —
+   nunca é possível "restaurar" a config do próprio tenant por essa tela).
+5. Trocar o `ClientSelector` de volta pra "Minha Empresa". ✅ O provider/modelo do TENANT deve
+   continuar o valor salvo no passo 2, sem nenhuma contaminação do valor salvo no passo 4 pro
+   cliente.
+6. Voltar pro cliente de teste e clicar "Restaurar herança". ✅ Volta a mostrar o aviso âmbar
+   de herança e o dropdown com "— Sem override —" selecionado de novo.
+7. 🧹 Restaure o provider/modelo do TENANT ao valor original anotado no passo 2 antes de sair
+   (evite deixar o tenant real configurado com um modelo de teste).
+
+### 1.6c — Isolamento entre clientes do mesmo tenant [novo, 2026-08-28]
+
+> Teste dedicado de segurança/isolamento — o risco real de uma cascata com múltiplos níveis é
+> vazamento entre clientes ou herança errada. Exige pelo menos 2 clientes reais (ou de teste)
+> no mesmo tenant; se só houver 1, pule este bloco e registre como não-testável.
+
+1. Com o cliente A já tendo um override de PROMPT (1.6, passo 2b) e/ou de MODELO (1.6b, passo
+   4), abra o Cliente B (sem nenhum override) nas duas telas.
+2. ✅ Cliente B nunca deve mostrar o texto/modelo sobrescrito do Cliente A — ele deve herdar
+   do TENANT (ou do segmento/global, se o tenant também não tiver override), nunca do Cliente
+   A por engano.
+3. Crie um lead de teste pro Cliente B com uma mensagem qualquer. ✅ A qualificação real
+   (`tag_sonho`/`resumo_ia`) deve refletir o prompt herdado (tenant/segmento/global), nunca o
+   texto forçado que você cadastrou só pro Cliente A em 1.6, passo 2b.
+4. 🧹 Remova qualquer lead de teste criado neste bloco e confirme que os overrides de A e B
+   voltaram ao estado que você pretende deixar (teste ou nenhum).
 
 ### 1.7 — Agentes de Aceleração (`/crm/config/agentes`)
 
@@ -260,6 +340,17 @@ verificáveis; o roteiro sinaliza onde isso importa.
     /api/crm/agent/approve/[id]` abre o formulário de PIN; PIN errado → reformulário; PIN
     certo → executa.
 
+**Prompt dos agentes em cascata (novo, 2026-08-28):**
+11. Acima da lista de agentes, o mesmo `ClientSelector` ("Editando para") controla um
+    `PromptOverrideCard` dentro de cada card dos agentes `reactivation`
+    (`crm_agent_reactivation_message`) e `next_best_action` (`crm_agent_next_best_action`) —
+    os demais agentes (`pendencia_atendimento`, `stage_stagnation`, `score_recalibration`) não
+    usam texto de prompt livre, então não ganham esse card. ✅ Mesmo comportamento de badge/
+    Sobrescrever/Restaurar já validado em 1.6 — sobrescreva o texto do `reactivation` pro
+    tenant, force uma reativação de teste (2.5/passo 2-4), e confirme que a mensagem enviada
+    de verdade reflete o texto customizado (não o padrão do segmento/global).
+12. 🧹 Restaure qualquer override de prompt de agente feito só pra este teste.
+
 ### 1.8 — Fila de Resgate (`/crm/resgate`)
 
 1. Abrir a tela. ✅ Tela **somente leitura** — mostra leads sem responsável elegível no
@@ -299,7 +390,15 @@ Só acessível como Master. Pra cada segmento, os botões de ação relevantes a
    config por estratégia (tabela/coluna do "dono do ativo", nome do cargo de vendedor etc.).
    Adicione/remova/reordene uma estratégia de teste e confirme que a distribuição de um lead
    novo respeita a ordem.
-5. **"Empresas"** — lista as empresas (tenants) daquele segmento; útil pra confirmar em qual
+5. **"Modelo de IA Padrão do Segmento (CRM/Mensageria)"** (botão azul-céu, ícone frasco —
+   novo, 2026-08-28) — abre `SegmentLlmDefaultModal`, o nível "Segmento" da cascata de MODELO
+   (1.6b): provider/modelo/API key que valem pra qualquer tenant desse segmento que não tenha
+   override próprio. ✅ Configure um default de teste aqui, então abra 1.6b num tenant desse
+   segmento que **nunca** configurou nada (nem tenant, nem cliente) — o modelo efetivo deve
+   ser o que você acabou de curar aqui (não mais o fallback hardcoded genérico). 🧹 Restaure/
+   remova o default de teste ao final — sem isso, ele passa a valer pra QUALQUER tenant desse
+   segmento que ainda não tenha configurado nada, inclusive tenants reais.
+6. **"Empresas"** — lista as empresas (tenants) daquele segmento; útil pra confirmar em qual
    segmento está o tenant que você está usando no resto do roteiro.
 
 🧹 Reverta qualquer mudança de configuração de segmento feita só pra teste (toggle de agente,
@@ -343,6 +442,32 @@ houver, ative um antes de começar, com um segmento que já tenha `crm_ia_ativa=
 4. Registre manualmente uma atividade humana no mesmo lead (1.2, passo 8). ✅ As duas
    convivem na mesma lista, uma com badge de IA e outra com `· Nome do Atendente` — a
    distinção visual deve ficar clara lado a lado.
+
+### 2.3b — Persona do bot em cascata, por cliente (novo, 2026-08-28)
+
+> Mesma cascata Cliente → Tenant → Segmento → Global do `crm_lead_qualification` (1.6), agora
+> pro `mensageria_bot_persona`. Só relevante se este tenant atender por conta de mais de 1
+> cliente (`clientId` na inbox/conversa) — se o bot atende só em nome do próprio tenant, teste
+> apenas o nível tenant.
+
+1. Abra `/mensageria/config` → aba "Bot" → bloco **"Persona do Bot"**. ✅ Mesmo `ClientSelector`
+   ("Editando para") + `PromptOverrideCard` já usado em 1.6 — badge de nível, botões
+   Sobrescrever/Restaurar.
+2. Com "Minha Empresa" selecionado, sobrescreva a persona do TENANT com um texto de teste bem
+   identificável (ex.: instrua o bot a sempre começar a resposta com
+   "[TESTE ROTEIRO CRM PERSONA TENANT]"). Salve.
+3. Teste uma conversa real (via "Testar bot" ou WhatsApp real, sem cliente vinculado). ✅ A
+   resposta do bot deve carregar o prefixo de teste.
+4. Se o tenant atender clientes distintos: selecione um cliente real no `ClientSelector`,
+   sobrescreva a persona só dele com um prefixo DIFERENTE (`[TESTE ROTEIRO CRM PERSONA
+   CLIENTE]`). Teste uma conversa vinculada a esse cliente especificamente. ✅ Resposta deve
+   sair com o prefixo do CLIENTE, não o do tenant.
+5. Teste uma conversa de OUTRO cliente (ou sem cliente vinculado, direto no tenant). ✅ Deve
+   sair com o prefixo do TENANT (passo 2), nunca o do cliente testado no passo 4 — mesma
+   checagem de isolamento de 1.6c, agora na Mensageria.
+6. 🧹 Restaure a persona do tenant e do(s) cliente(s) de teste ao padrão herdado
+   ("Restaurar padrão") antes de sair — uma persona de teste esquecida no ar responde de
+   verdade pra qualquer visitante real.
 
 ### 2.4 — Pergunta fora de escopo / handoff pra humano
 
@@ -467,6 +592,27 @@ configurada (1.10, passo 4) usando a tabela real de imóveis (ou entidade equiva
 3. ✅ A sugestão da IA deve ser específica ao contexto real do lead (etapa atual, tempo nela,
    qualificação, atividades recentes) — nunca genérica, nunca citando dado que não existe.
 
+### 3.6 — Regressão: Campanhas de Marketing Digital NUNCA ganha a cascata de LLM (novo, 2026-08-28)
+
+> Decisão de produto explícita e ratificada pelo usuário: Campanhas usa um único modelo
+> GLOBAL do Master, sem cascata Cliente/Tenant/Segmento — de propósito, pra manter uma
+> identidade de análise consistente entre todos os clientes de todos os tenants. Se qualquer
+> um dos sinais abaixo aparecer, é regressão.
+
+1. Abra `/admin/master/ia-plataforma` (Master). ✅ Continua existindo — é o único lugar que
+   configura o modelo usado por `getLlmClientForCampaigns`/`invokeForContext` (Insights da
+   IA, Briefing Estratégico, Análise de Padrões Vencedores, etc.) — sem `ClientSelector`, sem
+   noção de tenant/cliente/segmento, 1 linha só pra toda a plataforma.
+2. Abra qualquer tela do módulo de Campanhas que use IA (`/admin/campanhas/dashboard` →
+   Insights da IA / Briefing Estratégico, `/admin/campanhas/criativos/padroes`). ✅ Nenhuma
+   delas deve ter `ClientSelector` de "modelo de LLM" nem link pra sobrescrever prompt por
+   tenant/cliente — só o seletor de cliente normal de FILTRO de dado (que já existia antes
+   desta frente, não confundir os dois).
+3. Sobrescreva o modelo de LLM de um cliente de teste via 1.6b (CRM/Mensageria). ✅ Gere um
+   Insight/Briefing real desse mesmo cliente em Campanhas — deve continuar usando o modelo
+   GLOBAL do Master (`/admin/master/ia-plataforma`), nunca o override que você acabou de
+   cadastrar pro CRM/Mensageria dele. Os dois sistemas são deliberadamente independentes.
+
 🧹 Ao final: reverta o valor de venda/etapa de teste (ou apague o lead de teste inteiro,
 cascata cuida do resto), remova qualquer imóvel/corretor de vínculo de teste feito só pra
 3.4, e confirme no dashboard de Campanhas que os números voltaram ao estado anterior ao teste
@@ -566,6 +712,28 @@ Este é o teste "ponta a ponta" mais representativo do produto real.
    nenhuma tela do CRM.
 4. Reative o módulo. ✅ Tudo volta ao normal, sem duplicar nada que já existia.
 
+### 4.8 — Override de MODELO por cliente vale igual pro CRM e pra Mensageria (novo, 2026-08-28)
+
+Prova que os dois módulos leem a MESMA cascata/linha de config — não é uma config duplicada
+que pode divergir entre CRM e Mensageria pro mesmo cliente.
+
+1. Escolha um cliente real deste tenant que gere lead tanto via qualificação do CRM (1.6)
+   quanto via conversa do bot (2.3b).
+2. Em 1.6b, sobrescreva o MODELO de LLM (provider/model) desse cliente pra um provider
+   claramente diferente do que o tenant usa (ex.: tenant em Groq, cliente de teste em Gemini
+   — ou qualquer par de providers que você tenha credencial pra testar).
+3. Crie um lead real desse cliente (dispara `getLlmClient(tenantId, clientId)` via
+   `conciergeService`). ✅ Funciona sem erro — confirma que a qualificação usou o provider do
+   cliente (se o provider trocado tiver algum efeito observável, ex. tempo de resposta
+   diferente, ou confirme via log/rede se tiver acesso).
+4. Numa conversa do bot vinculada ao MESMO cliente (2.3b), pergunte algo que force uma
+   resposta real do bot. ✅ Também funciona sem erro, usando o MESMO override de modelo — não
+   existe uma configuração separada "modelo do bot" vs. "modelo do CRM" por cliente, é uma
+   única linha (`campanhasmarketingdigital."Settings"` com `tenant_id`+`client_id`) lida pelos
+   dois caminhos.
+5. 🧹 Restaure o modelo do cliente de teste (`Restaurar herança` em 1.6b) e remova qualquer
+   lead/conversa de teste criados neste bloco.
+
 🧹 Ao final desta Parte: remova todo lead/conversa/atividade de teste desta seção, reverta
 qualquer desprovisionamento feito só pra 4.7, e confirme que os números de CPA/ROAS reais do
 dashboard de Campanhas voltaram a refletir só dado real (sem negócio de teste inflando).
@@ -584,5 +752,12 @@ dashboard de Campanhas voltaram a refletir só dado real (sem negócio de teste 
       valor real, se você mexeu nisso pra evitar notificação durante teste.
 - [ ] Provisionamento de módulo (Parte 4.7) revertido ao estado original em
       `/admin/master/provisioning`, se você desprovisionou algo só pra teste.
+- [ ] Overrides de PROMPT (1.6, 1.7, 2.3b) e de MODELO de LLM (1.6b) de teste — do tenant e de
+      qualquer cliente — restaurados via "Restaurar padrão"/"Restaurar herança", nunca deixados
+      como sobrescrita "de mentira" no ar (uma persona/prompt de teste esquecido responde de
+      verdade pra visitante/lead real).
+- [ ] Default de LLM por segmento (`/admin/master/segments` → "Modelo de IA Padrão do
+      Segmento", 1.10 passo 5) revertido/removido se foi só pra teste — ele vale pra QUALQUER
+      tenant daquele segmento sem override próprio, inclusive tenants reais.
 - [ ] Confirmar `npx tsc --noEmit` limpo se qualquer ajuste de código foi feito durante os
       testes (não deveria ser necessário — este roteiro é só de UI).
