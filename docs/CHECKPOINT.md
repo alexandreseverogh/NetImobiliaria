@@ -1,5 +1,65 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-29 — **Clientes: suporte a CNPJ (pessoa jurídica), espelhando o
+> padrão já existente em Proprietários.**
+>
+> Pedido direto do usuário, como desvio consciente antes de retomar os testes do módulo de CRM:
+> "Podemos ter dois tipos de clientes: pessoa fisica (com CPF) ou pessoa juridica (com CNPJ)...
+> talvez voce possa se basear pela funcionalidade de proprietários". Investigação confirmou
+> `public.clientes.cpf` como `NOT NULL`, sem nenhuma coluna de CNPJ — e achado real, não
+> hipotético, em produção: pelo menos 5 clientes reais são negócios (Clínica OdontoVida,
+> AutoMax Veículos, RodaBoa Concessionária, Imobiliária Premium, Loja Mix Geral — todos
+> `tipo_cliente='conta_gerenciada'`) usando CPFs sequenciais fake como placeholder
+> (`11111111111`, `22222222222`...), porque a tabela nunca ofereceu campo de CNPJ pra
+> registrar o documento real. `public.proprietarios` já resolve exatamente esse problema
+> (CPF/CNPJ opcionais e mutuamente exclusivos, cada um único por tenant via índice parcial) —
+> replicado aqui ponto a ponto.
+>
+> **Schema** (`prisma/migration-2026-08-29-clientes-cnpj.sql`, aditiva, aplicada) —
+> `clientes.cpf` perde o `NOT NULL`; nova coluna `clientes.cnpj VARCHAR(18)`; índice único de
+> CPF recriado como parcial (`WHERE cpf IS NOT NULL`, era um UNIQUE simples antes — mesmo
+> padrão de `proprietarios`, deixa a intenção explícita no schema); novo índice parcial único
+> de CNPJ por tenant + índice de busca simples. `clientes.uuid` tem fan-out real pra várias
+> tabelas (`Campaign`, `Lead`, `system_prompt_templates`, etc.) — migração deliberadamente só
+> aditiva, nenhuma FK/coluna existente tocada.
+>
+> **Backend** — `src/lib/database/clientes.ts`: `validateCNPJ`/`formatCNPJ`/`checkCNPJExists`
+> adicionados (copiados de `proprietarios.ts`); `createCliente`/`updateClienteByUuid`
+> reescritos com a mesma lógica de mutual-exclusion já comprovada lá (preencher um zera o
+> outro, servidor nunca confia só no cliente); `findClientesPaginated`/`findClienteByUuid`
+> passam a selecionar/filtrar por `cnpj`. Nova rota `POST /api/admin/clientes/verificar-cnpj`
+> (mesmo padrão de `verificar-cpf`, sem `unifiedPermissionMiddleware` — a rota irmã de CPF já
+> não usa). `POST`/`PUT` de `/api/admin/clientes` relaxados de "CPF sempre obrigatório" pra
+> "CPF OU CNPJ obrigatório", com o corpo de erro/status espelhando `proprietarios`.
+>
+> **Frontend, as 4 páginas de `/admin/clientes`** — `novo/page.tsx` e `[id]/editar/page.tsx`
+> ganharam campo CNPJ ao lado do CPF, mutuamente exclusivos (preencher um desabilita
+> visualmente o outro, `opacity-60 cursor-not-allowed`), mesma mecânica de formatação/
+> validação/checagem de duplicata em tempo real já usada em CPF; `handleKeyDown` (bloqueio de
+> Tab/Enter) ajustado pra liberar o campo vazio quando o outro documento já está preenchido.
+> `[id]/page.tsx` (detalhe) mostra "CNPJ" em vez de "CPF" quando o cliente tem CNPJ. **Achado
+> real no processo, corrigido antes de virar bug em produção:** `page.tsx` (listagem) chamava
+> `formatCPF(cliente.cpf)` incondicionalmente em todo card — com `cpf` agora genuinamente
+> `undefined` pra cliente PJ, isso quebraria com `TypeError` assim que o 1º cliente CNPJ-only
+> fosse criado; corrigido pra um campo "Documento" que mostra CNPJ formatado OU CPF formatado,
+> o que existir — nunca os dois, nunca undefined. Listagem também ganhou filtro de busca por
+> CNPJ, ao lado do de CPF (mesmo padrão de `proprietarios/page.tsx`).
+>
+> **Testado ao vivo, ponta a ponta, via API real + navegador real** (tenant Marketing Digital,
+> JWT de teste com `userId` real): `POST` criando cliente só-CNPJ → sucesso, `cpf:null` ·
+> `POST` com CNPJ duplicado → 409 · CNPJ com dígito verificador errado → 400 "CNPJ Inválido" ·
+> nem CPF nem CNPJ → 400 explícito · `PUT` trocando CNPJ→CPF → confirmado via SQL direto que
+> `cnpj` zerou de verdade (mutual-exclusion no UPDATE, não só no CREATE) · `verificar-cnpj` e
+> filtro de listagem por CNPJ confirmados refletindo o estado real do banco. **Navegador real**
+> (sessão JWT injetada, mesmo playbook documentado neste arquivo): listagem renderizou os 7
+> clientes reais pré-existentes (CPF) + os 2 de teste (1 CPF, 1 CNPJ) **sem nenhum crash** —
+> confirma que o bug do `formatCPF` incondicional foi corrigido antes de se manifestar · em
+> `/novo`, digitar CNPJ desabilitou o campo CPF (e vice-versa) confirmado via
+> `input.disabled` real no DOM, nos dois sentidos · `/editar` do cliente CNPJ-only carregou
+> corretamente com CNPJ populado e CPF desabilitado · `/[id]` (detalhe) mostrou "CNPJ" com o
+> valor formatado, não mais "CPF". `npx tsc --noEmit`: **zero erros em todo o projeto**. Os 2
+> clientes de teste removidos via `DELETE` real, `count(*)=0` confirmado.
+>
 > **Atualizado em:** 2026-08-28 (continuação 5) — **"Copiar de outro cliente" — sugestão de
 > prompt por similaridade, v1 sem IA.**
 >

@@ -84,22 +84,35 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { nome, cpf, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, updated_by, tipo_cliente } = body
+    const { nome, cpf, cnpj, telefone, email, endereco, numero, bairro, complemento, estado_fk, cidade_fk, cep, updated_by, tipo_cliente } = body
     const tipoClienteValido = (['conta_gerenciada', 'comprador_pj', 'consumidor_pf'] as const)
       .find(t => t === tipo_cliente)
-    
+
     // Validação de campos obrigatórios
-    if (!nome || !cpf || !telefone || !email || !estado_fk || !cidade_fk || !endereco || !bairro || !numero) {
+    if (!nome || !telefone || !email || !estado_fk || !cidade_fk || !endereco || !bairro || !numero) {
       return NextResponse.json(
-        { error: 'Nome, CPF, telefone, email, estado, cidade, endereço, bairro e número são obrigatórios' },
+        { error: 'Nome, telefone, email, estado, cidade, endereço, bairro e número são obrigatórios' },
         { status: 400 }
       )
     }
-    
+
+    // Cliente pode ser pessoa física (CPF) ou jurídica (CNPJ) — updateClienteByUuid
+    // valida mutuamente exclusivo; aqui só garante que pelo menos um esteja presente
+    // (o valor já existente no cliente conta, então checamos contra o atual também).
+    const cpfInformado = cpf !== undefined ? !!(cpf && cpf.trim()) : !!clienteAtual.cpf
+    const cnpjInformado = cnpj !== undefined ? !!(cnpj && cnpj.trim()) : !!clienteAtual.cnpj
+    if (!cpfInformado && !cnpjInformado) {
+      return NextResponse.json(
+        { error: 'Informe o CPF (pessoa física) ou o CNPJ (pessoa jurídica) do cliente' },
+        { status: 400 }
+      )
+    }
+
     // Atualizar usando tenantId para segurança extra
     const cliente = await updateClienteByUuid(params.id, tenantId, {
       nome,
       cpf,
+      cnpj,
       telefone,
       email,
       endereco,
@@ -127,11 +140,13 @@ export async function PUT(
         details: {
           nome: cliente.nome,
           cpf: cliente.cpf,
+          cnpj: cliente.cnpj,
           email: cliente.email,
           telefone: cliente.telefone,
           changes: {
             nome: clienteAtual.nome !== cliente.nome ? { from: clienteAtual.nome, to: cliente.nome } : undefined,
             cpf: clienteAtual.cpf !== cliente.cpf ? { from: clienteAtual.cpf, to: cliente.cpf } : undefined,
+            cnpj: clienteAtual.cnpj !== cliente.cnpj ? { from: clienteAtual.cnpj, to: cliente.cnpj } : undefined,
             email: clienteAtual.email !== cliente.email ? { from: clienteAtual.email, to: cliente.email } : undefined,
             telefone: clienteAtual.telefone !== cliente.telefone ? { from: clienteAtual.telefone, to: cliente.telefone } : undefined
           }
@@ -148,10 +163,16 @@ export async function PUT(
   } catch (error: any) {
     console.error('Erro ao atualizar cliente:', error)
     
-    if (error.message?.startsWith('CPF já cadastrado') || error.message?.startsWith('Email já cadastrado') || error.message === 'CPF Inválido') {
+    const isValidationMessage = error.message === 'CPF Inválido' || error.message === 'CNPJ Inválido' || error.message === 'CPF ou CNPJ deve ser informado'
+    if (
+      error.message?.startsWith('CPF já cadastrado') ||
+      error.message?.startsWith('CNPJ já cadastrado') ||
+      error.message?.startsWith('Email já cadastrado') ||
+      isValidationMessage
+    ) {
       return NextResponse.json(
         { error: error.message },
-        { status: error.message === 'CPF Inválido' ? 400 : 409 }
+        { status: isValidationMessage ? 400 : 409 }
       )
     }
 

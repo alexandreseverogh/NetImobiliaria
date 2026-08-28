@@ -15,7 +15,8 @@ type TipoCliente = 'conta_gerenciada' | 'comprador_pj' | 'consumidor_pf'
 interface Cliente {
   uuid: string
   nome: string
-  cpf: string
+  cpf?: string
+  cnpj?: string
   telefone: string
   email: string
   endereco?: string
@@ -59,6 +60,7 @@ export default function ClientesPage() {
   const [filters, setFilters] = useState({
     nome: '',
     cpf: '',
+    cnpj: '',
     estado: '',
     cidade: '',
     bairro: '',
@@ -103,7 +105,8 @@ export default function ClientesPage() {
       // Adicionar filtros à query
       if (filtersToUse.nome) queryParams.append('nome', filtersToUse.nome)
       if (filtersToUse.cpf) queryParams.append('cpf', filtersToUse.cpf)
-      
+      if (filtersToUse.cnpj) queryParams.append('cnpj', filtersToUse.cnpj)
+
       // Converter estado para nome usando o hook
       if (filtersToUse.estado) {
         const estadoNome = getEstadoNome(filtersToUse.estado)
@@ -191,6 +194,7 @@ export default function ClientesPage() {
     setFilters({
       nome: '',
       cpf: '',
+      cnpj: '',
       estado: '',
       cidade: '',
       bairro: '',
@@ -225,6 +229,10 @@ export default function ClientesPage() {
 
   const formatCPF = (cpf: string) => {
     return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  }
+
+  const formatCNPJ = (cnpj: string) => {
+    return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
   }
 
   const formatTelefone = (telefone: string) => {
@@ -305,6 +313,20 @@ export default function ClientesPage() {
               placeholder="000.000.000-00"
               value={filters.cpf}
               onChange={(e) => handleFilterChange('cpf', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                />
+              </div>
+
+          {/* CNPJ */}
+            <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              CNPJ
+              </label>
+                <input
+                  type="text"
+              placeholder="00.000.000/0000-00"
+              value={filters.cnpj}
+              onChange={(e) => handleFilterChange('cnpj', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
               </div>
@@ -477,10 +499,12 @@ export default function ClientesPage() {
                 {/* Informações do Cliente */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-500">CPF:</span>
-                    <span className="text-sm text-gray-900">{formatCPF(cliente.cpf)}</span>
+                    <span className="text-sm font-medium text-gray-500">{cliente.cnpj ? 'CNPJ:' : 'CPF:'}</span>
+                    <span className="text-sm text-gray-900">
+                      {cliente.cnpj ? formatCNPJ(cliente.cnpj) : cliente.cpf ? formatCPF(cliente.cpf) : 'Não informado'}
+                    </span>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-500">Telefone:</span>
                     <span className="text-sm text-gray-900">{formatTelefone(cliente.telefone)}</span>

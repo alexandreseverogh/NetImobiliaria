@@ -14,6 +14,7 @@ import ClientCampaignSettings from '@/components/admin/clientes/ClientCampaignSe
 interface FormData {
   nome: string
   cpf: string
+  cnpj: string
   telefone: string
   email: string
   estado: string
@@ -55,6 +56,7 @@ export default function NovoClientePage() {
   const [formData, setFormData] = useState<FormData>({
     nome: '',
     cpf: '',
+    cnpj: '',
     telefone: '',
     email: '',
     estado: '',
@@ -70,6 +72,9 @@ export default function NovoClientePage() {
   const [cpfValidating, setCpfValidating] = useState(false)
   const [cpfExists, setCpfExists] = useState(false)
   const [cpfPendingValidation, setCpfPendingValidation] = useState(false)
+  const [cnpjValidating, setCnpjValidating] = useState(false)
+  const [cnpjExists, setCnpjExists] = useState(false)
+  const [cnpjPendingValidation, setCnpjPendingValidation] = useState(false)
   const [emailValidating, setEmailValidating] = useState(false)
   const [emailExists, setEmailExists] = useState(false)
   const [emailPendingValidation, setEmailPendingValidation] = useState(false)
@@ -222,6 +227,41 @@ export default function NovoClientePage() {
     return parseInt(cleanCPF.charAt(10)) === secondDigit
   }
 
+  // Validação de CNPJ
+  const validateCNPJ = (cnpj: string): boolean => {
+    const cleanCNPJ = cnpj.replace(/\D/g, '')
+
+    if (cleanCNPJ.length !== 14) return false
+    if (/^(\d)\1{13}$/.test(cleanCNPJ)) return false
+
+    let length = cleanCNPJ.length - 2
+    let numbers = cleanCNPJ.substring(0, length)
+    const digits = cleanCNPJ.substring(length)
+    let sum = 0
+    let pos = length - 7
+
+    for (let i = length; i >= 1; i--) {
+      sum += parseInt(numbers.charAt(length - i)) * pos--
+      if (pos < 2) pos = 9
+    }
+
+    let result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+    if (result !== parseInt(digits.charAt(0))) return false
+
+    length = length + 1
+    numbers = cleanCNPJ.substring(0, length)
+    sum = 0
+    pos = length - 7
+
+    for (let i = length; i >= 1; i--) {
+      sum += parseInt(numbers.charAt(length - i)) * pos--
+      if (pos < 2) pos = 9
+    }
+
+    result = sum % 11 < 2 ? 0 : 11 - (sum % 11)
+    return result === parseInt(digits.charAt(1))
+  }
+
   // Validação de telefone
   const validateTelefone = (telefone: string): boolean => {
     const cleanTelefone = telefone.replace(/\D/g, '')
@@ -238,6 +278,12 @@ export default function NovoClientePage() {
   const formatCPF = (value: string): string => {
     const cleanValue = value.replace(/\D/g, '')
     return cleanValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  }
+
+  // Formatação de CNPJ
+  const formatCNPJ = (value: string): string => {
+    const cleanValue = value.replace(/\D/g, '')
+    return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
   }
 
   // Formatação de telefone
@@ -284,6 +330,31 @@ export default function NovoClientePage() {
     }
   }
 
+  // Verificar CNPJ em tempo real
+  const checkCNPJExists = async (cnpj: string) => {
+    if (!cnpj || !validateCNPJ(cnpj)) {
+      setCnpjPendingValidation(false)
+      return
+    }
+
+    setCnpjPendingValidation(true)
+
+    try {
+      setCnpjValidating(true)
+      const response = await post('/api/admin/clientes/verificar-cnpj', { cnpj })
+
+      if (response.ok) {
+        const data = await response.json()
+        setCnpjExists(data.exists)
+      }
+    } catch (error) {
+      console.error('Erro ao verificar CNPJ:', error)
+    } finally {
+      setCnpjValidating(false)
+      setCnpjPendingValidation(false)
+    }
+  }
+
   // Verificar Email com debounce usando useEffect (abaixo)
 
   // Manipular mudanças nos campos
@@ -294,6 +365,9 @@ export default function NovoClientePage() {
     switch (field) {
       case 'cpf':
         formattedValue = formatCPF(value)
+        break
+      case 'cnpj':
+        formattedValue = formatCNPJ(value)
         break
       case 'telefone':
         formattedValue = formatTelefone(value)
@@ -307,7 +381,18 @@ export default function NovoClientePage() {
         return
     }
 
-    setFormData(prev => ({ ...prev, [field]: formattedValue }))
+    // CPF e CNPJ são mutuamente exclusivos — preencher um limpa o outro
+    if (field === 'cpf' && formattedValue) {
+      setFormData(prev => ({ ...prev, cpf: formattedValue, cnpj: '' }))
+      setCnpjExists(false)
+      setCnpjPendingValidation(false)
+    } else if (field === 'cnpj' && formattedValue) {
+      setFormData(prev => ({ ...prev, cnpj: formattedValue, cpf: '' }))
+      setCpfExists(false)
+      setCpfPendingValidation(false)
+    } else {
+      setFormData(prev => ({ ...prev, [field]: formattedValue }))
+    }
 
     // Validação em tempo real
     const newErrors = { ...errors }
@@ -326,9 +411,22 @@ export default function NovoClientePage() {
         } else {
           delete newErrors.cpf
         }
+        delete newErrors.cnpj
         // Verificar se CPF já existe (enviar valor FORMATADO)
         if (formattedValue && validateCPF(formattedValue)) {
           checkCPFExists(formattedValue)
+        }
+        break
+      case 'cnpj':
+        if (formattedValue && !validateCNPJ(formattedValue)) {
+          newErrors.cnpj = 'CNPJ inválido'
+        } else {
+          delete newErrors.cnpj
+        }
+        delete newErrors.cpf
+        // Verificar se CNPJ já existe (enviar valor FORMATADO)
+        if (formattedValue && validateCNPJ(formattedValue)) {
+          checkCNPJExists(formattedValue)
         }
         break
       case 'telefone':
@@ -368,7 +466,10 @@ export default function NovoClientePage() {
             return
           }
           break
-        case 'cpf':
+        case 'cpf': {
+          // CPF/CNPJ são mutuamente exclusivos — se o CNPJ já está preenchido e válido,
+          // o CPF pode ficar vazio e o campo é liberado normalmente.
+          if (formData.cnpj) break
           const cpfLimpo = formData.cpf.replace(/\D/g, '')
           // Bloquear se: vazio, validando, existe, pendente validação, incompleto ou inválido
           if (!formData.cpf || cpfValidating || cpfExists || cpfPendingValidation ||
@@ -377,6 +478,19 @@ export default function NovoClientePage() {
             return
           }
           break
+        }
+        case 'cnpj': {
+          // Mesma lógica em espelho — se o CPF já está preenchido e válido, o CNPJ fica
+          // livre pra ficar vazio.
+          if (formData.cpf) break
+          const cnpjLimpo = formData.cnpj.replace(/\D/g, '')
+          if (!formData.cnpj || cnpjValidating || cnpjExists || cnpjPendingValidation ||
+            cnpjLimpo.length !== 14 || !validateCNPJ(formData.cnpj)) {
+            e.preventDefault()
+            return
+          }
+          break
+        }
         case 'telefone':
           if (!formData.telefone) {
             e.preventDefault()
@@ -452,8 +566,17 @@ export default function NovoClientePage() {
       finalErrors.nome = 'Nome é obrigatório'
     }
 
-    if (!formData.cpf || !validateCPF(formData.cpf)) {
-      finalErrors.cpf = 'CPF é obrigatório e deve ser válido'
+    // CPF e CNPJ são mutuamente exclusivos — exige pelo menos um dos dois, válido
+    if (formData.cpf) {
+      if (!validateCPF(formData.cpf)) {
+        finalErrors.cpf = 'CPF inválido'
+      }
+    } else if (formData.cnpj) {
+      if (!validateCNPJ(formData.cnpj)) {
+        finalErrors.cnpj = 'CNPJ inválido'
+      }
+    } else {
+      finalErrors.cpf = 'Informe o CPF ou o CNPJ do cliente'
     }
 
     if (!formData.telefone || !validateTelefone(formData.telefone)) {
@@ -490,6 +613,10 @@ export default function NovoClientePage() {
 
     if (cpfExists) {
       finalErrors.cpf = 'CPF já cadastrado'
+    }
+
+    if (cnpjExists) {
+      finalErrors.cnpj = 'CNPJ já cadastrado'
     }
 
     if (emailExists) {
@@ -532,7 +659,8 @@ export default function NovoClientePage() {
 
       const payload = {
         nome: formData.nome,
-        cpf: formData.cpf,
+        cpf: formData.cpf || null,
+        cnpj: formData.cnpj || null,
         telefone: formData.telefone,
         email: formData.email,
         endereco: formData.endereco,
@@ -680,48 +808,96 @@ export default function NovoClientePage() {
               )}
             </div>
 
-            {/* CPF e Telefone */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  CPF *
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.cpf}
-                    onChange={(e) => handleInputChange('cpf', e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(e, 'cpf')}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.cpf ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
-                    placeholder="000.000.000-00"
-                    maxLength={14}
-                  />
-                  {cpfValidating && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                    </div>
+            {/* CPF e CNPJ — mutuamente exclusivos: cliente pessoa física ou jurídica */}
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    CPF {!formData.cnpj && '*'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.cpf}
+                      onChange={(e) => handleInputChange('cpf', e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, 'cpf')}
+                      disabled={!!formData.cnpj}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.cpf ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        } ${formData.cnpj ? 'opacity-60 cursor-not-allowed bg-gray-100' : ''}`}
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                    />
+                    {cpfValidating && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                      </div>
+                    )}
+                    {formData.cpf && !cpfValidating && validateCPF(formData.cpf) && !cpfExists && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <CheckIcon className="h-5 w-5 text-green-500" />
+                      </div>
+                    )}
+                  </div>
+                  {errors.cpf && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <XMarkIcon className="h-4 w-4 mr-1" />
+                      {errors.cpf}
+                    </p>
                   )}
-                  {formData.cpf && !cpfValidating && validateCPF(formData.cpf) && !cpfExists && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      <CheckIcon className="h-5 w-5 text-green-500" />
-                    </div>
+                  {cpfExists && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <XMarkIcon className="h-4 w-4 mr-1" />
+                      CPF já cadastrado
+                    </p>
                   )}
                 </div>
-                {errors.cpf && (
-                  <p className="mt-1 text-sm text-red-600 flex items-center">
-                    <XMarkIcon className="h-4 w-4 mr-1" />
-                    {errors.cpf}
-                  </p>
-                )}
-                {cpfExists && (
-                  <p className="mt-1 text-sm text-red-600 flex items-center">
-                    <XMarkIcon className="h-4 w-4 mr-1" />
-                    CPF já cadastrado
-                  </p>
-                )}
-              </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    CNPJ {!formData.cpf && '*'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.cnpj}
+                      onChange={(e) => handleInputChange('cnpj', e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, 'cnpj')}
+                      disabled={!!formData.cpf}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.cnpj ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        } ${formData.cpf ? 'opacity-60 cursor-not-allowed bg-gray-100' : ''}`}
+                      placeholder="00.000.000/0000-00"
+                      maxLength={18}
+                    />
+                    {cnpjValidating && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                      </div>
+                    )}
+                    {formData.cnpj && !cnpjValidating && validateCNPJ(formData.cnpj) && !cnpjExists && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <CheckIcon className="h-5 w-5 text-green-500" />
+                      </div>
+                    )}
+                  </div>
+                  {errors.cnpj && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <XMarkIcon className="h-4 w-4 mr-1" />
+                      {errors.cnpj}
+                    </p>
+                  )}
+                  {cnpjExists && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <XMarkIcon className="h-4 w-4 mr-1" />
+                      CNPJ já cadastrado
+                    </p>
+                  )}
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">Preencha o CPF (pessoa física) ou o CNPJ (pessoa jurídica) do cliente — nunca os dois.</p>
+            </div>
+
+            {/* Telefone */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Telefone *
@@ -966,7 +1142,7 @@ export default function NovoClientePage() {
               </Link>
               <button
                 type="submit"
-                disabled={saving || Object.keys(errors).length > 0 || cpfExists || emailExists}
+                disabled={saving || Object.keys(errors).length > 0 || cpfExists || cnpjExists || emailExists}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {saving ? 'Salvando...' : 'Salvar Cliente'}

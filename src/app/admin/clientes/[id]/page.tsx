@@ -12,7 +12,7 @@ import ClientCampaignSettings from '@/components/admin/clientes/ClientCampaignSe
 
 // ─── tipos ────────────────────────────────────────────────────────────────────
 interface Cliente {
-  uuid: string; nome: string; cpf: string; telefone: string; email: string
+  uuid: string; nome: string; cpf?: string; cnpj?: string; telefone: string; email: string
   endereco?: string; numero?: string; complemento?: string; bairro?: string
   estado_fk?: string; cidade_fk?: string; cep?: string; origem_cadastro?: string
   tipo_cliente?: 'conta_gerenciada' | 'comprador_pj' | 'consumidor_pf'
@@ -151,7 +151,7 @@ export default function VisualizarClientePage() {
                 </h3>
                 {[
                   ['Nome Completo',    cliente.nome],
-                  ['CPF',             cliente.cpf],
+                  cliente.cnpj ? ['CNPJ', cliente.cnpj] : ['CPF', cliente.cpf],
                   ['Telefone',        cliente.telefone],
                   ['E-mail',          cliente.email],
                 ].map(([label, val]) => (
