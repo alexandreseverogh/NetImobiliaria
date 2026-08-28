@@ -1,5 +1,72 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-28 (continuação 2) — **Legenda dinâmica no `PromptOverrideCard` +
+> primeiro prompt real de segmento (Venda de Carros) + primeiro override real de cliente
+> (Frank Aguiar).**
+>
+> Usuário perguntou se o texto mostrado em "Prompt Mestre" (`/crm/config/ia`, segmento "Venda
+> de Carros") era mesmo o do segmento, e sugeriu renomear o título pra "PROMPT MESTRE DO
+> SEGMENTO" + um aviso explícito quando não houver prompt de segmento ainda. Confirmado: era
+> mesmo o Global (o segmento nunca teve prompt curado). Recomendação dada e aceita: em vez de
+> um título ESTÁTICO (que ficaria errado assim que o tenant/cliente sobrescrevesse — o mesmo
+> card mostra os 4 níveis ao longo do tempo), uma **legenda dinâmica** logo abaixo do título,
+> reagindo ao `resolvedLevel` real:
+> - `client`/`tenant` → "Prompt personalizado deste cliente/tenant." (neutro, sem alarme —
+>   já está confirmado verde no badge).
+> - `segment` → "Prompt padrão do segmento, curado pelo Master." (vermelho, mesmo destaque do
+>   badge da entrada anterior).
+> - `global` → "Este segmento ainda não tem prompt próprio — usando o padrão global do
+>   Master." (vermelho) — a frase exata sugerida pelo usuário, só reaproveitada pro caso real.
+>
+> **Teste forçado com conteúdo real, a pedido do usuário** ("com o seu vasto conhecimento no
+> setor de venda de carros, formule e persista dois prompts"): usando as rotas REAIS de
+> produção (nunca SQL direto) —
+> 1. Master duplicou o prompt Global pro segmento "Venda de Carros"
+>    (`POST /api/admin/master/prompts`, mecanismo "Duplicar p/ segmento" já existente) e
+>    sobrescreveu o conteúdo (`PUT /api/admin/master/prompts/[id]`) com um texto curado de
+>    verdade pro setor — reconhece sinais reais de venda de carro (entrada/financiamento,
+>    "meu carro na troca", Tabela FIPE isolada = pesquisa de preço, test drive = prontidão
+>    avançada, laudo cautelar/procedência/km = preocupação legítima de comprador de usado —
+>    não desconfiança que reduz interesse —, urgência de prazo, comprador de frota ≠ pessoa
+>    física). **Isto é conteúdo real, persistido de propósito — não foi revertido ao final.**
+> 2. Admin do tenant "CRM SOZINHO" sobrescreveu o prompt pro cliente real "Frank Aguiar"
+>    (`PUT /api/crm/prompt-overrides`) — mais específico ainda: o negócio dele só vende
+>    USADOS, então o prompt instrui o LLM a tratar preocupação com laudo/procedência/km como
+>    sinal POSITIVO de bom fit (é exatamente o perfil que valoriza o cuidado da loja), e a
+>    penalizar `score_fit` quando o lead insiste em carro 0km/financiamento de fábrica (fora
+>    do que esse cliente específico oferece), mesmo com intenção de compra real e alta.
+>    **Também persistido, não é dado de teste.**
+>
+> **Testado ao vivo com 4 leads reais (removidos depois — só os LEADS, os 2 prompts ficaram),
+> mesma mensagem sobre carro 0km/financiamento de fábrica nos 2 primeiros:**
+> - Sem cliente (usa o prompt do SEGMENTO, genérico pra novos+usados) → `score_fit=50`
+>   (neutro — a loja genérica do segmento poderia vender 0km).
+> - Mesma mensagem, cliente Frank Aguiar (usa o prompt do CLIENTE, só usados) → `score_fit=20`
+>   — o LLM reconheceu sozinho a incompatibilidade ("nosso negócio trabalha apenas com
+>   seminovos/usados e não oferece financiamento de fábrica"), com `score_prontidao=90`
+>   inalterado (a intenção de compra continua real, só o encaixe caiu).
+> - Mensagem típica de comprador de usado pro mesmo cliente Frank (Corolla usado, laudo
+>   cautelar, procedência, Onix 2018 na troca, urgência de fechar na semana) →
+>   `score_fit=80`, `score_prontidao=90` — o prompt do cliente valorizou corretamente os
+>   sinais que o prompt genérico do segmento trataria como neutros.
+> - **Achado incidental no processo, não é bug:** uma das 3 chamadas caiu no fallback
+>   determinístico por palavra-chave em vez de chamar o LLM (mesmo padrão de robustez já
+>   documentado nesta sessão — blip transitório do provider) — reconhecido pelo
+>   `tag_sonho`/`resumo_ia` batendo exatamente com o texto fixo da regra "TROCA DE VEÍCULO"
+>   do segmento, não um texto gerado. Reexecutado o mesmo teste → usou o LLM normalmente na
+>   segunda tentativa, confirmando que foi transitório, não um problema do prompt novo.
+>
+> **Testado visualmente no navegador** (mesmo playbook de JWT de teste desta sessão): badge +
+> legenda vermelhos confirmados via `getComputedStyle` pro nível segmento
+> (`rgb(239,68,68)`, texto "Prompt padrão do segmento, curado pelo Master.") · trocado o
+> `ClientSelector` pra "Frank Aguiar" → badge verde `rgb(16,185,129)` "Sobrescrito para este
+> cliente" + legenda neutra `rgb(156,163,175)` "Prompt personalizado deste cliente." — os 4
+> estados (client/tenant/segment/global) confirmados corretos ao vivo, não só por código.
+> `npx tsc --noEmit`: zero erros. Leads de teste removidos (`count(*)=0` confirmado); os 2
+> prompts (segmento "Venda de Carros" e cliente "Frank Aguiar") ficaram no ar, são conteúdo
+> real da plataforma agora — editáveis a qualquer momento pelo Master (`/admin/master/
+> prompts`) ou pelo admin do tenant (`/crm/config/ia`), como qualquer outro nível da cascata.
+
 > **Atualizado em:** 2026-08-28 (continuação) — **`PromptOverrideCard.tsx` — 2 refinamentos de
 > UX pedidos pelo usuário ao revisar a cascata de LLM/prompts (entrada anterior deste
 > arquivo).**
