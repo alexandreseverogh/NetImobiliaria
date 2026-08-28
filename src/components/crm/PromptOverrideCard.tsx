@@ -188,7 +188,7 @@ export function PromptOverrideCard({ templateKey, clientId, label, t }: Props) {
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white transition-all"
             >
               <CheckBadgeIcon className="h-4 w-4" />
-              {saving ? 'Salvando...' : `Sobrescrever para ${editingLevelLabel}`}
+              {saving ? 'Salvando...' : 'Salvar Sobrescrita'}
             </button>
             <button
               type="button"
