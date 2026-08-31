@@ -1,5 +1,29 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-31 (continuação 4) — **`crm_clientes` também editável a partir de
+> `/admin/master/tenants` (a listagem) — achado real: o Master tem DOIS fluxos de edição de
+> tenant, não um só, e a entrada anterior só tinha coberto o segundo.**
+>
+> Usuário perguntou diretamente em qual UI de `/admin/master/tenants` estava o campo — investigação
+> revelou que a listagem (`/admin/master/tenants/page.tsx`) tem seu **próprio** modal de edição
+> completo (6 abas: Dados Gerais/Modularização/Google Calendar/Config. Meta/Comunicação e IA/
+> WhatsApp, aberto pelo botão de lápis de cada linha, `PATCH` direto no mesmo endpoint) — **inteiramente
+> separado** da página de detalhe `/admin/master/tenants/[id]` (só 2 abas: Dados do Tenant/Config.
+> Meta) onde o toggle tinha sido adicionado na entrada anterior. Nenhuma delas é "a" tela de edição —
+> são dois caminhos reais e independentes pro mesmo `PATCH /api/admin/master/tenants/[id]`.
+>
+> **Corrigido:** mesmo toggle "Gerencia clientes no CRM" (mesmo texto/estilo já usado na página de
+> detalhe) adicionado também dentro da aba "1. Dados Gerais" do modal da listagem, logo abaixo da
+> seção "Engenharia de IA" — zero mudança de backend necessária (o `PATCH` já aceitava o campo desde
+> a entrada anterior; o `GET` da listagem já fazia `SELECT t.*`, então `crm_clientes` já vinha
+> junto de `editingTenant` sem precisar de nenhuma query nova).
+>
+> **Testado ao vivo, ponta a ponta, no fluxo real da listagem** (sessão Master real, tenant "CRM
+> SOZINHO"): botão de editar da linha → modal abre na aba "Dados Gerais" → seção "CRM" visível
+> após rolar, toggle desligado (batendo com o estado real no banco) → clique real ligou o toggle
+> → "Efetivar Configurações Master" → `crm_clientes=true` confirmado por SQL · tenant revertido ao
+> padrão (`false`) ao final. `npx tsc --noEmit`: zero erros.
+>
 > **Atualizado em:** 2026-08-31 (continuação 3) — **Gate de escopo do Kanban vira opt-in por
 > tenant: novo campo `tenants.crm_clientes` (curado pelo Master), em vez de perguntar "Minha
 > Empresa ou Cliente?" pra todo mundo sempre.**

@@ -1114,6 +1114,26 @@ export default function MasterTenantsPage() {
                               </div>
                            </div>
                         </div>
+
+                        {/* CRM — gate de escopo Minha Empresa/Cliente no Kanban (2026-08-31) */}
+                        <div className="col-span-2 pt-4 border-t border-gray-100">
+                           <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-4">CRM</h4>
+                           <div
+                             className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer"
+                             onClick={() => setEditingTenant({ ...editingTenant, crm_clientes: !editingTenant?.crm_clientes })}
+                           >
+                             <div className="pr-4">
+                               <p className="text-[9px] font-black text-gray-700 uppercase">Gerencia clientes no CRM</p>
+                               <p className="text-[8px] text-gray-400 font-bold mt-0.5 leading-relaxed">
+                                 Quando ativo, o Kanban (/crm/kanban) exige escolher &quot;Minha Empresa&quot;
+                                 ou um cliente antes de mostrar leads. Desativado por padrão.
+                               </p>
+                             </div>
+                             <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${editingTenant?.crm_clientes ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform ${editingTenant?.crm_clientes ? 'translate-x-6' : 'translate-x-1'}`} />
+                             </div>
+                           </div>
+                        </div>
                      </div>
                   </div>
                   <div className="space-y-8">
