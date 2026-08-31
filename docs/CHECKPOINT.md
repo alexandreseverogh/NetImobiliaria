@@ -1,5 +1,60 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-31 — **Fix real: lead de WhatsApp orgânico no número próprio de um
+> cliente nunca era atribuído a esse cliente no CRM — achado testando a cascata de prompt por
+> cliente (2026-08-29) com o usuário.**
+>
+> **Contexto:** testando se o override de prompt por cliente (`/crm/config/ia`) influenciava a
+> qualificação real de um lead, o usuário perguntou algo estrutural: "se não há como criar um
+> lead pra um cliente pela UI, qual é o sentido de ter prompt por cliente?". Investigação (sem
+> assumir nada, só lendo código real) confirmou 3 coisas: (1) a tela real "+ Novo Lead"
+> (`NovoLeadModal.tsx`) nunca manda `client_id` — todo lead manual cai em "próprio do tenant";
+> (2) `client_id` só chega organicamente a um lead via 3 caminhos automáticos — resposta de
+> WhatsApp a clique de campanha, webhook Meta Lead Ads, webhook Google Lead Form — todos atrás
+> do módulo de Campanhas; (3) **zero** linhas em `leads_staging`, no banco inteiro, têm
+> `client_id` preenchido — nem as 10 campanhas reais atribuídas a cliente do tenant Marketing
+> Digital nunca geraram um lead de verdade (é dado de seed/demo, sem tráfego pago real rodando).
+>
+> Usuário esclareceu o modelo de negócio real: **terceirização de geração de leads é um cenário
+> real, ainda que raro** — "principalmente quando o tenant usa o módulo de campanhas pros
+> clientes", mas não exclusivamente. Isso levou a investigar um 2º caminho: `clientes.
+> evolution_webhook_secret`/`numero_whatsapp` — um cliente pode terceirizar só o ATENDIMENTO do
+> WhatsApp (sem depender de anúncio nenhum). **Achado real, não hipotético:**
+> `src/lib/whatsapp/inboundProcessor.ts` já resolve `ownerClientId` (dono do número físico) e já
+> usa isso corretamente pra rotear a conversa na Mensageria (`mensageriaClientId = ownerClientId
+> ?? resolved?.clientId ?? null`) — mas na hora de criar o lead do CRM, usava só
+> `resolved?.clientId` (atribuição de campanha via `[ref:]`), **ignorando `ownerClientId` por
+> completo** — decisão explícita no código anterior ("propositalmente não misturado"). Resultado
+> real: mensagem orgânica (sem clique de anúncio) chegando no WhatsApp próprio de um cliente
+> terceirizado tinha a conversa corretamente roteada pra ele na Mensageria, mas o lead do CRM
+> nascia sem atribuição nenhuma — o prompt por cliente nunca seria usado nesse cenário, mesmo a
+> plataforma já sabendo de quem era o número.
+>
+> **Decisão do usuário, via pergunta direta (Sim, corrigir):** o lead do CRM deve herdar o dono
+> do número quando não há atribuição de campanha — mesmo comportamento que a Mensageria já tem.
+>
+> **Corrigido** (`src/lib/whatsapp/inboundProcessor.ts`): a criação do lead do CRM passa a usar
+> `mensageriaClientId` (a mesma variável já usada pra Mensageria) em vez de `resolved?.clientId`
+> isolado — `resolved?.clientId` (campanha) continua tendo prioridade quando presente,
+> `ownerClientId` (dono do número) só entra como fallback pra mensagem orgânica.
+> **Deliberadamente não tocado:** `logInteraction`/`insertSubmission` (`CtaInteraction`/
+> `CtaSubmission`, usados pras métricas de campanha/spend) continuam presos só a
+> `resolved?.clientId` — são sobre atribuição de ANÚNCIO, não sobre dono de lead no CRM;
+> misturar os dois ali arriscaria contaminar métrica de campanha com dado que não é de campanha.
+>
+> **Testado ao vivo, ponta a ponta, com o endpoint público real** (`POST /api/public/evolution/
+> webhook`, não chamada direta de função — o caminho real de produção), tenant CRM SOZINHO,
+> cliente real "Old Cars": configurado `evolution_webhook_secret` de teste no CLIENTE → mensagem
+> orgânica simulada (sem `[ref:]`) → lead nasceu com `client_id` = Old Cars (confirmado via SQL
+> direto) · conversa da Mensageria também caiu em Old Cars, sem regressão · **teste de
+> contraste**: mesma mensagem orgânica via `evolution_webhook_secret` do TENANT (número
+> genérico, sem dono) → `client_id` continuou `NULL`, comportamento antigo preservado, sem
+> regressão. `npx tsc --noEmit`: **zero erros**. Limpeza: os 2 leads de teste removidos via
+> `DELETE` real, as 2 conversas/contatos de teste da Mensageria removidos, os 2
+> `evolution_webhook_secret` de teste restaurados a `NULL` — `count(*)=0` confirmado em tudo
+> (1 contato de outro tenant, de sessão anterior, com o mesmo telefone por coincidência, deixado
+> intocado de propósito — não é resíduo meu).
+>
 > **Atualizado em:** 2026-08-29 — **Clientes: suporte a CNPJ (pessoa jurídica), espelhando o
 > padrão já existente em Proprietários.**
 >

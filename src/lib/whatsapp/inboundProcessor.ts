@@ -51,8 +51,12 @@ export async function processInboundWhatsAppMessage(
 
   const resolved = ref ? await resolveCtaRef(ref, tenantId).catch(() => null) : null
 
-  // Cliente dono do número físico tem prioridade sobre o client_id resolvido do ref pra decidir
-  // onde a conversa cai na Mensageria (ver doc no campo ownerClientId acima).
+  // Cliente dono do número físico tem prioridade sobre o client_id resolvido do ref — usado tanto
+  // pra decidir onde a conversa cai na Mensageria quanto pra atribuir o lead do CRM (abaixo).
+  // Antes desta correção, o lead do CRM só considerava `resolved?.clientId` (atribuição de
+  // campanha) — mensagem orgânica (sem [ref:]) recebida no WhatsApp próprio de um cliente
+  // terceirizado nunca gerava lead atribuído a ele, mesmo a Mensageria já roteando a conversa
+  // corretamente pra ele. Os dois caminhos agora usam a mesma variável, propositalmente.
   const mensageriaClientId = ownerClientId ?? resolved?.clientId ?? null
 
   // 1. Ingestão na Mensageria — thread unificada. Falha aqui NUNCA deve derrubar a captação de
@@ -118,7 +122,11 @@ export async function processInboundWhatsAppMessage(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         tenant_id: tenantId,
-        client_id: resolved?.clientId ?? null,
+        // Herda o dono do número físico quando não há atribuição de campanha — mesmo client_id
+        // já usado pra rotear a conversa na Mensageria (ver comentário de mensageriaClientId
+        // acima). Preserva o comportamento anterior nos outros casos: `resolved?.clientId` (via
+        // campanha) continua tendo prioridade quando presente.
+        client_id: mensageriaClientId,
         nome: pushName || `WhatsApp ${phone}`,
         telefone: phone,
         email: null,
