@@ -1,5 +1,45 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-31 (continuação 5) — **`/admin/master/segments`: os 11 botões-ícone
+> da coluna "Ações" (cada um só com um `title=` de hover como documentação) viram 1 único botão
+> "Regimento do Segmento".**
+>
+> Pedido direto do usuário: com 11 modais distintos e nenhuma explicação além do tooltip do
+> hover, ficava difícil pro Master entender o objetivo real de cada ferramenta. Confirmado antes
+> de implementar (pergunta "veja se entendeu profundamente a minha demanda") — usuário aprovou
+> a recomendação de UX (clicar "Abrir" fecha o Regimento e abre o modal real, não empilha os
+> dois), e deu o calibre de esforço certo: "essa página, apesar de toda a sua importância, não
+> deverá ser frequentemente utilizada" — sem busca/filtro, sem animação pesada, só organização
+> clara.
+>
+> **Novo `SegmentRegimentoModal.tsx`** — recebe `segment` + `onOpen(key)`; conteúdo dos 11 itens
+> (Objetivo / Como preencher / Exemplo / Impacto) **extraído dos próprios componentes reais**
+> (help panels já existentes em Angles/Interests/Benchmarks/DataEntities/Qualification/Agentes/
+> FitCriteria/AtivoConfig, comentários de topo de Tenants/Distribution/LlmDefault) — nunca
+> inventado. Lista em acordeão, cada linha com ícone+cor idênticos ao botão original (mesma
+> continuidade visual com os badges já usados no resto da tela), botão "Abrir →" sempre visível
+> (não precisa expandir pra já ir direto na ferramenta) + chevron pra expandir os detalhes.
+>
+> **`page.tsx`** — os 11 `<button onClick={() => setXSegment(segment)}>` viraram 1 botão
+> "Regimento do Segmento" (`setRegimentoSegment`); os 11 imports de ícone que só serviam pra
+> esses botões removidos (`BuildingOffice2Icon`/`CircleStackIcon`/`UserGroupIcon`/`BoltIcon`/
+> `ScaleIcon`/`ArchiveBoxIcon`/`BeakerIcon` — os que também eram usados em outro lugar da tela,
+> como `SparklesIcon`/`HashtagIcon`/`AdjustmentsHorizontalIcon`/`CpuChipIcon`, ficaram). Os 11
+> `{xSegment && <SegmentXModal .../>}` no fim do arquivo **continuam exatamente como estavam** —
+> o Regimento só os aciona por um caminho novo (`onOpen` mapeia a chave pro setter certo), nunca
+> duplica a lógica de abrir/fechar de cada um. Botão "Editar segmento" (o lápis, formulário base
+> do segmento) **intocado** — nunca fez parte dos 11, ficou fora da mudança por decisão
+> confirmada com o usuário.
+>
+> **Testado ao vivo, ponta a ponta** (sessão Master real, segmento "Imobiliário"): confirmado 1
+> botão "Regimento do Segmento" por linha (6 segmentos = 6 botões, os 11 antigos ausentes) →
+> clique abre o modal novo com os 11 itens, cores/ícones corretos → expandir "Ângulos & Demanda"
+> mostra Objetivo/Como Preencher/Exemplo/Impacto formatados corretamente → clique em "Abrir" no
+> item "Interesses Meta" fecha o Regimento e abre o `SegmentInterestsModal` REAL, com dado real
+> já configurado (6 interesses reais deste segmento, incluindo sugestão por IA já usada antes) —
+> confirma que não é uma cópia/mock, é o mesmo componente de sempre. Fechado sem salvar nada,
+> zero mutação de dado. `npx tsc --noEmit`: **zero erros em todo o projeto**.
+>
 > **Atualizado em:** 2026-08-31 (continuação 4) — **`crm_clientes` também editável a partir de
 > `/admin/master/tenants` (a listagem) — achado real: o Master tem DOIS fluxos de edição de
 > tenant, não um só, e a entrada anterior só tinha coberto o segundo.**
