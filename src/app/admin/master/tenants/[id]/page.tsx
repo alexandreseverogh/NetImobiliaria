@@ -16,6 +16,7 @@ import {
   ExclamationTriangleIcon,
   EyeIcon,
   EyeSlashIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline'
 
 /* ─── Types ──────────────────────────────────────────────── */
@@ -579,6 +580,34 @@ export default function TenantDetailPage() {
                       <input type="text" value={tenant.telefone || ''} onChange={e => setTenant({ ...tenant, telefone: e.target.value })}
                         className="w-full px-5 py-4 rounded-2xl bg-gray-50 border border-gray-100 font-bold text-[10px] uppercase focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
                     </div>
+                  </div>
+                </div>
+
+                {/* CRM — gate de escopo Minha Empresa/Cliente no Kanban (2026-08-31) */}
+                <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-100">
+                  <h3 className="text-md font-black text-gray-900 mb-6 flex items-center uppercase tracking-tighter">
+                    <UserGroupIcon className="h-5 w-5 mr-3 text-emerald-600" />
+                    CRM
+                  </h3>
+                  <div className="p-5 bg-gray-50 rounded-2xl flex items-center justify-between">
+                    <div className="pr-4">
+                      <p className="text-xs font-black uppercase tracking-tight text-gray-900">
+                        Gerencia clientes no CRM
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Quando ativo, o Kanban (<code className="text-[10px]">/crm/kanban</code>)
+                        exige escolher &quot;Minha Empresa&quot; ou um cliente antes de mostrar
+                        leads, e mostra o seletor de cliente no board. Desativado por padrão —
+                        tenants sem clientes geridos no CRM vão direto pro board.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTenant({ ...tenant, crm_clientes: !tenant.crm_clientes })}
+                      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${tenant.crm_clientes ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${tenant.crm_clientes ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
                   </div>
                 </div>
 

@@ -72,7 +72,7 @@ export async function PATCH(
       admin_nome, admin_username, admin_email, admin_password,
       primary_color, secondary_color,
       anthropic_api_key, slack_webhook_url, evolution_api_url, evolution_api_key, evolution_instance, agent_confidence_threshold,
-      numero_whatsapp
+      numero_whatsapp, crm_clientes
     } = body;
 
     await client.query('BEGIN');
@@ -143,8 +143,9 @@ export async function PATCH(
         evolution_instance = COALESCE($25, evolution_instance),
         agent_confidence_threshold = COALESCE($26, agent_confidence_threshold),
         numero_whatsapp = COALESCE($27, numero_whatsapp),
+        crm_clientes = COALESCE($28, crm_clientes),
         updated_at = NOW()
-      WHERE id = $28
+      WHERE id = $29
       RETURNING *
     `;
 
@@ -166,6 +167,7 @@ export async function PATCH(
       evolution_instance !== undefined ? evolution_instance : null,
       agent_confidence_threshold !== undefined ? (agent_confidence_threshold !== null ? parseFloat(agent_confidence_threshold) : null) : null,
       numero_whatsapp !== undefined ? (numero_whatsapp || null) : null,
+      crm_clientes !== undefined ? crm_clientes : null,
       id
     ];
 

@@ -5,7 +5,7 @@ import { verifyAuthOrRespond } from '@/lib/auth/authHelpers'
 /**
  * GET /api/crm/config/tenant
  * Retorna configurações do tenant do usuário logado relevantes para o CRM
- * (calendario, duracao_visita, google_calendar_authorized do usuário)
+ * (calendario, crm_clientes, duracao_visita, google_calendar_authorized do usuário)
  */
 export async function GET(request: NextRequest) {
   const auth = await verifyAuthOrRespond(request)
@@ -24,9 +24,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { rows } = await pool.query(
-      `SELECT 
+      `SELECT
         COALESCE(t.calendario, false) as calendario,
-        t.duracao_visita, 
+        COALESCE(t.crm_clientes, false) as crm_clientes,
+        t.duracao_visita,
         t.google_email IS NOT NULL as empresa_configurada,
         u.google_calendar_authorized,
         u.google_refresh_token IS NOT NULL as has_google_token,

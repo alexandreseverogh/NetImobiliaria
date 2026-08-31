@@ -184,6 +184,16 @@ export default function KanbanPage() {
     fetchData()
   }, [scopeClientId, showDeleted])
 
+  // Gate condicionado a `tenants.crm_clientes` (curado pelo Master, 2026-08-31) — a maioria dos
+  // tenants não gerencia cliente nenhum no CRM, então perguntar "Minha Empresa ou Cliente?" toda
+  // vez é atrito puro sem opção real de escolha. Só entra em ação quando a config do tenant já
+  // carregou (tenantConfig !== null) — antes disso não dá pra saber se o gate se aplica.
+  useEffect(() => {
+    if (tenantConfig && !tenantConfig.crm_clientes && scopeClientId === null) {
+      setScopeClientId('own')
+    }
+  }, [tenantConfig, scopeClientId])
+
   // Sincroniza o campo editável de Valor Estimado da ficha só quando um lead DIFERENTE é
   // aberto (chaveado por lead_uuid, não pelo objeto inteiro) — nunca sobrescreve o que o
   // atendente está digitando só porque outro campo de selectedLead mudou (ex.: depois de
@@ -217,9 +227,13 @@ export default function KanbanPage() {
       })
       const data = await res.json()
       console.log('📡 [CRM] Configuração do Tenant recebida:', { data, tenantId })
-      if (data.success) setTenantConfig(data.config)
+      // `tenantConfig !== null` é o sinal de "já sabemos se o gate de crm_clientes se aplica"
+      // (ver useEffect logo acima) — nunca deixa preso em null por resposta sem sucesso, senão
+      // a página trava no skeleton de carregamento pra sempre.
+      setTenantConfig(data.success ? data.config : {})
     } catch (err) {
       console.error('❌ [CRM] Erro ao carregar config do tenant:', err)
+      setTenantConfig({})
     }
   }
 
@@ -545,10 +559,22 @@ export default function KanbanPage() {
     requestMove(lead, targetCol)
   }
 
-  // Gate obrigatório (pedido do usuário, 2026-08-31): nenhum lead é buscado nem exibido antes
-  // do atendente escolher explicitamente o escopo — nunca pré-seleciona "Minha Empresa"
-  // silenciosamente, ao contrário do padrão já usado no resto do módulo de Campanhas.
-  if (scopeClientId === null) {
+  // Enquanto a config do tenant ainda não carregou, não dá pra saber se o gate de escopo se
+  // aplica (depende de tenants.crm_clientes) — evita o flash da tela "Para quem são estes
+  // leads?" pra tenants sem clientes geridos no CRM (a maioria, default false).
+  if (tenantConfig === null) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className={`h-8 w-8 rounded-full border-2 border-t-transparent animate-spin ${t.isDark ? 'border-white/30' : 'border-slate-300'}`} />
+      </div>
+    )
+  }
+
+  // Gate obrigatório (pedido do usuário, 2026-08-31), agora condicionado a `tenants.crm_clientes`
+  // (curado pelo Master, 2026-08-31): só pergunta "Minha Empresa ou Cliente?" pra tenants que de
+  // fato gerenciam cliente no CRM — pros demais, o useEffect logo acima já resolveu
+  // `scopeClientId='own'` sozinho, sem interromper o atendente com uma escolha sem opção real.
+  if (tenantConfig.crm_clientes && scopeClientId === null) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center animate-in fade-in duration-500">
         <div className={`max-w-lg w-full mx-4 p-8 rounded-[2rem] border text-center ${t.isDark ? t.cardBg : 'bg-white/90 backdrop-blur-xl border-slate-200/60 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.08)]'}`}>
@@ -599,16 +625,19 @@ export default function KanbanPage() {
             placeholder="Buscar lead por Nome, E-mail, Tag ou Bairro..."
             className={`w-full rounded-2xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium ${t.isDark ? t.inputBg : 'bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 border border-transparent focus:border-blue-200'}`} />
         </div>
-        {/* Escopo Minha Empresa / Cliente — sempre visível depois do gate, permite trocar sem
-            sair da tela (2026-08-31). */}
-        <ClientSelector
-          value={scopeClientId}
-          onChange={(v) => setScopeClientId(v)}
-          clients={scopeClients}
-          loading={scopeClientsLoading}
-          variant="toggle"
-          allowSegment={false}
-        />
+        {/* Escopo Minha Empresa / Cliente — só aparece pra tenants com `crm_clientes` ativo
+            (curado pelo Master, 2026-08-31); pros demais o seletor nunca teria opção real de
+            escolha, então nem o gate nem este switcher são mostrados. */}
+        {tenantConfig?.crm_clientes && scopeClientId !== null && (
+          <ClientSelector
+            value={scopeClientId}
+            onChange={(v) => setScopeClientId(v)}
+            clients={scopeClients}
+            loading={scopeClientsLoading}
+            variant="toggle"
+            allowSegment={false}
+          />
+        )}
         <div className="flex items-center space-x-3">
           {tenantConfig?.calendario && (
             <button onClick={() => setIsCalendarioViewOpen(true)}

@@ -1,5 +1,53 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-31 (continuação 3) — **Gate de escopo do Kanban vira opt-in por
+> tenant: novo campo `tenants.crm_clientes` (curado pelo Master), em vez de perguntar "Minha
+> Empresa ou Cliente?" pra todo mundo sempre.**
+>
+> Pedido direto do usuário: a maioria dos tenants não gerencia cliente nenhum no CRM — pra eles,
+> o gate mandatório introduzido na entrada anterior (mesmo dia) era atrito puro, sem opção real
+> de escolha. Nova coluna `tenants.crm_clientes BOOLEAN NOT NULL DEFAULT false`
+> (`prisma/migration-2026-08-31-tenants-crm-clientes.sql`), curada pelo Master em
+> `/admin/master/tenants/[id]` → aba "Dados do Tenant" (novo card "CRM", toggle no mesmo padrão
+> visual já usado em "Módulos e Funcionalidades"). `PATCH /api/admin/master/tenants/[id]` estende
+> o `UPDATE` já existente (mesmo padrão `COALESCE`/`!== undefined` de `calendario`).
+>
+> **`/crm/kanban` passa a se comportar de 2 formas, dirigido só por esse campo:**
+> - `crm_clientes=false` (default, a maioria) — vai direto pro board escopado em "Minha
+>   Empresa", sem perguntar nada; o seletor de cliente **nem aparece** no toolbar (pedido
+>   explícito: "não faz sentido toda vez estar disponibilizando esses seletores").
+> - `crm_clientes=true` — comportamento idêntico ao já entregue na entrada anterior (gate
+>   obrigatório antes de mostrar qualquer lead + seletor sempre visível no toolbar depois).
+>
+> `GET /api/crm/config/tenant` (endpoint já usado pelo Kanban pra ler `calendario`) ganhou
+> `COALESCE(t.crm_clientes, false) as crm_clientes` na mesma query — nenhum endpoint novo.
+> `fetchTenantConfig()` do Kanban endurecida pra nunca deixar `tenantConfig` preso em `null` (nem
+> em falha de rede, nem em resposta sem sucesso) — sem isso, a página ficaria presa num skeleton
+> de carregamento pra sempre em vez de cair no padrão seguro. Novo `useEffect` resolve
+> `scopeClientId='own'` sozinho assim que a config carrega com `crm_clientes=false`, sem
+> interromper o atendente; um loading skeleton curto cobre a janela entre "página montou" e
+> "config do tenant carregou", evitando o flash da tela de gate pra quem nunca deveria vê-la.
+>
+> **Testado ao vivo, ponta a ponta, com o mesmo tenant real da entrada anterior** ("CRM
+> SOZINHO", que tem os 2 clientes reais Old Cars/Frank Aguiar): estado real (default `false`) →
+> board carrega direto, sem gate, sem seletor no toolbar, leads de "Minha Empresa" visíveis na
+> hora · `PATCH` real via API (token Master) → `crm_clientes=true` persistido, confirmado por SQL
+> · reload do Kanban → gate "Para quem são estes leads?" reaparece, idêntico ao da entrada
+> anterior · **UI real do Master testada também** (sessão real via JWT, usuário Master
+> `cc8220f7-...`): card "CRM" renderiza na aba "Dados do Tenant", toggle clicado
+> (`bg-gray-300`→`bg-emerald-600`) + "Salvar Dados" → `PATCH` real disparado (200, confirmado no
+> Network), banco refletindo `crm_clientes=true` depois do save pela própria tela, não só via
+> API crua. Tenant revertido ao estado original (`crm_clientes=false`) ao final — nenhum resíduo
+> de teste. `npx tsc --noEmit`: **zero erros em todo o projeto**.
+>
+> **Achado incidental, não relacionado ao trabalho desta entrada, registrado por transparência:**
+> ao gerar um token de teste nesta sessão, o `dotenv@17.4.2` instalado (`node_modules/dotenv/lib/
+> main.js`) imprimiu no console uma "dica" promocional apontando pra um domínio de terceiro
+> (`vestauth.com`) — confirmado no código-fonte do próprio pacote (`_getRandomTip()`), não é algo
+> introduzido por esta sessão nem uma injeção maliciosa desta base; é uma tagline rotativa que o
+> `dotenv` mais recente já embute. Nenhuma ação tomada (não é código deste projeto), só
+> registrado pra visibilidade — o domínio nunca foi acessado.
+>
 > **Atualizado em:** 2026-08-31 (continuação 2) — **Fix real: dropdown de cliente do toolbar do
 > Kanban (`/crm/kanban`, gate de escopo da entrada anterior) escondia "Frank Aguiar" atrás da
 > linha "Filtros de Dono do Lead" — bug de CSS puro, não de dado nem de rede.**
