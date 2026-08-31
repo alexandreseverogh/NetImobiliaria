@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   ListBulletIcon,
   MagnifyingGlassIcon,
@@ -21,12 +21,14 @@ import {
   CalendarIcon,
   PencilSquareIcon,
   TrashIcon,
-  ClockIcon
+  ClockIcon,
+  BuildingOfficeIcon
 } from '@heroicons/react/24/outline'
 import { adminFetch } from '@/lib/auth/adminFetch'
 import DateInputPtBR from '@/components/ui/DateInputPtBR'
 import EnrichedLeadData from '@/components/crm/EnrichedLeadData'
 import NovoLeadModal from '@/components/crm/NovoLeadModal'
+import ClientSelector, { useClientSelector, type ClientFilterValue } from '@/components/marketing/ClientSelector'
 import AgendarVisitaModal from '@/components/crm/AgendarVisitaModal'
 import AgendamentosLead from '@/components/crm/AgendamentosLead'
 import AtividadesLead from '@/components/crm/AtividadesLead'
@@ -75,6 +77,19 @@ export default function KanbanPage() {
   const [colunas, setColunas] = useState<Coluna[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  // Escopo Minha Empresa / Cliente (pedido do usuário, 2026-08-31) — null = ainda não escolhido,
+  // gate obrigatório antes de mostrar qualquer lead (diferente do padrão de Campanhas, que já
+  // defaulta pra 'own' e mostra resultado na hora — aqui a escolha é deliberadamente mandatória
+  // e nunca persiste entre sessões/reloads, sempre pergunta de novo).
+  const [scopeClientId, setScopeClientId] = useState<ClientFilterValue | null>(null)
+  const { clients: scopeClients, loading: scopeClientsLoading } = useClientSelector()
+  const scopeClientName = scopeClientId && scopeClientId !== 'own' && scopeClientId !== 'segment'
+    ? scopeClients.find(c => c.id === scopeClientId)?.name ?? null
+    : null
+  // Guard contra race condition: trocar de escopo rápido (ou criar um lead logo depois de
+  // trocar) pode disparar 2+ chamadas de fetchData quase simultâneas, sem garantia de qual
+  // resposta HTTP chega primeiro. Só a resposta da chamada MAIS RECENTE pode atualizar o state.
+  const fetchRequestIdRef = useRef(0)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [movingLead, setMovingLead] = useState(false)
   const [isNovoLeadOpen, setIsNovoLeadOpen] = useState(false)
@@ -149,7 +164,6 @@ export default function KanbanPage() {
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
 
   useEffect(() => {
-    fetchData()
     fetchTenantConfig()
     fetchAtivoFormSchema()
 
@@ -160,7 +174,15 @@ export default function KanbanPage() {
       const newUrl = window.location.pathname
       window.history.replaceState({}, '', newUrl)
     }
-  }, [searchParams?.get('google_auth'), showDeleted])
+  }, [searchParams?.get('google_auth')])
+
+  // Leads/colunas só carregam depois que o usuário escolhe o escopo (Minha Empresa / cliente) —
+  // gate obrigatório, pedido do usuário (2026-08-31). Refaz sempre que o escopo ou o filtro de
+  // "mostrar excluídos" mudam.
+  useEffect(() => {
+    if (scopeClientId === null) return
+    fetchData()
+  }, [scopeClientId, showDeleted])
 
   // Sincroniza o campo editável de Valor Estimado da ficha só quando um lead DIFERENTE é
   // aberto (chaveado por lead_uuid, não pelo objeto inteiro) — nunca sobrescreve o que o
@@ -212,13 +234,25 @@ export default function KanbanPage() {
   }
 
   const fetchData = async () => {
+    const requestId = ++fetchRequestIdRef.current
+    setLoading(true)
     try {
-      const leadsUrl = `/api/crm/leads${showDeleted ? '?includeDeleted=1' : ''}`
+      const leadsParams = new URLSearchParams()
+      if (showDeleted) leadsParams.set('includeDeleted', '1')
+      // scopeClientId só é null enquanto o gate ainda não foi passado (fetchData nunca é chamado
+      // nesse estado — ver useEffect acima); 'segment' não é uma opção oferecida nesta tela.
+      if (scopeClientId && scopeClientId !== 'segment') leadsParams.set('clientId', scopeClientId)
+      const leadsUrl = `/api/crm/leads${leadsParams.toString() ? `?${leadsParams.toString()}` : ''}`
       const [colsRes, leadsRes] = await Promise.all([adminFetch('/api/crm/kanban/colunas'), adminFetch(leadsUrl)])
       const [colsData, leadsData] = await Promise.all([colsRes.json(), leadsRes.json()])
+      // Uma chamada mais nova já pode ter respondido e atualizado o state antes desta — nunca
+      // sobrescrever com um resultado desatualizado (ver fetchRequestIdRef acima).
+      if (requestId !== fetchRequestIdRef.current) return
       if (colsData.success) setColunas(colsData.colunas)
       if (leadsData.success) setLeads(leadsData.leads)
-    } finally { setLoading(false) }
+    } finally {
+      if (requestId === fetchRequestIdRef.current) setLoading(false)
+    }
   }
 
   const getNextColumn = (currentColName: string) => {
@@ -511,6 +545,38 @@ export default function KanbanPage() {
     requestMove(lead, targetCol)
   }
 
+  // Gate obrigatório (pedido do usuário, 2026-08-31): nenhum lead é buscado nem exibido antes
+  // do atendente escolher explicitamente o escopo — nunca pré-seleciona "Minha Empresa"
+  // silenciosamente, ao contrário do padrão já usado no resto do módulo de Campanhas.
+  if (scopeClientId === null) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center animate-in fade-in duration-500">
+        <div className={`max-w-lg w-full mx-4 p-8 rounded-[2rem] border text-center ${t.isDark ? t.cardBg : 'bg-white/90 backdrop-blur-xl border-slate-200/60 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.08)]'}`}>
+          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white mx-auto mb-5 shadow-lg shadow-blue-600/20">
+            <BuildingOfficeIcon className="h-7 w-7" />
+          </div>
+          <h2 className={`text-lg font-black tracking-tight mb-2 ${t.isDark ? t.textPrimary : 'text-slate-800'}`}>
+            Para quem são estes leads?
+          </h2>
+          <p className={`text-sm mb-6 ${t.isDark ? t.textMuted : 'text-slate-500'}`}>
+            Escolha o escopo antes de ver o quadro — os leads de "Minha Empresa" e de cada
+            cliente ficam sempre separados.
+          </p>
+          <div className="flex justify-center">
+            <ClientSelector
+              value="__unset__"
+              onChange={(v) => setScopeClientId(v)}
+              clients={scopeClients}
+              loading={scopeClientsLoading}
+              variant="toggle"
+              allowSegment={false}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Toolbar Premium */}
@@ -521,6 +587,16 @@ export default function KanbanPage() {
             placeholder="Buscar lead por Nome, E-mail, Tag ou Bairro..."
             className={`w-full rounded-2xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium ${t.isDark ? t.inputBg : 'bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 border border-transparent focus:border-blue-200'}`} />
         </div>
+        {/* Escopo Minha Empresa / Cliente — sempre visível depois do gate, permite trocar sem
+            sair da tela (2026-08-31). */}
+        <ClientSelector
+          value={scopeClientId}
+          onChange={(v) => setScopeClientId(v)}
+          clients={scopeClients}
+          loading={scopeClientsLoading}
+          variant="toggle"
+          allowSegment={false}
+        />
         <div className="flex items-center space-x-3">
           {tenantConfig?.calendario && (
             <button onClick={() => setIsCalendarioViewOpen(true)}
@@ -1096,7 +1172,13 @@ export default function KanbanPage() {
         </div>
       )}
 
-      <NovoLeadModal isOpen={isNovoLeadOpen} onClose={() => setIsNovoLeadOpen(false)} onSuccess={fetchData} />
+      <NovoLeadModal
+        isOpen={isNovoLeadOpen}
+        onClose={() => setIsNovoLeadOpen(false)}
+        onSuccess={fetchData}
+        clientId={scopeClientId && scopeClientId !== 'own' && scopeClientId !== 'segment' ? scopeClientId : null}
+        clientName={scopeClientName}
+      />
 
       {/* Modal "Valor de Fechamento" — sempre que um lead entra numa etapa de Ganho */}
       {pendingGanhoMove && (

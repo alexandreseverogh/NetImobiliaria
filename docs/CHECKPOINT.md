@@ -1,5 +1,54 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-31 (continuação) — **Kanban ganha gate obrigatório de escopo
+> (Minha Empresa / Cliente) + criação manual de lead já atribuída ao cliente certo — fecha a
+> lacuna discutida com o usuário logo antes ("qual o sentido do prompt por cliente se não dá
+> pra criar lead manual pra um cliente").**
+>
+> Pedido direto do usuário: `/crm/kanban` passa a exigir, antes de mostrar qualquer lead, que o
+> atendente escolha explicitamente "Minha Empresa" ou um cliente específico — diferente do
+> padrão já usado no resto da plataforma (Campanhas sempre defaulta pra "own" e mostra na hora),
+> aqui a escolha é deliberadamente mandatória e nunca persiste entre reloads (sempre pergunta de
+> novo). Reaproveitado o componente `ClientSelector`/`useClientSelector` já maduro e testado em
+> ~9 telas de Campanhas — não escrita nenhuma lógica de fetch de cliente nova.
+>
+> **Backend** — `GET /api/crm/leads` ganha filtro opcional `?clientId=own|<uuid>` (mesma
+> convenção já usada em toda a Campanhas: ausente = comportamento antigo preservado, só o
+> Kanban passa a mandar sempre um valor explícito depois de escolhido).
+>
+> **Frontend** — `/crm/kanban/page.tsx`: novo state `scopeClientId` (`null` = gate ainda não
+> passado, `fetchData` nunca é chamado nesse estado); tela cheia "Para quem são estes leads?"
+> enquanto não escolhido; depois de escolhido, o mesmo `ClientSelector` (compacto) fica sempre
+> visível no topo pra trocar de escopo sem sair da tela. `NovoLeadModal` ganha as props
+> `clientId`/`clientName` — o lead criado pela UI manual (`+ Novo Lead`) agora nasce
+> automaticamente com o `client_id` do escopo ativo (fechando de vez a lacuna: antes desta
+> entrega, a única forma real de atribuir um lead manual a um cliente era chamar a API direto).
+> Banner "Registrando lead para: X" adicionado dentro do modal — deliberadamente distinto (cor/
+> ícone) do bloco "Buscar Cliente Existente" logo abaixo, que é sobre OUTRO conceito (quem é o
+> lead como pessoa/contato, não a qual cliente-da-agência ele pertence — os dois usam a palavra
+> "cliente" com significados diferentes nesta mesma tela).
+>
+> **Bug real de race condition encontrado e corrigido durante o próprio teste ao vivo (não
+> hipotético):** criar um lead escopado em "Old Cars" e trocar rapidamente pra "Minha Empresa"
+> fazia o lead de Old Cars aparecer errado no board de "Minha Empresa" — 2 chamadas de
+> `fetchData()` quase simultâneas (uma disparada pelo `onSuccess` do modal, ainda escopada no
+> cliente antigo; outra pela troca de escopo) sem garantia de qual resposta HTTP chega primeiro;
+> a resposta desatualizada podia sobrescrever o state por último. Corrigido com um contador de
+> sequência (`fetchRequestIdRef`, mesmo padrão já usado em outras telas do projeto, ex.
+> `/admin/campanhas/portfolio/cross-insights`) — só a resposta da chamada mais recente pode
+> atualizar `leads`/`colunas`.
+>
+> **Testado ao vivo, ponta a ponta, com dado real** (tenant "CRM SOZINHO", sessão real via JWT,
+> cliente real "Old Cars"): gate aparece sem nenhum lead visível antes da escolha · dropdown
+> real listou os 2 clientes reais do tenant · `GET /api/crm/leads?clientId=<uuid>` disparado
+> automaticamente ao escolher · lead real criado via "+ Novo Lead" com "Old Cars" selecionado →
+> banner confirmou o escopo → confirmado via SQL direto `client_id` correto · reproduzido o bug
+> de race condition ao vivo (não hipotético) → corrigido → retestado do zero (reload completo,
+> gate reaparece a cada load, sem persistir) → "Minha Empresa" mostra só os leads reais sem
+> `client_id` (3, sem o de teste) · "Old Cars" mostra o lead de teste isolado corretamente ·
+> `npx tsc --noEmit`: zero erros. Lead de teste removido via `DELETE` real, `count(*)=0`
+> confirmado.
+>
 > **Atualizado em:** 2026-08-31 — **Fix real: lead de WhatsApp orgânico no número próprio de um
 > cliente nunca era atribuído a esse cliente no CRM — achado testando a cascata de prompt por
 > cliente (2026-08-29) com o usuário.**

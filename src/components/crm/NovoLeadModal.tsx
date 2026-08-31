@@ -18,6 +18,13 @@ interface NovoLeadModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  /** Escopo já escolhido na tela do Kanban (Minha Empresa / cliente específico) — atribui o
+   *  lead novo automaticamente a esse cliente-da-agência (conta_gerenciada). null/undefined =
+   *  "Minha Empresa" (client_id fica NULL). Não confundir com `selectedClient` abaixo, que é
+   *  sobre QUEM É o lead (uma pessoa/contato), não a qual cliente da agência ele pertence. */
+  clientId?: string | null
+  /** Nome do cliente-da-agência pra exibir no banner de contexto — evita 1 fetch extra aqui. */
+  clientName?: string | null
 }
 
 interface FormSchemaField {
@@ -33,7 +40,7 @@ interface QualificationResult {
   score_fit: number | null
 }
 
-export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadModalProps) {
+export default function NovoLeadModal({ isOpen, onClose, onSuccess, clientId, clientName }: NovoLeadModalProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [loading, setLoading] = useState(false)
   // Fecha o loop de feedback (docs/CHECKPOINT.md, 2026-08-27) — sem isso, a classificação por
@@ -212,7 +219,10 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
          raw_json: modoSelecao === 'perfil' ? customData : {},
          mensagem: demanda,
          valor_venda_estimado: valorEstimado,
-         utm_source: 'CRM Manual'
+         utm_source: 'CRM Manual',
+         // Escopo escolhido na tela do Kanban antes de abrir este modal — nunca um campo
+         // preenchido aqui dentro (ver nota da prop clientId).
+         client_id: clientId || null
       }
 
       const res = await fetch('/api/crm/leads', {
@@ -264,6 +274,16 @@ export default function NovoLeadModal({ isOpen, onClose, onSuccess }: NovoLeadMo
 
             {/* Body */}
             <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+               {/* Banner de escopo — o cliente-da-agência (conta_gerenciada) já foi escolhido na
+                   tela do Kanban antes de abrir este modal, nunca aqui dentro. Deliberadamente
+                   distinto (ícone/rótulo) da "Buscar Cliente Existente" logo abaixo, que é sobre
+                   QUEM É o lead (uma pessoa), não a qual cliente da agência ele pertence. */}
+               <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                  <BuildingOfficeIcon className="h-4 w-4 text-blue-400 shrink-0" />
+                  <p className="text-xs font-bold text-blue-300">
+                    Registrando lead para: <span className="text-white">{clientId ? (clientName || 'Cliente selecionado') : 'Minha Empresa'}</span>
+                  </p>
+               </div>
                {step === 1 && (
                   <div className="space-y-6 animate-in slide-in-from-right-4">
                      {/* Client Search */}

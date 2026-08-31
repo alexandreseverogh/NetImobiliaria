@@ -431,6 +431,13 @@ export async function GET(request: NextRequest) {
     // endpoint sem esse param e precisa continuar vendo TODOS os leads, sem filtro de período.
     const timeframeParam = searchParams.get('timeframe')
 
+    // Escopo Minha Empresa / Cliente (pedido do usuário, 2026-08-31) — mesma convenção já usada
+    // em todo o módulo de Campanhas (ClientFilter = 'own' | '<uuid>' | ausente). Opt-in: sem
+    // `clientId` na query, comportamento antigo é preservado (todos os leads do tenant,
+    // próprios + de clientes, misturados) — só o Kanban passa a mandar esse param sempre,
+    // depois que o usuário escolhe o escopo na tela.
+    const clientIdParam = searchParams.get('clientId')
+
     const conditions: string[] = []
     const params: any[] = []
     if (!isMaster) {
@@ -439,6 +446,12 @@ export async function GET(request: NextRequest) {
     }
     if (!includeDeleted) {
       conditions.push('l.deleted_at IS NULL')
+    }
+    if (clientIdParam === 'own') {
+      conditions.push('l.client_id IS NULL')
+    } else if (clientIdParam) {
+      params.push(clientIdParam)
+      conditions.push(`l.client_id = $${params.length}::uuid`)
     }
     if (timeframeParam) {
       const { from, to } = resolveTimeframeRange(timeframeParam, searchParams.get('startDate'), searchParams.get('endDate'))
