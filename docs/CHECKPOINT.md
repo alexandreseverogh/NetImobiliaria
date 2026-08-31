@@ -1,5 +1,52 @@
 # CHECKPOINT — Estado Atual do Projeto
 
+> **Atualizado em:** 2026-08-31 (continuação 2) — **Fix real: dropdown de cliente do toolbar do
+> Kanban (`/crm/kanban`, gate de escopo da entrada anterior) escondia "Frank Aguiar" atrás da
+> linha "Filtros de Dono do Lead" — bug de CSS puro, não de dado nem de rede.**
+>
+> **Contexto:** usuário reportou, em várias rodadas com print real, que o dropdown de cliente do
+> toolbar (o mesmo `ClientSelector` da entrada anterior, agora dentro do board já carregado) só
+> mostrava "Old Cars" — "Frank Aguiar" nunca aparecia, mesmo os dois clientes existindo de
+> verdade no tenant e a API retornando os dois corretamente (confirmado pelo próprio usuário via
+> aba Network do navegador dele: Response com os 2 clientes). Investigação inicial (Fast Refresh
+> acumulado, race condition no `fetchData`) corrigiu problemas reais mas não o relatado pelo
+> usuário — `document.body.innerText` confirmava os 2 nomes presentes no DOM, o que mascarou o
+> problema real: `innerText` não distingue texto genuinamente visível de texto coberto por outro
+> elemento via CSS. Só uma reprodução com clique real (não `.click()` sintético) + screenshot
+> revelou o sintoma de verdade: a linha "Todos os donos / DE / ATÉ" (Filtros de Dono do Lead,
+> logo abaixo do toolbar) pintava por cima do topo do dropdown aberto, cobrindo justamente a
+> 1ª opção da lista.
+>
+> **Causa raiz confirmada via `getComputedStyle`/`getBoundingClientRect`:** o toolbar (que
+> contém o `ClientSelector`) e a linha de filtros logo abaixo usam a mesma classe
+> `backdrop-blur-xl` — essa propriedade cria um **novo contexto de empilhamento CSS** mesmo em
+> elemento `position: static`. Como nenhum dos dois tinha `z-index` explícito no nível do PAI
+> comum, a ordem de pintura passou a depender só da ordem no HTML — e a linha de filtros, que vem
+> DEPOIS no DOM, pintava por cima do toolbar inteiro, inclusive do dropdown com `z-index: 50`
+> (que só vale *dentro* do contexto de empilhamento do próprio toolbar, nunca escapa pra fora
+> dele). **Corrigido:** `relative z-20` explícito no `<div>` do toolbar
+> (`src/app/crm/kanban/page.tsx`), garantindo que ele sempre pinte acima da linha de filtros,
+> independente da ordem no DOM.
+>
+> **Achado incidental no processo, corrigido junto:** a tela de gate (mesma entrada anterior)
+> passava `value="__unset__"` como sentinela de "nada escolhido ainda" pro `ClientSelector` —
+> como a lógica interna do componente (`isClientSelected = value !== 'segment' && value !==
+> 'own'`) trata qualquer valor que não seja exatamente `'segment'`/`'own'` como "é um cliente",
+> a pill "Para um Cliente" renderizava dourada/destacada mesmo antes de qualquer escolha real do
+> usuário. Corrigido trocando o sentinela pra `"segment"` — valor que a própria lógica do
+> componente já trata como "não é cliente" (e que nunca é oferecido como opção real ali, já que
+> o gate usa `allowSegment={false}`) — sem tocar no componente compartilhado (usado em ~9 outras
+> telas de Campanhas).
+>
+> **Testado ao vivo, ponta a ponta, com clique real (não sintético)** — tenant "CRM SOZINHO",
+> sessão real via JWT: gate screen recarregado → pill "Para um Cliente" confirmada em cinza
+> neutro (não mais dourada) antes de qualquer escolha · escolhido "Old Cars" no gate → board
+> carrega com o toolbar mostrando "Old Cars" · clique real no pill do toolbar → dropdown abre com
+> "Frank Aguiar" e "Old Cars" **ambos totalmente visíveis e clicáveis**, nenhum coberto pela linha
+> de filtros abaixo (bug original confirmado corrigido) · clique em "Frank Aguiar" → escopo trocou
+> corretamente, board recarregou filtrado pra ele (0 leads, esperado — cliente de teste sem leads
+> reais). `npx tsc --noEmit`: **zero erros em todo o projeto**.
+>
 > **Atualizado em:** 2026-08-31 (continuação) — **Kanban ganha gate obrigatório de escopo
 > (Minha Empresa / Cliente) + criação manual de lead já atribuída ao cliente certo — fecha a
 > lacuna discutida com o usuário logo antes ("qual o sentido do prompt por cliente se não dá

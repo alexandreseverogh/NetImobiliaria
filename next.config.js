@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// last-restart: 2026-08-28 (1) — cascata Client/Tenant/Segmento/Global de modelo LLM e prompts (novo Prisma Client + rotas novas)
+// last-restart: 2026-08-31 (2) — gate de escopo no Kanban (Fast Refresh acumulado na aba do usuário durante as edições)
 // Configurações baseadas no ambiente (sem TypeScript)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const isProduction = process.env.NODE_ENV === 'production'

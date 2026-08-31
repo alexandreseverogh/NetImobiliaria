@@ -564,7 +564,14 @@ export default function KanbanPage() {
           </p>
           <div className="flex justify-center">
             <ClientSelector
-              value="__unset__"
+              // "segment" nunca é oferecido como opção aqui (allowSegment={false}, mais
+              // abaixo) — reaproveitado só como sentinela de "nada escolhido ainda", já que
+              // `isClientSelected` do componente trata "segment" como não-cliente (mesma regra
+              // que já usa pra não destacar a pill "Para um Cliente" à toa). Achado real: um
+              // sentinela solto tipo "__unset__" cai no ramo "é um cliente" por eliminação
+              // (não é nem 'segment' nem 'own') e pinta a pill de dourado antes de qualquer
+              // escolha real do usuário.
+              value="segment"
               onChange={(v) => setScopeClientId(v)}
               clients={scopeClients}
               loading={scopeClientsLoading}
@@ -579,8 +586,13 @@ export default function KanbanPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Toolbar Premium */}
-      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${t.isDark ? t.cardBg : 'bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.05)]'} p-4 rounded-[2rem]`}>
+      {/* Toolbar Premium — precisa de "relative z-20" explícito: o próprio backdrop-blur-xl
+          desta div cria um contexto de empilhamento CSS separado do da linha de filtros logo
+          abaixo (que também tem backdrop-blur-xl); sem um z-index aqui no nível do PAI comum,
+          o dropdown do ClientSelector (z-50, mas preso dentro deste contexto) fica coberto pela
+          linha seguinte, que vem depois no HTML. Bug real, achado testando com o usuário
+          (2026-08-31) — só aparecia com o dropdown aberto pelo toolbar, nunca pelo gate. */}
+      <div className={`relative z-20 flex flex-col md:flex-row md:items-center justify-between gap-4 ${t.isDark ? t.cardBg : 'bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.05)]'} p-4 rounded-[2rem]`}>
         <div className="relative flex-1 max-w-xl">
           <MagnifyingGlassIcon className={`absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 ${t.isDark ? t.textMuted : 'text-slate-400'}`} />
           <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
